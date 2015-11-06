@@ -1,0 +1,174 @@
+/* [wxMaxima batch file version 1] [ DO NOT EDIT BY HAND! ]*/
+/* [ Created with wxMaxima version 14.12.0 ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+load (f90);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+printval(var):= block([val],
+                      val: var = ev(var),
+                      val: subst(["^"='stdpow,%e=euler],val),
+                      f90(val)
+                     );
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AA : Ax*Ax + Ay*Ay;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+BB : Bx*Bx + By*By;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+CC : Cx*Cx + Cy*Cy;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AAmCC : AA - CC;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AAmBB:  AA - BB;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+BBmCC: BB - CC;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+CCmAA: CC - AA;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+BBmAA: BB - AA;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+CCmBB: CC - BB;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AymBy: Ay - By;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AymCy: Ay - Cy;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+BymCy: By - Cy;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AxmBx: Ax - Bx;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+AxmCx: Ax - Cx;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+BxmCx: Bx - Cx;
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+det : (AxmCx)*(AymBy) - (AymCy)*(AxmBx);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+x0 : ((1/2)*(1/det)*((AymBy)*(AAmCC) - (AymCy)*(AAmBB)));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+y0 : (1/2)*(1/det)*((AxmCx)*(AAmBB) - (AxmBx)*(AAmCC));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+rinv : 1/(sqrt( (x0 - Ax)*(x0 - Ax) + (y0 - Ay)*(y0 - Ay) ));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+f(x) := (
+
+  subst( 'AAmCC,  AAmCC,     subst( 'AAmBB,  AAmBB,     subst( 'BBmCC,  BBmCC,
+  subst( 'CCmAA,  CCmAA,     subst( 'BBmAA,  BBmAA,     subst( 'CCmBB,  CCmBB,
+
+  subst( 'AymBy,  AymBy,     subst( 'AymCy,  AymCy,     subst( 'BymCy,  BymCy,
+  subst( 'AxmBx,  AxmBx,     subst( 'AxmCx,  AxmCx,     subst( 'BxmCx,  BxmCx,
+
+  subst( 'AA,    AA,         subst( 'BB,    BB,         subst( 'CC,    CC,
+
+  subst( 'det,   det, 
+  subst( 'x0,    x0,
+  subst( 'y0,    y0,
+  subst( 'rinv,  rinv,
+          combine(x)
+))))))))))))))))))));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+drinvdAxnum : f((rinv^-3)*diff(rinv,Ax));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+drinvdAynum : f((rinv^-3)*diff(rinv,Ay));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+drinvdBxnum : f((rinv^-3)*diff(rinv,Bx));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+drinvdBynum : f((rinv^-3)*diff(rinv,By));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: hide output   ] */
+/* [wxMaxima: input   start ] */
+drinvdCxnum : f((rinv^-3)*diff(rinv,Cx));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+drinvdCynum : f((rinv^-3)*diff(rinv,Cy));
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+[
+printval('drinvdAxnum),
+printval('drinvdAynum),
+printval('drinvdBxnum),
+printval('drinvdBynum),
+printval('drinvdCxnum),
+printval('drinvdCynum)
+]$
+/* [wxMaxima: input   end   ] */
+
+/* Maxima can't load/batch files which end with a comment! */
+"Created with wxMaxima"$

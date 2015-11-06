@@ -1,0 +1,167 @@
+# Makefile for Project - Utilities.
+# Written by hal clark from [2011-20??].
+
+XTRA_FLAGS   = 
+XTRA_DEFINES = 
+
+XTRA_LIBS    = -L/usr/local/lib/ 
+XTRA_MISC    = -lm 
+
+LINK         = /home/hal/crosscompilers/i486-linux-musl/bin/i486-musl-linux-ar rcs
+
+CC           = /home/hal/crosscompilers/i486-linux-musl/bin/i486-linux-musl-g++ \
+               -std=c++11 -ggdb -O2 -Wall  -fstack-protector-all -fstack-check  \
+               -L/tmp/cross_musl_libs/ -I/tmp/cross_musl_incs/
+
+
+.PHONY: all
+
+all: prep  libygor.a
+
+
+########################################################################
+#####                        Binary Targets                        #####
+########################################################################
+YgorMisc.o: YgorMisc.h YgorMisc.cc YgorString.h YgorString.cc
+	${CC} -fPIC -c YgorMisc.cc #YgorString.cc 
+
+YgorContainers.o: YgorContainers.h YgorContainers.cc
+	${CC} -fPIC -c YgorContainers.cc
+
+YgorAlgorithms.o: YgorAlgorithms.h YgorAlgorithms.cc spookyhash.o
+	${CC} -fPIC -c YgorAlgorithms.cc  #-lm
+
+YgorEnvironment.o: YgorEnvironment.h YgorEnvironment.cc
+	${CC} -fPIC -c YgorEnvironment.cc
+
+YgorMath.o: YgorMath.h  YgorMath.cc
+	${CC} -fPIC -c YgorMath.cc  
+
+YgorMath_Samples.o: YgorMath_Samples.h  YgorMath_Samples.cc
+	${CC} -fPIC -c YgorMath_Samples.cc  
+
+YgorPlot.o: YgorPlot.h  YgorPlot.cc
+	${CC} -fPIC -c YgorPlot.cc  #-lplot
+
+YgorString.o:  YgorString.h  YgorString.cc
+	${CC} -fPIC -c YgorString.cc  #-lboost-regex
+
+YgorFilesDirs.o: YgorFilesDirs.h YgorFilesDirs.cc
+	${CC} -fPIC -c YgorFilesDirs.cc
+
+YgorPerformance.o: YgorPerformance.h  YgorPerformance.cc
+	${CC} -fPIC -c YgorPerformance.cc
+
+YgorNoise.o: YgorNoise.h  YgorNoise.cc
+	${CC} -fPIC -c YgorNoise.cc  
+
+YgorNetworking.o: YgorNetworking.h  YgorNetworking.cc
+	${CC} -fPIC -c -DUSE_OWN_GETIFADDR YgorNetworking.cc External/getifaddrs.c
+
+YgorTime.o: YgorTime.h YgorTime.cc
+	${CC} -fPIC -c YgorTime.cc
+
+CSVTools.o: CSVTools.h CSVTools.cc
+	${CC} -fPIC -c CSVTools.cc
+
+YgorDICOMTools.o: YgorDICOMTools.h YgorDICOMTools.cc
+	${CC} -fPIC -c YgorDICOMTools.cc
+
+YgorCONFIGTools.o: YgorCONFIGTools.h YgorCONFIGTools.cc
+	${CC} -fPIC -c YgorCONFIGTools.cc
+
+YgorURITools.o: YgorURITools.h YgorURITools.cc
+	${CC} -fPIC -c YgorURITools.cc #-lhtmlcxx
+
+YgorVIDEOTools.o: YgorVIDEOTools.h YgorVIDEOTools.cc
+	${CC} -fPIC -c YgorVIDEOTools.cc 
+
+# External compilations.
+spookyhash.o: External/SpookyHash/SpookyV2.cpp External/SpookyHash/SpookyV2.h
+	${CC} -fPIC -c External/SpookyHash/SpookyV2.cpp -o spookyhash.o
+
+
+# Separate libraries for the individual files?                    Naw...
+#
+#libmymisc.so: YgorMisc.o
+#	${CC} -shared -Wl,-soname,libmymisc.so.1 -o libmymisc.so.0.1  YgorMisc.o -lboost_regex
+
+
+# One master library for all the individual files?              
+#  Probably easier, but will it drag in too much crap??
+libygor.so: YgorMisc.o YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
+               YgorArguments.h YgorMath_Samples.o YgorTime.o                         \
+               YgorPlot.o YgorString.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
+               YgorNetworking.o CSVTools.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
+               YgorVIDEOTools.o spookyhash.o
+	${CC} -rdynamic -shared -Wl,-soname,libygor.so -o libygor.so     \
+               YgorMisc.o YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
+               YgorMath_Samples.o YgorTime.o                                       \
+               YgorPlot.o YgorString.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
+               YgorNetworking.o CSVTools.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
+               YgorVIDEOTools.o spookyhash.o                                       \
+               -lhtmlcxx -lboost_regex -lplot -lm 
+
+libygor.a: YgorMisc.o YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
+              YgorArguments.h YgorMath_Samples.o YgorTime.o                         \
+              YgorPlot.o YgorString.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
+              YgorNetworking.o CSVTools.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
+              YgorVIDEOTools.o spookyhash.o
+	${LINK} libygor.a YgorMisc.o YgorContainers.o YgorAlgorithms.o           \
+              YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorFilesDirs.o      \
+              YgorMath_Samples.o YgorTime.o                                       \
+              YgorPerformance.o YgorNoise.o YgorNetworking.o CSVTools.o             \
+              YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o YgorVIDEOTools.o spookyhash.o
+
+########################################################################
+#####                         Prep Target                          #####
+########################################################################
+prep:
+	mkdir -p /tmp/cross_musl_libs/
+	mkdir -p /tmp/cross_musl_incs/
+	cp -R /usr/include/boost      /tmp/cross_musl_incs/
+	cp    /lib/libhtmlcxx.*       /tmp/cross_musl_libs/
+	cp    /lib/libplot.*          /tmp/cross_musl_libs/
+	cp    /lib/libboost_regex.*   /tmp/cross_musl_libs/
+	cp    /lib/libm.*             /tmp/cross_musl_libs/
+
+
+########################################################################
+#####                       Install Targets                        #####
+########################################################################
+install: all
+	install -Dm644 libygor.a               /tmp/cross_musl_libs/
+	ldconfig -n                               /tmp/cross_musl_libs/
+	install -Dm644 YgorContainers.h             /tmp/cross_musl_incs/
+	install -Dm644 YgorAlgorithms.h             /tmp/cross_musl_incs/
+	install -Dm644 YgorArguments.h              /tmp/cross_musl_incs/ 
+	install -Dm644 YgorEnvironment.h            /tmp/cross_musl_incs/
+	install -Dm644 YgorMisc.h                   /tmp/cross_musl_incs/
+	install -Dm644 YgorMath.h                   /tmp/cross_musl_incs/
+	install -Dm644 YgorMath_Samples.h           /tmp/cross_musl_incs/
+	install -Dm644 YgorPlot.h                   /tmp/cross_musl_incs/
+	install -Dm644 YgorString.h                 /tmp/cross_musl_incs/
+	install -Dm644 YgorFilesDirs.h              /tmp/cross_musl_incs/
+	install -Dm644 YgorPerformance.h            /tmp/cross_musl_incs/
+	install -Dm644 YgorNoise.h                  /tmp/cross_musl_incs/
+	install -Dm644 YgorNetworking.h             /tmp/cross_musl_incs/
+	install -Dm644 YgorTime.h                   /tmp/cross_musl_incs/
+	install -Dm644 YgorDICOMTools.h               /tmp/cross_musl_incs/
+	install -Dm644 CSVTools.h                 /tmp/cross_musl_incs/
+	install -Dm644 YgorCONFIGTools.h              /tmp/cross_musl_incs/
+	install -Dm644 YgorURITools.h                 /tmp/cross_musl_incs/
+	install -Dm644 YgorVIDEOTools.h               /tmp/cross_musl_incs/
+
+
+########################################################################
+#####                      Cleaning Targets                        #####
+########################################################################
+clean: 
+	rm libygor.so libygor.a YgorMisc.o YgorContainers.o YgorAlgorithms.o \
+           YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorFilesDirs.o        \
+           YgorMath_Samples.o YgorTime.o                                         \
+           YgorPerformance.o YgorNoise.o YgorNetworking.o YgorDICOMTools.o CSVTools.o  \
+           YgorCONFIGTools.o YgorURITools.o YgorVIDEOTools.o \
+	   spookyhash.o
+
+

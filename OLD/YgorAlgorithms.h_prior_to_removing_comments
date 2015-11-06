@@ -1,0 +1,328 @@
+//YgorAlgorithms.h - A collection of some custom (niche?) algorithms. This includes things like multidimensional minimization
+// routines (and other 'algorithm'-sorts of classes.)
+
+#ifndef YGOR_CUSTOM_ALGORITHMS_HC_
+#define YGOR_CUSTOM_ALGORITHMS_HC_
+
+#ifndef YGOR_CUSTOM_ALGORITHMS_HC_AGGRESSIVELY_ATTEMPT_ASYNCHRONOUS
+    #define YGOR_CUSTOM_ALGORITHMS_HC_AGGRESSIVELY_ATTEMPT_ASYNCHRONOUS
+#endif
+
+
+#include <iostream>
+#include <cmath>
+#include <functional>    //Needed to (easily) accept lambda functions in higher-order functions.
+
+
+//NOTE: It is *probably* better to NOT use an aggressive attempt to force asynchronicity!
+// Exceptions can result otherwise, and my (more modern) laptop calls asynchronously whenever
+// possible anyways. Ygor (older) desktop cannot handle it, though, and pukes out a non-catchable
+// exception if forced.
+// 
+//#ifdef YGOR_CUSTOM_ALGORITHMS_HC_AGGRESSIVELY_ATTEMPT_ASYNCHRONOUS
+//    #include <system_error>  //Needed to launch non-deferrable std::async(..)'s.
+//#endif
+
+#include <stdexcept>
+
+#include <future>
+//#include <chrono>
+#include <list>
+
+#include "YgorMisc.h"
+
+//----------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------------------- NMSimplex ----------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------------
+//Implements the "Nelder-Mead simplex" (or "Downhill simplex," or "Amoeba") method in double precision.
+//
+//NOTE: This code was written mostly by referring to Numerical Recipes and the GNU Scientific Library. It is my belief
+// that it does not follow so closely to either as to infringe on either of their copyrights. However, care should be 
+// exercised if planning on releasing this code. Perhaps a complete re-write and/or modification would be in order.
+//
+//Numerical Recipes mentions that the simplex method computes the function more often than other methods and suggests 
+// that Powell's method is usually more effcient.
+//
+//
+//For usage details, refer to the test included in the Project - Utilities tests and examples directory.
+//
+template <class T> class NMSimplex{
+    public:
+       T alpha, gamma, rho, sigma;   //Used as input parameters by the method.
+       size_t i,j;
+       size_t curr_min;
+       size_t curr_max;
+       size_t curr_scnd_max;
+       int DIM;
+       T *P_vecs;
+       T *func_vals;        //Stores the function values at each P_vec.
+       T *centroid;         //Stores (worst-point-excluded) centroid.
+       T *reflec;           //Stores the reflected point. It is always calculated.
+       T *expand;           //Stores the expanded point, if it is calculated.
+       T temp_reflec;
+       T temp_expand;
+       int iteration;       //The current algorithm's iteration.
+       int max_iters;
+       T last_best;
+       T ftol_min;
+       T ftol;              //The amount the function changes by (when it does). This is used as an indicator to halt.
+       int init_done;       //Whether the initialization has been called yet.
+       T c_leng;            //The characteristic length of the system. IE: A rough scale (0.001, 1.0, 10000,  etc..).
+//       T (*the_func)(T *);  //A reference to the function to be minimized. The (T *) is indicative that 
+std::function<T(T *)> the_func;
+
+        //Constructor. 
+        NMSimplex(int dim, T c_leng_in, int max_iters_in, T ftol_min_in){
+            DIM = dim;
+            c_leng = c_leng_in;
+            max_iters = max_iters_in;
+            ftol_min = ftol_min_in;
+
+            //We first need to create (dim+1) vectors.
+            P_vecs =    (T*)malloc((DIM+1)*DIM*sizeof(T));  //This holds all the "P" vectors.
+            //This vector stores function values at each P vector.
+            func_vals = (T*)malloc((DIM+1)*sizeof(T));
+            //Some working space for transferring data.
+            centroid  = (T*)malloc((DIM)*sizeof(T));
+            reflec    = (T*)malloc((DIM)*sizeof(T));
+            expand    = (T*)malloc((DIM)*sizeof(T));
+            alpha = 1.0;  //Standard values for the Nelder-mead simplex method. Could maybe use some tweaking...
+            gamma = 2.0;
+            rho   = 0.5;
+            sigma = 0.5;
+            iteration = 0;
+            ftol = ftol_min * 100.0;
+            init_done = 0;          //This is flipped on when initialization is completed.
+
+        }
+
+        //Destructor.
+        ~NMSimplex(void){
+             free(P_vecs);
+             free(func_vals);
+             free(centroid);
+             free(reflec);
+             free(expand);
+        }
+
+        //Minimization routine (single) iteration.
+        int iter(void){
+           if(iteration == 0){
+               //For the P* vectors other than P0, we set them equal to a linear combination
+               // of P0 and the parameter unit vectors using c_leng.
+               for(i=1;i<=DIM;++i) for(j=0;j<DIM;++j){
+                   P_vecs[i*DIM+j] = P_vecs[0*DIM+j];
+                   if(i-1 == j) P_vecs[i*DIM+j] += c_leng*1.0;               //The 1.0 comes from the unit vector.
+               }
+               //Compute all function values. This will be costly but is necessary right now.
+               for(i=0;i<=DIM;++i) func_vals[i] = the_func(&P_vecs[i*DIM]);
+               //Set the ftol catch to something relevant to the system... (Better idea for this??)
+               last_best = func_vals[0];
+               init_done = 1;
+           }
+           if(iteration <= max_iters && ftol > ftol_min && init_done == 1){
+               //Find the worst function value. 
+               curr_max = 0;
+               for(i=1;i<=DIM;++i) if( func_vals[i] > func_vals[curr_max] ) curr_max = i;
+
+               //Find the second worst function value.
+               curr_scnd_max = 0;
+               for(i=1;i<=DIM;++i) if( i != curr_max ) if( func_vals[i] > func_vals[curr_scnd_max] ) curr_scnd_max = i;
+
+               //Find the best function value.
+               curr_min = 0;
+               for(i=1;i<=DIM;++i) if( i != curr_max ) if( i != curr_scnd_max ) if( func_vals[i] < func_vals[curr_min] ) curr_min = i;
+
+               //Update the ftol value.
+               if( last_best != func_vals[curr_min] ){ //ie: If the value is not *exactly* the previous result.
+                   ftol = fabs(last_best - func_vals[curr_min]);
+                   last_best = func_vals[curr_min];
+               }
+ 
+               //Calculate the centroid of all points except the worst one.
+               for(i=0;i<DIM;++i) centroid[i] = 0.0;
+               for(i=0;i<=DIM;++i) if( i != curr_max ) for(j=0;j<DIM;++j) centroid[j] += P_vecs[i*DIM+j];
+               for(i=0;i<DIM;++i) centroid[i] /= (T)DIM;
+
+               //Compute the reflection point.
+               for(i=0;i<DIM;++i) reflec[i] = centroid[i] + alpha*(centroid[i] - P_vecs[curr_max*DIM+i]);
+
+               //if   f(curr_min) <= f(RECR) < f(curr_max), then replace the worst point with reflec and return.
+               temp_reflec = the_func(reflec);
+               if(func_vals[curr_min] <= temp_reflec  && temp_reflec < func_vals[curr_scnd_max] ){
+                   for(i=0;i<DIM;++i) P_vecs[curr_max*DIM+i] = reflec[i];
+                   func_vals[curr_max] = temp_reflec;
+                   ++iteration;
+                   return 0;
+               }
+
+               //The expanded point is a method to try improve the reflected point (if the refl. pnt is good to begin with.)
+               //It adds another function evaluation and might be able to skipped for very costly functions.
+               //if the reflected point is the best point yet, then compute the expanded point.
+               if(temp_reflec < func_vals[curr_min]){
+                   for(i=0;i<DIM;++i) expand[i] = centroid[i] + gamma*(centroid[i] - P_vecs[curr_max*DIM+i]);
+                   //Choose the point which is best at this point.
+                   temp_expand = the_func(expand);
+                   if(temp_expand < temp_reflec){
+                       for(i=0;i<DIM;++i) P_vecs[curr_max*DIM+i] = expand[i];
+                       func_vals[curr_max] = temp_expand;
+                       ++iteration;
+                       return 0;
+                   }else{
+                       for(i=0;i<DIM;++i) P_vecs[curr_max*DIM+i] = reflec[i];
+                       func_vals[curr_max] = temp_reflec;
+                       ++iteration;
+                       return 0;
+                   }
+               }
+
+               //Compute the contracted point. We will re-use the reflected point array for efficiency.
+               for(i=0;i<DIM;++i) reflec[i] = centroid[i] + rho*(centroid[i] - P_vecs[curr_max*DIM+i]);
+               temp_reflec = the_func(reflec);
+               if(temp_reflec < func_vals[curr_max]){
+                   for(i=0;i<DIM;++i) P_vecs[curr_max*DIM+i] = reflec[i];
+                   func_vals[curr_max] = temp_reflec;
+                   ++iteration;
+                   return 0;
+               }
+
+               //If we have made it this far, we 'shrink' the simplex. We also recompute the function 
+               // for the points we have shrunk (all but the curr_min).
+               for(i=0;i<=DIM;++i) if(i != curr_min){
+                   for(j=0;j<DIM;++j) P_vecs[i*DIM+j] = P_vecs[curr_min*DIM+j] + sigma*(P_vecs[i*DIM+j]-P_vecs[curr_min*DIM+j]);
+                   func_vals[i] = the_func(&P_vecs[i*DIM]);
+               }
+               ++iteration;
+               return 0;
+           //Check why the scheme is refusing to compute the next iteration.
+           }else{
+               if(iteration > max_iters) return 1;
+               if(ftol <= ftol_min)      return 2;
+               return -1;
+           }
+        }
+
+//        void init(T params[], T (&the_func_in)(T *)){
+        void init(T params[], std::function<T (T *)> the_func_in){
+            //Set the P0 vector as the params[] array.
+            for(i=0;i<DIM;++i) P_vecs[i] = params[i];
+
+            //Set the_func reference.
+//            the_func = &the_func_in;
+            the_func = the_func_in;
+
+            init_done = 1;
+            return;
+        }
+
+
+        void get_params(T params[]){
+            curr_min = 0;
+            for(i=1;i<=DIM;++i) if( i != curr_max ) if( i != curr_scnd_max ) if( func_vals[i] < func_vals[curr_min] ) curr_min = i;
+            for(i=0;i<DIM;++i) params[i] = P_vecs[curr_min*DIM+i];
+            return;
+        }
+
+//        void get_all(T (&the_func)(T *), T params[], T &func_val){
+        void get_all(std::function<T (T *)> the_func, T params[], T &func_val){
+            curr_min = 0;
+            for(i=1;i<=DIM;++i) if( i != curr_max ) if( i != curr_scnd_max ) if( func_vals[i] < func_vals[curr_min] ) curr_min = i;
+            for(i=0;i<DIM;++i) params[i] = P_vecs[curr_min*DIM+i];
+            func_val = the_func(params);
+            return;
+        }
+
+        void printout(void){
+            std::cout << "The function values are currently: ";
+            for(i=0;i<=DIM;++i) std::cout << func_vals[i] << "  ";
+            std::cout << " at iteration " << iteration << std::endl;
+            return;
+        }
+
+};
+
+
+
+//----------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------------- For_Each_In_Parallel -----------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------------
+//Given two iterators and a std::function<void(...::iterator )>, this routine will perform the function on each element in parallel.
+//
+//Execution will block (ie. wait for all tasks to finish) before returning.
+
+//template <class T>
+//void For_Each_In_Parallel(T it, T end, std::function< void ( T )> Task){
+//    if(! Task ){
+//        FUNCWARN("Task passed in is not valid. Unable to perform any task. Continuing");
+//        return;
+//    }
+
+template <class T, class Function>
+void For_Each_In_Parallel(T it, T end, Function Task){
+
+    //Launch the tasks, ensuring to keep the handles so we can tell when the task is completed.
+    std::list< std::future<void> > handle_keeper;
+    for( ; it != end; ++it){
+        //NOTE: We run into problems if we do not OR std::launch::deferred on some platforms. From cpp-info:
+        //
+        // "...Throws std::system_error with error condition std::errc::resource_unavailable_try_again if 
+        //    the launch policy is std::launch::async and the implementation is unable to start a new thread."
+        //
+        //  ..however, if we use  std::launch::async | std::launch::deferred  then we will mostly get lazy 
+        //  evaluation (anecdotally.) Therefore, we launch as many non-deferrables as we can until an error 
+        //  is thrown and THEN we switch to deferrables.
+
+        decltype(  std::async( std::launch::async, Task, it )  )  newfuture;
+        #ifdef YGOR_CUSTOM_ALGORITHMS_HC_AGGRESSIVELY_ATTEMPT_ASYNCHRONOUS
+            try{
+//                handle_keeper.push_back( std::async( std::launch::async, Task, it ) );
+//std::cout << "++++++++ About to create the async" << std::endl;
+//std::cout.flush();
+
+                newfuture = std::async( std::launch::async, Task, it );
+
+//std::cout << "++++++++ Successfully created async!" << std::endl;
+//std::cout.flush();
+
+            }catch(const std::system_error &e){
+//std::cout << "!!!!!!! Caught error! Attempting another push." << std::endl;
+//std::cout.flush();
+//                handle_keeper.push_back( std::async( std::launch::async | std::launch::deferred, Task, it ) );
+                newfuture = std::async( std::launch::async | std::launch::deferred, Task, it );
+
+                //Attempt to jump-start evaluation of the thread. 
+//                (*(handle_keeper.end())).wait_for(
+                //Attempt to force execution of the existing non-deferred threads.
+//                for(auto h_it = handle_keeper.begin(); h_it != handle_keeper.end(); ++h_it){
+//                    h_it->wait_for(std::chrono::milliseconds(100));
+//                }
+            }catch(const std::exception &e){
+//std::cout << "!!!!!!! Caught  STD  error! Attempting another push." << std::endl;
+//std::cout.flush();
+                newfuture = std::async( std::launch::async | std::launch::deferred, Task, it );
+            }
+        #else
+//            handle_keeper.push_back( std::async( std::launch::async | std::launch::deferred, Task, it ) );
+            newfuture = std::async( std::launch::async | std::launch::deferred, Task, it );
+
+            handle_keeper.push_back( std::async( std::launch::async | std::launch::deferred, Task, it ) );
+
+(*(handle_keeper.rend())).wait();
+
+        #endif
+        handle_keeper.push_back( std::move( newfuture ) );
+
+    };
+
+    //Wait on the tasks in the same order we have launched them.
+    for(auto h_it = handle_keeper.begin(); h_it != handle_keeper.end(); ++h_it){
+        h_it->get();
+    }
+
+    return;
+}
+
+
+
+
+#endif 

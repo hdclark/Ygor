@@ -1,0 +1,38 @@
+/* [wxMaxima batch file version 1] [ DO NOT EDIT BY HAND! ]*/
+/* [ Created with wxMaxima version 14.09.0 ] */
+
+/* [wxMaxima: input   start ] */
+m:(YR-YL)/(XR-XL);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+
+E: ((YR*A-m)*exp(A*(XR+X0)) - (YL*A-m)*exp(A*(XL+X0)))/(A*A);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdYR: diff(E,YR);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdYL: diff(E,YL);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdXR: diff(E,XR);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdXL: diff(E,XL);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdA: diff(E,A);
+/* [wxMaxima: input   end   ] */
+
+/* [wxMaxima: input   start ] */
+dFdX0: diff(E,X0);
+/* [wxMaxima: input   end   ] */
+
+/* Maxima can't load/batch files which end with a comment! */
+"Created with wxMaxima"$
