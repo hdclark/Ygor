@@ -14,7 +14,7 @@
 
 #include "YgorMisc.h"
 #include "YgorMath.h"
-#include "YgorMathPlotting.h"
+#include "YgorMathPlottingGnuplot.h"
 #include "YgorStats.h"
 #include "YgorPlot.h"
 #include "YgorFilesDirs.h"
@@ -69,31 +69,31 @@ int main(int, char **){
     auto local_curve = buffe.Local_Signed_Curvature_Three_Datum();
 
     {
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlA(local_curva, "Buffer A");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlB(local_curvb, "Buffer B");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlC(local_curvc, "Buffer C");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlA(local_curva, "Buffer A");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlB(local_curvb, "Buffer B");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlC(local_curvc, "Buffer C");
 
-        YgorMathPlotting::Plot<double>({shtlA, shtlB, shtlC}, 
+        YgorMathPlottingGnuplot::Plot<double>({shtlA, shtlB, shtlC}, 
                                        std::string("Three Buffers (A,B,C)"), 
                                        std::string("x-axis title"),
                                        std::string("y-axis title"));
     }
     {
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlA(local_curvc, "Buffer C");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlB(local_curvd, "Buffer D");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlC(local_curve, "Buffer E");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlA(local_curvc, "Buffer C");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlB(local_curvd, "Buffer D");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlC(local_curve, "Buffer E");
 
-        YgorMathPlotting::Plot<double>({shtlA, shtlB, shtlC},
+        YgorMathPlottingGnuplot::Plot<double>({shtlA, shtlB, shtlC},
                                        std::string("Three Buffers (C,D,E)"),
                                        std::string("x-axis title"),
                                        std::string("y-axis title"));
     }
     {
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlA(local_curva, "Buffer A");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlB(local_curvc, "Buffer C");
-        YgorMathPlotting::Shuttle<samples_1D<double>> shtlC(local_curve, "Buffer E");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlA(local_curva, "Buffer A");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlB(local_curvc, "Buffer C");
+        YgorMathPlottingGnuplot::Shuttle<samples_1D<double>> shtlC(local_curve, "Buffer E");
 
-        YgorMathPlotting::Plot<double>({shtlA, shtlB, shtlC},
+        YgorMathPlottingGnuplot::Plot<double>({shtlA, shtlB, shtlC},
                                        std::string("Three Buffers (A,C,E)"),
                                        std::string("x-axis title"),
                                        std::string("y-axis title"));

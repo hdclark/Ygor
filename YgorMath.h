@@ -577,6 +577,9 @@ template <class T> class samples_1D {
         samples_1D<T> Strip_Uncertainties_in_x(void) const;
         samples_1D<T> Strip_Uncertainties_in_y(void) const;
 
+        //Ensure there is a single datum with the given x_i (within +-eps), averaging coincident data if necessary.
+        void Average_Coincident_Data(T eps);
+
         //Replaces {x,y}-values with rank. {dup,N}-plicates get an averaged (maybe non-integer) rank.
         samples_1D<T> Rank_x(void) const;
         samples_1D<T> Rank_y(void) const;

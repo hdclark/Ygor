@@ -4648,6 +4648,84 @@ template <class T> samples_1D<T> samples_1D<T>::Strip_Uncertainties_in_y(void) c
     template samples_1D<double> samples_1D<double>::Strip_Uncertainties_in_y(void) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
+//Ensure there is a single datum with the given x_i, averaging coincident data if necessary.
+//
+// Note: This routine sorts data along x_i, lowest-first.
+//
+// Note: Parameter eps need not be small. All parameters must be within eps of every other member of the
+//       group in order to be grouped together and averaged. In other words, this routine requires <eps 
+//       from the furthest-left datum, NOT <eps from the nearest-left datum. The latter would allow long
+//       chains with a coincidence length potentially infinitely long.
+//
+// Note: Because coincident x_i are averaged (because eps need not be small), under certain circumstances
+//       the output may have points separated by <eps. This should only happen when significant information
+//       is lost during averaging, so is likely to happen for denormals, very large and very small inputs,
+//       and any other numerically unstable situations. It is best in any case not to rely on the output
+//       being separated by >=eps. (If you want such control, explicitly resampling/interpolating would be
+//       a better idea.)
+//
+// Note: For uncertainty propagation purposes, datum with the same x_i (within eps) are considered to be
+//       estimates of the same quantity. If you do not want this behaviour and you have uncertainties
+//       that are known to be independent and random, consider 'faking' non-independence or non-randomness
+//       for this call. That way uncertainties will be a simple average of the incoming d_x_i. 
+//
+template <class T> void samples_1D<T>::Average_Coincident_Data(T eps) {
+    this->stable_sort();
+    if(this->samples.size() < 2) return;
+    auto itA = std::begin(this->samples);
+    while(itA != std::end(this->samples)){
+        //Advance a second iterator past all coincident samples.
+        auto itB = std::next(itA);
+        while(itB != std::end(this->samples)){
+            if(((*itB)[0]-(*itA)[0]) < eps){
+                ++itB;
+            }else{
+                break;
+            }
+        }
+
+        //If there were not coincident data, move on to the next datum.
+        const auto num = std::distance(itA,itB);
+        if(num == 1){
+            ++itA;
+            continue;
+        }
+
+        //Average the elements [itA,itB).
+        std::array<T,4> averaged;
+        averaged.fill(static_cast<T>(0));
+        for(auto it = itA; it != itB; ++it){
+            averaged[2] += (*it)[2];
+            averaged[0] += (*it)[0]; //Though these are all within eps of A, eps may not be small. 
+                                     // Averaging avoids bias at the cost of some loss of precision.
+
+            if(this->uncertainties_known_to_be_independent_and_random){
+                averaged[1] += std::pow((*it)[1],static_cast<T>(2.0));
+                averaged[3] += std::pow((*it)[3],static_cast<T>(2.0));
+            }else{
+                averaged[1] += std::abs((*it)[1]);
+                averaged[3] += std::abs((*it)[3]);
+            }
+        }
+        if(this->uncertainties_known_to_be_independent_and_random){
+            averaged[1] = std::sqrt(averaged[1]);
+            averaged[3] = std::sqrt(averaged[3]);
+        }
+        averaged[0] /= static_cast<T>(num);
+        averaged[1] /= static_cast<T>(num);
+        averaged[2] /= static_cast<T>(num);
+        averaged[3] /= static_cast<T>(num);
+
+        std::swap(*itA,averaged);
+        itA = this->samples.erase(std::next(itA),itB);
+    } 
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void samples_1D<float >::Average_Coincident_Data(float  eps);
+    template void samples_1D<double>::Average_Coincident_Data(double eps);
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
 template <class T> samples_1D<T> samples_1D<T>::Rank_x(void) const {
     //Replaces x-values with (~integer) rank. {dup,N}-plicates get an averaged (maybe non-integer) rank. The y-values (f_i 
     // and sigma_f_i) are not affected. The order of the elements will not be altered.
