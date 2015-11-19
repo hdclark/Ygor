@@ -1728,6 +1728,108 @@ planar_image_collection<T,R>::get_images_which_sandwich_point_within_top_bottom_
         planar_image_collection<float   ,double>::get_images_which_sandwich_point_within_top_bottom_planes(const vec3<double> &in);
 #endif
 
+
+//Returns the metadata key-values that are "common" (i.e., identical among all images).
+// For ordering purposes, images in *this are considered to have priority over those in 'in'.
+template <class T,class R>
+std::map<std::string,std::string> 
+planar_image_collection<T,R>::get_common_metadata(const std::list<images_list_it_t> &in) const {
+    //Collect all available metadata.
+
+    std::list<typename std::list<planar_image<T,R>>::const_iterator> img_its;
+
+    for(auto it = this->images.cbegin(); it != this->images.cend(); ++it){
+        img_its.emplace_back(it);
+    }
+    for(const auto &it : in) img_its.emplace_back(it);
+
+    std::multimap<std::string,std::string> all_m;
+    for(const auto &img_it : img_its){ 
+        for(const auto &m : img_it->metadata){
+            //If the key is not present, insert it unconditionally.
+            //If the key is present twice or more, it is already spoiled so move along.
+            //If the key is present once, check if values differ; insert iff they do.
+            const auto count = all_m.count(m.first);
+            if( (count == 0)
+            ||  ((count == 1) && (all_m.lower_bound(m.first)->second != m.second)) ){
+                all_m.insert(m);
+            }
+        }
+    }
+
+    //Construct the outgoing metadata iff there was a single value corresponding to a given key.
+    std::map<std::string,std::string> out;
+    for(const auto &m : all_m){
+        if(all_m.count(m.first) == 1) out.insert(m);
+    }
+    return out;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::map<std::string,std::string> 
+        planar_image_collection<uint8_t ,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+    template std::map<std::string,std::string> 
+        planar_image_collection<uint16_t,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+    template std::map<std::string,std::string> 
+        planar_image_collection<uint32_t,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+    template std::map<std::string,std::string> 
+        planar_image_collection<uint64_t,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+    template std::map<std::string,std::string> 
+        planar_image_collection<float   ,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+#endif
+
+//Returns a copy of all values that correspond to the given key. Order is maintained.
+template <class T,class R>
+std::list<std::string> 
+planar_image_collection<T,R>::get_all_values_for_key(const std::string &akey) const {
+    std::list<std::string> out;
+    for(const auto &animg : this->images){
+        auto it = animg.metadata.find(akey);
+        if(it != animg.metadata.end()){
+            out.emplace_back(it->second);
+        }
+    }
+    return out;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::list<std::string> 
+        planar_image_collection<uint8_t ,double>::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint16_t,double>::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint32_t,double>::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint64_t,double>::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<float   ,double>::get_all_values_for_key(const std::string &) const;
+#endif
+
+//Returns a copy of all unique values that correspond to the given key. Original order is maintained.
+template <class T,class R>
+std::list<std::string> 
+planar_image_collection<T,R>::get_unique_values_for_key(const std::string &akey) const {
+    auto all_values = this->get_all_values_for_key(akey);
+    std::map<std::string,size_t> counts;
+    for(const auto &avalue : all_values) counts[avalue]++;
+    
+    std::list<std::string> out;
+    for(const auto &avalue : all_values){
+        if(counts[avalue] == 1) out.emplace_back(avalue);
+    }
+    return out;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::list<std::string>
+        planar_image_collection<uint8_t ,double>::get_unique_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint16_t,double>::get_unique_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint32_t,double>::get_unique_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<uint64_t,double>::get_unique_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<float   ,double>::get_unique_values_for_key(const std::string &) const;
+#endif
+
 //Image pruning/partitioning routine. Returns 'pruned' images; retains the rest. If pruning predicate is true, image is pruned.
 // Image order is stable for both pruned and retained images.
 //
@@ -1807,8 +1909,10 @@ bool planar_image_collection<T,R>::Process_Images(
                                       std::reference_wrapper<planar_image_collection<T,R>> )>         image_grouper,
                              std::function<bool (images_list_it_t, 
                                       std::list<images_list_it_t>,
+                                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
                                       std::experimental::any )>                                       operation_functor,      
+                             std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_images,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
                              std::experimental::any                                                   user_data ){
 
@@ -1915,6 +2019,7 @@ bool planar_image_collection<T,R>::Process_Images(
         //
         auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it,
                                   typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
+                                  typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                   typename std::list<std::reference_wrapper<contour_collection<R>>>,
                                   typename std::experimental::any ) -> bool {
 
@@ -1937,9 +2042,9 @@ bool planar_image_collection<T,R>::Process_Images(
         };
  
         if(operation_functor){
-            operation_functor(curr_img_it, selected_imgs, contour_collections, user_data);
+            operation_functor(curr_img_it, selected_imgs, external_images, contour_collections, user_data);
         }else{
-            default_op_func(curr_img_it, selected_imgs, contour_collections, user_data);
+            default_op_func(curr_img_it, selected_imgs, external_images, contour_collections, user_data);
         }
 
         //Remove *all* of the overlapping image iterators from the to_be_avgd list, including the image you 
@@ -1966,8 +2071,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::reference_wrapper<planar_image_collection<uint8_t ,double>> )>,
          std::function<bool (images_list_it_t, 
                   std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
                   std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::experimental::any );
 
@@ -1976,8 +2083,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::reference_wrapper<planar_image_collection<uint16_t,double>> )>,
          std::function<bool (images_list_it_t, 
                   std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
                   std::experimental::any )>, 
+         std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::experimental::any );
 
@@ -1986,8 +2095,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::reference_wrapper<planar_image_collection<uint32_t,double>> )>,
          std::function<bool (images_list_it_t, 
                   std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
                   std::experimental::any )>, 
+         std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::experimental::any );
 
@@ -1996,8 +2107,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::reference_wrapper<planar_image_collection<uint64_t,double>> )>,
          std::function<bool (images_list_it_t, 
                   std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
                   std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::experimental::any );
 
@@ -2006,8 +2119,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::reference_wrapper<planar_image_collection<float   ,double>> )>,
          std::function<bool (images_list_it_t,
                   std::list<images_list_it_t>,
+                  std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
                   std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::experimental::any );
 
@@ -2185,6 +2300,7 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
     //Functor for pixel-level, channel-separate averaging.
     auto op_func = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it,
                       typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
+                      typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                       typename std::list<std::reference_wrapper<contour_collection<R>>>,
                       typename std::experimental::any ) -> bool {
         //Loop over the rows, columns, and channels.
@@ -2220,8 +2336,8 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
         return true;
     };
 
-    if(image_grouper) return this->Process_Images(image_grouper, op_func, {});
-    return this->Process_Images(default_image_grouper, op_func, {});
+    if(image_grouper) return this->Process_Images(image_grouper, op_func, {}, {});
+    return this->Process_Images(default_image_grouper, op_func, {}, {});
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template bool planar_image_collection<uint8_t ,double>::Condense_Average_Images( 
@@ -2355,6 +2471,9 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
     template bool planar_image_collection<float   ,double>::Collate_Images(planar_image_collection<float   ,double> &in, bool GeometricalOverlapOK);
 #endif
 
+//------------------------------------------------------------------------------------------------------------
+
+
 //Produce an image by cutting through the image collection and copying intersecting pixels.
 // No interpolation is performed -- pixels that spatially overlap are simply copied.
 //
@@ -2376,18 +2495,20 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
 // NOTE: This routine works on a per-channel basis. The input image must have an equal or lesser number
 //       of channels than all images in the collection.
 //
-template <class T,class R> long int planar_image_collection<T,R>::Intersection_Copy(planar_image<T,R> &in) const {
+template <class T,class R> 
+long int Intersection_Copy(planar_image<T,R> &in, 
+                           const std::list<typename planar_image_collection<T,R>::images_list_it_t> &imgs){
     long int count = 0;
     for(auto row = 0; row < in.rows; ++row){
         for(auto col = 0; col < in.columns; ++col){
             //Find the first image that coincides with this pixel (if any exists).
             const auto pos = in.position(row,col);
-            for(const auto &img : this->images){
-                if(img.index(pos,0) > 0){
+            for(const auto &img_it : imgs){
+                if(img_it->index(pos,0) > 0){
                     //Cycle through the channels, copying the coinciding pixel.
                     for(auto chnl = 0; chnl < in.channels; ++chnl){
-                        const auto indx = img.index(pos,chnl);
-                        in.reference(row, col, chnl) = img.value(indx);
+                        const auto indx = img_it->index(pos,chnl);
+                        in.reference(row, col, chnl) = img_it->value(indx);
                         ++count;
                     }
                     break;
@@ -2395,14 +2516,24 @@ template <class T,class R> long int planar_image_collection<T,R>::Intersection_C
             }
         }
     }
+  
+    if(count != 0){
+        planar_image_collection<T,R> dummy;
+        in.metadata = dummy.get_common_metadata(imgs);
+    }
     return count;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image_collection<uint8_t ,double>::Intersection_Copy(planar_image<uint8_t ,double> &in) const;
-    template long int planar_image_collection<uint16_t,double>::Intersection_Copy(planar_image<uint16_t,double> &in) const;
-    template long int planar_image_collection<uint32_t,double>::Intersection_Copy(planar_image<uint32_t,double> &in) const;
-    template long int planar_image_collection<uint64_t,double>::Intersection_Copy(planar_image<uint64_t,double> &in) const;
-    template long int planar_image_collection<float   ,double>::Intersection_Copy(planar_image<float   ,double> &in) const;
+    template long int Intersection_Copy(planar_image<uint8_t ,double> &,
+             const std::list<typename planar_image_collection<uint8_t ,double>::images_list_it_t> &);
+    template long int Intersection_Copy(planar_image<uint16_t,double> &, 
+             const std::list<typename planar_image_collection<uint16_t,double>::images_list_it_t> &);
+    template long int Intersection_Copy(planar_image<uint32_t,double> &, 
+             const std::list<typename planar_image_collection<uint32_t,double>::images_list_it_t> &);
+    template long int Intersection_Copy(planar_image<uint64_t,double> &, 
+             const std::list<typename planar_image_collection<uint64_t,double>::images_list_it_t> &);
+    template long int Intersection_Copy(planar_image<float   ,double> &, 
+             const std::list<typename planar_image_collection<float   ,double>::images_list_it_t> &);
 #endif
 
 

@@ -254,21 +254,26 @@ template <class T,class R>   class planar_image_collection {
         //std::list<typename std::list<planar_image<T,R>>::iterator> get_images_which_encompass_all_points(const std::list<vec3<R>> &in);
         //std::list<typename std::list<planar_image<T,R>>::iterator> get_images_which_sandwich_point_within_top_bottom_planes(const vec3<R> &in);
 
+        //Various selectors and other non-member getters.
         std::list<images_list_it_t> get_all_images(void);
         std::list<images_list_it_t> get_images_satisfying(std::function<bool(const planar_image<T,R> &animg)> select_pred);
         std::list<images_list_it_t> get_images_which_encompass_point(const vec3<R> &in);
         std::list<images_list_it_t> get_images_which_encompass_all_points(const std::list<vec3<R>> &in);
         std::list<images_list_it_t> get_images_which_sandwich_point_within_top_bottom_planes(const vec3<R> &in);
 
+        std::map<std::string,std::string> get_common_metadata(const std::list<images_list_it_t> &in) const; //Uses both *this and input.
+        std::list<std::string> get_all_values_for_key(const std::string &akey) const;
+        std::list<std::string> get_unique_values_for_key(const std::string &akey) const;
+
+
         //Image pruning/partitioning routine. Returns 'pruned' images; retains the rest in *this. If pruning predicate is true, 
         // image is pruned. The output from these functions can be ignored if you don't care about it!
         planar_image_collection<T,R> Prune_Images_Satisfying(std::function<bool(const planar_image<T,R> &animg)> prune_pred);
-        planar_image_collection<T,R> Retain_Images_Satisfying(std::function<bool(const planar_image<T,R> &animg)> retaine_pred);
-
+        planar_image_collection<T,R> Retain_Images_Satisfying(std::function<bool(const planar_image<T,R> &animg)> retain_pred);
 
         //Generic routine for processing/combining groups of images into single images with a user-defined operation. This is useful 
         // for spatial averaging, blurring, etc.. Note that this routine modifies *this, so deep-copy beforehand if needed. See 
-        // in-source default functors for descriptions/examples.
+        // in-source default functors for descriptions/examples. The user has full read-write access to the external_imgs.
         //
         // Note that this routine converts groups of images into single images and then *erases* all but one of the old images.
         // This is a feature; many algorithms condense groups of images into a single image.
@@ -276,8 +281,10 @@ template <class T,class R>   class planar_image_collection {
                                       std::reference_wrapper<planar_image_collection<T,R>> )>         image_grouper,
                              std::function<bool (images_list_it_t, 
                                       std::list<images_list_it_t>,
+                                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
                                       std::experimental::any )>                                       operation_functor, 
+                             std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_imgs,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
                              std::experimental::any                                                   user_data = std::experimental::any() );
 
@@ -327,9 +334,16 @@ template <class T,class R>   class planar_image_collection {
         // Should always work if either image collection is empty.
         bool Collate_Images(planar_image_collection<T,R> &in, bool GeometricalOverlapOK = true);
 
-        //Produce an image by cutting through the image collection and copying intersecting pixels.
-        long int Intersection_Copy(planar_image<T,R> &in) const;
+//        //Produce an image by cutting through the image collection and copying intersecting pixels.
+//        long int Intersection_Copy(planar_image<T,R> &in, const std::list<images_list_it_t> &in) const;
 
 };
+
+
+//Produce an image by cutting through the image collection and copying intersecting pixels.
+template <class T,class R>
+long int Intersection_Copy(planar_image<T,R> &in, 
+                           const std::list<typename planar_image_collection<T,R>::images_list_it_t> &imgs);
+
 
 #endif
