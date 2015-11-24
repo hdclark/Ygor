@@ -248,6 +248,59 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
     template int64_t  Stats::Unbiased_Var_Est(std::vector<int64_t>  in);
 #endif
 
+//----------------------------------------- Running Accumulators and Tallies ----------------------------------------------
+template <typename T>
+Stats::Running_MinMax<T>::Running_MinMax() : PresentMin(std::numeric_limits<T>::max()),
+                                             PresentMax(std::numeric_limits<T>::min()) { };
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template Stats::Running_MinMax<double  >::Running_MinMax();
+    template Stats::Running_MinMax<float   >::Running_MinMax();
+    template Stats::Running_MinMax<uint64_t>::Running_MinMax();
+    template Stats::Running_MinMax<int64_t >::Running_MinMax();
+#endif
+
+template <typename T>
+void Stats::Running_MinMax<T>::Digest(T in){
+    //Be aware of sending only NaN's and +-infs through this routine.
+    this->PresentMin = std::min(this->PresentMin, in);
+    this->PresentMax = std::max(this->PresentMax, in);
+    return;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template void Stats::Running_MinMax<double  >::Digest(double   in);
+    template void Stats::Running_MinMax<float   >::Digest(float    in);
+    template void Stats::Running_MinMax<uint64_t>::Digest(uint64_t in);
+    template void Stats::Running_MinMax<int64_t >::Digest(int64_t  in);
+#endif
+
+template <typename T>
+T Stats::Running_MinMax<T>::Current_Min(void) const {
+    if(this->PresentMin > this->PresentMax){
+        throw std::runtime_error("Not enough (finite?) data digested to provide min/max");
+    }
+    return this->PresentMin;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Running_MinMax<double  >::Current_Min(void) const;
+    template float    Stats::Running_MinMax<float   >::Current_Min(void) const;
+    template uint64_t Stats::Running_MinMax<uint64_t>::Current_Min(void) const;
+    template int64_t  Stats::Running_MinMax<int64_t >::Current_Min(void) const;
+#endif
+
+template <typename T>
+T Stats::Running_MinMax<T>::Current_Max(void) const {
+    if(this->PresentMin > this->PresentMax){
+        throw std::runtime_error("Not enough (finite?) data digested to provide min/max");
+    }
+    return this->PresentMax;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Running_MinMax<double  >::Current_Max(void) const;
+    template float    Stats::Running_MinMax<float   >::Current_Max(void) const;
+    template uint64_t Stats::Running_MinMax<uint64_t>::Current_Max(void) const;
+    template int64_t  Stats::Running_MinMax<int64_t >::Current_Max(void) const;
+#endif
+
 
 //--------------------------------------------- P-value (and related) routines ----------------------------------------------
 double Stats::P_From_StudT_1Tail(double tval, double dof){
