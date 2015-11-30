@@ -14,6 +14,7 @@
 #include <vector>
 #include <array>
 #include <limits>
+#include <utility>
 #include <experimental/optional>
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -567,8 +568,8 @@ template <class T> class samples_1D {
         void stable_sort(void); //Sorts on x-axis. Lowest-first.
 
         //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
-        std::array<T,4> Get_Extreme_Datum_x(void) const;
-        std::array<T,4> Get_Extreme_Datum_y(void) const;
+        std::pair<std::array<T,4>,std::array<T,4>> Get_Extreme_Datum_x(void) const;
+        std::pair<std::array<T,4>,std::array<T,4>> Get_Extreme_Datum_y(void) const;
 
         //Normalizes data so that \int_{-inf}^{inf} f(x) (times) f(x) dx = 1 multiplying by constant factor.
         void Normalize_wrt_Self_Overlap(void);

@@ -15,6 +15,7 @@
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <vector>
 #include <iomanip>     //Needed for std::setw() for pretty-printing.
+#include <utility>     //Needed for std::pair.
 #include <experimental/optional>
 
 #include "YgorMath.h"
@@ -4573,39 +4574,41 @@ template <class T>  void samples_1D<T>::stable_sort() {
     template void samples_1D<double>::stable_sort();
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T>  std::array<T,4> samples_1D<T>::Get_Extreme_Datum_x(void) const {
+template <class T>  std::pair<std::array<T,4>,std::array<T,4>> samples_1D<T>::Get_Extreme_Datum_x(void) const {
     //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
     if(this->empty()){
         const auto nan = std::numeric_limits<T>::quiet_NaN();
-        return { nan, nan, nan, nan };
+        return std::make_pair<std::array<T,4>,std::array<T,4>>({nan,nan,nan,nan},{nan,nan,nan,nan});
     }
 
     samples_1D<T> working;
     working = *this;
     working.stable_sort();
-    return working.samples.front(); 
+    return std::pair<std::array<T,4>,std::array<T,4>>(working.samples.front(),working.samples.back()); 
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::array<float ,4> samples_1D<float >::Get_Extreme_Datum_x(void) const;
-    template std::array<double,4> samples_1D<double>::Get_Extreme_Datum_x(void) const;
+    template std::pair<std::array<float ,4>,std::array<float ,4>> samples_1D<float >::Get_Extreme_Datum_x(void) const;
+    template std::pair<std::array<double,4>,std::array<double,4>> samples_1D<double>::Get_Extreme_Datum_x(void) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T>  std::array<T,4> samples_1D<T>::Get_Extreme_Datum_y(void) const {
+template <class T>  std::pair<std::array<T,4>,std::array<T,4>> samples_1D<T>::Get_Extreme_Datum_y(void) const {
     //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
     if(this->empty()){
         const auto nan = std::numeric_limits<T>::quiet_NaN();
-        return { nan, nan, nan, nan };
+        return std::make_pair<std::array<T,4>,std::array<T,4>>({nan,nan,nan,nan},{nan,nan,nan,nan});
     }
 
     samples_1D<T> working;
     working = this->Swap_x_and_y();
     working.stable_sort();
-    const auto flipped = working.samples.front();
-    return { flipped[2], flipped[3], flipped[0], flipped[1] };
+    const auto flippedF = working.samples.front();
+    const auto flippedB = working.samples.back();
+    return std::pair<std::array<T,4>,std::array<T,4>>({flippedF[2],flippedF[3],flippedF[0],flippedF[1]},
+                          {flippedB[2],flippedB[3],flippedB[0],flippedB[1]});
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::array<float ,4> samples_1D<float >::Get_Extreme_Datum_y(void) const;
-    template std::array<double,4> samples_1D<double>::Get_Extreme_Datum_y(void) const;
+    template std::pair<std::array<float ,4>,std::array<float ,4>> samples_1D<float >::Get_Extreme_Datum_y(void) const;
+    template std::pair<std::array<double,4>,std::array<double,4>> samples_1D<double>::Get_Extreme_Datum_y(void) const;
 #endif
 ///---------------------------------------------------------------------------------------------------------------------------
 template <class T>   void samples_1D<T>::Normalize_wrt_Self_Overlap(void){
