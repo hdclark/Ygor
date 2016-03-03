@@ -51,7 +51,7 @@ struct Waiter {
 // TODO: Use something atomic here instead of thread_local. Using thread_local accomplishes
 //       goals, but is heavyweight if there are lots of threads around. We can't tell how
 //       many are around (this is supposed to be library code), so it is quite wasteful.
-thread_local std::list<Waiter> ThreadWaiter;
+static thread_local std::list<Waiter> ThreadWaiter;
 
 
 
@@ -59,8 +59,8 @@ thread_local std::list<Waiter> ThreadWaiter;
 // the template can be a samples_1D<T>, a contour_with_points<R>, or some STL container.
 template <class C>
 struct Shuttle {
-    C const &Data;
-    //C Data;
+    //C const &Data;
+    C Data;
     std::string Title;
     std::vector<std::pair<std::string,std::string>> UsingWith;
 
@@ -151,6 +151,7 @@ void Plot(const std::vector<Shuttle<samples_1D<T>>> &Shuttles,
 
     fprintf(fp, "plot sin(x) \n"); // Try to get a window open ASAP.
     fflush(fp);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
  
     { 
       const std::string linewidth("1.1"), pointsize("0.4");
@@ -284,13 +285,14 @@ void Plot(const std::vector<Shuttle<samples_1D<T>>> &Shuttles,
     fflush(fp);
 
     if(!BlockOnPlottingWindow){
-        fprintf(fp, "pause 1 \n");
+        std::this_thread::sleep_for(std::chrono::seconds(1));        
+        //fprintf(fp, " pause 1 \n");
         fflush(fp);
-        fprintf(fp, "refresh \n");
+        fprintf(fp, " refresh \n");
         fflush(fp);
-        fprintf(fp, "pause mouse close \n"); //Wait for the user to close the window.
+        fprintf(fp, " pause mouse close \n"); //Wait for the user to close the window.
         fflush(fp);
-        fprintf(fp, "exit gnuplot\n");
+        fprintf(fp, " exit gnuplot \n");
         fflush(fp);
     }
 

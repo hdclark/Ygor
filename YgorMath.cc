@@ -4328,6 +4328,38 @@ template <class T> lin_reg_results<T>::lin_reg_results() { }
 #endif
 
 //--------------------------------------------------------- Members ---------------------------------------------------------
+
+template <class T>
+T
+lin_reg_results<T>::evaluate_simple(T x) const {
+    return this->intercept + this->slope * x;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  lin_reg_results<float >::evaluate_simple(float ) const;
+    template double lin_reg_results<double>::evaluate_simple(double) const;
+#endif
+
+template <class T>
+samples_1D<T>
+lin_reg_results<T>::sample_uniformly_over(T xmin, T xmax, size_t n) const {
+    if(n < 2) throw std::invalid_argument("Not possible to provide reasonable output with so few sample points");
+    samples_1D<T> out;
+    const bool InhibitSort = true;
+    const auto dx = (xmax - xmin) / static_cast<T>(n-1);
+    const auto zero = static_cast<T>(0);
+    for(size_t i = 0; i < n; ++i){
+        const auto x = static_cast<T>(i) * dx + xmin;
+        out.push_back( x, zero, this->evaluate_simple(x), zero );
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > lin_reg_results<float >::sample_uniformly_over(float , float , size_t) const;
+    template samples_1D<double> lin_reg_results<double>::sample_uniformly_over(double, double, size_t) const;
+#endif
+
+
+
 template <class T> std::string lin_reg_results<T>::display_table(void) const {
     //Compare all members which aren't NAN. Aligns into a simple table.
     std::stringstream head, item;
@@ -4499,6 +4531,16 @@ template <class T>  void samples_1D<T>::push_back(T x_i, T sigma_x_i, T f_i, T s
     template void samples_1D<double>::push_back(double x_i, double sigma_x_i, double f_i, double sigma_f_i, bool inhibit_sort);
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
+template <class T>  void samples_1D<T>::push_back(const std::array<T,2> &x_dx, const std::array<T,2> &y_dy, bool inhibit_sort){
+    this->samples.push_back( { std::get<0>(x_dx), std::get<1>(x_dx), std::get<0>(y_dy), std::get<1>(y_dy) } );
+    if(!inhibit_sort) this->stable_sort();
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void samples_1D<float >::push_back(const std::array<float ,2> &x_dx, const std::array<float ,2> &y_dy, bool inhibit_sort);
+    template void samples_1D<double>::push_back(const std::array<double,2> &x_dx, const std::array<double,2> &y_dy, bool inhibit_sort);
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
 template <class T>  void samples_1D<T>::push_back(const std::array<T,4> &samp, bool inhibit_sort){
     this->samples.push_back( samp );
     if(!inhibit_sort) this->stable_sort();
@@ -4575,7 +4617,7 @@ template <class T>  void samples_1D<T>::stable_sort() {
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>  std::pair<std::array<T,4>,std::array<T,4>> samples_1D<T>::Get_Extreme_Datum_x(void) const {
-    //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
+    //Get the datum with the minimum and maximum x_i. If duplicates are found, there is no rule specifying which.
     if(this->empty()){
         const auto nan = std::numeric_limits<T>::quiet_NaN();
         return std::make_pair<std::array<T,4>,std::array<T,4>>({nan,nan,nan,nan},{nan,nan,nan,nan});
@@ -4592,7 +4634,7 @@ template <class T>  std::pair<std::array<T,4>,std::array<T,4>> samples_1D<T>::Ge
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>  std::pair<std::array<T,4>,std::array<T,4>> samples_1D<T>::Get_Extreme_Datum_y(void) const {
-    //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
+    //Get the datum with the minimum and maximum f_i. If duplicates are found, there is no rule specifying which.
     if(this->empty()){
         const auto nan = std::numeric_limits<T>::quiet_NaN();
         return std::make_pair<std::array<T,4>,std::array<T,4>>({nan,nan,nan,nan},{nan,nan,nan,nan});
@@ -5338,6 +5380,32 @@ template <class T>  std::array<T,4> samples_1D<T>::Interpolate_Linearly(const T 
     template std::array<float ,4> samples_1D<float >::Interpolate_Linearly(const float  &at_x) const;
     template std::array<double,4> samples_1D<double>::Interpolate_Linearly(const double &at_x) const;
 #endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T> 
+samples_1D<T> 
+samples_1D<T>::Resample_Equal_Spacing(size_t N) const {
+    //Resamples the data into approximately equally-spaced samples using linear interpolation.
+    if(N < 2) throw std::invalid_argument("Unable to resample < 2 datum with equal spacing");
+
+    samples_1D<T> out;
+    out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
+    const bool InhibitSort = true;
+
+    //Get the endpoints.
+    auto extrema = this->Get_Extreme_Datum_x();
+    const T xmin = extrema.first[0];
+    const T xmax = extrema.second[0];
+    const T dx = (xmax - xmin) / static_cast<T>(N-1);
+    for(size_t i = 0; i < N; ++i){
+        out.push_back( this->Interpolate_Linearly( xmin + dx * static_cast<T>(i) ), InhibitSort );
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Resample_Equal_Spacing(size_t) const;
+    template samples_1D<double> samples_1D<double>::Resample_Equal_Spacing(size_t) const;
+#endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>  samples_1D<T> samples_1D<T>::Multiply_With(T factor) const {
     //Multiply all sample f_i's by a given factor. Uncertainties are appropriately scaled too.
@@ -5353,6 +5421,21 @@ template <class T>  samples_1D<T> samples_1D<T>::Multiply_With(T factor) const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Multiply_With(float  factor) const;
     template samples_1D<double> samples_1D<double>::Multiply_With(double factor) const;
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>  samples_1D<T> samples_1D<T>::Sum_With(T factor) const {
+    //Add the given factor to all sample f_is. Uncertainties are unchanged (since the given factor
+    // implicitly has no uncertainty).
+    samples_1D<T> out;
+    out = *this;
+    for(auto &elem : out.samples){
+        elem[2] += factor;
+    }
+    return std::move(out);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Sum_With(float  factor) const;
+    template samples_1D<double> samples_1D<double>::Sum_With(double factor) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>  samples_1D<T> samples_1D<T>::Apply_Abs(void) const {
@@ -7806,8 +7889,8 @@ samples_1D<T>::GetMetadataValueAs(std::string key) const {
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   bool samples_1D<T>::Write_To_File(const std::string &filename) const {
-    //This routine writes the numerical data to file in a 2-column format. It can be directly plotted or otherwise 
-    // manipulated by, say, GNUplot.
+    //This routine writes the numerical data to file in a 4-column format. It can be directly plotted or otherwise 
+    // manipulated by, say, Gnuplot.
     //
     //NOTE: This routine will not overwrite or append an existing file. It will return 'false' on any error or if 
     //      encountering an existing file.
@@ -7817,6 +7900,50 @@ template <class T>   bool samples_1D<T>::Write_To_File(const std::string &filena
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool samples_1D<float >::Write_To_File(const std::string &filename) const;
     template bool samples_1D<double>::Write_To_File(const std::string &filename) const;
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filename){
+    //This routine reads numerical data from a file in 4-column format. No metadata is retained or recovered. 
+    //
+    // NOTE: This routine will return 'false' on any error.
+    //
+    // NOTE: This routine shouldn't overwrite existing data if a failure is encountered.
+    //
+
+    std::ifstream FI(filename, std::ifstream::in);
+    if(!FI.good()) return false;
+
+    const bool InhibitSort = false;
+    samples_1D<T> indata;
+
+    //Read in the numbers until EOF is encountered.
+    std::string line;
+    while(FI.good()){
+        line.clear();
+        std::getline(FI, line);
+        if(line.empty()) continue;
+
+//    while(!FI.eof()){
+//        std::getline(FI, line);
+//        if(FI.eof()) break;
+        
+        std::size_t nonspace = line.find_first_not_of(" \t");
+        if(nonspace == std::string::npos) continue; //Only whitespace.
+        if(line[nonspace] == '#') continue; //Comment.
+
+        std::stringstream ss(line);
+        T x, dx, y, dy;
+        ss >> x >> dx >> y >> dy;
+        if(!ss.fail()) indata.push_back(x, dx, y, dy, InhibitSort);
+    }
+
+    *this = indata;
+    this->metadata.clear();
+    return true;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool samples_1D<float >::Read_From_File(const std::string &filename);
+    template bool samples_1D<double>::Read_From_File(const std::string &filename);
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   std::string samples_1D<T>::Write_To_String() const {

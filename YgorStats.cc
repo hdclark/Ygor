@@ -94,12 +94,31 @@ template <class C> typename C::value_type Stats::Sum(C in){
 
     template float    Stats::Sum(std::list<float >     in);
     template float    Stats::Sum(std::vector<float >   in);
+    
+    template uint8_t Stats::Sum(std::list<uint8_t>   in);
+    template uint8_t Stats::Sum(std::vector<uint8_t> in);
+
+    template int8_t  Stats::Sum(std::list<int8_t>    in);
+    template int8_t  Stats::Sum(std::vector<int8_t>  in);
+
+    template uint16_t Stats::Sum(std::list<uint16_t>   in);
+    template uint16_t Stats::Sum(std::vector<uint16_t> in);
+
+    template int16_t  Stats::Sum(std::list<int16_t>    in);
+    template int16_t  Stats::Sum(std::vector<int16_t>  in);
+
+    template uint32_t Stats::Sum(std::list<uint32_t>   in);
+    template uint32_t Stats::Sum(std::vector<uint32_t> in);
+
+    template int32_t  Stats::Sum(std::list<int32_t>    in);
+    template int32_t  Stats::Sum(std::vector<int32_t>  in);
 
     template uint64_t Stats::Sum(std::list<uint64_t>   in);
     template uint64_t Stats::Sum(std::vector<uint64_t> in);
 
     template int64_t  Stats::Sum(std::list<int64_t>    in);
     template int64_t  Stats::Sum(std::vector<int64_t>  in);
+
 #endif
 
 
@@ -161,11 +180,30 @@ template <class C> typename C::value_type Stats::Median(C in){
     template float    Stats::Median(std::list<float >     in);
     template float    Stats::Median(std::vector<float >   in);
 
+    template uint8_t Stats::Median(std::list<uint8_t>   in);
+    template uint8_t Stats::Median(std::vector<uint8_t> in);
+
+    template int8_t  Stats::Median(std::list<int8_t>    in);
+    template int8_t  Stats::Median(std::vector<int8_t>  in);
+
+    template uint16_t Stats::Median(std::list<uint16_t>   in);
+    template uint16_t Stats::Median(std::vector<uint16_t> in);
+
+    template int16_t  Stats::Median(std::list<int16_t>    in);
+    template int16_t  Stats::Median(std::vector<int16_t>  in);
+
+    template uint32_t Stats::Median(std::list<uint32_t>   in);
+    template uint32_t Stats::Median(std::vector<uint32_t> in);
+
+    template int32_t  Stats::Median(std::list<int32_t>    in);
+    template int32_t  Stats::Median(std::vector<int32_t>  in);
+
     template uint64_t Stats::Median(std::list<uint64_t>   in);
     template uint64_t Stats::Median(std::vector<uint64_t> in);
 
     template int64_t  Stats::Median(std::list<int64_t>    in);
     template int64_t  Stats::Median(std::vector<int64_t>  in);
+
 #endif
 
 
@@ -190,11 +228,30 @@ template <class C> typename C::value_type Stats::Mean(C in){
     template float    Stats::Mean(std::list<float >     in);
     template float    Stats::Mean(std::vector<float >   in);
 
+    template uint8_t Stats::Mean(std::list<uint8_t>   in);
+    template uint8_t Stats::Mean(std::vector<uint8_t> in);
+
+    template int8_t  Stats::Mean(std::list<int8_t>    in);
+    template int8_t  Stats::Mean(std::vector<int8_t>  in);
+
+    template uint16_t Stats::Mean(std::list<uint16_t>   in);
+    template uint16_t Stats::Mean(std::vector<uint16_t> in);
+
+    template int16_t  Stats::Mean(std::list<int16_t>    in);
+    template int16_t  Stats::Mean(std::vector<int16_t>  in);
+
+    template uint32_t Stats::Mean(std::list<uint32_t>   in);
+    template uint32_t Stats::Mean(std::vector<uint32_t> in);
+
+    template int32_t  Stats::Mean(std::list<int32_t>    in);
+    template int32_t  Stats::Mean(std::vector<int32_t>  in);
+
     template uint64_t Stats::Mean(std::list<uint64_t>   in);
     template uint64_t Stats::Mean(std::vector<uint64_t> in);
 
     template int64_t  Stats::Mean(std::list<int64_t>    in);
     template int64_t  Stats::Mean(std::vector<int64_t>  in);
+
 #endif
 
 
@@ -320,21 +377,21 @@ double Stats::P_From_StudT_1Tail(double tval, double dof){
     //Regularized beta ratio function (I_x(a,b) = B_x(a,b)/B(a,b)).
     //
     //The "let it throw if an issue is encountered" approach.
-    const double reg_beta_incom = gsl_sf_beta_inc(a,b,x); 
-    return reg_beta_incom;
+//    const double reg_beta_incom = gsl_sf_beta_inc(a,b,x); 
+//    return reg_beta_incom;
     
     //The "catch the error and report the issue through floating-point channel" approach. 
-    //gsl_set_error_handler_off(); //Disable the annoying default assert()-like error handler. NOTE: possibly non-thread safe!!!
-    //gsl_sf_result res;
-    //const auto status = gsl_sf_beta_inc_e(a,b,x,&res);
-    //gsl_set_error_handler(nullptr);  //reinstate the default assert()-like error handler.
-    //if(status){ //Issue encountered.
-    //    const std::string errmsg( gsl_strerror(status) );
-    //    FUNCWARN("GNU GSL beta function 'gsl_sf_beta_inc_e' encountered an error: '" << errmsg << "'."
-    //          << "a, b, x = " << a << ", " << b << ", " << x << " . Reporting quiet NaN p-value");
-    //    return std::numeric_limits<double>::quiet_NaN();
-    //}
-    //return res.val;
+    gsl_set_error_handler_off(); //Disable the annoying default assert()-like error handler. NOTE: possibly non-thread safe!!!
+    gsl_sf_result res;
+    const auto status = gsl_sf_beta_inc_e(a,b,x,&res);
+    gsl_set_error_handler(nullptr);  //reinstate the default assert()-like error handler.
+    if(status){ //Issue encountered.
+//        const std::string errmsg( gsl_strerror(status) );
+//        FUNCWARN("GNU GSL beta function 'gsl_sf_beta_inc_e' encountered an error: '" << errmsg << "'."
+//              << "a, b, x = " << a << ", " << b << ", " << x << " . Reporting quiet NaN p-value");
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    return res.val;
 }
 double Stats::P_From_StudT_2Tail(double tval, double dof){
     //This routine is applicable to any Student's t-test.

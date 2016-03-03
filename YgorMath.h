@@ -17,6 +17,8 @@
 #include <utility>
 #include <experimental/optional>
 
+template <class T> class samples_1D;
+
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------- vec3: A three-dimensional vector -------------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
@@ -438,6 +440,12 @@ template <class T> class lin_reg_results {
         // ==================================== Member functions =======================================
         lin_reg_results();
 
+        //Evaluates the model at the given point. Ignores uncertainties.
+        T evaluate_simple(T x) const;
+
+        //Sample the line over the given range at 'n' equally-spaced points. Ignores uncertainties.
+        samples_1D<T> sample_uniformly_over(T xmin, T xmax, size_t n = 5) const;
+
         //Aligns into a simple table.
         std::string display_table(void) const;
 
@@ -557,6 +565,7 @@ template <class T> class samples_1D {
         //If not supplied, sigma_x_i and sigma_f_i uncertainties are assumed to be (T)(0).
         void push_back(T x_i, T sigma_x_i, T f_i, T sigma_f_i, bool inhibit_sort = false);
         void push_back(const std::array<T,4> &samp, bool inhibit_sort = false);
+        void push_back(const std::array<T,2> &x_dx, const std::array<T,2> &y_dy, bool inhibit_sort = false);
         void push_back(T x_i, T f_i, bool inhibit_sort = false);
         void push_back(const vec2<T> &x_i_and_f_i, bool inhibit_sort = false);
         void push_back(T x_i, T f_i, T sigma_f_i, bool inhibit_sort = false);
@@ -567,7 +576,7 @@ template <class T> class samples_1D {
         //An explicit way for the user to sort. Not needed unless you are directly editing this->samples for some reason.
         void stable_sort(void); //Sorts on x-axis. Lowest-first.
 
-        //Get the datum with the maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
+        //Get the datum with the minimum and maximum x_i or f_i. If duplicates are found, there is no rule specifying which.
         std::pair<std::array<T,4>,std::array<T,4>> Get_Extreme_Datum_x(void) const;
         std::pair<std::array<T,4>,std::array<T,4>> Get_Extreme_Datum_y(void) const;
 
@@ -617,8 +626,12 @@ template <class T> class samples_1D {
         // samples, expect {at_x,(T)(0),(T)(0),(T)(0)}.
         std::array<T,4> Interpolate_Linearly(const T &at_x) const;
 
+        //Resamples the data into approximately equally-spaced samples using linear interpolation.
+        samples_1D<T> Resample_Equal_Spacing(size_t N) const;
+
         //Multiply all sample f_i's by a given factor. Uncertainties are appropriately scaled too.
-        samples_1D<T> Multiply_With(T factor) const; //i.e. "operator *".
+        samples_1D<T> Multiply_With(T factor) const; // i.e., "operator *".
+        samples_1D<T> Sum_With(T factor) const; // i.e., "operator +".
 
         //Apply an absolute value functor to all f_i.
         samples_1D<T> Apply_Abs(void) const;
@@ -741,6 +754,8 @@ template <class T> class samples_1D {
         //Various IO routines.
         bool Write_To_File(const std::string &filename) const; //Writes data to file as 4 columns. Use it to plot/fit.
         std::string Write_To_String(void) const; //Writes data to file as 4 columns. Use it to plot/fit.
+
+        bool Read_From_File(const std::string &filename); //Reads data from a file as 4 columns. True iff all went OK.
 
         void Plot(const std::string &Title = "") const; //Spits out a default plot of the data. 
         void Plot_as_PDF(const std::string &Title = "",const std::string &Filename = "/tmp/plot.pdf") const; //May overwrite existing files!

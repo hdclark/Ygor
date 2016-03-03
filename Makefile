@@ -61,6 +61,12 @@ YgorMath.o: YgorMath.h  YgorMath.cc
 YgorMath_Samples.o: YgorMath_Samples.h  YgorMath_Samples.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -fno-var-tracking-assignments -c YgorMath_Samples.cc  
 
+YgorMathChebyshev.o: YgorMathChebyshev.h YgorMathChebyshev.cc
+	${USECC} ${XTRA_DEFINES} -fPIC -fno-var-tracking-assignments -c YgorMathChebyshev.cc  
+
+YgorMathChebyshevFunctions.o: YgorMathChebyshevFunctions.h YgorMathChebyshevFunctions.cc
+	${USECC} ${XTRA_DEFINES} -fPIC -fno-var-tracking-assignments -c YgorMathChebyshevFunctions.cc  
+
 YgorPlot.o: YgorPlot.h  YgorPlot.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -c YgorPlot.cc  #-lplot
 
@@ -110,12 +116,14 @@ md5.o: External/MD5/md5.cc
 # Easiest solution: cram everything into a single library. This drags in a 
 #  lot of extra crap. Prune if it will matter.
 libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
+               YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
                YgorArguments.h YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o \
                YgorSerialize.o          \
                YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
                YgorNetworking.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
                YgorVIDEOTools.o spookyhash.o md5.o  
 	${USECC} ${XTRA_DEFINES} -rdynamic -shared -Wl,-soname,libygor.so -o libygor.so   -Wl,-z,now -Wl,-z,noexecstack  \
+               YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
                YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
                YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o \
                YgorSerialize.o                     \
@@ -144,34 +152,36 @@ libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorM
 #####                       Install Targets                        #####
 ########################################################################
 install: all
-	install -Dm644 libygor.so                   /usr/lib/
-	ldconfig -n                                 /usr/lib/       #Use "-R" instead of "-n" for FreeBSD.
-	install -Dm644 YgorContainers.h             /usr/include/
-	install -Dm644 YgorAlgorithms.h             /usr/include/
-	install -Dm644 YgorArguments.h              /usr/include/   #Header only!
-	install -Dm644 YgorEnvironment.h            /usr/include/
-	install -Dm644 YgorMisc.h                   /usr/include/
-	install -Dm644 YgorImages.h                 /usr/include/
-	install -Dm644 YgorImagesIO.h               /usr/include/
-	install -Dm644 YgorImagesPlotting.h         /usr/include/
-	install -Dm644 YgorMath.h                   /usr/include/
-	install -Dm644 YgorMathPlottingGnuplot.h    /usr/include/
-	install -Dm644 YgorMathPlottingVTK.h        /usr/include/
-	install -Dm644 YgorMath_Samples.h           /usr/include/
-	install -Dm644 YgorPlot.h                   /usr/include/
-	install -Dm644 YgorSerialize.h              /usr/include/
-	install -Dm644 YgorStats.h                  /usr/include/
-	install -Dm644 YgorString.h                 /usr/include/
-	install -Dm644 YgorFilesDirs.h              /usr/include/
-	install -Dm644 YgorPerformance.h            /usr/include/
-	install -Dm644 YgorNoise.h                  /usr/include/
-	install -Dm644 YgorNetworking.h             /usr/include/
-	install -Dm644 YgorTime.h                   /usr/include/
-	install -Dm644 YgorDICOMTools.h             /usr/include/
-	install -Dm644 YgorCONFIGTools.h            /usr/include/
-	install -Dm644 YgorURITools.h               /usr/include/
-	install -Dm644 YgorVIDEOTools.h             /usr/include/
-	install -Dm777 Ygor_Compiler_Flags.sh       /usr/bin/
+	install -Dm644 libygor.so                    /usr/lib/
+	ldconfig -n                                  /usr/lib/       #Use "-R" instead of "-n" for FreeBSD.
+	install -Dm644 YgorContainers.h              /usr/include/
+	install -Dm644 YgorAlgorithms.h              /usr/include/
+	install -Dm644 YgorArguments.h               /usr/include/   #Header only!
+	install -Dm644 YgorEnvironment.h             /usr/include/
+	install -Dm644 YgorMisc.h                    /usr/include/
+	install -Dm644 YgorImages.h                  /usr/include/
+	install -Dm644 YgorImagesIO.h                /usr/include/
+	install -Dm644 YgorImagesPlotting.h          /usr/include/
+	install -Dm644 YgorMath.h                    /usr/include/
+	install -Dm644 YgorMathChebyshev.h           /usr/include/
+	install -Dm644 YgorMathChebyshevFunctions.h  /usr/include/
+	install -Dm644 YgorMathPlottingGnuplot.h     /usr/include/
+	install -Dm644 YgorMathPlottingVTK.h         /usr/include/
+	install -Dm644 YgorMath_Samples.h            /usr/include/
+	install -Dm644 YgorPlot.h                    /usr/include/
+	install -Dm644 YgorSerialize.h               /usr/include/
+	install -Dm644 YgorStats.h                   /usr/include/
+	install -Dm644 YgorString.h                  /usr/include/
+	install -Dm644 YgorFilesDirs.h               /usr/include/
+	install -Dm644 YgorPerformance.h             /usr/include/
+	install -Dm644 YgorNoise.h                   /usr/include/
+	install -Dm644 YgorNetworking.h              /usr/include/
+	install -Dm644 YgorTime.h                    /usr/include/
+	install -Dm644 YgorDICOMTools.h              /usr/include/
+	install -Dm644 YgorCONFIGTools.h             /usr/include/
+	install -Dm644 YgorURITools.h                /usr/include/
+	install -Dm644 YgorVIDEOTools.h              /usr/include/
+	install -Dm777 Ygor_Compiler_Flags.sh        /usr/bin/
 #        install -Dm644 libygor.a                    /usr/lib/
 
 
@@ -181,6 +191,7 @@ install: all
 clean: 
 	rm libygor.so libygor.a YgorContainers.o YgorAlgorithms.o \
            YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o        \
+           YgorMathChebyshev.o YgorMathChebyshevFunctions.o        \
            YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o         \
            YgorSerialize.o           \
            YgorPerformance.o YgorNoise.o YgorNetworking.o YgorDICOMTools.o             \

@@ -990,6 +990,92 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     template float    planar_image<float   ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
 #endif
 
+//Average a block of pixels. Boundaries are inclusive. Out-of-bounds parts are ignored. Negatives OK (they are just ignored).
+template <class T,class R> 
+T
+planar_image<T,R>::block_average(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const {
+    //On every failure, we return NaN.
+    const auto failval = std::numeric_limits<T>::quiet_NaN();
+
+    //Check if the channel exists.
+    if(!isininc(0,chnl,this->channels-1)) return failval;
+
+    //Check for backward parameter specification. 
+    if(row_max < row_min){
+        return this->block_average(row_max, row_min, col_min, col_max, chnl);
+    }else if(col_max < col_min){
+        return this->block_average(row_min, row_max, col_max, col_min, chnl);
+    }
+
+    //Check for a completely out-of-bounds rectangle.
+    if((row_max < 0) || (col_max < 0) || (row_min > (this->rows-1)) || (col_min > (this->columns-1))) return failval;
+
+    //Ignore invalid portions of the coordinates.
+    const long int r_min = (row_min < 0) ? 0 : row_min;
+    const long int c_min = (col_min < 0) ? 0 : col_min;
+    const long int r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
+    const long int c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
+
+    std::vector<T> vals;
+    vals.reserve((r_max - r_min + 1) * (c_max - c_min + 1));
+    for(long int r = r_min; r <= r_max; ++r){
+        for(long int c = c_min; c <= c_max; ++c){
+            vals.push_back(this->value(r,c,chnl));
+        }
+    }
+    return Stats::Mean(vals);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::block_average(long int, long int, long int, long int, long int) const;
+    template uint16_t planar_image<uint16_t,double>::block_average(long int, long int, long int, long int, long int) const;
+    template uint32_t planar_image<uint32_t,double>::block_average(long int, long int, long int, long int, long int) const;
+    template uint64_t planar_image<uint64_t,double>::block_average(long int, long int, long int, long int, long int) const;
+    template float    planar_image<float   ,double>::block_average(long int, long int, long int, long int, long int) const;
+#endif
+
+template <class T,class R> 
+T
+planar_image<T,R>::block_median(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const {
+    //On every failure, we return NaN.
+    const auto failval = std::numeric_limits<T>::quiet_NaN();
+
+    //Check if the channel exists.
+    if(!isininc(0,chnl,this->channels-1)) return failval;
+
+    //Check for backward parameter specification. 
+    if(row_max < row_min){
+        return this->block_median(row_max, row_min, col_min, col_max, chnl);
+    }else if(col_max < col_min){
+        return this->block_median(row_min, row_max, col_max, col_min, chnl);
+    }
+
+    //Check for a completely out-of-bounds rectangle.
+    if((row_max < 0) || (col_max < 0) || (row_min > (this->rows-1)) || (col_min > (this->columns-1))) return failval;
+
+    //Ignore invalid portions of the coordinates.
+    const long int r_min = (row_min < 0) ? 0 : row_min;
+    const long int c_min = (col_min < 0) ? 0 : col_min;
+    const long int r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
+    const long int c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
+
+    std::vector<T> vals;
+    vals.reserve((r_max - r_min + 1) * (c_max - c_min + 1));
+    for(long int r = r_min; r <= r_max; ++r){
+        for(long int c = c_min; c <= c_max; ++c){
+            vals.push_back(this->value(r,c,chnl));
+        }
+    }
+    return Stats::Median(vals);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::block_median(long int, long int, long int, long int, long int) const;
+    template uint16_t planar_image<uint16_t,double>::block_median(long int, long int, long int, long int, long int) const;
+    template uint32_t planar_image<uint32_t,double>::block_median(long int, long int, long int, long int, long int) const;
+    template uint64_t planar_image<uint64_t,double>::block_median(long int, long int, long int, long int, long int) const;
+    template float    planar_image<float   ,double>::block_median(long int, long int, long int, long int, long int) const;
+#endif
+
+
 
 //The min/maximum pixel values of all channels.
 template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const {

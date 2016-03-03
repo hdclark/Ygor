@@ -147,10 +147,12 @@ template <class T, class R> class planar_image {
         // Only nearest neighbour pixels are used, but derivatives use NN-NN pixels. Mirror boundary conditions are assumed. Pixel shape is ignored.
         T bicubically_interpolate_in_pixel_number_space(R row, R col, long int chnl) const; //Fails on out-of-bounds input.
 
+        //Average a block of pixels. Boundaries are inclusive. Out-of-bounds parts are ignored. Negatives OK (they are just ignored).
+        T block_average(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const; 
+        T block_median(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const;
 
         //Minimum and maximum pixel values.
         std::pair<T,T> minmax(void) const; //The min/maximum pixel values of all channels.
-
 
         //Set all pixel data to the given value.
         void fill_pixels(long int chnl, T val);
