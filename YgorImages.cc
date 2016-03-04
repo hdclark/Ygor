@@ -14,6 +14,8 @@
 #include <experimental/any>
 #include <type_traits>
 #include <stdio.h>  //For popen.
+#include <future>
+#include <thread>
 
 #ifndef YGOR_IMAGES_DISABLE_EIGEN
     #include <eigen3/Eigen/Dense>
@@ -2126,7 +2128,10 @@ bool planar_image_collection<T,R>::Process_Images(
             //auto orig_md = first_img_it->metadata;
             //first_img_it->metadata["Operations performed"] += "something, "; 
         };
- 
+
+
+
+
         if(operation_functor){
             operation_functor(curr_img_it, selected_imgs, external_images, contour_collections, user_data);
         }else{
@@ -2215,9 +2220,250 @@ bool planar_image_collection<T,R>::Process_Images(
 #endif
 
 
+//Generic routine for processing/combining groups of images into single images. Useful for spatial averaging, blurring, etc..
+// Modified *this, so deep-copy beforehand if needed. See in-source default functors for descriptions/examples.
+//
+// This is a parallel version. The user needs to ensure there are no race conditions.
+//
+template <class T,class R>
+bool planar_image_collection<T,R>::Process_Images_Parallel(
+                             std::function<typename std::list<images_list_it_t> (images_list_it_t,
+                                      std::reference_wrapper<planar_image_collection<T,R>> )>         image_grouper,
+                             std::function<bool (images_list_it_t, 
+                                      std::list<images_list_it_t>,
+                                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
+                                      std::list<std::reference_wrapper<contour_collection<R>>>,
+                                      std::experimental::any )>                                       operation_functor,      
+                             std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_images,
+                             std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
+                             std::experimental::any                                                   user_data ){
+
+    //It is much more tedious to provide a 'sane' default, so we require users to provide a valid image grouping
+    // functor.
+    if(!image_grouper) return false;
+
+    //Generate a comprehensive list of iterators to all remaining images in the deep-copied array. This list will be
+    // pruned after images have been successfully averaged or otherwise manipulated.
+    auto to_be_avgd = this->get_all_images();
+
+    std::list< std::pair< images_list_it_t, std::list<images_list_it_t> > > groupings;
+    std::list< images_list_it_t > taken;
+
+    const auto total_image_count = to_be_avgd.size();
+
+    //Loop over the iterators in the comprehensive list. (The loop will have elements erased from it as you go.)
+    while(!to_be_avgd.empty()){
+        //Take the first iterator and find all other images which should be averaged with it.
+        // Generally you will simply want spatial overlap, but you can do whatever you want with the metadata too.
+        // Be selective at this stage because later we simply walk over images on a pixel-by-pixel basis.
+        auto curr_img_it = to_be_avgd.front(); //A copy of the iterator, not a reference to it, is needed here.
+        auto selected_imgs = image_grouper(curr_img_it, *this);
+
+        //Remove any which are already claimed by an earlier grouping.
+        for(const auto &ataken : taken) selected_imgs.remove(ataken);
+
+        //Consistency check of user's grouping functor: verify curr_img_it is present in the selected images.
+        {
+          bool present = false;
+          for(const auto &an_img_it : selected_imgs){
+              if(an_img_it == curr_img_it){
+                  present = true;
+                  break;
+              }
+          }
+          if(!present){
+              FUNCWARN("Image grouping functor failed to select self image and thus failed basic consistency. "
+                       "(Each image's group must be composed of at least the image.)");
+              return false;
+          }
+        }
+
+        //Verify that there are an identical number of rows, columns, and channels in each remaining image. Die if
+        // this is not the case. Ignore differences in spatial layout at this stage; this detail should have been 
+        // taken care of when selecting the spatially-overlapping images.
+        {
+          auto rows     = curr_img_it->rows;
+          auto columns  = curr_img_it->columns;
+          auto channels = curr_img_it->channels;
+
+          for(const auto &an_img_it : selected_imgs){
+              if( (rows     != an_img_it->rows)
+              ||  (columns  != an_img_it->columns)
+              ||  (channels != an_img_it->channels) ){
+                  FUNCWARN("Images have differing number of rows, columns, or channels. Are you sure you've got the correct data?");
+                  return false;
+                  //This might not be an error if you know what you're doing. However, you will still potentially attempt to 
+                  // access an image's pixels out-of-bounds without altering the following code. (Are you sure you want this?
+                  // Wouldn't it be easier and more logically sound to try something like voxel resampling, or explicit zeroing
+                  // of the jutting image portions beforehand instead?)
+                  //
+                  // If the answers to these questions are "no" then go ahead and remove the 'return false' but leave the 
+                  // notice.
+                  //
+
+              }
+          }
+        }
+
+        groupings.emplace_back( std::make_pair(curr_img_it, selected_imgs) );
+
+        //Add the remaining image iterators to the taken pile.
+        for(const auto &an_img_it : selected_imgs) taken.emplace_back(an_img_it);
+
+        //Remove *all* of the overlapping image iterators from the to_be_avgd list.
+        for(auto &an_img_it : selected_imgs) to_be_avgd.remove(an_img_it);
+    }
+
+
+    // --- Preparations now complete. Now iterate over the groupings, applying the user's operation to each group. ---
+
+
+    //Functor for the main operation, where we will process a batch of images and produce a single output.
+    //
+    // For example, we might want to average the image group. The image pointed to by `first_img_it` will be
+    // the only image retained -- the rest will be pruned right after this routine is called.
+    //
+    // NOTE: The image pointed to by first_img_it is also pointed to by one of the iterators in selected_img_its,
+    //       so you'll need to be VERY careful about how you update the image data. To get around this, you should
+    //       (1) create a DEEP COPY of first_img_it, (2) modify the copy as needed, and (3) DEEP COPY back to the 
+    //       original first_img_it before returning.
+    //
+    // NOTE: Why not just always provide a deep copy, or working space for one? Because sometimes you can get around 
+    //       the issue without unnecessary copying.
+    //
+    // NOTE: This routine should only return true if everything was OK.
+    //
+    auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it,
+                              typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
+                              typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
+                              typename std::list<std::reference_wrapper<contour_collection<R>>>,
+                              typename std::experimental::any ) -> bool {
+
+        //Default: do absolutely nothing.
+        return true;
+
+        //Alternative: average pixels.
+        //for(rows) for(cols) for(chnls) { 
+        //    for(auto &an_img_it : selected_img_its){
+        //        pixel_val = an_img_it->value(row, col, chan);
+        //        pixel_vals.push_back( static_cast<double>(pixel_val) );
+        //    }
+        //    pixel_mean = Stats::Mean(pixel_vals);
+        //    first_img_it->reference(row, col, chan) = static_cast<T>(pixel_mean);
+        //}
+    
+        //Alternative: tweak/insert/erase the metadata.
+        //auto orig_md = first_img_it->metadata;
+        //first_img_it->metadata["Operations performed"] += "something, "; 
+    };
+    auto the_op_func = (operation_functor) ? operation_functor : default_op_func;
+
+    //Launch and wait on the tasks.
+    size_t images_processed = 0;
+    std::list<std::future<bool>> futures;
+    bool eject = false;
+    auto at_a_time = std::thread::hardware_concurrency();
+    if(at_a_time == 0) at_a_time = 2;
+    for(const auto &agroup : groupings){
+        images_processed += agroup.second.size();
+        futures.emplace_back( std::async( std::launch::async, the_op_func, agroup.first, agroup.second, external_images, contour_collections, user_data ) );
+        if(futures.size() > at_a_time){
+            for(auto &afuture : futures){
+                auto res = afuture.get();
+                if(!res) eject = true;
+            }
+            futures.clear();
+            if(eject) return false;
+        }
+        FUNCINFO("Images still to be processed: " << (total_image_count - images_processed));
+    }
+    for(auto &afuture : futures){
+        auto res = afuture.get();
+        if(!res) eject = true;
+    }
+    futures.clear();
+    if(eject) return false;
+
+
+    //Now remove all images except the one designated the 'curr_img_it' from each grouping.
+    for(const auto &agroup : groupings){
+        const auto group_leader = agroup.first;
+        for(const auto &group_member : agroup.second){
+            if(group_member != group_leader){
+                this->images.erase(group_member);
+            }
+        }
+    }
+
+    return true;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image_collection<uint8_t ,double>::Process_Images_Parallel( 
+         std::function<typename std::list<images_list_it_t> (images_list_it_t, 
+                  std::reference_wrapper<planar_image_collection<uint8_t ,double>> )>,
+         std::function<bool (images_list_it_t, 
+                  std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>,
+                  std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::experimental::any );
+
+    template bool planar_image_collection<uint16_t,double>::Process_Images_Parallel(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t, 
+                  std::reference_wrapper<planar_image_collection<uint16_t,double>> )>,
+         std::function<bool (images_list_it_t, 
+                  std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>, 
+                  std::experimental::any )>, 
+         std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::experimental::any );
+
+    template bool planar_image_collection<uint32_t,double>::Process_Images_Parallel(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t, 
+                  std::reference_wrapper<planar_image_collection<uint32_t,double>> )>,
+         std::function<bool (images_list_it_t, 
+                  std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>, 
+                  std::experimental::any )>, 
+         std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::experimental::any );
+
+    template bool planar_image_collection<uint64_t,double>::Process_Images_Parallel(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t, 
+                  std::reference_wrapper<planar_image_collection<uint64_t,double>> )>,
+         std::function<bool (images_list_it_t, 
+                  std::list<images_list_it_t>, 
+                  std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>, 
+                  std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::experimental::any );
+
+    template bool planar_image_collection<float   ,double>::Process_Images_Parallel(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t,
+                  std::reference_wrapper<planar_image_collection<float   ,double>> )>,
+         std::function<bool (images_list_it_t,
+                  std::list<images_list_it_t>,
+                  std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>,
+                  std::experimental::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::experimental::any );
+
+#endif
+
+
 
 //Generic routine for performing an operation on images which may depend on external images (such as pixel maps).
-// No images are deleted, though the user has full access to the image data of all images. This routine is complementary
+// No images are deleted, though the user has individual access to all images. This routine is complementary
 // to the Process_Images() routine, and has different use-cases and approaches.
 template <class T,class R>
 bool planar_image_collection<T,R>::Transform_Images( 
@@ -2283,11 +2529,105 @@ bool planar_image_collection<T,R>::Transform_Images(
 
 #endif
 
+//Generic routine for performing an operation on images which may depend on external images (such as pixel maps).
+// No images are deleted, though the user has individual access to all images. This routine is complementary
+// to the Process_Images() routine, and has different use-cases and approaches.
+template <class T,class R>
+bool planar_image_collection<T,R>::Transform_Images_Parallel( 
+            std::function<bool (images_list_it_t,                              
+                     std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
+                     std::list<std::reference_wrapper<contour_collection<R>>>,
+                     std::experimental::any )>                                          op_func,
+            std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
+            std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
+            std::experimental::any                                                      user_data ){
+
+    if(!op_func) return false;
+
+    //Launch and wait on the tasks.
+    std::list<std::future<bool>> futures;
+    bool eject = false;
+    auto at_a_time = std::thread::hardware_concurrency();
+    if(at_a_time == 0) at_a_time = 2;
+
+    for(auto img_it = this->images.begin(); img_it != this->images.end(); ++img_it){
+        futures.emplace_back( std::async( std::launch::async, op_func, img_it, external_imgs, contour_collections, user_data ) );
+        if(futures.size() > at_a_time){
+
+            for(auto &afuture : futures){
+                auto res = afuture.get();
+                if(!res) eject = true;
+            }
+            futures.clear();
+            if(eject) return false;
+        }
+    }
+
+    for(auto &afuture : futures){
+        auto res = afuture.get();
+        if(!res) eject = true;
+    }
+    futures.clear();
+    if(eject) return false;
+
+    return true;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image_collection<uint8_t ,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>,
+                     std::experimental::any )>                                            op_func,
+            std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
+            std::experimental::any                                                        user_data );
+
+    template bool planar_image_collection<uint16_t,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>, 
+                     std::experimental::any )>                                            op_func,
+            std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
+            std::experimental::any                                                        user_data );
+
+    template bool planar_image_collection<uint32_t,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>, 
+                     std::experimental::any )>                                            op_func,
+            std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
+            std::experimental::any                                                        user_data );
+
+    template bool planar_image_collection<uint64_t,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>, 
+                     std::experimental::any )>                                            op_func,
+            std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
+            std::experimental::any                                                        user_data );
+
+    template bool planar_image_collection<float   ,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>,
+                     std::experimental::any )>                                            op_func,
+            std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
+            std::experimental::any                                                        user_data );
+
+#endif
+
 
 //Generic routine for altering images as a whole, or computing histograms, time courses, or any sort of distribution 
-// the entire set of images. No images are deleted, though the user has full read-write access to the image data of all images.
+// the entire set of images. No images are deleted, though the user has full read-write access to all images.
 // This routine is very simple, and merely provides a consistent interface for doing operations on the image collection.
-// (Note that the functor gets called only once by this routine.)
+//
+// Note: The functor gets called only once by this routine. Any attempt at parallelization should probably happen
+//       within the user's functor.
+//
 template <class T,class R>
 bool planar_image_collection<T,R>::Compute_Images( 
             std::function<bool ( planar_image_collection<T,R> &, 
@@ -2422,8 +2762,8 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
         return true;
     };
 
-    if(image_grouper) return this->Process_Images(image_grouper, op_func, {}, {});
-    return this->Process_Images(default_image_grouper, op_func, {}, {});
+    if(image_grouper) return this->Process_Images_Parallel(image_grouper, op_func, {}, {});
+    return this->Process_Images_Parallel(default_image_grouper, op_func, {}, {});
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template bool planar_image_collection<uint8_t ,double>::Condense_Average_Images( 

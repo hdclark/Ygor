@@ -290,11 +290,30 @@ template <class T,class R>   class planar_image_collection {
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
                              std::experimental::any                                                   user_data = std::experimental::any() );
 
+        bool Process_Images_Parallel( std::function<typename std::list<images_list_it_t> (images_list_it_t,
+                                      std::reference_wrapper<planar_image_collection<T,R>> )>         image_grouper,
+                             std::function<bool (images_list_it_t, 
+                                      std::list<images_list_it_t>,
+                                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
+                                      std::list<std::reference_wrapper<contour_collection<R>>>,
+                                      std::experimental::any )>                                       operation_functor, 
+                             std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_imgs,
+                             std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
+                             std::experimental::any                                                   user_data = std::experimental::any() );
+
 
         //Generic routine for performing an operation on images which may depend on external images (such as pixel maps).
         // No images are deleted, though the user has full read-write access to the image data of all images. This routine is complementary
         // to the Process_Images() routine, and has different use-cases and approaches.
         bool Transform_Images( std::function<bool (images_list_it_t, 
+                                        std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
+                                        std::list<std::reference_wrapper<contour_collection<R>>>,
+                                        std::experimental::any )>                                          op_func,
+                               std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
+                               std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
+                               std::experimental::any                                                      user_data = std::experimental::any() );
+
+        bool Transform_Images_Parallel( std::function<bool (images_list_it_t, 
                                         std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                         std::list<std::reference_wrapper<contour_collection<R>>>,
                                         std::experimental::any )>                                          op_func,
