@@ -1,4 +1,5 @@
-//YgorImagesIO.h
+//YgorImagesIO.h - Self-contained routines for writing and reading images.
+
 #pragma once
 #ifndef YGOR_IMAGES_IO_HDR_GRD_H
 #define YGOR_IMAGES_IO_HDR_GRD_H

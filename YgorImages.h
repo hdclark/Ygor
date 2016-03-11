@@ -29,7 +29,8 @@ template <class T, class R> class planar_image {
 
     public: //private:
         //This is the actual, raw, 2D data.
-        std::unique_ptr<T []> data;
+//        std::unique_ptr<T []> data;
+        std::vector<T> data;
 
         long int rows;      //This is the number of rows in the 2D image.
         long int columns; 

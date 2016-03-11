@@ -78,10 +78,10 @@ template <class T, class R> void planar_image<T,R>::init_buffer(long int rows, l
     if((rows <= 0) || (cols <= 0) || (chnls <= 0)){
         FUNCERR("Requested to initialize an image with impossible dimensions");
     }
-    this->data.reset( new T [rows*cols*chnls] );
     this->rows     = rows;
     this->columns  = cols;
     this->channels = chnls;
+    this->data.resize(rows*cols*chnls);
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -131,18 +131,7 @@ template <class T,class R> planar_image<T,R> & planar_image<T,R>::operator=(cons
     this->init_spatial(rhs.pxl_dx, rhs.pxl_dy, rhs.pxl_dz, rhs.anchor, rhs.offset);
     this->init_orientation(rhs.row_unit, rhs.col_unit);
     this->metadata = rhs.metadata;
-
-    const int rhs_isvalid = (rhs.data != nullptr) ? 1 : 0;
-    const int lhs_isvalid = (this->data != nullptr) ? 1 : 0;
-    const int both_valid = rhs_isvalid + lhs_isvalid;
-    if(both_valid == 2){
-        memcpy((void*)(this->data.get()), (void*)(rhs.data.get()), sizeof(T)*rhs.rows*rhs.columns*rhs.channels);
-    }else if(both_valid == 1){
-        FUNCERR("Image is corrupt or out of sync with the metadata, or buffer initialization has failed. Cannot continue");
-    }else if((both_valid == 0) && (rhs.rows*rhs.columns != 0)){
-        //If both are nullptr, then this is OK iff rows*columns == 0.
-        FUNCERR("Buffer initialization has failed. Cannot continue");
-    }
+    this->data = rhs.data;
     return *this;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -157,26 +146,6 @@ template <class T,class R> bool planar_image<T,R>::operator==(const planar_image
     if(this == &rhs) return true;
     if((*this < rhs) || (rhs < *this)) return false;
     return true;
-
-/*
-    if((this->data == nullptr) && (rhs.data != nullptr)) return false;
-    if((this->data != nullptr) && (rhs.data == nullptr)) return false;
-
-    if((this->rows != rhs.rows) || (this->columns != rhs.columns) || (this->channels != rhs.channels)) return false;
-    if((this->pxl_dx != rhs.pxl_dx) || (this->pxl_dy != rhs.pxl_dy) || (this->pxl_dz != rhs.pxl_dz))   return false;
-    if((this->anchor != rhs.anchor) || (this->offset != rhs.offset)) return false;
-    if((this->row_unit != rhs.row_unit) || (this->col_unit != rhs.col_unit)) return false;
- 
-    if(this->metadata != rhs.metadata) return false;
-
-    if((this->data == nullptr) && (rhs.data == nullptr)) return true;
-
-    //If we get here, we need to compare each pixel.
-    for(long int i = 0; i < rhs.rows*rhs.columns*rhs.channels; ++i){
-        if(this->data[i] != rhs.data[i]) return false;
-    }
-    return true; //Equal!
-*/
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template bool planar_image<uint8_t ,double>::operator==(const planar_image<uint8_t ,double> &rhs) const;
@@ -211,18 +180,12 @@ template <class T,class R> bool planar_image<T,R>::operator<(const planar_image<
 
     if(this->row_unit != rhs.row_unit) return (this->row_unit < rhs.row_unit);
     if(this->col_unit != rhs.col_unit) return (this->col_unit < rhs.col_unit);
-    
-    if((this->data == nullptr) && (rhs.data != nullptr)) return true;
-    if((this->data != nullptr) && (rhs.data == nullptr)) return false;
 
+    //Potentially costly metadata check.
     if(this->metadata != rhs.metadata) return (this->metadata < rhs.metadata);
 
-    //If we get here, we need to compare each pixel.
-    if((this->data == nullptr) && (rhs.data == nullptr)) return false; //Equal!
-    for(long int i = 0; i < rhs.rows*rhs.columns*rhs.channels; ++i){
-        if(this->data[i] != rhs.data[i]) return (this->data[i] < rhs.data[i]);
-    }
-    return false; //Equal!
+    //Potentially (very) costly per-pixel check.
+    return (this->data < rhs.data);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template bool planar_image<uint8_t ,double>::operator<(const planar_image<uint8_t ,double> &rhs) const;
@@ -1127,7 +1090,7 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
     //Feel free to speed this up using knowledge of the layout or contiguity or whatever. I needed it yesterday
     // when writing, so I wrote the first thing that popped into mind.
     //
-    // This routine especially would benefit from something like memset_to_zero(this->data.get(), 0, rows*cols*chnls*sizeof(T))...
+    // This routine especially would benefit from something like memset_to_zero(this->data.data(), 0, rows*cols*chnls*sizeof(T))...
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){
             for(auto chnl = 0; chnl < this->channels; ++chnl){

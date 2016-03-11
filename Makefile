@@ -136,53 +136,42 @@ libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorM
 ################### -lplot  
 ################### -Wl,-pic -Wl,-z,noexecstack -Wl,-z,noexecheap -Wl,-z,relro -Wl,-z,now \
 
-#libygor.a: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
-#              YgorArguments.h YgorMath_Samples.o YgorTime.o YgorImages.o YgorSerialize.o           \
-#              YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
-#              YgorNetworking.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
-#              YgorVIDEOTools.o spookyhash.o md5.o
-#	${LINK} libygor.a YgorContainers.o YgorAlgorithms.o           \
-#              YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o      \
-#              YgorMath_Samples.o YgorTime.o  YgorImages.o YgorSerialize.o           \
-#              YgorPerformance.o YgorNoise.o YgorNetworking.o             \
-#              YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o YgorVIDEOTools.o \
-#              spookyhash.o md5.o
-
 ########################################################################
 #####                       Install Targets                        #####
 ########################################################################
 install: all
-	install -Dm644 libygor.so                    /usr/lib/
-	ldconfig -n                                  /usr/lib/       #Use "-R" instead of "-n" for FreeBSD.
-	install -Dm644 YgorContainers.h              /usr/include/
-	install -Dm644 YgorAlgorithms.h              /usr/include/
-	install -Dm644 YgorArguments.h               /usr/include/   #Header only!
-	install -Dm644 YgorEnvironment.h             /usr/include/
-	install -Dm644 YgorMisc.h                    /usr/include/
-	install -Dm644 YgorImages.h                  /usr/include/
-	install -Dm644 YgorImagesIO.h                /usr/include/
-	install -Dm644 YgorImagesPlotting.h          /usr/include/
-	install -Dm644 YgorMath.h                    /usr/include/
-	install -Dm644 YgorMathChebyshev.h           /usr/include/
-	install -Dm644 YgorMathChebyshevFunctions.h  /usr/include/
-	install -Dm644 YgorMathPlottingGnuplot.h     /usr/include/
-	install -Dm644 YgorMathPlottingVTK.h         /usr/include/
-	install -Dm644 YgorMath_Samples.h            /usr/include/
-	install -Dm644 YgorPlot.h                    /usr/include/
-	install -Dm644 YgorSerialize.h               /usr/include/
-	install -Dm644 YgorStats.h                   /usr/include/
-	install -Dm644 YgorString.h                  /usr/include/
-	install -Dm644 YgorFilesDirs.h               /usr/include/
-	install -Dm644 YgorPerformance.h             /usr/include/
-	install -Dm644 YgorNoise.h                   /usr/include/
-	install -Dm644 YgorNetworking.h              /usr/include/
-	install -Dm644 YgorTime.h                    /usr/include/
-	install -Dm644 YgorDICOMTools.h              /usr/include/
-	install -Dm644 YgorCONFIGTools.h             /usr/include/
-	install -Dm644 YgorURITools.h                /usr/include/
-	install -Dm644 YgorVIDEOTools.h              /usr/include/
-	install -Dm777 Ygor_Compiler_Flags.sh        /usr/bin/
-#        install -Dm644 libygor.a                    /usr/lib/
+	install -Dm644 libygor.so                       /usr/lib/
+	ldconfig -n                                     /usr/lib/       #Use "-R" instead of "-n" for FreeBSD.
+	install -Dm644 YgorContainers.h                 /usr/include/
+	install -Dm644 YgorAlgorithms.h                 /usr/include/
+	install -Dm644 YgorArguments.h                  /usr/include/   #Header only!
+	install -Dm644 YgorEnvironment.h                /usr/include/
+	install -Dm644 YgorMisc.h                       /usr/include/
+	install -Dm644 YgorImages.h                     /usr/include/
+	install -Dm644 YgorImagesIO.h                   /usr/include/
+	install -Dm644 YgorImagesPlotting.h             /usr/include/
+	install -Dm644 YgorMath.h                       /usr/include/
+	install -Dm644 YgorMathChebyshev.h              /usr/include/
+	install -Dm644 YgorMathChebyshevFunctions.h     /usr/include/
+	install -Dm644 YgorMathPlottingGnuplot.h        /usr/include/
+	install -Dm644 YgorMathPlottingVTK.h            /usr/include/
+	install -Dm644 YgorMathIOBoostSerialization.h   /usr/include/
+	install -Dm644 YgorImagesIOBoostSerialization.h /usr/include/
+	install -Dm644 YgorMath_Samples.h               /usr/include/
+	install -Dm644 YgorPlot.h                       /usr/include/
+	install -Dm644 YgorSerialize.h                  /usr/include/
+	install -Dm644 YgorStats.h                      /usr/include/
+	install -Dm644 YgorString.h                     /usr/include/
+	install -Dm644 YgorFilesDirs.h                  /usr/include/
+	install -Dm644 YgorPerformance.h                /usr/include/
+	install -Dm644 YgorNoise.h                      /usr/include/
+	install -Dm644 YgorNetworking.h                 /usr/include/
+	install -Dm644 YgorTime.h                       /usr/include/
+	install -Dm644 YgorDICOMTools.h                 /usr/include/
+	install -Dm644 YgorCONFIGTools.h                /usr/include/
+	install -Dm644 YgorURITools.h                   /usr/include/
+	install -Dm644 YgorVIDEOTools.h                 /usr/include/
+	install -Dm777 Ygor_Compiler_Flags.sh           /usr/bin/
 
 
 ########################################################################

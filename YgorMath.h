@@ -433,9 +433,6 @@ template <class T> class lin_reg_results {
         T sum_wf            = std::numeric_limits<T>::quiet_NaN(); //Sum of f_i/(sigma_f'_i^2).
         T sum_wxx           = std::numeric_limits<T>::quiet_NaN(); //Sum of x_i*x_i/(sigma_f'_i^2).
         T sum_wxf           = std::numeric_limits<T>::quiet_NaN(); //Sum of f_i*f_i/(sigma_f'_i^2).
-//        T Swxwf             = std::numeric_limits<T>::quiet_NaN(); //Sum of (x_i - mean_x)*(f_i - mean_f).
-//        T Swxwx             = std::numeric_limits<T>::quiet_NaN(); //Sum of (x_i - mean_x)^2.
-//        T Swfwf             = std::numeric_limits<T>::quiet_NaN(); //Sum of (f_i - mean_f)^2.
 
         // ==================================== Member functions =======================================
         lin_reg_results();
