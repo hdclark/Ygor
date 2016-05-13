@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <list>
 #include <iterator>
+#include <numeric>
 #include <functional>  //Needed for passing kernel functions to integration schemes.
 #include <string>      //Needed for stringification routines.
 #include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
@@ -2900,6 +2901,36 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const long int N) const;
     template contour_of_points<double> contour_of_points<double>::Resample_Evenly_Along_Perimeter(const long int N) const;
 #endif
+
+template <class T>
+contour_of_points<T> 
+contour_of_points<T>::Subdivide_Midway(void) const {
+    //First, do some preliminary checks.
+    if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
+   
+    decltype(this->points) newpoints;
+
+    auto itA = this->points.begin(), itB = ++(this->points.begin());
+    while(true){
+        if(!(itA != this->points.end())) break;
+        if(!(itB != this->points.end())) itB = this->points.begin();
+
+        newpoints.push_back(*itA);
+        newpoints.push_back(((*itA)+(*itB))/static_cast<T>(2));
+        ++itA; 
+        ++itB;
+    }
+
+    contour_of_points<T> out(std::move(newpoints));
+    out.closed = this->closed;
+    out.metadata = this->metadata;
+    return std::move(out);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template contour_of_points<float > contour_of_points<float >::Subdivide_Midway(void) const;
+    template contour_of_points<double> contour_of_points<double>::Subdivide_Midway(void) const;
+#endif
+
 
 //Scales distance from each point to given point by factor (scale).
 //

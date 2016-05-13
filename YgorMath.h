@@ -254,8 +254,11 @@ template <class T>   class contour_of_points {
         T Integrate_Simple_Scalar_Kernel(std::function<    T    (const vec3<T> &r, const vec3<T> &A, const vec3<T> &B, const vec3<T> &U)> k) const;
         T Integrate_Simple_Vector_Kernel(std::function< vec3<T> (const vec3<T> &r, const vec3<T> &A, const vec3<T> &B, const vec3<T> &U)> k) const;
 
-        contour_of_points<T> Resample_Evenly_Along_Perimeter(const long int N) const; //Walks along the perimeter, creating a new point (using interpolation) every [perimeter]/N .
-                                                                                   // Points will only be homogeneously distributed if the shape is circular (or by fluke.)
+        contour_of_points<T> Resample_Evenly_Along_Perimeter(const long int N) const; //Walks perimeter creating new points (via interpolation) every [perimeter]/N .
+                                                                                      // Points will be homogeneously distributed iff the shape is circular.
+
+        contour_of_points<T> Subdivide_Midway(void) const; //Inserts an extra vertex at the midway point between all vertices.
+
         contour_of_points<T> Scale_Dist_From_Point(const vec3<T> &, T scale) const;   //Scales distance from each point to given point by factor (scale).
 
         contour_of_points<T> Resample_LTE_Evenly_Along_Perimeter(const long int N) const; //Performs Resample_Evenly_Along_Perimeter only on contours with more than N.
