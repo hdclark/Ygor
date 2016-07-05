@@ -159,6 +159,10 @@ template <class T, class R> class planar_image {
         void fill_pixels(long int chnl, T val);
         void fill_pixels(T val); //All channels.
 
+        //Replace non-finite numbers.
+        void replace_nonfinite_pixels_with(long int chnl, T val);
+        void replace_nonfinite_pixels_with(T val); //All channels.
+
         //Get an R^3 position of the *center* of the pixel/voxel.
         vec3<R> position(long int row, long int col) const;
 

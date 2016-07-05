@@ -1108,6 +1108,48 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
     template void planar_image<float   ,double>::fill_pixels(float    val);
 #endif
 
+//Replace non-finite numbers.
+template <class T,class R>
+void 
+planar_image<T,R>::replace_nonfinite_pixels_with(long int chnl, T val){
+    if(!isininc(0,chnl,this->channels-1)) return;
+
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){ 
+            if(!std::isfinite(this->value(row, col, chnl))) this->reference(row, col, chnl) = val;
+        }
+    }                
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(long int chnl, uint8_t  val);
+    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(long int chnl, uint16_t val);
+    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(long int chnl, uint32_t val);
+    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(long int chnl, uint64_t val);
+    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(long int chnl, float    val);
+#endif
+
+template <class T,class R>
+void 
+planar_image<T,R>::replace_nonfinite_pixels_with(T val){
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){ 
+            for(auto chnl = 0; chnl < this->channels; ++chnl){
+                if(!std::isfinite(this->value(row, col, chnl))) this->reference(row, col, chnl) = val;
+            }
+        }
+    }                
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(uint8_t  val);
+    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(uint16_t val);
+    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(uint32_t val);
+    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(uint64_t val);
+    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(float    val);
+#endif
+
+
 //Get an R^3 position of the *center* of the pixel/voxel.
 template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, long int col) const {
     if( !isininc(0,row,this->rows-1) 
