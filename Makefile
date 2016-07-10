@@ -156,6 +156,7 @@ install: all
 	install -Dm644 YgorMathPlottingGnuplot.h        /usr/include/
 	install -Dm644 YgorMathPlottingVTK.h            /usr/include/
 	install -Dm644 YgorMathIOBoostSerialization.h   /usr/include/
+	install -Dm644 YgorMathChebyshevIOBoostSerialization.h  /usr/include/
 	install -Dm644 YgorImagesIOBoostSerialization.h /usr/include/
 	install -Dm644 YgorMath_Samples.h               /usr/include/
 	install -Dm644 YgorPlot.h                       /usr/include/
