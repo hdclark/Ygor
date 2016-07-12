@@ -67,6 +67,9 @@ YgorMathChebyshev.o: YgorMathChebyshev.h YgorMathChebyshev.cc
 YgorMathChebyshevFunctions.o: YgorMathChebyshevFunctions.h YgorMathChebyshevFunctions.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -fno-var-tracking-assignments -c YgorMathChebyshevFunctions.cc  
 
+YgorMathBSpline.o: YgorMathBSpline.h YgorMathBSpline.cc
+	${USECC} ${XTRA_DEFINES} -fPIC -c YgorMathBSpline.cc  #-lgsl -lgslcblas
+
 YgorPlot.o: YgorPlot.h  YgorPlot.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -c YgorPlot.cc  #-lplot
 
@@ -117,6 +120,7 @@ md5.o: External/MD5/md5.cc
 #  lot of extra crap. Prune if it will matter.
 libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
                YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
+               YgorMathBSpline.o \
                YgorArguments.h YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o \
                YgorSerialize.o          \
                YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o YgorPerformance.o YgorNoise.o     \
@@ -124,6 +128,7 @@ libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorM
                YgorVIDEOTools.o spookyhash.o md5.o  
 	${USECC} ${XTRA_DEFINES} -rdynamic -shared -Wl,-soname,libygor.so -o libygor.so   -Wl,-z,now -Wl,-z,noexecstack  \
                YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
+               YgorMathBSpline.o \
                YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
                YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o \
                YgorSerialize.o                     \
@@ -153,6 +158,7 @@ install: all
 	install -Dm644 YgorMath.h                       /usr/include/
 	install -Dm644 YgorMathChebyshev.h              /usr/include/
 	install -Dm644 YgorMathChebyshevFunctions.h     /usr/include/
+	install -Dm644 YgorMathBSpline.h                /usr/include/
 	install -Dm644 YgorMathPlottingGnuplot.h        /usr/include/
 	install -Dm644 YgorMathPlottingVTK.h            /usr/include/
 	install -Dm644 YgorMathIOBoostSerialization.h   /usr/include/
@@ -182,6 +188,7 @@ clean:
 	rm libygor.so libygor.a YgorContainers.o YgorAlgorithms.o \
            YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o        \
            YgorMathChebyshev.o YgorMathChebyshevFunctions.o        \
+           YgorMathBSpline.o    \
            YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o         \
            YgorSerialize.o           \
            YgorPerformance.o YgorNoise.o YgorNetworking.o YgorDICOMTools.o             \
