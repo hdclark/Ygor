@@ -13,3 +13,9 @@
 *.la
 *.a
 
+# Test programs
+test_*
+get*
+twot*
+regex*
+
