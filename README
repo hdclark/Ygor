@@ -1,38 +1,44 @@
 
-Project - Utilities
-===================
+Project - Ygor
+==============
 
 
 Introduction
 ------------
 
-These files were written by hal clark over the span of several years. They were written
- to help enforce the DRY (Don't Repeat Yourself) principle, since several of the routines
- here kept popping up throughout various projects. After at least a dozen similar 
- project-specific files were created and tweaked, it was decided that these routines
- would be a good candidate for a bonafide project in their own right.
+ These files were written by hal clark over the span of several years (~2010-2016+). 
+ They were written to help enforce the DRY (Don't Repeat Yourself) principle, since
+ several of the routines here kept popping up throughout various projects. After at
+ least a dozen similar project-specific files were created and tweaked, it wa
+ decided that these routines would be a good candidate for a bonafide project in 
+ their own right.
 
  These routines will grow, be replaced, be updated, and may even disappear when their
  functionality is superceded by new features in the language/better libraries/etc..
+ However, many of these routines are not broadly useful enough for something like
+ Boost, and many are not comprehensive enough to be submitted to a more robust
+ support library. The routines in this library are made for specific projects with
+ specific needs, but which may (have) become useful for other projects.
 
- Pushing (generic) routines from specific projects into these files is encouraged! We can 
- prune and tweak later - what is currently important is that DRY is being rampantly 
- ignored, even by the precise header files which were created to address the issue!
-
+ Pushing (generic) routines from specific projects into these files is encouraged,
+ so long as the routines has some hope of being applicable in some other situation.
 
 License
 -------
 
-The copyrights are reserved by the author until a specific license has been chosen.
+ The copyrights are reserved by the author until a specific license has been chosen.
  Please contact the author for further clarification. Also note that the author is 
  available for discussion on the matter. These routines will be released under *some*
  form of open license.
+
+ (The plan is to release under the GPLv3+, but some code may not be compatible. A
+ thorough review is needed.)
 
 
 Author
 ------
 
-The entirety of this project was written by hal clark, unless otherwise noted. The 
+ The entirety of this project was written by hal clark, unless otherwise noted. The 
  majority of routines were written with the assistance of websites like 
  StackOverflow, CppReference, and Bjarne's C++11 FAQ. These resources were invaluable,
  and the author thanks those who have made such information available both free of
@@ -40,15 +46,16 @@ The entirety of this project was written by hal clark, unless otherwise noted. T
  code has been consulted or used. Insignificant portions of GPL code have been used 
  verbatim where appropriate.
 
- As of writing, code within also relies on:
-   - STL (heavily)
-   - Boost code     (Various. Actively purging - waiting for std::regex support!)
+ If a routine existed in a high-quality, widely-available library, it was not 
+ duplicated in Ygor. As of writing, various bits of Ygor rely on:
+   - STL/C++14      (Heavily, throughout; mostly C++11 but some C++14.)
+   - Boost          (Various. Actively purging - waiting for std::regex support!)
    - htmlcxx        (URItools)
    - Cyassl         (YgorNetworking)
    - spookyhash     (YgorAlgorithms. Very little - one function at time of writing)
-   - gsl
+   - GNU Scientific Library. (YgorStats and YgorMathBasisSplines)
    - GNU plotutils  (YgorPlot. Weakly - via shell/pipe)
-   - GNUplot        (YgorPlot. Weakly - via shell/pipe)
+   - Gnuplot        (YgorPlot. Weakly - via shell/pipe)
 
 
 
@@ -97,6 +104,11 @@ Rough Timeline
                    function behaviour arguments and error signaling. I've also spent
                    some time thinking about a better unit testing scheme. This was a 
                    big undertaking!
+
+ - July 2016     - Migrated code and limited history (~late 2015) to git to ease
+                   deployment. Some clean-up of junk files was performed. Still 
+                   relying on GNU Make(files), and the project hierarchy is a bit of 
+                   a mess. Modernization is planned.
 
 
 
