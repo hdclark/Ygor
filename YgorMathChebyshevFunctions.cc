@@ -111,8 +111,12 @@ Chebyshev_Basis_Approx_Exp_Sampled( size_t numb_of_c_in,
         throw std::invalid_argument("Cannot approximate exponential with < 3 coefficients");
     }else if( xmax == xmin ){
         throw std::invalid_argument("Provided an invalid/illegal domain");
-    }else if( !std::isfinite(A) || !std::isfinite(B) || !std::isfinite(C) ){
-        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameters");
+    }else if( !std::isfinite(A) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter A: " + std::to_string(A));
+    }else if( !std::isfinite(B) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter B: " + std::to_string(B));
+    }else if( !std::isfinite(C) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter C: " + std::to_string(C));
     }
 
     const T nT = static_cast<T>(numb_of_c_in);
@@ -182,8 +186,12 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
         throw std::invalid_argument("Cannot approximate exponential with < 3 coefficients");
     }else if( xmax == xmin ){
         throw std::invalid_argument("Provided an invalid/illegal domain");
-    }else if( !std::isfinite(A) || !std::isfinite(B) || !std::isfinite(C) ){
-        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameters");
+    }else if( !std::isfinite(A) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter A: " + std::to_string(A));
+    }else if( !std::isfinite(B) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter B: " + std::to_string(B));
+    }else if( !std::isfinite(C) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter C: " + std::to_string(C));
     }
 
 
@@ -265,8 +273,12 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
         throw std::invalid_argument("Cannot approximate exponential with < 2 coefficients");
     }else if( xmax == xmin ){
         throw std::invalid_argument("Provided an invalid/illegal domain");
-    }else if( !std::isfinite(A) || !std::isfinite(B) || !std::isfinite(C) ){
-        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameters");
+    }else if( !std::isfinite(A) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter A: " + std::to_string(A));
+    }else if( !std::isfinite(B) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter B: " + std::to_string(B));
+    }else if( !std::isfinite(C) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter C: " + std::to_string(C));
     }
 
 
@@ -438,10 +450,13 @@ Chebyshev_Basis_Approx_Exp_Analytic2( size_t numb_of_c_in,
         throw std::invalid_argument("Cannot approximate exponential with < 2 coefficients");
     }else if( xmax == xmin ){
         throw std::invalid_argument("Provided an invalid/illegal domain");
-    }else if( !std::isfinite(A) || !std::isfinite(B) || !std::isfinite(C) ){
-        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameters");
+    }else if( !std::isfinite(A) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter A: " + std::to_string(A));
+    }else if( !std::isfinite(B) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter B: " + std::to_string(B));
+    }else if( !std::isfinite(C) ){
+        throw std::invalid_argument("Cannot approximate exponential with provided non-finite parameter C: " + std::to_string(C));
     }
-
 
     //To cover the user-provided domain, we have to make a change of variables.
     // Keep in mind that what we will be asked to use the coefficients for is $C\exp(Az+B)$
