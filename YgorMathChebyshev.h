@@ -249,6 +249,25 @@ template <class T> class cheby_approx {
         std::pair<T,T>
         Get_Domain(void) const;
 
+
+        //Perform a multiplication in the Chebyshev basis, but only bother with the lowest specified 
+        // coefficients.
+        //
+        // NOTE: The resultant polynomial will have only 'numb_of_c_to_use' coefficients. 
+        //
+        // NOTE: If 'numb_of_c_to_use' is zero, then MAX(this->c.size(),rhs.c.size()) coefficients will 
+        //       be used.
+        //
+        // NOTE: If 'fraction_of_max_c_to_use' is 0.8, then std::round(0.8*MAX(this->c.size(),rhs.c.size()))
+        //       coefficients will be used. It provides a more scale-independent way to specify the number
+        //       of coefficients. But be weary of trying to be too granular if there aren't many coefficients
+        //       available.
+        cheby_approx<T> Fast_Approx_Multiply(const cheby_approx<T> &, 
+                                             size_t numb_of_c_to_use = 0) const;
+        cheby_approx<T> Fast_Approx_Multiply(const cheby_approx<T> &, 
+                                             double fraction_of_max_c_to_use = 1.0) const;
+
+
         //Friends.
 //        template<class Y> friend std::ostream & operator << (std::ostream &, const vec3<Y> &); // ---> Overloaded stream operators.
 //        template<class Y> friend std::istream & operator >> (std::istream &, vec3<Y> &);      

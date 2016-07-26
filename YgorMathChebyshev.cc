@@ -539,4 +539,95 @@ cheby_approx<T>::Get_Domain(void) const {
     template std::pair<double, double> cheby_approx<double>::Get_Domain(void) const;
 #endif
 
+template <class T>
+cheby_approx<T>
+cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs, 
+                                      size_t numb_of_c_to_use) const {
+
+    // NOTE: This routine makes use of the general formula for products of Chebyshev polynomials:
+    //             $ T_{n}(x) \cdot T_{m}(x) = \frac{1}{2} ( T_{n+m}(x) + T_{|n+m|} ) $
+    //       which can be easily derived using the trigonometric representation and making use of
+    //       the trigonometric identity:
+    //             $ 2 \cos(a)\cos(b) = \cos(a+b) + \cos(a-b) $.
+    //
+
+    if(false){
+    }else if( this->c.empty() || !std::isfinite(this->xmin) || !std::isfinite(this->xmax) ){
+        throw std::invalid_argument("Cannot perform multiplication; LHS has not been prepared");
+    }else if( rhs.c.empty() || !std::isfinite(rhs.xmin) || !std::isfinite(rhs.xmax) ){
+        throw std::invalid_argument("Cannot perform multiplication; RHS has not been prepared");
+    }else if( this->c.empty() || rhs.c.empty() ){
+        throw std::invalid_argument("Cannot perform multiplication; too few coefficients were used to prepare the approximations"); 
+    }else if( (this->xmin != rhs.xmin) || (this->xmax != rhs.xmax) ){
+        throw std::invalid_argument("Cannot perform multiplication; domains are not exactly equal");
+    }
+
+    const auto N = this->c.size(); 
+    const auto M = rhs.c.size(); 
+    const auto P = (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use;
+
+    //If too many coefficients are being requested, use the non-truncated version to compute the
+    // full multiplication.
+    if( P >= (N+M-1) ) return (*this) * rhs;
+    if( P == 0 ) throw std::invalid_argument("Cannot construct approximation with zero coefficients.");
+
+    std::vector<T> c(P,static_cast<T>(0));
+
+    const T one = static_cast<T>(1);
+    const T half = static_cast<T>(0.5);
+
+    cheby_approx<T> out;
+
+    //The following factors are used to account for the subtraction of $C_{0}/2$ in the general
+    // Chebyshev polynomial expansion. 
+    T ifac, jfac;
+
+    // NOTE: In the special case where N==M, we can exploit the symmetry to slightly reduce the
+    //       dimensionality of the following double loop. This optimization is not implemented
+    //       here for simplicity purposes.
+    //
+    //       This implementation effectively computes matrix elements for an $N-1$ by $M-1$ 
+    //       matrix and takes the sums of diagonals as coefficients. 
+    for(long int i = 0; i < static_cast<long int>(N); ++i){
+        ifac = (i==0) ? half : one ;
+        for(long int j = 0; j < static_cast<long int>(M); ++j){
+            jfac = (j==0) ? half : one;
+            if((i+j) < P) c[i+j] += half * ifac * jfac * this->c[i] * rhs.c[j];
+            const size_t diff = (i > j) ? (i-j) : (j-i);
+            if(diff < P) c[diff] += half * ifac * jfac * this->c[i] * rhs.c[j];
+        }
+    }
+    c[0] *= static_cast<T>(2);
+    out.Prepare(c,xmin,xmax);
+    return out;
+};
+#ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
+    template cheby_approx<float > 
+        cheby_approx<float >::Fast_Approx_Multiply(const cheby_approx<float > &, size_t) const;
+    template cheby_approx<double> 
+        cheby_approx<double>::Fast_Approx_Multiply(const cheby_approx<double> &, size_t) const;
+#endif
+
+
+template <class T>
+cheby_approx<T>
+cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs, 
+                                      double fraction_of_max_c_to_use) const {
+    if(fraction_of_max_c_to_use < 0.0){
+        throw std::invalid_argument("Provided fraction was negative. Cannot be converted to size_t");
+    }
+
+    const auto N = this->c.size(); 
+    const auto M = rhs.c.size(); 
+    const auto P = static_cast<size_t>( std::round( fraction_of_max_c_to_use * std::max(N,M) ) );
+
+    return this->Fast_Approx_Multiply(rhs, P);
+};
+#ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
+    template cheby_approx<float > 
+        cheby_approx<float >::Fast_Approx_Multiply(const cheby_approx<float > &, double) const;
+    template cheby_approx<double> 
+        cheby_approx<double>::Fast_Approx_Multiply(const cheby_approx<double> &, double) const;
+#endif
+
 
