@@ -539,6 +539,7 @@ cheby_approx<T>::Get_Domain(void) const {
     template std::pair<double, double> cheby_approx<double>::Get_Domain(void) const;
 #endif
 
+
 template <class T>
 cheby_approx<T>
 cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs, 
@@ -562,9 +563,9 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
         throw std::invalid_argument("Cannot perform multiplication; domains are not exactly equal");
     }
 
-    const auto N = this->c.size(); 
-    const auto M = rhs.c.size(); 
-    const auto P = (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use;
+    const auto N = static_cast<long int>(this->c.size()); 
+    const auto M = static_cast<long int>(rhs.c.size()); 
+    const auto P = static_cast<long int>( (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use );
 
     //If too many coefficients are being requested, use the non-truncated version to compute the
     // full multiplication.
@@ -582,21 +583,55 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
     // Chebyshev polynomial expansion. 
     T ifac, jfac;
 
-    // NOTE: In the special case where N==M, we can exploit the symmetry to slightly reduce the
-    //       dimensionality of the following double loop. This optimization is not implemented
-    //       here for simplicity purposes.
-    //
-    //       This implementation effectively computes matrix elements for an $N-1$ by $M-1$ 
-    //       matrix and takes the sums of diagonals as coefficients. 
-    for(long int i = 0; i < static_cast<long int>(N); ++i){
-        ifac = (i==0) ? half : one ;
-        for(long int j = 0; j < static_cast<long int>(M); ++j){
+    //First, the 'sum' part.
+    for(long int k = 0; k < static_cast<long int>(P); ++k){
+        long int i_start = (k > (N-1)) ? (N-1)     : k;
+        long int i_end   = (k > (M-1)) ? (k-(M-1)) : 0;
+        long int j_start = (k > (N-1)) ? (k-(N-1)) : 0;
+        long int i = i_start;
+        for(long int j = j_start ; i >= i_end ; --i, ++j){
+            ifac = (i==0) ? half : one;
             jfac = (j==0) ? half : one;
-            if((i+j) < P) c[i+j] += half * ifac * jfac * this->c[i] * rhs.c[j];
-            const size_t diff = (i > j) ? (i-j) : (j-i);
-            if(diff < P) c[diff] += half * ifac * jfac * this->c[i] * rhs.c[j];
+            c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];
         }
     }
+
+    //Second, the main diagonal of the 'difference' part.
+    c[0] += half * half * half * this->c[0] * rhs.c[0];
+    long int diag_max_k = std::min(N,M);
+    for(long int k = 1; k < diag_max_k; ++k){
+        c[0] += half * this->c[k] * rhs.c[k];
+    }
+
+    //Third, the upper diagonal 'difference' part.
+    long int diag_max_P_M = std::min(P,M);
+    for(long int k = 1; k < diag_max_P_M; ++k){
+        long int i_start = 0;
+        long int i_end   = std::min(N,M-k)-1;
+        long int j_start = k;
+
+        long int j = j_start;
+        for(long int i = i_start ; i <= i_end; ++i, ++j){
+            ifac = (i==0) ? half : one;
+            jfac = (j==0) ? half : one;
+            c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];
+        }
+    }
+    //Third, the lower diagonal 'difference' part.
+    long int diag_max_P_N = std::min(P,N);
+    for(long int k = 1; k < diag_max_P_N; ++k){
+        long int i_start = k;
+        long int j_end   = std::min(M,N-k)-1;
+        long int j_start = 0;
+
+        long int i = i_start;
+        for(long int j = j_start ; j <= j_end; ++i, ++j){
+            ifac = (i==0) ? half : one;
+            jfac = (j==0) ? half : one;
+            c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];
+        }
+    }
+
     c[0] *= static_cast<T>(2);
     out.Prepare(c,xmin,xmax);
     return out;

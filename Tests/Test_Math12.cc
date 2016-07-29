@@ -119,21 +119,21 @@ int main(int , char** ){
     const double xmin = -0.05;
     const double xmax = 0.30;
 
-    const cheby_approx<double> curveA = Chebyshev_Basis_Approx_Exp_Analytic1(20,xmin,xmax,-2.0,3.0,4.0);;
+    const cheby_approx<double> curveA = Chebyshev_Basis_Approx_Exp_Analytic1(9,xmin,xmax,-2.0,3.0,4.0);;
+    const cheby_approx<double> curveB = Chebyshev_Basis_Approx_Exp_Analytic1(11,xmin,xmax,-2.0,3.0,4.0);;
 
-    cheby_approx<double> curveC = curveA * curveA;
-    ctc["Full Multiplication"] = curveC;
+    //cheby_approx<double> curveC = curveA.Fast_Approx_Multiply( curveB, (size_t)(15) );
 
-    cheby_approx<double> curveD = curveA.Fast_Approx_Multiply( curveA, 0 );
+    cheby_approx<double> curveD = curveA.Fast_Approx_Multiply( curveA, (size_t)(0) );
     ctc["Default Approx"] = curveD;
 
-    cheby_approx<double> curveE = curveA.Fast_Approx_Multiply( curveA, 30 );
+    cheby_approx<double> curveE = curveA.Fast_Approx_Multiply( curveA, (size_t)(30) );
     ctc["Approx: 30"] = curveE;
 
-    cheby_approx<double> curveF = curveA.Fast_Approx_Multiply( curveA, 15 );
+    cheby_approx<double> curveF = curveA.Fast_Approx_Multiply( curveA, (size_t)(15) );
     ctc["Approx: 15"] = curveF;
 
-    cheby_approx<double> curveG = curveA.Fast_Approx_Multiply( curveA, 3 );
+    cheby_approx<double> curveG = curveA.Fast_Approx_Multiply( curveA, (size_t)(3) );
     ctc["Approx: 3"] = curveG;
 
 
