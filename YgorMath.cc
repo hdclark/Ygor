@@ -3034,7 +3034,7 @@ contour_of_points<T>::Estimate_Planar_Normal() const {
         }
         dp2p0 = *std::next(this->points.begin(),n++) - p0;
     }while(!std::isnormal(dp2p0.length()));
-    return dp2p0.Cross(dp1p0).unit();
+    return dp1p0.Cross(dp2p0).unit(); //Using the counterclockwise <--> positive convention.
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template vec3<float > contour_of_points<float >::Estimate_Planar_Normal() const;
