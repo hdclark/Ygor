@@ -348,6 +348,22 @@ template <class T>   class contour_collection {
         std::list<contour_collection<T>> Split_Against_Ray(const  vec3<T> &) const; //Splits the contours along the halfway point of a given ray unit vector. This is a "ray casting" splitting.
         std::list<contour_collection<T>> Split_Into_Core_Peel_Spherical(T frac_dist) const; //Splits contour into an inner (core) and outer (peel) using the cc centroid.
 
+        //Split contours using a planar splitting approach so that an arbitrary fraction of the total volume is above
+        // the target plane.
+        std::list<contour_collection<T>> Volumetric_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
+                                                T desired_total_area_fraction_above_plane,
+                                                T acceptable_frac_deviation = static_cast<T>(0.01), // 0.01 = 1% of total area.
+                                                size_t max_iters = 100,
+                                                plane<T> *final_plane = nullptr, // leave nullptr to ignore.
+                                                size_t *iters_taken   = nullptr, // leave nullptr to ignore.
+                                                T *final_area_frac    = nullptr, // leave nullptr to ignore.
+                                                vec3<T> lower_bound = vec3<T>(std::numeric_limits<T>::quiet_NaN(),
+                                                                              std::numeric_limits<T>::quiet_NaN(),
+                                                                              std::numeric_limits<T>::quiet_NaN() ), 
+                                                vec3<T> upper_bound = vec3<T>(std::numeric_limits<T>::quiet_NaN(),
+                                                                              std::numeric_limits<T>::quiet_NaN(),
+                                                                              std::numeric_limits<T>::quiet_NaN() ) ) const; 
+
         contour_collection & operator= (const contour_collection &);
         bool operator==(const contour_collection &) const; //Relies on the contour_of_points operator==. See caveats there.
         bool operator!=(const contour_collection &) const; 

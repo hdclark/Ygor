@@ -3838,6 +3838,157 @@ template <class T> contour_collection<T> &  contour_collection<T>::operator=(con
     template contour_collection<double> & contour_collection<double>::operator=(const contour_collection<double> &rhs);
 #endif
 
+template <class T>
+std::list<contour_collection<T>>
+contour_collection<T>::Volumetric_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
+                                                        T desired_total_area_fraction_above_plane,
+                                                        T acceptable_frac_deviation,
+                                                        size_t max_iters,
+                                                        plane<T> *final_plane,
+                                                        size_t *iters_taken,
+                                                        T *final_area_frac,
+                                                        vec3<T> lower_bound,
+                                                        vec3<T> upper_bound) const {
+
+    //Split the contour collection such that the split (discretely) comes closest to the desired total area above a plane.
+    //
+    // NOTE: This routine will work with transverse planes, but be aware that attempting to split contours with a plane
+    //       that is parallel to the plane the contours lie in is risky. You will probably get a 'discrete' split such
+    //       that a given contour will either be above or below, but not split into pieces. You *might* be able to let
+    //       the algorithm run for a long time in such a case if you are OK with floating-point instabilities, but a
+    //       better approach would be to slightly rotate your plane or contours to get a more well-defined split.
+    //
+    //       Note, however, that this routine will probably work even with a transverse plane if the tolerances and/or
+    //       max_iter are set to reasonable values. Examples of 'reasonable' are ~1-5% tolerance and no more than 10-20
+    //       iterations (otherwise the contours might begin to get split in their own plane).
+    //
+    // NOTE: This routine might get run for an excessive time if either the tolerance or max_iters are not set to
+    //       appropriate values.
+    //
+    // Parameter description:
+    //   - planar_unit_normal  <-- Defines 'up' and the planar orientation.
+    //   - desired_total_area_fraction_above_plane  <-- Here 'above' means in the positive normal direction.
+    //   - acceptable_deviation  <-- Deviation from desired_total_area_fraction_above_plane.
+    //   - final_plane  <-- If non-nullptr, storage for the final plane. (The user might not care.)
+    //   - max_iters  <-- If the tolerance cannot be reached after this many iters, report the current plane as-is.
+    //   - iters_taken  <-- If non-nullptr, storage for the number of iterations performed. (The user might not care.)
+    //   - lower_bound  <-.
+    //   - upper_bound  <-'` These define the upper and lower bounds of the desired planar split. They are points through
+    //                       which a plane with the given unit normal intersects. If they are not finite, they will be
+    //                       automatically derived from the most extreme points from the specified plane. Relying on
+    //                       automatic bounds derivation should work in all except degenerate cases, but can result in
+    //                       slow bisection compared with the user more closely bounding the desired planar split.
+    //
+
+    if(!isininc(static_cast<T>(0), desired_total_area_fraction_above_plane, static_cast<T>(1))){
+        throw std::invalid_argument("Desired area parameter must be within [0,1].");
+    }
+    const auto highest_acceptable = desired_total_area_fraction_above_plane + acceptable_frac_deviation;
+    const auto lowest_acceptable  = desired_total_area_fraction_above_plane - acceptable_frac_deviation;
+
+    //If the bounds are not finite, try derive them from the contour data.
+    if(!std::isfinite(lower_bound.length())){
+        //Construct a plane at the centroid with the correct orientation. Find the vertex which is furthest from the
+        // plane and on the negative side.
+        const auto centroid = this->Average_Point();
+        const auto aplane = plane<T>(planar_unit_normal, centroid);
+        T current_furthest = std::numeric_limits<T>::quiet_NaN();
+        for(const auto &c : this->contours){
+            for(const auto &p : c.points){
+                const auto signed_dist = aplane.Get_Signed_Distance_To_Point(p);
+                if(signed_dist <= static_cast<T>(0)){
+                    const auto thedist = std::abs(signed_dist);
+                    if( !std::isfinite(current_furthest) || (current_furthest < thedist) ){
+                        lower_bound = p;
+                        current_furthest = thedist;
+                    }
+                }
+            }
+        }
+    }
+    if(!std::isfinite(upper_bound.length())){
+        const auto centroid = this->Average_Point();
+        const auto aplane = plane<T>(planar_unit_normal, centroid);
+        T current_furthest = std::numeric_limits<T>::quiet_NaN();
+        for(const auto &c : this->contours){
+            for(const auto &p : c.points){
+                const auto signed_dist = aplane.Get_Signed_Distance_To_Point(p);
+                if(signed_dist >= static_cast<T>(0)){
+                    const auto thedist = std::abs(signed_dist);
+                    if( !std::isfinite(current_furthest) || (current_furthest < thedist) ){
+                        upper_bound = p;
+                        current_furthest = thedist;
+                    }
+                }
+            }
+        }
+    }
+
+    if( !std::isfinite(lower_bound.length()) || !std::isfinite(upper_bound.length()) ){
+        throw std::runtime_error("Unable to derive lower or upper bound. Cannot begin bisection routine.");
+    }
+
+    //Compute the area of all planar slices.
+    const auto total_area = this->Get_Signed_Area();
+
+    size_t iter = 1;
+    while(true){
+
+       //Given the current upper and lower planar bounds, compute the mid-plane.
+       const auto lower_plane = plane<T>(planar_unit_normal, lower_bound);
+       const auto upper_plane = plane<T>(planar_unit_normal, upper_bound);
+
+       const auto dist_between_planes = lower_plane.Get_Signed_Distance_To_Point( upper_bound );
+       const auto mid_plane = plane<T>(planar_unit_normal, lower_bound + planar_unit_normal * dist_between_planes * static_cast<T>(0.5));
+
+
+       //Compute the area split with the mid-plane.
+       const auto splits = this->Split_Along_Plane(mid_plane);
+       if(splits.size() != 2){
+           throw std::logic_error("Expected exactly two groups, above and below plane.");
+       }
+       const auto area_above_mid_plane = splits.back().Get_Signed_Area();
+       const auto area_frac = area_above_mid_plane / total_area;
+
+       //Check if the mid-plane is within tolerance. If it is, we can stop.
+       //
+       //Also check if the max iteration count has been reached. It is up to the user whether this is considered a
+       // success or not. (For example, if a transverse plane has been used, it may not be possible to achieve the
+       // tolerance requested. Another example: the tolerance is set very small and it cannot be reached due to
+       // truncation errors.)
+       if( isininc(lowest_acceptable,area_frac,highest_acceptable) || (iter >= max_iters) ){
+           if(final_plane != nullptr) *final_plane = mid_plane;
+           if(iters_taken != nullptr) *iters_taken = iter;
+           if(final_area_frac != nullptr) *final_area_frac = area_frac;
+           return splits;
+
+       //If the area above the midplane is too small, replace the upper plane bound with the midplane.
+       }else if(area_frac < desired_total_area_fraction_above_plane){
+           upper_bound = mid_plane.R_0;
+
+       //If it is too big, replace the lower plane bound with the midplane.
+       }else{
+           lower_bound = mid_plane.R_0;
+       }
+
+       ++iter;
+    }
+
+    throw std::logic_error("Should not ever get to this point");
+    return std::list<contour_collection<T>>();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+template std::list<contour_collection<float >> 
+    contour_collection<float >::Volumetric_Bisection_Along_Plane(const vec3<float >&,
+                                                                 float , float , size_t,
+                                                                 plane<float > *, size_t *, float  *,
+                                                                 vec3<float >, vec3<float >) const;
+template std::list<contour_collection<double>> 
+    contour_collection<double>::Volumetric_Bisection_Along_Plane(const vec3<double>&,
+                                                                 double, double, size_t,
+                                                                 plane<double> *, size_t *, double *,
+                                                                 vec3<double>, vec3<double>) const;
+#endif                                                                 
 
 //This routine attempts to determine equality between a collection of contours, ignoring the starting position of each contour.
 // This is a computationally expensive task, so some shortcuts might be taken! See the contour_of_points operator== for more
