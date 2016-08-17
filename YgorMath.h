@@ -348,9 +348,9 @@ template <class T>   class contour_collection {
         std::list<contour_collection<T>> Split_Against_Ray(const  vec3<T> &) const; //Splits the contours along the halfway point of a given ray unit vector. This is a "ray casting" splitting.
         std::list<contour_collection<T>> Split_Into_Core_Peel_Spherical(T frac_dist) const; //Splits contour into an inner (core) and outer (peel) using the cc centroid.
 
-        //Split contours using a planar splitting approach so that an arbitrary fraction of the total volume is above
-        // the target plane.
-        std::list<contour_collection<T>> Volumetric_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
+        //Split contours using a planar splitting approach so that an arbitrary fraction of the total planar area is above
+        // the target plane. (Does not do full volumetric slicing!)
+        std::list<contour_collection<T>> Total_Area_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
                                                 T desired_total_area_fraction_above_plane,
                                                 T acceptable_frac_deviation = static_cast<T>(0.01), // 0.01 = 1% of total area.
                                                 size_t max_iters = 100,

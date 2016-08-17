@@ -48,7 +48,7 @@ int main(int argc, char **argv){
         size_t iters_taken = 0;
         double final_area_frac = std::numeric_limits<double>::quiet_NaN();
 
-        const auto splits = cc.Volumetric_Bisection_Along_Plane(planar_unit_normal,
+        const auto splits = cc.Total_Area_Bisection_Along_Plane(planar_unit_normal,
                                                                 desired_total_area_fraction_above_plane,
                                                                 acceptable_deviation,
                                                                 max_iters,

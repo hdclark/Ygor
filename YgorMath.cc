@@ -3840,7 +3840,7 @@ template <class T> contour_collection<T> &  contour_collection<T>::operator=(con
 
 template <class T>
 std::list<contour_collection<T>>
-contour_collection<T>::Volumetric_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
+contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_unit_normal,
                                                         T desired_total_area_fraction_above_plane,
                                                         T acceptable_frac_deviation,
                                                         size_t max_iters,
@@ -3979,12 +3979,12 @@ contour_collection<T>::Volumetric_Bisection_Along_Plane(const vec3<T> &planar_un
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 template std::list<contour_collection<float >> 
-    contour_collection<float >::Volumetric_Bisection_Along_Plane(const vec3<float >&,
+    contour_collection<float >::Total_Area_Bisection_Along_Plane(const vec3<float >&,
                                                                  float , float , size_t,
                                                                  plane<float > *, size_t *, float  *,
                                                                  vec3<float >, vec3<float >) const;
 template std::list<contour_collection<double>> 
-    contour_collection<double>::Volumetric_Bisection_Along_Plane(const vec3<double>&,
+    contour_collection<double>::Total_Area_Bisection_Along_Plane(const vec3<double>&,
                                                                  double, double, size_t,
                                                                  plane<double> *, size_t *, double *,
                                                                  vec3<double>, vec3<double>) const;
