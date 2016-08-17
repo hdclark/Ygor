@@ -3001,6 +3001,46 @@ plane<T> contour_of_points<T>::Least_Squares_Best_Fit_Plane(const vec3<T> &plane
     template plane<double> contour_of_points<double>::Least_Squares_Best_Fit_Plane(const vec3<double> &plane_normal) const;
 #endif
 
+
+//Estimates the planar normal using a few vertices via cross-product.
+//
+// The estimate may not represent any actual normal on the surface defined by the contour if the contour is non-planar.
+// 
+// NOTE: A better approach would solve the least-squares (or something more robust) estimate for the normal using all
+//       datum available. However, this method works fine if the contour is planar, and there isn't much rationale in
+//       calling this routine if the contour is not planar. So this method won out owing to simplicity.
+template <class T>
+vec3<T> 
+contour_of_points<T>::Estimate_Planar_Normal() const {
+    if(this->points.size() < 3){
+        throw std::runtime_error("Failed to estimate contour plane: too few datum available.");
+    }
+    const auto N = this->points.size();
+    const vec3<T> p0 = this->Average_Point();
+    vec3<T> dp1p0;
+    vec3<T> dp2p0;
+    size_t n = 0;
+
+    //Look for a usable p1.
+    do{
+        if((n+1) == N){
+            throw std::runtime_error("Exhausted available points: too few usable datum available.");
+        }
+        dp1p0 = *std::next(this->points.begin(),n++) - p0;
+    }while(!std::isnormal(dp1p0.length()));
+    do{
+        if((n+1) == N){
+            throw std::runtime_error("Exhausted available points: too few usable datum available.");
+        }
+        dp2p0 = *std::next(this->points.begin(),n++) - p0;
+    }while(!std::isnormal(dp2p0.length()));
+    return dp2p0.Cross(dp1p0).unit();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > contour_of_points<float >::Estimate_Planar_Normal() const;
+    template vec3<double> contour_of_points<double>::Estimate_Planar_Normal() const;
+#endif    
+
 //Maintain connectivity, but project each point onto the given plane along a normal to the plane. 
 //
 // Returns an empty contour if any point cannot be projected to a finite point on the plane.

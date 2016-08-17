@@ -269,6 +269,9 @@ template <class T>   class contour_of_points {
         //Maintain connectivity, but project each point onto the given plane (along a plane normal). Returns empty if impossible.
         contour_of_points<T> Project_Onto_Plane_Orthogonally(const plane<T> &P) const;
 
+        //Estimates the planar normal using a few vertices. 
+        vec3<T> Estimate_Planar_Normal() const;
+
         //Check if the given point lies in a 2D polygon defined by the orthogonal projection (of both contour and point) onto a given plane.
         // This routine entirely ignores the direction orthogonal to the plane, so filter contours at the wrong 'height' beforehand for 3D!
         bool Is_Point_In_Polygon_Projected_Orthogonally(const plane<T> &plane, const vec3<T> &point, bool AlreadyProjected = false) const;
