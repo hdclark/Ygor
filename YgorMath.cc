@@ -3945,6 +3945,11 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
                 }
             }
         }
+
+        //Leave a bit of a gap in case the user wants zero or one total fractional area.
+        const auto furthest_dist = std::abs(aplane.Get_Signed_Distance_To_Point(lower_bound));
+        const auto gap = furthest_dist * static_cast<T>(0.1);
+        lower_bound -= planar_unit_normal * gap;
     }
     if(!std::isfinite(upper_bound.length())){
         const auto centroid = this->Average_Point();
@@ -3962,6 +3967,10 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
                 }
             }
         }
+
+        const auto furthest_dist = std::abs(aplane.Get_Signed_Distance_To_Point(lower_bound));
+        const auto gap = furthest_dist * static_cast<T>(0.1);
+        lower_bound += planar_unit_normal * gap;
     }
 
     if( !std::isfinite(lower_bound.length()) || !std::isfinite(upper_bound.length()) ){
