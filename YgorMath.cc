@@ -1249,7 +1249,7 @@ vec3<T>
 line<T>::Project_Point_Orthogonally( const vec3<T> &R ) const {
     // Projects the given point onto the nearest point on the line.
     const auto RR = R - this->R_0; // RR is a vector with a tail on the line somewhere, same as the line's unit U_0.
-    return (this->U_0 * this->U_0.Dot(RR));
+    return (this->U_0 * this->U_0.Dot(RR)) + this->R_0;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template vec3<float > line<float >::Project_Point_Orthogonally( const vec3<float > & ) const;
@@ -1325,10 +1325,10 @@ line_segment<T>::Within_Cylindrical_Volume(const vec3<T> &R, T radius) const {
     const auto proj = this->Project_Point_Orthogonally(R);
 
     //The point is now projected upon the (infinite) line. If the distance to either R0 or R1 is greater than the
-    // distance between R0 and R1 then the point is outside the bounds of the line segment. Same with squared distance.
+    // distance between R0 and R1 then the point is outside the bounds of the line segment. Squared distance too.
     const auto R0 = this->Get_R0();
     const auto R1 = this->Get_R1();
-    const auto sq_dist_R0_R1 = R0.sq_dist(R1);
+    const auto sq_dist_R0_R1   = R0.sq_dist(R1);
     const auto sq_dist_R0_Proj = R0.sq_dist(proj);
     const auto sq_dist_R1_Proj = R1.sq_dist(proj);
     return (sq_dist_R0_R1 >= sq_dist_R0_Proj) && (sq_dist_R0_R1 >= sq_dist_R1_Proj);
