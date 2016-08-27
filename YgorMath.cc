@@ -205,6 +205,42 @@ template <class T>  T vec3<T>::angle(const vec3<T> &rhs, bool *OK) const {
     template float  vec3<float >::angle(const vec3<float > &rhs, bool *OK) const;
     template double vec3<double>::angle(const vec3<double> &rhs, bool *OK) const;
 #endif
+
+template <class T>
+vec3<T>
+vec3<T>::rotate_around_x(T angle_rad) const {
+    return vec3<T>( this->x,
+                    this->y * std::cos(angle_rad) - this->z * std::sin(angle_rad),
+                    this->y * std::sin(angle_rad) + this->z * std::cos(angle_rad) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > vec3<float >::rotate_around_x(float ) const;
+    template vec3<double> vec3<double>::rotate_around_x(double) const;
+#endif
+
+template <class T>
+vec3<T>
+vec3<T>::rotate_around_y(T angle_rad) const {
+    return vec3<T>( this->x * std::cos(angle_rad) + this->z * std::sin(angle_rad),
+                    this->y,
+                  - this->x * std::sin(angle_rad) + this->z * std::cos(angle_rad) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > vec3<float >::rotate_around_y(float ) const;
+    template vec3<double> vec3<double>::rotate_around_y(double) const;
+#endif
+
+template <class T>
+vec3<T>
+vec3<T>::rotate_around_z(T angle_rad) const {
+    return vec3<T>( this->x * std::cos(angle_rad) - this->y * std::sin(angle_rad),
+                    this->x * std::sin(angle_rad) + this->y * std::cos(angle_rad),
+                    this->z );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > vec3<float >::rotate_around_z(float ) const;
+    template vec3<double> vec3<double>::rotate_around_z(double) const;
+#endif
      
 template <class T>  std::string vec3<T>::to_string(void) const {
     std::stringstream out;
@@ -215,6 +251,7 @@ template <class T>  std::string vec3<T>::to_string(void) const {
     template std::string vec3<float >::to_string(void) const;
     template std::string vec3<double>::to_string(void) const;
 #endif
+
 
 //Sets *this and returns a copy.
 template <class T>  vec3<T> vec3<T>::from_string(const std::string &in){
@@ -701,6 +738,17 @@ template <class T>  T vec2<T>::sq_dist(const vec2<T> &rhs) const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float  vec2<float >::sq_dist(const vec2<float > &rhs) const;
     template double vec2<double>::sq_dist(const vec2<double> &rhs) const;
+#endif
+
+template <class T>
+vec2<T>
+vec2<T>::rotate_around_z(T angle_rad) const {
+    return vec2<T>( this->x * std::cos(angle_rad) - this->y * std::sin(angle_rad),
+                    this->x * std::sin(angle_rad) + this->y * std::cos(angle_rad) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec2<float > vec2<float >::rotate_around_z(float ) const;
+    template vec2<double> vec2<double>::rotate_around_z(double) const;
 #endif
 
 template <class T>  std::string vec2<T>::to_string(void) const {
