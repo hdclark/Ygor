@@ -1,18 +1,14 @@
 #!/bin/bash
 
+g++ -std=c++14 Test_Math14.cc -o test_math14 -lygor  -pthread &
 g++ -std=c++14 Test_Math13.cc -o test_math13 -lygor  -pthread &
-
 g++ -std=c++14 Test_Math9.cc -o test_math9 -lygor  -pthread &
-g++ -std=c++14 Test_Math10.cc -o test_math10 -lygor -pthread &
+wait
 
+g++ -std=c++14 Test_Math10.cc -o test_math10 -lygor -pthread &
 g++ -std=c++14 Test_Math11.cc -o test_math11 -lygor -pthread -lboost_serialization -lboost_iostreams &
 g++ -std=c++14 Test_Images2.cc -o test_images2 -lygor -pthread -lboost_serialization -lboost_iostreams &
-
 g++ -std=c++14 Test_Math12.cc -o test_math12 -lygor -pthread &
-
-wait
-exit
-
 g++ -std=c++14 Test_Images.cc -o test_images -lygor -pthread &
 wait 
 

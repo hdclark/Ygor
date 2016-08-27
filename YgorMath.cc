@@ -1244,6 +1244,18 @@ template <class T>  bool line<T>::Closest_Point_To_Line(const line<T> &in, vec3<
     template bool line<double>::Closest_Point_To_Line( const line<double> &, vec3<double> &) const;
 #endif
 
+template <class T>
+vec3<T>
+line<T>::Project_Point_Orthogonally( const vec3<T> &R ) const {
+    // Projects the given point onto the nearest point on the line.
+    const auto RR = R - this->R_0; // RR is a vector with a tail on the line somewhere, same as the line's unit U_0.
+    return (this->U_0 * this->U_0.Dot(RR));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > line<float >::Project_Point_Orthogonally( const vec3<float > & ) const;
+    template vec3<double> line<double>::Project_Point_Orthogonally( const vec3<double> & ) const;
+#endif
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------ line_segment: (finite-length) lines in 3D space --------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
@@ -1298,6 +1310,33 @@ template <class T>    std::list<vec3<T>> line_segment<T>::Sample_With_Spacing(T 
     template std::list<vec3<double>> line_segment<double>::Sample_With_Spacing(double spacing, double offset, double &remaining) const;
 #endif
 
+
+// Checks if the point is within a cylinder centred on the line segment.
+template <class T>
+bool 
+line_segment<T>::Within_Cylindrical_Volume(const vec3<T> &R, T radius) const { 
+
+    //First, check if the point is within the radius of the cylinder while ignoring the line segment endpoints.
+    if(this->Distance_To_Point(R) > radius){
+        return false;
+    }
+
+    //Otherwise, check the cylindrical bounds.
+    const auto proj = this->Project_Point_Orthogonally(R);
+
+    //The point is now projected upon the (infinite) line. If the distance to either R0 or R1 is greater than the
+    // distance between R0 and R1 then the point is outside the bounds of the line segment. Same with squared distance.
+    const auto R0 = this->Get_R0();
+    const auto R1 = this->Get_R1();
+    const auto sq_dist_R0_R1 = R0.sq_dist(R1);
+    const auto sq_dist_R0_Proj = R0.sq_dist(proj);
+    const auto sq_dist_R1_Proj = R1.sq_dist(proj);
+    return (sq_dist_R0_R1 >= sq_dist_R0_Proj) && (sq_dist_R0_R1 >= sq_dist_R1_Proj);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool line_segment<float >::Within_Cylindrical_Volume(const vec3<float > &, float  ) const;
+    template bool line_segment<double>::Within_Cylindrical_Volume(const vec3<double> &, double ) const;
+#endif    
 
 template <class T>    vec3<T> line_segment<T>::Get_R0(void) const {
     //These are here in case I need/want to change the internal storage format later...

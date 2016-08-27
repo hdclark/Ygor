@@ -162,6 +162,8 @@ template <class T>   class line {
         bool Intersects_With_Line_Once( const line<T> &, vec3<T> &) const;
 
         bool Closest_Point_To_Line( const line<T> &, vec3<T> &) const;
+
+        vec3<T> Project_Point_Orthogonally( const vec3<T> & ) const; // Projects the given point onto the nearest point on the line.
 };
 
 
@@ -183,6 +185,8 @@ template <class T>   class line_segment : public line<T> {
         std::list<vec3<T>> Sample_With_Spacing(T spacing, T offset, T & remaining) const; //Samples every <spacing>, beginning at offset. 
                                                                                           // Returns sampled points and remaining space along segment.
 
+        bool Within_Cylindrical_Volume(const vec3<T> &R, T radius) const; // Checks if the point is within a cylinder centred on the line segment.
+ 
         vec3<T> Get_R0(void) const;
         vec3<T> Get_R1(void) const;
 };
