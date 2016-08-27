@@ -67,6 +67,8 @@ template <class T> class vec3 {
         vec3<T> rotate_around_y(T angle_rad) const;
         vec3<T> rotate_around_z(T angle_rad) const;
 
+        bool GramSchmidt_orthogonalize(vec3<T> &, vec3<T> &) const; //Using *this as seed, orthogonalize (n.b. not orthonormalize) the inputs.
+
         std::string to_string(void) const;
         vec3<T> from_string(const std::string &in); //Sets *this and returns a copy. 
     

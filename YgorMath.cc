@@ -241,7 +241,30 @@ vec3<T>::rotate_around_z(T angle_rad) const {
     template vec3<float > vec3<float >::rotate_around_z(float ) const;
     template vec3<double> vec3<double>::rotate_around_z(double) const;
 #endif
-     
+    
+template <class T>
+bool 
+vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
+    //Using *this as seed, orthogonalize the inputs.
+    
+    //The first vector is *this.
+    const auto UA = *this;
+    const auto UB = b - UA * (UA.Dot(b) / UA.Dot(UA));
+    const auto UC = c - UA * (UA.Dot(c) / UA.Dot(UA))
+                      - UB * (UB.Dot(c) / UB.Dot(UB));
+    if(this->isfinite() && b.isfinite() && c.isfinite()){
+        b = UB;
+        c = UC;
+        return true;
+    }
+    return false;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool vec3<float >::GramSchmidt_orthogonalize(vec3<float > &, vec3<float > &) const;
+    template bool vec3<double>::GramSchmidt_orthogonalize(vec3<double> &, vec3<double> &) const;
+#endif
+
+
 template <class T>  std::string vec3<T>::to_string(void) const {
     std::stringstream out;
     out << *this;
