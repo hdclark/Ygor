@@ -327,7 +327,7 @@ template <class T,class R>   class planar_image_collection {
                                std::experimental::any                                                      user_data = std::experimental::any() );
 
 
-        //Generic routine for altering images as a whole, or computing histograms, time courses, or any sort of distribution 
+        //Generic routine for altering images as a whole, or computing histograms, time courses, or any sort of distribution using 
         // the entire set of images. No images are deleted, though the user has full read-write access to the image data of all images.
         // This routine is very simple, and merely provides a consistent interface for doing operations on the image collection.
         // (Note that the functor gets called only once by this routine.)
