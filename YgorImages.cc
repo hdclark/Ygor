@@ -1256,6 +1256,37 @@ template <class T,class R> bool planar_image<T,R>::encompasses_any_contour_in_co
     template bool planar_image<float   ,double>::encompasses_any_contour_in_collection(const contour_collection<double> &in) const;
 #endif
 
+//Determine if any vertex from a contour is contained within the 3D volume of the image.
+template <class T,class R> bool planar_image<T,R>::encompasses_any_of_contour_of_points(const contour_of_points<R> &in) const {
+    //Simply walk over all points in the contour, inspecting whether they are encompassed by the image.
+    for(const auto & point : in.points){
+        if(this->encompasses_point(point)) return true;
+    }
+    return false;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image<uint8_t ,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<uint16_t,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<uint32_t,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<uint64_t,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<float   ,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+#endif
+
+//Determine if at least one contour is partially contained within the 3D volume of the image.
+template <class T,class R> bool planar_image<T,R>::encompasses_any_part_of_contour_in_collection(const contour_collection<R> &in) const {
+    for(const auto & contour : in.contours){
+        if(this->encompasses_any_of_contour_of_points(contour)) return true;
+    }
+    return false;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image<uint8_t ,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<uint16_t,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<uint32_t,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<uint64_t,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<float   ,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+#endif
+
 
 //Returns the R^3 center of the image. Nothing fancy.
 template <class T,class R> vec3<R> planar_image<T,R>::center(void) const {
@@ -1821,6 +1852,75 @@ planar_image_collection<T,R>::get_images_which_sandwich_point_within_top_bottom_
         planar_image_collection<float   ,double>::get_images_which_sandwich_point_within_top_bottom_planes(const vec3<double> &in);
 #endif
 
+//Returns two lists of pointers to images which are nearest and either above (pair.first) or below (pair.second) the
+// plane of the image, but not encompassing it. Images are sorted by their distance to the specified image (nearest in
+// the front). If there are no images above or below, the respective list is empty. The distance to the images is not
+// considered, so there could be a gap or overlap between images. Images are assumed to be parallel and the centers are
+// used for distance computation.
+//
+// This routine is used for finding nearest-neighbours when the image slices are known (or expected) to contiguously
+// cover some volume (no gap, no overlap).
+//
+template <class T,class R>
+std::pair< std::list< typename std::list<planar_image<T,R>>::iterator >,
+           std::list< typename std::list<planar_image<T,R>>::iterator > >
+planar_image_collection<T,R>::get_nearest_images_above_below_not_encompassing_image(const planar_image<T,R> &animg){
+    const auto animg_plane = animg.image_plane();
+    auto all_imgs = this->get_all_images();
+
+    //Remove images if they encompass the specified image.
+    std::remove_if(all_imgs.begin(), all_imgs.end(),
+        [animg_plane, animg](images_list_it_t it) -> bool {
+            if(animg.encompasses_point( it->center() )) return true;
+            return false;
+        });
+
+    //Sort based on distance to the plane of the specified image.
+    all_imgs.sort([animg_plane]( const images_list_it_t &A, const images_list_it_t &B ) -> bool {
+            return (   std::abs(animg_plane.Get_Signed_Distance_To_Point( A->center() ))
+                     < std::abs(animg_plane.Get_Signed_Distance_To_Point( B->center() )) );
+        });
+
+    //Parition the images into above and below groups.
+    auto above = all_imgs;
+    auto below = all_imgs;
+
+    std::remove_if(above.begin(), above.end(),
+        [animg_plane, animg](images_list_it_t it) -> bool {
+            if(!animg_plane.Is_Point_Above_Plane( it->center() )) return true;
+            return false;
+        });
+
+    std::remove_if(below.begin(), below.end(),
+        [animg_plane, animg](images_list_it_t it) -> bool {
+            if(animg_plane.Is_Point_Above_Plane( it->center() )) return true;
+            return false;
+        });
+
+    return { above, below };
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::pair< std::list<typename std::list<planar_image<uint8_t ,double>>::iterator>,
+                        std::list<typename std::list<planar_image<uint8_t ,double>>::iterator> >
+        planar_image_collection<uint8_t ,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<uint8_t ,double> & );
+    template std::pair< std::list<typename std::list<planar_image<uint16_t,double>>::iterator>,
+                        std::list<typename std::list<planar_image<uint16_t,double>>::iterator> >
+        planar_image_collection<uint16_t,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<uint16_t,double> & );
+    template std::pair< std::list<typename std::list<planar_image<uint32_t,double>>::iterator>,
+                        std::list<typename std::list<planar_image<uint32_t,double>>::iterator> >
+        planar_image_collection<uint32_t,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<uint32_t,double> & );
+    template std::pair< std::list<typename std::list<planar_image<uint64_t,double>>::iterator>,
+                        std::list<typename std::list<planar_image<uint64_t,double>>::iterator> >
+        planar_image_collection<uint64_t,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<uint64_t,double> & );
+    template std::pair< std::list<typename std::list<planar_image<float   ,double>>::iterator>,
+                        std::list<typename std::list<planar_image<float   ,double>>::iterator> >
+        planar_image_collection<float   ,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<float   ,double> & );
+#endif
 
 //Returns the metadata key-values that are "common" (i.e., identical among all images).
 // For ordering purposes, images in *this are considered to have priority over those in 'in'.

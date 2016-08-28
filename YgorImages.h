@@ -178,6 +178,12 @@ template <class T, class R> class planar_image {
         //Determine if at least one contour is fully contained within the 3D volume of the image.
         bool encompasses_any_contour_in_collection(const contour_collection<R> &in) const;
 
+        //Determine if a contour is partially contained within the 3D volume of the image.
+        bool encompasses_any_of_contour_of_points(const contour_of_points<R> &in) const;
+
+        //Determine if at least one contour is partially contained within the 3D volume of the image.
+        bool encompasses_any_part_of_contour_in_collection(const contour_collection<R> &in) const;
+
         //Computes the R^3 center of the image. Nothing fancy.
         vec3<R> center(void) const;
 
@@ -267,6 +273,8 @@ template <class T,class R>   class planar_image_collection {
         std::list<images_list_it_t> get_images_which_encompass_point(const vec3<R> &in);
         std::list<images_list_it_t> get_images_which_encompass_all_points(const std::list<vec3<R>> &in);
         std::list<images_list_it_t> get_images_which_sandwich_point_within_top_bottom_planes(const vec3<R> &in);
+        std::pair< std::list<images_list_it_t>, 
+                   std::list<images_list_it_t> > get_nearest_images_above_below_not_encompassing_image(const planar_image<T,R> &animg);
 
         std::map<std::string,std::string> get_common_metadata(const std::list<images_list_it_t> &in) const; //Uses both *this and input.
         std::list<std::string> get_all_values_for_key(const std::string &akey) const;
