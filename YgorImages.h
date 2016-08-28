@@ -254,6 +254,9 @@ template <class T,class R>   class planar_image_collection {
         bool operator!=(const planar_image_collection &) const;
         bool operator< (const planar_image_collection &) const; //Relies on the planar_image operator< . See caveats there. Only use for sorting.
 
+        void Swap(planar_image_collection &); //Swaps images.
+
+
         //Stable ordering operations. Useful for sorting on several keys (one at a time -- stable!).
         void Stable_Sort(std::function<bool(const planar_image<T,R> &lhs, const planar_image<T,R> &rhs)> lt_func);
 
@@ -378,6 +381,24 @@ template <class T,class R>   class planar_image_collection {
 template <class T,class R>
 long int Intersection_Copy(planar_image<T,R> &in, 
                            const std::list<typename planar_image_collection<T,R>::images_list_it_t> &imgs);
+
+
+//Produce an image collection that contiguously covers the volume containing the provided contours.
+template <class T,class R>
+planar_image_collection<T,R> 
+Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collection<R>>> &ccs,
+                         const R x_margin = static_cast<R>(1.0),
+                         const R y_margin = static_cast<R>(1.0),
+                         const R z_margin = static_cast<R>(1.0),
+                         const long int number_of_rows = 256,
+                         const long int number_of_columns = 256,
+                         const long int number_of_channels = 1,
+                         const long int number_of_images = 25,
+                         const vec3<R> &x_orientation = vec3<R>(static_cast<R>(1), static_cast<R>(0), static_cast<R>(0)),
+                         const vec3<R> &y_orientation = vec3<R>(static_cast<R>(0), static_cast<R>(1), static_cast<R>(0)),
+                         const vec3<R> &z_orientation = vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(1)),
+                         const R pixel_fill = std::numeric_limits<R>::quiet_NaN(),
+                         bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
 
 
 #endif
