@@ -1882,8 +1882,7 @@ planar_image_collection<T,R>::get_nearest_images_above_below_not_encompassing_im
     auto all_imgs = this->get_all_images();
 
     //Remove images if they encompass the specified image.
-    std::remove_if(all_imgs.begin(), all_imgs.end(),
-        [animg_plane, animg](images_list_it_t it) -> bool {
+    all_imgs.remove_if( [animg](images_list_it_t it) -> bool {
             if(animg.encompasses_point( it->center() )) return true;
             return false;
         });
@@ -1898,14 +1897,12 @@ planar_image_collection<T,R>::get_nearest_images_above_below_not_encompassing_im
     auto above = all_imgs;
     auto below = all_imgs;
 
-    std::remove_if(above.begin(), above.end(),
-        [animg_plane, animg](images_list_it_t it) -> bool {
-            if(!animg_plane.Is_Point_Above_Plane( it->center() )) return true;
-            return false;
+    above.remove_if([animg_plane](images_list_it_t it) -> bool {
+            if(animg_plane.Is_Point_Above_Plane( it->center() )) return false;
+            return true;
         });
 
-    std::remove_if(below.begin(), below.end(),
-        [animg_plane, animg](images_list_it_t it) -> bool {
+    below.remove_if([animg_plane](images_list_it_t it) -> bool {
             if(animg_plane.Is_Point_Above_Plane( it->center() )) return true;
             return false;
         });
