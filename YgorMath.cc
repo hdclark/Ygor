@@ -4573,7 +4573,8 @@ template <class T> std::vector<vec3<T>> contour_collection<T>::Generate_Reconstr
 //Removes contours if they have < N points. Duplicate points not considered.
 template <class T> void contour_collection<T>::Purge_Contours_Below_Point_Count_Threshold(size_t N){
     auto unary_pred = [N](const contour_of_points<T> &c) -> bool { return (c.points.size() < N); };
-    this->contours.erase( std::remove_if( this->contours.begin(), this->contours.end(), unary_pred ), this->contours.end() );
+    //this->contours.erase( std::remove_if( this->contours.begin(), this->contours.end(), unary_pred ), this->contours.end() );
+    this->contours.remove_if(unary_pred);
     return;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
