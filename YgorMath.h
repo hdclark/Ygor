@@ -204,6 +204,7 @@ template <class T>   class plane {
 
         //Constructors.
         plane();
+        plane(const plane<T> &P);
         plane(const vec3<T> &N_0_in, const vec3<T> &R_0_in);
 
         //Member functions.
@@ -402,6 +403,12 @@ template <class T>   class contour_collection {
         std::string write_to_string(void) const;
         bool load_from_string(const std::string &in);      //Returns true if it worked/was loaded into the contour, false otherwise.
 };
+
+template <class T>
+std::list<plane<T>> 
+Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs,
+                      const vec3<T> &N, 
+                      T distance_eps = static_cast<T>(1E-3));
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------

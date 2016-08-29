@@ -1368,6 +1368,12 @@ template <class T>    plane<T>::plane(){ }
     template plane<double>::plane(void);
 #endif
 
+template <class T>    plane<T>::plane(const plane<T> &P) : N_0(P.N_0), R_0(P.R_0) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template plane<float >::plane(const plane<float > &);
+    template plane<double>::plane(const plane<double> &);
+#endif
+
 template <class T>    plane<T>::plane(const vec3<T> &N_0_in, const vec3<T> &R_0_in) : N_0(N_0_in), R_0(R_0_in) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template plane<float>::plane(const vec3<float> &N_0_in, const vec3<float> &R_0_in);
@@ -4655,6 +4661,51 @@ template <class T> bool contour_collection<T>::load_from_string(const std::strin
     template bool contour_collection<float >::load_from_string(const std::string &in);
     template bool contour_collection<double>::load_from_string(const std::string &in);
 #endif
+
+
+
+//Assumes each contour is planar, fits a plane using the given normal, removes planes that are within eps of one
+// another, and sorts planes using the given normal (lowest to highest along it).
+template <class T>
+std::list<plane<T>> 
+Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs,
+                      const vec3<T> &N, 
+                      T distance_eps){
+
+    //Add a plane for every contour.
+    const auto N_unit = N.unit();
+    std::list<plane<T>> dummy;
+    for(const auto &cc_ref : ccs){
+        for(const auto &c : cc_ref.get().contours) dummy.emplace_back(c.Least_Squares_Best_Fit_Plane(N_unit));
+    }
+    if(dummy.empty()) return dummy;
+
+    //Sort planes using signed distance from one of the planes (arbitrarily chosen).
+    const auto arb_plane = dummy.front();
+    dummy.sort([arb_plane](const plane<T> &L, const plane<T> &R) -> bool {
+            //Note: this sort order is REVERSE of the final sorted order.
+            return ( L.Get_Signed_Distance_To_Point(arb_plane.R_0) > R.Get_Signed_Distance_To_Point(arb_plane.R_0) );
+        });
+
+    //Remove planes that are adjacent and separated by a distance less than the provided epsilon.
+    std::list<plane<T>> out; 
+    out.emplace_back(dummy.front());
+    dummy.pop_front();
+    for(const auto &dp : dummy){
+        const auto sep = std::abs(dp.Get_Signed_Distance_To_Point( out.back().R_0 ));
+        if( sep >= distance_eps ) out.emplace_back(dp);
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::list<plane<float >> 
+        Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<float >>> &,
+                              const vec3<float > &, float );
+    template std::list<plane<double>> 
+        Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<double>>> &,
+                              const vec3<double> &, double);
+#endif
+
 
 
 //---------------------------------------------------------------------------------------------------------------------------

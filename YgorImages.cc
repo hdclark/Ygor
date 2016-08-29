@@ -3089,6 +3089,19 @@ long int Intersection_Copy(planar_image<T,R> &in,
 // NOTE: This routine automatically works out voxel dimensions to accomodate the provided numbers. In order to satisfy
 //       the parameters, voxel dimensions may become elongated along one or more dimensions.
 //
+// NOTE: This routine bounds on the vertices, but does NOT make any attempt to compute a margin so that the contour will
+//       sit on the plane of any image slice. You will have to work out the separation needed for the top and bottom
+//       contours/slices and incorporate it into your z_margin!
+//
+//       (Why is this not done automatically? First, it is possible that the original images that define the contours
+//       are not evenly spaced. This routine would have to be able to figure that out, and it isn't always possible or
+//       easy. Second, this routine can be used for many purposes. Sometimes you want to generate a grid over some
+//       ROI(s) without any margin at all. Trying to be clever and automatically sticking in margins would be annoying
+//       and surprising.)
+//
+// NOTE: The margins get added to both sides along GridX, GridY, and GridZ. So the TOTAL margin along each vector will
+//       be 2*margin (1*margin on each side).
+// 
 template <class T,class R>
 planar_image_collection<T,R> 
 Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collection<R>>> &ccs,
@@ -3172,6 +3185,7 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
     const auto voxel_dx = xwidth / static_cast<R>(number_of_columns);
     const auto voxel_dy = ywidth / static_cast<R>(number_of_rows);
     const auto voxel_dz = zwidth / static_cast<R>(number_of_images);
+
 
     //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
     // ignores z-direction and will be projected onto an appropriate z-plane later.)
