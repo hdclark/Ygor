@@ -2727,6 +2727,10 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_I
 //This function sums all the contour points and divides by the number of points, giving the 'average' point. This could be used as a 
 // center point, a rough indication of 'where' a contour is, or as a means of rotating the contour.
 template <class T> vec3<T> contour_of_points<T>::Average_Point(void) const {
+    if(this->points.empty()) return vec3<T>( std::numeric_limits<T>::quiet_NaN(),
+                                             std::numeric_limits<T>::quiet_NaN(),
+                                             std::numeric_limits<T>::quiet_NaN() );
+
     vec3<T> out((T)(0), (T)(0), (T)(0));
     for(auto iter = (*this).points.begin(); iter != (*this).points.end(); ++iter){
         out += (*iter);
@@ -3739,12 +3743,15 @@ template <class T> void contour_collection<T>::Reorient_Counter_Clockwise(void){
 template <class T> vec3<T> contour_collection<T>::Average_Point(void) const {
     vec3<T> out((T)(0), (T)(0), (T)(0));
     long int N = 0;
-    for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
-        for(auto p_it = c_it->points.begin(); p_it != c_it->points.end(); ++p_it){
-            out += (*p_it);
+    for(const auto &c : this->contours){
+        for(const auto &p : c.points){
+            out += p;
             ++N;
         }
     }
+    if(N == 0) return vec3<T>( std::numeric_limits<T>::quiet_NaN(),
+                               std::numeric_limits<T>::quiet_NaN(),
+                               std::numeric_limits<T>::quiet_NaN() );
     out /= static_cast<T>(N);
     return out;
 }
@@ -4035,7 +4042,9 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
     //                       automatic bounds derivation should work in all except degenerate cases, but can result in
     //                       slow bisection compared with the user more closely bounding the desired planar split.
     //
-
+    if(this->contours.empty()){
+        throw std::invalid_argument("No contours to sub-segment.");
+    }
     if(!isininc(static_cast<T>(0), desired_total_area_fraction_above_plane, static_cast<T>(1))){
         throw std::invalid_argument("Desired area parameter must be within [0,1].");
     }
