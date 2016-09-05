@@ -4578,6 +4578,19 @@ template <class T> std::vector<vec3<T>> contour_collection<T>::Generate_Reconstr
     template std::vector<vec3<double>> contour_collection<double>::Generate_Reconstructed_Surface(double qual) const;
 #endif
 
+//For all contours. Overwrites if existing keys present.
+template <class T>
+void
+contour_collection<T>::Insert_Metadata(const std::string &key, const std::string &val){
+    for(auto &c : this->contours){
+        c.metadata[key] = val;
+    }
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void contour_collection<float >::Insert_Metadata(const std::string &, const std::string &);
+    template void contour_collection<double>::Insert_Metadata(const std::string &, const std::string &);
+#endif
 
 //Removes contours if they have < N points. Duplicate points not considered.
 template <class T> void contour_collection<T>::Purge_Contours_Below_Point_Count_Threshold(size_t N){

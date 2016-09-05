@@ -397,6 +397,8 @@ template <class T>   class contour_collection {
 
         void Purge_Contours_Below_Point_Count_Threshold(size_t N = 3); //Removes contours if they have < N points. Duplicate points not considered.
 
+        void Insert_Metadata(const std::string &key, const std::string &val); //For all contours. Overwrites if existing keys present.
+
         void Plot(const std::string &title) const;         //Spits out a default R^3 plot of the data.
         void Plot(void) const;
 
