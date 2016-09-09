@@ -609,7 +609,7 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
 
     //Interpolate along the column axis between the row axis interpolated values.
     const auto y_r_interp_c_interp = y_r_interp_c_min + (y_r_interp_c_max - y_r_interp_c_min) * dcol;
-    return static_cast<T>( std::floor(y_r_interp_c_interp) );
+    return static_cast<T>( y_r_interp_c_interp );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template uint8_t  planar_image<uint8_t ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
@@ -943,7 +943,7 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
             res += C(i,j)*std::pow(dcol,i)*std::pow(drow,j);
         }
     } 
-    return static_cast<T>( std::floor(res) );
+    return static_cast<T>( res );
 #endif
 
 }
