@@ -96,7 +96,7 @@
 
         // ---------------------------------- Independent sub-segmentation --------------------------------------
         //Generate all planes using the original contour_collection.
-        if(true){
+        if(false){
             const auto x_planes_pair = bisect_ROIs(ROIs, x_normal, XSelectionLower, XSelectionUpper);
             const auto y_planes_pair = bisect_ROIs(ROIs, y_normal, YSelectionLower, YSelectionUpper);
             
@@ -110,7 +110,7 @@
         // ----------------------------------- Iterative sub-segmentation ---------------------------------------
         // Instead of relying on whole-organ sub-segmentation, attempt to fairly partition the *remaining* volume 
         // at each cleave.
-        if(false){
+        if(true){
             contour_collection<double> running(ROIs);
             
             const auto x_planes_pair = bisect_ROIs(running, x_normal, XSelectionLower, XSelectionUpper);
@@ -178,6 +178,9 @@ int main(int argc, char **argv){
                                (2.0/3.0), (1.0/3.0),
                                (2.0/3.0), (1.0/3.0),
                                area_expected);  // Expected area.
+        //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
+        //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
+        //FUNCWARN("Centroid = " << c.Centroid());
         subsegs.Consume_Contours(c);
     }
 

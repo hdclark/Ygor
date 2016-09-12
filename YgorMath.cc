@@ -1540,8 +1540,8 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool AssumePlanarCont
         //const auto C = this->Average_Point();
         const auto C = this->Centroid();
 
-        auto itA = this->points.begin();
-        auto itB = std::next(itA);
+        auto itA = std::prev(this->points.end());
+        auto itB = this->points.begin();
         T signed_area = (T)(0);
         std::vector<T> dArea;
         while(itB != this->points.end()){
@@ -1558,7 +1558,8 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool AssumePlanarCont
         return Stats::Sum(dArea); //signed_area;
     }
 
-    //Otherwise, attempt to use a fast boundary walking method. This ONLY works if the 
+    //Otherwise, attempt to use a fast boundary walking method. This ONLY works if the contour is planar. The current
+    // implementation assumes the plane is normal to (0,0,1). 
     T Area = (T)(0);
     auto iter_1 = --(this->points.end());
     const T specific_height = iter_1->z; //Used to abandon the computation if the contour is fully 3D.
