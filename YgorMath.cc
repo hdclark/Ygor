@@ -3692,6 +3692,18 @@ template <class T>    contour_collection<T>::contour_collection(const std::list<
 
 
 //Member functions.
+template <class T>
+void 
+contour_collection<T>::Consume_Contours(contour_collection<T> &in){
+    if(this == &in) return; //If self, do nothing.
+    this->contours.splice( this->contours.begin(), std::move(in.contours) ); //in.contours is now empty.
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void contour_collection<float >::Consume_Contours(contour_collection<float > &);
+    template void contour_collection<double>::Consume_Contours(contour_collection<double> &);
+#endif    
+
 template <class T>  T contour_collection<T>::Get_Signed_Area(bool AssumePlanarContours) const {
     //NOTE: ALL contours must be closed. See the implementation in contour_of_points.
     T Area = (T)(0);

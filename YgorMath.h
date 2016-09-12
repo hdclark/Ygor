@@ -344,6 +344,8 @@ template <class T>   class contour_collection {
         contour_collection(const std::list<contour_of_points<T>> &);
 
         //Member functions.
+        void Consume_Contours(contour_collection<T> &);
+
         T Get_Signed_Area(bool AssumePlanarContours = false) const; //Generally use the default option! See planar_contour version for details.
         bool Is_Counter_Clockwise(void) const;
         void Reorient_Counter_Clockwise(void);
