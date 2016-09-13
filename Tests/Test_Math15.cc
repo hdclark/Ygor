@@ -133,6 +133,61 @@
         return cc_final;
     };
 
+    const auto initiate_subseg_volumetric = [](const contour_collection<double> &ROIs,
+                                               const vec3<double> &x_normal,
+                                               const vec3<double> &y_normal, 
+                                               const vec3<double> &z_normal, 
+                                               double XSelectionLower, double XSelectionUpper,
+                                               double YSelectionLower, double YSelectionUpper,
+                                               double ZSelectionLower, double ZSelectionUpper,
+                                               double area_expected) -> contour_collection<double> {
+
+        contour_collection<double> cc_final;
+
+        // ---------------------------------- Independent sub-segmentation --------------------------------------
+        //Generate all planes using the original contour_collection.
+        if(true){
+            const auto x_planes_pair = bisect_ROIs(ROIs, x_normal, XSelectionLower, XSelectionUpper);
+            const auto y_planes_pair = bisect_ROIs(ROIs, y_normal, YSelectionLower, YSelectionUpper);
+            const auto z_planes_pair = bisect_ROIs(ROIs, z_normal, ZSelectionLower, ZSelectionUpper);
+            
+            //Perform the sub-segmentation.
+            contour_collection<double> running(ROIs);
+            running = subsegment_interior(running, x_planes_pair);
+            running = subsegment_interior(running, y_planes_pair);
+            running = subsegment_interior(running, z_planes_pair);
+            cc_final = running;
+        }
+        
+        // ----------------------------------- Iterative sub-segmentation ---------------------------------------
+        // Instead of relying on whole-organ sub-segmentation, attempt to fairly partition the *remaining* volume 
+        // at each cleave.
+        if(false){
+            contour_collection<double> running(ROIs);
+            
+            const auto x_planes_pair = bisect_ROIs(running, x_normal, XSelectionLower, XSelectionUpper);
+            running = subsegment_interior(running, x_planes_pair);
+            
+            const auto y_planes_pair = bisect_ROIs(running, y_normal, YSelectionLower, YSelectionUpper);
+            running = subsegment_interior(running, y_planes_pair);
+
+            const auto z_planes_pair = bisect_ROIs(running, z_normal, ZSelectionLower, ZSelectionUpper);
+            running = subsegment_interior(running, z_planes_pair);
+
+            cc_final = running;
+        }
+
+        const auto area_orig = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
+        const auto area_sbsg = cc_final.Get_Signed_Area(/*AssumePlanarContours*/ true);
+
+        std::cout << "The amount of area selected = " << area_sbsg << " / " << area_orig 
+                  << " == " << (area_sbsg/area_orig)
+                  << std::endl;
+        std::cout << "  As a fraction of the expected area: " << (area_sbsg/area_expected)
+                  << std::endl;
+        return cc_final;
+    };
+
 
 
 int main(int argc, char **argv){
@@ -141,60 +196,149 @@ int main(int argc, char **argv){
     const vec3<double> y_normal(0.0, 1.0, 0.0);
     const vec3<double> z_normal(0.0, 0.0, 1.0);
 
-    contour_collection<double> ROIs;
-    contour_collection<double> subsegs;
+    //Planar ROI: single circle contour.
+    if(false){
+        contour_collection<double> ROIs;
+        contour_collection<double> subsegs;
 
-    //Bisect a circular contour. Inspect the fraction of area in the sub-segments.
-    contour_of_points<double> cop;
-    const double r = 100.0;
-    const long int Npoints = 5000;
-    cop.closed = true;
-    for(long int i = 0; i < Npoints; ++i){
-        const double theta = 0.0 + (2.0*M_PI/Npoints)*i;
-        cop.points.emplace_back( r * std::cos(theta), r * std::sin(theta), 0.0 );
+        contour_of_points<double> cop;
+        const double r = 100.0;
+        const long int Npoints = 5000;
+        cop.closed = true;
+        for(long int i = 0; i < Npoints; ++i){
+            const double theta = 0.0 + (2.0*M_PI/Npoints)*i;
+            cop.points.emplace_back( r * std::cos(theta), r * std::sin(theta), 0.0 );
+        }
+        ROIs.contours.emplace_back( cop );
+
+        const auto area_theo_whole = M_PI * r * r;
+        const auto area_actual_whole = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
+
+        FUNCINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
+
+        const auto area_expected = area_actual_whole / 9.0;
+
+
+        FUNCINFO("Performing [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (1.0/3.0), (0.0/3.0), // X-selection: lower and upper planes; fractional volume above each plane.
+                                   (1.0/3.0), (0.0/3.0), // Y-selection: lower and upper planes; fractional volume above each plane.
+                                   area_expected);       // Expected area.
+            subsegs.Consume_Contours(c);
+        }
+
+        FUNCINFO("Performing [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (2.0/3.0), (1.0/3.0),
+                                   area_expected);  // Expected area.
+            //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
+            //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
+            //FUNCWARN("Centroid = " << c.Centroid());
+            subsegs.Consume_Contours(c);
+        }
+
+        FUNCINFO("Performing [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-central' sub-seg).");
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (1.0/3.0), (0.0/3.0),
+                                   area_expected);  // Expected area.
+            subsegs.Consume_Contours(c);
+        }
+
+        //subsegs.Plot();
+        //ROIs.Plot();
     }
-    ROIs.contours.emplace_back( cop );
 
-    const auto area_theo_whole = M_PI * r * r;
-    const auto area_actual_whole = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
-
-    FUNCINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
-
-    const auto area_expected = area_actual_whole / 9.0;
-
-
-    FUNCINFO("Performing [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
+    //Volumetric ROI: sphere defined in terms of stacks of planar circles.
     {
-        auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
-                               (1.0/3.0), (0.0/3.0), // X-selection: lower and upper planes; fractional volume above each plane.
-                               (1.0/3.0), (0.0/3.0), // Y-selection: lower and upper planes; fractional volume above each plane.
-                               area_expected);       // Expected area.
-        subsegs.Consume_Contours(c);
+        contour_collection<double> ROIs;
+        contour_collection<double> subsegs;
+
+        const long int Ncontours = 200;
+        const long int Npoints = 700; // The number of vertices for the contour on the equator.
+        const double r = 10.0;
+        double area_theo_whole = 0.0;
+
+        for(long int i = 1; i <= Ncontours; ++i){
+            const double z = (-r) + 2.0*r*i/(Ncontours+1); //We want equidistant contours, so sample z evenly.
+            const double phi = std::acos(z/r);             //Phi will NOT be sampled evenly.
+            const double r_eff = r * std::sin(phi);        //Radius of this circle is r*sin(phi) (== r_effective).
+            area_theo_whole += M_PI * r_eff * r_eff;
+            contour_of_points<double> cop;
+            cop.closed = true;
+
+            //Try to maintain the same vertex spacing for all contours. This lets us crank up Npoints and get the best
+            // 'bang for our buck' withou needlessly oversampling small contours.  
+            long int NpointsThisContour = static_cast<long int>( std::ceil(std::sin(phi)*Npoints) );
+            if(NpointsThisContour < 10) NpointsThisContour = 10;
+
+            for(long int j = 0; j < NpointsThisContour; ++j){
+                const double theta = 0.0 + (2.0*M_PI/NpointsThisContour)*j;
+                cop.points.emplace_back( r * std::cos(theta) * std::sin(phi), 
+                                         r * std::sin(theta) * std::sin(phi),
+                                         z );
+            }
+            ROIs.contours.emplace_back( cop );
+        }
+
+        const auto area_actual_whole = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
+
+        FUNCINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
+
+        const auto area_expected = area_actual_whole / 27.0;
+
+
+        FUNCINFO("Performing [1/3,0], [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
+        {
+            auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
+                                   (1.0/3.0), (0.0/3.0), // X-selection: lower and upper planes; fractional volume above each plane.
+                                   (1.0/3.0), (0.0/3.0), // Y-selection: lower and upper planes; fractional volume above each plane.
+                                   (1.0/3.0), (0.0/3.0),
+                                   area_expected);       // Expected area.
+            subsegs.Consume_Contours(c);
+        }
+
+        FUNCINFO("Performing [2/3,1/3], [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-centre-adjacent' sub-seg).");
+        {
+            auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (2.0/3.0), (1.0/3.0),
+                                   (1.0/3.0), (0.0/3.0),
+                                   area_expected);  // Expected area.
+            //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
+            //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
+            //FUNCWARN("Centroid = " << c.Centroid());
+            subsegs.Consume_Contours(c);
+        }
+
+        FUNCINFO("Performing [2/3,1/3], [1/3,0], [1/3,0] sub-seg. (This is the 'top-cent' sub-seg).");
+        {
+            auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (1.0/3.0), (0.0/3.0),
+                                   (1.0/3.0), (0.0/3.0),
+                                   area_expected);  // Expected area.
+            subsegs.Consume_Contours(c);
+        }
+
+        FUNCINFO("Performing [2/3,1/3], [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
+        {
+            auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (2.0/3.0), (1.0/3.0),
+                                   (2.0/3.0), (1.0/3.0),
+                                   area_expected);  // Expected area.
+            subsegs.Consume_Contours(c);
+        }
+
+        //subsegs.Plot();
+        //ROIs.Plot();
     }
 
-    FUNCINFO("Performing [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
-    {
-        auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
-                               (2.0/3.0), (1.0/3.0),
-                               (2.0/3.0), (1.0/3.0),
-                               area_expected);  // Expected area.
-        //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
-        //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
-        //FUNCWARN("Centroid = " << c.Centroid());
-        subsegs.Consume_Contours(c);
-    }
-
-    FUNCINFO("Performing [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-central' sub-seg).");
-    {
-        auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
-                               (2.0/3.0), (1.0/3.0),
-                               (1.0/3.0), (0.0/3.0),
-                               area_expected);  // Expected area.
-        subsegs.Consume_Contours(c);
-    }
-
-    //subsegs.Plot();
-    //ROIs.Plot();
 
     return 0;
 }

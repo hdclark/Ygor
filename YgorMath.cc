@@ -2973,6 +2973,53 @@ template <class T>    T contour_of_points<T>::Integrate_Simple_Vector_Kernel(std
     template double contour_of_points<double>::Integrate_Simple_Vector_Kernel(std::function< vec3<double> (const vec3<double> &r,  const vec3<double> &A, const vec3<double> &B, const vec3<double> &U)> k) const;
 #endif
 
+template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly_Along_Perimeter(const T dl) const {
+    // This routine will attempt to resample along the perimeter every [dl] with as many new points as will fit within
+    // the perimeter of the original contour.
+
+    //First, do some preliminary checks.
+    if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
+    
+    decltype(this->points) newpoints;
+    const T perimeter = this->Perimeter();
+    const long int N = static_cast<long int>( std::floor(perimeter/dl) );
+    const T spacing = dl;
+    const T zero = (T)(0);
+    T offset = (T)(0);
+    T remain = (T)(0);
+
+    auto itA = this->points.begin(), itB = ++(this->points.begin());
+    while(true){
+        if(!(itA != this->points.end())){ //Wrap around will only be required if the contour is closed (not always, though.) itB will be the one to wrap!
+            FUNCERR("The first iterator wrapped around. This should not happen, and is likely due to round off. There are " << newpoints.size() << "/" << N << " points.");
+        }
+        if(!(itB != this->points.end())) itB = this->points.begin();
+
+        const line_segment<T> line(*itA, *itB);  //From A to B.
+        auto somepoints = line.Sample_With_Spacing(spacing, offset, remain); //'remain' is adjusted each time.
+
+        offset = (zero - remain);
+        remain = zero;
+        while(!somepoints.empty() && (static_cast<long int>(newpoints.size()) < N)){
+            auto it = somepoints.begin();
+            newpoints.push_back(*it);
+            somepoints.erase(it);
+        }
+        if(static_cast<long int>(newpoints.size()) == N) break;
+        ++itA; 
+        ++itB;
+    }
+
+    contour_of_points<T> out(std::move(newpoints));
+    out.closed = this->closed;
+    out.metadata = this->metadata;
+    return std::move(out);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const float  dl) const;
+    template contour_of_points<double> contour_of_points<double>::Resample_Evenly_Along_Perimeter(const double dl) const;
+#endif
+
 template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly_Along_Perimeter(const long int N) const {
     //First, do some preliminary checks.
     if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
