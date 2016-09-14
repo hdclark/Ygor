@@ -1,4 +1,4 @@
-//Test_Math14.cc - Tests of bisection.
+//Test_Math15.cc - Tests of bisection.
 
 #include <iostream>
 #include <cmath>

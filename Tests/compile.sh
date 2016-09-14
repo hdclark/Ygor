@@ -1,5 +1,6 @@
 #!/bin/bash
 
+g++ -std=c++14 Test_Math16.cc -o test_math16 -lygor  -pthread &
 g++ -std=c++14 Test_Math15.cc -o test_math15 -lygor  -pthread &
 g++ -std=c++14 Test_Math14.cc -o test_math14 -lygor  -pthread &
 g++ -std=c++14 Test_Math13.cc -o test_math13 -lygor  -pthread &
