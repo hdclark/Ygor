@@ -159,6 +159,9 @@ template <class T, class R> class planar_image {
         void fill_pixels(long int chnl, T val);
         void fill_pixels(T val); //All channels.
 
+        //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
+        long int Set_Voxels_Above_Plane(const plane<R> &, T val, std::set<long int> chnls);
+
         //Replace non-finite numbers.
         void replace_nonfinite_pixels_with(long int chnl, T val);
         void replace_nonfinite_pixels_with(T val); //All channels.
@@ -255,7 +258,6 @@ template <class T,class R>   class planar_image_collection {
         bool operator< (const planar_image_collection &) const; //Relies on the planar_image operator< . See caveats there. Only use for sorting.
 
         void Swap(planar_image_collection &); //Swaps images.
-
 
         //Stable ordering operations. Useful for sorting on several keys (one at a time -- stable!).
         void Stable_Sort(std::function<bool(const planar_image<T,R> &lhs, const planar_image<T,R> &rhs)> lt_func);
@@ -359,6 +361,9 @@ template <class T,class R>   class planar_image_collection {
         //Blur pixels isotropically, independently in their image plane, completely ignoring pixel shape and real-space coordinates.
         // Leave chnls empty for all channels. For more selectivity, run on each image separately.
         bool Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+
+        //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
+        long int Set_Voxels_Above_Plane(const plane<R> &, T val, std::set<long int> chnls);
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;

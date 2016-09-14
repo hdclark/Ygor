@@ -1108,6 +1108,34 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
     template void planar_image<float   ,double>::fill_pixels(float    val);
 #endif
 
+//Fill pixels above a given plane. Returns the number of affected pixels.
+template<class T, class R>
+long int
+planar_image<T,R>::Set_Voxels_Above_Plane(const plane<R> &aplane, T val, std::set<long int> chnls){
+    long int N = 0;
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){ 
+            const auto p = this->position(row, col);
+            if(aplane.Is_Point_Above_Plane(p)){
+                ++N;
+                if(chnls.empty()){
+                    for(auto c = 0; c < this->channels; ++c) this->reference(row, col, c) = val;
+                }else{
+                    for(const auto &c : chnls) this->reference(row, col, c) = val;
+                }
+            }
+        }
+    }
+    return N;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template long int planar_image<uint8_t ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
+    template long int planar_image<uint16_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
+    template long int planar_image<uint32_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
+    template long int planar_image<uint64_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
+    template long int planar_image<float   ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, float    val, std::set<long int>);
+#endif
+
 //Replace non-finite numbers.
 template <class T,class R>
 void 
@@ -2917,6 +2945,24 @@ template <class T,class R> bool planar_image_collection<T,R>::Gaussian_Pixel_Blu
     template bool planar_image_collection<uint32_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
     template bool planar_image_collection<uint64_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
     template bool planar_image_collection<float   ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+#endif
+
+//Fill pixels above a given plane. Returns the number of affected pixels.
+template <class T,class R> 
+long int
+planar_image_collection<T,R>::Set_Voxels_Above_Plane(const plane<R> &aplane, T val, std::set<long int> chnls){
+    long int N = 0;
+    for(auto &animg : this->images){
+        N += animg.Set_Voxels_Above_Plane(aplane, val, chnls);
+    }
+    return N;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template long int planar_image_collection<uint8_t ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
+    template long int planar_image_collection<uint16_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
+    template long int planar_image_collection<uint32_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
+    template long int planar_image_collection<uint64_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
+    template long int planar_image_collection<float   ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, float    val, std::set<long int>);
 #endif
 
 
