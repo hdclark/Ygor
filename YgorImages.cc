@@ -1111,7 +1111,7 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
 //Fill pixels above a given plane. Returns the number of affected pixels.
 template<class T, class R>
 long int
-planar_image<T,R>::Set_Voxels_Above_Plane(const plane<R> &aplane, T val, std::set<long int> chnls){
+planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<long int> chnls){
     long int N = 0;
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){ 
@@ -1129,12 +1129,34 @@ planar_image<T,R>::Set_Voxels_Above_Plane(const plane<R> &aplane, T val, std::se
     return N;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image<uint8_t ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
-    template long int planar_image<uint16_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
-    template long int planar_image<uint32_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
-    template long int planar_image<uint64_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
-    template long int planar_image<float   ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, float    val, std::set<long int>);
+    template long int planar_image<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
+    template long int planar_image<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
+    template long int planar_image<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
+    template long int planar_image<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
+    template long int planar_image<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
 #endif
+
+//Apply a functor to individual pixels.
+template<class T, class R>
+void
+planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func){
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){
+            for(auto chn = 0; chn < this->channels; ++chn){
+                func(row, col, chn, this->reference(row, col, chn));
+            }
+        }
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  &val)>);
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t &val)>);
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
+#endif
+
 
 //Replace non-finite numbers.
 template <class T,class R>
@@ -2950,21 +2972,37 @@ template <class T,class R> bool planar_image_collection<T,R>::Gaussian_Pixel_Blu
 //Fill pixels above a given plane. Returns the number of affected pixels.
 template <class T,class R> 
 long int
-planar_image_collection<T,R>::Set_Voxels_Above_Plane(const plane<R> &aplane, T val, std::set<long int> chnls){
+planar_image_collection<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<long int> chnls){
     long int N = 0;
     for(auto &animg : this->images){
-        N += animg.Set_Voxels_Above_Plane(aplane, val, chnls);
+        N += animg.set_voxels_above_plane(aplane, val, chnls);
     }
     return N;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image_collection<uint8_t ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
-    template long int planar_image_collection<uint16_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
-    template long int planar_image_collection<uint32_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
-    template long int planar_image_collection<uint64_t,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
-    template long int planar_image_collection<float   ,double>::Set_Voxels_Above_Plane(const plane<double> &aplane, float    val, std::set<long int>);
+    template long int planar_image_collection<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
+    template long int planar_image_collection<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
+    template long int planar_image_collection<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
+    template long int planar_image_collection<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
+    template long int planar_image_collection<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
 #endif
 
+//Apply a functor to individual pixels.
+template<class T, class R>
+void
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, long int col, long int chnl, T &val)> func){
+    for(auto &animg : this->images){
+        animg.apply_to_pixels(func);
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  &val)>);
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t &val)>);
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
+#endif
 
 //Returns the R^3 center of the image. Nothing fancy.
 template <class T,class R> vec3<R> planar_image_collection<T,R>::center(void) const {

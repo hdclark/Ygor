@@ -160,7 +160,10 @@ template <class T, class R> class planar_image {
         void fill_pixels(T val); //All channels.
 
         //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
-        long int Set_Voxels_Above_Plane(const plane<R> &, T val, std::set<long int> chnls);
+        long int set_voxels_above_plane(const plane<R> &, T val, std::set<long int> chnls);
+
+        //Apply a functor to individual pixels.
+        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
 
         //Replace non-finite numbers.
         void replace_nonfinite_pixels_with(long int chnl, T val);
@@ -363,7 +366,10 @@ template <class T,class R>   class planar_image_collection {
         bool Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
 
         //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
-        long int Set_Voxels_Above_Plane(const plane<R> &, T val, std::set<long int> chnls);
+        long int set_voxels_above_plane(const plane<R> &, T val, std::set<long int> chnls);
+
+        //Apply a functor to individual pixels.
+        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;
