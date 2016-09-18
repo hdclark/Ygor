@@ -197,7 +197,7 @@ int main(int argc, char **argv){
     const vec3<double> z_normal(0.0, 0.0, 1.0);
 
     //Planar ROI: single circle contour.
-    if(false){
+    if(true){
         contour_collection<double> ROIs;
         contour_collection<double> subsegs;
 
@@ -249,12 +249,67 @@ int main(int argc, char **argv){
             subsegs.Consume_Contours(c);
         }
 
+        //The remaining sub-segments.
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (3.0/3.0), (2.0/3.0),
+                                   (3.0/3.0), (2.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (2.0/3.0), (1.0/3.0),
+                                   (3.0/3.0), (2.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (3.0/3.0), (2.0/3.0),
+                                   (2.0/3.0), (1.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (1.0/3.0), (0.0/3.0),
+                                   (3.0/3.0), (2.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (3.0/3.0), (2.0/3.0),
+                                   (1.0/3.0), (0.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+        {
+            auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
+                                   (1.0/3.0), (0.0/3.0),
+                                   (2.0/3.0), (1.0/3.0), area_expected);
+            subsegs.Consume_Contours(c);
+        }
+
         //subsegs.Plot();
         //ROIs.Plot();
+
+        //Print the vertices for post-processing.
+        const auto dump_vert = [](long int coll_num, long int contour_num, const vec3<double> &p) -> void {
+            std::cout << "Vertex: "
+                      << "family " << coll_num << " " 
+                      << "contour " << contour_num << " "
+                      << p.x << " " << p.y << " " << p.z 
+                      << std::endl;
+        };
+        long int i = 0; //This records which contour each vertex belongs to.
+        for(const auto &c : subsegs.contours){
+            for(const auto &p : c.points) dump_vert(0, i, p);
+            if(!c.points.empty() && c.closed) dump_vert(0, i, c.points.front());
+            std::cout << std::endl;
+            ++i;
+        }
+
     }
 
     //Volumetric ROI: sphere defined in terms of stacks of planar circles.
-    {
+    if(false){
         contour_collection<double> ROIs;
         contour_collection<double> subsegs;
 
