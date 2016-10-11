@@ -42,7 +42,6 @@ g++ -std=c++14 Test_Noise2.cc -o test_noise2 -lygor &
 g++ -std=c++14 Test_Misc.cc -o test_misc -lygor  &
 wait
 
-g++ -std=c++14 Test_String.cc -o test_string -lygor &
 g++ -std=c++14 Test_YgorDICOMTools.cc -o test_dicomtools -lygor &
 g++ -std=c++14 Test_Environment.cc -o test_environment -lygor &
 g++ -std=c++14 Test_Environment2.cc -o test_environment2 -lygor &
