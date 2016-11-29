@@ -686,6 +686,9 @@ template <class T> class samples_1D {
         samples_1D<T> Sum_With(const samples_1D<T> &in) const; //i.e. "operator +".
         samples_1D<T> Subtract(const samples_1D<T> &in) const; //i.e. "operator -".
 
+        //Purge non-finite samples.
+        samples_1D<T> Purge_Nonfinite_Samples(void) const;
+
         //Generic driver for numerical integration. See source for more info.
         template <class Function> std::array<T,2> Integrate_Generic(const samples_1D<T> &in, Function F) const;
 

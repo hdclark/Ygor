@@ -6132,6 +6132,19 @@ template <class T>  samples_1D<T> samples_1D<T>::Subtract(const samples_1D<T> &B
     template samples_1D<double> samples_1D<double>::Subtract(const samples_1D<double> &in) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
+template <class T>  samples_1D<T> samples_1D<T>::Purge_Nonfinite_Samples(void) const {
+    //Using the "erase and remove" idiom.
+    auto out = *this;
+    out.samples.erase( std::remove_if( out.samples.begin(), out.samples.end(), 
+                                       [](const std::array<T,4> &s) -> bool { return !std::isfinite(s[2]); } ), 
+                       out.samples.end() );
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Purge_Nonfinite_Samples(void) const;
+    template samples_1D<double> samples_1D<double>::Purge_Nonfinite_Samples(void) const;
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
 template <class T>
 template <class Function> std::array<T,2> samples_1D<T>::Integrate_Generic(const samples_1D<T> &g, Function F) const {
     //Numerically computes the generic integral: [\int_{-inf}^{inf} F(f(x), g(x), x) dx] where f(x) (i.e., f_x) are the 
