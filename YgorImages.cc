@@ -378,6 +378,40 @@ template <class T, class R> std::tuple<long int,long int,long int> planar_image<
     template std::tuple<long int,long int,long int> planar_image<float   ,double>::row_column_channel_from_index(long int index) const;
 #endif
 
+//Compute fractional row and column numbers when a point in R^3 is known. Throws if out of bounds. This routine is
+// useful for converting between pixel space and spatial dimension, especially for routines that are easier to implement
+// in one or the other spaces (e.g., interpolation).
+//
+// Note: returns fractional (row,column) values.
+//
+template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_column(const vec3<R> &point) const {
+    const vec3<R> P(point - this->anchor - this->offset); // Transform the vector to share coord system with image.
+    const auto Nr = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate row number.
+    const auto Nc = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate col number.
+    const auto Uz = this->row_unit.Cross(this->col_unit).unit(); // Orthogonal unit vector.
+
+    //Check if it is too far out of the plane of the 2D image. Be inclusive in case the image thickness is 0.
+    const auto Nz = Uz.Dot(P)/( static_cast<R>(0.5)*this->pxl_dz );
+    if(!isininc((R)(-1.0),Nz,(R)(1.0))){
+         throw std::invalid_argument("Point was out-of-bounds (outside the image thickness).");
+    }
+
+    //Check if the (integer) coordinates are within the bounds of the image.
+    const auto row = static_cast<long int>( std::round(Nr) ); 
+    const auto col = static_cast<long int>( std::round(Nc) );
+    if( !isininc(0,row,this->rows-1) 
+    ||  !isininc(0,col,this->columns-1) ){
+        throw std::invalid_argument("Point was out-of-bounds (within the image thickness, but outside row/col bounds.");
+    }
+    return std::make_pair(Nr,Nc);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::pair<double,double> planar_image<uint8_t ,double>::fractional_row_column(const vec3<double> &) const;
+    template std::pair<double,double> planar_image<uint16_t,double>::fractional_row_column(const vec3<double> &) const;
+    template std::pair<double,double> planar_image<uint32_t,double>::fractional_row_column(const vec3<double> &) const;
+    template std::pair<double,double> planar_image<uint64_t,double>::fractional_row_column(const vec3<double> &) const;
+    template std::pair<double,double> planar_image<float   ,double>::fractional_row_column(const vec3<double> &) const;
+#endif
 
 //Channel-value getters.
 template <class T, class R> T planar_image<T,R>::value(long int row, long int col, long int chnl) const {
@@ -3095,6 +3129,119 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
     template bool planar_image_collection<uint64_t,double>::Collate_Images(planar_image_collection<uint64_t,double> &in, bool GeometricalOverlapOK);
     template bool planar_image_collection<float   ,double>::Collate_Images(planar_image_collection<float   ,double> &in, bool GeometricalOverlapOK);
 #endif
+
+
+//Interpolate linearly in R^3. The nearest two images (above and below) are interpolated between. Specifically, the
+// position of interest is projected orthographically onto the image and the relative distance to each plane is used to
+// determine weighting. If the projected point is not within the bounds of (either of) the nearest two images, a special
+// value is returned. 
+//
+// This routine can deal with gaps and images with differing numbers of rows and/or columns. It can also deal with
+// non-coplanar images, but beware that the interpolation can get sort of 'wonky' if adjacent images are highly oblique.
+//
+// Note: this routine is fairly slow. It is designed for random access, not uniformly (re-)interpolating a whole
+// image; in the latter case a dedicated routine should be able to cache or precompute some things to reduce redundant
+// computations.
+//
+// Note: this routine requires all images to have a uniformly (or at least coherently) specified normal. In other words
+// the planes must have a consistent notion of which side is 'positive' space and which is 'negative.'
+//
+// Note: this routine will get confused by images that (exactly) spatially overlap. In this case there is 'no room' for
+// the interpolation to occur, and numerical difficulties may ensue.
+//
+// Note: this routine will round-trip pixel values (type T) to the spatial type (type R), scaling them, and then back
+// (to type T). This is necessary since the interpolation uses distance as the weighting factor. For best results,
+// ensure that the spatial type (R) is wider than the pixel type (T), or at least ensure that the types are wide enough
+// that the loss of precision is irrelevant. (If you cannot deal with this, spatial interpolation is probably not what
+// you want!)
+//
+template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpolate(const vec3<R> &pos, long int chnl, R out_of_bounds){
+    if(this->images.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
+
+    //First, identify the nearest planes above and below the point.
+    std::list< std::pair< R, std::reference_wrapper<planar_image<T,R>> > > planes_above;
+    std::list< std::pair< R, std::reference_wrapper<planar_image<T,R>> > > planes_below;
+    for(auto & animg : this->images){
+        const auto theplane = animg.image_plane();
+        const auto signed_dist = theplane.Get_Signed_Distance_To_Point(pos);
+        const auto is_above = (signed_dist >= static_cast<R>(0));
+
+        if(is_above){
+            planes_above.push_back(std::make_pair<R,std::reference_wrapper<planar_image<T,R>>>(std::abs(signed_dist),
+            std::ref(animg)));
+        }else{
+            planes_below.push_back(std::make_pair<R,std::reference_wrapper<planar_image<T,R>>>(std::abs(signed_dist),
+            std::ref(animg)));
+        }
+    }
+
+    //Sort both lists using the distance magnitude.
+    const auto sort_less = [](const std::pair<R,std::reference_wrapper<planar_image<T,R>>> &A, 
+                              const std::pair<R,std::reference_wrapper<planar_image<T,R>>> &B) -> bool {
+        return A.first < B.first;
+    };
+    planes_above.sort(sort_less);
+    planes_below.sort(sort_less);
+
+    T out = out_of_bounds;
+
+    if(false){
+    }else if( !planes_above.empty() && !planes_below.empty()){
+        //Interpolate each image in-plane and then interpolate the in-plane values.
+        // This path does not need to explictly check if the point is within either image.
+        const auto A_dist = planes_above.front().first;
+        const auto B_dist = planes_below.front().first;
+        const auto tot_dist = A_dist + B_dist;
+
+        const auto A_plane = planes_above.front().second.get().image_plane();
+        const auto B_plane = planes_below.front().second.get().image_plane();
+
+        const auto A_P = A_plane.Project_Onto_Plane_Orthogonally(pos);
+        const auto B_P = B_plane.Project_Onto_Plane_Orthogonally(pos);
+
+        try{
+            const auto A_frc = planes_above.front().second.get().fractional_row_column(A_P);
+            const auto B_frc = planes_below.front().second.get().fractional_row_column(B_P);
+
+            const auto A_out = planes_above.front().second.get().bilinearly_interpolate_in_pixel_number_space(A_frc.first, A_frc.second, chnl);
+            const auto B_out = planes_below.front().second.get().bilinearly_interpolate_in_pixel_number_space(B_frc.first, B_frc.second, chnl);
+
+            out = static_cast<T>( (B_dist/tot_dist)*static_cast<R>(A_out)
+                                + (A_dist/tot_dist)*static_cast<R>(B_out) );
+        }catch(const std::exception &){
+            out = out_of_bounds;
+        }
+
+    }else if( !planes_above.empty() &&  planes_below.empty()){
+        //No interpolation necessary, but the point may be outside the image collection. 
+        try{
+            out = planes_above.front().second.get().value(pos,chnl); //Will throw if outside image bounds.
+        }catch(const std::exception &){
+            out = out_of_bounds;
+        }
+
+    }else if(  planes_above.empty() && !planes_below.empty()){
+        //No interpolation necessary, but the point may be outside the image collection. 
+        try{
+            out = planes_below.front().second.get().value(pos,chnl); //Will throw if outside image bounds.
+        }catch(const std::exception &){
+            out = out_of_bounds;
+        }
+
+    }else{
+        throw std::logic_error("No planes to interpolate; precondition violated.");
+    }
+
+    return out; 
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image_collection<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint16_t planar_image_collection<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+#endif
+
 
 //------------------------------------------------------------------------------------------------------------
 

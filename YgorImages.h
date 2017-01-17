@@ -91,6 +91,7 @@ template <class T, class R> class planar_image {
         long int index(const vec3<R> &point, long int chnl) const;
 
         std::tuple<long int,long int,long int> row_column_channel_from_index(long int index) const;
+        std::pair<R, R> fractional_row_column(const vec3<R> &point) const; //throws if out-of-bounds.
 
     //public:
 
@@ -382,8 +383,8 @@ template <class T,class R>   class planar_image_collection {
         // Should always work if either image collection is empty.
         bool Collate_Images(planar_image_collection<T,R> &in, bool GeometricalOverlapOK = true);
 
-//        //Produce an image by cutting through the image collection and copying intersecting pixels.
-//        long int Intersection_Copy(planar_image<T,R> &in, const std::list<images_list_it_t> &in) const;
+        //Interpolate in R^3.
+        T trilinearly_interpolate(const vec3<R> &position, long int chnl, R out_of_bounds = std::numeric_limits<T>::quiet_NaN());
 
 };
 
