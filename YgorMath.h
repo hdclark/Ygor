@@ -258,6 +258,8 @@ template <class T>   class contour_of_points {
         vec3<T> First_N_Point_Avg(const long int N) const; //Useful when dealing with planes for determining if above or below.
         T Perimeter(void) const;             //This is the perimeter (length) of the contour edges. It is computed from vertex to vertex (positive-definite.)
 
+        vec3<T> Get_Point_Within_Contour(void) const; //Get an arbitrary but deterministic point within the contour.
+ 
         contour_of_points<T>  Bounding_Box_Along(const vec3<T> &, T margin = (T)(0.0)) const; //Gives a (planar 2D) bounding box with two edges aligned with the given unit vector. 
 
         std::list<contour_of_points<T>> Split_Along_Plane(const plane<T> &) const; //Splits the contour into individual contours along the given plane. This is a "geometric" splitting.

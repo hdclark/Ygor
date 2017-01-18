@@ -2853,6 +2853,47 @@ template <class T>  T contour_of_points<T>::Perimeter(void) const {
     template double contour_of_points<double>::Perimeter(void) const;
 #endif
 
+//Get an arbitrary but deterministic point within the contour. This is useful for applications that require partitioning
+// into 'inside' and 'outside' spaces. A construction is used so that points exactly on or near edges or vertices are
+// avoided, but may still be reported by this routine.
+//
+// Note: this routine assumes contours are planar or nearly planar; points are checked for inclusivity assuming a
+// plane that is best-fit using an estimate normal. So this routine may fail or return nonsense if contours are not
+// sufficiently planar.
+//
+template <class T>  vec3<T> contour_of_points<T>::Get_Point_Within_Contour(void) const {
+    const auto thenormal = this->Estimate_Planar_Normal();
+    const auto theplane = this->Least_Squares_Best_Fit_Plane(thenormal);
+    const auto proj_cont = this->Project_Onto_Plane_Orthogonally(theplane);
+    const auto N = this->points.size();
+    const bool AlreadyProjected = true;
+
+    //A simplistic, incomprehensive approach.
+    for(long int i = 3; i < N; ++i){
+        const auto P = proj_cont.First_N_Point_Avg(i);    
+        if(proj_cont.Is_Point_In_Polygon_Projected_Orthogonally(theplane, P, AlreadyProjected)){
+            return P;
+        }
+    }
+
+    //Fall-back approaches.
+
+    // ...
+
+    // ( idea #1: Check progressively finer divisions of a circle centered around the first vertex and aligned with the
+    //   contour plane. )
+
+    // ...
+
+    throw std::runtime_error("Unable to locate any interior points. (A more robust scheme would help.)");
+    return vec3<T>();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > contour_of_points<float >::Get_Point_Within_Contour(void) const;
+    template vec3<double> contour_of_points<double>::Get_Point_Within_Contour(void) const;
+#endif
+
+
 //This routine performs (numerical) contour integration over the contour with the provided (scalar-valued) kernel.
 //
 // More precisely, this function computes:  $ \Chi = \sum_{i=1}^{N} \Chi_{i} $ where the summation is over the 
