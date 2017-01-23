@@ -3330,6 +3330,9 @@ long int Intersection_Copy(planar_image<T,R> &in,
 // NOTE: The margins get added to both sides along GridX, GridY, and GridZ. So the TOTAL margin along each vector will
 //       be 2*margin (1*margin on each side).
 // 
+// NOTE: This routine cannot be used to produce images that are centred along a line; there is a complementary routine
+//       that provides this below.
+//
 template <class T,class R>
 planar_image_collection<T,R> 
 Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collection<R>>> &ccs,
@@ -3414,7 +3417,6 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
     const auto voxel_dy = ywidth / static_cast<R>(number_of_rows);
     const auto voxel_dz = zwidth / static_cast<R>(number_of_images);
 
-
     //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
     // ignores z-direction and will be projected onto an appropriate z-plane later.)
     const vec3<R> near_corner_zero = zero + (GridX * grid_x_min) + (GridY * grid_y_min)
@@ -3465,5 +3467,143 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
              const double, const double, const double, const long int, const long int, const long int, const long int,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+#endif
+
+
+//This routine is a modification of Contiguously_Grid_Volume() that produces images that are centred on the provided
+// line. See the comments for Contiguously_Grid_Volume() for more info. This routine should be preferred over
+// Contiguously_Grid_Volume() when image centres have to coincide with a given line. 
+//
+// NOTE: Both Contiguously_Grid_Volume() and this routine align images along some unit vectors (or a unit vector along a
+//       provided line). This routine *also* makes image centres coincide with a line. Note that this can cause large
+//       margins (when the specified line is near the edge or outside the geometry of interest).
+// 
+template <class T,class R>
+planar_image_collection<T,R> 
+Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collection<R>>> &ccs,
+                         const R x_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
+                         const R y_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
+                         const R z_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
+                         const long int number_of_rows,
+                         const long int number_of_columns,
+                         const long int number_of_channels,
+                         const long int number_of_images,
+                         const line<R> &symm_line, // Note: ~ the z_orientation with a pinning intersection somewhere.
+                         const vec3<R> &x_orientation,
+                         const vec3<R> &y_orientation,
+                         const R pixel_fill,
+                         bool only_top_and_bottom){ //Only create the top and bottom (i.e., extremal) images.
+
+    if(ccs.empty()){
+        throw std::invalid_argument("No contours provided. Cannot continue.");
+    }
+
+    //The symmetry line ("z-vector") is designated as the primary alignment vector, so we orthogonalize the other vectors around it.
+    vec3<R> GridX = x_orientation;
+    vec3<R> GridY = y_orientation;
+    vec3<R> GridZ = symm_line.U_0;
+ 
+    if(!GridZ.GramSchmidt_orthogonalize(GridX, GridY)){
+        throw std::runtime_error("Unable to find grid orientation vectors.");
+    }
+    GridX = GridX.unit();
+    GridY = GridY.unit();
+    GridZ = GridZ.unit();
+
+    //Find an appropriately aligned bounding box encompassing the ROI surface.
+    R grid_x_ext = std::numeric_limits<R>::quiet_NaN(); //Extreme = sup( |min|, |max| ).
+    R grid_y_ext = std::numeric_limits<R>::quiet_NaN(); //Extreme = sup( |min|, |max| ).
+    R grid_z_min = std::numeric_limits<R>::quiet_NaN();
+    R grid_z_max = std::numeric_limits<R>::quiet_NaN();
+
+    //Make three planes defined by the orientation normals. (They intersect the origin to simplify computing offsets.)
+    const vec3<R> zero(0.0, 0.0, 0.0);
+    const plane<R> GridZZeroPlane(GridZ, zero);
+
+    //Bound the vertices on the ROI.
+    for(const auto &cc_ref : ccs){
+        for(const auto &cop : cc_ref.get().contours){
+            for(const auto &v : cop.points){
+                //Compute the distance to each plane.
+                const auto v_on_line = symm_line.Project_Point_Orthogonally(v);
+                const auto distX = std::abs( (v - v_on_line).Dot(GridX) );
+                const auto distY = std::abs( (v - v_on_line).Dot(GridY) );
+                const auto distZ = GridZZeroPlane.Get_Signed_Distance_To_Point(v);
+
+                //Score the minimum and maximum distances.
+                if(false){
+                }else if(!std::isfinite(grid_x_ext) || (distX > grid_x_ext)){  grid_x_ext = distX;
+                }else if(!std::isfinite(grid_y_ext) || (distY > grid_y_ext)){  grid_y_ext = distY;
+                }else if(!std::isfinite(grid_z_min) || (distZ < grid_z_min)){  grid_z_min = distZ;
+                }else if(!std::isfinite(grid_z_max) || (distZ > grid_z_max)){  grid_z_max = distZ;
+                }
+            }
+        }
+    }
+
+    //Add margins.
+    grid_x_ext += x_margin;
+    grid_y_ext += y_margin;
+    grid_z_min -= z_margin;
+    grid_z_max += z_margin;
+
+    //Create images that live on each Z-plane.
+    const R xwidth = grid_x_ext * static_cast<R>(2);
+    const R ywidth = grid_y_ext * static_cast<R>(2);
+    const R zwidth = grid_z_max - grid_z_min;
+    const auto voxel_dx = xwidth / static_cast<R>(number_of_columns);
+    const auto voxel_dy = ywidth / static_cast<R>(number_of_rows);
+    const auto voxel_dz = zwidth / static_cast<R>(number_of_images);
+
+    //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
+    // ignores z-direction and will be projected onto an appropriate z-plane later.)
+    const vec3<R> near_corner_zero = symm_line.R_0 - (GridX * grid_x_ext) - (GridY * grid_y_ext)
+                                          + (GridX * voxel_dx * static_cast<R>(0.5)) 
+                                          + (GridY * voxel_dy * static_cast<R>(0.5));
+
+    //Generate the images.
+    planar_image_collection<T,R> out;
+    for(long int i = 0; i < number_of_images; ++i){
+        if(only_top_and_bottom && (i > 0) && (i < (number_of_images-1))) continue;
+
+        //Construct a plane where the image will sit.
+        const plane<R> img_plane( GridZ, zero + (GridZ * grid_z_min)                        //Move to the boundary of the ROI(s) volume.        
+                                              + (GridZ * voxel_dz * static_cast<R>(i))      //Move to the volume reserved for this image.
+                                              + (GridZ * voxel_dz * static_cast<R>(0.5)) ); //Centre of the volume.
+
+        //Project the generic corner point coordinates onto the image's plane.
+        const auto img_offset = img_plane.Project_Onto_Plane_Orthogonally(near_corner_zero);
+
+        //Create and initialize the image.
+        out.images.emplace_back();
+        out.images.back().init_buffer(number_of_rows, number_of_columns, number_of_channels);
+        out.images.back().init_spatial(voxel_dx, voxel_dy, voxel_dz, zero, img_offset);
+        out.images.back().init_orientation(GridX, GridY);
+        out.images.back().fill_pixels(pixel_fill);
+    }
+
+    return out;
+}                         
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template planar_image_collection<uint8_t ,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<uint16_t,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<uint32_t,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<uint64_t,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<float   ,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
 #endif
 

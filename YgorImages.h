@@ -413,4 +413,24 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
                          bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
 
 
+//Produce an image collection that contiguously covers the volume containing the provided contours, but produces images
+//  that are centred along a given line (symmetric in the use of margins).
+template <class T,class R>
+planar_image_collection<T,R> 
+Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collection<R>>> &ccs,
+                                       const R x_margin = static_cast<R>(1.0),
+                                       const R y_margin = static_cast<R>(1.0),
+                                       const R z_margin = static_cast<R>(1.0),
+                                       const long int number_of_rows = 256,
+                                       const long int number_of_columns = 256,
+                                       const long int number_of_channels = 1,
+                                       const long int number_of_images = 25,
+                                       const line<R> &symm_line = line<double>( vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(0)),
+                                                                                vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(1)) ),
+                                       const vec3<R> &x_orientation = vec3<R>(static_cast<R>(1), static_cast<R>(0), static_cast<R>(0)),
+                                       const vec3<R> &y_orientation = vec3<R>(static_cast<R>(0), static_cast<R>(1), static_cast<R>(0)),
+                                       const R pixel_fill = std::numeric_limits<R>::quiet_NaN(),
+                                       bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
+
+
 #endif
