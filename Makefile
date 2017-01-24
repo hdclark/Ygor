@@ -58,6 +58,9 @@ YgorImages.o: YgorImages.h YgorImages.cc
 YgorMath.o: YgorMath.h  YgorMath.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -c YgorMath.cc #-lm 
 
+YgorMathIOOFF.o: YgorMathIOOFF.h  YgorMathIOOFF.cc
+	${USECC} ${XTRA_DEFINES} -fPIC -c YgorMathIOOFF.cc #-lm 
+
 YgorMath_Samples.o: YgorMath_Samples.h  YgorMath_Samples.cc
 	${USECC} ${XTRA_DEFINES} -fPIC -fno-var-tracking-assignments -c YgorMath_Samples.cc  
 
@@ -119,6 +122,7 @@ md5.o: External/MD5/md5.cc
 # Easiest solution: cram everything into a single library. This drags in a 
 #  lot of extra crap. Prune if it will matter.
 libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
+               YgorMathIOOFF.o \
                YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
                YgorMathBSpline.o \
                YgorArguments.h YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o \
@@ -127,6 +131,7 @@ libygor.so: YgorMisc.h YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorM
                YgorNetworking.o YgorDICOMTools.o YgorCONFIGTools.o YgorURITools.o \
                YgorVIDEOTools.o spookyhash.o md5.o  
 	${USECC} ${XTRA_DEFINES} -rdynamic -shared -Wl,-soname,libygor.so -o libygor.so   -Wl,-z,now -Wl,-z,noexecstack  \
+               YgorMathIOOFF.o \
                YgorMathChebyshev.o YgorMathChebyshevFunctions.o \
                YgorMathBSpline.o \
                YgorContainers.o YgorAlgorithms.o YgorEnvironment.o YgorMath.o \
@@ -156,6 +161,7 @@ install: all
 	install -Dm644 YgorImagesIO.h                   /usr/include/
 	install -Dm644 YgorImagesPlotting.h             /usr/include/
 	install -Dm644 YgorMath.h                       /usr/include/
+	install -Dm644 YgorMathIOOFF.h                  /usr/include/
 	install -Dm644 YgorMathChebyshev.h              /usr/include/
 	install -Dm644 YgorMathChebyshevFunctions.h     /usr/include/
 	install -Dm644 YgorMathBSpline.h                /usr/include/
@@ -187,6 +193,7 @@ install: all
 clean: 
 	rm libygor.so libygor.a YgorContainers.o YgorAlgorithms.o \
            YgorEnvironment.o YgorMath.o YgorPlot.o YgorString.o YgorStats.o YgorFilesDirs.o        \
+           YgorMathIOOFF.o    \
            YgorMathChebyshev.o YgorMathChebyshevFunctions.o        \
            YgorMathBSpline.o    \
            YgorMath_Samples.o YgorTime.o YgorImages.o YgorImagesIO.o         \
