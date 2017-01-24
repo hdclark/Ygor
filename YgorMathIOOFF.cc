@@ -77,6 +77,7 @@ WriteLineSegmentToOFF(line_segment<T> ls,
 
     FO << "OFF" << std::endl;
     FO << std::endl;
+    FO << "# Note: this file contains a zero-area triangle that represents a line segment." << std::endl;
     FO << "#" << comment << std::endl;
     FO << std::endl;
 
