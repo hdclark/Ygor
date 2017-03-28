@@ -1,4 +1,0 @@
-This is some text file. I'm not sure how it will compress. It is simple text, so it ought to be able to compress fairly high.
-
-I would estimate that the regularity of the data in this file is quite high. The letter 't' occurs freuqently, and only a few
-unique characters are used. Vowels are, of course, very common too!

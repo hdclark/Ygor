@@ -1,5 +1,8 @@
 
 
+build
+
+*.swp
 
 # Compiled Object files
 *.lo

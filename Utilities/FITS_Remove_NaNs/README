@@ -1,5 +1,0 @@
-exit
-
-This script is a one-off for purging NaN's from FITS image files.
-NaN's give other programs issues (e.g., Imagemagick but strangely not GIMP).
-

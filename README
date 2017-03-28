@@ -111,4 +111,8 @@ Rough Timeline
                    a mess. Modernization is planned.
 
 
+ - March 2017    - Migrated to CMake. Removed a few small extraneous files, but the
+                   repo needs a good clean. The code also needs to be modernized and
+                   warnings dealt with.
+
 
