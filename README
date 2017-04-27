@@ -6,45 +6,51 @@ Project - Ygor
 Introduction
 ------------
 
- These files were written by hal clark over the span of several years (~2010-2016+). 
- They were written to help enforce the DRY (Don't Repeat Yourself) principle, since
- several of the routines here kept popping up throughout various projects. After at
- least a dozen similar project-specific files were created and tweaked, it wa
- decided that these routines would be a good candidate for a bonafide project in 
- their own right.
+ These files were written by hal clark over the span of many years
+ (~2010-2017+). They were written to help enforce the DRY (Don't Repeat
+ Yourself) principle, since several of the routines here kept popping up
+ throughout various projects. After at least a dozen similar project-specific
+ files were created and tweaked, it was decided that these routines would be a
+ good candidate for a bonafide project in their own right.
 
- These routines will grow, be replaced, be updated, and may even disappear when their
- functionality is superceded by new features in the language/better libraries/etc..
- However, many of these routines are not broadly useful enough for something like
- Boost, and many are not comprehensive enough to be submitted to a more robust
- support library. The routines in this library are made for specific projects with
- specific needs, but which may (have) become useful for other projects.
+ These routines will grow, be replaced, be updated, and may even disappear when
+ their functionality is superceded by new features in the language/better
+ libraries/etc.. However, many of these routines are not broadly useful enough
+ for a project like Boost to include, and many are not comprehensive enough to
+ be submitted to more mature project. The routines in this library are made for
+ specific projects with specific needs, but which may (have) become useful for
+ other projects.
 
- Pushing (generic) routines from specific projects into these files is encouraged,
- so long as the routines has some hope of being applicable in some other situation.
+ Pushing (generic) routines from specific projects into these files is
+ encouraged, so long as the routines has some hope of being applicable in some
+ other situation.
+
 
 License
 -------
 
- The copyrights are reserved by the author until a specific license has been chosen.
- Please contact the author for further clarification. Also note that the author is 
- available for discussion on the matter. These routines will be released under *some*
- form of open license.
+ All materials herein which may be copywrited, where applicable, are. Copyright
+ 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017 hal clark. See the LICENSE file
+ for details about the license. Informally, Ygor is available under a GPLv3+
+ license. Bundled software is under the indicated license(s).
 
- (The plan is to release under the GPLv3+, but some code may not be compatible. A
- thorough review is needed.)
-
+ All liability is herefore disclaimed. The person(s) who use this source and/or
+ software do so strictly under their own volition. They assume all associated
+ liability for use and misuse, including but not limited to damages, harm,
+ injury, and death which may result, including but not limited to that arising
+ from unforeseen and unanticipated implementation defects.
+  
 
 Author
 ------
 
- The entirety of this project was written by hal clark, unless otherwise noted. The 
- majority of routines were written with the assistance of websites like 
- StackOverflow, CppReference, and Bjarne's C++11 FAQ. These resources were invaluable,
- and the author thanks those who have made such information available both free of
- charge and often with snippets of free-to-use code. Whenever possible, public domain
- code has been consulted or used. Insignificant portions of GPL code have been used 
- verbatim where appropriate.
+ The entirety of this project was written by hal clark, unless otherwise noted.
+ The majority of routines were written with the assistance of websites like
+ StackOverflow, CppReference, and Bjarne's C++11 FAQ. These resources were
+ invaluable, and the author thanks those who have made such information
+ available both free of charge and often with snippets of free-to-use code.
+ Whenever possible, public domain code has been consulted or used. Insignificant
+ portions of GPL code have been used verbatim where appropriate.
 
  If a routine existed in a high-quality, widely-available library, it was not 
  duplicated in Ygor. As of writing, various bits of Ygor rely on:
@@ -57,6 +63,37 @@ Author
    - GNU plotutils  (YgorPlot. Weakly - via shell/pipe)
    - Gnuplot        (YgorPlot. Weakly - via shell/pipe)
 
+
+Project Home
+------------
+
+    This project's homepage can be found at [http://www.halclark.ca/]. The
+  source code is available at either
+          [https://gitlab.com/hdeanclark/Ygor/] 
+  or
+          [https://github.com/hdclark/Ygor/].
+
+
+Installation
+------------
+
+  This project uses CMake to build. Use the usual commands to compile:
+   $ cd /path/to/source/directory
+   $ mkdir build && cd build/
+    THEN
+     # If by-passing your package manager.
+       $ cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
+       $ make && sudo make install
+    OR
+     # If building for Debian.
+       $ cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
+       $ make && make package
+       $ sudo dpkg -i sudo dpkg -i *.deb
+       $ sudo apt-get -f install   # Or [--fix-missing] in lieu of [-f].
+    OR
+     # If building for Arch Linux.
+       $ rsync -a --exclude build ../ ./
+       $ makepkg --syncdeps --noconfirm # Optionally also [--install].
 
 
 Rough Timeline
@@ -110,9 +147,11 @@ Rough Timeline
                    relying on GNU Make(files), and the project hierarchy is a bit of 
                    a mess. Modernization is planned.
 
-
  - March 2017    - Migrated to CMake. Removed a few small extraneous files, but the
                    repo needs a good clean. The code also needs to be modernized and
                    warnings dealt with.
 
+ - April 2017    - Made sources publically available on GitHub and GitLab at 
+                   [https://gitlab.com/hdeanclark/Ygor] and
+                   [https://github.com/hdclark/Ygor].
 
