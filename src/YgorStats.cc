@@ -17,6 +17,7 @@
 #include <limits>
 #include <array>
 #include <algorithm>
+#include <type_traits>
 
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
@@ -57,7 +58,11 @@ template <class C> typename C::value_type Stats::Sum(C in){
 
     //In an effort to try reduce numerical errors, we will sum from lowest to highest magnitude.
     auto sort_by_magnitude = [](T l, T r) -> bool {
-        return std::abs(l) < std::abs(r);
+        if constexpr (std::is_signed<T>::value){
+            return std::abs<T>(l) < std::abs<T>(r);
+        }else{
+            return l < r;
+        }
     };
     Ygor_Container_Sort(in, sort_by_magnitude);
 

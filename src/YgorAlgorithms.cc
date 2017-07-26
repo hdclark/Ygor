@@ -434,7 +434,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         const double h_scale   = 5.0 * avg_dx;
 
         const double h_optimal = Find_Optimal_H(h_0, h_scale, 1E-7, 5000, in, false, OK);
-        if(OK == false) return samples_1D<double>();
+        if(*OK == false) return samples_1D<double>();
 
         *OK = true; return Get_Smoothed_at_Xi(h_optimal, in, OK);
     }
