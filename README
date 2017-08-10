@@ -88,12 +88,20 @@ Installation
      # If building for Debian.
        $ cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
        $ make && make package
-       $ sudo dpkg -i sudo dpkg -i *.deb
-       $ sudo apt-get -f install   # Or [--fix-missing] in lieu of [-f].
+       $ sudo apt install ./*.deb
     OR
      # If building for Arch Linux.
        $ rsync -a --exclude build ../ ./
        $ makepkg --syncdeps --noconfirm # Optionally also [--install].
+
+
+Known Issues
+------------
+
+ - The Gnuplot async plotter will cause the main thread to hang on some systems.
+   It can be made to block instead, but this is hard-coded at the moment.
+   The core issue appears to be communicating via pipes with Gnuplot rather 
+   than via a proper API.
 
 
 Rough Timeline
