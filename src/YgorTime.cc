@@ -147,41 +147,31 @@ bool time_mark::Read_from_string(const std::string &in){
     //The fixed-width format, like: '20140125-012345'. 
     // date '+%Y%m%_d-%_H%_M%_S'
     if(Glean_date_time_from_string(in,&lt)){
-        //Spit it out.
-        //FUNCINFO("Y=" << lt.tm_year+1900 << ", M=" << lt.tm_mon+1 << ", D=" << lt.tm_mday << ", H=" << lt.tm_hour << ", m=" << lt.tm_min << ", S=" << lt.tm_sec);
 
     //The preferred format: `date +%Y%m%d-%H%M%S` or "YearMonthDay-HourMinuteSecond". Example: "20131105-130535"
     // Note: that strptime has a lot of trouble with preceeding '0's! It will not properly handle fixed-width
     //       date and time!
     }else if(strptime(in.c_str(), "%Y%m%d-%H%M%S", &lt) != nullptr){
-        //Spit it out.
-        //FUNCINFO("Y=" << lt.tm_year+1900 << ", M=" << lt.tm_mon+1 << ", D=" << lt.tm_mday << ", H=" << lt.tm_hour << ", m=" << lt.tm_min << ", S=" << lt.tm_sec);
-
-//    //Works fine, but only handles the preferential format (nothing extra).
-//    const auto nums = GetAllRegex2(in, "([0-9]{2,4})[/]([0-9]{1,2})[/]([0-9]{1,2})[-]([0-9]{1,2})[:]([0-9]{1,2})[:]([0-9]{1,2})");
-//    if(nums.size() == 6){
-//        lt.tm_year = Is_String_An_X<int>(nums[0]) ? (stringtoX<int>(nums[0]) - 1900) : -1;
-//        lt.tm_mon  = Is_String_An_X<int>(nums[1]) ? (stringtoX<int>(nums[1]) - 1)    : -1;
-//        lt.tm_mday = Is_String_An_X<int>(nums[2]) ?  stringtoX<int>(nums[2])         : -1;
-//        lt.tm_hour = Is_String_An_X<int>(nums[3]) ?  stringtoX<int>(nums[3])         : -1;
-//        lt.tm_min  = Is_String_An_X<int>(nums[4]) ?  stringtoX<int>(nums[4])         : -1;
-//        lt.tm_sec  = Is_String_An_X<int>(nums[5]) ?  stringtoX<int>(nums[5])         : -1;
+    }else if(strptime(in.c_str(), "%Y%Om%d-%H%M%S", &lt) != nullptr){
 
     //The previously preferred format: `date +%Y\/%m\/%d-%H:%M:%S`. Regex for matching it: 
     // ([0-9]{2,4})[/]([0-9]{1,2})[/]([0-9]{1,2})[-]([0-9]{1,2})[:]([0-9]{1,2})[:]([0-9]{1,2})
     // Example: '2013/07/16-21:19:13'
     }else if(strptime(in.c_str(), "%Y/%m/%d-%H:%M:%S", &lt) != nullptr){ //NOTE: Does not handle month or day = '0'...
-        //Worked.
+
+    //Other misc. common formats.
+    }else if(strptime(in.c_str(), "%Y-%m-%d", &lt) != nullptr){
+        lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
+    }else if(strptime(in.c_str(), "%Y %m %d", &lt) != nullptr){
+        lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
 
     //The style of Salivary Flow measurement data. Format: '17-Mar-2009' There is no time info here.
     }else if(strptime(in.c_str(), "%d-%b-%Y", &lt) != nullptr){
-        //Worked.
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
 
     //The format used as an example in the strpcopy manual. Seems nice enough...
     // Example: '6 Dec 2001 12:33:45'
     }else if(strptime(in.c_str(), "%d %b %Y %H:%M:%S", &lt) != nullptr){
-        //Worked.
 
 
     //}else if( ....        <---add more here. Consider just piping to shell to use GNU date, which handles all sorts of neat formats automagically...
