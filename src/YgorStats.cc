@@ -58,11 +58,7 @@ template <class C> typename C::value_type Stats::Sum(C in){
 
     //In an effort to try reduce numerical errors, we will sum from lowest to highest magnitude.
     auto sort_by_magnitude = [](T l, T r) -> bool {
-        if constexpr (std::is_signed<T>::value){
-            return std::abs<T>(l) < std::abs<T>(r);
-        }else{
             return l < r;
-        }
     };
     Ygor_Container_Sort(in, sort_by_magnitude);
 
