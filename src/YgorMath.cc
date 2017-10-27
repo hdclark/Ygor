@@ -4693,6 +4693,102 @@ contour_collection<T>::Insert_Metadata(const std::string &key, const std::string
     template void contour_collection<double>::Insert_Metadata(const std::string &, const std::string &);
 #endif
 
+
+
+//Returns the metadata key-values that are "common" (i.e., identical among all contours).
+// For ordering purposes, contours in *this are considered to have priority over those in 'in'.
+template <class T>
+std::map<std::string,std::string> 
+contour_collection<T>::get_common_metadata(const std::list<std::reference_wrapper<contour_collection<T>>> &ccl,
+                                           const std::list<std::reference_wrapper<contour_of_points<T>>> &copl){
+
+    //Collect all available metadata.
+    std::list<std::reference_wrapper<contour_of_points<T>>> c_refs;
+
+    for(auto &c : this->contours){
+        c_refs.emplace_back( std::ref(c) );
+    }
+    for(const auto &cc : ccl){
+        for(auto &c : cc.get().contours){
+            c_refs.emplace_back( std::ref(c) );
+        }
+    }
+    for(const auto &cr : copl) c_refs.emplace_back(cr);
+
+    std::multimap<std::string,std::string> all_m;
+    for(const auto &c_ref : c_refs){ 
+        for(const auto &m : c_ref.get().metadata){
+            //If the key is not present, insert it unconditionally.
+            //If the key is present twice or more, it is already spoiled so move along.
+            //If the key is present once, check if values differ; insert iff they do.
+            const auto count = all_m.count(m.first);
+            if( (count == 0)
+            ||  ((count == 1) && (all_m.lower_bound(m.first)->second != m.second)) ){
+                all_m.insert(m);
+            }
+        }
+    }
+
+    //Construct the outgoing metadata iff there was a single value corresponding to a given key.
+    std::map<std::string,std::string> out;
+    for(const auto &m : all_m){
+        if(all_m.count(m.first) == 1) out.insert(m);
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::map<std::string,std::string> 
+        contour_collection<float >::get_common_metadata(
+                const std::list<std::reference_wrapper<contour_collection<float >>> &,
+                const std::list<std::reference_wrapper<contour_of_points<float >>> &);
+    template std::map<std::string,std::string> 
+        contour_collection<double>::get_common_metadata(
+                const std::list<std::reference_wrapper<contour_collection<double>>> &,
+                const std::list<std::reference_wrapper<contour_of_points<double>>> &);
+#endif
+
+//Returns a copy of all values that correspond to the given key. Order is maintained.
+template <class T>
+std::list<std::string> 
+contour_collection<T>::get_all_values_for_key(const std::string &akey) const {
+    std::list<std::string> out;
+    for(const auto &c : this->contours){
+        auto it = c.metadata.find(akey);
+        if(it != c.metadata.end()){
+            out.emplace_back(it->second);
+        }
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::list<std::string> 
+        contour_collection<float >::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        contour_collection<double>::get_all_values_for_key(const std::string &) const;
+#endif
+
+//Returns a copy of all unique values that correspond to the given key. Original order is maintained.
+template <class T>
+std::list<std::string> 
+contour_collection<T>::get_unique_values_for_key(const std::string &akey) const {
+    auto all_values = this->get_all_values_for_key(akey);
+    std::map<std::string,size_t> counts;
+    for(const auto &avalue : all_values) counts[avalue]++;
+    
+    std::list<std::string> out;
+    for(const auto &avalue : all_values){
+        if(counts[avalue] == 1) out.emplace_back(avalue);
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::list<std::string>
+        contour_collection<float >::get_unique_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        contour_collection<double>::get_unique_values_for_key(const std::string &) const;
+#endif
+
+
 //Removes contours if they have < N points. Duplicate points not considered.
 template <class T> void contour_collection<T>::Purge_Contours_Below_Point_Count_Threshold(size_t N){
     auto unary_pred = [N](const contour_of_points<T> &c) -> bool { return (c.points.size() < N); };
