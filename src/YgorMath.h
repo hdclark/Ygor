@@ -417,10 +417,21 @@ template <class T>   class contour_collection {
 };
 
 template <class T>
+vec3<T>
+Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs);
+
+template <class T>
 std::list<plane<T>> 
 Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs,
                       const vec3<T> &N, 
                       T distance_eps = static_cast<T>(1E-3));
+
+template <class T>
+T
+Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs,
+                            const vec3<T> &N,
+                            T distance_eps = static_cast<T>(1E-3));
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------

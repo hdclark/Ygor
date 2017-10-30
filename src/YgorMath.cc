@@ -4883,6 +4883,35 @@ template <class T> bool contour_collection<T>::load_from_string(const std::strin
 #endif
 
 
+//Averages estimated contour normals to provide an average value for all provided contours.
+template <class T>
+vec3<T>
+Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs){
+    // This routine estimates contour normals by averaging the normal estimated for each individual contour.
+
+    vec3<T> N_sum( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
+    long int count = 0;
+
+    for(auto &cc : ccs){
+        for(auto &cop : cc.get().contours){
+            if(cop.points.size() < 3) continue;
+            try{
+                const auto N = cop.Estimate_Planar_Normal();
+                N_sum += N;
+                ++count;
+            }catch(const std::exception &){}
+        }
+    }
+    if(count == 0) throw std::runtime_error("Not possible to estimate contour normal; not enough vertices.");
+    return N_sum.unit();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float >
+        Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collection<float >>> &);
+    template vec3<double>
+        Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collection<double>>> &);
+#endif                        
+
 
 //Assumes each contour is planar, fits a plane using the given normal, removes planes that are within eps of one
 // another, and sorts planes using the given normal (lowest to highest along it).
@@ -4926,7 +4955,57 @@ Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<
                               const vec3<double> &, double);
 #endif
 
+// This routine is used to estimate the minimum separation of a collection of contours above some threshold value
+// an 'epsilon' value. It is not always possible to estimate contour separation, but there are many methods which
+// could yield an acceptable solution. The most direct method is attempted here.
+//
+// Note: If no method is successful, a default separation based on typical CT slice thickness is returned.
+template <class T>
+T
+Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_collection<T>>> &ccs,
+                            const vec3<T> &N, // The contour normal vector to use.
+                            T distance_eps){
+    //Zero contours have no meaningful separation.
+    if(ccs.empty()) return std::numeric_limits<T>::quiet_NaN();
 
+    const auto fallback_sep = static_cast<T>(2.5); // in DICOM units (usually mm).
+
+    // This method will be costly if there are many contours. It provides the most up-to-date estimate, but also
+    // requires an estimation of the contour normal. It also assumes the contour normal is identical for all contours,
+    // which may not be true in some cases. This method will also fail for single contours.
+    T min_spacing = std::numeric_limits<T>::quiet_NaN();
+
+    auto ucpl = Unique_Contour_Planes(ccs, N);
+    if(ucpl.size() < 2) throw std::runtime_error("Not enough unique contour planes to estimate separation.");
+
+    for(auto p1_it = ucpl.begin(); p1_it != --(ucpl.end()); ++p1_it){
+        auto p2_it = p1_it;
+        ++p2_it;
+
+        const T height1 = p1_it->R_0.Dot(N);
+        const T height2 = p2_it->R_0.Dot(N);
+        const T spacing = std::abs(height2 - height1);
+
+        if(!std::isfinite(min_spacing)
+        && (spacing < min_spacing)
+        && (spacing > distance_eps)) min_spacing = spacing;
+    }
+    if(!std::isfinite(min_spacing)) 
+        throw std::runtime_error("Not enough vertices in the provided contours. Unable to estimate separation.");
+
+    return min_spacing;
+}                            
+
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float 
+        Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_collection<float >>> &,
+                                const vec3<float > &,
+                                float );
+    template double
+        Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_collection<double>>> &,
+                                const vec3<double> &,
+                                double);
+#endif                        
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
