@@ -218,6 +218,9 @@ template <class T, class R> class planar_image {
 };
 
 
+
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------------------- image_collection: a collection of logically-related planar_images  -----------------------------
 //---------------------------------------------------------------------------------------------------------------------------
@@ -432,5 +435,63 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                                        const R pixel_fill = std::numeric_limits<R>::quiet_NaN(),
                                        bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
 
+
+//A "parameter object" for the Edit_Bounded_Voxels() function.
+struct Edit_Bounded_Voxels_Opts {
+    enum class 
+    EditStyle {    // Controls how the new value is inserted into the outgoing/edited image.
+        InPlace,   // Edits the image in-place. Requires the Adjacency::SingleVoxel option.
+        Surrogate, // Provides a separate working image for edits and updates the original afterward.
+    } editstyle;
+
+    enum class
+    Inclusivity {  // Controls how the voxel (which has a non-zero volume) is tested to be 'within' contours.
+        Centre,    // Only check that the centre of the voxel is 'within' contours.
+        Inclusive, // In addition to the centre, also use the corners. Any bounded corner implies the voxel is bounded.
+        Exclusive, // In addition to the centre, also use the corners. All corners are required to be bounded.
+    } inclusivity;
+
+    enum class
+    ContourOverlap { // Controls how overlapping contours are handled.
+        Ignore,      // Treat overlapping contours as a single contour, regardless of contour orientation.
+        HonourOrientation, // Overlapping contours with opposite orientation cancel. Otherwise, orientation is ignored.
+    } contouroverlap;
+
+    enum class
+    Value {        // Controls how the existing voxel values (i.e., from selected_img_its) are aggregated into a scalar.
+        Mean,      // Take the mean of all coincident voxels in the selected images.
+        Median,    // Take the median of all coincident voxels in the selected images.
+    } value;
+
+    enum class
+    Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
+        SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
+        NearestNeighbours, // Also use the four nearest neighbours (in the image plane).                       ...Boundary voxels? TODO
+    } adjacency;
+
+    enum class
+    MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).
+        Noop,      // Perform no post-processing on the mask.
+      //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
+      //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
+    } maskmod;
+
+// - RunningMinMax::AllVoxels    // Include all voxels in the edited/output image.
+// - RunningMinMax::OnlyBounded  // Only the voxels whose value has been changed.  (Useful?)
+
+};
+
+
+// This routine applies a user-provided function on voxels that are bounded within one or more contours. The
+// user-provided function only gets called to update voxels that are bounded by one or more contours (depending on the
+// specific options selected). The internal behaviour is parameterized. Several input images can be handled: the voxel
+// values are aggregated.
+void Edit_Bounded_Voxels(
+    std::reference_wrapper<planar_image<float,double>> img_to_edit,
+    std::list<std::reference_wrapper<contour_collection<double>>> ccsl,
+    std::list<planar_image_collection<float,double>::images_list_it_t> selected_img_its,
+//    std::experimental::optional<Stats::Running_MinMax<float>> minmax_pixel_opt, // Gets applied to all voxels (unless NaN).
+    Edit_Bounded_Voxels_Opts options,
+    std::function<float(long int row, long int col, long int channel, float existing_voxel_val)> f);
 
 #endif
