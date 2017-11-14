@@ -3716,6 +3716,10 @@ void Mutate_Voxels(
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations){
                     mask_img.reference(r, c, ch) += (OrientationPositive) ? static_cast<T>(1) 
                                                                           : static_cast<T>(-1);
+                }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::AssumeOppositeOrientations){
+                    const auto m_val = mask_img.reference(r, c, ch);
+                    mask_img.reference(r, c, ch) = (m_val != static_cast<T>(0)) ? static_cast<T>(0)
+                                                                                : static_cast<T>(1);
                 }else{
                     throw std::logic_error("Unrecognized ContourOverlap setting. Cannot continue.");
                 }
@@ -3775,7 +3779,7 @@ void Mutate_Voxels(
             for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){
                 //Only perform the user's functor on bounded voxels.
                 const auto mask_val = mask_img.value(row, col, chan);
-                const auto bounded = (mask_val == static_cast<T>(0));
+                const auto bounded = (mask_val != static_cast<T>(0));
                 if(!f_observer && !f_unbounded && !bounded) continue;
                 if(!f_observer && !f_bounded   &&  bounded) continue;
 
