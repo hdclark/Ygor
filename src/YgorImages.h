@@ -455,8 +455,8 @@ struct Mutate_Voxels_Opts {
     ContourOverlap { // Controls how overlapping contours are handled.
         Ignore,      // Treat overlapping contours as a single contour, regardless of contour orientation.
         HonourOppositeOrientations, // Overlapping contours with opposite orientation cancel. Otherwise, orientation is ignored.
-        AssumeOppositeOrientations, // Assume all overlapping contours have opposite orientations and cancel.
-                                    // In other words, this is a 'toggle' option.
+        ImplicitOrientations, // Assume all overlapping contours have opposite orientations and cancel.
+                              // In other words, this is a 'toggle' or 'XOR' option.
     } contouroverlap;
 
     enum class

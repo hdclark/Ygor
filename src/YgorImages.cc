@@ -3643,6 +3643,17 @@ void Mutate_Voxels(
         //       itself contain the 'img_to_edit' which will be overwritten. If neighbouring voxels are to be taken into
         //       account, you should NOT use in-place editing.
     }
+    if( (options.contouroverlap != Mutate_Voxels_Opts::ContourOverlap::Ignore)
+    &&  (options.contouroverlap != Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
+    &&  (options.inclusivity != Mutate_Voxels_Opts::Inclusivity::Centre) ){
+        throw std::invalid_argument("This routine is currently unable to combine ImplicitContourOrientations"
+                                    " with non-trivial Inclusivity.");
+        // Note: this appears to be a difficult problem to solve without additional topological information.
+        //       If this is absolutely needed, consider writing a complementary routine that can detect holes
+        //       robustly, or perform a Boolean XOR before calling this routine. (If you seam the XOR results,
+        //       then this routine will work without having to deal with any orientation.) Another solution 
+        //       be to modify the contour mask by eroding or dilating as appropriate.
+    }
 
     //If necessary, allocate a working image. Otherwise use the provided image directly.
     planar_image<T,R> working_img; 
@@ -3724,7 +3735,7 @@ void Mutate_Voxels(
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations){
                     mask_img.reference(r, c, ch) += (OrientationPositive) ? static_cast<T>(1) 
                                                                           : static_cast<T>(-1);
-                }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::AssumeOppositeOrientations){
+                }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations){
                     const auto m_val = mask_img.reference(r, c, ch);
                     mask_img.reference(r, c, ch) = (m_val != static_cast<T>(0)) ? static_cast<T>(0)
                                                                                 : static_cast<T>(1);
@@ -3759,13 +3770,19 @@ void Mutate_Voxels(
                         }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
                             if(is_interior(centre)) mark_boundedness(row, col, chan);
 
-                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive){
+                        }else if( ( OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive)) 
+                                  // Remember: holes are inverted contours that include infinity!
+                              ||  ((options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                   && !OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive)) ){
                             if( is_interior(cornerA) 
                             ||  is_interior(cornerB) 
                             ||  is_interior(cornerC) 
                             ||  is_interior(cornerD) ) mark_boundedness(row, col, chan);
 
-                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive){
+                        }else if( ( OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive)) 
+                                  // Remember: holes are inverted contours that include infinity!
+                              ||  ((options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
+                                   && !OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive)) ){
                             if( is_interior(cornerA) 
                             &&  is_interior(cornerB) 
                             &&  is_interior(cornerC) 
