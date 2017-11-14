@@ -3607,3 +3607,263 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
 #endif
 
+
+
+
+// This routine applies a user-provided function on voxels that are bounded within one or more contours. The
+// user-provided function only gets called to update voxels that are bounded by one or more contours (depending on the
+// specific options selected). The internal behaviour is parameterized. Several input images can be handled: the voxel
+// values are aggregated.
+template <class T,class R>
+void Mutate_Voxels(
+        std::reference_wrapper<planar_image<T,R>> img_to_edit_ref,
+        std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
+        std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
+        Mutate_Voxels_Opts options,
+        std::function< T  (long int, long int, long int, T)> f_bounded,
+        std::function< T  (long int, long int, long int, T)> f_unbounded,
+        std::function<void(long int, long int, long int, T)> f_observer){
+
+    //Check if there is anything to operate on.
+    if(ccsl.empty()){
+        return;
+    }
+    if(selected_imgs.empty()){
+        throw std::invalid_argument("No images provided. This routine requires a list of images to aggregate. Cannot continue.");
+    }
+    if(!f_bounded && !f_unbounded && !f_observer){
+        throw std::logic_error("User-provided functions are all invalid."); // A no-op!
+    }
+
+    //Check for incompatible options.
+    if( (options.adjacency != Mutate_Voxels_Opts::Adjacency::SingleVoxel)
+    &&  (options.editstyle == Mutate_Voxels_Opts::EditStyle::InPlace) ){
+        throw std::invalid_argument("Refusing to combine in-place editing with anything other than single-voxel adjacency.");
+        // Note: the list 'selected_imgs' contains the images from which voxel values will be aggregated. The list may
+        //       itself contain the 'img_to_edit' which will be overwritten. If neighbouring voxels are to be taken into
+        //       account, you should NOT use in-place editing.
+    }
+
+    //If necessary, allocate a working image. Otherwise use the provided image directly.
+    planar_image<T,R> working_img; 
+    std::reference_wrapper<planar_image<T,R>> working_img_ref(img_to_edit_ref);
+    if(false){
+    }else if(options.editstyle == Mutate_Voxels_Opts::EditStyle::InPlace){
+        working_img_ref = img_to_edit_ref;
+    }else if(options.editstyle == Mutate_Voxels_Opts::EditStyle::Surrogate){
+        working_img = img_to_edit_ref.get();
+        working_img_ref = std::ref(working_img);
+    }else{
+        throw std::logic_error("Unrecognized EditStyle. Cannot continue.");
+    }
+
+    //Prepare a contour mask image.
+    //   0 means voxel is not bounded by any contour (or there were contour holes).
+    //   !0 means the voxel is bounded by at least one contour (and possibly zero or more holes).
+    planar_image<T,R> mask_img;
+    mask_img = img_to_edit_ref.get();
+    mask_img.fill_pixels(static_cast<T>(0));
+
+    const auto row_unit   = working_img_ref.get().row_unit;
+    const auto col_unit   = working_img_ref.get().col_unit;
+    const auto ortho_unit = row_unit.Cross( col_unit ).unit();
+    const auto pxl_dx     = working_img_ref.get().pxl_dx;
+    const auto pxl_dy     = working_img_ref.get().pxl_dy;
+
+    //Loop over the ccsl, rois, rows, columns, and channels to determine boundedness. Record on the mask.
+    for(auto &ccs : ccsl){
+        for(auto roi_it = ccs.get().contours.begin(); roi_it != ccs.get().contours.end(); ++roi_it){
+            if(roi_it->points.empty()) continue;
+            if(! working_img_ref.get().encompasses_contour_of_points(*roi_it)) continue;
+  
+            //Determine the contour's orientation.
+            const bool OrientationPositive = roi_it->Is_Counter_Clockwise();
+
+    /*
+            //Construct a bounding box to reduce computational demand of checking every voxel.
+            auto BBox = roi_it->Bounding_Box_Along(row_unit, 1.0);
+            auto BBoxBestFitPlane = BBox.Least_Squares_Best_Fit_Plane(vec3<double>(0.0,0.0,1.0));
+            auto BBoxProjectedContour = BBox.Project_Onto_Plane_Orthogonally(BBoxBestFitPlane);
+            const bool BBoxAlreadyProjected = true;
+    */
+    
+            //Prepare a contour for fast is-point-within-the-polygon checking.
+            auto BestFitPlane = roi_it->Least_Squares_Best_Fit_Plane(ortho_unit);
+            auto ProjectedContour = roi_it->Project_Onto_Plane_Orthogonally(BestFitPlane);
+            const bool AlreadyProjected = true;
+    
+            //Lambda for testing if a given point is bounded by (i.e., interior to) the ROI.
+            const auto is_interior = [BestFitPlane,ProjectedContour,AlreadyProjected](vec3<double> point) -> bool {
+                auto ProjectedPoint = BestFitPlane.Project_Onto_Plane_Orthogonally(point);
+    /*
+                    //Check if within the bounding box. It will generally be cheaper than the full contour (4 points vs. ? points).
+                    auto BBoxProjectedPoint = BBoxBestFitPlane.Project_Onto_Plane_Orthogonally(point);
+                    if(!BBoxProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BBoxBestFitPlane,
+                                                                                        BBoxProjectedPoint,
+                                                                                        BBoxAlreadyProjected)) return false;
+    */
+                //Perform a more detailed check.
+                return ProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BestFitPlane,
+                                                                                   ProjectedPoint,
+                                                                                   AlreadyProjected);
+            };
+
+            //Lambda for indicating the boundedness on the contour mask.
+            const auto mark_boundedness = [&mask_img,options,OrientationPositive](long int r, long int c, long int ch) -> void {
+                if(false){
+                }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore){
+                    mask_img.reference(r, c, ch) += static_cast<T>(1);
+                }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations){
+                    mask_img.reference(r, c, ch) += (OrientationPositive) ? static_cast<T>(1) 
+                                                                          : static_cast<T>(-1);
+                }else{
+                    throw std::logic_error("Unrecognized ContourOverlap setting. Cannot continue.");
+                }
+            };
+
+            for(auto row = 0; row < working_img_ref.get().rows; ++row){
+                for(auto col = 0; col < working_img_ref.get().columns; ++col){
+    /*
+                    //Check if another ROI has already written to this voxel. Bail if so.
+                    // Otherwise, leave a mark to denote that we've visited this voxel already.
+                    {
+                        const auto curr_val = guard.value(row, col, 0);
+                        if(curr_val != 0) continue;
+                    }
+                    guard.reference(row, col, 0) = static_cast<float>(1);
+    */
+
+                    //Determine whether parts of the voxel are bounded by the contour.
+                    const auto centre = working_img_ref.get().position(row,col);
+
+                    const auto cornerA = centre + (row_unit * 0.5 * pxl_dx) + (col_unit * 0.5 * pxl_dy);
+                    const auto cornerB = centre + (row_unit * 0.5 * pxl_dx) - (col_unit * 0.5 * pxl_dy);
+                    const auto cornerC = centre - (row_unit * 0.5 * pxl_dx) - (col_unit * 0.5 * pxl_dy);
+                    const auto cornerD = centre - (row_unit * 0.5 * pxl_dx) + (col_unit * 0.5 * pxl_dy);
+
+                    for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){  // Note: probably only need one channel here... TODO
+
+                        if(false){
+                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
+                            if(is_interior(centre)) mark_boundedness(row, col, chan);
+
+                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive){
+                            if( is_interior(cornerA) 
+                            ||  is_interior(cornerB) 
+                            ||  is_interior(cornerC) 
+                            ||  is_interior(cornerD) ) mark_boundedness(row, col, chan);
+
+                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive){
+                            if( is_interior(cornerA) 
+                            &&  is_interior(cornerB) 
+                            &&  is_interior(cornerC) 
+                            &&  is_interior(cornerD) ) mark_boundedness(row, col, chan);
+
+                        }else{
+                            throw std::logic_error("Unrecognized Inclusivity setting. Cannot continue.");
+                        }
+                    }//Loop over channels.
+                } //Loop over cols
+            } //Loop over rows
+        } //Loop over ROIs.
+    } //Loop over contour_collections.
+
+
+    //Now, using the mask, apply the user's functor to each voxel as necessary.
+    for(auto row = 0; row < working_img_ref.get().rows; ++row){
+        for(auto col = 0; col < working_img_ref.get().columns; ++col){
+            for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){
+                //Only perform the user's functor on bounded voxels.
+                const auto mask_val = mask_img.value(row, col, chan);
+                const auto bounded = (mask_val == static_cast<T>(0));
+                if(!f_observer && !f_unbounded && !bounded) continue;
+                if(!f_observer && !f_bounded   &&  bounded) continue;
+
+//
+//    enum class
+//    Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
+//        SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
+//        NearestNeighbours, // Also use the four nearest neighbours (in the image plane).                       ...Boundary voxels? TODO
+//    } adjacency;
+//
+
+                //Collect the values from the user-provided images.
+                std::vector<T> shtl;
+                shtl.reserve( selected_imgs.size() );
+                for(const auto &img_ref : selected_imgs){
+                    const auto pixel_val = img_ref.get().value(row, col, chan);
+                    shtl.push_back(pixel_val);
+                }
+                if(shtl.empty()){
+                    throw std::logic_error("No selected images were identified.");
+                }
+
+                //Aggregate the values.
+                T agg_val = std::numeric_limits<T>::quiet_NaN();
+                if(false){
+                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Mean){
+                    agg_val = Stats::Mean(shtl);
+                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Median){
+                    agg_val = Stats::Median(shtl);
+                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::First){
+                    agg_val = shtl.front();
+                }else{
+                    throw std::logic_error("Unrecognized Aggregate setting. Cannot continue.");
+                }
+
+                //Update the values and call user functions as necessary.
+                if(false){
+                }else if(f_bounded || f_unbounded){
+                    T new_val = std::numeric_limits<T>::quiet_NaN();
+                    if(false){
+                    }else if(bounded && f_bounded){
+                        new_val = f_bounded(row, col, chan, agg_val);
+                    }else if(!bounded && f_unbounded){
+                        new_val = f_unbounded(row, col, chan, agg_val);
+                    }
+
+                    working_img_ref.get().reference(row, col, chan) = new_val;
+
+                    if(f_observer) f_observer(row, col, chan, new_val);
+                }else if(f_observer){
+                    f_observer(row, col, chan, agg_val);
+                }else{
+                    throw std::logic_error("Encountered a combination of parameters that was not anticipated. Cannot continue.");
+                }
+
+            }//Loop over channels.
+        } //Loop over cols
+    } //Loop over rows
+
+
+    //If necessary, commit the working image voxels back to the image to edit.
+    if(false){
+    }else if(options.editstyle == Mutate_Voxels_Opts::EditStyle::InPlace){
+        // Do nothing.
+    }else if(options.editstyle == Mutate_Voxels_Opts::EditStyle::Surrogate){
+        img_to_edit_ref.get() = working_img;
+    }else{
+        throw std::logic_error("Unrecognized EditStyle. Cannot continue.");
+    }
+
+//    enum class
+//    MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).
+//        Noop,      // Perform no post-processing on the mask.
+//      //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
+//      //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
+//    } maskmod;
+//};
+    return;
+}
+
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void Mutate_Voxels(
+        std::reference_wrapper<planar_image<float ,double>>,
+        std::list<std::reference_wrapper<planar_image<float ,double>>>,
+        std::list<std::reference_wrapper<contour_collection<double>>>,
+        Mutate_Voxels_Opts,
+        std::function<float(long int, long int, long int, float )>,
+        std::function<float(long int, long int, long int, float )>,
+        std::function<void (long int, long int, long int, float )>);
+#endif
+

@@ -436,8 +436,8 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                                        bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
 
 
-//A "parameter object" for the Edit_Bounded_Voxels() function.
-struct Edit_Bounded_Voxels_Opts {
+//A "parameter object" for the Mutate_Voxels() function.
+struct Mutate_Voxels_Opts {
     enum class 
     EditStyle {    // Controls how the new value is inserted into the outgoing/edited image.
         InPlace,   // Edits the image in-place. Requires the Adjacency::SingleVoxel option.
@@ -454,14 +454,15 @@ struct Edit_Bounded_Voxels_Opts {
     enum class
     ContourOverlap { // Controls how overlapping contours are handled.
         Ignore,      // Treat overlapping contours as a single contour, regardless of contour orientation.
-        HonourOrientation, // Overlapping contours with opposite orientation cancel. Otherwise, orientation is ignored.
+        HonourOppositeOrientations, // Overlapping contours with opposite orientation cancel. Otherwise, orientation is ignored.
     } contouroverlap;
 
     enum class
-    Value {        // Controls how the existing voxel values (i.e., from selected_img_its) are aggregated into a scalar.
+    Aggregate {    // Controls how the existing voxel values (i.e., from selected_img_its) are aggregated into a scalar.
         Mean,      // Take the mean of all coincident voxels in the selected images.
         Median,    // Take the median of all coincident voxels in the selected images.
-    } value;
+        First,     // Take only the voxel value from the first selected image.
+    } aggregate;
 
     enum class
     Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
@@ -486,12 +487,27 @@ struct Edit_Bounded_Voxels_Opts {
 // user-provided function only gets called to update voxels that are bounded by one or more contours (depending on the
 // specific options selected). The internal behaviour is parameterized. Several input images can be handled: the voxel
 // values are aggregated.
-void Edit_Bounded_Voxels(
-    std::reference_wrapper<planar_image<float,double>> img_to_edit,
-    std::list<std::reference_wrapper<contour_collection<double>>> ccsl,
-    std::list<planar_image_collection<float,double>::images_list_it_t> selected_img_its,
-//    std::experimental::optional<Stats::Running_MinMax<float>> minmax_pixel_opt, // Gets applied to all voxels (unless NaN).
-    Edit_Bounded_Voxels_Opts options,
-    std::function<float(long int row, long int col, long int channel, float existing_voxel_val)> f);
+//
+// Note: the list 'selected_img_its' contains the images from which voxel values will be aggregated. The list may
+//       itself contain the 'img_to_edit' which will be overwritten. If neighbouring voxels are to be taken into
+//       account, you should NOT use in-place editing.
+//
+// Note: the provided functors are called once per voxel, no matter how many contours encompass them. Only one of the
+//       bounded/unbounded functors is called for each voxel. The observer functor is called for every voxel.
+//
+// Note: the observer functor is always provided post-modification voxel values (if they are modified).
+//
+template <class T,class R>
+void Mutate_Voxels(
+    std::reference_wrapper<planar_image<T,R>> img_to_edit,
+    std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
+    std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
+    Mutate_Voxels_Opts options,
+    std::function< T  (long int row, long int col, long int channel, T existing_voxel_val)> f_bounded
+        = std::function< T  (long int row, long int col, long int channel, T existing_voxel_val)>(),
+    std::function< T  (long int row, long int col, long int channel, T existing_voxel_val)> f_unbounded 
+        = std::function< T  (long int row, long int col, long int channel, T existing_voxel_val)>(),
+    std::function<void(long int row, long int col, long int channel, T existing_voxel_val)> f_observer
+        = std::function<void(long int row, long int col, long int channel, T existing_voxel_val)>() );
 
 #endif
