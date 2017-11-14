@@ -27,6 +27,7 @@ int main(int argc, char **argv){
 
     {
         print( { 0.0, 1.0, 2.0 } );
+        print( { 1.0, 0.0, 2.0 } );
 
     }
 

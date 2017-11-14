@@ -57,12 +57,13 @@ template <class C> typename C::value_type Stats::Sum(C in){
     if(in.size() == 1) return in.front();
 
     //In an effort to try reduce numerical errors, we will sum from lowest to highest magnitude.
+    //
+    // Note: I had a constexpr-if-based routine here, but the old compiler in Debian failed to compile it.
+    //       This version works just as well.
     auto sort_by_magnitude = [](T l, T r) -> bool {
-        if constexpr (std::is_signed<T>::value){
-            return std::abs<T>(l) < std::abs<T>(r);
-        }else{
-             return l < r;
-        }
+        const auto l_d = static_cast<long double>(l);
+        const auto r_d = static_cast<long double>(r);
+        return (std::abs(l_d) < std::abs(r_d));
     };
     Ygor_Container_Sort(in, sort_by_magnitude);
 
@@ -171,7 +172,10 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
         FUNCERR("Invalid argument provided: frac must be [0,1]");
     }
 
-    Ygor_Container_Sort(in);  // Must be lowest-first afterward.
+    auto sort_low_to_high = [](T l, T r) -> bool {
+        return l < r;
+    };
+    Ygor_Container_Sort(in, sort_low_to_high);
 
     const auto N = static_cast<long int>(in.size()) - 1;
     const auto M = frac * N;
@@ -223,40 +227,6 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
 
 template <class C> typename C::value_type Stats::Median(C in){
     return Stats::Percentile(in, 0.5);
-/*    
-    //Finds the median of the given numbers, using an average of the two middle numbers if an even number of
-    // of numbers is provided.
-    typedef typename C::value_type T; //Internal type, like double or integer.
-
-    if(in.empty()){
-        if(std::numeric_limits<T>::has_quiet_NaN){
-            return std::numeric_limits<T>::quiet_NaN();
-        }else{
-            FUNCERR("Cannot find median of zero elements and cannot emit NaN. Cannot continue");
-        }
-    }else if(in.size() == 1){
-        return in.front();
-    }
-
-    //We technically only need to sort the first half + 1 numbers.
-    Ygor_Container_Sort(in);
-
-    //Find the centre (or just-left-of-centre) number.
-    const size_t N = in.size();
-    const auto div_res = std::div(N, 2);
-    const auto M = div_res.quot;
-    auto it = std::next(in.begin(),M-1);
-
-    if((div_res.rem == 0) && (std::next(it) != in.end())){ // or (2*M == N), or (N%2 == 0)
-    //if(div_res.rem == 0){ // or (2*M == N), or (N%2 == 0)
-        const auto L = *it;
-        ++it;
-        const auto R = *it;
-        return (L+R)/(T)(2);
-    }//So necessarily div_res.rem == 1.
-    ++it;
-    return *it;
-*/
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Median(std::list<double>     in);

@@ -224,7 +224,7 @@ template <typename C,
           typename std::enable_if<std::is_same<C,typename std::list<typename C::value_type>
                                               >::value
                                  >::type* = nullptr>
-void Ygor_Container_Sort(C c){
+void Ygor_Container_Sort(C &c){
     c.sort();
 }
 //Function defined when C is NOT a std::list<>.
@@ -232,7 +232,7 @@ template <typename C,
           typename std::enable_if<!std::is_same<C,typename std::list<typename C::value_type>
                                                >::value
                                  >::type* = nullptr>
-void Ygor_Container_Sort(C c){
+void Ygor_Container_Sort(C &c){
     std::sort(c.begin(), c.end());
 }
 
@@ -243,7 +243,7 @@ template <typename C,
           typename std::enable_if<std::is_same<C,typename std::list<typename C::value_type>
                                               >::value
                                  >::type* = nullptr>
-void Ygor_Container_Sort(C c, Compare f){
+void Ygor_Container_Sort(C &c, Compare f){
     c.sort(f);
 }
 //Function defined when C is NOT a std::list<>.
@@ -252,7 +252,7 @@ template <typename C,
           typename std::enable_if<!std::is_same<C,typename std::list<typename C::value_type>
                                                >::value
                                  >::type* = nullptr>
-void Ygor_Container_Sort(C c, Compare f){
+void Ygor_Container_Sort(C &c, Compare f){
     std::sort(c.begin(),c.end(),f);
 }
 
