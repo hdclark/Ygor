@@ -3629,7 +3629,8 @@ void Mutate_Voxels(
         return;
     }
     if(selected_imgs.empty()){
-        throw std::invalid_argument("No images provided. This routine requires a list of images to aggregate. Cannot continue.");
+        throw std::invalid_argument("No spatially-overlapping images found. There should be at least one"
+                                    " image (the 'seed' image) which should match.");
     }
     if(!f_bounded && !f_unbounded && !f_observer){
         throw std::logic_error("User-provided functions are all invalid."); // A no-op!
@@ -3680,6 +3681,28 @@ void Mutate_Voxels(
     const auto ortho_unit = row_unit.Cross( col_unit ).unit();
     const auto pxl_dx     = working_img_ref.get().pxl_dx;
     const auto pxl_dy     = working_img_ref.get().pxl_dy;
+
+    //Verify the selected images have the same image characteristics.
+    {
+        auto rows     = working_img_ref.get().rows;
+        auto columns  = working_img_ref.get().columns;
+        auto channels = working_img_ref.get().channels;
+
+        for(const auto &an_img_it : selected_imgs){
+            if( (rows     != an_img_it->rows)
+            ||  (columns  != an_img_it->columns)
+            ||  (channels != an_img_it->channels) ){
+                throw std::domain_error("Images have differing number of rows, columns, or channels."
+                                        " This is not currently supported -- though it could be if needed."
+                                        " Are you sure you've got the correct data?");
+            }
+            // NOTE: We assume the first image in the selected_images set is representative of the following
+            //       images. We assume they all share identical row and column units, spatial extent, planar
+            //       orientation, and (possibly) that row and column indices for one image are spatially
+            //       equal to all other images. Breaking the last assumption would require an expensive 
+            //       position_space-to-row_and_column_index lookup for each voxel.
+        }
+    }
 
     //Loop over the ccsl, rois, rows, columns, and channels to determine boundedness. Record on the mask.
     for(auto &ccs : ccsl){
