@@ -3688,10 +3688,10 @@ void Mutate_Voxels(
         auto columns  = working_img_ref.get().columns;
         auto channels = working_img_ref.get().channels;
 
-        for(const auto &an_img_it : selected_imgs){
-            if( (rows     != an_img_it->rows)
-            ||  (columns  != an_img_it->columns)
-            ||  (channels != an_img_it->channels) ){
+        for(const auto &an_img : selected_imgs){
+            if( (rows     != an_img.get().rows)
+            ||  (columns  != an_img.get().columns)
+            ||  (channels != an_img.get().channels) ){
                 throw std::domain_error("Images have differing number of rows, columns, or channels."
                                         " This is not currently supported -- though it could be if needed."
                                         " Are you sure you've got the correct data?");
