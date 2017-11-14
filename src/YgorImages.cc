@@ -3674,7 +3674,15 @@ void Mutate_Voxels(
     for(auto &ccs : ccsl){
         for(auto roi_it = ccs.get().contours.begin(); roi_it != ccs.get().contours.end(); ++roi_it){
             if(roi_it->points.empty()) continue;
-            if(! working_img_ref.get().encompasses_contour_of_points(*roi_it)) continue;
+            {
+                //Only run if the contour fits entirely in the frame (i.e., bounded by the edges too).
+                // Note: I had this originally. Is it ever desirable over the next option?
+                //if(! working_img_ref.get().encompasses_contour_of_points(*roi_it)) continue;
+
+                //Run if the contour appears to be coplanar with the image, regardless of overlap.
+                const auto roi_vert = roi_it->points.front();
+                if(! working_img_ref.get().sandwiches_point_within_top_bottom_planes(roi_vert)) continue;
+            }
   
             //Determine the contour's orientation.
             const bool OrientationPositive = roi_it->Is_Counter_Clockwise();
