@@ -145,7 +145,85 @@ template <class C> typename C::value_type Stats::Sum_Squares(C in){
 #endif
 
 
+template <class C> typename C::value_type Stats::Percentile(C in, double frac){
+    //Finds a percentile of the given numbers, using an average of the two middle numbers if an even number of
+    // of numbers is provided. frac*100 is the 'k^{th} percentile', so:
+    //   frac = 0.50 is the 50^{th} percentile (i.e., the median),
+    //   frac = 0.10 is the 10^{th} percentile,
+    //   frac = 0.01 is the 1^{th} percentile, etc..
+    //
+    // Note: Linear interpolation is used if no individual element corresponds exactly.
+    //
+    // Note: The median may not *exactly* (i.e., bit-for-bit) match any individual element, even if it
+    //       falls exactly on the requested percentile. (This simplifies the implementation.)
+    //
+    typedef typename C::value_type T; //Internal type, like double or integer.
+
+    if(in.empty()){
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            FUNCERR("Cannot find percentile of zero elements and cannot emit NaN. Cannot continue");
+        }
+    }else if(in.size() == 1){
+        return in.front();
+    }else if(!isininc(static_cast<T>(0),frac,static_cast<T>(1))){
+        FUNCERR("Invalid argument provided: frac must be [0,1]");
+    }
+
+    Ygor_Container_Sort(in);  // Must be lowest-first afterward.
+
+    const auto N = static_cast<long int>(in.size()) - 1;
+    const auto M = frac * N;
+    const auto MP = std::floor(M); // The integer part of M.
+    const auto R = M - MP; // The extra bit (remainder).
+   
+    const auto MP_int = static_cast<long int>(MP);
+
+    if(MP_int == N) return in.back();
+
+    auto L_it = std::next(in.begin(), MP_int);
+    auto R_it = std::next(L_it);
+
+    return static_cast<T>( (1.0 - R)*(*L_it) + R*(*R_it) );
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Percentile(std::list<double>     in, double frac);
+    template double   Stats::Percentile(std::vector<double>   in, double frac);
+
+    template float    Stats::Percentile(std::list<float >     in, double frac);
+    template float    Stats::Percentile(std::vector<float >   in, double frac);
+
+    template uint8_t  Stats::Percentile(std::list<uint8_t>    in, double frac);
+    template uint8_t  Stats::Percentile(std::vector<uint8_t>  in, double frac);
+
+    template int8_t   Stats::Percentile(std::list<int8_t>     in, double frac);
+    template int8_t   Stats::Percentile(std::vector<int8_t>   in, double frac);
+
+    template uint16_t Stats::Percentile(std::list<uint16_t>   in, double frac);
+    template uint16_t Stats::Percentile(std::vector<uint16_t> in, double frac);
+
+    template int16_t  Stats::Percentile(std::list<int16_t>    in, double frac);
+    template int16_t  Stats::Percentile(std::vector<int16_t>  in, double frac);
+
+    template uint32_t Stats::Percentile(std::list<uint32_t>   in, double frac);
+    template uint32_t Stats::Percentile(std::vector<uint32_t> in, double frac);
+
+    template int32_t  Stats::Percentile(std::list<int32_t>    in, double frac);
+    template int32_t  Stats::Percentile(std::vector<int32_t>  in, double frac);
+
+    template uint64_t Stats::Percentile(std::list<uint64_t>   in, double frac);
+    template uint64_t Stats::Percentile(std::vector<uint64_t> in, double frac);
+
+    template int64_t  Stats::Percentile(std::list<int64_t>    in, double frac);
+    template int64_t  Stats::Percentile(std::vector<int64_t>  in, double frac);
+
+#endif
+
+
 template <class C> typename C::value_type Stats::Median(C in){
+    return Stats::Percentile(in, 0.5);
+/*    
     //Finds the median of the given numbers, using an average of the two middle numbers if an even number of
     // of numbers is provided.
     typedef typename C::value_type T; //Internal type, like double or integer.
@@ -169,7 +247,8 @@ template <class C> typename C::value_type Stats::Median(C in){
     const auto M = div_res.quot;
     auto it = std::next(in.begin(),M-1);
 
-    if(div_res.rem == 0){ // or (2*M == N), or (N%2 == 0)
+    if((div_res.rem == 0) && (std::next(it) != in.end())){ // or (2*M == N), or (N%2 == 0)
+    //if(div_res.rem == 0){ // or (2*M == N), or (N%2 == 0)
         const auto L = *it;
         ++it;
         const auto R = *it;
@@ -177,6 +256,7 @@ template <class C> typename C::value_type Stats::Median(C in){
     }//So necessarily div_res.rem == 1.
     ++it;
     return *it;
+*/
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Median(std::list<double>     in);

@@ -19,6 +19,7 @@ namespace Stats {
 //Simple 'building block' routines. 
 template <class C> typename C::value_type Sum(C in);
 template <class C> typename C::value_type Sum_Squares(C in);
+template <class C> typename C::value_type Percentile(C in, double frac);
 template <class C> typename C::value_type Median(C in);
 template <class C> typename C::value_type Mean(C in);
 template <class C> typename C::value_type Unbiased_Var_Est(C in);
