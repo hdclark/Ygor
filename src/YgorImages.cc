@@ -3660,16 +3660,28 @@ Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_imag
             throw std::logic_error("Inclusivity option was not understood. Cannot continue.");
         }
 
-        contour_of_points<double> shtl;
-        shtl.closed = true;
-        shtl.points.push_back(animg.get().position(     0,      0) - dRow - dCol);
-        shtl.points.push_back(animg.get().position(rows-1,      0) + dRow - dCol);
-        shtl.points.push_back(animg.get().position(rows-1, cols-1) + dRow + dCol);
-        shtl.points.push_back(animg.get().position(     0, cols-1) - dRow + dCol);
+        contour_of_points<double> cop;
+        cop.closed = true;
+        cop.points.push_back(animg.get().position(     0,      0) - dRow - dCol);
+        cop.points.push_back(animg.get().position(rows-1,      0) + dRow - dCol);
+        cop.points.push_back(animg.get().position(rows-1, cols-1) + dRow + dCol);
+        cop.points.push_back(animg.get().position(     0, cols-1) - dRow + dCol);
 
-        shtl.Reorient_Counter_Clockwise();
-        shtl.metadata = metadata;
-        cc.contours.push_back(std::move(shtl));
+        cop.Reorient_Counter_Clockwise();
+        cop.metadata = metadata;
+
+
+        if(false){
+        }else if(options.contouroverlap == Encircle_Images_with_Contours_Opts::ContourOverlap::Allow){
+            cc.contours.push_back(std::move(cop));
+        }else if(options.contouroverlap == Encircle_Images_with_Contours_Opts::ContourOverlap::Disallow){
+            if(! animg.get().encompasses_any_part_of_contour_in_collection( cc )){
+                cc.contours.push_back(std::move(cop));
+            }
+
+        }else{
+            throw std::logic_error("ContourOverlap option was not understood. Cannot continue.");
+        }
     }
 
     return cc;

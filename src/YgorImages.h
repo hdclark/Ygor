@@ -481,6 +481,11 @@ struct Encircle_Images_with_Contours_Opts {
     //       o.......o.......o.......o          |o.......o.......o.......o|
     //                                          `------------------------~
 
+    enum class
+    ContourOverlap {  // Controls whether ROIs can overlap (e.g., due to duplicate images).
+        Allow,        // Allow all overlap, even duplicates.
+        Disallow,     // Do not allow any overlap, even partial overlap.
+    } contouroverlap;
 };
 
 //Generate contours that fully encircle/encapsulate the provided images.
