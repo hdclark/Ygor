@@ -435,6 +435,61 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                                        const R pixel_fill = std::numeric_limits<R>::quiet_NaN(),
                                        bool only_top_and_bottom = false); //Only create top and bottom (i.e., extremal) images.
 
+//A "parameter object" for the Encircle_Images_with_Contours() function.
+struct Encircle_Images_with_Contours_Opts {
+    enum class
+    Inclusivity {  // Controls how the contour vertices lie in relation to the image corner voxels.
+                   // (These options reflect how voxels will be bounded by the contours.)
+        Centre,    // Corner voxel centres will be bounded by the contours.
+        Inclusive, // Corner voxel innermost corners will be bounded by the contours.
+        Exclusive, // Corner voxels will be fully bounded by the contours.
+    } inclusivity;
+
+    //       If the following depicts             The 'Inclusive' option
+    //         a 3x3 image's voxels:                gives contours like:
+    //
+    //       o.......o.......o.......o           o.......o.......o.......o
+    //       :       :       :       :           :       :       :       :
+    //       :   o   :   o   :   o   :           :   o   :   o   :   o   :
+    //       :       :       :       :           :       _________       :
+    //       o.......o.......o.......o           o......|o.......o|......o
+    //       :       :       :       :           :      |:       :|      :
+    //       :   o   :   o   :   o   :           :   o  |:   o   :|  o   :
+    //       :       :       :       :           :      |:       :|      :
+    //       o.......o.......o.......:           o......|o.......o|......:
+    //       :       :       :       :           :      `---------~      :
+    //       :   o   :   o   :   o   :           :   o   :   o   :   o   :
+    //       :       :       :       :           :       :       :       :
+    //       o.......o.......o.......o           o.......o.......o.......o
+    //
+    //
+    //          The 'centre' option                 And the 'Exclusive' 
+    //         gives contours like:             option gives contours like:
+    //                                           _________________________
+    //       o.......o.......o.......o          |o.......o.......o.......o|
+    //       :   _________________   :          |:       :       :       :|
+    //       :  |o   :   o   :   o|  :          |:   o   :   o   :   o   :|
+    //       :  |    :       :    |  :          |:       :       :       :|
+    //       o..|....o.......o....|..o          |o.......o.......o.......o|
+    //       :  |    :       :    |  :          |:       :       :       :|
+    //       :  |o   :   o   :   o|  :          |:   o   :   o   :   o   :|
+    //       :  |    :       :    |  :          |:       :       :       :|
+    //       o..|....o.......o....|..:          |o.......o.......o.......:|
+    //       :  |    :       :    |  :          |:       :       :       :|
+    //       :  |o   :   o   :   o|  :          |:   o   :   o   :   o   :|
+    //       :  `----------------~   :          |:       :       :       :|
+    //       o.......o.......o.......o          |o.......o.......o.......o|
+    //                                          `------------------------~
+
+};
+
+//Generate contours that fully encircle/encapsulate the provided images.
+template <class T,class R>
+contour_collection<R>
+Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_image<T,R>>> &imgs,
+                              Encircle_Images_with_Contours_Opts options,
+                              const std::map<std::string,std::string> &metadata);
+
 
 //A "parameter object" for the Mutate_Voxels() function.
 struct Mutate_Voxels_Opts {

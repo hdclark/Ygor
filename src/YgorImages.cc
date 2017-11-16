@@ -3609,6 +3609,69 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
 
 
 
+//Generate contours that fully encircle/encapsulate the provided images.
+template <class T,class R>
+contour_collection<R>
+Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_image<T,R>>> &imgs,
+                              Encircle_Images_with_Contours_Opts options,
+                              const std::map<std::string,std::string> &metadata){
+
+    contour_collection<R> cc;
+    for(const auto &animg : imgs){
+        const auto rows = animg.get().rows;
+        const auto cols = animg.get().columns;
+
+        if( (rows <= 0) || (cols <= 0) ){
+            throw std::invalid_argument("Passed an image with no spatial extent. Cannot continue.");
+        }
+
+        // These vectors are 'perturbation' vectors that separate the corner voxel centres from 
+        // the contour corner vertices. They nominally point outward and have magnitude of one
+        // voxel's planar linear dimensions. In all cases we leave a small gap between contour
+        // vertices and voxel centres/corners/edges so there is no ambiguity about boundedness.
+        vec3<R> dRow = animg.get().row_unit * animg.get().pxl_dx;
+        vec3<R> dCol = animg.get().col_unit * animg.get().pxl_dy;
+
+        if(false){
+        }else if(options.inclusivity == Encircle_Images_with_Contours_Opts::Inclusivity::Centre){
+            dRow *= static_cast<R>(0.25);
+            dCol *= static_cast<R>(0.25);
+        }else if(options.inclusivity == Encircle_Images_with_Contours_Opts::Inclusivity::Inclusive){
+            //Note: if there is only a single row or column this will still work OK. The orientation
+            // will be backward, but this is corrected below anyways.
+            dRow *= static_cast<R>(-0.25);
+            dCol *= static_cast<R>(-0.25);
+        }else if(options.inclusivity == Encircle_Images_with_Contours_Opts::Inclusivity::Exclusive){
+            dRow *= static_cast<R>(0.75);
+            dCol *= static_cast<R>(0.75);
+        }else{
+            throw std::logic_error("Inclusivity option was not understood. Cannot continue.");
+        }
+
+        contour_of_points<double> shtl;
+        shtl.closed = true;
+        shtl.points.push_back(animg.get().position(     0,      0) - dRow - dCol);
+        shtl.points.push_back(animg.get().position(rows-1,      0) + dRow - dCol);
+        shtl.points.push_back(animg.get().position(rows-1, cols-1) + dRow + dCol);
+        shtl.points.push_back(animg.get().position(     0, cols-1) - dRow + dCol);
+
+        shtl.Reorient_Counter_Clockwise();
+        shtl.metadata = metadata;
+        cc.contours.push_back(std::move(shtl));
+    }
+
+    return cc;
+}                            
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template
+    contour_collection<double>
+    Encircle_Images_with_Contours(
+        const std::list<std::reference_wrapper<planar_image<float ,double>>> &,
+        Encircle_Images_with_Contours_Opts,
+        const std::map<std::string,std::string> &);
+#endif
+
+
 
 // This routine applies a user-provided function on voxels that are bounded within one or more contours. The
 // user-provided function only gets called to update voxels that are bounded by one or more contours (depending on the
