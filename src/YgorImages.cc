@@ -3707,9 +3707,9 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
         std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
         Mutate_Voxels_Opts options,
-        std::function< T  (long int, long int, long int, T)> f_bounded,
-        std::function< T  (long int, long int, long int, T)> f_unbounded,
-        std::function<void(long int, long int, long int, T)> f_observer){
+        std::function<void(long int, long int, long int, T &)> f_bounded,
+        std::function<void(long int, long int, long int, T &)> f_unbounded,
+        std::function<void(long int, long int, long int, T &)> f_observer){
 
     //Check if there is anything to operate on.
     if(ccsl.empty()){
@@ -3938,38 +3938,32 @@ void Mutate_Voxels(
                 }
 
                 //Aggregate the values.
-                T agg_val = std::numeric_limits<T>::quiet_NaN();
+                T &v = working_img_ref.get().reference(row, col, chan);
+
                 if(false){
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Mean){
-                    agg_val = Stats::Mean(shtl);
+                    v = Stats::Mean(shtl);
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Median){
-                    agg_val = Stats::Median(shtl);
+                    v = Stats::Median(shtl);
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Sum){
-                    agg_val = Stats::Sum(shtl);
+                    v = Stats::Sum(shtl);
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::First){
-                    agg_val = shtl.front();
+                    v = shtl.front();
                 }else{
                     throw std::logic_error("Unrecognized Aggregate setting. Cannot continue.");
                 }
 
                 //Update the values and call user functions as necessary.
-                if(false){
-                }else if(f_bounded || f_unbounded){
-                    T new_val = std::numeric_limits<T>::quiet_NaN();
+                if(f_bounded || f_unbounded){
                     if(false){
                     }else if(bounded && f_bounded){
-                        new_val = f_bounded(row, col, chan, agg_val);
+                        f_bounded(row, col, chan, v);
                     }else if(!bounded && f_unbounded){
-                        new_val = f_unbounded(row, col, chan, agg_val);
+                        f_unbounded(row, col, chan, v);
                     }
-
-                    working_img_ref.get().reference(row, col, chan) = new_val;
-
-                    if(f_observer) f_observer(row, col, chan, new_val);
-                }else if(f_observer){
-                    f_observer(row, col, chan, agg_val);
-                }else{
-                    throw std::logic_error("Encountered a combination of parameters that was not anticipated. Cannot continue.");
+                }
+                if(f_observer){
+                    f_observer(row, col, chan, v);
                 }
 
             }//Loop over channels.
@@ -4003,8 +3997,8 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<float ,double>>>,
         std::list<std::reference_wrapper<contour_collection<double>>>,
         Mutate_Voxels_Opts,
-        std::function<float(long int, long int, long int, float )>,
-        std::function<float(long int, long int, long int, float )>,
-        std::function<void (long int, long int, long int, float )>);
+        std::function<void(long int, long int, long int, float& )>,
+        std::function<void(long int, long int, long int, float& )>,
+        std::function<void(long int, long int, long int, float& )>);
 #endif
 
