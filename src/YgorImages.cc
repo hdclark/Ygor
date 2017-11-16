@@ -3932,6 +3932,8 @@ void Mutate_Voxels(
                     agg_val = Stats::Mean(shtl);
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Median){
                     agg_val = Stats::Median(shtl);
+                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Sum){
+                    agg_val = Stats::Sum(shtl);
                 }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::First){
                     agg_val = shtl.front();
                 }else{

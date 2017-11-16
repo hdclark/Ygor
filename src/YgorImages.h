@@ -518,6 +518,7 @@ struct Mutate_Voxels_Opts {
     Aggregate {    // Controls how the existing voxel values (i.e., from selected_img_its) are aggregated into a scalar.
         Mean,      // Take the mean of all coincident voxels in the selected images.
         Median,    // Take the median of all coincident voxels in the selected images.
+        Sum,       // Take the sum of all coincident voxels in the selected images.
         First,     // Take only the voxel value from the first selected image.
     } aggregate;
 
