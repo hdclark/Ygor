@@ -1468,7 +1468,7 @@ template <class T,class R> bool planar_image<T,R>::encloses_2D_planar_image(cons
 #endif
 
 //Returns (R)(1.0) for perfect spatial overlap, (R)(0.0) for no spatial overlap.
-template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<T,R> &in) const {
+template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<T,R> &) const {
     //This function returns the Dice-Sørensen index applied to spatial (volumetric) overlap of two planar images.
 
     // Because the images not be aligned, the computation is difficult to work out in generality. Give it a shot if you can.
@@ -1778,10 +1778,16 @@ void planar_image_collection<T,R>::Stable_Sort_on_Metadata_Keys_Value_Numeric(co
         const bool lhs_converts  = (lhs_exists && Is_String_An_X<P>(lhs_metadata->second));
         const bool rhs_converts  = (rhs_exists && Is_String_An_X<P>(rhs_metadata->second));
 
-        if( lhs_converts &&  rhs_converts) return stringtoX<P>(lhs_metadata->second) < stringtoX<P>(rhs_metadata->second);
-        if( lhs_converts && !rhs_converts) return true;
-        if(!lhs_converts &&  rhs_converts) return false;
-        if(!lhs_converts && !rhs_converts) return false;  //This case is effectively equality, so not <.
+        if(false){
+        }else if( lhs_converts &&  rhs_converts){
+            return stringtoX<P>(lhs_metadata->second) < stringtoX<P>(rhs_metadata->second);
+        }else if( lhs_converts && !rhs_converts){
+            return true;
+        }else if(!lhs_converts &&  rhs_converts){
+            return false;
+        }else{ // if(!lhs_converts && !rhs_converts){
+            return false;  //This case is effectively equality, so not <.
+        }
     };
 
     this->Stable_Sort(Sort_Predicate_Numeric);
@@ -1812,10 +1818,16 @@ template <class T,class R> void planar_image_collection<T,R>::Stable_Sort_on_Met
         const auto rhs_metadata  = rhs.metadata.find(thekey);
         const bool rhs_exists    = (rhs_metadata != rhs.metadata.end());
         
-        if( lhs_exists &&  rhs_exists) return lhs_metadata->second < rhs_metadata->second;
-        if( lhs_exists && !rhs_exists) return true;
-        if(!lhs_exists &&  rhs_exists) return false;  
-        if(!lhs_exists && !rhs_exists) return false;  //This case is effectively equality, so not <.
+        if(false){
+        }else if( lhs_exists &&  rhs_exists){
+            return lhs_metadata->second < rhs_metadata->second;
+        }else if( lhs_exists && !rhs_exists){
+            return true;
+        }else if(!lhs_exists &&  rhs_exists){
+            return false;  
+        }else{ //if(!lhs_exists && !rhs_exists){
+            return false;  //This case is effectively equality, so not <.
+        }
     };
 
     this->Stable_Sort(Sort_Predicate_Lexicographic);
@@ -2227,7 +2239,7 @@ bool planar_image_collection<T,R>::Process_Images(
         //       in it's own group), returning an empty group, or a group without first_img_it in it, is considered
         //       a failure.
         auto default_image_grouper = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it, 
-                                        typename std::reference_wrapper<planar_image_collection<T,R>> pic) -> auto {
+                                        typename std::reference_wrapper<planar_image_collection<T,R>>) -> auto {
 
             //Default: groups with only one member: the first image.
             return std::list< planar_image_collection<T,R>::images_list_it_t >({first_img_it});
@@ -2304,8 +2316,8 @@ bool planar_image_collection<T,R>::Process_Images(
         //
         // NOTE: This routine should only return true if everything was OK.
         //
-        auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it,
-                                  typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
+        auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t,
+                                  typename std::list<planar_image_collection<T,R>::images_list_it_t>,
                                   typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                   typename std::list<std::reference_wrapper<contour_collection<R>>>,
                                   typename std::experimental::any ) -> bool {
@@ -2532,8 +2544,8 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
     //
     // NOTE: This routine should only return true if everything was OK.
     //
-    auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t first_img_it,
-                              typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
+    auto default_op_func = [](typename planar_image_collection<T,R>::images_list_it_t,
+                              typename std::list<planar_image_collection<T,R>::images_list_it_t>,
                               typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                               typename std::list<std::reference_wrapper<contour_collection<R>>>,
                               typename std::experimental::any ) -> bool {
@@ -2906,7 +2918,7 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
                  (images_list_it_t, std::reference_wrapper<planar_image_collection<T,R>>)> image_grouper ){
 
     //Default in case nothing was provided.
-    auto default_image_grouper = [](planar_image_collection<T,R>::images_list_it_t first_img_it, 
+    auto default_image_grouper = [](planar_image_collection<T,R>::images_list_it_t /*first_img_it*/, 
                                     std::reference_wrapper<planar_image_collection<T,R>> pic) -> auto {
         //Default: group all images together.
         return pic.get().get_all_images();
