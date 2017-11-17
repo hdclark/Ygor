@@ -110,6 +110,7 @@ template <class T, class R> class planar_image {
         void init_orientation(const vec3<R> &rowunit, const vec3<R> &colunit);
 
         planar_image & operator= (const planar_image &); //Performs a deep copy (unless copying self).
+        template <class U> planar_image & cast_from (const planar_image<U,R> &); //Copies other image types using static_cast<T>(v).
         bool operator==(const planar_image &) const; //Deep comparison: image position, dimensions, orientation, metadata, pixel values.
         bool operator!=(const planar_image &) const;
         bool operator< (const planar_image &) const; //This is mostly for sorting / placing into a std::map. There is no great 

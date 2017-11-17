@@ -142,6 +142,49 @@ template <class T,class R> planar_image<T,R> & planar_image<T,R>::operator=(cons
     template planar_image<float   ,double> & planar_image<float   ,double>::operator=(const planar_image<float   ,double> &rhs);
 #endif
 
+
+template <class T,class R>
+template <class U> planar_image<T,R> & planar_image<T,R>::cast_from(const planar_image<U,R> &rhs){
+//    if(this == &rhs) return *this;
+    //Deep-copy: copies everything except the array's pointer, for which a new buffer is allocated and raw pixel data copied.
+    this->init_buffer(rhs.rows, rhs.columns, rhs.channels);
+    this->init_spatial(rhs.pxl_dx, rhs.pxl_dy, rhs.pxl_dz, rhs.anchor, rhs.offset);
+    this->init_orientation(rhs.row_unit, rhs.col_unit);
+    this->metadata = rhs.metadata;
+
+    const auto N = rhs.data.size();
+    for(size_t i = 0; i < N; ++i){
+        this->data[i] = static_cast<T>( rhs.data[i] );
+    }
+    return *this;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<uint16_t,double> &rhs);
+    template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<uint32_t,double> &rhs);
+    template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+    template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<float   ,double> &rhs);
+
+    template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
+    template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint32_t,double> &rhs);
+    template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+    template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+
+    template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
+    template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint16_t,double> &rhs);
+    template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+    template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+
+    template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
+    template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint16_t,double> &rhs);
+    template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint32_t,double> &rhs);
+    template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+
+    template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
+    template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint16_t,double> &rhs);
+    template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint32_t,double> &rhs);
+    template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+#endif
+
 template <class T,class R> bool planar_image<T,R>::operator==(const planar_image<T,R> &rhs) const {
     if(this == &rhs) return true;
     if((*this < rhs) || (rhs < *this)) return false;
