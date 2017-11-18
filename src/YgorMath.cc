@@ -3512,14 +3512,10 @@ template <class T> long int contour_of_points<T>::Avoids_Plane(const plane<T> &P
 
     for(auto it = this->points.begin(); it != this->points.end(); ++it){
         //Update the 'above' and 'below' bools as necessary.
-        const auto normal = P.Is_Point_Above_Plane(*it);
-        if(normal){
+        if(P.Is_Point_Above_Plane(*it)){
             above = true;
-        }else{
-            const auto mirror = PN.Is_Point_Above_Plane(*it);
-            if(mirror){
-                below = true;
-            }
+        }else if(PN.Is_Point_Above_Plane(*it)){
+            below = true;
         }
 
         //Check to see if we have found at least one point above and one below. If so, break out early.
