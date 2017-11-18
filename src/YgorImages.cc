@@ -3858,7 +3858,48 @@ void Mutate_Voxels(
             auto BBoxProjectedContour = BBox.Project_Onto_Plane_Orthogonally(BBoxBestFitPlane);
             const bool BBoxAlreadyProjected = true;
     */
-    
+
+            //Filter out rows and columns that do not contain any voxels bounded by the contour.
+            std::set<long int> RowsToVisit;
+            std::set<long int> ColumnsToVisit;
+            if(true){
+                const auto row_plane_intersects_roi = [&](vec3<double> point) -> bool {
+                    const plane<double> p(col_unit, point);
+                    return (roi_it->Avoids_Plane(p) != 0);
+                };
+                const auto column_plane_intersects_roi = [&](vec3<double> point) -> bool {
+                    const plane<double> p(row_unit, point);
+                    return (roi_it->Avoids_Plane(p) != 0);
+                };
+ 
+                for(auto row = 0; row < working_img_ref.get().rows; ++row){
+                    const long int col = 0;
+                    const auto centre  = working_img_ref.get().position(row,col);
+                    const auto left    = centre - (col_unit * 0.5 * pxl_dy);
+                    const auto right   = centre + (col_unit * 0.5 * pxl_dy);
+                    if( row_plane_intersects_roi(right)
+                    ||  row_plane_intersects_roi(left)
+                    ||  row_plane_intersects_roi(centre) ) RowsToVisit.insert(row);
+                }
+
+                for(auto col = 0; col < working_img_ref.get().columns; ++col){
+                    const long int row = 0;
+                    const auto centre  = working_img_ref.get().position(row,col);
+                    const auto top     = centre - (row_unit * 0.5 * pxl_dx);
+                    const auto bottom  = centre + (row_unit * 0.5 * pxl_dx);
+                    if( column_plane_intersects_roi(bottom)
+                    ||  column_plane_intersects_roi(top)
+                    ||  column_plane_intersects_roi(centre) ) ColumnsToVisit.insert(col);
+                }
+            }else{
+                //Emulate a regular for-loop.
+                //                Is it worthwhile to make this an option? (Probably, for more flexible inclusivity!)
+                //                TODO.
+                for(auto row = 0; row < working_img_ref.get().rows; ++row) RowsToVisit.insert(row);
+                for(auto col = 0; col < working_img_ref.get().columns; ++col) ColumnsToVisit.insert(col);
+            }
+
+
             //Prepare a contour for fast is-point-within-the-polygon checking.
             auto BestFitPlane = roi_it->Least_Squares_Best_Fit_Plane(ortho_unit);
             auto ProjectedContour = roi_it->Project_Onto_Plane_Orthogonally(BestFitPlane);
@@ -3897,8 +3938,9 @@ void Mutate_Voxels(
                 }
             };
 
-            for(auto row = 0; row < working_img_ref.get().rows; ++row){
-                for(auto col = 0; col < working_img_ref.get().columns; ++col){
+            for(auto row : RowsToVisit){
+                for(auto col : ColumnsToVisit){
+
     /*
                     //Check if another ROI has already written to this voxel. Bail if so.
                     // Otherwise, leave a mark to denote that we've visited this voxel already.
