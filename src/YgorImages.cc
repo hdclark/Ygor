@@ -3862,7 +3862,7 @@ void Mutate_Voxels(
             //Filter out rows and columns that do not contain any voxels bounded by the contour.
             std::set<long int> RowsToVisit;
             std::set<long int> ColumnsToVisit;
-            if(true){
+            {
                 const auto row_plane_intersects_roi = [&](vec3<double> point) -> bool {
                     const plane<double> p(row_unit, point);
                     return (roi_it->Avoids_Plane(p) == 0);
@@ -3872,9 +3872,17 @@ void Mutate_Voxels(
                     const auto centre  = working_img_ref.get().position(row,col);
                     const auto left    = centre - (row_unit * 0.5 * pxl_dx);
                     const auto right   = centre + (row_unit * 0.5 * pxl_dx);
-                    if( row_plane_intersects_roi(right)
-                    ||  row_plane_intersects_roi(left)
-                    ||  row_plane_intersects_roi(centre) ) RowsToVisit.insert(row);
+                    if(false){
+                    }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
+                        if( row_plane_intersects_roi(centre) ) RowsToVisit.insert(row);
+                    }else if(   (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) 
+                             || (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ){
+                        if( row_plane_intersects_roi(right)
+                        ||  row_plane_intersects_roi(left)
+                        ||  row_plane_intersects_roi(centre) ) RowsToVisit.insert(row);
+                    }else{
+                        throw std::logic_error("Unrecognized Inclusivity setting. Cannot continue.");
+                    }
                 }
 
                 const auto column_plane_intersects_roi = [&](vec3<double> point) -> bool {
@@ -3886,23 +3894,19 @@ void Mutate_Voxels(
                     const auto centre  = working_img_ref.get().position(row,col);
                     const auto top     = centre - (col_unit * 0.5 * pxl_dy);
                     const auto bottom  = centre + (col_unit * 0.5 * pxl_dy);
-                    if( column_plane_intersects_roi(bottom)
-                    ||  column_plane_intersects_roi(top)
-                    ||  column_plane_intersects_roi(centre) ) ColumnsToVisit.insert(col);
+                    if(false){
+                    }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
+                        if( column_plane_intersects_roi(centre) ) ColumnsToVisit.insert(col);
+                    }else if(   (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) 
+                             || (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ){
+                        if( column_plane_intersects_roi(bottom)
+                        ||  column_plane_intersects_roi(top)
+                        ||  column_plane_intersects_roi(centre) ) ColumnsToVisit.insert(col);
+                    }else{
+                        throw std::logic_error("Unrecognized Inclusivity setting. Cannot continue.");
+                    }
                 }
-            }else{
-                //Emulate a regular for-loop.
-                //                Is it worthwhile to make this an option? (Probably, for more flexible inclusivity!)
-                //                TODO.
-                for(auto row = 0; row < working_img_ref.get().rows; ++row) RowsToVisit.insert(row);
-                for(auto col = 0; col < working_img_ref.get().columns; ++col) ColumnsToVisit.insert(col);
             }
-//            std::cout << "Rows and Columns to visit: " << std::endl;
-//            for(auto row : RowsToVisit) std::cout << " " << row;
-//            std::cout << std::endl;
-//            for(auto col : ColumnsToVisit) std::cout << " " << col;
-//            std::cout << std::endl;
-
 
             //Prepare a contour for fast is-point-within-the-polygon checking.
             auto BestFitPlane = roi_it->Least_Squares_Best_Fit_Plane(ortho_unit);
@@ -3944,16 +3948,6 @@ void Mutate_Voxels(
 
             for(auto row : RowsToVisit){
                 for(auto col : ColumnsToVisit){
-
-    /*
-                    //Check if another ROI has already written to this voxel. Bail if so.
-                    // Otherwise, leave a mark to denote that we've visited this voxel already.
-                    {
-                        const auto curr_val = guard.value(row, col, 0);
-                        if(curr_val != 0) continue;
-                    }
-                    guard.reference(row, col, 0) = static_cast<float>(1);
-    */
 
                     //Determine whether parts of the voxel are bounded by the contour.
                     const auto centre = working_img_ref.get().position(row,col);
