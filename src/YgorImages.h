@@ -195,6 +195,9 @@ template <class T, class R> class planar_image {
         //Computes the R^3 center of the image. Nothing fancy.
         vec3<R> center(void) const;
 
+        //Returns the volume occupied by the image.
+        R volume(void) const;
+
         //Returns an ordered list of the corners of the 2D image. Does NOT use thickness!
         std::list<vec3<R>> corners2D(void) const; 
 
@@ -378,6 +381,10 @@ template <class T,class R>   class planar_image_collection {
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;
+
+        //Computes the volume occupied by the images.
+        // Note: may or may not account for spatially overlapping images.
+        R volume(void) const;
 
         //Compare the geometrical (non-pixel/voxel) aspects of the images to one another.
         bool Spatially_eq(const planar_image_collection<T,R> &in) const;

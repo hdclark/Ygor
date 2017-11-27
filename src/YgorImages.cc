@@ -1432,6 +1432,24 @@ template <class T,class R> vec3<R> planar_image<T,R>::center(void) const {
     template vec3<double> planar_image<float   ,double>::center(void) const;
 #endif
 
+//Returns the volume occupied by the image.
+template <class T,class R> R planar_image<T,R>::volume(void) const {
+    return (  this->pxl_dz 
+            * this->pxl_dy 
+            * this->pxl_dx 
+            * static_cast<R>(this->rows) 
+            * static_cast<R>(this->columns) 
+           );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::volume(void) const;
+    template double planar_image<uint16_t,double>::volume(void) const;
+    template double planar_image<uint32_t,double>::volume(void) const;
+    template double planar_image<uint64_t,double>::volume(void) const;
+    template double planar_image<float   ,double>::volume(void) const;
+#endif
+
+
 //Returns an ordered list of the corners of the 2D image. Does NOT use thickness!
 template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void) const {
     std::list<vec3<R>> out;
@@ -3100,7 +3118,7 @@ template <class T,class R> vec3<R> planar_image_collection<T,R>::center(void) co
     for(auto i_it = this->images.begin(); i_it != this->images.end(); ++i_it){
         out += i_it->center();
     }
-    out /= static_cast<double>(this->images.size());
+    out /= static_cast<R>(this->images.size());
     return out;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -3109,6 +3127,23 @@ template <class T,class R> vec3<R> planar_image_collection<T,R>::center(void) co
     template vec3<double> planar_image_collection<uint32_t,double>::center(void) const;
     template vec3<double> planar_image_collection<uint64_t,double>::center(void) const;
     template vec3<double> planar_image_collection<float   ,double>::center(void) const;
+#endif
+
+//Computes the volume occupied by the images.
+// Note: may or may not account for spatially overlapping images.
+template <class T,class R> R planar_image_collection<T,R>::volume(void) const {
+    auto out = static_cast<R>(0);
+    for(const auto &i : this->images){
+        out += i.volume();
+    }
+    return out;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image_collection<uint8_t ,double>::volume(void) const;
+    template double planar_image_collection<uint16_t,double>::volume(void) const;
+    template double planar_image_collection<uint32_t,double>::volume(void) const;
+    template double planar_image_collection<uint64_t,double>::volume(void) const;
+    template double planar_image_collection<float   ,double>::volume(void) const;
 #endif
 
 
