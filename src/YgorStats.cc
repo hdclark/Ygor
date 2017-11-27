@@ -36,6 +36,106 @@
 
 //--------------------------------------------- "Building block" routine ----------------------------------------------------
 
+
+template <class C> typename C::value_type Stats::Min(C in){
+    typedef typename C::value_type T; //Internal type, like double or integer.
+
+    if(in.empty()){
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            FUNCERR("Cannot find minimum of zero elements and cannot emit NaN. Cannot continue");
+        }
+    }
+    if(in.size() == 1) return in.front();
+
+    Stats::Running_MinMax<T> rmm;
+    for(const auto &n : in) rmm.Digest(n);
+    return rmm.Current_Min();
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Min(std::list<double>     in);
+    template double   Stats::Min(std::vector<double>   in);
+
+    template float    Stats::Min(std::list<float >     in);
+    template float    Stats::Min(std::vector<float >   in);
+    
+    template uint8_t  Stats::Min(std::list<uint8_t>   in);
+    template uint8_t  Stats::Min(std::vector<uint8_t> in);
+
+    template int8_t   Stats::Min(std::list<int8_t>    in);
+    template int8_t   Stats::Min(std::vector<int8_t>  in);
+
+    template uint16_t Stats::Min(std::list<uint16_t>   in);
+    template uint16_t Stats::Min(std::vector<uint16_t> in);
+
+    template int16_t  Stats::Min(std::list<int16_t>    in);
+    template int16_t  Stats::Min(std::vector<int16_t>  in);
+
+    template uint32_t Stats::Min(std::list<uint32_t>   in);
+    template uint32_t Stats::Min(std::vector<uint32_t> in);
+
+    template int32_t  Stats::Min(std::list<int32_t>    in);
+    template int32_t  Stats::Min(std::vector<int32_t>  in);
+
+    template uint64_t Stats::Min(std::list<uint64_t>   in);
+    template uint64_t Stats::Min(std::vector<uint64_t> in);
+
+    template int64_t  Stats::Min(std::list<int64_t>    in);
+    template int64_t  Stats::Min(std::vector<int64_t>  in);
+#endif
+
+
+template <class C> typename C::value_type Stats::Max(C in){
+    typedef typename C::value_type T; //Internal type, like double or integer.
+
+    if(in.empty()){
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            FUNCERR("Cannot find maximum of zero elements and cannot emit NaN. Cannot continue");
+        }
+    }
+    if(in.size() == 1) return in.front();
+
+    Stats::Running_MinMax<T> rmm;
+    for(const auto &n : in) rmm.Digest(n);
+    return rmm.Current_Max();
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Max(std::list<double>     in);
+    template double   Stats::Max(std::vector<double>   in);
+
+    template float    Stats::Max(std::list<float >     in);
+    template float    Stats::Max(std::vector<float >   in);
+    
+    template uint8_t  Stats::Max(std::list<uint8_t>   in);
+    template uint8_t  Stats::Max(std::vector<uint8_t> in);
+
+    template int8_t   Stats::Max(std::list<int8_t>    in);
+    template int8_t   Stats::Max(std::vector<int8_t>  in);
+
+    template uint16_t Stats::Max(std::list<uint16_t>   in);
+    template uint16_t Stats::Max(std::vector<uint16_t> in);
+
+    template int16_t  Stats::Max(std::list<int16_t>    in);
+    template int16_t  Stats::Max(std::vector<int16_t>  in);
+
+    template uint32_t Stats::Max(std::list<uint32_t>   in);
+    template uint32_t Stats::Max(std::vector<uint32_t> in);
+
+    template int32_t  Stats::Max(std::list<int32_t>    in);
+    template int32_t  Stats::Max(std::vector<int32_t>  in);
+
+    template uint64_t Stats::Max(std::list<uint64_t>   in);
+    template uint64_t Stats::Max(std::vector<uint64_t> in);
+
+    template int64_t  Stats::Max(std::list<int64_t>    in);
+    template int64_t  Stats::Max(std::vector<int64_t>  in);
+#endif
+
+
+
 template <class C> typename C::value_type Stats::Sum(C in){
     //Sums a container of numbers. Implements the Kahan summation (aka compensated summation) algorithm to help reduce loss
     // of precision. It isn't perfect. Especially if there are both positive and negative numbers of large or varying 

@@ -17,6 +17,8 @@ namespace Stats {
 //----------------------------------- Computational Support Routines ----------------------------------------
 //-----------------------------------------------------------------------------------------------------------
 //Simple 'building block' routines. 
+template <class C> typename C::value_type Min(C in);
+template <class C> typename C::value_type Max(C in);
 template <class C> typename C::value_type Sum(C in);
 template <class C> typename C::value_type Sum_Squares(C in);
 template <class C> typename C::value_type Percentile(C in, double frac);
