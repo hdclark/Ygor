@@ -3154,7 +3154,7 @@ template <class T,class R> R planar_image_collection<T,R>::volume(void) const {
 template <class T,class R> bool planar_image_collection<T,R>::Spatially_eq(const planar_image_collection<T,R> &in) const {
     if(this->images.size() != in.images.size()) return false;
 
-    //Generate a unique pointer to each image in either collection.
+    //Generate a unique pointer to each image in the rhs collection.
     std::list<decltype(in.images.begin())> rhs; 
     for(auto it = in.images.begin(); it != in.images.end(); ++it) rhs.push_back(it);
 
@@ -3165,6 +3165,8 @@ template <class T,class R> bool planar_image_collection<T,R>::Spatially_eq(const
             if(img1.Spatially_eq(**img_it2)){
                 rhs.erase(img_it2);
                 break;
+            }else{
+                ++img_it2;
             }
         }
     }
