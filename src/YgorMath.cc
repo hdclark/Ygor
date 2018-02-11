@@ -1437,6 +1437,130 @@ template <class T>   vec3<T> plane<T>::Project_Onto_Plane_Orthogonally(const vec
 #endif
 
 
+// Fit a plane to a container of vec3<T> using plane-orthogonal least-squares regression.
+//
+// Note: This type of regression considers residuals orthogonal to the plane rather than
+//       aligned with the coordinate axes (as for, e.g., traditional linear regression).
+//       This routine should be more robust compared to traditional linear regression, but
+//       the results of this planar fit will NOT necessarily (generally) be coincident with
+//       traditional linear regression!
+//
+// Note: This algorithm was described circa 20170924 at 
+//       http://www.ilikebigbits.com/blog/2017/9/24/fitting-a-plane-to-noisy-points-in-3d .
+//
+template <class C> 
+plane<typename C::value_type::value_type>
+Plane_Orthogonal_Regression(C in){
+    typedef typename C::value_type T; // e.g., vec3<double>.
+    typedef decltype(in.front().x) R; // e.g., double.
+
+    const auto N = in.size();
+    if(N < 3){
+        throw std::invalid_argument("This routine requires 3 or more non co-linear points.");
+    }
+
+        
+    std::vector<R> xs;
+    std::vector<R> ys;
+    std::vector<R> zs;
+
+    xs.reserve(N);
+    ys.reserve(N);
+    zs.reserve(N);
+    for(const auto &p : in){
+        xs.push_back(p.x);
+        ys.push_back(p.y);
+        zs.push_back(p.z);
+    }
+    const T centroid( Stats::Sum(xs) / static_cast<R>(N),
+                      Stats::Sum(ys) / static_cast<R>(N),
+                      Stats::Sum(zs) / static_cast<R>(N) ); // The plane must pass through this point.
+    xs.clear();
+    ys.clear();
+    zs.clear();
+
+
+    //Elements of the 3x3 covariance matrix.
+    std::vector<R> xx_l;
+    std::vector<R> xy_l;
+    std::vector<R> xz_l;
+    std::vector<R> yy_l;
+    std::vector<R> yz_l;
+    std::vector<R> zz_l;
+
+    xx_l.reserve(N);
+    xy_l.reserve(N);
+    xz_l.reserve(N);
+    yy_l.reserve(N);
+    yz_l.reserve(N);
+    zz_l.reserve(N);
+
+    for(const auto &p : in){
+        const auto r = (p - centroid);
+        xx_l.push_back(r.x * r.x);
+        xy_l.push_back(r.x * r.y);
+        xz_l.push_back(r.x * r.z);
+        yy_l.push_back(r.y * r.y);
+        yz_l.push_back(r.y * r.z);
+        zz_l.push_back(r.z * r.z);
+    }
+    const R xx = Stats::Sum(xx_l) / static_cast<R>(N);
+    const R xy = Stats::Sum(xy_l) / static_cast<R>(N);
+    const R xz = Stats::Sum(xz_l) / static_cast<R>(N);
+    const R yy = Stats::Sum(yy_l) / static_cast<R>(N);
+    const R yz = Stats::Sum(yz_l) / static_cast<R>(N);
+    const R zz = Stats::Sum(zz_l) / static_cast<R>(N);
+
+    xx_l.clear();
+    xy_l.clear();
+    xz_l.clear();
+    yy_l.clear();
+    yz_l.clear();
+    zz_l.clear();
+
+    T weighted_dir( static_cast<R>(0),
+                    static_cast<R>(0),
+                    static_cast<R>(0) );
+
+    {
+        const auto det_x = (yy*zz - yz*yz);
+        const T axis_dir( det_x, xz*yz - xy*zz, xy*yz - xz*yy );
+        const R posneg = ( (weighted_dir.Dot(axis_dir) < 0 ) ? static_cast<R>(-1) 
+                                                             : static_cast<R>(1) );
+        weighted_dir += axis_dir * det_x * det_x * posneg;
+    }
+
+    {
+        const auto det_y = (xx*zz - xz*xz);
+        const T axis_dir( xz*yz - xy*zz, det_y, xy*xz - yz*xx );
+        const R posneg = ( (weighted_dir.Dot(axis_dir) < 0 ) ? static_cast<R>(-1) 
+                                                             : static_cast<R>(1) );
+        weighted_dir += axis_dir * det_y * det_y * posneg;
+    }
+
+    {
+        const auto det_z = (xx*yy - xy*xy);
+        const T axis_dir( xy*yz - xz*yy, xy*xz - yz*xx, det_z );
+        const R posneg = ( (weighted_dir.Dot(axis_dir) < 0 ) ? static_cast<R>(-1) 
+                                                             : static_cast<R>(1) );
+        weighted_dir += axis_dir * det_z * det_z * posneg;
+    }
+
+    const auto plane_N = weighted_dir.unit();
+    if(!std::isfinite( plane_N.length() )){
+        throw std::domain_error("Plane not uniquely determined: the datum may be co-linear.");
+    }
+    return plane<R>(plane_N, centroid);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template plane<double> Plane_Orthogonal_Regression(std::list<vec3<double>> in);
+    template plane<float > Plane_Orthogonal_Regression(std::list<vec3<float >> in);
+
+    template plane<double> Plane_Orthogonal_Regression(std::vector<vec3<double>> in);
+    template plane<float > Plane_Orthogonal_Regression(std::vector<vec3<float >> in);
+#endif 
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------ contour_of_points: a polygon of line segments in the form of a collection of points --------------------
 //---------------------------------------------------------------------------------------------------------------------------
