@@ -7,7 +7,7 @@ Introduction
 ------------
 
  These files were written by hal clark over the span of many years
- (~2010-2017+). They were written to help enforce the DRY (Don't Repeat
+ (~2010-2018). They were written to help enforce the DRY (Don't Repeat
  Yourself) principle, since several of the routines here kept popping up
  throughout various projects. After at least a dozen similar project-specific
  files were created and tweaked, it was decided that these routines would be a
@@ -30,8 +30,8 @@ License
 -------
 
  All materials herein which may be copywrited, where applicable, are. Copyright
- 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017 hal clark. See the LICENSE file
- for details about the license. Informally, Ygor is available under a GPLv3+
+ file for details about the license. Informally, Ygor is available under a GPLv3+
+ 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 hal clark. See the LICENSE
  license. Bundled software is under the indicated license(s).
 
  All liability is herefore disclaimed. The person(s) who use this source and/or
