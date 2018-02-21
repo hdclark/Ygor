@@ -3747,13 +3747,15 @@ template <class T> void contour_of_points<T>::Remove_Extraneous_Points(std::func
     for(  ; p2_it != this->points.end(); ++p2_it){
         if(this->points.size() <= 3) return; //Not willing to possibly produce a 1-point contour!
 
-        //Find the point in between p1 and p2.
+        //Find the point along the line between p1 and p2 that is closest to the straddled (middle) point.
         auto mdl_it = std::next(p1_it);
         if(!(mdl_it != this->points.end())) mdl_it = this->points.begin();
 
         const line<T> p1p2(*p1_it,*p2_it);
-        const auto dist = p1p2.Distance_To_Point(*mdl_it);
-        if(YGORABS(dist) == (T)(0.0)){
+        const vec3<T> proj_mdl = p1p2.Project_Point_Orthogonally(*mdl_it);
+
+        //Let the user compare if they think the separation is close enough that the points are considered identical.
+        if( Feq(*mdl_it,proj_mdl) ){
             //Remove the extraneous point between p1 and p2. Keep p1 the same.
             this->points.erase( mdl_it );
         }else{
