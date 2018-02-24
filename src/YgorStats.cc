@@ -38,7 +38,7 @@
 
 
 template <class C> typename C::value_type Stats::Min(C in){
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
 
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
@@ -87,7 +87,7 @@ template <class C> typename C::value_type Stats::Min(C in){
 
 
 template <class C> typename C::value_type Stats::Max(C in){
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
 
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
@@ -145,7 +145,7 @@ template <class C> typename C::value_type Stats::Sum(C in){
     //
     // NOTE: This routine is templated on a STL iterable class like std::list<double> or std::vector<double>.
     //
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
 
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
@@ -230,7 +230,7 @@ template <class C> typename C::value_type Stats::Sum(C in){
 
 template <class C> typename C::value_type Stats::Sum_Squares(C in){
     //Sums the squares of the given numbers. Overflow is not currently detected, though it could be if needed.
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
     for(auto &elem : in) elem = std::pow(elem,2);
     return Stats::Sum(std::move(in));
 }
@@ -258,7 +258,7 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
     // Note: The median may not *exactly* (i.e., bit-for-bit) match any individual element, even if it
     //       falls exactly on the requested percentile. (This simplifies the implementation.)
     //
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
 
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
@@ -364,7 +364,7 @@ template <class C> typename C::value_type Stats::Median(C in){
 
 template <class C> typename C::value_type Stats::Mean(C in){
     //Finds the mean of the given numbers.
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
 
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
@@ -427,7 +427,7 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
     // for, e.g., error bars and confidence intervals on plots. Use 1*sigma for 68% confidence, 2*sigma 
     // for 95% confidence intervals. 
     //
-    typedef typename C::value_type T; //Internal type, like double or integer.
+    using T = typename C::value_type; //Internal type, like double or integer.
     if(in.empty()){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();

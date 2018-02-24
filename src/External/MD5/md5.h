@@ -16,7 +16,7 @@
 namespace MD5 {
 
 //No need for fixed-width here. Anything >= 32 bits is OK.
-typedef unsigned int YGOR_MD5_u_t;
+using YGOR_MD5_u_t = unsigned int;
 
 struct Context {
     YGOR_MD5_u_t lo, hi, a, b, c, d;

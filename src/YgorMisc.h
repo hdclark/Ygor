@@ -296,7 +296,7 @@ Ygor_Pack_As(FromType in){
 }
 
 
-//This routine changes the type of the input and also scales it to lie in the same place in the range of
+//This routine changes the type of the input and also scales it to sit in the same place in the range of
 // the destination type as it did in the origin type. This conversion only makes sense for integral and
 // floating point types, but might also be applicable for some other.
 //
@@ -313,7 +313,7 @@ Ygor_Scale_With_Type_Range(FromType in){
 
     if(std::is_same<ToType, FromType>::value) return in;
 
-    typedef long double intermed_t;
+    using intermed_t = long double;
     constexpr auto minFrom = static_cast<intermed_t>(std::numeric_limits<FromType>::min());
     constexpr auto maxFrom = static_cast<intermed_t>(std::numeric_limits<FromType>::max());
     constexpr auto minTo   = static_cast<intermed_t>(std::numeric_limits<ToType>::min());

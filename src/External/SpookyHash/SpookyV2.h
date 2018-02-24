@@ -25,6 +25,8 @@
 // the CRCs of wholes.  There are also cryptographic hashes, but those are even 
 // slower than MD5.
 //
+// NOTE: this file has been modified by Hal Clark to modernize it.
+//
 
 #include <stddef.h>
 
@@ -37,10 +39,10 @@
 #else
 # include <stdint.h>
 # define INLINE inline
-  typedef  uint64_t  uint64;
-  typedef  uint32_t  uint32;
-  typedef  uint16_t  uint16;
-  typedef  uint8_t   uint8;
+  using uint64 = uint64_t;
+  using uint32 = uint32_t;
+  using uint16 = uint16_t;
+  using uint8 = uint8_t;
 #endif
 
 

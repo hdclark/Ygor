@@ -1485,8 +1485,8 @@ template <class T>   vec3<T> plane<T>::Project_Onto_Plane_Orthogonally(const vec
 template <class C> 
 plane<typename C::value_type::value_type>
 Plane_Orthogonal_Regression(C in){
-    typedef typename C::value_type T; // e.g., vec3<double>.
-    typedef decltype(in.front().x) R; // e.g., double.
+    using T = typename C::value_type; // e.g., vec3<double>.
+    using R = decltype(in.front().x); // e.g., double.
 
     const auto N = in.size();
     if(N < 3){
@@ -8653,7 +8653,7 @@ Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, long int N, bo
     // suitable for plotting or further computation. The histogram will be normalized such that each bar will be 
     // (number_of_points_represented_by_bar/total_number_of_points). In other words, the occurence rate.
     //
-    typedef typename C::value_type T; // float or double.
+    using T = typename C::value_type; // float or double.
 
     const T NDasT = static_cast<T>(nums.size());
 
