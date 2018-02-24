@@ -190,6 +190,7 @@ template <class T>   class line_segment : public line<T> {
                                                                                           // Returns sampled points and remaining space along segment.
 
         bool Within_Cylindrical_Volume(const vec3<T> &R, T radius) const; // Checks if the point is within a cylinder centred on the line segment.
+        bool Within_Pill_Volume(const vec3<T> &R, T radius) const; // Same as Within_Cylindrical_Volume(), but with spherical endcaps.
  
         vec3<T> Get_R0(void) const;
         vec3<T> Get_R1(void) const;

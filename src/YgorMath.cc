@@ -1338,6 +1338,40 @@ line_segment<T>::Within_Cylindrical_Volume(const vec3<T> &R, T radius) const {
     template bool line_segment<double>::Within_Cylindrical_Volume(const vec3<double> &, double ) const;
 #endif    
 
+// Checks if the point is within a cylinder centred on the line segment, or within spheres centred on the vertices.
+// (This bounding volume is the shape of a cylindrical pill.)
+template <class T>
+bool 
+line_segment<T>::Within_Pill_Volume(const vec3<T> &R, T radius) const { 
+
+    //First, check if the point is within the radius of the cylinder while ignoring the line segment endpoints.
+    if(this->Distance_To_Point(R) > radius){
+        return false;
+    }
+
+    //The point is now projected upon the (infinite) line. If the distance to either R0 or R1 is greater than the
+    // distance between R0 and R1 then the point is outside the bounds of the line segment. Squared distance too.
+    const auto proj = this->Project_Point_Orthogonally(R);
+    const auto R0 = this->Get_R0();
+    const auto R1 = this->Get_R1();
+    const auto sq_dist_R0_R1   = R0.sq_dist(R1);
+    const auto sq_dist_R0_Proj = R0.sq_dist(proj);
+    const auto sq_dist_R1_Proj = R1.sq_dist(proj);
+    const auto Within_Cylinder = (sq_dist_R0_R1 >= sq_dist_R0_Proj) && (sq_dist_R0_R1 >= sq_dist_R1_Proj);
+
+    //Check if within the spherical end-caps.
+    const auto sq_radius = std::pow(radius,2.0);
+    const auto sq_dist_R_R0 = R.sq_dist(R0);
+    const auto sq_dist_R_R1 = R.sq_dist(R1);
+    const auto Within_Endcaps = (sq_dist_R_R0 <= sq_radius) || (sq_dist_R_R1 <= sq_radius);
+
+    return Within_Cylinder || Within_Endcaps;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool line_segment<float >::Within_Pill_Volume(const vec3<float > &, float  ) const;
+    template bool line_segment<double>::Within_Pill_Volume(const vec3<double> &, double ) const;
+#endif    
+
 template <class T>    vec3<T> line_segment<T>::Get_R0(void) const {
     //These are here in case I need/want to change the internal storage format later...
     return this->R_0;
@@ -3478,7 +3512,7 @@ bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plan
         const vec3<T> b2D(qbX, qbY, static_cast<T>(0));
         const vec3<T> p2D( pX,  pY, static_cast<T>(0));
         const line_segment<T> l2D(a2D, b2D);
-        if(l2D.Within_Cylindrical_Volume(p2D,boundary_eps)){  // Should have spherical caps, but more expensive.
+        if(l2D.Within_Cylindrical_Volume(p2D,boundary_eps)){
             is_in_the_polygon = true;
             break;
         }
