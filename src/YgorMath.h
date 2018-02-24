@@ -409,9 +409,6 @@ template <class T>   class contour_collection {
 
         void Merge_Adjoining_Contours(std::function<bool(const vec3<T> &,const vec3<T> &)> Feq);
 
-        std::vector<vec3<T>> Generate_Basic_Surface(T min_dist) const; //Tries to find a rudimentary surface from the contour data. If points are sep. by > min_dist, they are considered not coupled.
-        std::vector<vec3<T>> Generate_Reconstructed_Surface(T qual) const; //Parameter adjusts how many vertices will be produced. 0 is none, 1 is ~# of contour points, >1 is supersampling.
-
         void Purge_Contours_Below_Point_Count_Threshold(size_t N = 3); //Removes contours if they have < N points. Duplicate points not considered.
 
         void Insert_Metadata(const std::string &key, const std::string &val); //For all contours. Overwrites if existing keys present.
