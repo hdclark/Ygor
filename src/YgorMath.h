@@ -25,7 +25,7 @@ template <class T> class samples_1D;
 //This class is the basis of the geometry-heavy classes below. It can happily be used on its own.
 template <class T> class vec3 {
     public:
-        typedef T value_type;
+        using value_type = T;
         T x, y, z;
     
         //Constructors.
@@ -98,7 +98,7 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
 //This class is the basis of the geometry-heavy classes below. It can happily be used on its own.
 template <class T> class vec2 {
     public:
-        typedef T value_type;
+        using value_type = T;
         T x, y;
 
         //Constructors.
@@ -151,7 +151,7 @@ template <class T> class vec2 {
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   class line {
     public:
-        typedef T value_type;
+        using value_type = T;
         vec3<T> R_0;  //A point which the line intersects.
         vec3<T> U_0;  //A unit vector which points along the length of the line.
 
@@ -177,7 +177,7 @@ template <class T>   class line {
 // whereas a line will extend off to infinity.
 template <class T>   class line_segment : public line<T> {
     public:
-        typedef T value_type;
+        using value_type = T;
         T t_0;  //These define the endpoints of the line segment in terms of the parameterization R(t) = R_0 + t*U_0.
         T t_1;  // Whenever endpoints are required, they are explicitly computed. (We can usually get around this, though!)
 
@@ -203,7 +203,7 @@ template <class T>   class line_segment : public line<T> {
 
 template <class T>   class plane {
     public:
-        typedef T value_type;
+        using value_type = T;
         vec3<T> N_0;  //A unit vector normal to the plane. The orientation is up to the user to choose (and be consistent with!)
         vec3<T> R_0;  //A 3D point the plane intersects.
 
