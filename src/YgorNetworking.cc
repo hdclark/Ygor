@@ -466,8 +466,8 @@ std::list<std::pair<std::string, std::string>> Get_All_Distant_IP_Addresses(void
     //Shuffle the list randomly to spread out the load as much as possible.
     shuffle_list_randomly(sites); 
 
-    for(auto s_it = sites.begin(); s_it != sites.end(); ++s_it){
-        const auto page = Request_URL(*s_it);
+    for(auto & site : sites){
+        const auto page = Request_URL(site);
         const auto address = GetFirstRegex(page, "([0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3})");
 
         if(!address.empty()){

@@ -52,8 +52,8 @@ bool Does_File_Exist_And_Can_Be_Read(const std::string &filename){
 
 //Returns the first filename which exists and is available to be read, or an empty string.
 std::string Get_First_Filename_Which_Exists_And_Can_Be_Read(const std::list<std::string> &filenames){
-    for(auto l_it = filenames.begin(); l_it != filenames.end(); ++l_it){
-        if(Does_File_Exist_And_Can_Be_Read(*l_it)) return *l_it;
+    for(const auto & filename : filenames){
+        if(Does_File_Exist_And_Can_Be_Read(filename)) return filename;
     }
     return std::string("");
 }

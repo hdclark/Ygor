@@ -23,12 +23,12 @@ int main(int argc, char **argv){
     urls.push_back("http://www.reddit.com/r/boneyard/?limit=100");  //Classic hard rock, rarely updated.
 
 
-    for(auto url_it = urls.begin(); url_it != urls.end(); ++url_it){
-        std::string page = Request_URL(*url_it);
+    for(auto & url : urls){
+        std::string page = Request_URL(url);
 
         //If the url is for an rss feed, we may have to decode the <,>,and &'s in the document
         // prior to parsing (else the parser chokes!)
-        if(!GetFirstRegex(*url_it, "rss$").empty()){
+        if(!GetFirstRegex(url, "rss$").empty()){
             page = Basic_Decode_URL( page );
         }
  
@@ -63,9 +63,9 @@ int main(int argc, char **argv){
         videolinks = Remove_Duplicate_Links(videolinks);
 
         //Dump the links and descriptions in a serialized format.
-        for(auto it = videolinks.begin(); it != videolinks.end(); ++it){
-            const std::string thelink(it->first);
-            std::string thetext( PurgeCharsFromString(it->second, "'`\"") );
+        for(auto & videolink : videolinks){
+            const std::string thelink(videolink.first);
+            std::string thetext( PurgeCharsFromString(videolink.second, "'`\"") );
             Canonicalize_String(thetext, CANONICALIZE::TRIM);
 
             std::vector<std::vector<std::string>> configformat;

@@ -116,11 +116,11 @@ std::list<std::pair<std::string, std::string> > Get_Tags_Attributes(const std::s
 std::list<std::pair<std::string, std::string> > Clean_Links(const std::list<std::pair<std::string, std::string> > &thelinks, const std::string &base){
     std::list<std::pair<std::string, std::string> > fixedlinks;
 
-    for(auto up_it = thelinks.begin(); up_it != thelinks.end(); ++up_it){
+    for(const auto & up_it : thelinks){
 
         //The link is the first element, the text is the second.
-        std::string thelink = up_it->first;
-        std::string thetext = up_it->second;
+        std::string thelink = up_it.first;
+        std::string thetext = up_it.second;
 
         //Attempt to convert URL-encoded links to their original.
         thelink = Basic_Decode_URL(thelink);
@@ -170,10 +170,10 @@ std::list<std::pair<std::string, std::string>> Remove_Duplicate_Links(const std:
 //To omit a criteria, simply send an empty string.
 std::list<std::pair<std::string, std::string> > Filter_Whitelist_Links(const std::list<std::pair<std::string, std::string> > &thelinks, const std::string &link_regex, const std::string &text_regex){
     std::list<std::pair<std::string, std::string> > out;
-    for(auto up_it = thelinks.begin(); up_it != thelinks.end(); ++up_it){
+    for(const auto & up_it : thelinks){
         //The link is the first element, the text is the second.
-        const std::string thelink = up_it->first;
-        const std::string thetext = up_it->second;
+        const std::string thelink = up_it.first;
+        const std::string thetext = up_it.second;
         if(!link_regex.empty() && (GetFirstRegex(thelink, link_regex)).empty()) continue;
         if(!text_regex.empty() && (GetFirstRegex(thetext, text_regex)).empty()) continue;
 
@@ -185,10 +185,10 @@ std::list<std::pair<std::string, std::string> > Filter_Whitelist_Links(const std
 
 std::list<std::pair<std::string, std::string> > Filter_Blacklist_Links(const std::list<std::pair<std::string, std::string> > &thelinks, const std::string &link_regex, const std::string &text_regex){
     std::list<std::pair<std::string, std::string> > out;
-    for(auto up_it = thelinks.begin(); up_it != thelinks.end(); ++up_it){
+    for(const auto & up_it : thelinks){
         //The link is the first element, the text is the second.
-        const std::string thelink = up_it->first;
-        const std::string thetext = up_it->second;
+        const std::string thelink = up_it.first;
+        const std::string thetext = up_it.second;
         if(!link_regex.empty() && !(GetFirstRegex(thelink, link_regex)).empty()) continue;
         if(!text_regex.empty() && !(GetFirstRegex(thetext, text_regex)).empty()) continue;
 

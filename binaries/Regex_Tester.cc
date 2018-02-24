@@ -32,8 +32,8 @@ int main(int argc, char **argv){
 
         std::cout << "Found " << matches.size() << " matches." << std::endl;
 
-        for(auto it=matches.begin(); it!= matches.end(); ++it){
-            std::cout << "    " << *it << std::endl;
+        for(const auto & matche : matches){
+            std::cout << "    " << matche << std::endl;
         }
     }
 

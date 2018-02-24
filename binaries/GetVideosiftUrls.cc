@@ -19,8 +19,8 @@ int main(int argc, char **argv){
     urls.push_back("http://videosift.com");
     urls.push_back("http://videosift.com/top");
 
-    for(auto url_it = urls.begin(); url_it != urls.end(); ++url_it){
-        const std::string page = Request_URL(*url_it);
+    for(auto & url : urls){
+        const std::string page = Request_URL(url);
         
         //Get all the links from the page, including the link text.
         auto thelinks = Get_Links(page);
@@ -28,7 +28,7 @@ int main(int argc, char **argv){
 //        thelinks.splice(thelinks.begin(), Get_Tags_Attributes(page, "", "SRC"));
  
         //Clean up (decode URL's, convert relative links to absolute.)
-        auto fixedlinks = Clean_Links(thelinks, *url_it);
+        auto fixedlinks = Clean_Links(thelinks, url);
     
         decltype(fixedlinks) videolinks;
         videolinks = Filter_Whitelist_Links(fixedlinks, R"***([/]video[/])***", "");
@@ -41,9 +41,9 @@ int main(int argc, char **argv){
         videolinks = Remove_Duplicate_Links(videolinks);
 
         //Now, for each of the links, we download THAT page and search for the actual video links.
-        for(auto it = videolinks.begin(); it != videolinks.end(); ++it){
-            const std::string thispage = Request_URL(it->first);
-            const std::string topleveldescription(it->second);
+        for(auto & videolink : videolinks){
+            const std::string thispage = Request_URL(videolink.first);
+            const std::string topleveldescription(videolink.second);
 
             auto actualvidlinks = Get_Tags_Attributes(thispage, "iframe", "src");
             actualvidlinks = Clean_Links(actualvidlinks, "");  //Decode any URL-encoding. These links should be absolute already.
@@ -54,8 +54,8 @@ int main(int argc, char **argv){
             actualvidlinks = Filter_Whitelist_Links(actualvidlinks, R"***(youtu[.]{0,1}be|vimeo)***", "");
    
             //Dump the links and descriptions in a serialized format.
-            for(auto it = actualvidlinks.begin(); it != actualvidlinks.end(); ++it){
-                const std::string thelink(it->first);
+            for(auto & actualvidlink : actualvidlinks){
+                const std::string thelink(actualvidlink.first);
                 std::string thetext( PurgeCharsFromString(topleveldescription, "'`\"") );
 //                std::string thetext( PurgeCharsFromString(it->second, "'`\"") );
                 Canonicalize_String(thetext, CANONICALIZE::TRIM);

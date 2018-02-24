@@ -25,8 +25,8 @@ int main(int argc, char **argv){
 //    urls.push_back("http://vimeo.com/categories/technology/physics");
 //    urls.push_back("http://vimeo.com/categories/technology/software");
 
-    for(auto url_it = urls.begin(); url_it != urls.end(); ++url_it){
-        const std::string page = Request_URL(*url_it);
+    for(auto & url : urls){
+        const std::string page = Request_URL(url);
         
         //Get all the links from the page, including the link text.
         auto thelinks = Get_Links(page);
@@ -42,9 +42,9 @@ int main(int argc, char **argv){
         videolinks = Filter_Blacklist_Links(videolinks, R"***(jpg$)***", "");     
 
         //Dump the links and descriptions in a serialized format.
-        for(auto it = videolinks.begin(); it != videolinks.end(); ++it){
-            const std::string thelink(it->first);
-            std::string thetext( PurgeCharsFromString(it->second, "'`\"") );
+        for(auto & videolink : videolinks){
+            const std::string thelink(videolink.first);
+            std::string thetext( PurgeCharsFromString(videolink.second, "'`\"") );
             Canonicalize_String(thetext, CANONICALIZE::TRIM);
 
             std::vector<std::vector<std::string>> configformat;

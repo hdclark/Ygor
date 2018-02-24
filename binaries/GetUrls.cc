@@ -59,15 +59,15 @@ int main(int argc, char **argv){
         }
     
         //Dump just the links, one per line.
-        if(true) for(auto it = fixedlinks.begin(); it != fixedlinks.end(); ++it){
-            const std::string thelink(it->first);
+        if(true) for(auto & fixedlink : fixedlinks){
+            const std::string thelink(fixedlink.first);
             std::cout << thelink << std::endl;
         }
     
         //Dump the links and descriptions in a serialized format.
-        if(false) for(auto it = fixedlinks.begin(); it != fixedlinks.end(); ++it){
-            const std::string thelink(it->first);
-            std::string thetext( PurgeCharsFromString(it->second, "'`\"") );
+        if(false) for(auto & fixedlink : fixedlinks){
+            const std::string thelink(fixedlink.first);
+            std::string thetext( PurgeCharsFromString(fixedlink.second, "'`\"") );
             Canonicalize_String(thetext, CANONICALIZE::TRIM);
     
             std::vector<std::vector<std::string>> configformat;

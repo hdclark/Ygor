@@ -45,9 +45,9 @@ std::vector<std::vector<std::string>> Tokenize_Simple_Config_File(std::string fi
 //        if( !std::regex_search(rawline, regex_contains_a_linetoken) ) continue;            //If the line does not contain :, then ignore.
         //Split the line on the given linetoken.
         tokenizedline = SplitStringToVector(rawline, linetoken, 'd');  //'d' for "drop the delimiter."
-        for(auto s_it = tokenizedline.begin(); s_it != tokenizedline.end(); ++s_it){
+        for(auto & s_it : tokenizedline){
             //Chomp off extra whitespace (all from front, all from back, shorten whitespace within to a single space.)
-            Canonicalize_String(*s_it, CANONICALIZE::TRIM);
+            Canonicalize_String(s_it, CANONICALIZE::TRIM);
         }
 
         //Push back the strings.
@@ -70,12 +70,12 @@ bool Write_Config_File(const std::vector<std::vector<std::string>> &inmem, std::
 //NOTE: The data will be treated as text. No compression or binary serialization is performed.
 std::string Serialize_Simple_Config_File(const std::vector<std::vector<std::string>> &deserialized, std::string linetoken){
     std::string out;
-    for(auto ds_it = deserialized.begin(); ds_it != deserialized.end(); ++ds_it){
-        if(ds_it->size() != 0){
+    for(const auto & ds_it : deserialized){
+        if(ds_it.size() != 0){
             //We know there is at least one item on this line.
-            out += *(ds_it->begin());
+            out += *(ds_it.begin());
             //Dump each additional item on this line. Each comes with a preceeding linetoken.
-            for(auto l_it = ++(ds_it->begin()); l_it != ds_it->end(); ++l_it){
+            for(auto l_it = ++(ds_it.begin()); l_it != ds_it.end(); ++l_it){
                 out += linetoken;
                 out += *l_it;
             }
@@ -103,9 +103,9 @@ std::vector<std::vector<std::string>> Deserialize_Simple_Config_File(const std::
 //        if( !std::regex_search(rawline, regex_contains_a_linetoken) ) continue;          //If the line does not contain the linetoken, then ignore.
         //Split the line on the given linetoken.
         tokenizedline = SplitStringToVector(rawline, linetoken, 'd');  //'d' for "drop the delimiter."
-        for(auto s_it = tokenizedline.begin(); s_it != tokenizedline.end(); ++s_it){
+        for(auto & s_it : tokenizedline){
             //Chomp off extra whitespace (all from front, all from back, shorten whitespace within to a single space.)
-            Canonicalize_String(*s_it, CANONICALIZE::TRIM);
+            Canonicalize_String(s_it, CANONICALIZE::TRIM);
         }
         //Push back the strings.
         out.push_back(tokenizedline);
@@ -128,8 +128,8 @@ std::vector<std::vector<std::string>> Double_Deserialize_Simple_Config_File(cons
 
 std::string Double_Serialize_Simple_Config_File(const std::vector<std::vector<std::string>> &deserialized, std::string separator, std::string linetoken){
     if(separator == linetoken) FUNCERR("This function requires a different separator than the linetoken");
-    for(auto r_it = deserialized.begin(); r_it != deserialized.end(); ++r_it){
-        for(auto c_it = r_it->begin(); c_it != r_it->end(); ++c_it){
+    for(const auto & r_it : deserialized){
+        for(auto c_it = r_it.begin(); c_it != r_it.end(); ++c_it){
             if(c_it->find('\n') != std::string::npos) FUNCERR("This routine cannot handle content which contains newlines. Please encode or remove them before calling this function");
         }
     }
@@ -149,9 +149,9 @@ bool YgorCONFIGTools_Is_X_Present_on_Leftmost(const std::vector<std::vector<std:
     //If the given string X is present on any leftmost line, we return 'true'. If it cannot be found, we return 'false.'
     //
     //NOTE: The string comparison is exact and is whitespace, case, etc.. dependant.
-    for(auto conf_it = conf.begin(); conf_it != conf.end(); ++conf_it){
-        if(conf_it->size() != 0){
-            if(X == *(conf_it->begin())) return true;
+    for(const auto & conf_it : conf){
+        if(conf_it.size() != 0){
+            if(X == *(conf_it.begin())) return true;
         }
     }
     return false;
@@ -165,9 +165,9 @@ std::string YgorCONFIGTools_Given_X_Get_First_B_When_XB(const std::vector<std::v
     // empty string.
     //
     //NOTE: The string comparison is exact and is whitespace, case, etc.. dependant.
-    for(auto conf_it = conf.begin(); conf_it != conf.end(); ++conf_it){
-        if(conf_it->size() > 1){
-            if(X == *(conf_it->begin())) return *(++(conf_it->begin()));
+    for(const auto & conf_it : conf){
+        if(conf_it.size() > 1){
+            if(X == *(conf_it.begin())) return *(++(conf_it.begin()));
         }
     }
     return std::string();
@@ -178,9 +178,9 @@ std::string YgorCONFIGTools_Given_X_Get_First_B_When_XB(const std::vector<std::v
 std::vector<std::vector<std::string>> YgorCONFIGTools_Get_All_Lines_With_X_Present_on_Leftmost(const std::vector<std::vector<std::string>> &conf, const std::string &X){
     std::vector<std::vector<std::string>> out;
 
-    for(auto l_it = conf.begin(); l_it != conf.end(); ++l_it){
-        if(l_it->size() != 0){
-            if(X == *(l_it->begin())) out.push_back( *l_it );
+    for(const auto & l_it : conf){
+        if(l_it.size() != 0){
+            if(X == *(l_it.begin())) out.push_back( l_it );
         }
     }
 

@@ -128,7 +128,7 @@ void Plotter2::Apply_Basic_Footer_Customizations(void){
 }
 void Plotter2::Append_Header(std::stringstream *ss) const {
     if(ss == nullptr) FUNCERR("Passed an invalid reference");
-    for(auto s_it = this->header.begin(); s_it != this->header.end(); ++s_it) *ss << *s_it << std::endl;
+    for(const auto & s_it : this->header) *ss << s_it << std::endl;
     return;
 }
 void Plotter2::Append_StrDat(std::stringstream *ss) const {
@@ -141,9 +141,9 @@ void Plotter2::Append_StrDat(std::stringstream *ss) const {
 
     //All the data we have cached.
     *ss << "plot 1/0 title '' ";  //Undefined first plot is ignored and most convenient. 
-    for(auto p2h_it = combined.begin(); p2h_it != combined.end(); ++p2h_it){
+    for(auto & p2h_it : combined){
         *ss << R"***( , \)***" << std::endl << R"***(    "< echo -e ')***";     //"//Incorrect parsing of raw literals :/.
-        for(auto v2_it = p2h_it->data.samples.begin(); v2_it != p2h_it->data.samples.end(); ++v2_it){
+        for(auto v2_it = p2h_it.data.samples.begin(); v2_it != p2h_it.data.samples.end(); ++v2_it){
             //Gnuplot assumes the form of:
             //     (x, y, ydelta),
             //     (x, y, ylow, yhigh),
@@ -154,20 +154,20 @@ void Plotter2::Append_StrDat(std::stringstream *ss) const {
             *ss << (*v2_it)[0] << " " << (*v2_it)[2] << " " << (*v2_it)[1] << " " << (*v2_it)[3] << R"***(\n)***";
         }
         *ss << R"***('" )***";                //"//Incorrect parsing of raw literals :/.
-        *ss << "with  " << (p2h_it->type.empty() ? "xyerrorbars" : p2h_it->type) << " ";
-        /*if(!p2h_it->title.empty())*/ *ss << "title \"" << p2h_it->title << "\" ";
+        *ss << "with  " << (p2h_it.type.empty() ? "xyerrorbars" : p2h_it.type) << " ";
+        /*if(!p2h_it->title.empty())*/ *ss << "title \"" << p2h_it.title << "\" ";
     }
     *ss << std::endl;
     return;
 }
 void Plotter2::Append_Footer(std::stringstream *ss) const {
     if(ss == nullptr) FUNCERR("Passed an invalid reference");
-    for(auto s_it = this->footer.begin(); s_it != this->footer.end(); ++s_it) *ss << *s_it << std::endl;
+    for(const auto & s_it : this->footer) *ss << s_it << std::endl;
 
     //Also dump stringified samples_1D data so we can more easily read/manipulate the data, if needed.
     *ss << "# Stringified samples_1D raw data (in corresponding order as plotted)" << std::endl;
-    for(auto p2h_it = this->data.begin(); p2h_it != this->data.end(); ++p2h_it){
-         *ss << "# " << p2h_it->data << std::endl;
+    for(const auto & p2h_it : this->data){
+         *ss << "# " << p2h_it.data << std::endl;
     }
     if(!(this->working.data.samples.empty())){
          *ss << "# " << this->working.data << std::endl;
@@ -212,8 +212,8 @@ void Plotter2::Insert_samples_1D(const samples_1D<double> &in, const std::string
     return;
 }
 void Plotter2::Insert_map_of_string_and_samples_1D(const std::map<std::string, samples_1D<double>> &in, const std::string &linetype/*=""*/){
-    for(auto m_it = in.begin(); m_it != in.end(); ++m_it){
-        this->Insert_samples_1D(m_it->second, m_it->first, linetype);
+    for(const auto & m_it : in){
+        this->Insert_samples_1D(m_it.second, m_it.first, linetype);
     }
     return;
 }
@@ -293,20 +293,20 @@ void MultiPlotter2::Apply_Basic_Footer_Customizations(void){
 }
 void MultiPlotter2::Append_Header(std::stringstream *ss) const {
     if(ss == nullptr) FUNCERR("Passed an invalid reference");
-    for(auto s_it = this->header.begin(); s_it != this->header.end(); ++s_it) *ss << *s_it << std::endl;
+    for(const auto & s_it : this->header) *ss << s_it << std::endl;
     return;
 }
 void MultiPlotter2::Append_SubPlots(std::stringstream *ss) const {
     if(ss == nullptr) FUNCERR("Passed an invalid reference");
-    for(auto s_it = this->subplots.begin(); s_it != this->subplots.end(); ++s_it){
-        *ss << s_it->Dump_as_String() << std::endl;
+    for(const auto & subplot : this->subplots){
+        *ss << subplot.Dump_as_String() << std::endl;
         *ss << "#" << std::endl; //Easier for poor human to read...
     }
     return;
 }
 void MultiPlotter2::Append_Footer(std::stringstream *ss) const {
     if(ss == nullptr) FUNCERR("Passed an invalid reference");
-    for(auto s_it = this->footer.begin(); s_it != this->footer.end(); ++s_it) *ss << *s_it << std::endl;
+    for(const auto & s_it : this->footer) *ss << s_it << std::endl;
     return;
 }
 void MultiPlotter2::Open_Multiplot_Environ(std::stringstream *ss) const {

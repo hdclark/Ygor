@@ -56,8 +56,8 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
     static inline double l_vector_S(const double h, const samples_1D<double> &data, double x, double j_power){
         double out(0.0);
-        for(auto p_it = data.samples.begin(); p_it != data.samples.end(); ++p_it){
-            const double dx(((*p_it)[0] - x));
+        for(const auto & sample : data.samples){
+            const double dx((sample[0] - x));
             out += l_vector_kernel(dx/h)*std::pow(dx, j_power);
         }
         return out;
@@ -85,7 +85,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         //Divide each b_i by the sum of all b_i's.
         const double b_sum(std::accumulate(bs.begin(), bs.end(), 0.0));
         if(!std::isnormal(b_sum) || !std::isnormal(1.0/b_sum)){ *OK = false; return std::move(bs); }
-        for(auto b_it = bs.begin(); b_it != bs.end(); ++b_it) *b_it /= b_sum;
+        for(double & b : bs) b /= b_sum;
     
         *OK = true; return std::move(bs);
     }
@@ -141,7 +141,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
         //Compute ||l(x)||.
         double l_norm(0.0);
-        for(auto it = ls.begin(); it != ls.end(); ++it) l_norm += (*it)*(*it);
+        for(double l : ls) l_norm += l*l;
         l_norm = std::sqrt(l_norm);
     
         *OK = true; return c*me*l_norm; //Now +- this with the smoothed function to get confidence bands!
@@ -319,18 +319,18 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
             {
               double ls_1_norm(0.0);
-              for(auto it = ls_1.begin(); it != ls_1.end(); ++it) ls_1_norm += (*it)*(*it);
+              for(double & it : ls_1) ls_1_norm += it*it;
               ls_1_norm = std::sqrt(ls_1_norm);
               if(!std::isnormal(1.0/ls_1_norm)){ *OK = false; return -1.0; }
-              for(auto it = ls_1.begin(); it != ls_1.end(); ++it) *it /= ls_1_norm;
+              for(double & it : ls_1) it /= ls_1_norm;
             }
     
             {
               double ls_2_norm(0.0);
-              for(auto it = ls_2.begin(); it != ls_2.end(); ++it) ls_2_norm += (*it)*(*it);
+              for(double & it : ls_2) ls_2_norm += it*it;
               ls_2_norm = std::sqrt(ls_2_norm);
               if(!std::isnormal(1.0/ls_2_norm)){ *OK = false; return -1.0; }
-              for(auto it = ls_2.begin(); it != ls_2.end(); ++it) *it /= ls_2_norm;
+              for(double & it : ls_2) it /= ls_2_norm;
             }
     
             //Compute ||T'(x)||*dx at this x. Because we use the centre-point approximation, we can say that
@@ -461,9 +461,9 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
             std::list<double> hs({0.001, 0.01, 0.1, 1.0, 10.0, 25.0, 37.0, 50.0, 100.0, 150.0, 200.0, 300.0 });
             std::map<std::string, samples_1D<double>> plot_shtl;
             plot_shtl["Original"] = data;
-            for(auto hs_it = hs.begin(); hs_it != hs.end(); ++hs_it){
-                const auto smoothed = NPRLL::Get_Smoothed_Evenly_Spaced(*hs_it, 2.0, data, &l_OK); 
-                if(l_OK) plot_shtl["h = "_s + Xtostring(*hs_it)] = smoothed;
+            for(double & h : hs){
+                const auto smoothed = NPRLL::Get_Smoothed_Evenly_Spaced(h, 2.0, data, &l_OK); 
+                if(l_OK) plot_shtl["h = "_s + Xtostring(h)] = smoothed;
             }
             if(!only_show_final) Plot2_Map_of_Samples_1D(plot_shtl.begin(), plot_shtl.end(), title + "Different smoothing parameters");
         }
@@ -680,7 +680,7 @@ Ygor_Fit_Driver(bool *wasOK,
         std::list<double> SRs;
 
         //Iterate over rows of data.
-        for(auto r_it = data.begin(); r_it != data.end(); ++r_it){
+        for(const auto & r_it : data){
             std::list<double> X; //x-values. This will always be 1 for f(x), 2 for f(x,y), etc..
             std::list<double> P; //Parameters. We just convert from double[] to std::list.
             for(size_t i=0; i<numb_of_fit_parameters; ++i) P.push_back(p[i]);
@@ -689,29 +689,29 @@ Ygor_Fit_Driver(bool *wasOK,
 
             if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM2) && (N_COLS == 2)){
                 // Data:   <X_i> <F_i>
-                X.push_back(r_it->front());
-                F_data = r_it->back();
+                X.push_back(r_it.front());
+                F_data = r_it.back();
                 W = 1.0; //Effectively no weighting.
          
             }else if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM2) && (N_COLS == 3)){
                 // Data:   <X_i> <F_i> <σ_F_i>
-                X.push_back(r_it->front());
-                F_data = *std::next(r_it->begin());
-                W = r_it->back();
+                X.push_back(r_it.front());
+                F_data = *std::next(r_it.begin());
+                W = r_it.back();
 
             }else if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM3) && (N_COLS == 3)){
                 // Data:   <X_i> <Y_i> <F_i>
-                X.push_back(*std::next(r_it->begin(),0));
-                X.push_back(*std::next(r_it->begin(),1));
-                F_data = r_it->back();
+                X.push_back(*std::next(r_it.begin(),0));
+                X.push_back(*std::next(r_it.begin(),1));
+                F_data = r_it.back();
                 W = 1.0; //Effectively no weighting.
 
             }else if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM3) && (N_COLS == 4)){
                 // Data:   <X_i> <Y_i> <F_i> <σ_F_i>
-                X.push_back(*std::next(r_it->begin(),0));
-                X.push_back(*std::next(r_it->begin(),1));
-                F_data = *std::next(r_it->begin(),2);
-                W = r_it->back();
+                X.push_back(*std::next(r_it.begin(),0));
+                X.push_back(*std::next(r_it.begin(),1));
+                F_data = *std::next(r_it.begin(),2);
+                W = r_it.back();
 
             }else{
                 FUNCWARN("Currently cannot understand what type of analysis you are asking for. Implement it here");
@@ -935,8 +935,8 @@ FUNCWARN("+++++++ IN EITHER CASE, PLUMB IT IN PROPERLY. IT IS JUST BOLTED ON. ++
 // stability of the bootstrap process and the parameter search space.
 std::list<double> randomized_vars;
 {
-  for(auto it = vars.begin(); it != vars.end(); ++it){
-      std::uniform_real_distribution<double> rd_t(0.01*(*it),1.99*(*it)); //Can't I do something more intelligent here?
+  for(double var : vars){
+      std::uniform_real_distribution<double> rd_t(0.01*var,1.99*var); //Can't I do something more intelligent here?
       const double val = rd_t(re);
       randomized_vars.push_back(val);
   }

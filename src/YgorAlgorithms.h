@@ -300,8 +300,8 @@ void For_Each_In_Parallel(T it, T end, Function Task){
     };
 
     //Wait on the tasks in the same order we have launched them.
-    for(auto h_it = handle_keeper.begin(); h_it != handle_keeper.end(); ++h_it){
-        h_it->get();
+    for(auto & h_it : handle_keeper){
+        h_it.get();
     }
 
     return;

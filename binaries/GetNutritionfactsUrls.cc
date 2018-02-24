@@ -18,9 +18,9 @@ int main(int argc, char **argv){
     std::list<std::string> urls;
     urls.push_back("http://nutritionfacts.org/videos/");
 
-    for(auto url_it = urls.begin(); url_it != urls.end(); ++url_it){
-        std::string page = Request_URL(*url_it);
-        bool IS_RSS = !GetFirstRegex(*url_it, "rss$").empty();
+    for(auto & url : urls){
+        std::string page = Request_URL(url);
+        bool IS_RSS = !GetFirstRegex(url, "rss$").empty();
 
         //If the url is for an rss feed, we may have to decode the <,>,and &'s in the document
         // prior to parsing (else the parser chokes!)
@@ -40,9 +40,9 @@ int main(int argc, char **argv){
         videolinks = Filter_Whitelist_Links(fixedlinks, R"***([.]youtu[.]{0,1}be|vimeo)***", "");  
  
         //Dump the links and descriptions in a serialized format.
-        for(auto it = videolinks.begin(); it != videolinks.end(); ++it){
-            const std::string thelink(it->first);
-            std::string thetext( PurgeCharsFromString(it->second, "'`\"") );
+        for(auto & videolink : videolinks){
+            const std::string thelink(videolink.first);
+            std::string thetext( PurgeCharsFromString(videolink.second, "'`\"") );
             Canonicalize_String(thetext, CANONICALIZE::TRIM);
 
             std::vector<std::vector<std::string>> configformat;

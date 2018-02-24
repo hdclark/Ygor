@@ -115,7 +115,7 @@ std::ostream & operator<<( std::ostream &out, const small &in ){
 }
 
 std::ostream & operator<<( std::ostream &out, const std::basic_string<unsigned char> &in ){
-    for(size_t x=0; x<in.size(); ++x) out << (char)(in[x]);
+    for(unsigned char x : in) out << (char)x;
     return out;
 }
 
@@ -377,18 +377,18 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
 //This routine walks over a chunk of de-lineated data and de-lineates all children data streams.
 // It is called recursively until all elements have been delineated.
 void Delineate_Children(std::vector<piece> &in){
-    for(size_t i=0; i<in.size(); ++i){
+    for(auto & i : in){
         //If there is data in the string buffer, and there is not already a child node, and the data *appears*
         // to be able to be expanded, then we attempt to do so.
-        if( Can_This_Elements_Data_Be_Delineated( in[i] ) ){
-            in[i].child = Parse_Binary_File(  in[i].data.c_str(), in[i].data.c_str() + in[i].data.size() );
+        if( Can_This_Elements_Data_Be_Delineated( i ) ){
+            i.child = Parse_Binary_File(  i.data.c_str(), i.data.c_str() + i.data.size() );
 
             //Now call this routine with the recently created data.
-            Delineate_Children( in[i].child );
+            Delineate_Children( i.child );
 
         //Otherwise, if there is already a child, then check it.
-        }else if( (in[i].child.size() != 0) ){
-            Delineate_Children( in[i].child );
+        }else if( (i.child.size() != 0) ){
+            Delineate_Children( i.child );
 
         //Otherwise, this element has no data to process, has no attached nodes, and is fully expanded.
         //Simply move on to the next element.
@@ -403,26 +403,26 @@ void Delineate_Children(std::vector<piece> &in){
 //Dumps the entire vector, recursively dumping all children when they are encountered. Prefixes the data
 // with spaces to denote the depth of the node.
 void Dump_Children(std::ostream & out, const std::vector<piece> &in, const std::string space){ //NOTE: space defaults to ""
-    for(size_t i=0; i<in.size(); ++i){
+    for(const auto & i : in){
         //Print out the identity of this piece. If there is no child node, print the data.
         out << space;
-        out << "A = " << in[i].A << " ";
-        out << "B = " << in[i].B << " ";
-        out << "S = " << std::setfill(' ') << std::setw(9) << in[i].data_size << " ";
-        if(in[i].child.size() != 0){
+        out << "A = " << i.A << " ";
+        out << "B = " << i.B << " ";
+        out << "S = " << std::setfill(' ') << std::setw(9) << i.data_size << " ";
+        if(i.child.size() != 0){
             out << " [HAS_CHILD] " << std::endl;
-            Dump_Children(out, in[i].child, (space + "    "));
-        }else if(in[i].data.size() == 0){
+            Dump_Children(out, i.child, (space + "    "));
+        }else if(i.data.size() == 0){
             out << " [_NO_DATA_] " << std::endl;
         }else{
-            out << " data = \"" << in[i].data  << "\"" << std::endl;
+            out << " data = \"" << i.data  << "\"" << std::endl;
         }
     }
     return;
 }
 
 void Dump_Children(std::ostream & out, const std::vector<piece *> &in, const std::string space){ //NOTE: space defaults to ""
-    for(size_t i=0; i<in.size(); ++i) Dump_Children(out, { *(in[i]) } ); //Vector initializer to turn out of the element.
+    for(auto i : in) Dump_Children(out, { *i } ); //Vector initializer to turn out of the element.
     return;
 }
 
@@ -435,18 +435,18 @@ void Dump_Children(std::ostream & out, const std::vector<piece *> &in, const std
 //NOTE: Wildcards ("0") can be at any depth.
 //NOTE: we do not make "in" const because we do not want const pointers to the data - we want it to be mutable!
 void Get_Elements(std::vector<piece *> &out, std::vector<piece> &in, const std::vector<uint32_t> &key, const uint32_t depth ){ //NOTE: depth defaults to 0
-    for(size_t i=0; i<in.size(); ++i){
+    for(auto & i : in){
 
         //If we have found a match,
-        if((in[i].A.i == key[depth]) || (key[depth] == 0)){
+        if((i.A.i == key[depth]) || (key[depth] == 0)){
 
             //If this is the final element in the key, then we simply collect the piece and move on.
             if( (depth + 1) == key.size() ){
-                out.push_back( &(in[i]) );
+                out.push_back( &i );
 
             //Otherwise, we have to see if the current element has any children nodes. If it does, recurse, otherwise continue.
-            }else if( in[i].child.size() != 0 ){
-                Get_Elements(out, in[i].child, key, depth+1);
+            }else if( i.child.size() != 0 ){
+                Get_Elements(out, i.child, key, depth+1);
             }
 
         //Otherwise, just carry on.
@@ -460,16 +460,16 @@ void Get_Elements(std::vector<piece *> &out, std::vector<piece> &in, const std::
 
 //This function strips out data from nodes which have children and resets the "data_size" member to -1.
 void Prep_Children_For_Recompute_Children_Data_Size( std::vector<piece> &in ){
-    for(size_t i=0; i<in.size(); ++i){
+    for(auto & i : in){
         //NOTE: Do NOT adjust the B parameter here - even if it contains the size info. This will be done when it is needed!
 
         //Reset the size of each node. This indicates that we need to recompute it.
-        in[i].data_size = -1;
+        i.data_size = -1;
 
         //If there are children nodes, we clear the data and recurse.
-        if( in[i].child.size() != 0 ){
-            in[i].data.clear();
-            Prep_Children_For_Recompute_Children_Data_Size( in[i].child );
+        if( i.child.size() != 0 ){
+            i.data.clear();
+            Prep_Children_For_Recompute_Children_Data_Size( i.child );
 
         //If there are not children nodes, we (probably, might?) have data attached. We do nothing.
         }else{
@@ -490,43 +490,43 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
     long int upward = 0;
 
     //Cycle through the vector.
-    for(size_t i=0; i<in.size(); ++i){
+    for(auto & i : in){
 
         //Check if this node has children. If it does, we recurse and determine the size of all child elements.
-        if( in[i].child.size() != 0 ){
-            in[i].data_size = Recompute_Children_Data_Size( in[i].child );
+        if( i.child.size() != 0 ){
+            i.data_size = Recompute_Children_Data_Size( i.child );
 
         //If it does not, we update the local "data_size" element and add it to "upward" along with the additional 8 bytes for this nodes "A" and "B".
         }else{
-            in[i].data_size = (long int)(in[i].data.size());
+            i.data_size = (long int)(i.data.size());
         }
 
         //Check if B includes the size of the element. If it does not, then we have to take into account the extra 4 bytes required to append the
         // size immediately after B (when we eventually write the data...)
-        if( Does_A_B_Not_Denote_A_Size( in[i].A, in[i].B ) ){
+        if( Does_A_B_Not_Denote_A_Size( i.A, i.B ) ){
 
             //If the last two bytes of B denote the size, we have only 8 bytes of data (no extra size 4 bytes.)
-            if( Do_Last_Two_Bytes_of_B_Denote_A_Size( in[i].A, in[i].B ) ){
-                upward += in[i].data_size + (long int)(2*sizeof(uint32_t));
+            if( Do_Last_Two_Bytes_of_B_Denote_A_Size( i.A, i.B ) ){
+                upward += i.data_size + (long int)(2*sizeof(uint32_t));
 
             //Otherwise, if we require an extra four bytes then we have to add this to the size of this elements memory footprint. 
-            }else if( Do_Next_Four_Bytes_Denote_A_Size( in[i].A, in[i].B ) ){
-                upward += in[i].data_size + (long int)(2*sizeof(uint32_t)) + (long int)(1*sizeof(uint32_t));
+            }else if( Do_Next_Four_Bytes_Denote_A_Size( i.A, i.B ) ){
+                upward += i.data_size + (long int)(2*sizeof(uint32_t)) + (long int)(1*sizeof(uint32_t));
 
             //This is the case where we do not know enough about the tags to tell either way (safely.) Issue a warning and pick a method to try it.
             }else{
-                FUNCWARN("Attempting to determine the size of the memory layout of an element A = " << in[i].A << " and B = " << in[i].B << " which is unfamiliar (not on a whitelist.)");
+                FUNCWARN("Attempting to determine the size of the memory layout of an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
                 FUNCWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
                 FUNCWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW2 ] for more info.");
 
                 //GUESSING that the last two bytes of B denote the size! See ~10 lines above. The appropriate whitelist is Do_Last_Two_Bytes_of_B_Denote_A_Size(...).
                 FUNCWARN("  Guessing a default layout. If this works, please add it to the appropriate whitelist (and test it!)");
-                upward += in[i].data_size + (long int)(2*sizeof(uint32_t));
+                upward += i.data_size + (long int)(2*sizeof(uint32_t));
             }
 
         //Otherwise, B denotes the size. We have a simple layout.
         }else{
-            upward += in[i].data_size + (long int)(2*sizeof(uint32_t));
+            upward += i.data_size + (long int)(2*sizeof(uint32_t));
         }
 
     }
@@ -542,40 +542,40 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
 void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char> &out ){
 
     //Cycle through the vector.
-    for(size_t i=0; i<in.size(); ++i){
+    for(const auto & i : in){
 
         //Dump the "A" part.
-        out.push_back( in[i].A.c[0] );
-        out.push_back( in[i].A.c[1] );
-        out.push_back( in[i].A.c[2] );
-        out.push_back( in[i].A.c[3] );
+        out.push_back( i.A.c[0] );
+        out.push_back( i.A.c[1] );
+        out.push_back( i.A.c[2] );
+        out.push_back( i.A.c[3] );
 
 
         //Check if B includes the size of the element. If it does not, then we have to take into account the extra 4 bytes required to append the size.
-        if( Does_A_B_Not_Denote_A_Size( in[i].A, in[i].B ) ){
+        if( Does_A_B_Not_Denote_A_Size( i.A, i.B ) ){
 
             //If the last two bytes of B denote the size, then we need to copy part of B and write the size. This is the second-most common scenario, and
             // appears to only happen near the header.
-            if( Do_Last_Two_Bytes_of_B_Denote_A_Size( in[i].A, in[i].B ) ){
-                out.push_back( in[i].B.c[0] );
-                out.push_back( in[i].B.c[1] );
+            if( Do_Last_Two_Bytes_of_B_Denote_A_Size( i.A, i.B ) ){
+                out.push_back( i.B.c[0] );
+                out.push_back( i.B.c[1] );
 
                 small temp;
-                temp.i = static_cast<uint16_t>( in[i].data_size );
+                temp.i = static_cast<uint16_t>( i.data_size );
                 out.push_back( temp.c[0] );
                 out.push_back( temp.c[1] );
 
 
             //Otherwise, if we require an extra four bytes then we simply copy over the B and then write the size.
             // This appears to be very rare, and only happens near the header.
-            }else if( Do_Next_Four_Bytes_Denote_A_Size( in[i].A, in[i].B ) ){
-                out.push_back( in[i].B.c[0] );
-                out.push_back( in[i].B.c[1] );
-                out.push_back( in[i].B.c[2] );
-                out.push_back( in[i].B.c[3] );
+            }else if( Do_Next_Four_Bytes_Denote_A_Size( i.A, i.B ) ){
+                out.push_back( i.B.c[0] );
+                out.push_back( i.B.c[1] );
+                out.push_back( i.B.c[2] );
+                out.push_back( i.B.c[3] );
 
                 large temp;
-                temp.i = static_cast<uint32_t>(in[i].data_size);
+                temp.i = static_cast<uint32_t>(i.data_size);
                 out.push_back( temp.c[0] );
                 out.push_back( temp.c[1] );
                 out.push_back( temp.c[2] );
@@ -583,18 +583,18 @@ void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char
 
             //This is the case where we do not know enough about the tags to tell either way (safely.) Issue a warning and pick a method to try it.
             }else{
-                FUNCWARN("Attempting to flatten an element A = " << in[i].A << " and B = " << in[i].B << " which is unfamiliar (not on a whitelist.)");
+                FUNCWARN("Attempting to flatten an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
                 FUNCWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
                 FUNCWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW3 ] for more info.");
 
                 //GUESSING that the last two bytes of B denote the size! See ~10 lines above. The appropriate whitelist is Do_Last_Two_Bytes_of_B_Denote_A_Size(...).
                 FUNCWARN("  Guessing a default behaviour. If this works, please add it to the appropriate whitelist.");
 
-                out.push_back( in[i].B.c[0] );
-                out.push_back( in[i].B.c[1] );
+                out.push_back( i.B.c[0] );
+                out.push_back( i.B.c[1] );
 
                 small temp;
-                temp.i = static_cast<uint16_t>( in[i].data_size );
+                temp.i = static_cast<uint16_t>( i.data_size );
                 out.push_back( temp.c[0] );
                 out.push_back( temp.c[1] );
 
@@ -603,7 +603,7 @@ void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char
         //Otherwise, B denotes (only) the size. This is the most common scenario (in the body of the file.)
         }else{
             large temp;
-            temp.i = static_cast<uint32_t>(in[i].data_size);
+            temp.i = static_cast<uint32_t>(i.data_size);
             out.push_back( temp.c[0] );
             out.push_back( temp.c[1] );
             out.push_back( temp.c[2] );
@@ -612,12 +612,12 @@ void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char
 
 
         //Now check if there are any children nodes and dump them.
-        if( in[i].child.size() != 0 ){
-            Repack_Nodes( in[i].child, out );
+        if( i.child.size() != 0 ){
+            Repack_Nodes( i.child, out );
  
         //Otherwise, dump the payload string. NOTE: Some data elements are empty - this is OK.
         }else{
-            out += in[i].data;
+            out += i.data;
         }
     }
     return;

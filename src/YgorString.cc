@@ -487,9 +487,9 @@ std::string Detox_String(const std::string &in){
     std::string out(in);
 
     //Replace punctuation, whitespace with underscores.
-    for(auto it = out.begin(); it != out.end(); ++it){
-        if(std::ispunct(*it) && (*it != '.') && (*it != '-')) *it = '_';
-        if(std::isspace(*it)) *it = '_';
+    for(char & it : out){
+        if(std::ispunct(it) && (it != '.') && (it != '-')) it = '_';
+        if(std::isspace(it)) it = '_';
     }
 
 /*
@@ -710,14 +710,14 @@ std::string Wrap_Comma_Separated_Stuff_At_Same_Depth(const std::string &in, char
 
     long int parendepth(0);
     bool foundcommas = false;
-    for(auto it = inn.begin(); it != inn.end(); ++it){
-        if(*it == L)  ++parendepth;
-        if(*it == R)  --parendepth;
-        if((*it == ',') && (parendepth == 0)){
+    for(char it : inn){
+        if(it == L)  ++parendepth;
+        if(it == R)  --parendepth;
+        if((it == ',') && (parendepth == 0)){
             out += std::string(1,R) + ","_s + std::string(1,L);
             foundcommas = true;
         }else{
-            out += *it;
+            out += it;
         }
     }
     if(foundcommas) return std::string(1,L) + out + std::string(1,R);
@@ -735,9 +735,9 @@ std::string Wrap_Comma_Separated_Stuff_At_Same_Depth(const std::string &in, char
 //Note: Will not find unpaired/balanced chars like '([x)]'!
 bool Contains_Unmatched_Char_Pairs(const std::string &in, char L, char R){
   long int parens(0);
-  for(auto it = in.begin(); it != in.end(); ++it){
-      if( *it == L ) ++parens;
-      if( *it == R ) --parens;
+  for(char it : in){
+      if( it == L ) ++parens;
+      if( it == R ) --parens;
   }
   return (parens != 0);
 }
@@ -932,10 +932,10 @@ bool GetValueIfKeyMatches(T *out, const std::string &key,  const unsigned char k
 //NOTE: This function will destroy carriage returns, newlines, tabs, etc... This is intentional.
 std::string Convert_Unprintables_to_Hex(const std::string &in){
     std::stringstream ss;
-    for(auto it = in.begin(); it != in.end(); ++it){
-        int v(static_cast<int>(static_cast<unsigned char>(*it)));
+    for(char it : in){
+        int v(static_cast<int>(static_cast<unsigned char>(it)));
         if(isininc(32,v,126)){
-            ss << *it;
+            ss << it;
         }else{
             ss << "(0x" << std::hex << v << std::dec << ")";
         }
@@ -958,11 +958,11 @@ std::string Convert_Unprintables_to_Hex(const std::string &in){
 //
 std::string Quote_Static_for_Bash(const std::string &in){
     std::string out(R"***(')***");
-    for(auto it = in.begin(); it != in.end(); ++it){
-        if(*it == '\''){
+    for(char it : in){
+        if(it == '\''){
             out += R"***('\'')***";
         }else{
-            out += *it;
+            out += it;
         }
     }
     return out + '\'';
@@ -976,11 +976,11 @@ std::string Quote_Static_for_Bash(const std::string &in){
 //
 std::string Quote_Expandable_for_Bash(const std::string &in){
     std::string out("\"");
-    for(auto it = in.begin(); it != in.end(); ++it){
-        if(*it == '"'){
+    for(char it : in){
+        if(it == '"'){
             out += R"***(\")***";
         }else{
-            out += *it;
+            out += it;
         }
     }
 //    out += '"';
@@ -1114,8 +1114,8 @@ std::vector<std::string> SplitStringToVector(const std::string &s, const std::st
 
 std::vector<std::string> SplitVector(const std::vector<std::string> &s, char delim, char BEHAVIOUR){
     std::vector<std::string> elems;
-    for(size_t i=0; i<s.size(); ++i){
-        std::vector<std::string> temp = SplitStringToVector(s[i], delim, BEHAVIOUR);
+    for(const auto & i : s){
+        std::vector<std::string> temp = SplitStringToVector(i, delim, BEHAVIOUR);
         elems.insert(elems.end(), temp.begin(), temp.end());
     }
     return elems;
@@ -1146,8 +1146,8 @@ std::string PurgeCharsFromString(const std::string &in, std::string purge_chars)
 
 std::vector<std::string> GetUrls( std::vector<std::string> &in ){
     std::vector<std::string> urls;
-    for(size_t i=0; i<in.size(); ++i){
-        std::sregex_token_iterator iter(in[i].begin(), in[i].end(), regex_all_http_urls, 0);
+    for(auto & i : in){
+        std::sregex_token_iterator iter(i.begin(), i.end(), regex_all_http_urls, 0);
         std::sregex_token_iterator end;
         for( ; iter != end; ++iter ) {
             urls.push_back( *iter );
@@ -1205,8 +1205,8 @@ std::string GetFirstRegex(std::vector<std::string> &source, std::string query){
     //Make a regex unit from the query.
     std::regex regex_the_query( query.c_str(), std::regex::icase );
 
-    for(size_t i=0; i<source.size(); ++i){
-        std::string dumb = GetFirstRegex(source[i], regex_the_query);
+    for(const auto & i : source){
+        std::string dumb = GetFirstRegex(i, regex_the_query);
         if(dumb != "") return dumb;
     }
     return std::string();
@@ -1220,9 +1220,9 @@ std::vector<std::string> GetAllRegex(std::vector<std::string> &source, std::rege
     std::vector<std::string> outgoing;
     const std::sregex_token_iterator end;
 
-    for(size_t i=0; i<source.size(); ++i){
+    for(auto & i : source){
         //Perform the matching/finding. We get an iterator over matches.
-        std::sregex_token_iterator iter(source[i].begin(), source[i].end(), regex_the_query, 0);
+        std::sregex_token_iterator iter(i.begin(), i.end(), regex_the_query, 0);
 
         //Iterate over matches, storing them if they 
         for( ; iter != end; ++iter ){
@@ -1396,12 +1396,12 @@ std::vector<std::vector<std::string>> Basic_Decode_Form_URL(const std::string &i
     std::vector<std::string> shuttle;    //shuttle drains into out.
     std::string cshuttle;                //cshuttle drains into shuttle.
     const std::string dec = Basic_Decode_URL(in);
-    for(auto it = dec.begin(); it != dec.end(); ++it){
-        if(*it == '+'){
+    for(char it : dec){
+        if(it == '+'){
             cshuttle.push_back(' ');
             continue;
         }
-        if(*it == '&'){ //Statement separator.
+        if(it == '&'){ //Statement separator.
             if(!cshuttle.empty()) shuttle.push_back(cshuttle);
             cshuttle.clear();
 
@@ -1409,17 +1409,17 @@ std::vector<std::vector<std::string>> Basic_Decode_Form_URL(const std::string &i
             shuttle.clear();
             continue;
         }
-        if(*it == '='){ //Statement operator.
+        if(it == '='){ //Statement operator.
             if(!cshuttle.empty()) shuttle.push_back(cshuttle);
             cshuttle.clear();
             continue;
         }
-        if(*it == '?'){ //Form data opener. I don't think this can occur more than once..
+        if(it == '?'){ //Form data opener. I don't think this can occur more than once..
             //Example:  ...somepage.html?a=b&c=d...
             cshuttle.clear();
             continue;
         }
-        cshuttle += *it;
+        cshuttle += it;
     }
     if(!cshuttle.empty()) shuttle.push_back(cshuttle);
     if(!shuttle.empty()) out.push_back(shuttle);
@@ -1437,9 +1437,9 @@ std::vector<std::string> Break_Text_Into_Paragraphs(const std::string &in){
     const auto broken = SplitStringToVector(in, "\n\n", 'd');
     std::vector<std::string> out;
 
-    for(auto s_it = broken.begin(); s_it != broken.end(); ++s_it){
+    for(const auto & s_it : broken){
 //        out.push_back( PurgeCharsFromString(*s_it, "\n") );   //Assumes that words might be split into parts on the line ending/beginning.
-        out.push_back( ReplaceAllInstances(*s_it, "\n", " ") );  //Assumes that words are not split - each line ends with a complete word.
+        out.push_back( ReplaceAllInstances(s_it, "\n", " ") );  //Assumes that words are not split - each line ends with a complete word.
     }
     return out;
 }
@@ -1525,7 +1525,7 @@ std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &i
         if(p_it != broken_des.begin()) out.push_back("");
 
         //Cycle over the lines and push them into the output vector.
-        for(auto l_it = reflowed.begin(); l_it != reflowed.end(); ++l_it) out.push_back( *l_it );
+        for(const auto & l_it : reflowed) out.push_back( l_it );
     }
 
 
@@ -1555,7 +1555,7 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
         if(p_it != broken_desL.begin()) outL.push_back("");
 
         //Cycle over the lines and push them into the output vector.
-        for(auto l_it = reflowed.begin(); l_it != reflowed.end(); ++l_it) outL.push_back( *l_it );
+        for(const auto & l_it : reflowed) outL.push_back( l_it );
     }
     for(auto p_it = broken_desR.begin(); p_it != broken_desR.end(); ++p_it){
         const auto reflowed = Reflow_Line_to_Fit_Width_Left_Just(*p_it, WR, indentR);
@@ -1564,7 +1564,7 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
         if(p_it != broken_desR.begin()) outR.push_back("");
 
         //Cycle over the lines and push them into the output vector.
-        for(auto l_it = reflowed.begin(); l_it != reflowed.end(); ++l_it) outR.push_back( *l_it );
+        for(const auto & l_it : reflowed) outR.push_back( l_it );
     }
 
     //Assemble the pieces. Ensure the number of rows match for each text block.
@@ -1572,9 +1572,9 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
     while(outL.size() < max_rows) outL.push_back("");
     while(outR.size() < max_rows) outR.push_back("");
 
-    for(auto it = outL.begin(); it != outL.end(); ++it){
+    for(auto & it : outL){
         //Pad the left with spaces.
-        while(static_cast<long int>(it->size()) < WL) *it += ' ';
+        while(static_cast<long int>(it.size()) < WL) it += ' ';
     }
     for(auto itL = outL.begin(), itR = outR.begin(); (itL != outL.end()) && (itR != outR.end()); ++itL, ++itR){
         out.push_back( *itL + sep + *itR );
