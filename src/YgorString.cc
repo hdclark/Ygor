@@ -1522,7 +1522,7 @@ std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &i
         const auto reflowed = Reflow_Line_to_Fit_Width_Left_Just(*p_it, W, indent);
 
         //Drop a break (empty horizontal line) between paragraphs if between two paragraphs.
-        if(p_it != broken_des.begin()) out.push_back("");
+        if(p_it != broken_des.begin()) out.emplace_back("");
 
         //Cycle over the lines and push them into the output vector.
         for(const auto & l_it : reflowed) out.push_back( l_it );
@@ -1552,7 +1552,7 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
         const auto reflowed = Reflow_Line_to_Fit_Width_Left_Just(*p_it, WL, indentL);
 
         //Drop a break (empty horizontal line) between paragraphs if between two paragraphs.
-        if(p_it != broken_desL.begin()) outL.push_back("");
+        if(p_it != broken_desL.begin()) outL.emplace_back("");
 
         //Cycle over the lines and push them into the output vector.
         for(const auto & l_it : reflowed) outL.push_back( l_it );
@@ -1561,7 +1561,7 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
         const auto reflowed = Reflow_Line_to_Fit_Width_Left_Just(*p_it, WR, indentR);
 
         //Drop a break (empty horizontal line) between paragraphs if between two paragraphs.
-        if(p_it != broken_desR.begin()) outR.push_back("");
+        if(p_it != broken_desR.begin()) outR.emplace_back("");
 
         //Cycle over the lines and push them into the output vector.
         for(const auto & l_it : reflowed) outR.push_back( l_it );
@@ -1569,8 +1569,8 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
 
     //Assemble the pieces. Ensure the number of rows match for each text block.
     const auto max_rows = (outL.size() > outR.size()) ? outL.size() : outR.size();
-    while(outL.size() < max_rows) outL.push_back("");
-    while(outR.size() < max_rows) outR.push_back("");
+    while(outL.size() < max_rows) outL.emplace_back("");
+    while(outR.size() < max_rows) outR.emplace_back("");
 
     for(auto & it : outL){
         //Pad the left with spaces.

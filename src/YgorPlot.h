@@ -60,7 +60,7 @@ class Plotter {
             linestyle_m = 1;
             linestyle_s = 1;
 
-            if(fp == NULL) FUNCERR("Unable to open a pipe!");
+            if(fp == nullptr) FUNCERR("Unable to open a pipe!");
         }
 
         Plotter(const std::string &filename) : ss(std::stringstream::in | std::stringstream::out ) {
@@ -74,11 +74,11 @@ class Plotter {
             linestyle_m = 1;
             linestyle_s = 1;
 
-            if(fp == NULL) FUNCERR("Unable to open a pipe!");
+            if(fp == nullptr) FUNCERR("Unable to open a pipe!");
         }
 
         ~Plotter() {
-            if(fp == NULL){
+            if(fp == nullptr){
                 status = pclose(fp);
                 if(status == -1){
                     FUNCERR("Unable to close pipe. Is the process still active? \"pclose\" reports error " << status);

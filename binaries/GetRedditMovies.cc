@@ -20,8 +20,8 @@ int main(int argc, char **argv){
 
     //Typically full-length movies or documentaries.
 //    urls.push_back("http://www.reddit.com/r/badmovies/top/?sort=top&t=week&limit=100");
-    urls.push_back("http://www.reddit.com/r/Documentaries/top/?sort=top&t=week&limit=100");
-    urls.push_back("http://www.reddit.com/r/BestOfStreamingVideo/top/?sort=top&t=week&limit=100"); //Full-length videos, usually.
+    urls.emplace_back("http://www.reddit.com/r/Documentaries/top/?sort=top&t=week&limit=100");
+    urls.emplace_back("http://www.reddit.com/r/BestOfStreamingVideo/top/?sort=top&t=week&limit=100"); //Full-length videos, usually.
 
 
     for(auto & url : urls){

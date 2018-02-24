@@ -327,7 +327,7 @@ template<typename T> void shuffle_list_randomly( std::list<T> &mylist ){
     auto shuffle_func = [&rd](ptrdiff_t i){ return rd()%i; };  //This *may* not be suitable for large lists. See rd.max() for upper bound.
 
     std::vector<T> v( mylist.begin(), mylist.end() );
-    std::random_shuffle( v.begin(), v.end(), shuffle_func);
+    std::shuffle( v.begin(), v.end(), std::mt19937(std::random_device()()));
     mylist.assign( v.begin(), v.end() );
     return;
 }

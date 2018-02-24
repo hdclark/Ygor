@@ -11,7 +11,7 @@
 // be >= 32bits, and to pass to the OpenSSL implementation, if one exists.
 // I've removed the latter because I had no intention to use it.
 
-#include <string.h>
+#include <cstring>
 #include "md5.h"
 
 //"F and G are optimized compared to their RFC 1321 definitions for

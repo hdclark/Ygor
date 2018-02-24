@@ -2,7 +2,7 @@
 //
 #include <iostream>
 #include <memory>
-#include <string.h>   //For memcpy.
+#include <cstring>   //For memcpy.
 #include <cmath>      //For std::round(...)
 #include <algorithm>
 #include <list>
@@ -13,7 +13,7 @@
 #include <experimental/optional>
 #include <experimental/any>
 #include <type_traits>
-#include <stdio.h>  //For popen.
+#include <cstdio>  //For popen.
 #include <future>
 #include <thread>
 

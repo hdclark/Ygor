@@ -13,15 +13,15 @@
 #include <set>
 
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
-#include <signal.h>
+#include <csignal>
 
 #include "YgorContainers.h"
 

@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <inttypes.h>  //For uint64_t - is this still needed??
+#include <cinttypes>  //For uint64_t - is this still needed??
 
 #include "YgorMisc.h"    //Used for some bitwise operations.
 

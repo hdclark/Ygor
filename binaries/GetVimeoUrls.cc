@@ -16,8 +16,8 @@
 
 int main(int argc, char **argv){
     std::list<std::string> urls;
-    urls.push_back("http://vimeo.com/channels/staffpicks/videos");
-    urls.push_back("http://vimeo.com/channels/staffpicks/videos/page:2/sort:preset");
+    urls.emplace_back("http://vimeo.com/channels/staffpicks/videos");
+    urls.emplace_back("http://vimeo.com/channels/staffpicks/videos/page:2/sort:preset");
 //    urls.push_back("http://vimeo.com/channels/staffpicks/page:2");
 //    urls.push_back("http://vimeo.com/channels/staffpicks/page:3");
 //    urls.push_back("http://vimeo.com/categories/technology/programming");

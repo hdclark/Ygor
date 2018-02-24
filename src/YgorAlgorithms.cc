@@ -899,7 +899,7 @@ std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
 
     *wasOK = false;
     std::list<std::list<double>> out;
-    for(size_t i = 0; i < vars.size(); ++i) out.push_back(std::list<double>());
+    for(size_t i = 0; i < vars.size(); ++i) out.emplace_back();
 
     long int MAX_N_ERRS = 100*N;  //Will happen if single row is picked or some other unreasonable scenario.
     long int N_ERRS = 0;

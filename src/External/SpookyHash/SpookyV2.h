@@ -28,7 +28,7 @@
 // NOTE: this file has been modified by Hal Clark to modernize it.
 //
 
-#include <stddef.h>
+#include <cstddef>
 
 #ifdef _MSC_VER
 # define INLINE __forceinline
@@ -37,7 +37,7 @@
   typedef  unsigned __int16 uint16;
   typedef  unsigned __int8  uint8;
 #else
-# include <stdint.h>
+# include <cstdint>
 # define INLINE inline
   using uint64 = uint64_t;
   using uint32 = uint32_t;

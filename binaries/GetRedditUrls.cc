@@ -21,9 +21,9 @@ int main(int argc, char **argv){
     std::list<std::string> urls; 
 
     //Standard generic things - typically around 5 minutes long or so.
-    urls.push_back("http://www.reddit.com/r/videos/top/?sort=top&t=week&limit=100");
-    urls.push_back("http://www.reddit.com/r/youtube/top/?sort=top&t=week&limit=100");
-    urls.push_back("http://www.reddit.com/r/youtubehaiku/top/?sort=top&t=week&limit=100");
+    urls.emplace_back("http://www.reddit.com/r/videos/top/?sort=top&t=week&limit=100");
+    urls.emplace_back("http://www.reddit.com/r/youtube/top/?sort=top&t=week&limit=100");
+    urls.emplace_back("http://www.reddit.com/r/youtubehaiku/top/?sort=top&t=week&limit=100");
 
     //Slightly longer things.
 //    urls.push_back("http://www.reddit.com/r/trailers/top/?sort=top&t=week&limit=100");

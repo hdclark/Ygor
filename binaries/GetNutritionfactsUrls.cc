@@ -16,7 +16,7 @@
 
 int main(int argc, char **argv){
     std::list<std::string> urls;
-    urls.push_back("http://nutritionfacts.org/videos/");
+    urls.emplace_back("http://nutritionfacts.org/videos/");
 
     for(auto & url : urls){
         std::string page = Request_URL(url);

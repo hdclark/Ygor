@@ -38,7 +38,7 @@ bool Plotter::Plot(void){
 
     }
 
-    if( fp != NULL ){
+    if( fp != nullptr ){
         //Now we plot the string.
         fprintf(fp, "%s", plotting_data.c_str());
         plotting_data.clear();
@@ -78,8 +78,8 @@ Plotter2::~Plotter2(){}
 
 //Internal methods. Do not use unless you know what you are doing.
 void Plotter2::Apply_Basic_Header_Customizations(void){
-    this->header.push_back("# set term pdfcairo enhanced color solid font 'cmr10,12' size 7.5in,5.5in"); //Helpful comment.
-    this->header.push_back("# set output ''"); //Helpful comment.
+    this->header.emplace_back("# set term pdfcairo enhanced color solid font 'cmr10,12' size 7.5in,5.5in"); //Helpful comment.
+    this->header.emplace_back("# set output ''"); //Helpful comment.
 
     //this->header.push_back("set term x11"); //I like this better than the default. To go with default comment this out.
 
@@ -118,12 +118,12 @@ void Plotter2::Apply_Basic_Header_Customizations(void){
     //#008B8B - turquise
     //#FFB540 - peachy
 
-    this->header.push_back("set zero 1e-50");
+    this->header.emplace_back("set zero 1e-50");
     return;
 }
 void Plotter2::Apply_Basic_Footer_Customizations(void){
-    this->footer.push_back("# set output"); //Helpful comment.
-    this->footer.push_back("# set term pop"); //Helpful comment.
+    this->footer.emplace_back("# set output"); //Helpful comment.
+    this->footer.emplace_back("# set term pop"); //Helpful comment.
     return;
 }
 void Plotter2::Append_Header(std::stringstream *ss) const {
@@ -281,14 +281,14 @@ void MultiPlotter2::Apply_Basic_Header_Customizations(void){
     //NOTE: We will set multiplot at plot time.
     //this->header.push_back(R"***(set multiplot layout 4,1 title 'Auto-layout of stacked plots\n')***");
 //    this->header.push_back("set tmargin 2");
-    this->header.push_back("# set term pdfcairo enhanced color solid font 'cmr10,12' size 7.5in,5.5in"); //Helpful comment.
-    this->header.push_back("# set output ''"); //Helpful comment.
+    this->header.emplace_back("# set term pdfcairo enhanced color solid font 'cmr10,12' size 7.5in,5.5in"); //Helpful comment.
+    this->header.emplace_back("# set output ''"); //Helpful comment.
     return;
 }
 void MultiPlotter2::Apply_Basic_Footer_Customizations(void){
     //NOTE: We will unset multiplot at plot time.
-    this->footer.push_back("# set output"); //Helpful comment.
-    this->footer.push_back("# set term pop"); //Helpful comment.
+    this->footer.emplace_back("# set output"); //Helpful comment.
+    this->footer.emplace_back("# set term pop"); //Helpful comment.
     return;
 }
 void MultiPlotter2::Append_Header(std::stringstream *ss) const {

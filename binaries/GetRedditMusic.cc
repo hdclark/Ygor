@@ -19,8 +19,8 @@ int main(int argc, char **argv){
     std::list<std::string> urls; 
 
     //Music - mostly single songs, but there are some albums/interviews/behind the scenes things.
-    urls.push_back("http://www.reddit.com/r/classicrock/?sort=top&t=week&limit=100");
-    urls.push_back("http://www.reddit.com/r/boneyard/?limit=100");  //Classic hard rock, rarely updated.
+    urls.emplace_back("http://www.reddit.com/r/classicrock/?sort=top&t=week&limit=100");
+    urls.emplace_back("http://www.reddit.com/r/boneyard/?limit=100");  //Classic hard rock, rarely updated.
 
 
     for(auto & url : urls){

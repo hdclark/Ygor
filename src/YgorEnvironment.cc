@@ -30,10 +30,10 @@
 #include <sys/stat.h>  //Needed for open(3).
 #include <fcntl.h>     //Needed for open(3).
 #include <sys/ioctl.h> //Needed for ioctl() for determining terminal char, framebuffer dims.
-#include <signal.h>    //Needed for system_bash().
+#include <csignal>    //Needed for system_bash().
 #include <sys/wait.h>  //Needed for system_bash().
 #include <sys/types.h> //Needed for system_bash().
-#include <errno.h>     //Needed for system_bash().
+#include <cerrno>     //Needed for system_bash().
 
 #include "YgorMisc.h"    //Needed for Execute_Command_In_Pipe.
 #include "YgorString.h"  //Needed for Xtostring.
@@ -54,7 +54,7 @@ int system_bash(const char *command){
     pid_t childPid;
     int status, savedErrno;
 
-    if (command == NULL)                /* Is a shell available? */
+    if (command == nullptr)                /* Is a shell available? */
         return system_bash(":") == 0;
 
     /* The parent process (the caller of system_bash()) blocks SIGCHLD
@@ -89,13 +89,13 @@ int system_bash(const char *command){
         sigemptyset(&saDefault.sa_mask);
 
         if (saOrigInt.sa_handler != SIG_IGN)
-            sigaction(SIGINT, &saDefault, NULL);
+            sigaction(SIGINT, &saDefault, nullptr);
         if (saOrigQuit.sa_handler != SIG_IGN)
-            sigaction(SIGQUIT, &saDefault, NULL);
+            sigaction(SIGQUIT, &saDefault, nullptr);
 
-        sigprocmask(SIG_SETMASK, &origMask, NULL);
+        sigprocmask(SIG_SETMASK, &origMask, nullptr);
 
-        ::execl("/bin/bash", "bash", "-c", command, (char *) NULL);
+        ::execl("/bin/bash", "bash", "-c", command, (char *) nullptr);
         ::_exit(127);                     /* We could not exec the shell */
 
     default: /* Parent: wait for our child to terminate */
@@ -116,9 +116,9 @@ int system_bash(const char *command){
 
     savedErrno = errno;                 /* The following may change 'errno' */
 
-    sigprocmask(SIG_SETMASK, &origMask, NULL);
-    sigaction(SIGINT, &saOrigInt, NULL);
-    sigaction(SIGQUIT, &saOrigQuit, NULL);
+    sigprocmask(SIG_SETMASK, &origMask, nullptr);
+    sigaction(SIGINT, &saOrigInt, nullptr);
+    sigaction(SIGQUIT, &saOrigQuit, nullptr);
 
     errno = savedErrno;
 

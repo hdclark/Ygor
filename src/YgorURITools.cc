@@ -68,7 +68,7 @@ std::list<std::pair<std::string, std::string> > Get_Links(const std::string &sou
             const std::string thetext = get_child_content(dom, it);
  
             if(!thelink.empty()){
-                out.push_back( { thelink, thetext } );
+                out.emplace_back( thelink, thetext );
             }
         }
     }
@@ -103,7 +103,7 @@ std::list<std::pair<std::string, std::string> > Get_Tags_Attributes(const std::s
 
             //NOTE: Some tags may not contain any text. Do not filter on absence of text!
             if(!theattr.empty()){
-                out.push_back( { theattr, thetext } );
+                out.emplace_back( theattr, thetext );
             }
         }
     }
@@ -137,7 +137,7 @@ std::list<std::pair<std::string, std::string> > Clean_Links(const std::list<std:
         }
 
         //Push back the link.
-        fixedlinks.push_back( { thelink, thetext } );
+        fixedlinks.emplace_back( thelink, thetext );
     }
 
     return fixedlinks;
@@ -178,7 +178,7 @@ std::list<std::pair<std::string, std::string> > Filter_Whitelist_Links(const std
         if(!text_regex.empty() && (GetFirstRegex(thetext, text_regex)).empty()) continue;
 
         //Push back the link.
-        out.push_back( { thelink, thetext } );
+        out.emplace_back( thelink, thetext );
     }
     return out;
 }
@@ -193,7 +193,7 @@ std::list<std::pair<std::string, std::string> > Filter_Blacklist_Links(const std
         if(!text_regex.empty() && !(GetFirstRegex(thetext, text_regex)).empty()) continue;
 
         //Push back the link.
-        out.push_back( { thelink, thetext } );
+        out.emplace_back( thelink, thetext );
     }
     return out;
 }

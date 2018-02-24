@@ -85,8 +85,8 @@
 #include <chrono>
 
 #include <unistd.h>              //Needed for, amongst other things, fcntl().
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include <sys/ioctl.h>           //Needed for ioctl() for getting server address from within server code.
 #include <net/if.h>              //Needed (along with ioctl()).
 #include <sys/types.h>
@@ -95,7 +95,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
-#include <signal.h>
+#include <csignal>
 #include <sys/mman.h>            //Needed for mmap()
 #include <sched.h>               //Needed for unshare()
 #include <fcntl.h>               //Needed for fcntl()
@@ -109,7 +109,7 @@
 
 
 //#include <malloc.h>    ///-------\/
-#include <stdlib.h>  //Clang 4.3 on FreeBSD: '/usr/include/malloc.h:3:2: error: "<malloc.h> has been replaced by <stdlib.h>"'
+#include <cstdlib>  //Clang 4.3 on FreeBSD: '/usr/include/malloc.h:3:2: error: "<malloc.h> has been replaced by <stdlib.h>"'
 
 //For FreeBSD missing IPV6_ADD_MEMBERSHIP.
 //See: http://code.dyne.org/hdsync/plain/src/pgm/sockaddr.c for origin of this blurb.
@@ -397,13 +397,13 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP4_Addresses(void)
         int family = ifa->ifa_addr->sa_family;
         if(family == AF_INET){
             const auto size = sizeof(struct sockaddr_in);
-            int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+            int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
             if(s != 0){
                 if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP4 addresses (err 2) - continuing");
                 freeifaddrs(ifaddr);
                 return out;
             }
-            out.push_back(std::pair<std::string, std::string>(ifa->ifa_name, host));
+            out.emplace_back(ifa->ifa_name, host);
         }
     }
     freeifaddrs(ifaddr);
@@ -424,13 +424,13 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP6_Addresses(void)
         int family = ifa->ifa_addr->sa_family;
         if(family == AF_INET6){
             const auto size = sizeof(struct sockaddr_in6);
-            int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+            int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
             if(s != 0){
                 if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP6 addresses (err 2) - continuing");
                 freeifaddrs(ifaddr);
                 return out;
             }
-            out.push_back(std::pair<std::string, std::string>(ifa->ifa_name, host));
+            out.emplace_back(ifa->ifa_name, host);
         }
     }
     freeifaddrs(ifaddr);
@@ -473,7 +473,7 @@ std::list<std::pair<std::string, std::string>> Get_All_Distant_IP_Addresses(void
         if(!address.empty()){
             //Check if the address already exists in the set. If so, it is probably correct.
             if(candidates.find(address) != candidates.end()){
-                out.push_back(std::pair<std::string, std::string>("", address));
+                out.emplace_back("", address);
                 return out;
 
             //Otherwise, keep going until we find a match.
@@ -591,7 +591,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     this->SERVER_hints.ai_flags      = AI_PASSIVE;     //Use my IP
 
     const std::string PORT_STRING = Xtostring<long int>(this->SERVER_PORT);
-    if((this->SERVER_rv = getaddrinfo(NULL, PORT_STRING.c_str(), &this->SERVER_hints, &this->SERVER_servinfo)) != 0) {
+    if((this->SERVER_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->SERVER_hints, &this->SERVER_servinfo)) != 0) {
         if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->SERVER_rv) << ". Unable to initialize server");
         freeaddrinfo(this->SERVER_servinfo);
         return false;
@@ -655,12 +655,12 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     }
 
     //"Reap" all dead processes.
-    auto handler_lambda = [](int s) -> void {  while(waitpid(-1, NULL, WNOHANG) > 0){ }; };
+    auto handler_lambda = [](int s) -> void {  while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
     this->SERVER_sa.sa_handler = handler_lambda; //[](int s) -> void {  while(waitpid(-1, NULL, WNOHANG) > 0){
 
     sigemptyset(&this->SERVER_sa.sa_mask);
     this->SERVER_sa.sa_flags = SA_RESTART;
-    if(sigaction(SIGCHLD, &this->SERVER_sa, NULL) == -1){
+    if(sigaction(SIGCHLD, &this->SERVER_sa, nullptr) == -1){
         if(YGORNETWORKING_VERBOSE) FUNCWARN("Server sigaction issue. Unable to initialize server");
         return false;
     }
@@ -1363,7 +1363,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     this->RADIO_hints.ai_flags      = AI_PASSIVE;
 
     const std::string PORT_STRING = Xtostring<long int>(this->RADIO_PORT);
-    if((this->RADIO_rv = getaddrinfo(NULL, PORT_STRING.c_str(), &this->RADIO_hints, &this->RADIO_servinfo)) != 0) {
+    if((this->RADIO_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->RADIO_hints, &this->RADIO_servinfo)) != 0) {
         if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to initialize radio");
         freeaddrinfo(this->RADIO_servinfo);
         return false;
@@ -1410,12 +1410,12 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     signal(SIGPIPE, SIG_IGN);
 
     //"Reap" all dead processes.
-    auto handler_lambda = [](int s) -> void { while(waitpid(-1, NULL, WNOHANG) > 0){ }; };
+    auto handler_lambda = [](int s) -> void { while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
     this->RADIO_sa.sa_handler = handler_lambda;
 
     sigemptyset(&this->RADIO_sa.sa_mask);
     this->RADIO_sa.sa_flags = SA_RESTART;
-    if(sigaction(SIGCHLD, &this->RADIO_sa, NULL) == -1){
+    if(sigaction(SIGCHLD, &this->RADIO_sa, nullptr) == -1){
         if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio sigaction issue. Unable to initialize radio");
         return false;
     }
