@@ -299,7 +299,10 @@ template <class T>   class contour_of_points {
 
         //Check if the given point lies in a 2D polygon defined by the orthogonal projection (of both contour and point) onto a given plane.
         // This routine entirely ignores the direction orthogonal to the plane, so filter contours at the wrong 'height' beforehand for 3D!
-        bool Is_Point_In_Polygon_Projected_Orthogonally(const plane<T> &plane, const vec3<T> &point, bool AlreadyProjected = false) const;
+        bool Is_Point_In_Polygon_Projected_Orthogonally(const plane<T> &plane, 
+                                                        const vec3<T> &point, 
+                                                        bool AlreadyProjected = false,
+                                                        T boundary_eps = std::sqrt(std::numeric_limits<T>::epsilon())) const;
 
 
 

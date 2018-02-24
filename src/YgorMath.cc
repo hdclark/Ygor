@@ -3417,7 +3417,8 @@ template <class T> contour_of_points<T> contour_of_points<T>::Project_Onto_Plane
 template <class T> 
 bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plane<T> &plane, 
                                                                       const vec3<T> &point,
-                                                                      bool AlreadyProjected) const {
+                                                                      bool AlreadyProjected,
+                                                                      T boundary_eps) const {
     if(!this->closed) FUNCERR("Cannot perform test if a point is 'inside' a polygon if the polygon is open. Cannot continue");
 
     //Project the contour data and user-provided point onto the plane if needed. The direction along the normal is ignored, making
@@ -3473,6 +3474,15 @@ bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plan
         const auto qbX = ((*B_it) - plane.R_0).Dot(plane_x_unit);
         const auto qbY = ((*B_it) - plane.R_0).Dot(plane_y_unit);
 
+        const vec3<T> a2D(qaX, qaY, static_cast<T>(0));
+        const vec3<T> b2D(qbX, qbY, static_cast<T>(0));
+        const vec3<T> p2D( pX,  pY, static_cast<T>(0));
+        const line_segment<T> l2D(a2D, b2D);
+        if(l2D.Within_Cylindrical_Volume(p2D,boundary_eps)){  // Should have spherical caps, but more expensive.
+            is_in_the_polygon = true;
+            break;
+        }
+
         //We divide all of space into two parts: 
         //  1. between the y-coords of A and B (regardless of the x-coords, inclusive to only one of the
         //     points so we don't double-count any points that lie on the boundary) which forms a band, and
@@ -3485,60 +3495,18 @@ bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plan
         if( ((qaY <= pY) && (pY < qbY))     //(Orientation a.)
         ||  ((qbY <= pY) && (pY < qaY)) ){  //(Orientation b.)
 
-            //Original, mangled code.
             const auto BB = (pY - qaY) * ((qbX - qaX)/(qbY - qaY));
             if(pX < (BB + qaX)) is_in_the_polygon = !is_in_the_polygon;
-            continue;
-
-            //Now that we know the user's point is within the band somewhere, we want to know which side of
-            // the line segment A-B that partitions the band into 'left' and 'right' regions it is in.
-            //
-            // There are many ways to do this. One way is to compare the slope of the line from A to the 
-            // user's point to the slope of the line from A to B. It avoids having to interpolate along the
-            // line, but introduces the potential for the slopes to blow up if the user's point happens to
-            // coincide with an endpoint. This is what is done here, but some logic is used to catch the
-            // problematic situations. For one, we compare inverse slopes because the line segment denom
-            // *should* be finite due to the earlier semi-inclusive boundary check.
-            //
-            // We choose having the user's point to the right of the line segment as the toggling condition.
-            auto topY = std::max(qaY,qbY);
-            auto topX = (qaY > qbY) ? qaX : qbX;
-            auto btmY = std::min(qaY,qbY);
-            auto btmX = (qaY > qbY) ? qbX : qaX;
-
-            //auto BA_inv_slope = (qbX - qaX) / (qbY - qaY);
-            //auto UA_inv_slope = ( pX - qaX) / ( pY - qaY);
-            auto BA_inv_slope = (btmX - topX) / (btmY - topY);
-            auto UA_inv_slope = (  pX - topX) / (  pY - topY);
-
-            //Special case 1. The line segment is effectively vertical. Just check if the user's point is to
-            // the right of the segment. In this case, because we are dealing at the limits of the floating
-            // point precision, I believe it is legitimate to just compare the average endpoint boundary 
-            // value to be unbiased and boundary-inclusive.
-            if(!std::isfinite(BA_inv_slope)){
-                if(pX >= ((T)(0.5)*qaX + (T)(0.5)*qbX)) is_in_the_polygon = !is_in_the_polygon;
-
-            //Special case 2. The line segment is OK, but the other slope is not. This means it lies on the
-            // boundary of the band defined by line segment endpoint A. Simply compare x-coords. 
-            }else if(!std::isfinite(UA_inv_slope)){
-                if(pX >= topX) is_in_the_polygon = !is_in_the_polygon;
-
-            //Regular case.
-            }else{
-                if(BA_inv_slope >= UA_inv_slope) is_in_the_polygon = !is_in_the_polygon;
-            }
-
-            //Original, highly mangled code. Seems to work, but is opaque regarding boundaries.
-            //const auto BB = (pY - qaY) * ((qbX - qaX)/(qbY - qaY));
-            //if(pX < (BB + qaX)) is_in_the_polygon = !is_in_the_polygon;
         }
     }
 
     return is_in_the_polygon;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template bool contour_of_points<float >::Is_Point_In_Polygon_Projected_Orthogonally(const plane<float > &plane, const vec3<float > &point, bool) const;
-    template bool contour_of_points<double>::Is_Point_In_Polygon_Projected_Orthogonally(const plane<double> &plane, const vec3<double> &point, bool) const;
+    template bool contour_of_points<float >::Is_Point_In_Polygon_Projected_Orthogonally(
+        const plane<float > &plane, const vec3<float > &point, bool, float ) const;
+    template bool contour_of_points<double>::Is_Point_In_Polygon_Projected_Orthogonally(
+        const plane<double> &plane, const vec3<double> &point, bool, double) const;
 #endif
 
 template <class T> contour_of_points<T> &  contour_of_points<T>::operator=(const contour_of_points<T> &rhs) {
