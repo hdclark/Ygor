@@ -9,6 +9,7 @@ target_include_directories(fits_replace_nans
 target_link_libraries(fits_replace_nans
     ygor
     m
+    Threads::Threads
 )
 
 add_executable(twot_pvalue
@@ -20,6 +21,7 @@ target_include_directories(twot_pvalue
 target_link_libraries(twot_pvalue
     ygor
     m
+    Threads::Threads
 )
 
 add_executable(regex_tester
@@ -31,6 +33,7 @@ target_include_directories(regex_tester
 target_link_libraries(regex_tester
     ygor
     m
+    Threads::Threads
 )
 
 
@@ -44,6 +47,7 @@ target_link_libraries(getredditurls
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 add_executable(getredditmusic
@@ -56,6 +60,7 @@ target_link_libraries(getredditmusic
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 add_executable(getredditmovies
@@ -68,6 +73,7 @@ target_link_libraries(getredditmovies
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 add_executable(getvideosifturls
@@ -80,6 +86,7 @@ target_link_libraries(getvideosifturls
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 add_executable(getvimeourls
@@ -92,6 +99,7 @@ target_link_libraries(getvimeourls
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 
@@ -105,6 +113,7 @@ target_link_libraries(geturls
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 
@@ -118,6 +127,7 @@ target_link_libraries(getnutritionfactsurls
     ygor
     htmlcxx
     m
+    Threads::Threads
 )
 
 

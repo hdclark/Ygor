@@ -20,6 +20,7 @@ target_link_libraries(ygor
     gsl
     gslcblas
     m
+    Threads::Threads
 )
 
 # Installation info.
