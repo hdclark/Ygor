@@ -254,7 +254,7 @@ template <class T>   class contour_of_points {
 
         //Constructors.
         contour_of_points();
-        contour_of_points(const std::list<vec3<T>> &points);
+        contour_of_points(std::list<vec3<T>> points);
         contour_of_points(const contour_of_points<T> &in);
 
         //Member functions.
@@ -357,7 +357,7 @@ template <class T>   class contour_collection {
         //Constructors.
         contour_collection();
         contour_collection(const contour_collection<T> &);
-        contour_collection(const std::list<contour_of_points<T>> &);
+        contour_collection(std::list<contour_of_points<T>> );
 
         //Member functions.
         void Consume_Contours(contour_collection<T> &);
@@ -625,7 +625,7 @@ template <class T> class samples_1D {
         //-------------------------------------------------- Constructors --------------------------------------------------
         samples_1D();
         samples_1D(const samples_1D<T> &in);
-        samples_1D(const std::vector<std::array<T,4>> &samps);
+        samples_1D(std::vector<std::array<T,4>> samps);
 
         //Providing [x_i, f_i] data. Assumes sigma_x_i and sigma_f_i uncertainties are (T)(0).
         samples_1D(const std::list<vec2<T>> &samps);

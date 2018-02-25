@@ -151,8 +151,7 @@ template <class T> std::unique_ptr<T[]> Get_Piece_of_Binary_File(const std::stri
     intmax_t l_size = static_cast<intmax_t>(in.tellg());  //Grab the size of the binary file in bytes.
     if(l_size < (N+L)) return nullptr;
 
-    std::unique_ptr<T[]> mem;
-    mem.reset( new T [L/sizeof(T)] );
+    auto mem = std::make_unique<T[]>(L/sizeof(T));
 
     in.seekg(0,std::ios::beg);
     in.seekg(N);
@@ -258,7 +257,6 @@ bool File_Is_Recursively_Within_Directory(const std::string &filename_in, const 
 template <class T> std::unique_ptr<T[]> Load_Binary_File(const std::string &filename_in, intmax_t *size){
     if(size == nullptr) return nullptr;
     (*size) = 0;  //Just in case we run into an error and have to exit prematurely..
-    std::unique_ptr<T[]> mem;
 
     //Load the file into memory.
     std::ifstream in(filename_in.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
@@ -287,8 +285,8 @@ template <class T> std::unique_ptr<T[]> Load_Binary_File(const std::string &file
       }
     }
 
-    mem.reset( new T [l_size/sizeof(T)] );      //Allocate space for the entire block to be pulled into memory.
-    in.seekg(0, std::ios::beg);                 //Seek back to the beginning.
+    auto mem = std::make_unique<T[]>( l_size/sizeof(T) ); //Allocate space for the entire block to be pulled into memory.
+    in.seekg(0, std::ios::beg);  //Seek back to the beginning.
     in.read((char *)(mem.get()), static_cast<std::streamsize>(l_size));  //Read the entire file in (in one go.)
     in.close();
 

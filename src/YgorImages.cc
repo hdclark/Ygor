@@ -6,6 +6,7 @@
 #include <cmath>      //For std::round(...)
 #include <algorithm>
 #include <list>
+#include <utility>
 #include <vector>
 #include <functional>
 #include <stdexcept>
@@ -1716,13 +1717,13 @@ template <class T,class R> planar_image_collection<T,R>::planar_image_collection
     template planar_image_collection<float   ,double>::planar_image_collection(const planar_image_collection<float   ,double> &in);
 #endif
 
-template <class T,class R> planar_image_collection<T,R>::planar_image_collection(const std::list<planar_image<T,R>> &in) : images(in) {}
+template <class T,class R> planar_image_collection<T,R>::planar_image_collection(std::list<planar_image<T,R>> in) : images(std::move(in)) {}
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template planar_image_collection<uint8_t ,double>::planar_image_collection(const std::list<planar_image<uint8_t ,double>> &in);
-    template planar_image_collection<uint16_t,double>::planar_image_collection(const std::list<planar_image<uint16_t,double>> &in);
-    template planar_image_collection<uint32_t,double>::planar_image_collection(const std::list<planar_image<uint32_t,double>> &in);
-    template planar_image_collection<uint64_t,double>::planar_image_collection(const std::list<planar_image<uint64_t,double>> &in);
-    template planar_image_collection<float   ,double>::planar_image_collection(const std::list<planar_image<float   ,double>> &in);
+    template planar_image_collection<uint8_t ,double>::planar_image_collection(std::list<planar_image<uint8_t ,double>> in);
+    template planar_image_collection<uint16_t,double>::planar_image_collection(std::list<planar_image<uint16_t,double>> in);
+    template planar_image_collection<uint32_t,double>::planar_image_collection(std::list<planar_image<uint32_t,double>> in);
+    template planar_image_collection<uint64_t,double>::planar_image_collection(std::list<planar_image<uint64_t,double>> in);
+    template planar_image_collection<float   ,double>::planar_image_collection(std::list<planar_image<float   ,double>> in);
 #endif
 
 //Member functions.

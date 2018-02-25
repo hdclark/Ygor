@@ -14,6 +14,7 @@
 #include <string>      //Needed for stringification routines.
 #include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
 #include <limits>      //Needed for std::numeric_limits::max().
+#include <utility>
 #include <vector>
 #include <iomanip>     //Needed for std::setw() for pretty-printing.
 #include <utility>     //Needed for std::pair.
@@ -1605,10 +1606,10 @@ template <class T>    contour_of_points<T>::contour_of_points() : closed(false) 
     template contour_of_points<double>::contour_of_points(void);
 #endif
 
-template <class T>    contour_of_points<T>::contour_of_points(const std::list<vec3<T>> &in_points) : points(in_points), closed(false) { }
+template <class T>    contour_of_points<T>::contour_of_points(std::list<vec3<T>> in_points) : points(std::move(in_points)), closed(false) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_of_points<float>::contour_of_points(const std::list<vec3<float> > &in_points);
-    template contour_of_points<double>::contour_of_points(const std::list<vec3<double> > &in_points);
+    template contour_of_points<float>::contour_of_points(std::list<vec3<float> > in_points);
+    template contour_of_points<double>::contour_of_points(std::list<vec3<double> > in_points);
 #endif
 
 template <class T>    contour_of_points<T>::contour_of_points(const contour_of_points<T> &in){ // : points(in.points), closed(in.closed), metadata(in.metadata) { }
@@ -3897,10 +3898,10 @@ template <class T>    contour_collection<T>::contour_collection(const contour_co
     template contour_collection<double>::contour_collection(const contour_collection<double> &in);
 #endif        
 
-template <class T>    contour_collection<T>::contour_collection(const std::list<contour_of_points<T>> &in) : contours(in) { }
+template <class T>    contour_collection<T>::contour_collection(std::list<contour_of_points<T>> in) : contours(std::move(in)) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_collection<float >::contour_collection(const std::list<contour_of_points<float >> &in);
-    template contour_collection<double>::contour_collection(const std::list<contour_of_points<double>> &in);
+    template contour_collection<float >::contour_collection(std::list<contour_of_points<float >> in);
+    template contour_collection<double>::contour_collection(std::list<contour_of_points<double>> in);
 #endif
 
 
@@ -5091,13 +5092,13 @@ template <class T> samples_1D<T>::samples_1D(const std::list<vec2<T>> &in_samps)
     template samples_1D<double>::samples_1D(const std::list< vec2<double>> &in_points);
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T>::samples_1D(const std::vector<std::array<T,4>> &in_samps) : samples(in_samps) { 
+template <class T> samples_1D<T>::samples_1D(std::vector<std::array<T,4>> in_samps) : samples(std::move(in_samps)) { 
     this->stable_sort();
     return;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float >::samples_1D(const std::vector<std::array<float ,4>> &in_samps);
-    template samples_1D<double>::samples_1D(const std::vector<std::array<double,4>> &in_samps);
+    template samples_1D<float >::samples_1D(std::vector<std::array<float ,4>> in_samps);
+    template samples_1D<double>::samples_1D(std::vector<std::array<double,4>> in_samps);
 #endif
 
 

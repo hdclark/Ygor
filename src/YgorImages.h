@@ -260,7 +260,7 @@ template <class T,class R>   class planar_image_collection {
         //Constructors.
         planar_image_collection();
         planar_image_collection(const planar_image_collection<T,R> &);
-        planar_image_collection(const std::list<planar_image<T,R>> &);
+        planar_image_collection(std::list<planar_image<T,R>> ); 
 
         //Member functions.
         planar_image_collection & operator=(const planar_image_collection &); //Performs a deep copy (unless copying self).

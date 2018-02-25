@@ -1,6 +1,7 @@
 //YgorAlgorithms.cc.
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <functional>
 #include <list>
@@ -773,14 +774,13 @@ Ygor_Fit_Driver(bool *wasOK,
 
     //----------------- Minimization Setup -----------------
     //These are the parameters which will be passed in to the function.
-    std::unique_ptr<double> min_params = nullptr;
-    min_params.reset(new double[numb_of_fit_parameters]);
+    auto min_params = std::make_unique<double[]>(numb_of_fit_parameters);
     
     //Fill the parameters with some best-guesses.
     {
       auto varit = vars.begin();
       for(size_t i=0; i<numb_of_fit_parameters; ++i, ++varit){
-          (min_params.get())[i] = *varit;
+          min_params[i] = *varit;
       }
     }
 
@@ -813,7 +813,7 @@ Ygor_Fit_Driver(bool *wasOK,
     std::list<double> best_params;
     minimizer.get_params(min_params.get());
     for(size_t i=0; i<numb_of_fit_parameters; ++i){
-        best_params.push_back( (min_params.get())[i] );
+        best_params.push_back( min_params[i] );
     }
 
     //------------ output synthesis ------------- 

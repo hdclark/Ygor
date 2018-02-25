@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <sys/time.h>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <ctime>
@@ -377,7 +378,7 @@ time_mark::Serialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, 
     //If the buffer is not yet allocated, allocate an appropriately-sized buffer.
     if(in == nullptr){
         *buf_size = this->Theo_Max_Serialization_Size();
-        in.reset( new uint8_t[ *buf_size ] );
+        in = std::make_unique<uint8_t[]>( *buf_size );
         *offset = 0;
     }
     

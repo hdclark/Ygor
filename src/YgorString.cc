@@ -5,6 +5,7 @@
 //#endif
 
 #include <iostream>
+#include <memory>
 #include <string>
 #include <map>
 #include <vector>
@@ -118,7 +119,7 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
         return std::move(out);
     }
 
-    out.reset( new T [l_size/sizeof(T)] );      //Allocate space for the entire block to be pulled into memory.
+    out = std::make_unique<T[]>( l_size/sizeof(T) );      //Allocate space for the entire block to be pulled into memory.
     memcpy((void *)(out.get()), (void *)(in.data()), l_size);
     *size = static_cast<uint64_t>(l_size/sizeof(T));
     if(OK != nullptr) *OK = true;
