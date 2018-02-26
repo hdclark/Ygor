@@ -56,24 +56,18 @@ long int NGram_Match_Count(const std::set<std::string> &A, const std::set<std::s
 
 
 //-------------------------------------------------------------------------------------------------------------------------------
-//--------------------------------------------- Substring and Subsequence routines ----------------------------------------------
+//----------------------------------------------------- Substring routines ------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
 //Returns (one of) the longest common sequential substring(s). ie. 'ABCDEF' and 'ACDEF' gives 'CDEF'.
 // If there are multiples, it is not specified which will be returned.
 std::string ALongestCommonSubstring(const std::string &A, const std::string &B);
-//std::string LongestCommonSubstrings(const std::string &A, const std::string &B);
-
-//Returns (one of) the longest common subsequence(s). ie. 'ABCDEF' and 'ACDEF' gives 'ACDEF'.
-// If there are multiples, it is not specified which will be returned.
-std::string ALongestCommonSubsequence(const std::string &A, const std::string &B);
-//std::string LongestCommonSubsequences(const std::string &A, const std::string &B);
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------- Common text transformations ------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
 namespace CANONICALIZE {  //Canonicalization masks. Use several by bit-ORing ('|') them together.
     const unsigned char TO_UPPER  =  1;  //Uppercase the characters, if possible.
-    const unsigned char LOCALIZE  =  2;  //Transform the letters to the current locale.
+    const unsigned char LOCALIZE  =  2;  //Transform the letters to the current locale.    Currently a no-op.
     const unsigned char TRIM_ENDS =  4;  //Trim whitespace to the left of first, to the right of last char.
     const unsigned char TRIM      =  8;  //Trim the edges and shrink long whitespace to a single space.
     const unsigned char TRIM_ALL  = 16;  //Remove ALL whitespace.
@@ -81,7 +75,7 @@ namespace CANONICALIZE {  //Canonicalization masks. Use several by bit-ORing ('|
     const unsigned char TO_NUM    = 64;  //Remove all non [ 0-9.-] characters.
     const unsigned char TO_NUMAZ  = 128; //Remove all non [ A-Za-z0-9.-] characters.
 }
-std::string & Canonicalize_String(std::string &, const unsigned char &mask);
+void Canonicalize_String(std::string &, const unsigned char &mask);
 std::string Canonicalize_String2(const std::string &in, const unsigned char &mask);  //<--- prefer this version
 
 std::string Detox_String(const std::string &in); //Attempt to ~intelligently replace non-simple chars like spaces and commas.

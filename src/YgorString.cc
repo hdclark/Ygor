@@ -292,16 +292,6 @@ long int NGram_Match_Count(const std::set<std::string> &A, const std::set<std::s
 //Returns (one of) the longest common sequential substring(s). ie. 'ABCDEF' and 'ACDEF' gives 'CDEF'.
 // If there are multiples, it is not specified which will be returned.
 std::string ALongestCommonSubstring(const std::string &A, const std::string &B){
-
-//Issues with this routine: there could be many ties for the 'longest' common substring. Which do we return?
-//
-// Examples:
-//  "ABCDEF_FEDCBA" and "CDEFED" could return "CDE" or "FED". Both are substrings and have equal length.
-//  "ABCDEFABC" and "ABC" will uniquely return "ABC". But there are two such substrings. This may be relevant.
-//
-// The code below finds one of the longest substrings (I think). If the user doesn't care (often the case) and
-// still chooses to use this routine, then so be it!
-
     if(A.empty() || B.empty()) return "";
     if(B.size() > A.size()) return ALongestCommonSubstring(B,A); //Less memory usage.
 
@@ -332,40 +322,14 @@ std::string ALongestCommonSubstring(const std::string &A, const std::string &B){
     }
     return out;
 }
-//std::string LongestCommonSubstrings(const std::string &A, const std::string &B){
-    // Ideally, you should provide another routine that returns a list/vector of substrings. Sorted in some specified order. Do not unique them.
-    // Provide a few additional routines for 
-    //   (1) get only the first encountered longest.
-    //   (2) get the alphanumerically-sorted first.
-    //   (3) get the length of the longest substring. (This will be unique and can make direct use of this code if needed.)
-    //
-    // Might as well tackle ALongestCommonSubsequence() while you're working on this function.
-    // See it below. It has the same issues. It might be even worse to figure out, though.
-//}
-
-
-//Returns (one of) the longest common subsequence(s). ie. 'ABCDEF' and 'ACDEF' gives 'ACDEF'.
-// If there are multiples, it is not specified which will be returned.
-std::string ALongestCommonSubsequence(const std::string &A, const std::string &B){
-
-    FUNCERR("HAVE NOT YET IMPLEMENTED THIS ROUTINE!");
-
-    return "";
-}
-//std::string LongestCommonSubsequences(const std::string &A, const std::string &B);
 
 
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------- Common text transformations ------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
-//This function transforms a given string into the 'canonical' format. This *should* involve handling
-// spurious whitespace and transforming to a specific encoding. Future work can fine-tune this, though.
-// All strings 'from the wild' are passed through this filter.
-[[deprecated("Canonicalize_String(...) is deprecated in favour of Canonicalize_String2(...)")]]
-std::string & Canonicalize_String(std::string &in, const unsigned char &opts){
-
-    //This function can be used as a filter OR as a pass-in-and-act-on-it function.
+//This function transforms a given string into a 'canonical' format.
+void Canonicalize_String(std::string &in, const unsigned char &opts){
 
     //Transform to all upper case.
     if( (opts & CANONICALIZE::TO_UPPER) == CANONICALIZE::TO_UPPER ){
@@ -383,7 +347,7 @@ std::string & Canonicalize_String(std::string &in, const unsigned char &opts){
 
     //Localization, transformation to particular encoding.
     if( (opts & CANONICALIZE::LOCALIZE) == CANONICALIZE::LOCALIZE ){
-        // ...
+        // Currently a no-op.
     }
 
 
@@ -391,7 +355,7 @@ std::string & Canonicalize_String(std::string &in, const unsigned char &opts){
     if( (opts & CANONICALIZE::TRIM) == CANONICALIZE::TRIM ){
         //stringstream >> will spit out an empty string if there is trailing space. This routine *requires* such space!
         std::stringstream ss(in+" ");
-        if(!ss.good()) return in;
+        if(!ss.good()) throw std::runtime_error("Cannot construct a valid stringstream");
         in.clear();
         std::string temp;
         ss >> temp;
@@ -468,11 +432,10 @@ std::string & Canonicalize_String(std::string &in, const unsigned char &opts){
 
     // ...
 
-    return in;
+    return;
 }
 
-//Prefer this function to the other. Eventually, move the other function here and remove it.
-// I don't think it works out being any faster to deal with references because of r-values.
+//Prefer this function to the other.
 std::string Canonicalize_String2(const std::string &in, const unsigned char &mask){
     std::string temp(in);
     Canonicalize_String(temp, mask);

@@ -16,14 +16,5 @@ int main(int argc, char **argv){
     FUNCINFO("Total system RAM is: " << Amount_Of_Total_Memory_MB() );
     FUNCINFO("Total unclaimed RAM is: " << Amount_Of_Totally_Free_Memory_MB() );
 
-
-    //Test sending a simple email.
-/*
-DEPRECATED!
-
-    if(!Send_Simple_SMTP_Email("hdeanclark@gmail.com", "Testing the simple email routine", "This is my test email.\nThis is a new line.\n    This is an indented newline.")){
-        FUNCWARN("Email was unable to be sent");
-    }
-*/
     return 0;
 }

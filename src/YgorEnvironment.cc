@@ -5,19 +5,7 @@
 #include <string>
 #include <utility>     //Needed for std::pair.
 
-//#include <malloc.h>
-//#include <climits>
-
 #include <unistd.h>
-
-//#if HAVE_UNISTD_H
-//    //For Linux.
-//    //#include <unistd.h>
-//    #include <cunistd>
-//#else
-//    #error "Unable to use unistd.h. No fork() definition available"
-//
-//#endif
 
 #ifdef __linux__
     #include <linux/fb.h>  //Needed for Linux framebuffer ioctl and struct definitions.
@@ -134,53 +122,6 @@ void Wait_For_Enter_Press(void){
         fflush( stdout );
     }while((c != '\n') && (c != EOF));
     return;
-}
-
-
-//--------------------------------------------------------------------------------------------------------
-//----------------------------------------- Simple Email Sending -----------------------------------------
-//--------------------------------------------------------------------------------------------------------
-bool Send_Simple_SMTP_Email(const std::string &TO, const std::string &subject, const std::string &msg){
-    FUNCWARN("This function is deprecated due to irreconcilable architectural issues. Consider a more generic messaging system...")
-
-//    std::stringstream content;
-//    content << "From: simplesender@lavabit.com" << std::endl;
-//    content << "To: " << TO << std::endl;
-//    content << "Subject: " << subject << std::endl;
-//    content << std::endl;
-//    content << msg;
-//    const std::string filtered = PurgeCharsFromString(content.str(), "'");
-//
-//    std::string command, output;
-//
-//    //First, we try curl.
-//    //echo "Hopefully it works" | curl --user simplesender:3PKj3sMhe4te6Tv --ssl-reqd --mail-from "simplesender@lavabit.com" --mail-rcpt "hdeanclark@gmail.com" --url smtps://lavabit.com:465 --libcurl /tmp/curly
-//    command += "echo "_s + Quote_Static_for_Bash(filtered) + " | ";
-//    command += "curl -s -S --user simplesender:3PKj3sMhe4te6Tv ";
-//    command += " --ssl-reqd --insecure ";
-//    command += " --mail-from 'simplesender@lavabit.com' --mail-rcpt ";
-//    command += Quote_Static_for_Bash(TO) + " --url 'smtps://lavabit.com:465' 2>&1 ";
-//
-//    output = Execute_Command_In_Pipe(command);
-//    if(output.empty()) return true;
-//    command.clear();
-//
-//    //If that doesn't work, try mailx.
-//    //echo "Mailx is pretty sweet" | mailx -S from='simplesender@lavabit.com' -S smtp='smtps://lavabit.com:465' -S smtp-auth='login' -S smtp-auth-user='simplesender@lavabit.com' -S smtp-auth-password='3PKj3sMhe4te6Tv' -s 'Ygor Subject' 'hdeanclark@gmail.com'
-//    command += "echo "_s + Quote_Static_for_Bash(filtered) + " | ";
-//    command += "mailx -S from='simplesender@lavabit.com' -S smtp='smtps://lavabit.com:465' -S smtp-auth='login' -S smtp-auth-user='simplesender@lavabit.com' -S smtp-auth-password='3PKj3sMhe4te6Tv' ";
-//    command += " -s "_s + Quote_Static_for_Bash(subject) + " ";
-//    command += " "_s + Quote_Static_for_Bash(TO) + " 2>&1 ";
-//
-//    output = Execute_Command_In_Pipe(command);
-//    if(output.empty()) return true;
-//    command.clear();
-//
-//    //Didn't work!
-//    return false;
-//
-    //Deprecated!
-    return false;
 }
 
 
