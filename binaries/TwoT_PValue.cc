@@ -5,7 +5,7 @@
 #include "YgorStats.h"
 
 
-int main(int argc, char **argv){
+int main(int  /*argc*/, char ** /*argv*/){
     FUNCINFO("This program takes six consequtive numbers: ");
     FUNCINFO("  <mean A>  <var A>  <N A>   <mean B>  <var B>  <N B> ");
     FUNCINFO(" and spits out the two-tailed, unequal-variance P value denoting whether ");

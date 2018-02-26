@@ -830,7 +830,7 @@ template <class T> bool Is_String_An_X(const std::string &text){
     template bool  Is_String_An_X<unsigned long int>(const std::string &);
     template bool  Is_String_An_X<unsigned long long int>(const std::string &);
 
-    template<> bool Is_String_An_X<std::string>(const std::string &in){ return true; }
+    template<> bool Is_String_An_X<std::string>(const std::string & /*in*/){ return true; }
 #endif
 
 //This is useful for parsing a config file. Provide a key like "aval = " and if the line is "aval = 6" then you'll

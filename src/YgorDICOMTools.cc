@@ -161,7 +161,7 @@ if( A.i == static_cast<uint32_t>(1323014)     ) return false;    //Found in RS f
 
 //This is a sort of heuristic function - it attempts to 'guess' whether or not the given B contains a two-byte 'data length' integer.
 // This is a typical thing for a few elements near the header, but is rarely (if ever?) found in the body of a DICOM file. 
-bool Do_Last_Two_Bytes_of_B_Denote_A_Size( const large &A, const large &B ){
+bool Do_Last_Two_Bytes_of_B_Denote_A_Size( const large &A, const large & /*B*/ ){
     //These items have been found to have the last two bytes of B denote the size of the data.
     //
     //This is a whitelist.
@@ -181,7 +181,7 @@ bool Do_Last_Two_Bytes_of_B_Denote_A_Size( const large &A, const large &B ){
 
 //This is a sort of heuristic function - it attempts to 'guess' whether or not the given A and B will be followed by a four byte 
 // 'data length' integer. This is a fairly rare case, it seems.
-bool Do_Next_Four_Bytes_Denote_A_Size( const large &A, const large &B ){
+bool Do_Next_Four_Bytes_Denote_A_Size( const large &A, const large & /*B*/ ){
     //These items have been found to have the next four bytes denote the size of the data.
     //
     //This is a whitelist.
@@ -411,7 +411,7 @@ void Dump_Children(std::ostream & out, const std::vector<piece> &in, const std::
     return;
 }
 
-void Dump_Children(std::ostream & out, const std::vector<piece *> &in, const std::string space){ //NOTE: space defaults to ""
+void Dump_Children(std::ostream & out, const std::vector<piece *> &in, const std::string  /*space*/){ //NOTE: space defaults to ""
     for(auto i : in) Dump_Children(out, { *i } ); //Vector initializer to turn out of the element.
     return;
 }

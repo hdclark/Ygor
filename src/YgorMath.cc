@@ -1611,7 +1611,7 @@ template <class T>    contour_of_points<T>::contour_of_points(const contour_of_p
 #endif
 
 //Member functions.
-template <class T> T contour_of_points<T>::Get_Signed_Area(bool AssumePlanarContours) const {
+template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarContours*/) const {
     //NOTE: This routine computes the 'signed' area with respect to an implicit unit vector (in this case,
     //      (0,0,1) == the z unit). I think computing 'signedness' with respect to this unit vector actually
     //      comes from computing the signed area and observing the sign. The idea of clockwise or counter/

@@ -10,7 +10,7 @@
 #include "YgorString.h"
 #include "YgorURITools.h"
 
-int main(int argc, char **argv){
+int main(int  /*argc*/, char ** /*argv*/){
     //If we can avoid it, do not use RSS pages. They do not have useful text in the link text.
     std::list<std::string> urls; 
 

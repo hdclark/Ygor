@@ -10,7 +10,7 @@
 #include "YgorString.h"
 #include "YgorURITools.h"
 
-int main(int argc, char **argv){
+int main(int  /*argc*/, char ** /*argv*/){
     std::list<std::string> urls;
     urls.emplace_back("http://nutritionfacts.org/videos/");
 
