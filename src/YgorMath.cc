@@ -1,45 +1,35 @@
 //YgorMath.cc.
 
-#include <cmath>       //Needed for fabs, signbit, sqrt, etc...
-#include <iostream>
-#include <sstream>
-#include <fstream>
 #include <algorithm>   //Needed for std::reverse.
-#include <map>
-#include <unordered_map>
-#include <list>
-#include <iterator>
-#include <numeric>
+#include <cmath>       //Needed for fabs, signbit, sqrt, etc...
+#include <complex>
+#include <exception>
+#include <experimental/optional>
+#include <fstream>
 #include <functional>  //Needed for passing kernel functions to integration schemes.
+#include <iomanip>     //Needed for std::setw() for pretty-printing.
+#include <iterator>
+#include <limits>      //Needed for std::numeric_limits::max().
+#include <list>
+#include <map>
+#include <numeric>
+#include <stdexcept>
 #include <string>      //Needed for stringification routines.
 #include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
-#include <limits>      //Needed for std::numeric_limits::max().
+#include <unordered_map>
 #include <utility>
 #include <vector>
-#include <iomanip>     //Needed for std::setw() for pretty-printing.
-#include <utility>     //Needed for std::pair.
-#include <experimental/optional>
 
-#include "YgorMath.h"
-#include "YgorStats.h"
-#include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
-#include "YgorString.h"
 #include "YgorFilesDirs.h"  //Used in samples_1D<T>::Write_To_File(...).
-
+#include "YgorMath.h"
+#include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
 #include "YgorPlot.h"    //A wrapper used for producing plots of contours.
-class Plotter;
+#include "YgorStats.h"
+#include "YgorString.h"
 
 //#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //#endif
-
-//Forward declaration. Needed due to mixing of classes (find point where line and plane intersect, etc..)
-template <class T> class vec3;
-template <class T> class vec2;
-template <class T> class line;
-template <class T> class line_segment;
-template <class T> class plane;
-template <class T> class contour_of_points;
 
 
 //---------------------------------------------------------------------------------------------------------------------------

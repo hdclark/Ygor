@@ -4,24 +4,24 @@
 #ifndef HDR_GRD_YGORNETWORKING_H_
 #define HDR_GRD_YGORNETWORKING_H_
 
-#include <string>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <cerrno>
+#include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
-#include <thread>
 #include <list>
 #include <mutex>
 #include <set>
-
-#include <unistd.h>
-#include <cerrno>
-#include <cstring>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <csignal>
+#include <string>
+#include <thread>
+#include <utility>
 
 #include "YgorContainers.h"
 

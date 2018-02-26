@@ -5,16 +5,17 @@
 #ifndef YGOR_STRING_LIBRARY_H_
 #define YGOR_STRING_LIBRARY_H_
 
-#include <string>
-#include <map>
-#include <vector>
-#include <list>     //Needed for Duplicate_in_C_Style().
-#include <utility>
-#include <memory>
-#include <set>
+#include <stddef.h>
 #include <algorithm>  //Needed for set_intersection();
-
+#include <cstdint>
+#include <list>     //Needed for Duplicate_in_C_Style().
+#include <map>
+#include <memory>
 #include <regex>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 
 //To turn off user literals, define a macro like so (or pass in to compiler with -DYGOR_STRING_...

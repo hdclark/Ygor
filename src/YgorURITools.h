@@ -2,9 +2,9 @@
 
 #ifndef YGOR_UTILITIES_URITOOLS_H_
 #define YGOR_UTILITIES_URITOOLS_H_
-#include <utility>
 #include <list>
 #include <string>
+#include <utility>
 #include <vector>
 
 //############################################################################

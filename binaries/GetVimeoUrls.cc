@@ -1,18 +1,14 @@
 //GetVimeoUrls.cc - A program which attempts to grab a few select video links from Vimeo.
 
 #include <iostream>
-#include <string>
 #include <list>
-#include <map>
+#include <string>
 #include <utility>
+#include <vector>
 
-#include "YgorMisc.h"
-#include "YgorNetworking.h"
-#include "YgorString.h"
-#include "YgorFilesDirs.h"
-
-#include "YgorURITools.h"
 #include "YgorCONFIGTools.h"
+#include "YgorString.h"
+#include "YgorURITools.h"
 
 int main(int argc, char **argv){
     std::list<std::string> urls;

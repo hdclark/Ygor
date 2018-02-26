@@ -1,33 +1,31 @@
 //YgorImages.cc - Routines to help manage buffers of 2D data.
 //
-#include <iostream>
-#include <memory>
-#include <cstring>   //For memcpy.
-#include <cmath>      //For std::round(...)
+#include <stdlib.h>
 #include <algorithm>
+#include <cmath>      //For std::round(...)
+#include <cstdio>  //For popen.
+#include <exception>
+#include <experimental/any>
+#include <experimental/optional>
+#include <functional>
+#include <future>
+#include <iterator>
 #include <list>
+#include <stdexcept>
+#include <thread>
 #include <utility>
 #include <vector>
-#include <functional>
-#include <stdexcept>
-#include <fstream>
-#include <experimental/optional>
-#include <experimental/any>
-#include <type_traits>
-#include <cstdio>  //For popen.
-#include <future>
-#include <thread>
 
 #ifndef YGOR_IMAGES_DISABLE_EIGEN
     #include <eigen3/Eigen/Dense>
 #endif
 
-#include "YgorMisc.h"
+#include "YgorImages.h"
 #include "YgorMath.h"
+#include "YgorMisc.h"
 #include "YgorStats.h"    //For Stats::Mean().
 //#include "YgorPlot.h"
 #include "YgorString.h"   //For Is_String_An_X<>().
-#include "YgorImages.h"
 
 
 //#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS

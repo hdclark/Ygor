@@ -10,17 +10,15 @@
 #define YGORPLOT_H_HDR_GUARD
 
 #include <cstdio>  //Used for popen, FILE class.
-#include <string>
-#include <sstream>
-
-#include <vector>
 #include <list>
-
 #include <map>     //Required for plotting maps of samples_1D's.
+#include <sstream>
+#include <string>
+#include <vector>
 
-#include "YgorMisc.h"  //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
-#include "YgorMath.h"  //Needed for helper plotting routines.
 #include "YgorFilesDirs.h" //Needed for filename checking.
+#include "YgorMath.h"  //Needed for helper plotting routines.
+#include "YgorMisc.h"  //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
 
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------

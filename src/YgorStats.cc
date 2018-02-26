@@ -1,33 +1,28 @@
 //YgorStats.cc.
 
+#include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
+//#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)
+#include <gsl/gsl_integration.h> //Needed to numerically compute an integral in lieu of the hypergeometric function.
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_sf_gamma.h>  //Gamma function.
+#include <gsl/gsl_sf_result.h>
+#include <algorithm>
+#include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
+#include <iterator>
+//#include <string>      //Needed for stringification routines.
+//#include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
+#include <limits>      //Needed for std::numeric_limits::max().
+#include <memory>
+#include <stdexcept>
 //#include <iostream>
 //#include <sstream>
 //#include <fstream>
 //#include <algorithm>   //Needed for std::reverse.
 #include <vector>
-//#include <unordered_map>
-#include <list>
-//#include <iterator>
-#include <functional>  //Needed for passing kernel functions to integration schemes.
-//#include <string>      //Needed for stringification routines.
-//#include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
-#include <limits>      //Needed for std::numeric_limits::max().
-//#include <vector>
-#include <limits>
-#include <array>
-#include <algorithm>
-#include <type_traits>
 
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
-#include <gsl/gsl_sf_gamma.h>  //Gamma function.
-//#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)
-#include <gsl/gsl_integration.h> //Needed to numerically compute an integral in lieu of the hypergeometric function.
-
-#include "YgorMath.h"
-#include "YgorStats.h"
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions, Ygor_Container_Sort().
+#include "YgorStats.h"
 
 //#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORSTATS_DISABLE_ALL_SPECIALIZATIONS

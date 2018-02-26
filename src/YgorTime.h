@@ -2,6 +2,7 @@
 #ifndef YGOR_TIME_HDR_GRD_H
 #define YGOR_TIME_HDR_GRD_H
 
+#include <cstdint>
 #include <ctime>
 #include <memory>
 #include <string>

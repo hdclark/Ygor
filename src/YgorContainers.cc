@@ -1,6 +1,7 @@
 //YgorContainers.cc.
-#include <string>
+#include "YgorMisc.h"
 #include <algorithm>    //Needed for std::sort(..).
+
 #include "YgorContainers.h"
 
 //#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS

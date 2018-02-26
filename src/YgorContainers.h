@@ -5,16 +5,16 @@
 #ifndef YGOR_CUSTOM_CONTAINERS_HC_
 #define YGOR_CUSTOM_CONTAINERS_HC_
 
-#include <vector>
-#include <map>
-#include <utility>
-
-#include <list>
-#include <thread>
-#include <iterator>
-#include <functional>
-#include <mutex>
+#include <algorithm>
 #include <atomic>
+#include <functional>
+#include <iterator>
+#include <list>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
 

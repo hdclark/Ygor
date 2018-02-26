@@ -1,18 +1,14 @@
 //GetRedditMovies.cc - A program which attempts to grab a few select movie/documentary links from Reddit.
 
 #include <iostream>
-#include <string>
 #include <list>
-#include <map>
+#include <string>
 #include <utility>
+#include <vector>
 
-#include "YgorMisc.h"
-#include "YgorNetworking.h"
-#include "YgorString.h"
-#include "YgorFilesDirs.h"
-
-#include "YgorURITools.h"
 #include "YgorCONFIGTools.h"
+#include "YgorString.h"
+#include "YgorURITools.h"
 
 int main(int argc, char **argv){
     //If we can avoid it, do not use RSS pages. They do not have useful text in the link text.

@@ -5,9 +5,9 @@
 #ifndef YGOR_STATS_H_HDR_GRD
 #define YGOR_STATS_H_HDR_GRD
 
+#include <array>
 #include <list>
 #include <vector>
-#include <array>
 
 
 namespace Stats {

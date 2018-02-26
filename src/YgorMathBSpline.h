@@ -3,25 +3,25 @@
 #ifndef YGOR_MATH_BSPLINE_H_
 #define YGOR_MATH_BSPLINE_H_
 
+#include <gsl/gsl_bspline.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_multifit.h>
+#include <gsl/gsl_statistics.h>
+#include <gsl/gsl_vector.h>
+#include <stddef.h>
+#include <array>
 #include <cmath>
-#include <iostream>
-#include <fstream>
 #include <complex>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <limits>
 #include <list>
 #include <map>
 #include <string>
-#include <functional>
 #include <tuple>
-#include <vector>
-#include <array>
-#include <limits>
 #include <utility>
-
-#include <gsl/gsl_vector.h>
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_bspline.h>
-#include <gsl/gsl_multifit.h>
-#include <gsl/gsl_statistics.h>
+#include <vector>
 
 #include "YgorMath.h"
 

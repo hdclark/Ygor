@@ -1,31 +1,25 @@
 //YgorFilesDirs.cc - Routines for interacting with files and directories. 
 //
 
-#include <iostream>
-#include <iomanip>
-#include <sstream>
-#include <cstdlib>
+#include <dirent.h>    //Needed for working with directories in C/UNIX.
+#include <sys/stat.h>  //Needed for mknod (used for FIFOs, etc..), stat(...)
+#include <unistd.h>    //Needed for access(...)
+#include <algorithm>
 #include <cstdint>     //For intmax_t
-#include <string>
+#include <cstdio>      //Needed for remove(...)
+#include <cstdlib>
 #include <ctime>       //Needed for gen_time_random(), time_t.
 #include <fstream>     //Needed for fstream (for file checking.)
+#include <iomanip>
+#include <iterator>
 #include <list>
-#include <climits>     //Needed for realpath(...) and Fully_Expand_Filename(...)
-#include <dirent.h>    //Needed for working with directories in C/UNIX.
-#include <unistd.h>    //Needed for access(...)
-#include <cstdio>      //Needed for remove(...)
-
 #include <memory>      //Needed for unique_ptrs.
-
-#include <sys/stat.h>  //Needed for mknod (used for FIFOs, etc..), stat(...)
-#include <sys/types.h> //Needed for mkdir() (I think for permission macros).
+#include <string>
 
 #include "External/MD5/md5.h" //Needed for MD5_of_File(...)
-
+#include "YgorFilesDirs.h"
 #include "YgorMisc.h"    //Needed for FUNCINFO,FUNCWARN,FUNCERR macros.
 #include "YgorString.h"  //Needed for Xtostring routine.
-
-#include "YgorFilesDirs.h"
 
 //#ifndef YGORFILESDIRS_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORFILESDIRS_DISABLE_ALL_SPECIALIZATIONS

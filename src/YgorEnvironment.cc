@@ -1,10 +1,9 @@
 //YgorEnvironment.cc - Routines for collecting info about the local (system) environment. 
 
+#include <cstdio>      //Needed for getchar();
 #include <iostream>
 #include <string>
-#include <sstream>
 #include <utility>     //Needed for std::pair.
-#include <cstdio>      //Needed for getchar();
 
 //#include <malloc.h>
 //#include <climits>
@@ -27,18 +26,15 @@
 #endif
 
 
-#include <sys/stat.h>  //Needed for open(3).
 #include <fcntl.h>     //Needed for open(3).
 #include <sys/ioctl.h> //Needed for ioctl() for determining terminal char, framebuffer dims.
-#include <csignal>    //Needed for system_bash().
 #include <sys/wait.h>  //Needed for system_bash().
-#include <sys/types.h> //Needed for system_bash().
 #include <cerrno>     //Needed for system_bash().
-
-#include "YgorMisc.h"    //Needed for Execute_Command_In_Pipe.
-#include "YgorString.h"  //Needed for Xtostring.
+#include <csignal>    //Needed for system_bash().
 
 #include "YgorEnvironment.h"
+#include "YgorMisc.h"    //Needed for Execute_Command_In_Pipe.
+#include "YgorString.h"  //Needed for Xtostring.
 
 
 

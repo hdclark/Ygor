@@ -4,13 +4,17 @@
 //The idea behind this file is to easily have some plotting facilities within a program without having to deal directly with pipes and
 // plotting formats in situ. 
 
+#include "YgorMath.h"
+#include <array>
 #include <cstdio>    //Used for popen, FILE class.
-#include <string>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "YgorMisc.h"    //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
-#include "YgorString.h"
 #include "YgorPlot.h"
+#include "YgorString.h"
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,25 +1,30 @@
 //YgorImagesIO.cc - Routines for writing and reading images.
 //
-#include <iostream>
-#include <memory>
+#include "YgorMath.h"
 #include <algorithm>
-#include <list>
-#include <vector>
-#include <functional>
-#include <fstream>
-#include <type_traits>
+#include <array>
 #include <cinttypes>
-#include <experimental/optional>
-#include <experimental/any>
+#include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <fstream>
+#include <iterator>
+#include <limits>
+#include <map>
+#include <set>
+#include <stdexcept>
+#include <type_traits>
+#include <utility>
 
 #include "YgorMisc.h"
 //#include "YgorMath.h"
 //#include "YgorStats.h"    //For Stats::Mean().
 //#include "YgorPlot.h"
 
-#include "YgorString.h"
 #include "YgorImages.h"
 #include "YgorImagesIO.h"
+#include "YgorString.h"
 
 
 //#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS

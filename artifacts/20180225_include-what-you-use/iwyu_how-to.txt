@@ -1,0 +1,85 @@
+
+Figuring out how to invoke IWYU took a lot of work, so I've documented what I ended up doing for later.
+
+include-what-you-use / iwyu
+
+packer -S include-what-you-use
+
+# Note: build must be successful to proceed!
+mkdir build && cd build
+CC="clang" CXX="clang++" CXX_FLAGS='-w' cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr ../
+cp compile_commands.json ../
+cd ../
+
+vim compile_commands.json  # Remove -f options (clang complains), and make Wall --> Wno-all, Werror --> Wno-error, etc.
+                           # You can accomplish this using the '-w' option.
+
+# Regenerate the mapping files for your up-to-date compiler, if desired:
+( cd /usr/include/c++/7.3.0 && grep '^ *# *include' {ext/,tr1/,}* | perl -nle 'm/^([^:]+).*<([^>]+)>/ && print qq@    { include: ["<$2>", private, "<$1>", public ] },@' | grep -e bits/ -e tr1_impl/ | sort -u) > /tmp/new_stl.imp
+# Note that you'll have to refer to the comments in /usr/share/include-what-you-use/*imp for this...
+
+# Note: the following '--' separates iwyu_tool.py args from include-what-you-use args. 
+touch /tmp/custom.imp   # Gets (manually) filled-in later.
+touch /tmp/new_stl.imp  # In case you don't bother generating a new one.
+CC="clang" CXX="clang++" iwyu_tool.py -p . -- \
+  --mapping_file=/usr/share/include-what-you-use/iwyu.gcc.imp \
+  --mapping_file=/usr/share/include-what-you-use/boost-all.imp \
+  --mapping_file=/usr/share/include-what-you-use/libcxx.imp \
+  --mapping_file=/tmp/new_stl.imp \
+  --mapping_file=/tmp/custom.imp \
+  --max_line_length=120 \
+  --transitive_includes_only  >/tmp/iwyu_report.txt
+
+vim /tmp/iwyu_report.txt   # Look for weird stuff, and remove compiler warnings.
+
+# I used the output to create a new file '/tmp/custom.imp' for GCC 'bits' files:
+        cat /tmp/iwyu_report.txt | grep bits | sed -e 's@> .*//@> //@g' | sort -u
+        #include <bits/exception.h> // for exception
+        #include <bits/refwrap.h> // for reference_wrapper
+        #include <bits/std_abs.h> // for abs
+        #include <bits/std_function.h> // for function
+        #include <bits/stdint-intn.h> // for int64_t
+        #include <bits/stdint-uintn.h> // for uint16_t, uint32_t, uint64_t, uint8_t
+        #include <bits/stdint-uintn.h> // for uint32_t, uint16_t
+        #include <bits/stdint-uintn.h> // for uint32_t, uint64_t, uint8_t
+        #include <bits/stdint-uintn.h> // for uint64_t
+        #include <bits/stdint-uintn.h> // for uint64_t, uint8_t
+        #include <bits/stdint-uintn.h> // for uint8_t, uint64_t
+        #include <bits/types/struct_timeval.h> // for timeval
+        #include <bits/types/struct_tm.h> // for tm
+        #include <bits/types/time_t.h> // for time_t
+and also manually noted:       
+        #include <ext/alloc_traits.h> // for __alloc_traits<>::value_type
+
+
+Manually edited, results in ( /tmp/custom.imp ):
+
+[
+  { include: ["<bits/exception.h>", private, "<exception>", public ] },
+  { include: ["<bits/refwrap.h>", private, "<functional>", public ] },
+  { include: ["<bits/std_abs.h>", private, "<cmath>", public ] },
+  { include: ["<bits/std_function.h>", private, "<functional>", public ] },
+  { include: ["<bits/stdint-intn.h>", private, "<cstdint>", public ] },
+  { include: ["<bits/stdint-uintn.h>", private, "<cstdint>", public ] },
+  { include: ["<bits/types/struct_timeval.h>", private, "<sys/time.h>", public ] },
+  { include: ["<bits/types/struct_tm.h>", private, "<ctime>", public ] },
+  { include: ["<bits/types/time_t.h>", private, "<ctime>", public ] },
+  { include: ["<ext/alloc_traits.h>", private, "<memory>", public ] },
+]
+
+Note the following fail:
+  { include: ["<stdlib.h>", private, "<cstdlib>", public ] },
+  { include: ["<stddef.h>", private, "<cstddef>", public ] },
+  { include: ["<string.h>", private, "<cstring>", public ] },
+
+
+# Now perform the transformation.
+python2 /usr/bin/fix_includes.py </tmp/iwyu_report.txt
+git status
+git diff     # Will most likely require manual intervention!
+
+./clean_compile_and_install.sh   # Ensure build works before committing anything.
+
+git add src binaries
+git commit -m "Ran IWYU."
+

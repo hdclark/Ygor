@@ -1,10 +1,9 @@
 //YgorNoise.cc - Routines for providing smooth, deterministic random noise functions over some space. 
 //
 
-#include <cstdio>
-#include <cstdlib>
 #include <cmath>
-#include <cinttypes>  //For uint64_t - is this still needed??
+#include <cstdint>
+#include <cstdlib>
 
 #include "YgorMisc.h"    //Used for some bitwise operations.
 

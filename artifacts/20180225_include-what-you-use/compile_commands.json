@@ -1,0 +1,182 @@
+[
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorAlgorithms.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorAlgorithms.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorAlgorithms.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorCONFIGTools.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorCONFIGTools.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorCONFIGTools.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorContainers.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorContainers.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorContainers.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorDICOMTools.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorDICOMTools.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorDICOMTools.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorEnvironment.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorEnvironment.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorEnvironment.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorFilesDirs.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorFilesDirs.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorFilesDirs.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorImages.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorImages.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorImages.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorImagesIO.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorImagesIO.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorImagesIO.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMath.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMath.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMath.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMathBSpline.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMathBSpline.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMathBSpline.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMathChebyshev.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMathChebyshevFunctions.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMathIOOFF.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorMath_Samples.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorMath_Samples.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorMath_Samples.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorNetworking.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorNetworking.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorNetworking.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorNoise.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorNoise.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorNoise.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorPerformance.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorPerformance.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorPerformance.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorPlot.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorPlot.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorPlot.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorSerialize.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorSerialize.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorSerialize.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorStats.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorStats.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorStats.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorString.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorString.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorString.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorTime.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorTime.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorTime.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorURITools.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorURITools.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorURITools.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/YgorVIDEOTools.cc.o -c \"/home/hal/Development/Project - Ygor/src/YgorVIDEOTools.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/YgorVIDEOTools.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/External/SpookyHash/SpookyV2.cpp.o -c \"/home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.cpp\"",
+  "file": "/home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.cpp"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/src",
+  "command": "/usr/bin/clang++  -Dygor_EXPORTS -I\"/home/hal/Development/Project - Ygor/build/src\" -isystem \"/home/hal/Development/Project - Ygor/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG -fPIC   -std=c++1z -w -o CMakeFiles/ygor.dir/External/MD5/md5.cc.o -c \"/home/hal/Development/Project - Ygor/src/External/MD5/md5.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/src/External/MD5/md5.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getredditurls.dir/GetRedditUrls.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetRedditUrls.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetRedditUrls.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getredditmusic.dir/GetRedditMusic.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetRedditMusic.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetRedditMusic.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/regex_tester.dir/Regex_Tester.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/Regex_Tester.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/Regex_Tester.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getvimeourls.dir/GetVimeoUrls.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetVimeoUrls.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetVimeoUrls.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getredditmovies.dir/GetRedditMovies.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetRedditMovies.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetRedditMovies.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/twot_pvalue.dir/TwoT_PValue.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/TwoT_PValue.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/TwoT_PValue.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/fits_replace_nans.dir/Replace_NaNs.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/Replace_NaNs.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/Replace_NaNs.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getvideosifturls.dir/GetVideosiftUrls.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetVideosiftUrls.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetVideosiftUrls.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/geturls.dir/GetUrls.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetUrls.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetUrls.cc"
+},
+{
+  "directory": "/home/hal/Development/Project - Ygor/build/binaries",
+  "command": "/usr/bin/clang++   -I\"/home/hal/Development/Project - Ygor/build/binaries\" -isystem \"/home/hal/Development/Project - Ygor/binaries\" -isystem \"/home/hal/Development/Project - Ygor/src\" -I\"/home/hal/Development/Project - Ygor/build/src\"   -O2  -Wno-deprecated -Wno-all -Wno-extra -Wno-strict-aliasing -O3 -DNDEBUG   -std=c++1z -w -o CMakeFiles/getnutritionfactsurls.dir/GetNutritionfactsUrls.cc.o -c \"/home/hal/Development/Project - Ygor/binaries/GetNutritionfactsUrls.cc\"",
+  "file": "/home/hal/Development/Project - Ygor/binaries/GetNutritionfactsUrls.cc"
+}
+]

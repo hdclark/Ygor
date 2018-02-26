@@ -1,11 +1,10 @@
 //YgorVIDEOTools.cc - A collection of routines for dealing with video and video files.
 
-#include <utility>
 #include <string>
+#include <utility>
 
 #include "YgorMisc.h"
 #include "YgorString.h"
-#include "YgorFilesDirs.h"
 #include "YgorVIDEOTools.h"
 
 //Returns the W and H (in pixels) of a video file. If an error is encountered, we return two -1's.

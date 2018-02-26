@@ -1,29 +1,17 @@
 //YgorMathChebyshevFunctions.cc.
 
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <algorithm>   //Needed for std::reverse.
-#include <map>
-#include <unordered_map>
-#include <list>
-#include <iterator>
-#include <functional>  //Needed for passing kernel functions to integration schemes.
-#include <string>      //Needed for stringification routines.
-#include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
 #include <limits>      //Needed for std::numeric_limits::max().
+#include <stdexcept>
+#include <string>      //Needed for stringification routines.
 #include <vector>
-#include <iomanip>     //Needed for std::setw() for pretty-printing.
-#include <utility>     //Needed for std::pair.
 //#include <experimental/optional>
 
 #include <boost/math/special_functions/bessel.hpp>
 
-#include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
-#include "YgorMath.h"
 #include "YgorMathChebyshev.h"
 #include "YgorMathChebyshevFunctions.h"
+#include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
 
 //#ifndef YGORMATHCHEBYSHEVFUNCTIONS_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATHCHEBYSHEVFUNCTIONS_DISABLE_ALL_SPECIALIZATIONS

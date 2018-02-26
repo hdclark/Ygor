@@ -5,18 +5,16 @@
 // fun and downloading is even less so. We thus outsource this to other programs.
 
 #include <iostream>
-#include <string>
 #include <list>
-#include <map>
+#include <string>
 #include <utility>
+#include <vector>
 
-#include "YgorMisc.h"
-#include "YgorNetworking.h"
-#include "YgorString.h"
-#include "YgorFilesDirs.h"
-
-#include "YgorURITools.h"
 #include "YgorCONFIGTools.h"
+#include "YgorFilesDirs.h"
+#include "YgorMisc.h"
+#include "YgorString.h"
+#include "YgorURITools.h"
 
 //#include "htmlcxx/html/ParserDom.h"
 

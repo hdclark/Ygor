@@ -21,14 +21,14 @@
 //                 to and from the scheme. BSD socket implementations can help here.
 // ---------------------------
 
-#include <string>
+#include <algorithm>
+#include <cstdint>   //For uint8_t, uint32_t, etc..
 #include <cstring>  //For memcpy().  
+#include <limits>
 #include <list>
-//#include <ctime>    //For std::time_t.
 #include <vector>
 #include <memory>
-#include <limits>
-#include <cstdint>   //For uint8_t, uint32_t, etc..
+#include <string>
 
 #include "YgorMisc.h"
 #include "YgorSerialize.h"

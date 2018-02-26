@@ -58,6 +58,7 @@
     #ifndef _GNU_SOURCE
         #define _GNU_SOURCE
         #include <sched.h>
+
         #undef _GNU_SOURCE
     #else
         #include <sched.h>
@@ -70,6 +71,7 @@
     #ifndef _GNU_SOURCE
         #define _GNU_SOURCE
         #include <sched.h>
+
         #undef _GNU_SOURCE
     #else
         #include <sched.h>
@@ -77,28 +79,26 @@
 #endif
 
 
-#include <iostream>
-#include <string>
-#include <functional>
-#include <cstdio>
-#include <cstdlib>
-#include <chrono>
-
+#include "YgorContainers.h"
+#include <arpa/inet.h>
+#include <fcntl.h>               //Needed for fcntl()
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>          //Needed for send()/recv().
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>              //Needed for, amongst other things, fcntl().
 #include <cerrno>
-#include <cstring>
-#include <sys/ioctl.h>           //Needed for ioctl() for getting server address from within server code.
-#include <net/if.h>              //Needed (along with ioctl()).
-#include <sys/types.h>
-#include <sys/socket.h>          //Needed for send()/recv().
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <csignal>
-#include <sys/mman.h>            //Needed for mmap()
+#include <chrono>
 #include <sched.h>               //Needed for unshare()
-#include <fcntl.h>               //Needed for fcntl()
+#include <csignal>
+#include <cstdlib>
+#include <cstring>
+#include <functional>
+#include <iostream>
+#include <string>
+#include <vector>
 
 #ifndef USE_OWN_GETIFADDR   //Else: see below for a homebrew...
     #include <ifaddrs.h>
@@ -108,7 +108,7 @@
 
 
 
-//#include <malloc.h>    ///-------\/
+//#include <malloc.h>
 #include <cstdlib>  //Clang 4.3 on FreeBSD: '/usr/include/malloc.h:3:2: error: "<malloc.h> has been replaced by <stdlib.h>"'
 
 //For FreeBSD missing IPV6_ADD_MEMBERSHIP.
@@ -123,14 +123,12 @@
 #endif
 
  
-#include "YgorMisc.h"              //Needed for FUNCINFO, FUNCWARN, FUNCERR macro functions.
-#include "YgorString.h"            //Needed for Xtostring(), some tokenization routines.
-#include "YgorFilesDirs.h"         //Needed for LoadFileToString(...), Size_of_File(...)
 #include "YgorAlgorithms.h"        //Needed for shuffle_list_randomly(...)
-
-#include "YgorURITools.h"            //Needed for Request_URL(...)
-
+#include "YgorFilesDirs.h"         //Needed for LoadFileToString(...), Size_of_File(...)
+#include "YgorMisc.h"              //Needed for FUNCINFO, FUNCWARN, FUNCERR macro functions.
 #include "YgorNetworking.h"
+#include "YgorString.h"            //Needed for Xtostring(), some tokenization routines.
+#include "YgorURITools.h"            //Needed for Request_URL(...)
 
 
 extern bool YGORNETWORKING_VERBOSE;

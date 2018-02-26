@@ -5,9 +5,13 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "YgorMath.h"
+
+template <class T> class line_segment;
+template <class T> class vec3;
 
 
 // This routine writes a collection of vec3<T> without any connectivity between them.

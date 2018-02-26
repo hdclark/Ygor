@@ -2,20 +2,22 @@
 
 #ifndef YGOR_MATH_H_
 #define YGOR_MATH_H_
+#include <stddef.h>
+#include <array>
 #include <cmath>
-#include <iostream>
-#include <fstream>
 #include <complex>
+#include <cstdint>
+#include <experimental/optional>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <limits>
 #include <list>
 #include <map>
 #include <string>
-#include <functional>
 #include <tuple>
-#include <vector>
-#include <array>
-#include <limits>
 #include <utility>
-#include <experimental/optional>
+#include <vector>
 
 template <class T> class samples_1D;
 

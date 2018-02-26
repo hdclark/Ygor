@@ -1,14 +1,11 @@
 //YgorURITools.cc - A collection of "shaky-at-best" routines for doing common things with URI's/URL's.
 
-#include <cstdio>
+#include <strings.h>
 #include <string>
-#include <vector>
 
 #include "YgorMisc.h"
 #include "YgorString.h"
-
 #include "YgorURITools.h"
-
 #include "htmlcxx/html/ParserDom.h"
 
 

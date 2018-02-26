@@ -6,8 +6,8 @@
 
 #include <string>
 
-#include "YgorMath.h"
 #include "YgorImages.h"
+#include "YgorMath.h"
 
 //This enum is used by the user to signal whether they want little- or big-endianness when the IO format
 // can handle either (e.g., writing raw pixels, FITS files).

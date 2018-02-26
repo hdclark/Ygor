@@ -1,33 +1,25 @@
 //YgorMathBSpline.cc.
 
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <algorithm>   //Needed for std::reverse.
-#include <numeric>   //Needed for std::accumulate.
-#include <map>
-#include <unordered_map>
-#include <list>
 #include <iterator>
-#include <functional>  //Needed for passing kernel functions to integration schemes.
-#include <string>      //Needed for stringification routines.
-#include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
 #include <limits>      //Needed for std::numeric_limits::max().
-#include <vector>
-#include <iomanip>     //Needed for std::setw() for pretty-printing.
+#include <memory>
+#include <numeric>   //Needed for std::accumulate.
+#include <stdexcept>
 #include <utility>     //Needed for std::pair.
+#include <vector>
 //#include <experimental/optional>
 
-#include <gsl/gsl_vector.h>
-#include <gsl/gsl_matrix.h>
 #include <gsl/gsl_bspline.h>
+#include <gsl/gsl_matrix.h>
 #include <gsl/gsl_multifit.h>
 #include <gsl/gsl_statistics.h>
+#include <gsl/gsl_vector.h>
+#include <stdlib.h>
 
-#include "YgorMisc.h"
 #include "YgorMath.h"
 #include "YgorMathBSpline.h"
+#include "YgorMisc.h"
 
 
 //---------------------------------------------------------------------------------------------------------------------------

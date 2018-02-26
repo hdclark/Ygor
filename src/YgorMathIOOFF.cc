@@ -1,10 +1,7 @@
 //YgorMathIOOFF.cc - Routines for writing ASCII OFF ("Object File Format") files.
 //
-#include <iostream>
-#include <vector>
 #include <fstream>
-#include <type_traits>
-#include <cinttypes>
+#include <vector>
 
 #include "YgorMath.h"
 #include "YgorMathIOOFF.h"

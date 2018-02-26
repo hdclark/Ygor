@@ -1,10 +1,5 @@
 #include <iostream>
-#include <cmath>
-
 #include <string>
-#include <sstream>
-#include <list>
-#include <tuple>
 
 #include "YgorMisc.h"
 #include "YgorStats.h"

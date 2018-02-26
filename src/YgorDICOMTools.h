@@ -6,6 +6,8 @@
 #ifndef YGOR_DICOMTOOLS_H_
 #define YGOR_DICOMTOOLS_H_
 
+#include <cstdint>
+#include <iosfwd>
 #include <string>
 
 bool Is_File_A_DICOM_File(const std::string &in);
@@ -47,6 +49,7 @@ std::ostream & operator<<( std::ostream &out, const large &in );
 std::ostream & operator<<( std::ostream &out, const small &in );
 
 class piece;
+
 std::ostream & operator<<( std::ostream &out, const std::basic_string<unsigned char> &in );
 std::ostream & operator<<( std::ostream &out, const piece &in );
 

@@ -1,28 +1,29 @@
 //YgorAlgorithms.cc.
+#include <array>
 #include <cmath>
-#include <iostream>
-#include <memory>
-#include <vector>
 #include <functional>
-#include <list>
+#include <iomanip> //For the MD5 conversion from uint128_t to std::string.
+#include <iostream>
+#include <iterator>
 #include <limits>
-#include <numeric>   //For std::accumulate(...).
+#include <list>
 #include <map>
+#include <memory>
+#include <numeric>   //For std::accumulate(...).
+#include <random>
 #include <string>
 #include <tuple>
-#include <random>
-#include <iomanip> //For the MD5 conversion from uint128_t to std::string.
+#include <vector>
 
-#include "External/SpookyHash/SpookyV2.h"
 //#include "External/SpookyHash/SpookyV2.cpp"
 #include "External/MD5/md5.h"
-
+#include "External/SpookyHash/SpookyV2.h"
 #include "YgorAlgorithms.h"
-#include "YgorMisc.h"
 #include "YgorMath.h"
+#include "YgorMisc.h"
+#include "YgorPlot.h"
 #include "YgorStats.h"
 #include "YgorString.h"
-#include "YgorPlot.h"
 #include "YgorTime.h"
 
 

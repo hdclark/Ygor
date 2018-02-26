@@ -1,0 +1,1166 @@
+
+/home/hal/Development/Project - Ygor/src/YgorAlgorithms.h should add these lines:
+#include <stdlib.h>    // for free, malloc
+#include <cstdint>     // for uint32_t, uint64_t, uint8_t
+#include <memory>      // for unique_ptr
+#include <string>      // for string
+class Plotter2;
+
+/home/hal/Development/Project - Ygor/src/YgorAlgorithms.h should remove these lines:
+- #include <stdexcept>  // lines 33-33
+- #include "YgorMisc.h"  // lines 38-38
+- #include "YgorPlot.h"  // lines 40-40
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorAlgorithms.h:
+#include <stdlib.h>    // for free, malloc
+#include <algorithm>   // for random_shuffle, shuffle
+#include <cmath>       // for fabs
+#include <cstddef>     // for ptrdiff_t
+#include <cstdint>     // for uint32_t, uint64_t, uint8_t
+#include <functional>  // for function
+#include <future>      // for future, launch, operator|, async, launch::async, launch::deferred
+#include <iostream>    // for operator<<, cout, ostream, endl
+#include <list>        // for list
+#include <memory>      // for unique_ptr
+#include <random>      // for random_device, mt19937
+#include <string>      // for string
+#include <tuple>       // for tuple
+#include <vector>      // for vector
+#include "YgorMath.h"  // for samples_1D
+class Plotter2;
+---
+
+/home/hal/Development/Project - Ygor/src/YgorAlgorithms.cc should add these lines:
+#include <array>                           // for array
+#include <iterator>                        // for next
+
+/home/hal/Development/Project - Ygor/src/YgorAlgorithms.cc should remove these lines:
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorAlgorithms.cc:
+#include "YgorAlgorithms.h"
+#include <array>                           // for array
+#include <cmath>                           // for sqrt, isnormal, exp, log, pow, M_PI
+#include <functional>                      // for function
+#include <iomanip>                         // for operator<<, setfill, setw
+#include <iostream>                        // for basic_ostream<>::__ostream_type, operator<<, basic_ostream, basic_...
+#include <iterator>                        // for next
+#include <limits>                          // for numeric_limits
+#include <list>                            // for list, _List_const_iterator, list<>::const_iterator, _List_iterator
+#include <map>                             // for map, map<>::iterator, map<>::mapped_type
+#include <memory>                          // for allocator_traits<>::value_type, unique_ptr, __alloc_traits<>::valu...
+#include <numeric>                         // for accumulate
+#include <random>                          // for mt19937, uniform_int_distribution, random_device, uniform_real_dis...
+#include <string>                          // for string, operator+, basic_string
+#include <tuple>                           // for get, make_tuple, tuple
+#include <vector>                          // for vector, vector<>::iterator, allocator, vector<>::const_iterator
+#include "External/MD5/md5.h"              // for Final, Init, Update, Context
+#include "External/SpookyHash/SpookyV2.h"  // for SpookyHash
+#include "YgorMath.h"                      // for samples_1D, vec2
+#include "YgorMisc.h"                      // for FUNCERR, FUNCWARN, BITMASK_BITS_ARE_SET, FUNCINFO, isininc, YGORABS
+#include "YgorPlot.h"                      // for Plot2_Map_of_Samples_1D, Plotter2
+#include "YgorStats.h"                     // for Median, Q_From_ChiSq_Fit
+#include "YgorString.h"                    // for Xtostring, operator""_s
+#include "YgorTime.h"                      // for time_mark
+---
+
+(/home/hal/Development/Project - Ygor/src/YgorCONFIGTools.h has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/src/YgorCONFIGTools.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorCONFIGTools.cc should remove these lines:
+- #include <sstream>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorCONFIGTools.cc:
+#include "YgorCONFIGTools.h"
+#include <fstream>          // for basic_istream, fstream, stringstream, ifstream
+#include <regex>            // for operator|, regex, regex_search
+#include <string>           // for string, operator==, getline, basic_string
+#include <vector>           // for vector, vector<>::const_iterator
+#include "YgorFilesDirs.h"  // for Does_File_Exist_And_Can_Be_Read, WriteStringToFile
+#include "YgorMisc.h"       // for FUNCERR
+#include "YgorString.h"     // for Canonicalize_String, ReplaceAllInstances, SplitStringToVector, TRIM
+---
+
+/home/hal/Development/Project - Ygor/src/YgorContainers.h should add these lines:
+#include <algorithm>   // for move
+
+/home/hal/Development/Project - Ygor/src/YgorContainers.h should remove these lines:
+- #include <iterator>  // lines 14-14
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorContainers.h:
+#include <algorithm>   // for move
+#include <atomic>      // for atomic
+#include <functional>  // for function
+#include <list>        // for list, _List_iterator, list<>::iterator
+#include <map>         // for map
+#include <mutex>       // for mutex
+#include <thread>      // for thread
+#include <utility>     // for pair
+#include <vector>      // for vector
+#include "YgorMisc.h"  // for FUNCWARN
+---
+
+/home/hal/Development/Project - Ygor/src/YgorContainers.cc should add these lines:
+#include <YgorMisc.h>  // for FUNCERR
+
+/home/hal/Development/Project - Ygor/src/YgorContainers.cc should remove these lines:
+- #include <string>  // lines 2-2
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorContainers.cc:
+#include "YgorContainers.h"
+#include <YgorMisc.h>  // for FUNCERR
+#include <algorithm>   // for sort
+---
+
+/home/hal/Development/Project - Ygor/src/YgorDICOMTools.h should add these lines:
+#include <cstdint>  // for uint32_t, uint16_t
+#include <iosfwd>   // for ostream
+
+/home/hal/Development/Project - Ygor/src/YgorDICOMTools.h should remove these lines:
+- class piece;  // lines 49-49
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorDICOMTools.h:
+#include <cstdint>  // for uint32_t, uint16_t
+#include <iosfwd>   // for ostream
+#include <string>   // for string, basic_string
+---
+
+/home/hal/Development/Project - Ygor/src/YgorDICOMTools.cc should add these lines:
+#include <stddef.h>         // for size_t
+#include <iterator>         // for distance
+
+/home/hal/Development/Project - Ygor/src/YgorDICOMTools.cc should remove these lines:
+- #include <fstream>  // lines 7-7
+- #include <iostream>  // lines 5-5
+- #include <map>  // lines 8-8
+- #include <memory>  // lines 9-9
+- class piece;  // lines 21-21
+- union large;  // lines 19-19
+- union small;  // lines 18-18
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorDICOMTools.cc:
+#include "YgorDICOMTools.h"
+#include <stddef.h>         // for size_t
+#include <fstream>          // for operator<<, ostream, basic_ostream, basic_ostream<>::__ostream_type, ifstream, endl
+#include <iomanip>          // for operator<<, setfill, setw
+#include <iterator>         // for distance
+#include <memory>           // for unique_ptr
+#include <string>           // for basic_string, string, operator+, operator<<
+#include <vector>           // for vector
+#include "YgorFilesDirs.h"  // for Does_File_Exist_And_Can_Be_Read
+#include "YgorMisc.h"       // for FUNCWARN, isininc
+---
+
+(/home/hal/Development/Project - Ygor/src/YgorEnvironment.h has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/src/YgorEnvironment.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorEnvironment.cc should remove these lines:
+- #include <sys/stat.h>  // lines 30-30
+- #include <sys/types.h>  // lines 35-35
+- #include <sstream>  // lines 5-5
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorEnvironment.cc:
+#include "YgorEnvironment.h"
+#include <fcntl.h>       // for open, O_RDONLY
+#include <linux/fb.h>    // for fb_var_screeninfo, FBIOGET_VSCREENINFO
+#include <sys/ioctl.h>   // for ioctl, winsize, TIOCGWINSZ
+#include <sys/wait.h>    // for waitpid
+#include <unistd.h>      // for sysconf, _SC_PAGESIZE, _exit, close, execl, fork, _SC_AVPHYS_PAGES, _SC_PHYS_PAGES
+#include <cerrno>        // for errno, EINTR
+#include <csignal>       // for sigaction, sigemptyset, sigprocmask, sa_handler, SIGINT, SIGQUIT, SIG_IGN, sigaddset
+#include <cstdio>        // for fflush, getchar, EOF, stdout
+#include <iostream>      // for operator<<, endl, basic_ostream, cout, ostream
+#include <string>        // for string, operator+
+#include <utility>       // for pair
+#include "YgorMisc.h"    // for Execute_Command_In_Pipe, FUNCWARN
+#include "YgorString.h"  // for Xtostring, operator""_s
+---
+
+/home/hal/Development/Project - Ygor/src/YgorFilesDirs.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorFilesDirs.h should remove these lines:
+- #include <sys/stat.h>  // lines 14-14
+- #include <fstream>  // lines 10-10
+- #include <sstream>  // lines 8-8
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorFilesDirs.h:
+#include <cstdint>  // for intmax_t
+#include <ctime>    // for time_t
+#include <list>     // for list
+#include <memory>   // for unique_ptr
+#include <string>   // for string
+---
+
+/home/hal/Development/Project - Ygor/src/YgorFilesDirs.cc should add these lines:
+#include <algorithm>           // for move
+#include <iterator>            // for begin, next
+
+/home/hal/Development/Project - Ygor/src/YgorFilesDirs.cc should remove these lines:
+- #include <sys/types.h>  // lines 21-21
+- #include <climits>  // lines 13-13
+- #include <iostream>  // lines 4-4
+- #include <sstream>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorFilesDirs.cc:
+#include "YgorFilesDirs.h"
+#include <dirent.h>            // for scandir, alphasort, dirent, DT_REG
+#include <sys/stat.h>          // for stat, mkdir, mknod, S_IFIFO, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXU, S_IWUSR, S_IXOTH
+#include <unistd.h>            // for access, F_OK
+#include <algorithm>           // for move
+#include <cstdint>             // for intmax_t
+#include <cstdio>              // for remove
+#include <cstdlib>             // for free, realpath
+#include <ctime>               // for time_t, size_t
+#include <fstream>             // for fstream, operator|, ifstream, ios, ofstream, basic_ostream, operator<<, string...
+#include <iomanip>             // for operator<<, setfill, setw
+#include <iterator>            // for begin, next
+#include <list>                // for list, _List_iterator
+#include <memory>              // for allocator, unique_ptr, make_unique
+#include <string>              // for string, operator+, basic_string, operator<<, operator!=, char_traits, getline
+#include "External/MD5/md5.h"  // for Final, Init, Update, Context
+#include "YgorMisc.h"          // for FUNCWARN, FUNCERR
+#include "YgorString.h"        // for Generate_Random_String_of_Length, Get_Parent_Directory, Xtostring
+---
+
+/home/hal/Development/Project - Ygor/src/YgorImages.h should add these lines:
+#include <limits>                 // for numeric_limits
+#include <tuple>                  // for tuple
+#include <vector>                 // for vector
+
+/home/hal/Development/Project - Ygor/src/YgorImages.h should remove these lines:
+- #include <memory>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorImages.h:
+#include <experimental/any>       // for any
+#include <experimental/optional>  // for optional
+#include <functional>             // for reference_wrapper, function
+#include <limits>                 // for numeric_limits
+#include <list>                   // for list
+#include <map>                    // for map
+#include <set>                    // for set
+#include <string>                 // for string
+#include <tuple>                  // for tuple
+#include <utility>                // for pair
+#include <vector>                 // for vector
+#include "YgorMath.h"             // for vec3, contour_collection, line, plane
+---
+
+/home/hal/Development/Project - Ygor/src/YgorImages.cc should add these lines:
+#include <stdlib.h>                                // for ldiv, ldiv_t
+#include <exception>                               // for exception
+#include <iterator>                                // for next
+
+/home/hal/Development/Project - Ygor/src/YgorImages.cc should remove these lines:
+- #include <cstring>  // lines 5-5
+- #include <fstream>  // lines 13-13
+- #include <iostream>  // lines 3-3
+- #include <memory>  // lines 4-4
+- #include <type_traits>  // lines 16-16
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorImages.cc:
+#include "YgorImages.h"
+#include <eigen3/Eigen/Dense>                      // for MatrixBase::operator*
+#include <stdlib.h>                                // for ldiv, ldiv_t
+#include <algorithm>                               // for max, move
+#include <cmath>                                   // for isfinite, pow, ceil, exp, floor, round, M_PI
+#include <cstdio>                                  // for size_t
+#include <exception>                               // for exception
+#include <experimental/any>                        // for any
+#include <experimental/optional>                   // for optional, make_optional
+#include <functional>                              // for reference_wrapper, function, ref
+#include <future>                                  // for future, async, launch, launch::async
+#include <iterator>                                // for next
+#include <list>                                    // for list
+#include <stdexcept>                               // for logic_error, invalid_argument, domain_error, runtime_error
+#include <thread>                                  // for thread
+#include <utility>                                 // for pair, make_pair
+#include <vector>                                  // for vector
+#include "YgorMath.h"                              // for vec3, plane, contour_of_points, contour_collection
+#include "YgorMisc.h"                              // for isininc, FUNCERR, YGORABS, FUNCWARN, FUNCINFO, YGORMIN
+#include "YgorStats.h"                             // for Mean, Median, Sum
+#include "YgorString.h"                            // for Is_String_An_X, stringtoX, operator""_s, Xtostring
+---
+
+/home/hal/Development/Project - Ygor/src/YgorImagesIO.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorImagesIO.h should remove these lines:
+- #include "YgorMath.h"  // lines 9-9
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorImagesIO.h:
+#include <string>        // for string
+#include "YgorImages.h"  // for planar_image
+---
+
+/home/hal/Development/Project - Ygor/src/YgorImagesIO.cc should add these lines:
+#include <YgorMath.h>    // for vec3
+#include <array>         // for array
+#include <cmath>         // for floor, abs
+#include <cstdint>       // for uint8_t, intmax_t, uint64_t
+#include <cstdlib>       // for ldiv, size_t
+#include <exception>     // for exception
+#include <iterator>      // for begin, end, distance
+#include <limits>        // for numeric_limits
+#include <map>           // for map, multimap, _Rb_tree_iterator
+#include <set>           // for set
+#include <stdexcept>     // for runtime_error
+#include <utility>       // for make_pair, pair
+
+/home/hal/Development/Project - Ygor/src/YgorImagesIO.cc should remove these lines:
+- #include <experimental/any>  // lines 13-13
+- #include <experimental/optional>  // lines 12-12
+- #include <functional>  // lines 8-8
+- #include <iostream>  // lines 3-3
+- #include <list>  // lines 6-6
+- #include <memory>  // lines 4-4
+- #include <vector>  // lines 7-7
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorImagesIO.cc:
+#include "YgorImagesIO.h"
+#include <YgorMath.h>    // for vec3
+#include <algorithm>     // for copy
+#include <array>         // for array
+#include <cinttypes>     // for imaxdiv, imaxdiv_t
+#include <cmath>         // for floor, abs
+#include <cstdint>       // for uint8_t, intmax_t, uint64_t
+#include <cstdlib>       // for ldiv, size_t
+#include <exception>     // for exception
+#include <fstream>       // for ofstream, ifstream, operator|, basic_ostream::put, ios, basic_ios, basic_istream::read
+#include <iterator>      // for begin, end, distance
+#include <limits>        // for numeric_limits
+#include <map>           // for map, multimap, _Rb_tree_iterator
+#include <set>           // for set
+#include <stdexcept>     // for runtime_error
+#include <type_traits>   // for is_floating_point, is_integral, is_signed
+#include <utility>       // for make_pair, pair
+#include "YgorImages.h"  // for planar_image
+#include "YgorMisc.h"    // for isininc, Ygor_Scale_With_Type_Range
+#include "YgorString.h"  // for Canonicalize_String2, TRIM_ENDS
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMath.h should add these lines:
+#include <stddef.h>               // for size_t
+#include <cstdint>                // for uint64_t
+
+/home/hal/Development/Project - Ygor/src/YgorMath.h should remove these lines:
+- #include <cmath>  // lines 5-5
+- #include <complex>  // lines 8-8
+- #include <iostream>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMath.h:
+#include <stddef.h>               // for size_t
+#include <array>                  // for array
+#include <cstdint>                // for uint64_t
+#include <experimental/optional>  // for optional
+#include <fstream>                // for istream, ostream
+#include <functional>             // for function, reference_wrapper
+#include <limits>                 // for numeric_limits
+#include <list>                   // for list
+#include <map>                    // for map
+#include <string>                 // for string
+#include <tuple>                  // for tuple
+#include <utility>                // for pair
+#include <vector>                 // for vector
+template <class T> class samples_1D;  // lines 20-20
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMath.cc should add these lines:
+#include <complex>                // for operator*, complex, pow, operator+, operator-, log, sin, cos
+#include <exception>              // for exception
+#include <stdexcept>              // for runtime_error, invalid_argument, logic_error, domain_error
+
+/home/hal/Development/Project - Ygor/src/YgorMath.cc should remove these lines:
+- #include <iostream>  // lines 4-4
+- #include <sstream>  // lines 5-5
+- #include <utility>  // lines 20-20
+- class Plotter;  // lines 30-30
+- template <class T> class contour_of_points;  // lines 42-42
+- template <class T> class line;  // lines 39-39
+- template <class T> class line_segment;  // lines 40-40
+- template <class T> class plane;  // lines 41-41
+- template <class T> class vec2;  // lines 38-38
+- template <class T> class vec3;  // lines 37-37
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMath.cc:
+#include "YgorMath.h"
+#include <algorithm>              // for move, rotate, max_element, remove_if, reverse, sort, stable_sort, upper_bound
+#include <cmath>                  // for isnan, M_E, isfinite, fabs, sqrt, isnormal, cos, sin, pow, M_PI, floor, ceil
+#include <complex>                // for operator*, complex, pow, operator+, operator-, log, sin, cos
+#include <exception>              // for exception
+#include <experimental/optional>  // for optional, make_optional
+#include <fstream>                // for basic_ostream, stringstream, operator<<, endl, istream, ostream, basic_istream
+#include <functional>             // for function, reference_wrapper, ref
+#include <iomanip>                // for operator<<, setprecision, setw
+#include <iterator>               // for next, advance, distance, prev
+#include <limits>                 // for numeric_limits
+#include <list>                   // for list
+#include <map>                    // for map, multimap
+#include <numeric>                // for accumulate
+#include <stdexcept>              // for runtime_error, invalid_argument, logic_error, domain_error
+#include <string>                 // for string, operator<<, char_traits, operator>>, operator!=, operator+, allocator
+#include <tuple>                  // for get, tuple
+#include <unordered_map>          // for unordered_map
+#include <utility>                // for pair, make_pair
+#include <vector>                 // for vector
+#include "YgorFilesDirs.h"        // for Does_File_Exist_And_Can_Be_Read, WriteStringToFile
+#include "YgorMisc.h"             // for FUNCERR, FUNCWARN, RELATIVE_DIFF, isininc, YGORABS, FUNCINFO, PERCENT_ERR
+#include "YgorPlot.h"             // for Plotter2, Plotter, Plot3_List_of_contour_of_points
+#include "YgorStats.h"            // for Sum, P_From_StudT_2Tail, Q_From_ChiSq_Fit, Unbiased_Var_Est, Mean
+#include "YgorString.h"           // for Is_String_An_X, stringtoX
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathBSpline.h should add these lines:
+#include <stddef.h>                 // for size_t
+
+/home/hal/Development/Project - Ygor/src/YgorMathBSpline.h should remove these lines:
+- #include <cmath>  // lines 6-6
+- #include <complex>  // lines 9-9
+- #include <fstream>  // lines 8-8
+- #include <functional>  // lines 13-13
+- #include <iostream>  // lines 7-7
+- #include <list>  // lines 10-10
+- #include <map>  // lines 11-11
+- #include <string>  // lines 12-12
+- #include <tuple>  // lines 14-14
+- #include <utility>  // lines 18-18
+- #include <vector>  // lines 15-15
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathBSpline.h:
+#include <gsl/gsl_matrix.h>         // for gsl_matrix
+#include <gsl/gsl_statistics.h>
+#include <gsl/gsl_vector.h>         // for gsl_vector
+#include <stddef.h>                 // for size_t
+#include <array>                    // for array
+#include <limits>                   // for numeric_limits
+#include "YgorMath.h"               // for samples_1D
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathBSpline.cc should add these lines:
+#include <stdlib.h>                     // for size_t, abs
+#include <memory>                       // for __alloc_traits<>::value_type
+#include <stdexcept>                    // for runtime_error, invalid_argument, logic_error
+
+/home/hal/Development/Project - Ygor/src/YgorMathBSpline.cc should remove these lines:
+- #include <algorithm>  // lines 7-7
+- #include <fstream>  // lines 6-6
+- #include <functional>  // lines 13-13
+- #include <iomanip>  // lines 18-18
+- #include <iostream>  // lines 4-4
+- #include <list>  // lines 11-11
+- #include <map>  // lines 9-9
+- #include <sstream>  // lines 5-5
+- #include <string>  // lines 14-14
+- #include <tuple>  // lines 15-15
+- #include <unordered_map>  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathBSpline.cc:
+#include "YgorMathBSpline.h"
+#include <gsl/gsl_matrix.h>             // for gsl_matrix
+#include <gsl/gsl_statistics.h>         // for gsl_stats_wtss
+#include <gsl/gsl_vector.h>             // for gsl_vector
+#include <gsl/gsl_errno.h>              // for ::GSL_SUCCESS
+#include <stdlib.h>                     // for size_t, abs
+#include <cmath>                        // for isfinite, pow, abs
+#include <iterator>                     // for advance, prev
+#include <limits>                       // for numeric_limits
+#include <memory>                       // for __alloc_traits<>::value_type
+#include <numeric>                      // for accumulate
+#include <stdexcept>                    // for runtime_error, invalid_argument, logic_error
+#include <utility>                      // for pair
+#include <vector>                       // for vector, vector<>::iterator
+#include "YgorMath.h"                   // for samples_1D
+#include "YgorMisc.h"                   // for FUNCWARN, isininc
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.h should add these lines:
+#include <stddef.h>    // for size_t
+template <class T> class samples_1D;
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.h should remove these lines:
+- #include <array>  // lines 16-16
+- #include <cmath>  // lines 6-6
+- #include <complex>  // lines 9-9
+- #include <experimental/optional>  // lines 19-19
+- #include <fstream>  // lines 8-8
+- #include <iostream>  // lines 7-7
+- #include <list>  // lines 10-10
+- #include <map>  // lines 11-11
+- #include <string>  // lines 12-12
+- #include <tuple>  // lines 14-14
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathChebyshev.h:
+#include <stddef.h>    // for size_t
+#include <functional>  // for function
+#include <limits>      // for numeric_limits
+#include <utility>     // for pair
+#include <vector>      // for vector
+template <class T> class samples_1D;
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.cc should add these lines:
+#include <stdexcept>   // for invalid_argument, domain_error
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshev.cc should remove these lines:
+- #include <fstream>  // lines 6-6
+- #include <iomanip>  // lines 17-17
+- #include <iostream>  // lines 4-4
+- #include <iterator>  // lines 11-11
+- #include <list>  // lines 10-10
+- #include <map>  // lines 8-8
+- #include <sstream>  // lines 5-5
+- #include <string>  // lines 13-13
+- #include <tuple>  // lines 14-14
+- #include <unordered_map>  // lines 9-9
+- #include "YgorMisc.h"  // lines 21-21
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathChebyshev.cc:
+#include "YgorMathChebyshev.h"
+#include <algorithm>   // for min, max
+#include <cmath>       // for isfinite, M_PI, round
+#include <functional>  // for function
+#include <limits>      // for numeric_limits
+#include <stdexcept>   // for invalid_argument, domain_error
+#include <utility>     // for make_pair, pair
+#include <vector>      // for vector
+#include "YgorMath.h"  // for samples_1D
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.h should add these lines:
+#include <stddef.h>             // for size_t
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.h should remove these lines:
+- #include <array>  // lines 16-16
+- #include <cmath>  // lines 6-6
+- #include <complex>  // lines 9-9
+- #include <experimental/optional>  // lines 19-19
+- #include <fstream>  // lines 8-8
+- #include <functional>  // lines 13-13
+- #include <iostream>  // lines 7-7
+- #include <limits>  // lines 17-17
+- #include <list>  // lines 10-10
+- #include <map>  // lines 11-11
+- #include <string>  // lines 12-12
+- #include <tuple>  // lines 14-14
+- #include <utility>  // lines 18-18
+- #include <vector>  // lines 15-15
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.h:
+#include <stddef.h>             // for size_t
+#include "YgorMathChebyshev.h"  // for cheby_approx
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.cc should add these lines:
+#include <stdexcept>                                // for invalid_argument, overflow_error
+
+/home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.cc should remove these lines:
+- #include <algorithm>  // lines 7-7
+- #include <fstream>  // lines 6-6
+- #include <functional>  // lines 12-12
+- #include <iomanip>  // lines 17-17
+- #include <iostream>  // lines 4-4
+- #include <iterator>  // lines 11-11
+- #include <list>  // lines 10-10
+- #include <map>  // lines 8-8
+- #include <sstream>  // lines 5-5
+- #include <tuple>  // lines 14-14
+- #include <unordered_map>  // lines 9-9
+- #include <utility>  // lines 18-18
+- #include "YgorMath.h"  // lines 24-24
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathChebyshevFunctions.cc:
+#include "YgorMathChebyshevFunctions.h"
+#include <boost/math/special_functions/bessel.hpp>  // for cyl_bessel_i
+#include <cmath>                                    // for isfinite, lgamma, cos, ceil, exp, floor, M_PI
+#include <limits>                                   // for numeric_limits
+#include <stdexcept>                                // for invalid_argument, overflow_error
+#include <string>                                   // for to_string
+#include <vector>                                   // for vector
+#include "YgorMathChebyshev.h"                      // for cheby_approx
+#include "YgorMisc.h"                               // for FUNCERR
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.h should add these lines:
+#include <string>  // for string
+template <class T> class line_segment;
+template <class T> class vec3;
+
+/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.h should remove these lines:
+- #include "YgorMath.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathIOOFF.h:
+#include <string>  // for string
+#include <vector>  // for vector
+template <class T> class line_segment;
+template <class T> class vec3;
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorMathIOOFF.cc should remove these lines:
+- #include <cinttypes>  // lines 7-7
+- #include <iostream>  // lines 3-3
+- #include <type_traits>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMathIOOFF.cc:
+#include "YgorMathIOOFF.h"
+#include <fstream>     // for endl, ofstream, basic_ostream, operator<<, char_traits, ifstream, basic_ios, ios
+#include <vector>      // for vector
+#include "YgorMath.h"  // for line_segment
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMath_Samples.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorMath_Samples.h should remove these lines:
+- #include <list>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMath_Samples.h:
+#include "YgorMath.h"  // for samples_1D, contour_of_points, contour_collection
+---
+
+/home/hal/Development/Project - Ygor/src/YgorMath_Samples.cc should add these lines:
+#include <algorithm>   // for move
+#include <array>       // for array
+#include <vector>      // for vector
+
+/home/hal/Development/Project - Ygor/src/YgorMath_Samples.cc should remove these lines:
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorMath_Samples.cc:
+#include "YgorMath_Samples.h"
+#include <algorithm>   // for move
+#include <array>       // for array
+#include <list>        // for list
+#include <vector>      // for vector
+#include "YgorMath.h"  // for vec3, vec2, contour_of_points, contour_collection, samples_1D
+---
+
+/home/hal/Development/Project - Ygor/src/YgorNetworking.h should add these lines:
+#include <utility>           // for pair
+
+/home/hal/Development/Project - Ygor/src/YgorNetworking.h should remove these lines:
+- #include <cerrno>  // lines 16-16
+- #include <cstring>  // lines 17-17
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorNetworking.h:
+#include <arpa/inet.h>
+#include <sys/wait.h> 
+#include <unistd.h>
+#include <netdb.h>           // for addrinfo
+#include <netinet/in.h>      // for INET6_ADDRSTRLEN
+#include <sys/socket.h>      // for sockaddr_storage, socklen_t
+#include <sys/types.h>       // for off_t
+#include <csignal>           // for sigaction
+#include <cstdlib>           // for size_t
+#include <functional>        // for function
+#include <list>              // for list
+#include <mutex>             // for mutex
+#include <set>               // for set
+#include <string>            // for string
+#include <thread>            // for thread
+#include <utility>           // for pair
+#include "YgorContainers.h"  // for taskpool
+---
+
+/home/hal/Development/Project - Ygor/src/YgorNetworking.cc should add these lines:
+#include <YgorContainers.h>  // for taskpool
+#include <sys/time.h>        // for timeval
+#include <vector>            // for vector, vector<>::iterator
+
+/home/hal/Development/Project - Ygor/src/YgorNetworking.cc should remove these lines:
+- #include <net/if.h>  // lines 91-91
+- #include <sched.h>  // lines 75-75
+- #include <sched.h>  // lines 100-100
+- #include <sys/ioctl.h>  // lines 90-90
+- #include <sys/mman.h>  // lines 99-99
+- #include <cstdio>  // lines 83-83
+- #include <cstdlib>  // lines 112-112
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorNetworking.cc:
+#include "YgorNetworking.h"
+#include <YgorContainers.h>  // for taskpool
+#include <arpa/inet.h>       // for inet_ntop
+#include <fcntl.h>           // for fcntl, FD_CLOEXEC, F_SETFD
+#include <ifaddrs.h>         // for freeifaddrs, ifaddrs, getifaddrs
+#include <netdb.h>           // for addrinfo, freeaddrinfo, gai_strerror, getaddrinfo, getnameinfo, NI_MAXHOST, AI_P...
+#include <netinet/in.h>      // for ip_mreq, ipv6_mreq, sockaddr_in, sockaddr_in6, IPPROTO_IP, IPV6_ADD_MEMBERSHIP
+#include <sys/socket.h>      // for setsockopt, socket, recv, send, SOL_SOCKET, sockaddr, bind, connect, AF_INET
+#include <sys/time.h>        // for timeval
+#include <sys/types.h>       // for off_t
+#include <sys/wait.h>        // for waitpid, WNOHANG
+#include <unistd.h>          // for close
+#include <cerrno>            // for ETIMEDOUT, errno
+#include <chrono>            // for seconds
+#include <csignal>           // for signal, sigaction, sigemptyset, SIGPIPE, SIG_IGN, SA_RESTART, SIGCHLD, sa_handler
+#include <cstdlib>           // for size_t
+#include <cstring>           // for memset, memcpy, strerror
+#include <functional>        // for function
+#include <iostream>          // for operator<<, basic_ostream
+#include <string>            // for string, operator+, char_traits, allocator, basic_string, operator<<
+#include <thread>            // for sleep_for
+#include <vector>            // for vector, vector<>::iterator
+#include "YgorAlgorithms.h"  // for shuffle_list_randomly
+#include "YgorFilesDirs.h"   // for Size_of_File, LoadBinaryFileToString
+#include "YgorMisc.h"        // for FUNCWARN, FUNCINFO
+#include "YgorString.h"      // for Xtostring, operator""_s, GetFirstRegex, SplitStringToVector
+#include "YgorURITools.h"    // for Guess_Mime_Type, Request_URL
+---
+
+/home/hal/Development/Project - Ygor/src/YgorNoise.cc should add these lines:
+#include <cstdint>     // for uint64_t
+
+/home/hal/Development/Project - Ygor/src/YgorNoise.cc should remove these lines:
+- #include <cinttypes>  // lines 7-7
+- #include <cstdio>  // lines 4-4
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorNoise.cc:
+#include <cmath>       // for sqrtf
+#include <cstdint>     // for uint64_t
+#include <cstdlib>     // for random, srandom
+#include "YgorMisc.h"  // for PER_BYTE_BITWISE_ROT_L
+---
+
+/home/hal/Development/Project - Ygor/src/YgorPerformance.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorPerformance.h should remove these lines:
+- #include <ctime>  // lines 5-5
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorPerformance.h:
+---
+
+/home/hal/Development/Project - Ygor/src/YgorPerformance.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorPerformance.cc should remove these lines:
+- #include <ctime>  // lines 8-8
+- #include <sstream>  // lines 7-7
+- #include "YgorMisc.h"  // lines 10-10
+- #include "YgorString.h"  // lines 11-11
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorPerformance.cc:
+#include "YgorPerformance.h"
+#include <sys/time.h>  // for gettimeofday, timeval
+#include <iostream>    // for operator<<, endl, basic_ostream, cerr, ostream, basic_ostream<>::__ostream_type
+---
+
+/home/hal/Development/Project - Ygor/src/YgorPlot.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorPlot.h should remove these lines:
+- #include <vector>  // lines 16-16
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorPlot.h:
+#include <cstdio>           // for popen, pclose, FILE
+#include <list>             // for list
+#include <map>              // for map
+#include <sstream>          // for stringstream, basic_ostream, operator<<, endl, operator|, basic_ostream::operator<<
+#include <string>           // for string, allocator, operator+, char_traits, operator<<, basic_string
+#include "YgorFilesDirs.h"  // for Does_File_Exist_And_Can_Be_Read, Get_Unique_Sequential_Filename
+#include "YgorMath.h"       // for samples_1D
+#include "YgorMisc.h"       // for FUNCERR, FUNCWARN
+---
+
+/home/hal/Development/Project - Ygor/src/YgorPlot.cc should add these lines:
+#include <YgorMath.h>    // for samples_1D, operator<<, vec2
+#include <array>         // for array
+#include <utility>       // for pair
+#include <vector>        // for vector
+
+/home/hal/Development/Project - Ygor/src/YgorPlot.cc should remove these lines:
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorPlot.cc:
+#include "YgorPlot.h"
+#include <YgorMath.h>    // for samples_1D, operator<<, vec2
+#include <array>         // for array
+#include <cstdio>        // for fprintf, pclose, popen, FILE
+#include <sstream>       // for operator<<, basic_ostream, stringstream, endl, basic_ostream<>::__ostream_type, basi...
+#include <string>        // for operator+, string, char_traits, operator<<, allocator, basic_string, char_traits<>::...
+#include <utility>       // for pair
+#include <vector>        // for vector
+#include "YgorMisc.h"    // for FUNCERR
+#include "YgorString.h"  // for operator""_s, Xtostring
+---
+
+(/home/hal/Development/Project - Ygor/src/YgorSerialize.h has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/src/YgorSerialize.cc should add these lines:
+#include <algorithm>   // for move
+
+/home/hal/Development/Project - Ygor/src/YgorSerialize.cc should remove these lines:
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorSerialize.cc:
+#include "YgorSerialize.h"
+#include <algorithm>   // for move
+#include <cstdint>     // for uint8_t, uint64_t, uint16_t
+#include <cstring>     // for memcpy
+#include <limits>      // for numeric_limits
+#include <list>        // for list
+#include <vector>      // for vector
+#include <memory>      // for unique_ptr, operator==
+#include <string>      // for string, operator!=, basic_string
+#include "YgorMisc.h"  // for FUNCWARN, FUNCERR
+---
+
+/home/hal/Development/Project - Ygor/src/YgorStats.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorStats.h should remove these lines:
+- #include <list>  // lines 8-8
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorStats.h:
+#include <array>   // for array
+#include <vector>  // for vector
+---
+
+/home/hal/Development/Project - Ygor/src/YgorStats.cc should add these lines:
+#include <gsl/gsl_sf_result.h>    // for gsl_sf_result
+#include <iterator>               // for next
+#include <memory>                 // for __alloc_traits<>::value_type
+#include <stdexcept>              // for runtime_error
+
+/home/hal/Development/Project - Ygor/src/YgorStats.cc should remove these lines:
+- #include <functional>  // lines 12-12
+- #include <limits>  // lines 17-17
+- #include <list>  // lines 10-10
+- #include <type_traits>  // lines 20-20
+- #include "YgorMath.h"  // lines 28-28
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorStats.cc:
+#include "YgorStats.h"
+#include <gsl/gsl_errno.h>        // for gsl_set_error_handler, gsl_set_error_handler_off
+#include <gsl/gsl_integration.h>  // for gsl_integration_qags, gsl_integration_workspace_alloc, gsl_integration_work...
+#include <gsl/gsl_math.h>         // for gsl_function
+#include <gsl/gsl_sf_gamma.h>     // for gsl_sf_beta_inc_e, gsl_sf_gamma_inc_Q
+#include <gsl/gsl_sf_result.h>    // for gsl_sf_result
+#include <algorithm>              // for move, min, sort
+#include <array>                  // for array, swap
+#include <cmath>                  // for sqrt, abs, pow, isfinite, copysign, isnormal, lgamma, erf, exp, floor, M_PI
+#include <iterator>               // for next
+#include <limits>                 // for numeric_limits
+#include <memory>                 // for __alloc_traits<>::value_type
+#include <stdexcept>              // for runtime_error
+#include <vector>                 // for vector<>::iterator, vector
+#include "YgorMisc.h"             // for FUNCERR, FUNCWARN, Ygor_Container_Sort, isininc
+---
+
+/home/hal/Development/Project - Ygor/src/YgorString.h should add these lines:
+#include <stddef.h>  // for size_t
+#include <cstdint>   // for uint64_t
+
+/home/hal/Development/Project - Ygor/src/YgorString.h should remove these lines:
+- #include <algorithm>  // lines 15-15
+- #include <utility>  // lines 12-12
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorString.h:
+#include <stddef.h>  // for size_t
+#include <cstdint>   // for uint64_t
+#include <list>      // for list
+#include <map>       // for map
+#include <memory>    // for unique_ptr
+#include <regex>     // for regex
+#include <set>       // for set
+#include <string>    // for string
+#include <vector>    // for vector
+---
+
+/home/hal/Development/Project - Ygor/src/YgorString.cc should add these lines:
+#include <stdio.h>     // for sscanf
+#include <stdlib.h>    // for malloc, free
+#include <string.h>    // for size_t, memcpy, strdup
+#include <exception>   // for exception
+
+/home/hal/Development/Project - Ygor/src/YgorString.cc should remove these lines:
+- #include <memory>  // lines 14-14
+- #include <sstream>  // lines 16-16
+- #include <utility>  // lines 13-13
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorString.cc:
+#include "YgorString.h"
+#include <stdio.h>     // for sscanf
+#include <stdlib.h>    // for malloc, free
+#include <string.h>    // for size_t, memcpy, strdup
+#include <algorithm>   // for move, reverse, remove_if, set_intersection, transform
+#include <cctype>      // for iscntrl, ispunct, isspace, toupper
+#include <chrono>      // for duration, high_resolution_clock, system_clock::time_point
+#include <exception>   // for exception
+#include <iomanip>     // for operator<<, setprecision
+#include <iostream>    // for stringstream, operator<<, basic_ostream, basic_istream, basic_ostream<>::__ostream_type
+#include <iterator>    // for insert_iterator, back_insert_iterator, back_inserter, inserter, next
+#include <list>        // for list
+#include <map>         // for _Rb_tree_const_iterator, map
+#include <memory>      // for allocator, allocator_traits<>::value_type, __alloc_traits<>::value_type, unique_ptr
+#include <random>      // for default_random_engine, random_device, uniform_int_distribution
+#include <regex>       // for regex, sregex_token_iterator, regex_token_iterator, sub_match, regex_search, operator|
+#include <set>         // for set, set<>::iterator
+#include <string>      // for string, basic_string, basic_string<>::iterator, operator+, operator>>, char_traits
+#include <vector>      // for vector, vector<>::iterator
+#include "YgorMisc.h"  // for isininc, FUNCERR, FUNCWARN, YGORABS
+---
+
+/home/hal/Development/Project - Ygor/src/YgorTime.h should add these lines:
+#include <cstdint>  // for uint64_t, int64_t, uint8_t
+
+/home/hal/Development/Project - Ygor/src/YgorTime.h should remove these lines:
+- #include "YgorSerialize.h"  // lines 9-9
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorTime.h:
+#include <cstdint>  // for uint64_t, int64_t, uint8_t
+#include <ctime>    // for time_t
+#include <memory>   // for unique_ptr
+#include <string>   // for string
+---
+
+/home/hal/Development/Project - Ygor/src/YgorTime.cc should add these lines:
+#include <algorithm>        // for move
+
+/home/hal/Development/Project - Ygor/src/YgorTime.cc should remove these lines:
+- #include <sys/time.h>  // lines 4-4
+- #include <sstream>  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorTime.cc:
+#include "YgorTime.h"
+#include <algorithm>        // for move
+#include <ctime>            // for tm, localtime_r, strptime, mktime, time_t, time
+#include <iostream>         // for operator<<, basic_ostream::operator<<, basic_ostream, stringstream, basic_ostream...
+#include <limits>           // for numeric_limits, numeric_limits<>::digits, numeric_limits<>::is_iec559, numeric_li...
+#include <memory>           // for unique_ptr, make_unique, operator==
+#include <string>           // for string, char_traits, operator!=, basic_string
+#include "YgorMisc.h"       // for FUNCERR, FUNCWARN, YGORABS
+#include "YgorSerialize.h"  // for SERIALIZE_WARNFAIL_OR_DIE, Get, Get_Size, Put, Put_Size, max_vw_size
+#include "YgorString.h"     // for Is_String_An_X, stringtoX, Remove_Preceeding_Chars
+---
+
+/home/hal/Development/Project - Ygor/src/YgorURITools.h should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorURITools.h should remove these lines:
+- #include <vector>  // lines 8-8
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorURITools.h:
+#include <list>     // for list
+#include <string>   // for string
+#include <utility>  // for pair
+---
+
+/home/hal/Development/Project - Ygor/src/YgorURITools.cc should add these lines:
+#include <strings.h>                 // for strcasecmp
+
+/home/hal/Development/Project - Ygor/src/YgorURITools.cc should remove these lines:
+- #include <cstdio>  // lines 3-3
+- #include <vector>  // lines 5-5
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorURITools.cc:
+#include "YgorURITools.h"
+#include <strings.h>                 // for strcasecmp
+#include <string>                    // for string, operator+, allocator, operator==, basic_string, char_traits
+#include "YgorMisc.h"                // for Execute_Command_In_Pipe
+#include "YgorString.h"              // for GetFirstRegex, operator""_s, Quote_Static_for_Bash, Basic_Decode_URL
+#include "htmlcxx/html/ParserDom.h"  // for ParserDom
+---
+
+(/home/hal/Development/Project - Ygor/src/YgorVIDEOTools.h has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/src/YgorVIDEOTools.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/src/YgorVIDEOTools.cc should remove these lines:
+- #include "YgorFilesDirs.h"  // lines 8-8
+
+The full include-list for /home/hal/Development/Project - Ygor/src/YgorVIDEOTools.cc:
+#include "YgorVIDEOTools.h"
+#include <string>        // for string
+#include <utility>       // for pair
+#include "YgorMisc.h"    // for Execute_Command_In_Pipe
+#include "YgorString.h"  // for GetFirstRegex, Is_String_An_X, stringtoX, Quote_Static_for_Bash
+---
+
+(/home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.h has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.cpp should add these lines:
+#include <string.h>  // for memcpy, memset
+
+/home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.cpp should remove these lines:
+- #include <memory.h>  // lines 12-12
+
+The full include-list for /home/hal/Development/Project - Ygor/src/External/SpookyHash/SpookyV2.cpp:
+#include "SpookyV2.h"
+#include <string.h>  // for memcpy, memset
+---
+
+(/home/hal/Development/Project - Ygor/src/External/MD5/md5.h has correct #includes/fwd-decls)
+
+(/home/hal/Development/Project - Ygor/src/External/MD5/md5.cc has correct #includes/fwd-decls)
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditUrls.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditUrls.cc should remove these lines:
+- #include <map>  // lines 8-8
+- #include "YgorCONFIGTools.h"  // lines 17-17
+- #include "YgorFilesDirs.h"  // lines 14-14
+- #include "YgorMisc.h"  // lines 11-11
+- #include "YgorNetworking.h"  // lines 12-12
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetRedditUrls.cc:
+#include <iostream>        // for endl, basic_ostream, cout, ostream
+#include <list>            // for list
+#include <string>          // for string, operator<<
+#include <utility>         // for pair
+#include "YgorString.h"    // for Basic_Decode_URL, GetFirstRegex
+#include "YgorURITools.h"  // for Filter_Blacklist_Links, Filter_Whitelist_Links, Get_Tags_Attributes, Clean_Links
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditMusic.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditMusic.cc should remove these lines:
+- #include <map>  // lines 6-6
+- #include "YgorFilesDirs.h"  // lines 12-12
+- #include "YgorMisc.h"  // lines 9-9
+- #include "YgorNetworking.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetRedditMusic.cc:
+#include <iostream>           // for endl, basic_ostream, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorString.h"       // for Basic_Decode_URL, Canonicalize_String, GetFirstRegex, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Filter_Blacklist_Links, Filter_Whitelist_Links, Get_Tags_Attributes, Clean_Links
+---
+
+/home/hal/Development/Project - Ygor/binaries/Regex_Tester.cc should add these lines:
+#include <iostream>         // for operator<<, endl, basic_ostream, cout, ostream, cin, basic_ostream<>::__ostream_type
+
+/home/hal/Development/Project - Ygor/binaries/Regex_Tester.cc should remove these lines:
+- #include "YgorMisc.h"  // lines 7-7
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/Regex_Tester.cc:
+#include <iostream>         // for operator<<, endl, basic_ostream, cout, ostream, cin, basic_ostream<>::__ostream_type
+#include <string>           // for getline, operator<<, string
+#include <vector>           // for vector
+#include "YgorFilesDirs.h"  // for Does_File_Exist_And_Can_Be_Read, LoadFileToString
+#include "YgorString.h"     // for GetAllRegex2
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetVimeoUrls.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetVimeoUrls.cc should remove these lines:
+- #include <map>  // lines 6-6
+- #include "YgorFilesDirs.h"  // lines 12-12
+- #include "YgorMisc.h"  // lines 9-9
+- #include "YgorNetworking.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetVimeoUrls.cc:
+#include <iostream>           // for endl, basic_ostream, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorString.h"       // for Canonicalize_String, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Get_Tags_Attributes, Clean_Links, Filter_Blacklist_Links, Filter_Whitelist_Links
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditMovies.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetRedditMovies.cc should remove these lines:
+- #include <map>  // lines 6-6
+- #include "YgorFilesDirs.h"  // lines 12-12
+- #include "YgorMisc.h"  // lines 9-9
+- #include "YgorNetworking.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetRedditMovies.cc:
+#include <iostream>           // for endl, basic_ostream, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorString.h"       // for Basic_Decode_URL, Canonicalize_String, GetFirstRegex, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Filter_Blacklist_Links, Filter_Whitelist_Links, Get_Tags_Attributes, Clean_Links
+---
+
+/home/hal/Development/Project - Ygor/binaries/TwoT_PValue.cc should add these lines:
+
+/home/hal/Development/Project - Ygor/binaries/TwoT_PValue.cc should remove these lines:
+- #include <cmath>  // lines 2-2
+- #include <list>  // lines 6-6
+- #include <sstream>  // lines 5-5
+- #include <tuple>  // lines 7-7
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/TwoT_PValue.cc:
+#include <iostream>     // for operator<<, basic_istream, stringstream, cout, ostream, basic_ostream, basic_ostream<...
+#include <string>       // for getline, string
+#include "YgorMisc.h"   // for FUNCINFO, FUNCWARN
+#include "YgorStats.h"  // for P_From_StudT_Diff_Means_From_Uneq_Vars
+---
+
+/home/hal/Development/Project - Ygor/binaries/Replace_NaNs.cc should add these lines:
+#include <stdexcept>       // for runtime_error
+
+/home/hal/Development/Project - Ygor/binaries/Replace_NaNs.cc should remove these lines:
+- #include "YgorMisc.h"  // lines 6-6
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/Replace_NaNs.cc:
+#include <iostream>        // for operator<<, endl, basic_ostream, cout, ostream
+#include <stdexcept>       // for runtime_error
+#include <string>          // for string
+#include "YgorImages.h"    // for planar_image
+#include "YgorImagesIO.h"  // for ReadFromFITS, WriteToFITS
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetVideosiftUrls.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetVideosiftUrls.cc should remove these lines:
+- #include <map>  // lines 6-6
+- #include "YgorFilesDirs.h"  // lines 12-12
+- #include "YgorMisc.h"  // lines 9-9
+- #include "YgorNetworking.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetVideosiftUrls.cc:
+#include <iostream>           // for endl, basic_ostream, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorString.h"       // for Canonicalize_String, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Filter_Blacklist_Links, Clean_Links, Filter_Whitelist_Links, Request_URL, Get_L...
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetUrls.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetUrls.cc should remove these lines:
+- #include <map>  // lines 10-10
+- #include "YgorNetworking.h"  // lines 14-14
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetUrls.cc:
+#include <iostream>           // for operator<<, basic_ostream, endl, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<, char_traits
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorFilesDirs.h"    // for Does_File_Exist_And_Can_Be_Read, LoadFileToString
+#include "YgorMisc.h"         // for FUNCERR
+#include "YgorString.h"       // for Basic_Decode_URL, Canonicalize_String, GetFirstRegex, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Clean_Links, Get_Tags_Attributes, Get_Links, Request_URL
+---
+
+/home/hal/Development/Project - Ygor/binaries/GetNutritionfactsUrls.cc should add these lines:
+#include <vector>             // for vector
+
+/home/hal/Development/Project - Ygor/binaries/GetNutritionfactsUrls.cc should remove these lines:
+- #include <map>  // lines 6-6
+- #include "YgorFilesDirs.h"  // lines 12-12
+- #include "YgorMisc.h"  // lines 9-9
+- #include "YgorNetworking.h"  // lines 10-10
+
+The full include-list for /home/hal/Development/Project - Ygor/binaries/GetNutritionfactsUrls.cc:
+#include <iostream>           // for endl, basic_ostream, cout, ostream
+#include <list>               // for list
+#include <string>             // for string, operator<<
+#include <utility>            // for pair
+#include <vector>             // for vector
+#include "YgorCONFIGTools.h"  // for Double_Serialize_Simple_Config_File
+#include "YgorString.h"       // for Basic_Decode_URL, Canonicalize_String, GetFirstRegex, PurgeCharsFromString, TRIM
+#include "YgorURITools.h"     // for Get_Tags_Attributes, Clean_Links, Filter_Whitelist_Links, Get_Links, Request_URL
+---

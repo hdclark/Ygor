@@ -4,24 +4,24 @@
 //    #define YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
 //#endif
 
-#include <iostream>
-#include <memory>
-#include <string>
-#include <map>
-#include <vector>
-#include <list>
-#include <utility>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <iomanip>    //Needed for std::setprecision(...)
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <algorithm>  //Needed for set_intersection(..), reverse().
-#include <random>
-#include <iterator>
-#include <chrono>     //Needed to provide backup seeds if std::random_device fails.
-
 //For Canonicalization function.
 #include <cctype>     //Needed for locale-less ::toupper().
+#include <chrono>     //Needed to provide backup seeds if std::random_device fails.
+#include <exception>
+#include <iomanip>    //Needed for std::setprecision(...)
+#include <iostream>
+#include <iterator>
+#include <list>
+#include <map>
+#include <memory>
+#include <random>
+#include <set>
+#include <string>
+#include <vector>
 //#include <locale>      //Needed for std::toupper() along with following line.
 //const std::locale loc; // The current locale. 
 //#include <boost/algorithm/string.hpp> //A faster way to get a toupper() function (boost::to_upper).
@@ -37,8 +37,8 @@
                       //--------------------------------------------
                       //--------------------------------------------
 
-#include "YgorString.h" //Includes namespace constants, function decl.'s, etc..
 #include "YgorMisc.h"   //Needed for error functions (for debugging) and isininc macro.
+#include "YgorString.h" //Includes namespace constants, function decl.'s, etc..
 
 
 

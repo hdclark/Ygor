@@ -10,15 +10,19 @@
 
 
 
-#include <iostream>
-#include <cstddef>       //Needed for ptrdiff_t
-#include <cmath>
-#include <functional>    //Needed to (easily) accept lambda functions in higher-order functions.
+#include <stdlib.h>
 #include <algorithm>     //Needed for random_shuffle(...)
-#include <random>        //Needed for std::random_device.
-#include <vector>
+#include <cmath>
+#include <cstddef>       //Needed for ptrdiff_t
+#include <cstdint>
+#include <functional>    //Needed to (easily) accept lambda functions in higher-order functions.
+#include <iostream>
 #include <list>
+#include <memory>
+#include <random>        //Needed for std::random_device.
+#include <string>
 #include <tuple>
+#include <vector>
 
 
 //NOTE: It is *probably* better to NOT use an aggressive attempt to force asynchronicity!
@@ -30,14 +34,15 @@
 //    #include <system_error>  //Needed to launch non-deferrable std::async(..)'s.
 //#endif
 
-#include <stdexcept>
-
 #include <future>
+#include <stdexcept>
 //#include <chrono>
 
-#include "YgorMisc.h"
 #include "YgorMath.h"
+#include "YgorMisc.h"
 #include "YgorPlot.h"
+
+class Plotter2;
 
 //----------------------------------------------------------------------------------------------------------------------------
 //------------------------------------------------------- NMSimplex ----------------------------------------------------------

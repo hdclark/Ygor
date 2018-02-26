@@ -3,15 +3,18 @@
 #ifndef YGOR_IMAGES_HDR_GRD_H
 #define YGOR_IMAGES_HDR_GRD_H
 
-#include <memory>
-#include <string>
-#include <list>
-#include <set>
-#include <map>
-#include <utility>
-#include <functional>
-#include <experimental/optional>
 #include <experimental/any>
+#include <experimental/optional>
+#include <functional>
+#include <limits>
+#include <list>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "YgorMath.h"
 

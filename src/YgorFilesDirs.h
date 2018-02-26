@@ -3,15 +3,14 @@
 #ifndef YGOR_FILES_DIRS_HDR_GRD_H
 #define YGOR_FILES_DIRS_HDR_GRD_H
 
-#include <string>
-#include <list>
-#include <sstream>
-#include <memory>
-#include <fstream>
-#include <ctime>
-#include <cstdint> //For intmax_t
-
 #include <sys/stat.h>
+#include <cstdint> //For intmax_t
+#include <ctime>
+#include <fstream>
+#include <list>
+#include <memory>
+#include <sstream>
+#include <string>
 
 
 

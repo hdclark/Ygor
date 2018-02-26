@@ -1,6 +1,9 @@
 //YgorMath_Samples.cc - A few sample things which can be used for testing.
 
+#include <algorithm>
+#include <array>
 #include <list>
+#include <vector>
 
 #include "YgorMath.h"
 #include "YgorMath_Samples.h"

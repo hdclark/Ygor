@@ -1,9 +1,9 @@
 //Replace_NaNs.cc -- A little program to replace NaNs in FITS images for better interoperativity.
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
-#include "YgorMisc.h"
 #include "YgorImages.h"
 #include "YgorImagesIO.h"
 

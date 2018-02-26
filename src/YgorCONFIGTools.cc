@@ -1,22 +1,19 @@
 //YgorCONFIGTools.cc - A collection of routines for parsing/reading configuration files.
 
-#include <vector>
-#include <string>
 #include <fstream>
-#include <sstream>
-
 #include <regex>   //C++11 support is currently incomplete for regex!
+#include <string>
+#include <vector>
 //#include <boost/regex.hpp> //Be sure to compile with -lboost_regex using this library.
 
 //const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:blank:]]*#)***", std::regex::perl | std::regex::icase );
 const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:space:]]*#)***", std::regex::ECMAScript | std::regex::icase );
 //const std::regex regex_contains_a_colon( R"***(:)***", std::regex::basic | std::regex::icase );
 
-#include "YgorMisc.h"         //Needed for FUNCINFO/FUNCWARN/FUNCERR macro-functions.
-#include "YgorFilesDirs.h"    //Needed for Does_File_Exist_And_Can_Be_Read(..)
-#include "YgorString.h"       //Needed for SplitStringToVector(...), Canonicalize_String(...).
-
 #include "YgorCONFIGTools.h"    
+#include "YgorFilesDirs.h"    //Needed for Does_File_Exist_And_Can_Be_Read(..)
+#include "YgorMisc.h"         //Needed for FUNCINFO/FUNCWARN/FUNCERR macro-functions.
+#include "YgorString.h"       //Needed for SplitStringToVector(...), Canonicalize_String(...).
 
 
 //A simple config file is one where:

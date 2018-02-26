@@ -1,24 +1,14 @@
 //YgorMathChebyshev.cc.
 
-#include <cmath>       //Needed for fabs, signbit, sqrt, etc...
-#include <iostream>
-#include <sstream>
-#include <fstream>
 #include <algorithm>   //Needed for std::reverse.
-#include <map>
-#include <unordered_map>
-#include <list>
-#include <iterator>
+#include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <functional>  //Needed for passing kernel functions to integration schemes.
-#include <string>      //Needed for stringification routines.
-#include <tuple>       //Needed for Spearman's Rank Correlation Coeff, other statistical routines.
 #include <limits>      //Needed for std::numeric_limits::max().
-#include <vector>
-#include <iomanip>     //Needed for std::setw() for pretty-printing.
+#include <stdexcept>
 #include <utility>     //Needed for std::pair.
+#include <vector>
 //#include <experimental/optional>
 
-#include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
 #include "YgorMath.h"
 #include "YgorMathChebyshev.h"
 
