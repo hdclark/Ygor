@@ -163,10 +163,6 @@ std::string GetFirstRegex(const std::string &source, std::string query);
 //std::string GetFirstRegex(std::string source, std::string query);
 std::string GetFirstRegex(std::vector<std::string> &source, std::string query);
 
-std::vector<std::string> GetAllRegex(std::vector<std::string> &source, std::regex &regex_the_query);
-std::vector<std::string> GetAllRegex(std::vector<std::string> &source, std::string query);
-
-std::vector<std::string> GetAllRegex(std::string &source, std::string query);   //NOTE: DO NOT USE THIS ONE!
 std::vector<std::string> GetAllRegex2(const std::string &source, std::string query);
 
 std::string GetLineNBelow( std::vector<std::string> &source, std::string query, long int N);

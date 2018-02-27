@@ -1176,47 +1176,6 @@ std::string GetFirstRegex(std::vector<std::string> &source, std::string query){
     return std::string();
 }
 
-[[deprecated("GetAllRegex(...) is deprecated in favour of GetAllRegex2(...)")]]
-std::vector<std::string> GetAllRegex(std::vector<std::string> &source, std::regex &regex_the_query){
-    FUNCWARN("This function has been found to be invalid - Swap the GetAllRegex2 codes into this code to see if anything changes!");
-    //# pragma message "Warning - This function has been found to be invalid - Swap the GetAllRegex2 codes into this code to see if anything changes!"
-
-    std::vector<std::string> outgoing;
-    const std::sregex_token_iterator end;
-
-    for(auto & i : source){
-        //Perform the matching/finding. We get an iterator over matches.
-        std::sregex_token_iterator iter(i.begin(), i.end(), regex_the_query, 0);
-
-        //Iterate over matches, storing them if they 
-        for( ; iter != end; ++iter ){
-            if((*iter).length() != 0){
-                outgoing.push_back( *iter );
-            }
-        }
-    }
-    return outgoing;
-}
-
-std::vector<std::string> GetAllRegex(std::vector<std::string> &source, std::string query){
-    //Make a regex unit from the query.
-    std::regex regex_the_query( query.c_str(), std::regex::icase );
-    return GetAllRegex(source, regex_the_query);
-}
-
-std::vector<std::string> GetAllRegex(std::string &source, std::string query){
-    //Make a regex unit from the query.
-    std::regex regex_the_query( query.c_str(), std::regex::icase );
-
-    //Encapsulate the source string into a vector.
-    std::vector<std::string> encapsed_source;
-    encapsed_source.push_back( source );
-
-    return GetAllRegex(encapsed_source, regex_the_query);
-}
-
-
-
 std::vector<std::string> GetAllRegex2(const std::string &source, std::string query){
     std::vector<std::string> out;
     std::regex regex_the_query( query.c_str(), std::regex::icase );
