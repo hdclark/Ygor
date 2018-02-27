@@ -370,7 +370,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
         //Get a (smoothed) estimate of the input data on the input data x_i's.
         samples_1D<double> s_f(Get_Smoothed_at_Xi(h,in,OK));
-        if(*OK == false) return std::move(s_f);
+        if(*OK == false) return s_f;
     
         //Now, transform the data using F[smoothed_f_i] = ln( (Y_i - smoothed_f_i)**2 ) where Y_i is the input Y at the point X_i
         // where smoothed_f_i was calculated.
@@ -380,7 +380,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
             (*s_it)[2] = std::log( ((*s_it)[2] - (*p_it)[2])*((*s_it)[2] - (*p_it)[2]) );
         }
     
-        *OK = true; return std::move(s_f);
+        *OK = true; return s_f;
     }
    
     //This is strictly a convenience function.
@@ -395,11 +395,11 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         const double xmax(in.samples.back()[0]);
         for(auto x = xmin; x < xmax; x += dx){
             const double fval(Get_Smoothed_at_X(h,x,in,OK));
-            if(*OK == false) return std::move(out);
+            if(*OK == false) return out;
             out.push_back(vec2<double>(x, fval));
         }
     
-        *OK = true; return std::move(out);
+        *OK = true; return out;
     }
     
     //For the given input (x_i,y_i), generate smoothed output (x_i,s_y_i) at the (exact) same x_i. This is used internally
@@ -412,10 +412,10 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         samples_1D<double> s_f(in); //"smoothed function"
         for(auto p_it = s_f.samples.begin(); p_it != s_f.samples.end(); ++p_it){
             const auto fval = Get_Smoothed_at_X(h,(*p_it)[0],in,OK);
-            if(*OK == false) return std::move(s_f);
+            if(*OK == false) return s_f;
             (*p_it)[2] = fval;
         }
-        *OK = true; return std::move(s_f);
+        *OK = true; return s_f;
     }
 
 

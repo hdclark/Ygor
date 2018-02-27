@@ -177,7 +177,7 @@ out39.closed = true;
 ccs.contours.push_back(out39);
 
   
-    return std::move(ccs);
+    return ccs;
 }
 
 
