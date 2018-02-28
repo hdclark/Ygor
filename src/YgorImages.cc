@@ -718,7 +718,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
         FUNCERR("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::max(static_cast<long int>(0),row+1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col,chnl)]) )
@@ -739,7 +739,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
         FUNCERR("Attempted to access part of image which does not exist");
     }
     long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::max(static_cast<long int>(0),col+1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
     
     return (  static_cast<R>(this->data[this->index(row,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row,col_m_1,chnl)]) )
@@ -774,7 +774,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_ce
         FUNCERR("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::max(static_cast<long int>(0),row+1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
 
     return (  this->row_aligned_derivative_centered_finite_difference(row_p_1, col, chnl)
             - this->row_aligned_derivative_centered_finite_difference(row_m_1, col, chnl) )
@@ -795,7 +795,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
         FUNCERR("Attempted to access part of image which does not exist");
     }
     long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::max(static_cast<long int>(0),col+1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
 
     return (  this->column_aligned_derivative_centered_finite_difference(row, col_p_1, chnl)
             - this->column_aligned_derivative_centered_finite_difference(row, col_m_1, chnl) )
@@ -816,9 +816,9 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
         FUNCERR("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::max(static_cast<long int>(0),row+1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
     long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::max(static_cast<long int>(0),col+1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
