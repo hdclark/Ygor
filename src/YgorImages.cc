@@ -731,6 +731,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
     template double planar_image<uint64_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
+
 template <class T,class R> R planar_image<T,R>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
     // NOTE: This routine computes $\partial_{c} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
@@ -752,6 +753,306 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
     template double planar_image<uint64_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
+
+// The Roberts (centred) cross derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
+// conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
+template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes the Roberts cross, which estimates the partial derivative (i.e., gradient) along an
+    //       image axis-aligned direction. This operation effectively convolves the pixel (and its neighbours) using the
+    //       (modified*) kernels:
+    //
+    //        o-----> +column-aligned (aka row-aligned)
+    //        |
+    //        |  +row-aligned             [ -1  0  0 ]             [  0  0 +1 ]
+    //       \|/  (aka                    [  0  0  0 ]     and     [  0  0  0 ]
+    //        '    column-                [  0  0 +1 ]             [ -1  0  0 ] 
+    //              aligned)          (+row,+col-aligned)      (-row,+col-aligned).
+    //
+    //       It was proposed by Lawrence Roberts in 1963 in his PhD thesis ("Machine Perceptron of Three-Dimensional
+    //       Solids") within the context of 3D solid reconstruction via edge-detection (Chapter 4, page 26). It was NOT
+    //       centred.
+    //
+    // NOTE: This implementation differs in four ways from the method described by Roberts:
+    //
+    //         1. Pixel values are NOT automatically square-rooted (or, e.g., converted to sRGB) as Roberts recommends.
+    //            The idea behind this transformation is to make sharp cusps that visually appear (to human eyes)
+    //            similar have similar gradients. Such transformation should be done prior if desired. It is not done
+    //            here because various scenarios call for no such transformation, and pixel values can also legitimately
+    //            be negative.
+    //
+    //         2. The gradient is separated into (+row,+col) and (-row,+col) directions (Roberts' proposal merely gives
+    //            the addition in quadrature, or more specifically the magnitude of the gradient). 
+    //
+    //         3. The derivatives are centred as depicted above* (Roberts' proposal used forward differences).
+    //
+    //         4. The gradients are normalized, so application will nominally reflect the true derivatives without
+    //            having to scale by a factor of 2. Note, though, that pixel coordinates are used rather than spatial
+    //            coordinates the image may be imbued with. (So you'll have to scale by 1/pxl_dx or 1/pxl_dy if
+    //            desired).
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            - static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const {
+    // See prow_pcol_aligned_Roberts_cross() notes.
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
+            - static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) )
+           / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const;
+#endif
+
+
+// The Prewitt centred derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
+// conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
+template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes the Prewitt derivative estimator, which estimates the partial derivative (i.e.,
+    //       gradient) along an image axis-aligned direction. This operation effectively convolves the pixel (and its
+    //       neighbours) using the (modified*) kernels:
+    //
+    //        o-----> +column-aligned (aka row-aligned)
+    //        |
+    //        |  +row-aligned             [ -1  0 +1 ]             [ -1 -1 -1 ]
+    //       \|/  (aka                    [ -1  0 +1 ]     and     [  0  0  0 ]
+    //        '    column-                [ -1  0 +1 ]             [ +1 +1 +1 ] 
+    //              aligned)              (row-aligned)           (column-aligned).
+    //
+    //       It was proposed by Judith Prewitt in 1970 in chapter "Object Enhancement and Extraction" of the book
+    //       "Picture Processing and Psychopictorics".
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
+            + static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            - static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            - static_cast<R>(this->data[this->index(row    ,col_m_1,chnl)]) 
+            - static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const {
+    // See row_aligned_Prewitt_derivative() notes.
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
+            + static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            - static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            - static_cast<R>(this->data[this->index(row_m_1,col    ,chnl)]) 
+            - static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+
+// The Sobel centred derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
+// conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
+template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes the Sobel derivative estimator, which estimates the partial derivative (i.e.,
+    //       gradient) along an image axis-aligned direction. This operation effectively convolves the pixel (and its
+    //       neighbours) using the (modified*) kernels:
+    //
+    //        o-----> +column-aligned (aka row-aligned)
+    //        |
+    //        |  +row-aligned             [ -1  0 +1 ]             [ -1 -2 -1 ]
+    //       \|/  (aka                    [ -2  0 +2 ]     and     [  0  0  0 ]
+    //        '    column-                [ -1  0 +1 ]             [ +1 +2 +1 ] 
+    //              aligned)              (row-aligned)           (column-aligned).
+    //
+    //       It was proposed by Irwin Sobel and Gary Feldman in 1968 in a presentation entitled "Isotropic 3x3 Image
+    //       Gradient Operator" given at the Stanford Artificial Intelligence Laboratory.
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + 2.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
+            + 1.0 * static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            - 1.0 * static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            - 2.0 * static_cast<R>(this->data[this->index(row    ,col_m_1,chnl)]) 
+            - 1.0 * static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(8); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const {
+    // See row_aligned_Sobel_derivative() notes.
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + 2.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
+            + 1.0 * static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            - 1.0 * static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            - 2.0 * static_cast<R>(this->data[this->index(row_m_1,col    ,chnl)]) 
+            - 1.0 * static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+
+// The Scharr 3x3 approximately rotationally-symmetric centred derivative estimator. Only nearest neighbour pixels are
+// used, and mirror boundary conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
+template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes the 3x3 approximately rotationally-symmetric variation of the Sobel derivative
+    //       estimator, which estimates the partial derivative (i.e., gradient) along an image axis-aligned direction.
+    //       This operation effectively convolves the pixel (and its neighbours) using the (modified*) kernels:
+    //
+    //        o-----> +column-aligned (aka row-aligned)
+    //        |
+    //        |  +row-aligned             [  -3  0   +3 ]             [ -3 -10 -3 ]
+    //       \|/  (aka                    [ -10  0  +10 ]     and     [  0   0  0 ]
+    //        '    column-                [  -3  0   +3 ]             [ +3 +10 +3 ] 
+    //              aligned)               (row-aligned)            (column-aligned).
+    //
+    //       It was proposed by Hanno Scharr in 2000 in his PhD thesis entitled "Optimale Operatoren in der Digitalen
+    //       Bildverarbeitung" or "Optimal operators in digital image processing."
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + 10.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
+            +  3.0 * static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            -  3.0 * static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            - 10.0 * static_cast<R>(this->data[this->index(row    ,col_m_1,chnl)]) 
+            -  3.0 * static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(8); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const {
+    // See row_aligned_Scharr_derivative() notes.
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
+            + 10.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
+            +  3.0 * static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) 
+            -  3.0 * static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)]) 
+            - 10.0 * static_cast<R>(this->data[this->index(row_m_1,col    ,chnl)]) 
+            -  3.0 * static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
+           / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template double planar_image<uint8_t ,double>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const;
+#endif
+
+
 //Compute centered finite-difference approximations of derivatives (in pixel coordinate space) along the row and column axes.
 // Second derivatives. Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
 // The following routines fail with out-of-bounds input.
