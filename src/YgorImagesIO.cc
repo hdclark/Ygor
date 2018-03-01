@@ -183,7 +183,7 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                 Y valY = static_cast<Y>(valT);
  
                 //Scale and cast the value instead, iff the user wants to.
-                if(scaling = YgorImageIOPixelScaling::TypeMinMax){
+                if(scaling == YgorImageIOPixelScaling::TypeMinMax){
                     valY = Ygor_Scale_With_Type_Range<Y,T>(valT);
                 }
 
