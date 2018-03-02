@@ -169,6 +169,18 @@ template <class T, class R> class planar_image {
         T block_average(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const; 
         T block_median(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const;
 
+        //Approximate pixel-coordinate blurs using precomputed convolution kernel estimators.
+        T fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
+        T fixed_box_blur_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_box_blur_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
+        //Approximate pixel-coordinate sharpening using precomputed convolution kernel estimators.
+        T fixed_sharpen_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
+        T fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
         //Minimum and maximum pixel values.
         std::pair<T,T> minmax(void) const; //The min/maximum pixel values of all channels.
 

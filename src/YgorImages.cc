@@ -1417,6 +1417,310 @@ planar_image<T,R>::block_median(long int row_min, long int row_max, long int col
     template float    planar_image<float   ,double>::block_median(long int, long int, long int, long int, long int) const;
 #endif
 
+//Approximate pixel-coordinate blurs using precomputed convolution kernel estimators.
+template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 3x3 convolution-based approximation of Gaussian blur using the kernel:
+    //
+    //        o-----> +row direction. 
+    //        |
+    //        |  +column               1   [  1  2  1 ]
+    //       \|/  direction.          ---  [  2  4  2 ]
+    //        '                       16   [  1  2  1 ]
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return static_cast<T>(  
+              ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
+            + ( 2.0/16.0) * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            + ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_1,chnl)] )
+
+            + ( 2.0/16.0) * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + ( 4.0/16.0) * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            + ( 2.0/16.0) * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+
+            + ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_1,chnl)] )
+            + ( 2.0/16.0) * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] )
+            + ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 5x5 convolution-based approximation of Gaussian blur using the kernel:
+    //
+    //        o-----> +row direction. 
+    //        |
+    //        |  +column                   [  1  4  6  4  1  ]
+    //       \|/  direction.           1   [  4 16 24 16  4  ]
+    //        '                       ---  [  6 24 36 24  6  ]
+    //                                256  [  4 16 24 16  4  ]
+    //                                     [  1  4  6  4  1  ]
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
+    long int row_p_2 = std::min(this->rows-1,row+2);
+    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
+    long int col_p_2 = std::min(this->columns-1,col+2);
+
+    return static_cast<T>(  
+              (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_1,chnl)] )
+            + (  6.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col    ,chnl)] )
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_1,chnl)] )
+            + (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_2,chnl)] ) 
+
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_2,chnl)] ) 
+            + ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] )
+            + ( 24.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            + ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_1,chnl)] )
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_2,chnl)] ) 
+
+            + (  6.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_m_2,chnl)] ) 
+            + ( 24.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + ( 36.0/256.0) * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            + ( 34.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+            + (  6.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_p_2,chnl)] ) 
+
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_2,chnl)] )
+            + ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_1,chnl)] )
+            + ( 24.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] )
+            + ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] )
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_2,chnl)] ) 
+
+            + (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_2,chnl)] )
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_1,chnl)] ) 
+            + (  6.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col    ,chnl)] )
+            + (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_1,chnl)] )
+            + (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 3x3 convolution-based box blur (i.e., nearest-neighbour +
+    //       next-nearest-neighbour blur).
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return static_cast<T>(  
+              ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_1,chnl)] )
+
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_1,chnl)] )
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] )
+            + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 5x5 convolution-based box blur using the kernel:
+    //
+    //        o-----> +row direction. 
+    //        |
+    //        |  +column                  [  1  1  1  1  1  ]
+    //       \|/  direction.           1  [  1  1  1  1  1  ]
+    //        '                       --  [  1  1  1  1  1  ]
+    //                                25  [  1  1  1  1  1  ]
+    //                                    [  1  1  1  1  1  ]
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
+    long int row_p_2 = std::min(this->rows-1,row+2);
+    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
+    long int col_p_2 = std::min(this->columns-1,col+2);
+
+    return static_cast<T>(  
+              (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col    ,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_2,chnl)] ) 
+
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_2,chnl)] ) 
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_2,chnl)] ) 
+
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row    ,col_m_2,chnl)] ) 
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row    ,col_p_2,chnl)] ) 
+
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_2,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_2,chnl)] ) 
+
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_2,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_1,chnl)] ) 
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col    ,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_1,chnl)] )
+            + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+#endif
+
+
+//Approximate pixel-coordinate sharpening using precomputed convolution kernel estimators.
+template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 3x3 convolution-based box sharpen using nearest-neighbours and
+    //       next-nearest-neighbours via the (normalized) kernel:
+    //
+    //        o-----> +row direction. 
+    //        |
+    //        |  +column              [  0 -1  0 ]
+    //       \|/  direction.          [ -1  5 -1 ]
+    //        '                       [  0 -1  0 ]
+    //
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    return static_cast<T>(  
+            - 1.0 * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            - 1.0 * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + 5.0 * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            - 1.0 * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+            - 1.0 * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+#endif
+
+template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const {
+    // NOTE: This routine computes a fixed 5x5 convolution-based unsharpen mask using the kernel (modified from a 5x5
+    //       Gaussian kernel):
+    //
+    //        o-----> +row direction. 
+    //        |
+    //        |  +column                   [  1   4    6   4  1  ]
+    //       \|/  direction.          -1   [  4  16   24  16  4  ]
+    //        '                       ---  [  6  24 -476  24  6  ]
+    //                                256  [  4  16   24  16  4  ]
+    //                                     [  1   4    6   4  1  ]
+    if(!isininc(0,row,this->rows-1)
+    || !isininc(0,col,this->columns-1)
+    || !isininc(0,chnl,this->channels-1)){
+        FUNCERR("Attempted to access part of image which does not exist");
+    }
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+
+    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
+    long int row_p_2 = std::min(this->rows-1,row+2);
+    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
+    long int col_p_2 = std::min(this->columns-1,col+2);
+
+    return static_cast<T>(  
+            - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_1,chnl)] )
+            - (  6.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col    ,chnl)] )
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_1,chnl)] )
+            - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_p_2,chnl)] ) 
+
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_2,chnl)] ) 
+            - ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] )
+            - ( 24.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
+            - ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_1,chnl)] )
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_m_1,col_p_2,chnl)] ) 
+
+            - (  6.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_m_2,chnl)] ) 
+            - ( 24.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_m_1,chnl)] )
+            + (476.0/256.0) * static_cast<double>( this->data[this->index(row    ,col    ,chnl)] )
+            - ( 34.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_p_1,chnl)] )
+            - (  6.0/256.0) * static_cast<double>( this->data[this->index(row    ,col_p_2,chnl)] ) 
+
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_2,chnl)] )
+            - ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_m_1,chnl)] )
+            - ( 24.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] )
+            - ( 16.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] )
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_2,chnl)] ) 
+
+            - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_2,chnl)] )
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_m_1,chnl)] ) 
+            - (  6.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col    ,chnl)] )
+            - (  4.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_1,chnl)] )
+            - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image<uint8_t ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template float    planar_image<float   ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+#endif
 
 
 //The min/maximum pixel values of all channels.
@@ -1872,7 +2176,7 @@ template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Co
 //
 // NOTE: If you want to make this faster, start by pre-computing the matrix elements of the weighting kernel.
 //       This will save a huge amount of computation. It is simply not of concern at the time of writing.
-//       Additionally, the Gaussian kernel can be slipt and applied separately in X and Y directions. This could
+//       Additionally, the Gaussian kernel can be split and applied separately in X and Y directions. This could
 //       speed it up because the implementation could become highly parallelized, if you are so inclined.
 //
 template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels){
