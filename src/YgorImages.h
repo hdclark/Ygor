@@ -143,17 +143,23 @@ template <class T, class R> class planar_image {
         R row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
         R column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
 
-        R prow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R nrow_pcol_aligned_Roberts_cross(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Prewitt_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Sobel_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Sobel_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Scharr_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Scharr_derivative(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
+        R row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+
+        R row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
 
         //Compute centered finite-difference approximations of derivatives (in pixel coordinate space) along the row and column axes.
         // Second derivatives. Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
