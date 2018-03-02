@@ -708,7 +708,7 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
 //       necessarily combine value (type T) with location (type R). In certain cases you might wish to have this routine spit out 
 //       (long double) or even arbitrary precision types in special cases. These are special cases, though.
 //
-// NOTE: Coordinate system: The positive row-axis (column-axis) direction is in the direction of increasing row (column).
+// NOTE: Coordinate system: "row-aligned" ("column-aligned") means the direction along a given row (column).
 //
 template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
     // NOTE: This routine computes $\partial_{r} P(row,col)$.
@@ -717,11 +717,11 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
     || !isininc(0,chnl,this->channels-1)){
         FUNCERR("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-
-    return (  static_cast<R>(this->data[this->index(row_p_1,col,chnl)])
-            - static_cast<R>(this->data[this->index(row_m_1,col,chnl)]) )
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
+    
+    return (  static_cast<R>(this->data[this->index(row,col_p_1,chnl)])
+            - static_cast<R>(this->data[this->index(row,col_m_1,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -739,11 +739,11 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
     || !isininc(0,chnl,this->channels-1)){
         FUNCERR("Attempted to access part of image which does not exist");
     }
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
-    
-    return (  static_cast<R>(this->data[this->index(row,col_p_1,chnl)])
-            - static_cast<R>(this->data[this->index(row,col_m_1,chnl)]) )
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
+
+    return (  static_cast<R>(this->data[this->index(row_p_1,col,chnl)])
+            - static_cast<R>(this->data[this->index(row_m_1,col,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -1065,7 +1065,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
 //       necessarily combine value (type T) with location (type R). In certain cases you might wish to have this routine spit out 
 //       (long double) or even arbitrary precision types in special cases. These are special cases, though.
 //
-// NOTE: Coordinate system: The positive row-axis (column-axis) direction is in the direction of increasing row (column).
+// NOTE: Coordinate system: "row-aligned" ("column-aligned") means the direction along a given row (column).
 //
 template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
     // NOTE: This routine computes $\partial_{c}^{2} P(row,col)$.
@@ -1074,11 +1074,11 @@ template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_ce
     || !isininc(0,chnl,this->channels-1)){
         FUNCERR("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
+    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
+    long int col_p_1 = std::min(this->columns-1,col+1);
 
-    return (  this->row_aligned_derivative_centered_finite_difference(row_p_1, col, chnl)
-            - this->row_aligned_derivative_centered_finite_difference(row_m_1, col, chnl) )
+    return (  this->row_aligned_derivative_centered_finite_difference(row, col_p_1, chnl)
+            - this->row_aligned_derivative_centered_finite_difference(row, col_m_1, chnl) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -1095,11 +1095,11 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
     || !isininc(0,chnl,this->channels-1)){
         FUNCERR("Attempted to access part of image which does not exist");
     }
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
+    long int row_p_1 = std::min(this->rows-1,row+1);
 
-    return (  this->column_aligned_derivative_centered_finite_difference(row, col_p_1, chnl)
-            - this->column_aligned_derivative_centered_finite_difference(row, col_m_1, chnl) )
+    return (  this->column_aligned_derivative_centered_finite_difference(row_p_1, col, chnl)
+            - this->column_aligned_derivative_centered_finite_difference(row_m_1, col, chnl) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -1110,7 +1110,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
     template double planar_image<float   ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
-    // NOTE: This routine computes $\partial_{r,c} P(row,col)$.
+    // Note: This routine computes $\partial_{r,c} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
