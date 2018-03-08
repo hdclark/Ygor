@@ -699,6 +699,12 @@ template <class T> class samples_1D {
         // samples, expect {at_x,(T)(0),(T)(0),(T)(0)}.
         std::array<T,4> Interpolate_Linearly(const T &at_x) const;
 
+        //Returns linearly interpolated crossing-points.
+        samples_1D<T> Crossings(T value) const;
+
+        //Returns the locations linearly-interpolated peaks.
+        samples_1D<T> Peaks(void) const;
+
         //Resamples the data into approximately equally-spaced samples using linear interpolation.
         samples_1D<T> Resample_Equal_Spacing(size_t N) const;
 

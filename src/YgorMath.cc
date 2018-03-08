@@ -5968,6 +5968,97 @@ template <class T>  std::array<T,4> samples_1D<T>::Interpolate_Linearly(const T 
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> 
 samples_1D<T> 
+samples_1D<T>::Crossings(T val) const {
+    //Returns linearly interpolated crossing-points. 
+    //
+    // Note: This routine splits the vertical dimension into exactly two parts: >= the value, and < the value.
+    //       This slight bias eliminates the degenerate case of infinite intersections. It is possible to eliminate the
+    //       bias, but then the degenerate case must be dealt with directly.
+    //
+    // Note: This routine requires input to sorted.
+    //
+    // Note: The crossings are returned with an estimate of the uncertainty and f_at_x (which should equal the specified
+    //       value). Mostly you'll probably just want the x's though.
+    //       
+    const auto N = this->samples.size();
+    if(N < 2) throw std::invalid_argument("Unable to detect crossing-points with < 2 datum");
+
+    samples_1D<T> out;
+    out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
+    const bool InhibitSort = true;
+
+    bool LastAbove = (this->samples.front()[2] >= val);
+    for(size_t i = 1; i < N; ++i){
+        const auto f = this->samples[i][2];
+        const bool Above = (f >= val);
+        if(Above != LastAbove){
+            const auto xA = this->samples[i-1][0];
+            const auto xB = this->samples[i][0];
+            const auto fA = this->samples[i-1][2];
+            const auto fB = f;
+            line<T> lf( vec3<T>(xA, fA, static_cast<T>(0)),
+                        vec3<T>(xB, fB, static_cast<T>(0)) );
+            line<T> lv( vec3<T>(xA, val, static_cast<T>(0)),
+                        vec3<T>(xB, val, static_cast<T>(0)) );
+            vec3<T> P;
+            if(lf.Closest_Point_To_Line( lv, P )){
+                out.push_back( this->Interpolate_Linearly( P.x ), InhibitSort );
+            }else{
+                //Getting here could happen if the implementations differ in their susceptibility to floating-point issues.
+                throw std::logic_error("Unable to compute line-line intersection point.");
+            }
+        }
+        LastAbove = Above;
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Crossings(float ) const;
+    template samples_1D<double> samples_1D<double>::Crossings(double) const;
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T> 
+samples_1D<T> 
+samples_1D<T>::Peaks(void) const {
+    //Returns the locations linearly-interpolated peaks.
+    //
+    // Note: This routine requires input to sorted.
+    //
+    // Note: The crossings are returned with an estimate of the uncertainty and f_at_x (i.e., the height of the peak).
+    //       
+    const auto N = this->samples.size();
+    if(N < 3) throw std::invalid_argument("Unable to identify peaks with < 3 datum");
+
+    samples_1D<T> out;
+    out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
+    const bool InhibitSort = true;
+
+    //Compute the first and second derivatives.
+    auto deriv_1st = this->Derivative_Centered_Finite_Differences();
+    auto deriv_2nd = deriv_1st.Derivative_Centered_Finite_Differences();
+
+    //Locate zero-crossings of the first derivative.
+    auto zero_crossings = deriv_1st.Crossings(static_cast<T>(0));
+
+    //For each, evaluate the inflection. If negative, add the peak x and f_at_x to the outgoing collection.
+    for(const auto &p : zero_crossings.samples){
+        const auto x = p[0];
+        const auto fpp = deriv_2nd.Interpolate_Linearly(x);
+        if(fpp[2] <= static_cast<T>(0)){
+            out.push_back( this->Interpolate_Linearly(x), InhibitSort );
+        }
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Peaks(void) const;
+    template samples_1D<double> samples_1D<double>::Peaks(void) const;
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T> 
+samples_1D<T> 
 samples_1D<T>::Resample_Equal_Spacing(size_t N) const {
     //Resamples the data into approximately equally-spaced samples using linear interpolation.
     if(N < 2) throw std::invalid_argument("Unable to resample < 2 datum with equal spacing");
