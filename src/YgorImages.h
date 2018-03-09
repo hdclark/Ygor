@@ -199,6 +199,7 @@ template <class T, class R> class planar_image {
 
         //Apply a functor to individual pixels.
         void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
+        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const;
 
         //Replace non-finite numbers.
         void replace_nonfinite_pixels_with(long int chnl, T val);
@@ -411,6 +412,7 @@ template <class T,class R>   class planar_image_collection {
 
         //Apply a functor to individual pixels.
         void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
+        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const;
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;

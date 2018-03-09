@@ -2067,6 +2067,26 @@ planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col
     template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
 #endif
 
+template<class T, class R>
+void
+planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const {
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){
+            for(auto chn = 0; chn < this->channels; ++chn){
+                func(row, col, chn, this->value(row, col, chn));
+            }
+        }
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  val)>) const;
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t val)>) const;
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
+#endif
+
 
 //Replace non-finite numbers.
 template <class T,class R>
@@ -3942,6 +3962,22 @@ planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, 
     template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
     template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
     template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
+#endif
+
+template<class T, class R>
+void
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, long int col, long int chnl, T val)> func) const {
+    for(auto &animg : this->images){
+        animg.apply_to_pixels(func);
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  val)>) const;
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t val)>) const;
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
 #endif
 
 //Returns the R^3 center of the image. Nothing fancy.
