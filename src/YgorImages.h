@@ -536,7 +536,11 @@ template <class T,class R>
 contour_collection<R>
 Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_image<T,R>>> &imgs,
                               Encircle_Images_with_Contours_Opts options,
-                              const std::map<std::string,std::string> &metadata);
+                              const std::map<std::string,std::string> &metadata,
+                              vec3<R> dRowLH = vec3<R>().zero(),   // Extra offset applied (by +ing) at row 0 vertices.
+                              vec3<R> dRowHL = vec3<R>().zero(),   // Extra offset applied (by +ing) at max row vertices.
+                              vec3<R> dColLH = vec3<R>().zero(),   // Extra offset applied (by +ing) at column 0 vertices.
+                              vec3<R> dColHL = vec3<R>().zero() ); // Extra offset applied (by +ing) at max column vertices.
 
 
 //A "parameter object" for the Mutate_Voxels() function.

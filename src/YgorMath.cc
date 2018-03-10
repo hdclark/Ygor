@@ -199,6 +199,18 @@ template <class T>  T vec3<T>::angle(const vec3<T> &rhs, bool *OK) const {
 
 template <class T>
 vec3<T>
+vec3<T>::zero(void) const {
+    return vec3<T>( static_cast<T>(0),
+                    static_cast<T>(0),
+                    static_cast<T>(0) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > vec3<float >::zero(void) const;
+    template vec3<double> vec3<double>::zero(void) const;
+#endif
+    
+template <class T>
+vec3<T>
 vec3<T>::rotate_around_x(T angle_rad) const {
     return vec3<T>( this->x,
                     this->y * std::cos(angle_rad) - this->z * std::sin(angle_rad),
@@ -232,7 +244,7 @@ vec3<T>::rotate_around_z(T angle_rad) const {
     template vec3<float > vec3<float >::rotate_around_z(float ) const;
     template vec3<double> vec3<double>::rotate_around_z(double) const;
 #endif
-    
+
 template <class T>
 bool 
 vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
@@ -753,6 +765,18 @@ template <class T>  T vec2<T>::sq_dist(const vec2<T> &rhs) const {
     template float  vec2<float >::sq_dist(const vec2<float > &rhs) const;
     template double vec2<double>::sq_dist(const vec2<double> &rhs) const;
 #endif
+
+template <class T>
+vec2<T>
+vec2<T>::zero(void) const {
+    return vec2<T>( static_cast<T>(0),
+                    static_cast<T>(0) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec2<float > vec2<float >::zero(void) const;
+    template vec2<double> vec2<double>::zero(void) const;
+#endif
+    
 
 template <class T>
 vec2<T>

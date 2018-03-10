@@ -4575,7 +4575,11 @@ template <class T,class R>
 contour_collection<R>
 Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_image<T,R>>> &imgs,
                               Encircle_Images_with_Contours_Opts options,
-                              const std::map<std::string,std::string> &metadata){
+                              const std::map<std::string,std::string> &metadata,
+                              vec3<R> dRowLH,
+                              vec3<R> dRowHL,
+                              vec3<R> dColLH,
+                              vec3<R> dColHL ){
 
     contour_collection<R> cc;
     for(const auto &animg : imgs){
@@ -4611,10 +4615,10 @@ Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_imag
 
         contour_of_points<double> cop;
         cop.closed = true;
-        cop.points.push_back(animg.get().position(     0,      0) - dRow - dCol);
-        cop.points.push_back(animg.get().position(rows-1,      0) + dRow - dCol);
-        cop.points.push_back(animg.get().position(rows-1, cols-1) + dRow + dCol);
-        cop.points.push_back(animg.get().position(     0, cols-1) - dRow + dCol);
+        cop.points.push_back(animg.get().position(     0,      0) + dRowLH + dColLH - dRow - dCol);
+        cop.points.push_back(animg.get().position(rows-1,      0) + dRowHL + dColLH + dRow - dCol);
+        cop.points.push_back(animg.get().position(rows-1, cols-1) + dRowHL + dColHL + dRow + dCol);
+        cop.points.push_back(animg.get().position(     0, cols-1) + dRowLH + dColHL - dRow + dCol);
 
         cop.Reorient_Counter_Clockwise();
         cop.metadata = metadata;
@@ -4641,7 +4645,11 @@ Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_imag
     Encircle_Images_with_Contours(
         const std::list<std::reference_wrapper<planar_image<float ,double>>> &,
         Encircle_Images_with_Contours_Opts,
-        const std::map<std::string,std::string> &);
+        const std::map<std::string,std::string> &,
+        vec3<double>,
+        vec3<double>,
+        vec3<double>,
+        vec3<double> ); 
 #endif
 
 

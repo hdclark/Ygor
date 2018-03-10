@@ -66,6 +66,8 @@ template <class T> class vec3 {
         T sq_dist(const vec3 &) const;    // ---> Square of the (pythagorean) distance. Avoids a sqrt().
         T angle(const vec3 &, bool *OK=nullptr) const;  // ---> The |angle| (in radians, [0:pi]) separating two vectors. 
 
+        vec3 zero(void) const; //Returns a zero-vector.
+
         vec3<T> rotate_around_x(T angle_rad) const; // Rotate by some angle (in radians, [0:pi]) around a cardinal axis.
         vec3<T> rotate_around_y(T angle_rad) const;
         vec3<T> rotate_around_z(T angle_rad) const;
@@ -136,6 +138,8 @@ template <class T> class vec2 {
         T length() const;                 // ---> (pythagorean) length of vector.
         T distance(const vec2 &) const;   // ---> (pythagorean) distance between vectors.
         T sq_dist(const vec2 &) const;    // ---> Square of the (pythagorean) distance. Avoids a sqrt().
+
+        vec2 zero(void) const; //Returns a zero-vector.
 
         vec2<T> rotate_around_z(T angle_rad) const; // Rotate by some angle (in radians, [0:pi]) around a cardinal axis.
 
