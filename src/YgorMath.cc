@@ -1404,8 +1404,66 @@ template <class T>    vec3<T> line_segment<T>::Get_R1(void) const {
     template vec3<double> line_segment<double>::Get_R1(void) const;
 #endif
 
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------ sphere: a convex 2D surface in 3D space ----------------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+
+//Constructors.
+template <class T>
+sphere<T>::sphere(){ }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template sphere<float>::sphere(void);
+    template sphere<double>::sphere(void);
+#endif
+
+template <class T>
+sphere<T>::sphere(const vec3<T> &C, T r) : C_0(C), r_0(r) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template sphere<float >::sphere(const vec3<float > &, float );
+    template sphere<double>::sphere(const vec3<double> &, double);
+#endif
+
+//Member functions.
+
+//This function computes the distance from the sphere surface to any point in 3D space.
+//
+// Note: If within the surface, a distance of zero is returned.
+template <class T>  T sphere<T>::Distance_To_Point( const vec3<T> &R ) const {
+    const vec3<T> dR = R - this->C_0;
+    const auto l = dR.length();
+    return ( (l > this->r_0) ? l : static_cast<T>(0) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  sphere<float >::Distance_To_Point(const vec3<float > &) const;
+    template double sphere<double>::Distance_To_Point(const vec3<double> &) const;
+#endif
 
 
+// This routine returns the points on the sphere which are also intersected by the line.
+// Possible results include 0, 1, and 2 points.
+template <class T>
+std::vector<vec3<T>>
+sphere<T>::Line_Intersections( const line<T> &L ) const {
+    std::vector<vec3<T>> out;
+
+    //Find the nearest point along the line to the sphere centre.
+    const auto P = L.Project_Point_Orthogonally(this->C_0);
+
+    const auto d = (P - this->C_0).length();
+    if(d > this->r_0) return out; // No intersections.
+    if(d == this->r_0){ // Should be compared to within some epsilon...
+        out.emplace_back(P);
+        return out;
+    }
+    const auto l = std::sqrt( this->r_0 * this->r_0 - d * d);
+    out.emplace_back(P + L.U_0 * l);
+    out.emplace_back(P - L.U_0 * l);
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::vector<vec3<float >> sphere<float >::Line_Intersections( const line<float > & ) const;
+    template std::vector<vec3<double>> sphere<double>::Line_Intersections( const line<double> & ) const;
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------- plane: 2D planes in 3D space -----------------------------------------------

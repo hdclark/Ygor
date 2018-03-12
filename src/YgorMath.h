@@ -85,6 +85,8 @@ template <class T> class vec3 {
 
 //This is a function for rotation unit vectors in some plane. It requires angles to describe the plane of rotation, angle of rotation. 
 // It also requires a unit vector with which to rotate the plane about.
+//
+// Note: Prefer Gram-Schmidt orthogonalization or the cross-product if you can. This routine has some unfortunate poles...
 vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &theta, const double &R);
 
 //This function evolves a pair of position and velocity (x(t=0),v(t=0)) to a pair (x(t=T),v(t=T)) using the
@@ -200,6 +202,25 @@ template <class T>   class line_segment : public line<T> {
  
         vec3<T> Get_R0(void) const;
         vec3<T> Get_R1(void) const;
+};
+
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------ sphere: a convex 2D surface in 3D space ----------------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   class sphere {
+    public:
+        using value_type = T;
+        vec3<T> C_0; //The centre of the sphere.
+        T r_0; //The radius.
+
+        //Constructors.
+        sphere();
+        sphere(const vec3<T> &C, T r);
+
+        //Member functions.
+        T Distance_To_Point( const vec3<T> & ) const;
+
+        std::vector<vec3<T>> Line_Intersections( const line<T> & ) const; // Can have size 0, 1, or 2.
 };
 
 //---------------------------------------------------------------------------------------------------------------------------
