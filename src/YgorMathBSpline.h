@@ -118,8 +118,12 @@ class basis_spline {
 
     public:
         // Constructors.
-        basis_spline(const samples_1D<double> &data, double xmin, double xmax, size_t k = 4, size_t ncoeffs = 10,
-        basis_spline_breakpoints = basis_spline_breakpoints::adaptive_datum_density);
+        basis_spline(const samples_1D<double> &data, 
+                     double xmin = std::numeric_limits<double>::quiet_NaN(),
+                     double xmax = std::numeric_limits<double>::quiet_NaN(),
+                     size_t k = 4,
+                     size_t ncoeffs = 10,
+                     basis_spline_breakpoints = basis_spline_breakpoints::adaptive_datum_density );
         ~basis_spline();
    
         // Operators.
