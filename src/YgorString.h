@@ -67,7 +67,7 @@ std::string ALongestCommonSubstring(const std::string &A, const std::string &B);
 //-------------------------------------------------------------------------------------------------------------------------------
 namespace CANONICALIZE {  //Canonicalization masks. Use several by bit-ORing ('|') them together.
     const unsigned char TO_UPPER  =  1;  //Uppercase the characters, if possible.
-    const unsigned char LOCALIZE  =  2;  //Transform the letters to the current locale.    Currently a no-op.
+    const unsigned char TO_LOWER  =  2;  //Lowercase the characters, if possible.
     const unsigned char TRIM_ENDS =  4;  //Trim whitespace to the left of first, to the right of last char.
     const unsigned char TRIM      =  8;  //Trim the edges and shrink long whitespace to a single space.
     const unsigned char TRIM_ALL  = 16;  //Remove ALL whitespace.

@@ -345,11 +345,19 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
         //boost::to_upper(in);
     }
 
-    //Localization, transformation to particular encoding.
-    if( (opts & CANONICALIZE::LOCALIZE) == CANONICALIZE::LOCALIZE ){
-        // Currently a no-op.
-    }
+    //Transform to all lower case.
+    if( (opts & CANONICALIZE::TO_LOWER) == CANONICALIZE::TO_LOWER ){
+        //Using the C (ctype.h or cctype needed) way. No locale involved, I think.
+        std::string temp;
+        std::transform(in.begin(),in.end(), std::back_inserter(temp), ::tolower);
+        in = temp;
 
+        //Using the C++ <locale> way. (Requires a specific locale.)
+        //for (size_t i=0; i<in.length(); ++i) in[i] = tolower(in[i],loc);
+
+        //Using Boost. This way is fairly fast.
+        //boost::to_lower(in);
+    }
 
     //Whitespace filter. Works for beginning, end, and interim whitespaces.
     if( (opts & CANONICALIZE::TRIM) == CANONICALIZE::TRIM ){
@@ -427,10 +435,6 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
             }
         }
     }
-
-    //Common replacements (ie. a '_' instead of a ' ', etc..)
-
-    // ...
 
     return;
 }
