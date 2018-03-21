@@ -549,14 +549,14 @@ struct Mutate_Voxels_Opts {
     EditStyle {    // Controls how the new value is inserted into the outgoing/edited image.
         InPlace,   // Edits the image in-place. Requires the Adjacency::SingleVoxel option.
         Surrogate, // Provides a separate working image for edits and updates the original afterward.
-    } editstyle;
+    } editstyle = EditStyle::Surrogate;
 
     enum class
     Inclusivity {  // Controls how the voxel (which has a non-zero volume) is tested to be 'within' contours.
         Centre,    // Only check that the centre of the voxel is 'within' contours.
         Inclusive, // In addition to the centre, also use the corners. Any bounded corner implies the voxel is bounded.
         Exclusive, // In addition to the centre, also use the corners. All corners are required to be bounded.
-    } inclusivity;
+    } inclusivity = Inclusivity::Centre;
 
     enum class
     ContourOverlap { // Controls how overlapping contours are handled.
@@ -564,7 +564,7 @@ struct Mutate_Voxels_Opts {
         HonourOppositeOrientations, // Overlapping contours with opposite orientation cancel. Otherwise, orientation is ignored.
         ImplicitOrientations, // Assume all overlapping contours have opposite orientations and cancel.
                               // In other words, this is a 'toggle' or 'XOR' option.
-    } contouroverlap;
+    } contouroverlap = ContourOverlap::Ignore;
 
     enum class
     Aggregate {    // Controls how the existing voxel values (i.e., from selected_img_its) are aggregated into a scalar.
@@ -572,20 +572,20 @@ struct Mutate_Voxels_Opts {
         Median,    // Take the median of all coincident voxels in the selected images.
         Sum,       // Take the sum of all coincident voxels in the selected images.
         First,     // Take only the voxel value from the first selected image.
-    } aggregate;
+    } aggregate = Aggregate::Mean;
 
     enum class
     Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
         SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
         NearestNeighbours, // Also use the four nearest neighbours (in the image plane).                       ...Boundary voxels? TODO
-    } adjacency;
+    } adjacency = Adjacency::SingleVoxel;
 
     enum class
     MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).
         Noop,      // Perform no post-processing on the mask.
       //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
       //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
-    } maskmod;
+    } maskmod = MaskMod::Noop;
 
 // - RunningMinMax::AllVoxels    // Include all voxels in the edited/output image.
 // - RunningMinMax::OnlyBounded  // Only the voxels whose value has been changed.  (Useful?)
