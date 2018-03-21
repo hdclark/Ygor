@@ -8702,9 +8702,17 @@ template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filen
         if(line[nonspace] == '#') continue; //Comment.
 
         std::stringstream ss(line);
-        T x, dx, y, dy;
-        ss >> x >> dx >> y >> dy;
-        if(!ss.fail()) indata.push_back(x, dx, y, dy, InhibitSort);
+        T a, b, c, d;
+        ss >> a >> b;
+        const auto ab_ok = (!ss.fail());
+        ss >> c >> d;
+        const auto cd_ok = (!ss.fail());
+        if(ab_ok && !cd_ok){
+            indata.push_back(a, static_cast<T>(0),
+                             b, static_cast<T>(0), InhibitSort);
+        }else if(ab_ok && cd_ok){
+            indata.push_back(a, b, c, d, InhibitSort);
+        }
     }
 
     *this = indata;
