@@ -4905,7 +4905,14 @@ void Mutate_Voxels(
     } //Loop over contour_collections.
 
 
+    //Cache the functor validity checks.
+    const auto f_bounded_valid   = !!f_bounded;
+    const auto f_unbounded_valid = !!f_unbounded;
+    const auto f_observer_valid  = !!f_observer;
+
     //Now, using the mask, apply the user's functor to each voxel as necessary.
+    std::vector<T> shtl;
+    shtl.reserve( selected_imgs.size() );
     for(auto row = 0; row < working_img_ref.get().rows; ++row){
         for(auto col = 0; col < working_img_ref.get().columns; ++col){
             for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){
@@ -4924,11 +4931,10 @@ void Mutate_Voxels(
 //
 
                 //Collect the values from the user-provided images.
-                std::vector<T> shtl;
-                shtl.reserve( selected_imgs.size() );
+                shtl.clear();
                 for(const auto &img_ref : selected_imgs){
                     const auto pixel_val = img_ref.get().value(row, col, chan);
-                    shtl.push_back(pixel_val);
+                    shtl.emplace_back(pixel_val);
                 }
                 if(shtl.empty()){
                     throw std::logic_error("No selected images were identified.");
@@ -4951,15 +4957,13 @@ void Mutate_Voxels(
                 }
 
                 //Update the values and call user functions as necessary.
-                if(f_bounded || f_unbounded){
-                    if(false){
-                    }else if(bounded && f_bounded){
-                        f_bounded(row, col, chan, v);
-                    }else if(!bounded && f_unbounded){
-                        f_unbounded(row, col, chan, v);
-                    }
+                if(false){
+                }else if(bounded && f_bounded_valid){
+                    f_bounded(row, col, chan, v);
+                }else if(!bounded && f_unbounded_valid){
+                    f_unbounded(row, col, chan, v);
                 }
-                if(f_observer){
+                if(f_observer_valid){
                     f_observer(row, col, chan, v);
                 }
 
