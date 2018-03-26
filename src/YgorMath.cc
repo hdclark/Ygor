@@ -6218,6 +6218,18 @@ template <class T>  samples_1D<T> samples_1D<T>::Sum_x_With(T dx) const {
     template samples_1D<float > samples_1D<float >::Sum_x_With(float  dx) const;
     template samples_1D<double> samples_1D<double>::Sum_x_With(double dx) const;
 #endif
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>  samples_1D<T> samples_1D<T>::Multiply_x_With(T x) const {
+    //Multiply all x_i's by a factor. No change to uncertainties.
+    samples_1D<T> out;
+    out = *this;
+    for(auto &sample : out.samples) sample[0] *= x;
+    return std::move(out);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Multiply_x_With(float  x) const;
+    template samples_1D<double> samples_1D<double>::Multiply_x_With(double x) const;
+#endif
 ///---------------------------------------------------------------------------------------------------------------------------
 template <class T>  samples_1D<T> samples_1D<T>::Sum_With(const samples_1D<T> &g) const {
     //This routine sums two samples_1D by assuming they are connected by line segments. Because linear interpolation is used,

@@ -742,6 +742,7 @@ template <class T> class samples_1D {
 
         //Shift all x_i's by a factor. No change to uncertainties.
         samples_1D<T> Sum_x_With(T dx) const;
+        samples_1D<T> Multiply_x_With(T dx) const;
  
         //Distribution operators. Samples are retained, so linear interpolation is used.
         samples_1D<T> Sum_With(const samples_1D<T> &in) const; //i.e. "operator +".
