@@ -226,6 +226,9 @@ template <class T, class R> class planar_image {
         //Determine if at least one contour is partially contained within the 3D volume of the image.
         bool encompasses_any_part_of_contour_in_collection(const contour_collection<R> &in) const;
 
+        //Clip the provided contours to the (six) image boundaries.
+        contour_collection<R> clip_to_volume(contour_collection<R> in) const;
+
         //Computes the R^3 center of the image. Nothing fancy.
         vec3<R> center(void) const;
 

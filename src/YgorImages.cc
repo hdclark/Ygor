@@ -2267,6 +2267,84 @@ template <class T,class R> bool planar_image<T,R>::encompasses_any_part_of_conto
     template bool planar_image<float   ,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
 #endif
 
+//Clip the provided contours to the (six) image boundaries.
+template <class T,class R> 
+contour_collection<R>
+planar_image<T,R>::clip_to_volume(contour_collection<R> cs) const {
+
+    // Trim the contour to the image bounding volume.
+    //
+    // Note: This routine would work for any convex 2-polygon if the planes were tweaked to explicitly envelope each
+    //       edge. At the moment the implementation is simplified to assume the corners are rectangular (i.e., valid for
+    //       any planar image).
+    //
+    // Note: There is little point in making this routine accept a single contour_of_points since each clip can
+    //       produce an arbitrary number of contours. So the implementation must naturally handle collections.
+    //
+
+    //Generate a list of planes to clip on.
+    std::list<plane<R>> planes;
+
+    //Row- and column-abutting boundaries.
+    auto corners = this->corners2D();
+    auto itA = corners.begin();
+    auto itB = std::next(corners.begin(),3);
+    while(itA != corners.end()){
+        //Form a plane that points inward using two adjacent vertices.
+        const auto N = (*itB - *itA).unit();
+        const auto R0 = *itA;
+        planes.emplace_back(N, R0);
+
+        itB = itA;
+        ++itA;
+    }
+
+    //Image-face boundaries.
+    const auto C = this->center();
+    const auto dt = this->pxl_dz;
+    const auto N = this->col_unit.Cross(this->row_unit).unit(); // img ortho unit.
+
+    const auto C_upper = C + (N * dt * 0.5);
+    const auto C_lower = C - (N * dt * 0.5);
+    const auto N_upper = N * (-1.0);
+    const auto N_lower = N;
+
+    planes.emplace_back(N_upper, C_upper);
+    planes.emplace_back(N_lower, C_lower);
+
+    // Perform the clip on all boundaries sequentially, retaining only contours on the positive side of all planes.
+    for(auto &bndry : planes){
+        std::list<contour_of_points<R>> shtl; // Storage for split contours.
+        for(auto &ac : cs.contours){
+            auto splits = ac.Split_Along_Plane(bndry);
+            while(!splits.empty()){
+                const auto split_it = splits.begin();
+                const auto avg_p = split_it->Average_Point();
+                if(bndry.Is_Point_Above_Plane(avg_p)){
+                    shtl.splice(shtl.end(), splits, split_it);
+                }else{
+                    shtl.erase(split_it);
+                }
+            }
+        }
+        cs.contours = shtl; // Retain only those within the volume.
+    }
+
+    return cs;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template contour_collection<double>
+        planar_image<uint8_t ,double>::clip_to_volume(contour_collection<double> in) const;
+    template contour_collection<double>
+        planar_image<uint16_t,double>::clip_to_volume(contour_collection<double> in) const;
+    template contour_collection<double>
+        planar_image<uint32_t,double>::clip_to_volume(contour_collection<double> in) const;
+    template contour_collection<double>
+        planar_image<uint64_t,double>::clip_to_volume(contour_collection<double> in) const;
+    template contour_collection<double>
+        planar_image<float   ,double>::clip_to_volume(contour_collection<double> in) const;
+#endif
+
 
 //Returns the R^3 center of the image. Nothing fancy.
 template <class T,class R> vec3<R> planar_image<T,R>::center(void) const {
