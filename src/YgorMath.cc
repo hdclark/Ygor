@@ -4349,51 +4349,43 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
     const auto highest_acceptable = desired_total_area_fraction_above_plane + acceptable_frac_deviation;
     const auto lowest_acceptable  = desired_total_area_fraction_above_plane - acceptable_frac_deviation;
 
+    const auto offset_eps = std::sqrt(std::numeric_limits<T>::epsilon());
+    const auto qNaN = std::sqrt(std::numeric_limits<T>::quiet_NaN());
+
     //If the bounds are not finite, try derive them from the contour data.
-    if(!std::isfinite(lower_bound.length())){
-        //Construct a plane at the centroid with the correct orientation. Find the vertex which is furthest from the
-        // plane and on the negative side.
-        const auto centroid = this->Average_Point();
-        const auto aplane = plane<T>(planar_unit_normal, centroid);
-        T current_furthest = std::numeric_limits<T>::quiet_NaN();
+    {
+        //Find the most extreme vertices along the planar normal.
+
+        vec3<T> lower_vert(qNaN, qNaN, qNaN);
+        vec3<T> upper_vert(qNaN, qNaN, qNaN);
+        T lower_dist = qNaN;
+        T upper_dist = qNaN;
+
         for(const auto &c : this->contours){
             for(const auto &p : c.points){
-                const auto signed_dist = aplane.Get_Signed_Distance_To_Point(p);
-                if(signed_dist <= static_cast<T>(0)){
-                    const auto thedist = std::abs(signed_dist);
-                    if( !std::isfinite(current_furthest) || (current_furthest < thedist) ){
-                        lower_bound = p;
-                        current_furthest = thedist;
-                    }
+                const auto L = p.Dot(planar_unit_normal);
+                if(!std::isfinite(lower_dist) || ( L < lower_dist ) ){
+                    lower_dist = L;
+                    lower_vert = p;
+                }
+                if(!std::isfinite(upper_dist) || ( L > upper_dist ) ){
+                    upper_dist = L;
+                    upper_vert = p;
                 }
             }
         }
 
-        //Leave a bit of a gap in case the user wants zero or one total fractional area.
-        const auto furthest_dist = std::abs(aplane.Get_Signed_Distance_To_Point(lower_bound));
-        const auto gap = furthest_dist * static_cast<T>(0.1);
-        lower_bound -= planar_unit_normal * gap;
-    }
-    if(!std::isfinite(upper_bound.length())){
-        const auto centroid = this->Average_Point();
-        const auto aplane = plane<T>(planar_unit_normal, centroid);
-        T current_furthest = std::numeric_limits<T>::quiet_NaN();
-        for(const auto &c : this->contours){
-            for(const auto &p : c.points){
-                const auto signed_dist = aplane.Get_Signed_Distance_To_Point(p);
-                if(signed_dist >= static_cast<T>(0)){
-                    const auto thedist = std::abs(signed_dist);
-                    if( !std::isfinite(current_furthest) || (current_furthest < thedist) ){
-                        upper_bound = p;
-                        current_furthest = thedist;
-                    }
-                }
-            }
+        // Add a small additional gap to increase the initial step size and help if a single planar_contour was
+        // provided..
+        const auto sep = (upper_dist - lower_dist);
+        const auto gap = sep * static_cast<T>(0.1) + offset_eps;
+                
+        if(!std::isfinite(lower_bound.length())){
+            lower_bound = lower_vert - (planar_unit_normal * gap);
         }
-
-        const auto furthest_dist = std::abs(aplane.Get_Signed_Distance_To_Point(lower_bound));
-        const auto gap = furthest_dist * static_cast<T>(0.1);
-        lower_bound += planar_unit_normal * gap;
+        if(!std::isfinite(upper_bound.length())){
+            upper_bound = upper_vert + (planar_unit_normal * gap);
+        }
     }
 
     if( !std::isfinite(lower_bound.length()) || !std::isfinite(upper_bound.length()) ){
