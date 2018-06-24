@@ -17,6 +17,8 @@ depends=(
 #optdepends=()
 makedepends=(
    'cmake'
+   'eigen'
+   'boost'
 )
 # conflicts=()
 # replaces=()
