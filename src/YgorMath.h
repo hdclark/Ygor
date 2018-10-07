@@ -312,6 +312,8 @@ template <class T>   class contour_of_points {
 
         contour_of_points<T> Subdivide_Midway(void) const; //Inserts an extra vertex at the midway point between all vertices.
 
+        contour_of_points<T> Remove_Vertices(T area_threshold) const; //Remove adjacent vertices until the cumulative change in area exceeds the threshold.
+
         contour_of_points<T> Scale_Dist_From_Point(const vec3<T> &, T scale) const;   //Scales distance from each point to given point by factor (scale).
 
         contour_of_points<T> Resample_LTE_Evenly_Along_Perimeter(const long int N) const; //Performs Resample_Evenly_Along_Perimeter only on contours with more than N.
