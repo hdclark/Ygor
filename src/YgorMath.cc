@@ -3371,7 +3371,7 @@ contour_of_points<T>::Subdivide_Midway(void) const {
     template contour_of_points<double> contour_of_points<double>::Subdivide_Midway(void) const;
 #endif
 
-//Remove individual vertices until the cumulative change in area exceeds the threshold.
+//Remove individual vertices until the cumulative change in (absolute) area exceeds the threshold.
 //
 // Note: A greedy algorithm is used which can result in non-optimal results if a large threshold is provided.
 //
@@ -3383,9 +3383,6 @@ contour_of_points<T>:: Remove_Vertices(T area_threshold) const {
     }
 
     const bool AssumePlanar = true;
-    const auto A_orig = std::abs( this->Get_Signed_Area(AssumePlanar) );
-//    const auto A_targ = A_orig - area_threshold;
-
     auto trimmed_area = static_cast<T>(0);
 
     contour_of_points<T> out(*this);
@@ -3439,6 +3436,95 @@ contour_of_points<T>:: Remove_Vertices(T area_threshold) const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Remove_Vertices(float ) const;
     template contour_of_points<double> contour_of_points<double>::Remove_Vertices(double) const;
+#endif
+
+
+//Collapse adjacent vertices into a single vertex until the cumulative change in (absolute) area exceeds the threshold.
+template <class T>
+contour_of_points<T> 
+contour_of_points<T>:: Collapse_Vertices(T area_threshold) const {
+    if(this->points.size() <= 3){
+        throw std::runtime_error("Cannot simplify, contour is already a triangle");
+    }
+
+    const bool AssumePlanar = true;
+    auto trimmed_area = static_cast<T>(0);
+
+    contour_of_points<T> out(*this);
+    out.closed = this->closed;
+    out.metadata = this->metadata;
+
+    using list_iter_t = decltype(out.points.begin());
+
+    auto get_prev = []( list_iter_t first, list_iter_t last, list_iter_t it ) -> list_iter_t {
+        return (it == first) ? last : std::prev(it);
+    };
+    auto get_next = []( list_iter_t first, list_iter_t last, list_iter_t it ) -> list_iter_t {
+        return (it == last) ? first : std::next(it);
+    };
+
+   
+    while(true){
+        if(out.points.size() == 3) break;
+
+        // Holds an iterator to the first of TWO vertices to replace.
+        std::list< std::pair< T, list_iter_t > > removal_penalties;
+        auto first = out.points.begin();
+        auto last = std::prev(out.points.end());
+        for(auto it = first; it != out.points.end(); ++it){
+
+            auto B_it = it;
+            auto A_it = get_prev(first, last, B_it);
+            auto C_it = get_next(first, last, B_it);
+            auto D_it = get_next(first, last, C_it);
+
+            auto E = (*B_it + *C_it) / static_cast<T>(2); // Candidate to replace B and C.
+
+            contour_of_points<T> dummyABE;
+            dummyABE.closed = true;
+            dummyABE.points.push_back(*A_it);
+            dummyABE.points.push_back(*B_it);
+            dummyABE.points.push_back(E);
+            const auto dA_ABE = dummyABE.Get_Signed_Area();
+            //const auto dA_ABE = std::abs( dummyABE.Get_Signed_Area() );
+            //const auto orien_ABE = (E - *B_it).Cross(*A_it - *B_it);
+
+            contour_of_points<T> dummyECD;
+            dummyECD.closed = true;
+            dummyECD.points.push_back(E);
+            dummyECD.points.push_back(*C_it);
+            dummyECD.points.push_back(*D_it);
+            const auto dA_ECD = dummyECD.Get_Signed_Area();
+            //const auto dA_ECD = std::abs( dummyECD.Get_Signed_Area() );
+            //const auto orien_ECD = (*D_it - *C_it).Cross(E - *C_it);
+
+            //// If the cross products are in the same direction, the changes in area are
+            //const auto orien = orien_ABE.Dot( orien_ECD );
+            const auto dA = std::abs( dA_ABE - dA_ECD );
+
+            removal_penalties.emplace_back( std::make_pair(dA, B_it) );
+        }
+
+        removal_penalties.sort([]( const std::pair<T,list_iter_t> &L,
+                                   const std::pair<T,list_iter_t> &R ) -> bool {
+                                       return (L.first < R.first);
+                               });
+
+        //Bail before removing the vertex if it would put us over the threshold.
+        trimmed_area += removal_penalties.front().first;
+        if(trimmed_area > area_threshold) break;
+
+        auto B_it = removal_penalties.front().second;
+        auto C_it = get_next(first, last, B_it);
+        *B_it = (*B_it + *C_it) / static_cast<T>(2);
+        out.points.erase(C_it);
+    }
+
+    return std::move(out);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template contour_of_points<float > contour_of_points<float >::Collapse_Vertices(float ) const;
+    template contour_of_points<double> contour_of_points<double>::Collapse_Vertices(double) const;
 #endif
 
 

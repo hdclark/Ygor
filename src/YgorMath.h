@@ -312,7 +312,8 @@ template <class T>   class contour_of_points {
 
         contour_of_points<T> Subdivide_Midway(void) const; //Inserts an extra vertex at the midway point between all vertices.
 
-        contour_of_points<T> Remove_Vertices(T area_threshold) const; //Remove adjacent vertices until the cumulative change in area exceeds the threshold.
+        contour_of_points<T> Remove_Vertices(T area_threshold) const; //Remove adjacent vertices until the cumulative change in (absolute) area exceeds the threshold.
+        contour_of_points<T> Collapse_Vertices(T area_threshold) const; //Collapse adjacent vertices into a single vertex until the cumulative change in (absolute) area exceeds the threshold.
 
         contour_of_points<T> Scale_Dist_From_Point(const vec3<T> &, T scale) const;   //Scales distance from each point to given point by factor (scale).
 
