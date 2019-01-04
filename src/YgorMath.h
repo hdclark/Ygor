@@ -223,6 +223,14 @@ template <class T>   class sphere {
         std::vector<vec3<T>> Line_Intersections( const line<T> & ) const; // Can have size 0, 1, or 2.
 };
 
+// Fit a sphere to a container of vec3<T> using surface-orthogonal least-squares regression.
+template <class C> 
+sphere<typename C::value_type::value_type>
+Sphere_Orthogonal_Regression( C in,
+                              long int max_iterations = 100,
+                              typename C::value_type::value_type centre_stopping_tol = static_cast<typename C::value_type::value_type>(1E-5),
+                              typename C::value_type::value_type radius_stopping_tol = static_cast<typename C::value_type::value_type>(1E-5));
+
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------- plane: 2D planes in 3D space -----------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------

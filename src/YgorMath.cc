@@ -1465,6 +1465,109 @@ sphere<T>::Line_Intersections( const line<T> &L ) const {
     template std::vector<vec3<double>> sphere<double>::Line_Intersections( const line<double> & ) const;
 #endif
 
+
+// Fit a sphere to a container of vec3<T> using surface-orthogonal least-squares regression.
+//
+// Note: This routine finds a solution via an iterative approach. It is not guaranteed to converge!
+//
+// Note: This type of regression considers residuals orthogonal to the sphere surface rather than
+//       aligned with any coordinate axes (as for, e.g., traditional linear regression).
+//
+// Note: This algorithm was derived from
+//       http://www.sci.utah.edu/~balling/FETools/doc_files/LeastSquaresFitting.pdf
+//       (accessed circa 20190103).
+//
+template <class C> 
+sphere<typename C::value_type::value_type>
+Sphere_Orthogonal_Regression( C in,
+                              long int max_iterations,
+                              typename C::value_type::value_type centre_stopping_tol,
+                              typename C::value_type::value_type radius_stopping_tol ){
+    using T = typename C::value_type; // e.g., vec3<double>.
+    using R = decltype(in.front().x); // e.g., double.
+
+    const auto zero = static_cast<R>(0);
+
+    const auto N = in.size();
+    if(N < 4){
+        throw std::invalid_argument("This routine requires 4 or more non co-planar points.");
+    }
+    const auto N_f = static_cast<R>(N);
+        
+    std::vector<R> xs;
+    std::vector<R> ys;
+    std::vector<R> zs;
+
+    xs.reserve(N);
+    ys.reserve(N);
+    zs.reserve(N);
+    for(const auto &p : in){
+        xs.push_back(p.x);
+        ys.push_back(p.y);
+        zs.push_back(p.z);
+    }
+
+    const T centroid( Stats::Sum(xs) / N_f,
+                      Stats::Sum(ys) / N_f,
+                      Stats::Sum(zs) / N_f );
+
+    T centre = centroid; // Initial guesses for the sphere centre.
+    R radius = zero; // Initial guess for the radius.
+
+    std::vector<R> Ls; // Distance from point R_i to the centre of the sphere.
+    std::vector<R> La;
+    std::vector<R> Lb;
+    std::vector<R> Lc;
+    Ls.resize(N, zero);
+    La.resize(N, zero);
+    Lb.resize(N, zero);
+    Lc.resize(N, zero);
+
+    long int iteration = 0;
+    while(true){
+        ++iteration;
+        if( iteration > max_iterations ){
+            throw std::runtime_error("Exceeded maximum permitted iterations without converging. Refusing to continue.");
+        }
+
+        const auto prev_centre = centre;
+        const auto prev_radius = radius;
+
+        for(size_t i = 0; i < N; ++i){
+            const auto Li = std::sqrt( std::pow( xs[i] - centroid.x, 2.0 ) 
+                                     + std::pow( ys[i] - centroid.y, 2.0 )
+                                     + std::pow( zs[i] - centroid.z, 2.0 ) );
+            Ls[i] = Li;
+            La[i] = (centre.x - xs[i]) / Li;
+            La[i] = (centre.y - xs[i]) / Li;
+            La[i] = (centre.z - xs[i]) / Li;
+        }
+        radius = Stats::Sum(Ls) / N_f;
+        const auto Lx = Stats::Sum(La) / N_f;
+        const auto Ly = Stats::Sum(Lb) / N_f;
+        const auto Lz = Stats::Sum(Lc) / N_f;
+
+        centre.x = centroid.x + radius * Lx;
+        centre.y = centroid.y + radius * Ly;
+        centre.z = centroid.z + radius * Lz;
+
+        if( (centre.distance(prev_centre) < centre_stopping_tol)
+        &&  (std::abs(prev_radius - radius) < radius_stopping_tol) ) break;
+    }
+
+    return sphere<R>( vec3<R>( static_cast<R>(centre.x),
+                               static_cast<R>(centre.y),
+                               static_cast<R>(centre.z) ),
+                      static_cast<R>(radius) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template sphere<double> Sphere_Orthogonal_Regression(std::list<vec3<double>>, long int, double, double);
+    template sphere<float > Sphere_Orthogonal_Regression(std::list<vec3<float >>, long int, float , float );
+
+    template sphere<double> Sphere_Orthogonal_Regression(std::vector<vec3<double>>, long int, double, double);
+    template sphere<float > Sphere_Orthogonal_Regression(std::vector<vec3<float >>, long int, float , float );
+#endif 
+
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------- plane: 2D planes in 3D space -----------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
