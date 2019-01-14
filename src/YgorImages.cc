@@ -4998,19 +4998,23 @@ void Mutate_Voxels(
                 if(!f_observer && !f_unbounded && !bounded) continue;
                 if(!f_observer && !f_bounded   &&  bounded) continue;
 
-//
-//    enum class
-//    Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
-//        SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
-//        NearestNeighbours, // Also use the four nearest neighbours (in the image plane).                       ...Boundary voxels? TODO
-//    } adjacency;
-//
-
                 //Collect the values from the user-provided images.
                 shtl.clear();
                 for(const auto &img_ref : selected_imgs){
                     const auto pixel_val = img_ref.get().value(row, col, chan);
-                    shtl.emplace_back(pixel_val);
+                    shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+
+                    if(false){
+                    }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
+                        const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
+                        const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
+                        const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
+                        const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
+                        if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
+                        if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
+                        if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
+                        if( col != col_h ) shtl.emplace_back( img_ref.get().value(row, col_h, chan) );
+                    }
                 }
                 if(shtl.empty()){
                     throw std::logic_error("No selected images were identified.");

@@ -574,13 +574,13 @@ struct Mutate_Voxels_Opts {
         Mean,      // Take the mean of all coincident voxels in the selected images.
         Median,    // Take the median of all coincident voxels in the selected images.
         Sum,       // Take the sum of all coincident voxels in the selected images.
-        First,     // Take only the voxel value from the first selected image.
+        First,     // Take only the voxel value from the first selected image (nb. from the voxel centre).
     } aggregate = Aggregate::Mean;
 
     enum class
     Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
         SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
-        NearestNeighbours, // Also use the four nearest neighbours (in the image plane).                       ...Boundary voxels? TODO
+        NearestNeighbours, // Also use the four nearest neighbours (in the image plane, iff the neighbour exists).
     } adjacency = Adjacency::SingleVoxel;
 
     enum class
