@@ -567,7 +567,7 @@ template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
 
     for(long int row = 0; row < this->rows; ++row){
         for(long int col = 0; col < this->columns; ++col){
-            for(long int chn = 0; chnl < this->channels; ++chnl){
+            for(long int chn = 0; chn < this->channels; ++chn){
                 d.reference(row, col, chn) = this->value(row, col, chn);
             }
             d.reference(row, col, chnls - 1) = channel_value;
