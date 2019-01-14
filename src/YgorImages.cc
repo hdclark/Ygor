@@ -557,6 +557,70 @@ template <class T,class R> T& planar_image<T,R>::reference(long int userindex){
     template float    & planar_image<float   ,double>::reference(long int indx);
 #endif
 
+template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
+    const auto rows = this->rows;
+    const auto cols = this->columns;
+    const auto chnls = this->channels + 1;
+
+    planar_image<T,R> d = *this;
+    d.init_buffer(rows, cols, chnls);
+
+    for(long int row = 0; row < this->rows; ++row){
+        for(long int col = 0; col < this->columns; ++col){
+            for(long int chnl = 0; chnl < this->channels; ++chnl){
+                d.reference(row, col, chnl) = this->value(row, col, chnl);
+            }
+            d.reference(row, col, this->channels - 1) = channel_value;
+        }
+    }
+
+    this->data.swap( d.data );
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::add_channel(uint8_t  channel_value);
+    template void planar_image<uint16_t,double>::add_channel(uint16_t channel_value);
+    template void planar_image<uint32_t,double>::add_channel(uint32_t channel_value);
+    template void planar_image<uint64_t,double>::add_channel(uint64_t channel_value);
+    template void planar_image<float   ,double>::add_channel(float    channel_value);
+#endif
+
+template <class T,class R> void planar_image<T,R>::remove_channel(long int channel_number){
+
+    //Note: fails on out-of-bounds input.
+    if(!isininc(0,channel_number,this->channels-1)){
+        FUNCERR("Selected channel does not exist");
+    }
+
+    const auto rows = this->rows;
+    const auto cols = this->columns;
+    const auto chnls = this->channels - 1;
+
+    planar_image<T,R> d = *this;
+    d.init_buffer(rows, cols, chnls);
+
+    for(long int row = 0; row < this->rows; ++row){
+        for(long int col = 0; col < this->columns; ++col){
+            for(long int chnl = 0; chnl < this->channels; ++chnl){
+                if(chnl < channel_number){
+                    d.reference(row, col, chnl) = this->value(row, col, chnl);
+                }else if(chnl > channel_number){
+                    d.reference(row, col, chnl - 1) = this->value(row, col, chnl);
+                }
+            }
+        }
+    }
+
+    this->data.swap( d.data );
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::remove_channel(long int channel_number);
+    template void planar_image<uint16_t,double>::remove_channel(long int channel_number);
+    template void planar_image<uint32_t,double>::remove_channel(long int channel_number);
+    template void planar_image<uint64_t,double>::remove_channel(long int channel_number);
+    template void planar_image<float   ,double>::remove_channel(long int channel_number);
+#endif
 
 
 //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).

@@ -134,6 +134,10 @@ template <class T, class R> class planar_image {
         T& reference(const vec3<R> &point, long int chnl);
         T& reference(long int index);
 
+        //Add and remove channels.
+        void add_channel(T channel_value);
+        void remove_channel(long int channel_number); // Zero-based.
+
         //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).
         // Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
         T bilinearly_interpolate_in_pixel_number_space(R row, R col, long int chnl) const; //Fails on out-of-bounds input.
