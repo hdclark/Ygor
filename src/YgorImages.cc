@@ -459,7 +459,7 @@ template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_co
 template <class T, class R> T planar_image<T,R>::value(long int row, long int col, long int chnl) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) 
-    ||  !isininc(0,chnl,this->channels) ){
+    ||  !isininc(0,chnl,this->channels-1) ){
         throw std::domain_error("Attempted to access part of image which does not exist");
     }
     return this->data[this->index(row,col,chnl)];
@@ -567,14 +567,15 @@ template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
 
     for(long int row = 0; row < this->rows; ++row){
         for(long int col = 0; col < this->columns; ++col){
-            for(long int chnl = 0; chnl < this->channels; ++chnl){
-                d.reference(row, col, chnl) = this->value(row, col, chnl);
+            for(long int chn = 0; chnl < this->channels; ++chnl){
+                d.reference(row, col, chn) = this->value(row, col, chn);
             }
-            d.reference(row, col, this->channels - 1) = channel_value;
+            d.reference(row, col, chnls - 1) = channel_value;
         }
     }
 
     this->data.swap( d.data );
+    this->channels = chnls;
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -612,6 +613,7 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
     }
 
     this->data.swap( d.data );
+    this->channels = chnls;
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
