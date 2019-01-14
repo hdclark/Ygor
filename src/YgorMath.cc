@@ -1534,13 +1534,13 @@ Sphere_Orthogonal_Regression( C in,
         const auto prev_radius = radius;
 
         for(size_t i = 0; i < N; ++i){
-            const auto Li = std::sqrt( std::pow( xs[i] - centroid.x, 2.0 ) 
-                                     + std::pow( ys[i] - centroid.y, 2.0 )
-                                     + std::pow( zs[i] - centroid.z, 2.0 ) );
+            const auto Li = std::sqrt( std::pow( xs[i] - centre.x, 2.0 ) 
+                                     + std::pow( ys[i] - centre.y, 2.0 )
+                                     + std::pow( zs[i] - centre.z, 2.0 ) );
             Ls[i] = Li;
             La[i] = (centre.x - xs[i]) / Li;
-            La[i] = (centre.y - xs[i]) / Li;
-            La[i] = (centre.z - xs[i]) / Li;
+            Lb[i] = (centre.y - ys[i]) / Li;
+            Lc[i] = (centre.z - zs[i]) / Li;
         }
         radius = Stats::Sum(Ls) / N_f;
         const auto Lx = Stats::Sum(La) / N_f;
