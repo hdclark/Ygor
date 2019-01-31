@@ -583,8 +583,8 @@ struct Mutate_Voxels_Opts {
 
     enum class
     Adjacency {      // Controls how nearby voxel values are used when computing existing voxel values.
-        SingleVoxel, // Only consider the individual bounded voxel, ignoring neighbours.
-        NearestNeighbours, // Also use the four nearest neighbours (in the image plane, iff the neighbour exists).
+        SingleVoxel, // Only consider the individual bounded voxel (for every selected image), ignoring neighbours.
+        NearestNeighbours, // Also use the four nearest neighbours (for every selected image; only in the image plane; iff the neighbour exists).
     } adjacency = Adjacency::SingleVoxel;
 
     enum class
@@ -606,8 +606,15 @@ struct Mutate_Voxels_Opts {
 // values are aggregated.
 //
 // Note: the list 'selected_img_its' contains the images from which voxel values will be aggregated. The list may
-//       itself contain the 'img_to_edit' which will be overwritten. If neighbouring voxels are to be taken into
+//       itself contain the 'img_to_edit' which will be overwritten. The voxels from 'img_to_edit' will NOT be sampled
+//       if 'img_to_edit' does not appear in 'selected_img_its'. If ONLY voxels from 'img_to_edit' need to be sampled,
+//       then 'selected_img_its' should contain ONLY 'img_to_edit'. If neighbouring voxels are to be taken into
 //       account, you should NOT use in-place editing.
+//
+// Note: all selected_imgs are sampled from -- no adjacency tracking is currently performed. In other words, the
+//       selected images are always projected onto the 'img_to_edit' (or vice-versa), discarding adjacency information
+//       completely. So ensure only those images which should be sampled (e.g., the self image, nearest-neighbour
+//       adjacent images, etc) are passed in.
 //
 // Note: the provided functors are called once per voxel, no matter how many contours encompass them. Only one of the
 //       bounded/unbounded functors is called for each voxel. The observer functor is called for every voxel.

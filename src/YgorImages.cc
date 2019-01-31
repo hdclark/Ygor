@@ -4862,31 +4862,69 @@ void Mutate_Voxels(
     mask_img = img_to_edit_ref.get();
     mask_img.fill_pixels(static_cast<T>(0));
 
+    const auto machine_eps = std::sqrt(std::numeric_limits<double>::epsilon());
+
     const auto row_unit   = working_img_ref.get().row_unit;
     const auto col_unit   = working_img_ref.get().col_unit;
     const auto ortho_unit = row_unit.Cross( col_unit ).unit();
     const auto pxl_dx     = working_img_ref.get().pxl_dx;
     const auto pxl_dy     = working_img_ref.get().pxl_dy;
+    const auto pxl_dz     = working_img_ref.get().pxl_dz;
 
-    //Verify the selected images have the same image characteristics.
+    //Test whether the selected images have the same image characteristics so (row,column) coordinates are identical (up to
+    // translation along the planer normal).
+    bool selected_imgs_spatially_equivalent = true;
     {
-        auto rows     = working_img_ref.get().rows;
-        auto columns  = working_img_ref.get().columns;
-        auto channels = working_img_ref.get().channels;
+        const auto wi_rows     = working_img_ref.get().rows;
+        const auto wi_columns  = working_img_ref.get().columns;
+        const auto wi_channels = working_img_ref.get().channels;
 
-        for(const auto &an_img : selected_imgs){
-            if( (rows     != an_img.get().rows)
-            ||  (columns  != an_img.get().columns)
-            ||  (channels != an_img.get().channels) ){
-                throw std::domain_error("Images have differing number of rows, columns, or channels."
-                                        " This is not currently supported -- though it could be if needed."
-                                        " Are you sure you've got the correct data?");
+        if(  (wi_rows < 1) 
+        ||   (wi_columns < 1)
+        ||   (wi_channels < 1) 
+        ||   (pxl_dx < machine_eps)
+        ||   (pxl_dy < machine_eps) ){
+            throw std::runtime_error("Image cannot be compared. Unable to continue.");
+        }
+
+        auto pxl_dl = std::min( { pxl_dx, pxl_dy, pxl_dz } ) * 1E-3;
+        pxl_dl = std::max( pxl_dl, machine_eps ); // Protect against pxl_dz = 0 case.
+
+        const auto corner_A = working_img_ref.get().position(0,0);
+        const auto corner_B = working_img_ref.get().position(wi_rows-1,0);
+        const auto corner_C = working_img_ref.get().position(0,wi_columns-1);
+
+        //const auto img_plane = working_img_ref.get().image_plane();
+
+        for(const auto &an_img_ref : selected_imgs){
+            const auto s_rows      = an_img_ref.get().rows;
+            const auto s_columns   = an_img_ref.get().columns;
+            const auto s_channels  = an_img_ref.get().channels;
+            //const auto s_pxl_dx    = an_img_ref.get().pxl_dx;
+            //const auto s_pxl_dy    = an_img_ref.get().pxl_dy;
+            const auto s_img_plane = an_img_ref.get().image_plane();
+
+            if( wi_channels != s_channels ){
+                throw std::runtime_error("Images found to have differing number of channels. Unable to proceed.");
             }
-            // NOTE: We assume the first image in the selected_images set is representative of the following
-            //       images. We assume they all share identical row and column units, spatial extent, planar
-            //       orientation, and (possibly) that row and column indices for one image are spatially
-            //       equal to all other images. Breaking the last assumption would require an expensive 
-            //       position_space-to-row_and_column_index lookup for each voxel.
+
+            if( (wi_rows     != s_rows)
+            ||  (wi_columns  != s_columns)
+            //||  (std::abs(s_pxl_dx - pxl_dx) > machine_eps)
+            //||  (std::abs(s_pxl_dy - pxl_dy) > machine_eps)
+
+            // Project onto the working image.
+            //||  (corner_A.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(0,0) ))           > pxl_dl)
+            //||  (corner_B.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(s_rows-1,0) ))    > pxl_dl)
+            //||  (corner_C.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(0,s_columns-1) )) > pxl_dl) ){
+
+            // Project onto the selected image. This is what is actually performed below.
+            ||  (an_img_ref.get().position(0,0).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_A ) )           > pxl_dl)
+            ||  (an_img_ref.get().position(s_rows-1,0).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_B ) )    > pxl_dl)
+            ||  (an_img_ref.get().position(0,s_columns-1).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_C ) ) > pxl_dl) ){
+                selected_imgs_spatially_equivalent = false;
+                break;
+            }
         }
     }
 
@@ -5067,19 +5105,62 @@ void Mutate_Voxels(
                 //Collect the values from the user-provided images.
                 shtl.clear();
                 for(const auto &img_ref : selected_imgs){
-                    const auto pixel_val = img_ref.get().value(row, col, chan);
-                    shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
 
-                    if(false){
-                    }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                        const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
-                        const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
-                        const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
-                        const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
-                        if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
-                        if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
-                        if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
-                        if( col != col_h ) shtl.emplace_back( img_ref.get().value(row, col_h, chan) );
+                    if(selected_imgs_spatially_equivalent){
+                        const auto pixel_val = img_ref.get().value(row, col, chan);
+                        shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+
+                        if(false){
+                        }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
+                            const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
+                            const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().rows - 1) );
+                            const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
+                            const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
+                            if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
+                            if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
+                            if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
+                            if( col != col_h ) shtl.emplace_back( img_ref.get().value(row, col_h, chan) );
+                        }
+
+                        // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
+
+                    }else{
+                        // Determine the equivalent voxel in the selected image by projection.
+                        //
+                        // Note: We project orthogonally onto the selected image plane because this results in the nearest
+                        //       voxel in the selected image being located.
+                        const auto pos = working_img_ref.get().position(row, col);
+                        const auto proj_pos = img_ref.get().image_plane().Project_Onto_Plane_Orthogonally(pos);
+                        const auto proj_index = img_ref.get().index( proj_pos, chan );
+                        if(proj_index < 0){
+                            throw std::runtime_error("Unable to locate equivalent pixel in adjacent image. Cannot continue.");
+                            // Note: We could instead return a NaN here, or call a user-provided functor to handle it.
+                            //       At the time of writing this functionality was not needed.
+                        }
+                        const auto proj_RRC =img_ref.get().row_column_channel_from_index(proj_index);
+                        const auto proj_row = std::get<0>(proj_RRC);
+                        const auto proj_col = std::get<1>(proj_RRC);
+
+                        // Carry on using the projected row and column numbers.
+                        const auto pixel_val = img_ref.get().value(proj_row, proj_col, chan);
+                        shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+
+                        if(false){
+                        }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
+                            const auto row_l = std::max( static_cast<long int>(proj_row - 1), static_cast<long int>(0) );
+                            const auto row_h = std::min( static_cast<long int>(proj_row + 1), static_cast<long int>(img_ref.get().rows - 1) );
+                            const auto col_l = std::max( static_cast<long int>(proj_col - 1), static_cast<long int>(0) );
+                            const auto col_h = std::min( static_cast<long int>(proj_col + 1), static_cast<long int>(img_ref.get().columns - 1) );
+                            if( proj_row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, proj_col, chan) );
+                            if( proj_row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, proj_col, chan) );
+                            if( proj_col != col_l ) shtl.emplace_back( img_ref.get().value(proj_row, col_l, chan) );
+                            if( proj_col != col_h ) shtl.emplace_back( img_ref.get().value(proj_row, col_h, chan) );
+                        }
+
+                        // TODO: Provide a 3D interpolation option rather than finding the nearest overlapping voxel.
+
+                        // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
+
                     }
                 }
                 if(shtl.empty()){
