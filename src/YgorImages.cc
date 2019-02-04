@@ -2202,11 +2202,10 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, lon
     ||  !isininc(0,col,this->columns-1)){
         FUNCERR("Attempted to access part of image which does not exist");
     }
-    vec3<R> out(this->anchor);
-    out += this->offset;
-    out += this->row_unit*(this->pxl_dx*static_cast<R>(row));
-    out += this->col_unit*(this->pxl_dy*static_cast<R>(col));
-    return out;
+    return (  this->anchor
+            + this->offset
+            + this->row_unit*(this->pxl_dx*static_cast<R>(row))
+            + this->col_unit*(this->pxl_dy*static_cast<R>(col)) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template vec3<double> planar_image<uint8_t ,double>::position(long int row, long int col) const;
