@@ -211,6 +211,7 @@ template <class T, class R> class planar_image {
 
         //Get an R^3 position of the *center* of the pixel/voxel.
         vec3<R> position(long int row, long int col) const;
+        vec3<R> position(long int index) const;
 
         //Determine if a given point in R^3 is encompassed by the 3D volume of the image (using 'thickness' pxl_dz).
         bool encompasses_point(const vec3<R> &in) const; //Note: does not consider points on the outermost surface encompassed.

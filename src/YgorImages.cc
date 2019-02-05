@@ -2200,7 +2200,7 @@ planar_image<T,R>::replace_nonfinite_pixels_with(T val){
 template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, long int col) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     return (  this->anchor
             + this->offset
@@ -2213,6 +2213,25 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, lon
     template vec3<double> planar_image<uint32_t,double>::position(long int row, long int col) const;
     template vec3<double> planar_image<uint64_t,double>::position(long int row, long int col) const;
     template vec3<double> planar_image<float   ,double>::position(long int row, long int col) const;
+#endif
+
+template <class T,class R> vec3<R> planar_image<T,R>::position(long int index) const {
+    if( (index < 0)
+    ||  (index > this->index(this->rows-1,this->columns-1,this->channels-1)) ){
+        throw std::runtime_error("Attempted to access part of image which does not exist");
+    }
+
+    const auto rcc = this->row_column_channel_from_index(index);
+    const auto row = std::get<0>(rcc);
+    const auto col = std::get<1>(rcc);
+    return this->position(row, col); // Will throw if out-of-bounds.
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<double> planar_image<uint8_t ,double>::position(long int index) const;
+    template vec3<double> planar_image<uint16_t,double>::position(long int index) const;
+    template vec3<double> planar_image<uint32_t,double>::position(long int index) const;
+    template vec3<double> planar_image<uint64_t,double>::position(long int index) const;
+    template vec3<double> planar_image<float   ,double>::position(long int index) const;
 #endif
 
 
