@@ -5248,3 +5248,192 @@ void Mutate_Voxels(
         std::function<void(long int, long int, long int, float& )>);
 #endif
 
+
+// Test whether the images collectively form a regular grid.
+template <class T,class R>
+bool Images_Form_Regular_Grid( std::list<std::reference_wrapper<planar_image<T,R>>> img_refws,
+                               R eps ){
+
+    if(img_refws.empty()){
+        return false; // Not regular -- empty!
+    }
+
+    auto working_img_ref = img_refws.front();
+
+    const auto pxl_dx   = working_img_ref.get().pxl_dx;
+    const auto pxl_dy   = working_img_ref.get().pxl_dy;
+    const auto pxl_dz   = working_img_ref.get().pxl_dz;
+
+    const auto rows     = working_img_ref.get().rows;
+    const auto columns  = working_img_ref.get().columns;
+
+    if(  (rows < 1) 
+    ||   (columns < 1) ){
+        return false; // An empty tiling.
+    }
+
+    if(  (pxl_dx < eps)
+    ||   (pxl_dy < eps)
+    ||   (pxl_dz < eps) ){
+        return false; // Possibly still valid, but not something we can reasonably validate.
+    }
+
+    if(img_refws.size() == 1){
+        return true; // A simple tiling.
+    }
+
+    // Find the corner voxel centres.
+    const auto corner_A = working_img_ref.get().position(0,0);
+    const auto corner_B = working_img_ref.get().position(rows-1,0);
+    const auto corner_C = working_img_ref.get().position(0,columns-1);
+
+    const auto img_plane = working_img_ref.get().image_plane();
+
+    std::vector<double> separations;
+    for(const auto &img_ref : img_refws){
+        const auto l_rows      = img_ref.get().rows;
+        const auto l_columns   = img_ref.get().columns;
+        const auto l_channels  = img_ref.get().channels;
+        const auto l_img_plane = img_ref.get().image_plane();
+
+        // Verify the in-plane voxel layout is consistent.
+        if( false
+        ||  (rows     != l_rows)
+        ||  (columns  != l_columns) ){
+            return false;
+        }
+
+        const auto l_corner_A = img_ref.get().position(0,0);
+        const auto l_corner_B = img_ref.get().position(l_rows-1,0);
+        const auto l_corner_C = img_ref.get().position(0,l_columns-1);
+
+        // Verify the in-plane voxel layout is consistent.
+        // Project onto the working image.
+        if( (corner_A.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_A ) ) > eps)
+        ||  (corner_B.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_B ) ) > eps)
+        ||  (corner_C.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_C ) ) > eps)
+
+        // Project from the working image.
+        ||  (l_corner_A.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_A ) ) > eps)
+        ||  (l_corner_B.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_B ) ) > eps)
+        ||  (l_corner_C.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_C ) ) > eps) ){
+            return false;
+        }
+
+        separations.emplace_back( corner_A.distance(l_corner_A) );
+    }
+
+    // Verify the out-of-plane image spacing is consistent.
+    std::sort( std::begin(separations), std::end(separations) );
+    std::vector<double> adj_separations;
+    for(size_t i = 0; (i+1) < separations.size(); ++i){
+        size_t j = (i+1);
+        adj_separations.emplace_back( separations[j] - separations[i] );
+    }
+    std::sort( std::begin(adj_separations), std::end(adj_separations) );
+    const auto nearest = adj_separations.front();
+    const auto furthest = adj_separations.back();
+
+    const auto discrepancy = (furthest - nearest);
+    const auto dz_discrepancy_A = (furthest - pxl_dz);
+    const auto dz_discrepancy_B = (nearest - pxl_dz);
+    if( (discrepancy > eps) 
+    ||  (dz_discrepancy_A > eps) 
+    ||  (dz_discrepancy_B > eps) ){
+        return false;
+    }
+
+    return true;
+}
+
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template
+    bool Images_Form_Regular_Grid(
+        std::list<std::reference_wrapper<planar_image<float ,double>>> img_refws,
+        double eps );
+#endif
+
+
+
+// Test whether the images collectively form a rectilinear grid.
+template <class T,class R>
+bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image<T,R>>> img_refws,
+                               R eps ){
+
+    if(img_refws.empty()){
+        return false; // Not regular -- empty!
+    }
+
+    auto working_img_ref = img_refws.front();
+
+    const auto pxl_dx   = working_img_ref.get().pxl_dx;
+    const auto pxl_dy   = working_img_ref.get().pxl_dy;
+    const auto pxl_dz   = working_img_ref.get().pxl_dz;
+
+    const auto rows     = working_img_ref.get().rows;
+    const auto columns  = working_img_ref.get().columns;
+
+    if(  (rows < 1) 
+    ||   (columns < 1) ){
+        return false; // An empty tiling.
+    }
+
+    if(  (pxl_dx < eps)
+    ||   (pxl_dy < eps)
+    ||   (pxl_dz < eps) ){
+        return false; // Possibly still valid, but not something we can reasonably validate.
+    }
+
+    if(img_refws.size() == 1){
+        return true; // A simple tiling.
+    }
+
+    // Find the corner voxel centres.
+    const auto corner_A = working_img_ref.get().position(0,0);
+    const auto corner_B = working_img_ref.get().position(rows-1,0);
+    const auto corner_C = working_img_ref.get().position(0,columns-1);
+
+    const auto img_plane = working_img_ref.get().image_plane();
+
+    std::vector<double> separations;
+    for(const auto &img_ref : img_refws){
+        const auto l_rows      = img_ref.get().rows;
+        const auto l_columns   = img_ref.get().columns;
+        const auto l_channels  = img_ref.get().channels;
+        const auto l_img_plane = img_ref.get().image_plane();
+
+        // Verify the in-plane voxel layout is consistent.
+        if( false
+        ||  (rows     != l_rows)
+        ||  (columns  != l_columns) ){
+            return false;
+        }
+
+        const auto l_corner_A = img_ref.get().position(0,0);
+        const auto l_corner_B = img_ref.get().position(l_rows-1,0);
+        const auto l_corner_C = img_ref.get().position(0,l_columns-1);
+
+        // Verify the in-plane voxel layout is consistent.
+        // Project onto the working image.
+        if( (corner_A.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_A ) ) > eps)
+        ||  (corner_B.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_B ) ) > eps)
+        ||  (corner_C.sq_dist( img_plane.Project_Onto_Plane_Orthogonally( l_corner_C ) ) > eps)
+
+        // Project from the working image.
+        ||  (l_corner_A.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_A ) ) > eps)
+        ||  (l_corner_B.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_B ) ) > eps)
+        ||  (l_corner_C.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_C ) ) > eps) ){
+            return false;
+        }
+    }
+
+    return true;
+}
+
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template
+    bool Images_Form_Rectilinear_Grid(
+        std::list<std::reference_wrapper<planar_image<float ,double>>> img_refws,
+        double eps );
+#endif
+

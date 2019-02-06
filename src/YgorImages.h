@@ -606,21 +606,21 @@ struct Mutate_Voxels_Opts {
 // specific options selected). The internal behaviour is parameterized. Several input images can be handled: the voxel
 // values are aggregated.
 //
-// Note: the list 'selected_img_its' contains the images from which voxel values will be aggregated. The list may
+// Note: The list 'selected_img_its' contains the images from which voxel values will be aggregated. The list may
 //       itself contain the 'img_to_edit' which will be overwritten. The voxels from 'img_to_edit' will NOT be sampled
 //       if 'img_to_edit' does not appear in 'selected_img_its'. If ONLY voxels from 'img_to_edit' need to be sampled,
 //       then 'selected_img_its' should contain ONLY 'img_to_edit'. If neighbouring voxels are to be taken into
 //       account, you should NOT use in-place editing.
 //
-// Note: all selected_imgs are sampled from -- no adjacency tracking is currently performed. In other words, the
+// Note: All selected_imgs are sampled from -- no adjacency tracking is currently performed. In other words, the
 //       selected images are always projected onto the 'img_to_edit' (or vice-versa), discarding adjacency information
 //       completely. So ensure only those images which should be sampled (e.g., the self image, nearest-neighbour
 //       adjacent images, etc) are passed in.
 //
-// Note: the provided functors are called once per voxel, no matter how many contours encompass them. Only one of the
+// Note: The provided functors are called once per voxel, no matter how many contours encompass them. Only one of the
 //       bounded/unbounded functors is called for each voxel. The observer functor is called for every voxel.
 //
-// Note: the observer functor is always provided post-modification voxel values (if they are modified).
+// Note: The observer functor is always provided post-modification voxel values (if they are modified).
 //
 template <class T,class R>
 void Mutate_Voxels(
@@ -634,5 +634,41 @@ void Mutate_Voxels(
         = std::function<void(long int row, long int col, long int channel, T &voxel_val)>(),
     std::function<void(long int row, long int col, long int channel, T &voxel_val)> f_observer
         = std::function<void(long int row, long int col, long int channel, T &voxel_val)>() );
+
+
+// Test whether the images collectively form a regular grid.
+//
+// In a regular grid the voxels can be unambiguously addressed by three indices (e.g., i,j,k) and the position of voxel
+// satisfies $p(i,j,k) = p(0,0,0) + i*(p(1,0,0)-p(0,0,0)) + j*(p(0,1,0)-p(0,0,0)) + k*(p(0,0,1)-p(0,0,0))$.
+// Another way of describing the property of regularity is if the planes abutting voxel faces are either orthogonal or
+// congruent and also evenly spaced in 3 distinct directions.
+//
+// Rectinear grids are like regular grids in that the planes abutting voxel faces are either orthogonal or congruent,
+// but the planes need **not** be evenly spaced in 3 dimensions. For the case of planar images, in which in-image-plane
+// regularity is enforced, images that form a rectilinear grid might be separated by a variable amount of distance.
+// Rectilinear grids can still be indexed by three indices (e.g., i,j,k), and abutting voxels still will have a
+// separation of exactly one coordinate number (e.g., i and i+1, or i and i-1, but never i and i+2)..
+//
+// Verifying either regularity or rectilinearity holds for an arbitrary collection of images often permit the use of
+// techniques that afford a considerable reduction in computational complexity. Both regular and rectilinear grids can
+// be traversed easily by enumerating (i,j,k) over a set of positive integers. Both can be important for interpolation.
+//
+// Note: Returns true IFF the images form a (non-empty) regular (or rectilinear) grid.
+//
+// Note: The parameter 'eps' controls the spatial precision required. 
+//
+// Note: The rectilinear variant currently does not verify that image pxl_dz is valid. (This consistency is often
+//       irrelevant.)
+
+template <class T,class R>
+bool Images_Form_Regular_Grid(
+    std::list<std::reference_wrapper<planar_image<T,R>>> img_refws,
+    R eps = std::sqrt( static_cast<R>(10) * std::numeric_limits<R>::epsilon()) );
+
+template <class T,class R>
+bool Images_Form_Rectilinear_Grid(
+    std::list<std::reference_wrapper<planar_image<T,R>>> img_refws,
+    R eps = std::sqrt( static_cast<R>(10) * std::numeric_limits<R>::epsilon()) );
+
 
 #endif
