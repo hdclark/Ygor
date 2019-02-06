@@ -4880,71 +4880,22 @@ void Mutate_Voxels(
     mask_img = img_to_edit_ref.get();
     mask_img.fill_pixels(static_cast<T>(0));
 
-    const auto machine_eps = std::sqrt(std::numeric_limits<double>::epsilon());
-
     const auto row_unit   = working_img_ref.get().row_unit;
     const auto col_unit   = working_img_ref.get().col_unit;
     const auto ortho_unit = row_unit.Cross( col_unit ).unit();
     const auto pxl_dx     = working_img_ref.get().pxl_dx;
     const auto pxl_dy     = working_img_ref.get().pxl_dy;
-    const auto pxl_dz     = working_img_ref.get().pxl_dz;
+    //const auto pxl_dz     = working_img_ref.get().pxl_dz;
 
     //Test whether the selected images have the same image characteristics so (row,column) coordinates are identical (up to
     // translation along the planer normal).
-    bool selected_imgs_spatially_equivalent = true;
+    bool selected_imgs_spatially_equivalent;
     {
-        const auto wi_rows     = working_img_ref.get().rows;
-        const auto wi_columns  = working_img_ref.get().columns;
-        const auto wi_channels = working_img_ref.get().channels;
-
-        if(  (wi_rows < 1) 
-        ||   (wi_columns < 1)
-        ||   (wi_channels < 1) 
-        ||   (pxl_dx < machine_eps)
-        ||   (pxl_dy < machine_eps) ){
-            throw std::runtime_error("Image cannot be compared. Unable to continue.");
-        }
-
-        auto pxl_dl = std::min( { pxl_dx, pxl_dy, pxl_dz } ) * 1E-3;
-        pxl_dl = std::max( pxl_dl, machine_eps ); // Protect against pxl_dz = 0 case.
-
-        const auto corner_A = working_img_ref.get().position(0,0);
-        const auto corner_B = working_img_ref.get().position(wi_rows-1,0);
-        const auto corner_C = working_img_ref.get().position(0,wi_columns-1);
-
-        //const auto img_plane = working_img_ref.get().image_plane();
-
-        for(const auto &an_img_ref : selected_imgs){
-            const auto s_rows      = an_img_ref.get().rows;
-            const auto s_columns   = an_img_ref.get().columns;
-            const auto s_channels  = an_img_ref.get().channels;
-            //const auto s_pxl_dx    = an_img_ref.get().pxl_dx;
-            //const auto s_pxl_dy    = an_img_ref.get().pxl_dy;
-            const auto s_img_plane = an_img_ref.get().image_plane();
-
-            if( wi_channels != s_channels ){
-                throw std::runtime_error("Images found to have differing number of channels. Unable to proceed.");
-            }
-
-            if( (wi_rows     != s_rows)
-            ||  (wi_columns  != s_columns)
-            //||  (std::abs(s_pxl_dx - pxl_dx) > machine_eps)
-            //||  (std::abs(s_pxl_dy - pxl_dy) > machine_eps)
-
-            // Project onto the working image.
-            //||  (corner_A.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(0,0) ))           > pxl_dl)
-            //||  (corner_B.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(s_rows-1,0) ))    > pxl_dl)
-            //||  (corner_C.distance(img_plane.Project_Onto_Plane_Orthogonally( an_img_ref.get().position(0,s_columns-1) )) > pxl_dl) ){
-
-            // Project onto the selected image. This is what is actually performed below.
-            ||  (an_img_ref.get().position(0,0).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_A ) )           > pxl_dl)
-            ||  (an_img_ref.get().position(s_rows-1,0).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_B ) )    > pxl_dl)
-            ||  (an_img_ref.get().position(0,s_columns-1).distance( s_img_plane.Project_Onto_Plane_Orthogonally( corner_C ) ) > pxl_dl) ){
-                selected_imgs_spatially_equivalent = false;
-                break;
-            }
-        }
+        auto all_imgs = selected_imgs;
+        all_imgs.emplace_back(working_img_ref);
+        selected_imgs_spatially_equivalent = Images_Form_Rectilinear_Grid(all_imgs);
     }
+
 
     //Loop over the ccsl, rois, rows, columns, and channels to determine boundedness. Record on the mask.
     for(auto &ccs : ccsl){
@@ -5293,7 +5244,6 @@ bool Images_Form_Regular_Grid( std::list<std::reference_wrapper<planar_image<T,R
     for(const auto &img_ref : img_refws){
         const auto l_rows      = img_ref.get().rows;
         const auto l_columns   = img_ref.get().columns;
-        const auto l_channels  = img_ref.get().channels;
         const auto l_img_plane = img_ref.get().image_plane();
 
         // Verify the in-plane voxel layout is consistent.
@@ -5399,7 +5349,6 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
     for(const auto &img_ref : img_refws){
         const auto l_rows      = img_ref.get().rows;
         const auto l_columns   = img_ref.get().columns;
-        const auto l_channels  = img_ref.get().channels;
         const auto l_img_plane = img_ref.get().image_plane();
 
         // Verify the in-plane voxel layout is consistent.
