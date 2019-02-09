@@ -5388,3 +5388,196 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
         double eps );
 #endif
 
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------- planar_image_adjacency: a class for 3D adjacency indexing ---------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+
+template <class T,class R>
+planar_image_adjacency<T,R>::planar_image_adjacency(
+            const std::list< img_refw_t > &imgs, 
+            const std::list< img_coll_refw_t > &img_colls, 
+            const vec3<R> &normal ) : orientation_normal(normal) {
+
+    // Provide a look-up for quickly finding the nearest image for a given point.
+    //
+    // Note: Planes are used here, but could also use distance to image centres.
+    //       Then at least you only have to work with vec3s rather than vec3s + planes.
+    for(auto & img_coll_refw : img_colls){
+        for(auto & l_img : img_coll_refw.get().images){
+            auto plane = l_img.image_plane();
+            this->img_plane_to_img.emplace_back( std::make_pair(plane, std::addressof(l_img)) );
+        }
+    }
+    for(auto & img_refw : imgs){
+        auto plane = img_refw.get().image_plane();
+        this->img_plane_to_img.emplace_back( std::make_pair(plane, std::addressof(img_refw.get())) );
+    }
+
+    // Sort the images according to the provided normal.
+    std::sort( std::begin(this->img_plane_to_img),
+               std::end(this->img_plane_to_img),
+               [&](const img_planes_t &lhs, const img_planes_t &rhs){
+                   const auto lhs_proj = (std::get<0>(lhs).R_0.Dot( this->orientation_normal ));
+                   const auto rhs_proj = (std::get<0>(rhs).R_0.Dot( this->orientation_normal ));
+                   return (lhs_proj < rhs_proj);
+               } );
+
+    // Give each image an index. The absolute number is arbitrary, but 0 is also the default map value initializer.
+    long int dummy = 100;
+    for(auto &p : this->img_plane_to_img){
+        const auto img_ptr = std::get<1>(p);
+        this->int_to_img[dummy] = img_ptr;
+        this->img_to_int[img_ptr] = dummy;
+        ++dummy;
+    }
+
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template planar_image_adjacency<uint8_t ,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<uint8_t ,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<uint8_t ,double> > > &,
+        const vec3<double> &);
+    template planar_image_adjacency<uint16_t,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<uint16_t,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<uint16_t,double> > > &,
+        const vec3<double> &);
+    template planar_image_adjacency<uint32_t,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<uint32_t,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<uint32_t,double> > > &,
+        const vec3<double> &);
+    template planar_image_adjacency<uint64_t,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<uint64_t,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<uint64_t,double> > > &,
+        const vec3<double> &);
+    template planar_image_adjacency<float   ,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<float   ,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<float   ,double> > > &,
+        const vec3<double> &);
+#endif
+
+template <class T,class R>
+std::reference_wrapper< planar_image<T,R> >
+planar_image_adjacency<T,R>::position_to_image(const vec3<R> &pos) const {
+    const auto it = std::min_element( std::begin(img_plane_to_img), 
+                                      std::end(img_plane_to_img),
+                                      [&](const img_planes_t &lhs, const img_planes_t &rhs){
+                                          const auto lhs_dist = std::abs(std::get<0>(lhs).Get_Signed_Distance_To_Point(pos));
+                                          const auto rhs_dist = std::abs(std::get<0>(rhs).Get_Signed_Distance_To_Point(pos));
+                                          return (lhs_dist < rhs_dist);
+                                      } );
+    if(it == std::end(img_plane_to_img)){
+        throw std::logic_error("No nearest image can be located.");
+    }
+    return std::ref( *(std::get<1>(*it)) );
+
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::reference_wrapper< planar_image<uint8_t ,double> >
+        planar_image_adjacency<uint8_t ,double>::position_to_image(const vec3<double> &) const;
+    template std::reference_wrapper< planar_image<uint16_t,double> >
+        planar_image_adjacency<uint16_t,double>::position_to_image(const vec3<double> &) const;
+    template std::reference_wrapper< planar_image<uint32_t,double> >
+        planar_image_adjacency<uint32_t,double>::position_to_image(const vec3<double> &) const;
+    template std::reference_wrapper< planar_image<uint64_t,double> >
+        planar_image_adjacency<uint64_t,double>::position_to_image(const vec3<double> &) const;
+    template std::reference_wrapper< planar_image<float   ,double> >
+        planar_image_adjacency<float   ,double>::position_to_image(const vec3<double> &) const;
+#endif
+
+template <class T,class R>
+std::list< std::reference_wrapper< planar_image<T,R> > >
+planar_image_adjacency<T,R>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
+    // Identify the reference image which overlaps the whole image, if any.
+    //
+    // This approach attempts to identify a reference image which wholy overlaps the image to edit. This arrangement
+    // is common in many scenarios and can be exploited to reduce costly checks for each voxel.
+    // If no overlapping image is found, another lookup is performed for each voxel (which is much slower).
+    if( (img_refw.get().rows < 1) || (img_refw.get().columns < 1) ){
+        throw std::runtime_error("Edit image dimensions are too small to compare. Cannot continue.");
+    }
+    const auto corner_A = img_refw.get().position(0,0);
+    const auto corner_B = img_refw.get().position(img_refw.get().rows-1,0);
+    const auto corner_C = img_refw.get().position(0,img_refw.get().columns-1);
+
+    const auto encompasses_corners = [=](const planar_image<T,R> &animg) -> bool {
+        return animg.encompasses_point(corner_A)
+            && animg.encompasses_point(corner_B)
+            && animg.encompasses_point(corner_C);
+    };
+
+    std::list< std::reference_wrapper< planar_image<T,R> > > out;
+    for(auto &p : this->img_plane_to_img){
+        const auto img_ptr = std::get<1>(p);
+        if(encompasses_corners(*img_ptr)){
+            out.push_back( std::ref(*img_ptr) );
+        }
+    }
+    return out;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::list< std::reference_wrapper< planar_image<uint8_t ,double> > >
+        planar_image_adjacency<uint8_t ,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint8_t ,double> > &) const;
+    template std::list< std::reference_wrapper< planar_image<uint16_t,double> > >
+        planar_image_adjacency<uint16_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint16_t,double> > &) const;
+    template std::list< std::reference_wrapper< planar_image<uint32_t,double> > >
+        planar_image_adjacency<uint32_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint32_t,double> > &) const;
+    template std::list< std::reference_wrapper< planar_image<uint64_t,double> > >
+        planar_image_adjacency<uint64_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint64_t,double> > &) const;
+    template std::list< std::reference_wrapper< planar_image<float   ,double> > >
+        planar_image_adjacency<float   ,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<float   ,double> > &) const;
+#endif
+            
+template <class T,class R>
+bool
+planar_image_adjacency<T,R>::index_present(long int index) const {
+    return (this->int_to_img.count(index) != 0);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image_adjacency<uint8_t ,double>::index_present(long int) const;
+    template bool planar_image_adjacency<uint16_t,double>::index_present(long int) const;
+    template bool planar_image_adjacency<uint32_t,double>::index_present(long int) const;
+    template bool planar_image_adjacency<uint64_t,double>::index_present(long int) const;
+    template bool planar_image_adjacency<float   ,double>::index_present(long int) const;
+#endif
+
+template <class T,class R>
+bool
+planar_image_adjacency<T,R>::image_present(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
+    return (this->img_to_int.count( std::addressof( img_refw.get() )) != 0);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template bool planar_image_adjacency<uint8_t ,double>::image_present(const std::reference_wrapper< planar_image<uint8_t , double> > &) const;
+    template bool planar_image_adjacency<uint16_t,double>::image_present(const std::reference_wrapper< planar_image<uint16_t, double> > &) const;
+    template bool planar_image_adjacency<uint32_t,double>::image_present(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
+    template bool planar_image_adjacency<uint64_t,double>::image_present(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
+    template bool planar_image_adjacency<float   ,double>::image_present(const std::reference_wrapper< planar_image<float   , double> > &) const;
+#endif
+
+template <class T,class R>
+std::reference_wrapper< planar_image<T,R> >
+planar_image_adjacency<T,R>::index_to_image(long int index) const {
+    return std::ref( *(this->int_to_img.at(index) ) );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::reference_wrapper< planar_image<uint8_t , double> > planar_image_adjacency<uint8_t ,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<uint16_t, double> > planar_image_adjacency<uint16_t,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<uint32_t, double> > planar_image_adjacency<uint32_t,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<uint64_t, double> > planar_image_adjacency<uint64_t,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<float   , double> > planar_image_adjacency<float   ,double>::index_to_image(long int) const;
+#endif
+
+template <class T,class R>
+long int
+planar_image_adjacency<T,R>::image_to_index(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
+    return this->img_to_int.at( std::addressof( img_refw.get() ));
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template long int planar_image_adjacency<uint8_t ,double>::image_to_index(const std::reference_wrapper< planar_image<uint8_t , double> > &) const;
+    template long int planar_image_adjacency<uint16_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint16_t, double> > &) const;
+    template long int planar_image_adjacency<uint32_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
+    template long int planar_image_adjacency<uint64_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
+    template long int planar_image_adjacency<float   ,double>::image_to_index(const std::reference_wrapper< planar_image<float   , double> > &) const;
+#endif
+
+

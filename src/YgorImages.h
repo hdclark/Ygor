@@ -671,4 +671,73 @@ bool Images_Form_Rectilinear_Grid(
     R eps = std::sqrt( static_cast<R>(10) * std::numeric_limits<R>::epsilon()) );
 
 
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------- planar_image_adjacency: a class for 3D adjacency indexing ---------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+// Class for determining and querying adjacency information for a collection of images.
+// This class is designed to make working with 3D grids composed of 2D planar slices more easy.
+//
+// This routine is most useful after ascertaining that the images form a regular or rectilinear grid.
+// It allows to query for the nearest image, determine which images are adjacent (above and below the image plane), and
+// compute a given image's integer index in the grid.
+//
+// Note: Pointers to planar_images were used in a predecessor routine since operator< for reference wrappers degrades to
+//       the underlying object (planar_image in this case), which is costly compared to operator< for a pointer.
+//       The external interface has been made to use reference_wrappers, but images are still indexed internally by
+//       pointers address to the underlying images. BEWARE: MOVING IMAGES OR REALLOCATION BY CONTAINERS STORING THEM
+//       COULD LEAD TO MEMORY ERRORS!
+//
+// Note: This routine is complementary to the planar_image_collection class. Not all logically-related planar_images
+//       need to be indexed, nor are they necessarily rectilinear. Additionally, adjacency may be needed between a sub-
+//       or superset of planar_images, rather than for all images within a planar_image_collection.
+//
+
+template <class T,class R>   class planar_image_adjacency {
+    public:
+
+        using img_refw_t      = std::reference_wrapper< planar_image<T,R> >;
+        using img_coll_refw_t = std::reference_wrapper< planar_image_collection<T,R> >;
+        using img_ptr_t       = planar_image<T,R>*;
+        using img_planes_t    = std::pair< plane<R>, img_ptr_t >;
+
+        // Normal used to sort images for adjacency determination.
+        vec3<R> orientation_normal;
+
+        // Store image planes to determine which image is nearest to a user-provided point.
+        std::vector<img_planes_t> img_plane_to_img;
+
+        // Index-to-image and vice versa.
+        std::map<long int, img_ptr_t> int_to_img;
+        std::map<img_ptr_t, long int> img_to_int;
+
+    //------------------------------------------------------------------------
+
+        planar_image_adjacency( 
+            const std::list< img_refw_t > &imgs,
+            const std::list< img_coll_refw_t > &img_colls, 
+            const vec3<R> &normal );
+
+        // Find the nearest image plane; not necessarily overlapping!
+        img_refw_t
+        position_to_image(const vec3<R> &p) const;
+
+        // Query for whole images that overlap.
+        // This is useful when working with two overlapping rectilinear grids.
+        // 
+        // Note: If the result is empty, images may still partially overlap.
+        //       Use the complementary position_to_image() for individual voxels.
+        std::list< img_refw_t >
+        get_wholy_overlapping_images(const img_refw_t &) const;
+            
+        // Query whether the index or image are known by this class.
+        bool index_present(long int) const;
+        bool image_present(const img_refw_t &) const;
+
+        // Convert an index to an image reference, and vice versa.
+        img_refw_t index_to_image(long int) const;
+        long int image_to_index(const img_refw_t &) const;
+        
+};
+
+
 #endif
