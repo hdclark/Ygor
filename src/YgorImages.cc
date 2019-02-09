@@ -2595,7 +2595,9 @@ template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<
     for(const auto &achnl : chnls) if(!isininc(0,achnl,this->channels-1)) return false;
 
     //If chnls is empty, blur on all channels.
-    for(long int chnl = 0; chnl < this->channels; ++chnl) chnls.insert(chnl);
+    if(chnls.empty()){
+        for(long int chnl = 0; chnl < this->channels; ++chnl) chnls.insert(chnl);
+    }
 
     //Make a copy of the image so we can modify the pixels without destroying the computation.
     planar_image<T,R> ref_img(*this);
