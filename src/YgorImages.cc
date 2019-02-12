@@ -2498,7 +2498,7 @@ template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void)
 #endif
 
 //Returns the plane that the image resides in. Useful for is_point_in_poly routines.
-// The image lies wholy in this plane, though the plane is infinite and there will be numerical 
+// The image lies wholly in this plane, though the plane is infinite and there will be numerical 
 // precision loss the further from the centre of the image you look.
 template <class T,class R> plane<R> planar_image<T,R>::image_plane(void) const {
     const auto orthog_unit = this->row_unit.Cross( this->col_unit );
@@ -5487,10 +5487,10 @@ planar_image_adjacency<T,R>::position_to_image(const vec3<R> &pos) const {
 
 template <class T,class R>
 std::list< std::reference_wrapper< planar_image<T,R> > >
-planar_image_adjacency<T,R>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
+planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
     // Identify the reference image which overlaps the whole image, if any.
     //
-    // This approach attempts to identify a reference image which wholy overlaps the image to edit. This arrangement
+    // This approach attempts to identify a reference image which wholly overlaps the image to edit. This arrangement
     // is common in many scenarios and can be exploited to reduce costly checks for each voxel.
     // If no overlapping image is found, another lookup is performed for each voxel (which is much slower).
     if( (img_refw.get().rows < 1) || (img_refw.get().columns < 1) ){
@@ -5517,15 +5517,15 @@ planar_image_adjacency<T,R>::get_wholy_overlapping_images(const std::reference_w
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template std::list< std::reference_wrapper< planar_image<uint8_t ,double> > >
-        planar_image_adjacency<uint8_t ,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint8_t ,double> > &) const;
+        planar_image_adjacency<uint8_t ,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<uint8_t ,double> > &) const;
     template std::list< std::reference_wrapper< planar_image<uint16_t,double> > >
-        planar_image_adjacency<uint16_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint16_t,double> > &) const;
+        planar_image_adjacency<uint16_t,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<uint16_t,double> > &) const;
     template std::list< std::reference_wrapper< planar_image<uint32_t,double> > >
-        planar_image_adjacency<uint32_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint32_t,double> > &) const;
+        planar_image_adjacency<uint32_t,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<uint32_t,double> > &) const;
     template std::list< std::reference_wrapper< planar_image<uint64_t,double> > >
-        planar_image_adjacency<uint64_t,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<uint64_t,double> > &) const;
+        planar_image_adjacency<uint64_t,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<uint64_t,double> > &) const;
     template std::list< std::reference_wrapper< planar_image<float   ,double> > >
-        planar_image_adjacency<float   ,double>::get_wholy_overlapping_images(const std::reference_wrapper< planar_image<float   ,double> > &) const;
+        planar_image_adjacency<float   ,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<float   ,double> > &) const;
 #endif
             
 template <class T,class R>

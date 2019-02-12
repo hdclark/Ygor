@@ -727,7 +727,7 @@ template <class T,class R>   class planar_image_adjacency {
         // Note: If the result is empty, images may still partially overlap.
         //       Use the complementary position_to_image() for individual voxels.
         std::list< img_refw_t >
-        get_wholy_overlapping_images(const img_refw_t &) const;
+        get_wholly_overlapping_images(const img_refw_t &) const;
             
         // Query whether the index or image are known by this class.
         bool index_present(long int) const;
