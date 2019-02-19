@@ -5194,14 +5194,12 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
     //Zero contours have no meaningful separation.
     if(ccs.empty()) return std::numeric_limits<T>::quiet_NaN();
 
-    const auto fallback_sep = static_cast<T>(2.5); // in DICOM units (usually mm).
-
     // This method will be costly if there are many contours. It provides the most up-to-date estimate, but also
     // requires an estimation of the contour normal. It also assumes the contour normal is identical for all contours,
     // which may not be true in some cases. This method will also fail for single contours.
     T min_spacing = std::numeric_limits<T>::quiet_NaN();
 
-    auto ucpl = Unique_Contour_Planes(ccs, N);
+    auto ucpl = Unique_Contour_Planes(ccs, N, distance_eps);
     if(ucpl.size() < 2) throw std::runtime_error("Not enough unique contour planes to estimate separation.");
 
     for(auto p1_it = ucpl.begin(); p1_it != --(ucpl.end()); ++p1_it){
@@ -5212,9 +5210,11 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
         const T height2 = p2_it->R_0.Dot(N);
         const T spacing = std::abs(height2 - height1);
 
-        if(!std::isfinite(min_spacing)
-        && (spacing < min_spacing)
-        && (spacing > distance_eps)) min_spacing = spacing;
+        if((!std::isfinite(min_spacing))
+        ||    (  (spacing < min_spacing)
+              && (spacing > distance_eps) ) ){
+            min_spacing = spacing;
+        }
     }
     if(!std::isfinite(min_spacing)) 
         throw std::runtime_error("Not enough vertices in the provided contours. Unable to estimate separation.");
