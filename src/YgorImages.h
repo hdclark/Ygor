@@ -628,12 +628,12 @@ void Mutate_Voxels(
     std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
     std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
     Mutate_Voxels_Opts options,
-    std::function<void(long int row, long int col, long int channel, T &voxel_val)> f_bounded
-        = std::function<void(long int row, long int col, long int channel, T &voxel_val)>(),
-    std::function<void(long int row, long int col, long int channel, T &voxel_val)> f_unbounded 
-        = std::function<void(long int row, long int col, long int channel, T &voxel_val)>(),
-    std::function<void(long int row, long int col, long int channel, T &voxel_val)> f_observer
-        = std::function<void(long int row, long int col, long int channel, T &voxel_val)>() );
+    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_bounded
+        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)>(),
+    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_unbounded 
+        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)>(),
+    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_observer
+        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_Refw, T &voxel_val)>() );
 
 
 // Test whether the images collectively form a regular grid.

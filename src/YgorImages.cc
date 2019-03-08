@@ -4826,9 +4826,9 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
         std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
         Mutate_Voxels_Opts options,
-        std::function<void(long int, long int, long int, T &)> f_bounded,
-        std::function<void(long int, long int, long int, T &)> f_unbounded,
-        std::function<void(long int, long int, long int, T &)> f_observer){
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_bounded,
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_unbounded,
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_observer){
 
     //Check if there is anything to operate on.
     if(ccsl.empty()){
@@ -5157,12 +5157,12 @@ void Mutate_Voxels(
                 //Update the values and call user functions as necessary.
                 if(false){
                 }else if(bounded && f_bounded_valid){
-                    f_bounded(row, col, chan, v);
+                    f_bounded(row, col, chan, working_img_ref, v);
                 }else if(!bounded && f_unbounded_valid){
-                    f_unbounded(row, col, chan, v);
+                    f_unbounded(row, col, chan, working_img_ref, v);
                 }
                 if(f_observer_valid){
-                    f_observer(row, col, chan, v);
+                    f_observer(row, col, chan, working_img_ref, v);
                 }
 
             }//Loop over channels.
@@ -5196,9 +5196,9 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<float ,double>>>,
         std::list<std::reference_wrapper<contour_collection<double>>>,
         Mutate_Voxels_Opts,
-        std::function<void(long int, long int, long int, float& )>,
-        std::function<void(long int, long int, long int, float& )>,
-        std::function<void(long int, long int, long int, float& )>);
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>,
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>,
+        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>);
 #endif
 
 
