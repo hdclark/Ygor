@@ -1271,6 +1271,33 @@ line<T>::Project_Point_Orthogonally( const vec3<T> &R ) const {
     template vec3<double> line<double>::Project_Point_Orthogonally( const vec3<double> & ) const;
 #endif
 
+template <class T>    std::ostream & operator<<( std::ostream &out, const line<T> &L ){
+    //Note: This friend is templated (Y) within the templated class (T). We only
+    // care about friend template when T==Y.
+    //
+    //There is significant whitespace here!
+    out << L.R_0 << ", " << L.U_0;
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::ostream & operator<<(std::ostream &out, const line<float> &L );
+    template std::ostream & operator<<(std::ostream &out, const line<double> &L );
+#endif
+    
+template <class T>    std::istream &operator>>(std::istream &in, line<T> &L){
+    //Note: This friend is templated (Y) within the templated class (T). We only
+    // care about friend template when T==Y.
+    //
+    char grbg;
+    //... << "("  << L.x << ", " << L.y << ", " <<  L.z  <<  ")";
+    in >> L.R_0 >> grbg >> L.U_0;
+    return in;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::istream & operator>>(std::istream &out, line<float> &L );
+    template std::istream & operator>>(std::istream &out, line<double> &L );
+#endif
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------ line_segment: (finite-length) lines in 3D space --------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
@@ -1633,6 +1660,32 @@ template <class T>    bool plane<T>::Intersects_With_Line_Once(const line<T> &L,
 #endif
 
 
+template <class T>    bool plane<T>::Intersects_With_Plane_Along_Line(const plane<T> &P, line<T> &out) const {
+   const auto line_axis = this->N_0.Cross( P.N_0 );
+   const auto line_U = line_axis.unit();
+
+   // If a unit vector cannot be formed, then the planes either intersect perfectly, or do not intersect anywhere.
+   if(!line_U.isfinite()) return false;
+
+   // Determine a point on the line. We make use of a straightforward line-line adjacency result to find a point.
+   // The lines lie in the planes (i.e., are orthogonal to the planes) and are orthogonal to the intersection line.
+   const auto line_PA_U = line_U.Cross( this->N_0 ).unit();
+   const auto line_PB_U = line_U.Cross( P.N_0 ).unit();
+
+   const line<T> line_PA(this->R_0, this->R_0 + line_PA_U);
+   const line<T> line_PB(P.R_0, P.R_0 + line_PB_U);
+
+   vec3<T> line_R;
+   if(!line_PA.Closest_Point_To_Line(line_PB, line_R)) return false;
+   out = line<T>(line_R, line_R + line_U);
+   return true;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool plane<float >::Intersects_With_Plane_Along_Line(const plane<float > &, line<float > &) const;
+    template bool plane<double>::Intersects_With_Plane_Along_Line(const plane<double> &, line<double> &) const;
+#endif
+
+
 template <class T>   vec3<T> plane<T>::Project_Onto_Plane_Orthogonally(const vec3<T> &point) const {
     //Project point (along a normal to this plane) onto a point on this plane.
     //
@@ -1770,6 +1823,32 @@ Plane_Orthogonal_Regression(C in){
     template plane<float > Plane_Orthogonal_Regression(std::vector<vec3<float >> in);
 #endif 
 
+template <class T>    std::ostream & operator<<( std::ostream &out, const plane<T> &L ){
+    //Note: This friend is templated (Y) within the templated class (T). We only
+    // care about friend template when T==Y.
+    //
+    //There is significant whitespace here!
+    out << L.R_0 << ", " << L.N_0;
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::ostream & operator<<(std::ostream &out, const plane<float> &L );
+    template std::ostream & operator<<(std::ostream &out, const plane<double> &L );
+#endif
+    
+template <class T>    std::istream &operator>>(std::istream &in, plane<T> &L){
+    //Note: This friend is templated (Y) within the templated class (T). We only
+    // care about friend template when T==Y.
+    //
+    char grbg;
+    //... << "("  << L.x << ", " << L.y << ", " <<  L.z  <<  ")";
+    in >> L.R_0 >> grbg >> L.N_0;
+    return in;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::istream & operator>>(std::istream &out, plane<float> &L );
+    template std::istream & operator>>(std::istream &out, plane<double> &L );
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------ contour_of_points: a polygon of line segments in the form of a collection of points --------------------

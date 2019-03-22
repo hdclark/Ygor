@@ -175,6 +175,10 @@ template <class T>   class line {
         bool Closest_Point_To_Line( const line<T> &, vec3<T> &) const;
 
         vec3<T> Project_Point_Orthogonally( const vec3<T> & ) const; // Projects the given point onto the nearest point on the line.
+
+        //Friends.
+        template<class Y> friend std::ostream & operator << (std::ostream &, const line<Y> &); // ---> Overloaded stream operators.
+        template<class Y> friend std::istream & operator >> (std::istream &, line<Y> &);      
 };
 
 
@@ -254,10 +258,14 @@ template <class T>   class plane {
                                                                 // positive normal, false if in opposite direction. Do not rely on any sign
                                                                 // in case the point is in the plane (but a consistent sign IS given in this case.)
         bool Intersects_With_Line_Once(const line<T> &L, vec3<T> &out) const;
+        bool Intersects_With_Plane_Along_Line(const plane<T> &P, line<T> &out) const;
 
         //Project point (along a normal to this plane) onto a point on this plane.
         vec3<T> Project_Onto_Plane_Orthogonally(const vec3<T> &point) const;
 
+        //Friends.
+        template<class Y> friend std::ostream & operator << (std::ostream &, const plane<Y> &); // ---> Overloaded stream operators.
+        template<class Y> friend std::istream & operator >> (std::istream &, plane<Y> &);      
 };
 
 // Fit a plane to a container of vec3<T> using plane-orthogonal least-squares regression.
