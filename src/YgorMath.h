@@ -49,11 +49,13 @@ template <class T> class vec3 {
                                               // way to define '<' for a vector, so be careful with it.
         bool isfinite(void) const;        //Logical AND of std::isfinite() on each coordinate.
 
-        //Operators - T typed.
         vec3   operator*(const T &) const;
         vec3 & operator*=(const T &);
         vec3   operator/(const T &) const;
         vec3 & operator/=(const T &);
+
+        //Operators - T typed.
+        T & operator[](size_t);
     
         //Member functions.
         T Dot(const vec3 &) const;        // ---> Dot product.
@@ -126,11 +128,13 @@ template <class T> class vec2 {
                                               // way to define '<' for a vector, so be careful with it.
         bool isfinite(void) const;        //Logical AND of std::isfinite() on each coordinate.
 
-        //Operators - T typed.
         vec2   operator*(const T &) const;
         vec2 & operator*=(const T &);
         vec2   operator/(const T &) const;
         vec2 & operator/=(const T &);
+
+        //Operators - T typed.
+        T & operator[](size_t);
 
         //Member functions.
         T Dot(const vec2 &) const;        // ---> Dot product.

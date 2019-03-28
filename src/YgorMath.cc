@@ -449,6 +449,22 @@ template <class T>    vec3<T> & vec3<T>::operator/=(const T &rhs) {
     template vec3<double> & vec3<double>::operator/=(const double &rhs);
 #endif
     
+template <class T>    T & vec3<T>::operator[](size_t i) {
+    if(false){
+    }else if(i == 0){
+        return this->x;
+    }else if(i == 1){
+        return this->y;
+    }else if(i == 2){
+        return this->z;
+    }
+    throw std::invalid_argument("Invalid element access. Cannot continue.");
+    return this->x;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  & vec3<float >::operator[](size_t);
+    template double & vec3<double>::operator[](size_t);
+#endif
     
     
 template <class T>    bool vec3<T>::operator==(const vec3<T> &rhs) const {
@@ -939,6 +955,21 @@ template <class T>    vec2<T> & vec2<T>::operator/=(const T &rhs) {
     template vec2<double> & vec2<double>::operator/=(const double &rhs);
 #endif
     
+    
+template <class T>    T & vec2<T>::operator[](size_t i) {
+    if(false){
+    }else if(i == 0){
+        return this->x;
+    }else if(i == 1){
+        return this->y;
+    }
+    throw std::invalid_argument("Invalid element access. Cannot continue.");
+    return this->x;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  & vec2<float >::operator[](size_t);
+    template double & vec2<double>::operator[](size_t);
+#endif
     
     
 template <class T>    bool vec2<T>::operator==(const vec2<T> &rhs) const {
