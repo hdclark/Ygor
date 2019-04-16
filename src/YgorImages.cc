@@ -5028,19 +5028,43 @@ void Mutate_Voxels(
                         }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
                             if(is_interior(centre)) mark_boundedness(row, col, chan);
 
-                        }else if( ( OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive)) 
-                                  // Remember: holes are inverted contours that include infinity!
-                              ||  ((options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
-                                   && !OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive)) ){
+                        }else if( 
+                              // Permit any orientation if the user wants to ignore contour orientation.
+                                  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) )
+                              // Implicit orientations: accept all orientations.
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
+                              // Honoured orientations: the positive-orientation case.
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                    && OrientationPositive
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
+                              // Honoured orientations: the negative-orientation case.
+                              // Remember: holes are inverted contours that include infinity!
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                    && !OrientationPositive
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) ){
                             if( is_interior(cornerA) 
                             ||  is_interior(cornerB) 
                             ||  is_interior(cornerC) 
                             ||  is_interior(cornerD) ) mark_boundedness(row, col, chan);
 
-                        }else if( ( OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive)) 
-                                  // Remember: holes are inverted contours that include infinity!
-                              ||  ((options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
-                                   && !OrientationPositive && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive)) ){
+                        }else if( 
+                              // Permit any orientation if the user wants to ignore contour orientation.
+                                  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) )
+                              // Implicit orientations: accept all orientations.
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
+                              // Honoured orientations: the positive-orientation case.
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                    && OrientationPositive
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
+                              // Honoured orientations: the negative-orientation case.
+                              // Remember: holes are inverted contours that include infinity!
+                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
+                                    && !OrientationPositive
+                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) ){
                             if( is_interior(cornerA) 
                             &&  is_interior(cornerB) 
                             &&  is_interior(cornerC) 
