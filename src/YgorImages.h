@@ -737,6 +737,10 @@ template <class T,class R>   class planar_image_adjacency {
         img_refw_t index_to_image(long int) const;
         long int image_to_index(const img_refw_t &) const;
         
+        // Interpolate the image at the given point, if it is possible.
+        T trilinearly_interpolate(const vec3<R> &pos,
+                                  long int chnl, 
+                                  R out_of_bounds = std::numeric_limits<T>::quiet_NaN());
 };
 
 

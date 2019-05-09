@@ -5604,4 +5604,92 @@ planar_image_adjacency<T,R>::image_to_index(const std::reference_wrapper< planar
     template long int planar_image_adjacency<float   ,double>::image_to_index(const std::reference_wrapper< planar_image<float   , double> > &) const;
 #endif
 
+// Interpolate linearly in R^3. The nearest two images (above and below) are interpolated between. Specifically, the
+// position of interest is projected orthographically onto the image and the relative distance to each plane is used to
+// determine weighting. If the projected point is not within the bounds of (either of) the nearest two images, a special
+// user-provided out-of-bounds value is returned. 
+//
+// This routine can only deal with regular and rectilinear image volumes. (See
+// planar_image_collection::trilinearly_interpolate() for a similar routine that can deal with non-rectilinear image
+// volumes. This routine, which relies on a pre-computed spatial indexing should be much faster than the non-rectilinear
+// version.)
+//
+// Note: this routine will get confused by images that (exactly) spatially overlap. In this case there is 'no room' for
+// the interpolation to occur, and numerical difficulties may ensue.
+//
+// Note: this routine will round-trip pixel values (type T) to the spatial type (type R), scaling them, and then back
+// (to type T). This is necessary since the interpolation uses distance as the weighting factor. For best results,
+// ensure that the spatial type (R) is wider than the pixel type (T), or at least ensure that the types are wide enough
+// that the loss of precision is irrelevant. (If you cannot deal with this, spatial interpolation is probably not what
+// you want!)
+//
+template <class T,class R>
+T
+planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
+                                                      long int chnl, 
+                                                      R out_of_bounds ){
+    if(this->int_to_img.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
+    
+    // First, identify the nearest planes that straddle the point.
+    const auto nearest_img_refw = this->position_to_image(pos);
+    const auto nearest_img_index = this->image_to_index(nearest_img_refw);
+ 
+    const auto nearest_plane = nearest_img_refw.get().image_plane();
+    const auto nearest_dR = (pos - nearest_plane.R_0).Dot(this->orientation_normal);
+    const bool nearest_is_above = (nearest_dR >= 0.0);
+
+    // If the opposing image does not exist, continue with the nearest image in it's place.
+    long int other_img_index = nearest_img_index + (nearest_is_above ? -1 : 1);
+    const bool other_present = this->index_present(other_img_index);
+    other_img_index = (other_present ? other_img_index : nearest_img_index);
+    const auto other_img_refw = (other_present ? this->index_to_image(other_img_index) : nearest_img_refw);
+
+    const auto other_plane = other_img_refw.get().image_plane();
+    const auto other_dR = (pos - other_plane.R_0).Dot(this->orientation_normal);
+    const auto other_is_above = (other_dR >= 0.0);
+
+    const auto tot_dist = std::abs(nearest_dR) + std::abs(other_dR);
+    //const auto tot_dist = std::abs( (nearest_plane.R_0 - other_plane.R_0).Dot(this->orientation_normal) );
+
+    // Project the point onto the image planes.
+    const auto A_P = pos + (this->orientation_normal * nearest_dR) * (nearest_is_above ? -1.0 : 1.0);
+    const auto B_P = pos + (this->orientation_normal * other_dR  ) * (other_is_above   ? -1.0 : 1.0);
+    //const auto A_P = nearest_plane.Project_Onto_Plane_Orthogonally(pos);
+    //const auto B_P = other_plane.Project_Onto_Plane_Orthogonally(pos);
+
+    T out = out_of_bounds;
+    if(other_present){
+        try{
+            const auto A_frc = nearest_img_refw.get().fractional_row_column(A_P);
+            const auto B_frc = other_img_refw.get().fractional_row_column(B_P);
+
+            const auto A_out = nearest_img_refw.get().bilinearly_interpolate_in_pixel_number_space(A_frc.first, A_frc.second, chnl);
+            const auto B_out = other_img_refw.get().bilinearly_interpolate_in_pixel_number_space(B_frc.first, B_frc.second, chnl);
+
+            out = static_cast<T>( (std::abs(nearest_dR)/tot_dist)*static_cast<R>(A_out)
+                                + (std::abs(other_dR)/tot_dist)*static_cast<R>(B_out) );
+        }catch(const std::exception &){
+            out = out_of_bounds;
+        }
+
+    }else{
+        try{
+            const auto A_frc = nearest_img_refw.get().fractional_row_column(A_P);
+            const auto A_out = nearest_img_refw.get().bilinearly_interpolate_in_pixel_number_space(A_frc.first, A_frc.second, chnl);
+            out = A_out;
+        }catch(const std::exception &){
+            out = out_of_bounds;
+        }
+
+    }
+
+    return out; 
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template uint8_t  planar_image_adjacency<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint16_t planar_image_adjacency<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+#endif
 
