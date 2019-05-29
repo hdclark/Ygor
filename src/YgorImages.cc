@@ -5627,7 +5627,7 @@ template <class T,class R>
 T
 planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
                                                       long int chnl, 
-                                                      R out_of_bounds ){
+                                                      R out_of_bounds ) const {
     if(this->int_to_img.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
     
     // First, identify the nearest planes that straddle the point.
@@ -5686,10 +5686,10 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     return out; 
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image_adjacency<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint16_t planar_image_adjacency<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint8_t  planar_image_adjacency<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template uint16_t planar_image_adjacency<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
 #endif
 
