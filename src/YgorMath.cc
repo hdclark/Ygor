@@ -6568,7 +6568,7 @@ samples_1D<T>::Find_Otsu_Binarization_Threshold(void) const {
     T running_magnitude_low = zero;
 
     T max_variance = -one;
-    size_t threshold_index = zero;
+    size_t threshold_index = 0;
 
     size_t i = 0;
     for(const auto &s : this->samples){
