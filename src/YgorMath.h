@@ -756,6 +756,9 @@ template <class T> class samples_1D {
         //Resamples the data into approximately equally-spaced samples using linear interpolation.
         samples_1D<T> Resample_Equal_Spacing(size_t N) const;
 
+        //Binarize (threshold) the samples along x using Otsu's criteria.
+        T Find_Otsu_Binarization_Threshold(void) const;
+
         //Multiply all sample f_i's by a given factor. Uncertainties are appropriately scaled too.
         samples_1D<T> Multiply_With(T factor) const; // i.e., "operator *".
         samples_1D<T> Sum_With(T factor) const; // i.e., "operator +".

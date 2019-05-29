@@ -6525,6 +6525,101 @@ samples_1D<T>::Resample_Equal_Spacing(size_t N) const {
     template samples_1D<double> samples_1D<double>::Resample_Equal_Spacing(size_t) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
+template <class T> 
+T 
+samples_1D<T>::Find_Otsu_Binarization_Threshold(void) const {
+    //Binarize (threshold) the samples along x using Otsu's criteria.
+    //
+    // Otsu thresholding works best with well-defined bimodal histograms.
+    // It works by finding the threshold that partitions the voxel intensity histogram into two parts,
+    // essentially so that the sum of each partition's variance is minimal.
+    //
+    // Note that *this is treated as a histogram. All uncertainties are ignored.
+    //
+    // Note that this routine will not actually binarize anything. It only produces a threshold for the user
+    // to use for binarization. In general, this routine will be used to analyze a histogram produced from some
+    // non-1D data source (e.g., image pixel intensities). So binarization should be applied in the originating
+    // domain.
+    if(this->samples.size() < 2) throw std::runtime_error("Unable to binarize with <2 datum");
+
+    const auto zero = static_cast<T>(0);
+    const auto one  = static_cast<T>(1);
+
+    // Sum the total bin magnitude. Note that for later consistencty we use a potentially lossy summation.
+    // This is intentional, since worse numerical woes may result later if we use inconsistent approaches.
+    // This situation could be rectified by using rolling estimators for moments, means, and variances. TODO.
+    const auto total_bin_magnitude = [&](void) -> T {
+        T out = zero;
+        for(const auto &s : this->samples) out += s[2];
+        return out;
+    }();
+
+    const T total_moment = [&](void) -> T {
+        T moment = zero;
+        T i = zero;
+        for(const auto &s : this->samples){
+            moment += (s[2] * i);
+            i += one;
+        }
+        return moment;
+    }();
+
+    T running_low_moment = zero;
+    T running_magnitude_low = zero;
+
+    T max_variance = -one;
+    size_t threshold_index = zero;
+
+    size_t i = 0;
+    for(const auto &s : this->samples){
+        running_magnitude_low += s[2];
+
+        // If no bins with any height have yet been seen, skip them.
+        if(running_magnitude_low == zero){
+            ++i;
+            continue;
+        }
+
+        const auto running_magnitude_high = total_bin_magnitude - running_magnitude_low;
+
+        // If we've reached the end, or numerical losses will cause issues, then bail.
+        if(running_magnitude_high <= zero) break;
+
+        running_low_moment += (s[2] * static_cast<T>(i));
+        const auto mean_low = running_low_moment / running_magnitude_low;
+        const auto mean_high = (total_moment - running_low_moment) / running_magnitude_high;
+
+        // If numerical issues cause negative or non-finite means (which should always be >= 0), then bail.
+        if( !std::isfinite(mean_low)
+        ||  !std::isfinite(mean_high)
+        ||  (mean_low < zero)
+        ||  (mean_high < zero) ){
+            break;
+        }
+
+        // Test if the current threshold's variance is maximal.
+        const auto current_variance = running_magnitude_low
+                                    * running_magnitude_high
+                                    * std::pow(mean_high - mean_low, 2.0);
+        if(max_variance < current_variance){
+            max_variance = current_variance;
+            threshold_index = i;
+        }
+        ++i;
+    }
+
+    if(max_variance < zero){
+        throw std::logic_error("Unable to perform Otsu thresholding; no suitable thresholds were identified");
+    }
+
+    const auto f_threshold = this->samples.at(threshold_index)[0];
+    return f_threshold;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  samples_1D<float >::Find_Otsu_Binarization_Threshold(void) const;
+    template double samples_1D<double>::Find_Otsu_Binarization_Threshold(void) const;
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
 template <class T>  samples_1D<T> samples_1D<T>::Multiply_With(T factor) const {
     //Multiply all sample f_i's by a given factor. Uncertainties are appropriately scaled too.
     samples_1D<T> out;
