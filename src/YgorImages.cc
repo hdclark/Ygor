@@ -5633,9 +5633,8 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     // First, identify the nearest planes that straddle the point.
     const auto nearest_img_refw = this->position_to_image(pos);
     const auto nearest_img_index = this->image_to_index(nearest_img_refw);
- 
     const auto nearest_plane = nearest_img_refw.get().image_plane();
-    const auto nearest_dR = (pos - nearest_plane.R_0).Dot(this->orientation_normal);
+    const auto nearest_dR = (nearest_plane.R_0 - pos).Dot(this->orientation_normal);
     const bool nearest_is_above = (nearest_dR >= 0.0);
 
     // If the opposing image does not exist, continue with the nearest image in it's place.
@@ -5645,15 +5644,16 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     const auto other_img_refw = (other_present ? this->index_to_image(other_img_index) : nearest_img_refw);
 
     const auto other_plane = other_img_refw.get().image_plane();
-    const auto other_dR = (pos - other_plane.R_0).Dot(this->orientation_normal);
-    const auto other_is_above = (other_dR >= 0.0);
+    const auto other_dR = (other_plane.R_0 - pos).Dot(this->orientation_normal);
+    //const auto other_is_above = (other_dR >= 0.0);
 
     const auto tot_dist = std::abs(nearest_dR) + std::abs(other_dR);
     //const auto tot_dist = std::abs( (nearest_plane.R_0 - other_plane.R_0).Dot(this->orientation_normal) );
 
     // Project the point onto the image planes.
-    const auto A_P = pos + (this->orientation_normal * nearest_dR) * (nearest_is_above ? -1.0 : 1.0);
-    const auto B_P = pos + (this->orientation_normal * other_dR  ) * (other_is_above   ? -1.0 : 1.0);
+    const auto A_P = pos + (this->orientation_normal * nearest_dR); // * (nearest_is_above ? -1.0 : 1.0);
+    const auto B_P = pos + (this->orientation_normal * other_dR  ); // * (other_is_above   ? -1.0 : 1.0);
+
     //const auto A_P = nearest_plane.Project_Onto_Plane_Orthogonally(pos);
     //const auto B_P = other_plane.Project_Onto_Plane_Orthogonally(pos);
 
