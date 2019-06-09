@@ -1351,6 +1351,46 @@ template <class T>    line_segment<T>::line_segment(const vec3<T> &R_A, const ve
     template line_segment<double>::line_segment(const vec3<double> &R_A, const vec3<double> &R_B);
 #endif
 
+// Finds the point along the segment nearest to the given point.
+// Honours the endpoints.
+template <class T> 
+vec3<T>
+line_segment<T>::Closest_Point_To(const vec3<T> &P) const {
+    const auto EA = this->Get_R0();
+    const auto EB = this->Get_R1();
+
+    // For this method to work, it must be possible to form a unit vector.
+    // If it is not possible, the endpoints intersect and the line segment is just a point.
+    // This degenerate case is easy to deal with.
+    const auto N = (EB - EA).unit();
+    if(!N.isfinite()) return EA;
+
+    // Divide space into three regions using two planes.
+    const plane<T> PA(N, EA);
+    const plane<T> PB(N, EB);
+
+    // Test which section the point is in.
+    const bool above_EA = PA.Is_Point_Above_Plane(P);
+    const bool above_EB = PB.Is_Point_Above_Plane(P);
+
+    vec3<T> out( std::numeric_limits<T>::quiet_NaN(),
+                 std::numeric_limits<T>::quiet_NaN(),
+                 std::numeric_limits<T>::quiet_NaN() );
+    if(false){
+    }else if(!above_EA && !above_EB){
+        out = EA;
+    }else if( above_EA && above_EB ){
+        out = EB;
+    }else{
+        const line<T> full_line(EA, EB);
+        out = full_line.Project_Point_Orthogonally(P);
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > line_segment<float >::Closest_Point_To(const vec3<float > &) const;
+    template vec3<double> line_segment<double>::Closest_Point_To(const vec3<double> &) const;
+#endif
 
 //Samples every <spacing>, beginning at offset. Returns sampled points and remaining space along segment.
 //
