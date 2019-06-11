@@ -5273,8 +5273,10 @@ Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collectio
             if(cop.points.size() < 3) continue;
             try{
                 const auto N = cop.Estimate_Planar_Normal();
-                N_sum += N;
-                ++count;
+                if(N.isfinite()){
+                    N_sum += N;
+                    ++count;
+                }
             }catch(const std::exception &){}
         }
     }
