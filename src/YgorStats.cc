@@ -483,7 +483,13 @@ void Stats::Running_MinMax<T>::Digest(T in){
 template <typename T>
 T Stats::Running_MinMax<T>::Current_Min(void) const {
     if(this->PresentMin > this->PresentMax){
-        throw std::runtime_error("Not enough (finite?) data digested to provide min/max");
+
+        // Figure out how to report the failure.
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            throw std::runtime_error("Not enough (finite?) data digested to provide min and cannot emit NaN");
+        }
     }
     return this->PresentMin;
 }
@@ -497,7 +503,13 @@ T Stats::Running_MinMax<T>::Current_Min(void) const {
 template <typename T>
 T Stats::Running_MinMax<T>::Current_Max(void) const {
     if(this->PresentMin > this->PresentMax){
-        throw std::runtime_error("Not enough (finite?) data digested to provide min/max");
+
+        // Figure out how to report the failure.
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            throw std::runtime_error("Not enough (finite?) data digested to provide min and cannot emit NaN");
+        }
     }
     return this->PresentMax;
 }
