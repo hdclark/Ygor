@@ -5524,10 +5524,19 @@ planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_
     const auto corner_B = img_refw.get().position(img_refw.get().rows-1,0);
     const auto corner_C = img_refw.get().position(0,img_refw.get().columns-1);
 
+    const auto machine_eps = std::numeric_limits<R>::epsilon();
+    const auto ortho_unit = img_refw.get().row_unit.Cross( img_refw.get().col_unit );
+    const auto z_ext = ortho_unit * (img_refw.get().pxl_dz / static_cast<R>(2.0)) 
+                                  * (static_cast<R>(1) - std::sqrt(machine_eps) * static_cast<R>(10.0));
+
     const auto encompasses_corners = [=](const planar_image<T,R> &animg) -> bool {
-        return animg.encompasses_point(corner_A)
-            && animg.encompasses_point(corner_B)
-            && animg.encompasses_point(corner_C);
+        return animg.encompasses_point(corner_A + z_ext)
+            && animg.encompasses_point(corner_B + z_ext)
+            && animg.encompasses_point(corner_C + z_ext)
+
+            && animg.encompasses_point(corner_A - z_ext)
+            && animg.encompasses_point(corner_B - z_ext)
+            && animg.encompasses_point(corner_C - z_ext);
     };
 
     std::list< std::reference_wrapper< planar_image<T,R> > > out;
