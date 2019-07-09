@@ -42,13 +42,15 @@ g++ -std=c++14 Test_Math11.cc -o test_math11 -lygor -pthread -lboost_serializati
 g++ -std=c++14 Test_Math12.cc -o test_math12 -lygor -pthread &
 g++ -std=c++14 Test_Math13.cc -o test_math13 -lygor -pthread &
 g++ -std=c++14 Test_Math14.cc -o test_math14 -lygor -pthread &
+g++ -std=c++14 Test_Math15.cc -o test_math15 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Math15.cc -o test_math15 -lygor -pthread &
 g++ -std=c++14 Test_Math16.cc -o test_math16 -lygor -pthread &
 g++ -std=c++14 Test_Math17.cc -o test_math17 -lygor -pthread &
 g++ -std=c++14 Test_Math18.cc -o test_math18 -lygor -pthread &
 g++ -std=c++14 Test_Math19.cc -o test_math19 -lygor -pthread &
+g++ -std=c++14 Test_Math20.cc -o test_math20 -lygor -pthread &
+
 wait
 
 g++ -std=c++14 Test_Misc.cc -o test_misc -lygor -pthread  &

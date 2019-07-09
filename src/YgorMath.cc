@@ -1392,6 +1392,30 @@ line_segment<T>::Closest_Point_To(const vec3<T> &P) const {
     template vec3<double> line_segment<double>::Closest_Point_To(const vec3<double> &) const;
 #endif
 
+// Finds the point along the segment nearest to the given line. Honours the line_segment endpoints. 
+// This routine will only return false in the degenerate case when the line and line_segment are parallel (or nearly parallel).
+template <class T> 
+bool
+line_segment<T>::Closest_Point_To_Line(const line<T> &L, vec3<T> &P) const {
+    // First, treat the line segment as a line (ignoring the endpoints) to find the closest point.
+    const auto EA = this->Get_R0();
+    const auto EB = this->Get_R1();
+
+    const line<T> LSL(EA, EB);
+    vec3<T> LP;
+    if(!LSL.Closest_Point_To_Line( L, LP )){
+        return false;
+    }
+
+    // Then honour the line segment endpoints.
+    P = this->Closest_Point_To(LP);
+    return true;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool line_segment<float >::Closest_Point_To_Line(const line<float > &, vec3<float > &) const;
+    template bool line_segment<double>::Closest_Point_To_Line(const line<double> &, vec3<double> &) const;
+#endif
+
 //Samples every <spacing>, beginning at offset. Returns sampled points and remaining space along segment.
 //
 //NOTE: Parameter 'remaining' is CLEARED prior to adjustment.

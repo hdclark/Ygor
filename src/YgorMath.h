@@ -205,6 +205,8 @@ template <class T>   class line_segment : public line<T> {
         vec3<T> Closest_Point_To(const vec3<T> &) const; // Finds the point along the segment nearest to the given point.
                                                          // Honours the endpoints.
 
+        bool Closest_Point_To_Line( const line<T> &, vec3<T> &) const; // Finds the point on the line segment closest to the line.
+
         std::list<vec3<T>> Sample_With_Spacing(T spacing, T offset, T & remaining) const; //Samples every <spacing>, beginning at offset. 
                                                                                           // Returns sampled points and remaining space along segment.
 
