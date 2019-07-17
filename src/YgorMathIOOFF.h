@@ -1,6 +1,6 @@
-//YgorMathIOOFF.h - Written by hal clark in 2017.
+//YgorMathIOOFF.h - Written by hal clark in 2017, 2019.
 //
-// This file defines routines for writing YgorMath classes to simple (ascii) OFF ("Object File Format") files.
+// Routines for reading and writing simple (ascii) OFF ("Object File Format") files.
 //
 
 #pragma once
@@ -29,3 +29,19 @@ WriteLineSegmentToOFF(line_segment<T> ls,
                       const std::string &comment = "");
 
 
+// This routine reads an fv_surface_mesh from an OFF format stream.
+//
+// Note that OFF files can contain lines, unconnected vertices, and other non-polyhedron (non-manifold) elements.
+// This routine does not validate or enforce manifoldness.
+template <class S, class T, class I>
+bool
+ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
+                   S &ios ); // a stream.
+
+// This routine writes an fv_surface_mesh to an OFF format stream.
+//
+// Note that metadata is currently not written.
+template <class S, class T, class I>
+bool
+WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
+                   S &ios ); // a stream.

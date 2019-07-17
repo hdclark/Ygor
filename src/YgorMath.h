@@ -497,6 +497,56 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
                             const vec3<T> &N,
                             T distance_eps = static_cast<T>(1E-3));
 
+//---------------------------------------------------------------------------------------------------------------------------
+//--------------- fv_surface_mesh: a 2D surface mesh embedded in 3D with a straightforward data structure -------------------
+//---------------------------------------------------------------------------------------------------------------------------
+//Simple, direct face-vertex list data structure representing a 3D surface mesh. Few constraints are imposed by this
+// data structure, and the meshes are not guaranteed to have many specific qualities. For example, multiple disconnected
+// meshes can be combined together without specifying whether they represent internal/external surfaces or are nested
+// external surfaces. Interpretation of the mesh and enforcement of specific qualities is generally left to the user.
+//
+// Note: This data structure is not efficient, clever, or tuned for any specific use-case. It is meant to provide a
+// simple entrypoint into mesh handling and provide a lowest-common-denominator for marshalling meshes between file
+// formats and specialized libraries.
+template <class T, class I>   class fv_surface_mesh {
+    public:
+        std::vector<vec3<T>> vertices; // List of all vertices appearing in the mesh.
+                                       // Note that vertices may be disconnected from all faces.
+
+        std::vector<std::vector<I>> faces; // List of faces (simplicies) appearing in the mesh.
+                                           // Each face is composed of several vertices.
+                                           // Index starts at zero.
+                                           // The face orientation is not enforced to be a particular way.
+                                           // Note that "faces" are actually convex simplicies, comprising >=1 vertex.
+
+        std::vector<std::vector<I>> involved_faces; // List of faces each vertex is involved in.
+                                                    // Useful for neighbourhood look-ups.
+                                                    // This component is not critical; it is a convenient index.
+                                                    // This vector should always have the same size as this->vertices.
+                                                    // Use the provided member function to regenerate.
+
+        std::map<std::string,std::string> metadata; // User-defined metadata.
+
+
+        //Constructors.
+        fv_surface_mesh();
+        fv_surface_mesh(const fv_surface_mesh &in);
+
+        //Member functions.
+        fv_surface_mesh & operator= (const fv_surface_mesh &);
+
+        T surface_area(void) const; // Disregards face orientation; area is always positive.
+
+        void recreate_involved_face_index(void); // Regenerates this->involved_faces using this->vertices and this->faces.
+
+
+        bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
+
+        //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
+        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+};
+
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------

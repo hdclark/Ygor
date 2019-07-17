@@ -29,6 +29,7 @@
 
 #include "YgorMisc.h"
 #include "YgorMath.h"
+#include "YgorMathIOOFF.h"
 #include "YgorMathIOBoostSerialization.h"
 
 
@@ -175,6 +176,75 @@ int main(int , char** ){
             FUNCINFO("Deserialized samples_1D to " << A.samples.size() << " samples and " << A.metadata.size() << " metadata");
         }catch(const std::exception &){
             FUNCINFO("Unable to deserialize samples_1D file. It is not valid");
+        }
+
+    }
+
+
+
+    {
+        fv_surface_mesh<double, uint64_t> smesh;
+
+        std::stringstream ss;
+        ss << "OFF" << std::endl
+           << "# Whole-line comment" << std::endl
+           << "# A # Confusing # comment" << std::endl
+           << "100 100 #0 # An invalid line that should be disregarded" << std::endl
+           << "12 20 0" << std::endl
+           << "0 1.618034 1 " << std::endl  // The vertices.
+           << "0 1.618034 -1 " << std::endl
+           << "0 -1.618034 1 " << std::endl
+           << "0 -1.618034 -1 " << std::endl
+           << "1.618034 1 0 " << std::endl
+           << "1.618034 -1 0 " << std::endl
+           << "-1.618034 1 0 " << std::endl
+           << "-1.618034 -1 0 " << std::endl
+           << "1 0 1.618034 " << std::endl
+           << "-1 0 1.618034 " << std::endl
+           << "1 0 -1.618034 " << std::endl
+           << "-1 0 -1.618034 " << std::endl
+           << "3 1 0 4" << std::endl          // The faces.
+           << "3 0 1 6" << std::endl
+           << "3 2 3 5" << std::endl
+           << "3 3 2 7" << std::endl
+           << "3 4 5 10" << std::endl
+           << "3 5 4 8" << std::endl
+           << "3 6 7 9" << std::endl
+           << "3 7 6 11" << std::endl
+           << "3 8 9 2" << std::endl
+           << "3 9 8 0" << std::endl
+           << "3 10 11 1" << std::endl
+           << "3 11 10 3" << std::endl
+           << "3 0 8 4" << std::endl
+           << "3 0 6 9" << std::endl
+           << "3 1 4 10" << std::endl
+           << "3 1 11 6" << std::endl
+           << "3 2 5 8" << std::endl
+           << "3 2 9 7" << std::endl
+           << "3 3 10 5 # Another comment." << std::endl
+           << "3 3 7 11" << std::endl
+           << "" << std::endl;
+
+        if(!ReadFVSMeshFromOFF(smesh, ss)){
+            throw std::runtime_error("Unable to read mesh from OFF stream.");
+        }
+        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        smesh.metadata["keyA"] = "valueA";
+        smesh.metadata["keyB"] = "valueB";
+
+        std::ofstream ofs("/tmp/serial_fv_surface_mesh", std::ios::trunc);
+        boost::archive::xml_oarchive ar(ofs);
+        ar & boost::serialization::make_nvp("fv_surface_mesh", smesh);
+    }
+    {
+        fv_surface_mesh<double, uint64_t> smesh;
+        std::ifstream ifs("/tmp/serial_fv_surface_mesh");
+        try{
+            boost::archive::xml_iarchive ar(ifs);
+            ar & boost::serialization::make_nvp("not used", smesh);
+            FUNCINFO("Deserialized fv_surface_mesh has surface area " << smesh.surface_area());
+        }catch(const std::exception &){
+            FUNCINFO("Unable to deserialize fv_surface_mesh file. It is not valid");
         }
 
     }

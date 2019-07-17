@@ -84,6 +84,16 @@ void serialize(Archive &a, contour_collection<T> &c, const unsigned int /*versio
     return;
 }
 
+//Class: fv_surface_mesh<T,I>.
+template<typename Archive, class T, class I>
+void serialize(Archive &a, fv_surface_mesh<T,I> &m, const unsigned int /*version*/){
+    a & boost::serialization::make_nvp("vertices", m.vertices)
+      & boost::serialization::make_nvp("faces", m.faces)
+      & boost::serialization::make_nvp("involved_faces", m.involved_faces)
+      & boost::serialization::make_nvp("metadata", m.metadata);
+    return;
+}
+
 //Class: lin_reg_results<T>.
 template<typename Archive, class T>
 void serialize(Archive &a, lin_reg_results<T> &l, const unsigned int /*version*/){

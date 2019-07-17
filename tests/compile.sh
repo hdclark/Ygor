@@ -50,7 +50,9 @@ g++ -std=c++14 Test_Math17.cc -o test_math17 -lygor -pthread &
 g++ -std=c++14 Test_Math18.cc -o test_math18 -lygor -pthread &
 g++ -std=c++14 Test_Math19.cc -o test_math19 -lygor -pthread &
 g++ -std=c++14 Test_Math20.cc -o test_math20 -lygor -pthread &
+wait
 
+g++ -std=c++14 Test_Math21.cc -o test_math21 -lygor -pthread &
 wait
 
 g++ -std=c++14 Test_Misc.cc -o test_misc -lygor -pthread  &

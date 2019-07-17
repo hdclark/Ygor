@@ -5410,6 +5410,179 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
 #endif                        
 
 //---------------------------------------------------------------------------------------------------------------------------
+//--------------- fv_surface_mesh: a 2D surface mesh embedded in 3D with a straightforward data structure -------------------
+//---------------------------------------------------------------------------------------------------------------------------
+
+//------------------------------------------------------ Constructors -------------------------------------------------------
+template <class T, class I>
+fv_surface_mesh<T,I>::fv_surface_mesh() { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_surface_mesh< float , uint32_t >::fv_surface_mesh(void);
+    template fv_surface_mesh< float , uint64_t >::fv_surface_mesh(void);
+
+    template fv_surface_mesh< double, uint32_t >::fv_surface_mesh(void);
+    template fv_surface_mesh< double, uint64_t >::fv_surface_mesh(void);
+#endif
+
+template <class T, class I>
+fv_surface_mesh<T,I>::fv_surface_mesh( const fv_surface_mesh &in) : vertices(in.vertices),
+                                                                    faces(in.faces),
+                                                                    involved_faces(in.involved_faces),
+                                                                    metadata(in.metadata) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_surface_mesh< float , uint32_t >::fv_surface_mesh(const fv_surface_mesh< float , uint32_t > &);
+    template fv_surface_mesh< float , uint64_t >::fv_surface_mesh(const fv_surface_mesh< float , uint64_t > &);
+
+    template fv_surface_mesh< double, uint32_t >::fv_surface_mesh(const fv_surface_mesh< double, uint32_t > &);
+    template fv_surface_mesh< double, uint64_t >::fv_surface_mesh(const fv_surface_mesh< double, uint64_t > &);
+#endif
+
+//--------------------------------------------------------- Members ---------------------------------------------------------
+template <class T, class I>
+fv_surface_mesh<T,I> &
+fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
+    //Check if it is itself.
+    if(this == &rhs) return *this; 
+
+    this->vertices = rhs.vertices;
+    this->faces = rhs.faces;
+    this->involved_faces = rhs.involved_faces;
+    this->metadata = rhs.metadata;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_surface_mesh<float , uint32_t > & 
+      fv_surface_mesh<float , uint32_t >::operator=(const fv_surface_mesh<float , uint32_t > &);
+    template fv_surface_mesh<float , uint64_t > & 
+      fv_surface_mesh<float , uint64_t >::operator=(const fv_surface_mesh<float , uint64_t > &);
+
+    template fv_surface_mesh<double, uint32_t > & 
+      fv_surface_mesh<double, uint32_t >::operator=(const fv_surface_mesh<double, uint32_t > &);
+    template fv_surface_mesh<double, uint64_t > & 
+      fv_surface_mesh<double, uint64_t >::operator=(const fv_surface_mesh<double, uint64_t > &);
+#endif
+    
+template <class T, class I>
+T
+fv_surface_mesh<T,I>::surface_area(void) const {
+    T total_area = static_cast<T>(0);
+    for(const auto &fv : this->faces){
+        if(fv.size() < 3) continue; // Zero-area cases.
+        if(fv.size() > 3) throw std::runtime_error("Encountered volumetric simplex. Unable to compute surface area.");
+
+        const auto P_A = this->vertices.at( fv[0] );
+        const auto P_B = this->vertices.at( fv[1] );
+        const auto P_C = this->vertices.at( fv[2] );
+
+        const auto R_BA = (P_B - P_A);
+        const auto R_CA = (P_C - P_A);
+
+        const auto C = R_BA.Cross( R_CA );
+        total_area += (C.length() / static_cast<T>(2));
+    }
+    return total_area;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  fv_surface_mesh<float , uint32_t >::surface_area(void) const;
+    template float  fv_surface_mesh<float , uint64_t >::surface_area(void) const;
+
+    template double fv_surface_mesh<double, uint32_t >::surface_area(void) const;
+    template double fv_surface_mesh<double, uint64_t >::surface_area(void) const;
+#endif
+
+// Regenerates this->involved_faces using this->vertices and this->faces.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::recreate_involved_face_index(void){
+    this->involved_faces.clear();
+    this->involved_faces.resize(this->vertices.size());
+    size_t face_num = 0;
+    for(const auto &fv : this->faces){
+        for(const auto &vert_num : fv){
+            this->involved_faces.at(vert_num).emplace_back(face_num);
+        }
+        ++face_num;
+    }
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::recreate_involved_face_index(void);
+    template void fv_surface_mesh<float , uint64_t >::recreate_involved_face_index(void);
+
+    template void fv_surface_mesh<double, uint32_t >::recreate_involved_face_index(void);
+    template void fv_surface_mesh<double, uint64_t >::recreate_involved_face_index(void);
+#endif
+
+
+template <class T, class I>
+bool
+fv_surface_mesh<T,I>::MetadataKeyPresent(std::string key) const {
+    //Checks if the key is present without inspecting the value.
+    return (this->metadata.find(key) != this->metadata.end());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_surface_mesh<float , uint32_t>::MetadataKeyPresent(std::string key) const;
+    template bool fv_surface_mesh<float , uint64_t>::MetadataKeyPresent(std::string key) const;
+
+    template bool fv_surface_mesh<double, uint32_t>::MetadataKeyPresent(std::string key) const;
+    template bool fv_surface_mesh<double, uint64_t>::MetadataKeyPresent(std::string key) const;
+#endif
+
+template <class T, class I>
+template <class U>
+std::experimental::optional<U>
+fv_surface_mesh<T,I>::GetMetadataValueAs(std::string key) const {
+    //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
+    const auto metadata_cit = this->metadata.find(key);
+    if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
+        return std::experimental::optional<U>();
+    }else{
+        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::experimental::optional<int32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<int32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<int64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<int64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<float> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<float> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<float> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<float> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<double> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<double> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<double> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<double> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<std::string> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<std::string> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+#endif
+
+
+//---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
 //---------------------------------------------------------------------------------------------------------------------------
 
