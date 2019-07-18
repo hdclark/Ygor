@@ -1,6 +1,7 @@
 //YgorMathIOOBJ.cc - Routines for reading and writing simple (ascii) OBJ ("Wavefront Object") files.
 //
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <vector>
 
@@ -157,6 +158,12 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
     template bool ReadFVSMeshFromOBJ(fv_surface_mesh<double, uint32_t> &, std::istream &);
     template bool ReadFVSMeshFromOBJ(fv_surface_mesh<double, uint64_t> &, std::istream &);
 
+    template bool ReadFVSMeshFromOBJ(fv_surface_mesh<float , uint32_t> &, std::ifstream &);
+    template bool ReadFVSMeshFromOBJ(fv_surface_mesh<float , uint64_t> &, std::ifstream &);
+
+    template bool ReadFVSMeshFromOBJ(fv_surface_mesh<double, uint32_t> &, std::ifstream &);
+    template bool ReadFVSMeshFromOBJ(fv_surface_mesh<double, uint64_t> &, std::ifstream &);
+
     template bool ReadFVSMeshFromOBJ(fv_surface_mesh<float , uint32_t> &, std::stringstream &);
     template bool ReadFVSMeshFromOBJ(fv_surface_mesh<float , uint64_t> &, std::stringstream &);
 
@@ -212,6 +219,12 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
 
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<double, uint32_t> &, std::ostream &, bool);
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<double, uint64_t> &, std::ostream &, bool);
+
+    template bool WriteFVSMeshToOBJ(const fv_surface_mesh<float , uint32_t> &, std::ofstream &, bool);
+    template bool WriteFVSMeshToOBJ(const fv_surface_mesh<float , uint64_t> &, std::ofstream &, bool);
+
+    template bool WriteFVSMeshToOBJ(const fv_surface_mesh<double, uint32_t> &, std::ofstream &, bool);
+    template bool WriteFVSMeshToOBJ(const fv_surface_mesh<double, uint64_t> &, std::ofstream &, bool);
 
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<float , uint32_t> &, std::stringstream &, bool);
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<float , uint64_t> &, std::stringstream &, bool);

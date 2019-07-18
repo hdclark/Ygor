@@ -1,6 +1,7 @@
 //YgorMathIOOFF.cc - Routines for reading and writing ASCII OFF ("Object File Format") files.
 //
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <vector>
 
@@ -260,6 +261,12 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::istream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::istream &);
 
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::ifstream &);
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::ifstream &);
+
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::ifstream &);
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::ifstream &);
+
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::stringstream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::stringstream &);
 
@@ -312,6 +319,12 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::ostream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
+
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::ofstream &);
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::ofstream &);
+
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::ofstream &);
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ofstream &);
 
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::stringstream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::stringstream &);
