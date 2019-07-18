@@ -1,6 +1,8 @@
 //YgorMathIOOFF.cc - Routines for reading and writing ASCII OFF ("Object File Format") files.
 //
 #include <iostream>
+#include <istream>
+#include <ostream>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -56,7 +58,7 @@ WritePointsToOFF(std::vector<vec3<T>> points,
     FO.close();
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WritePointsToOFF(std::vector<vec3<float >>, const std::string &, const std::string &);
     template bool WritePointsToOFF(std::vector<vec3<double>>, const std::string &, const std::string &);
 #endif
@@ -117,7 +119,7 @@ WriteLineSegmentToOFF(line_segment<T> ls,
     FO.close();
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteLineSegmentToOFF(line_segment<float >, const std::string &, const std::string &);
     template bool WriteLineSegmentToOFF(line_segment<double>, const std::string &, const std::string &);
 #endif
@@ -254,7 +256,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::istream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::istream &);
 
@@ -266,6 +268,12 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::ifstream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::ifstream &);
+
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::fstream &);
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::fstream &);
+
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::fstream &);
+    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::fstream &);
 
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::stringstream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::stringstream &);
@@ -313,7 +321,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 
     return(!ios.fail());
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::ostream &);
 
@@ -326,9 +334,16 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::ofstream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ofstream &);
 
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::fstream &);
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::fstream &);
+
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::fstream &);
+    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::fstream &);
+
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::stringstream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::stringstream &);
 
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::stringstream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::stringstream &);
 #endif
+
