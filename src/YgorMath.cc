@@ -246,6 +246,41 @@ vec3<T>::rotate_around_z(T angle_rad) const {
 #endif
 
 template <class T>
+vec3<T>
+vec3<T>::rotate_around_unit(const vec3<T> &axis, T angle_rad) const {
+    // Note: this routine implements Rodrigues' rotation formula for arbitrary rotation along an axis defined by a given
+    //       unit vector. The direction of rotation adheres to a right-handed coordinate system. Reversing the unit
+    //       vector direction will reverse the rotation direction.
+    const auto u = axis.unit();
+    if(!u.isfinite()){
+        throw std::invalid_argument("Axis of rotation could not be constructed. Cannot continue.");
+        // Note: one of the components is likely NaN, inf, or all components are zero.
+    }
+
+    const auto s = std::sin(angle_rad);
+    const auto c = std::cos(angle_rad);
+    const auto o_m_c = static_cast<T>(1) - c;
+
+    const auto x = this->x * ( c          + (u.x * u.x * o_m_c))
+                 + this->y * ( (-u.z * s) + (u.x * u.y * o_m_c))
+                 + this->z * ( ( u.y * s) + (u.x * u.z * o_m_c));
+
+    const auto y = this->x * ( ( u.z * s) + (u.y * u.x * o_m_c))
+                 + this->y * ( c          + (u.y * u.y * o_m_c))
+                 + this->z * ( (-u.x * s) + (u.y * u.z * o_m_c));
+
+    const auto z = this->x * ( (-u.y * s) + (u.z * u.x * o_m_c))
+                 + this->y * ( ( u.x * s) + (u.z * u.y * o_m_c))
+                 + this->z * ( c          + (u.z * u.z * o_m_c));
+
+    return vec3<T>( x, y, z );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > vec3<float >::rotate_around_unit(const vec3<float > &, float ) const;
+    template vec3<double> vec3<double>::rotate_around_unit(const vec3<double> &, double) const;
+#endif
+
+template <class T>
 bool 
 vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
     //Using *this as seed, orthogonalize the inputs.
