@@ -4654,12 +4654,11 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                 const auto distZ = GridZZeroPlane.Get_Signed_Distance_To_Point(v);
 
                 //Score the minimum and maximum distances.
-                if(false){
-                }else if(!std::isfinite(grid_x_ext) || (distX > grid_x_ext)){  grid_x_ext = distX;
-                }else if(!std::isfinite(grid_y_ext) || (distY > grid_y_ext)){  grid_y_ext = distY;
-                }else if(!std::isfinite(grid_z_min) || (distZ < grid_z_min)){  grid_z_min = distZ;
-                }else if(!std::isfinite(grid_z_max) || (distZ > grid_z_max)){  grid_z_max = distZ;
-                }
+                if(!std::isfinite(grid_x_ext) || (distX > grid_x_ext)) grid_x_ext = distX;
+                if(!std::isfinite(grid_y_ext) || (distY > grid_y_ext)) grid_y_ext = distY;
+                if(!std::isfinite(grid_z_min) || (distZ < grid_z_min)) grid_z_min = distZ;
+                if(!std::isfinite(grid_z_max) || (distZ > grid_z_max)) grid_z_max = distZ;
+                
             }
         }
     }
