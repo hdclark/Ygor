@@ -5454,6 +5454,81 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
         ++dummy;
     }
 
+    // Prepare a bounding volume for faster positional interpolation outside the useful volume.
+    //
+    // Note: The orientation of the bounding volume is derived directly from the images, disregarding
+    //       this->orientation_normal. Thus the bounding volume may have a strange shape if the images are not regular
+    //       or rectilinear.
+    if(!this->img_plane_to_img.empty()){
+        const auto top_img_ptr = this->img_plane_to_img.front().second;
+        const auto pxl_dz = top_img_ptr->pxl_dz;
+
+        auto GridX = top_img_ptr->row_unit.unit();
+        auto GridY = top_img_ptr->col_unit.unit();
+        auto GridZ = GridX.Cross(GridY).unit();
+        if(!GridZ.GramSchmidt_orthogonalize(GridX, GridY)){
+            throw std::runtime_error("Unable to find grid orientation vectors.");
+        }
+        GridX = GridX.unit();
+        GridY = GridY.unit();
+        GridZ = GridZ.unit();
+        if( !GridX.isfinite() 
+        ||  !GridY.isfinite()
+        ||  !GridZ.isfinite() ){
+            throw std::runtime_error("Unable to establish orthogonal axes for bounding volume. Refusing to continue.");
+        }
+
+        //Find an appropriately aligned bounding box encompassing the ROI surface.
+        R grid_x_min = std::numeric_limits<R>::quiet_NaN();
+        R grid_x_max = std::numeric_limits<R>::quiet_NaN();
+        R grid_y_min = std::numeric_limits<R>::quiet_NaN();
+        R grid_y_max = std::numeric_limits<R>::quiet_NaN();
+        R grid_z_min = std::numeric_limits<R>::quiet_NaN();
+        R grid_z_max = std::numeric_limits<R>::quiet_NaN();
+
+        //Make three planes defined by the orientation normals. (They intersect the origin to simplify computing offsets.)
+        const vec3<R> zero(0.0, 0.0, 0.0);
+        const plane<R> GridXZeroPlane(GridX, zero);
+        const plane<R> GridYZeroPlane(GridY, zero);
+        const plane<R> GridZZeroPlane(GridZ, zero);
+
+        for(auto &apair : this->img_plane_to_img){
+            auto img_ptr = apair.second;
+            const auto corners = img_ptr->corners2D();
+            for(const auto &v : corners){
+                //Compute the distance to each plane.
+                const auto distX = GridXZeroPlane.Get_Signed_Distance_To_Point(v);
+                const auto distY = GridYZeroPlane.Get_Signed_Distance_To_Point(v);
+                const auto distZ = GridZZeroPlane.Get_Signed_Distance_To_Point(v);
+
+                //Score the minimum and maximum distances.
+                if(!std::isfinite(grid_x_min) || (distX < grid_x_min)){  grid_x_min = distX; }
+                if(!std::isfinite(grid_x_max) || (distX > grid_x_max)){  grid_x_max = distX; }
+                if(!std::isfinite(grid_y_min) || (distY < grid_y_min)){  grid_y_min = distY; }
+                if(!std::isfinite(grid_y_max) || (distY > grid_y_max)){  grid_y_max = distY; }
+                if(!std::isfinite(grid_z_min) || (distZ < grid_z_min)){  grid_z_min = distZ; }
+                if(!std::isfinite(grid_z_max) || (distZ > grid_z_max)){  grid_z_max = distZ; }
+            }
+        }
+
+        //Add margins to the z-bounds since the corners are 2D, and small margins for numerical imprecision on the boundary.
+        const auto machine_eps = std::sqrt( std::numeric_limits<R>::epsilon() );
+        grid_x_min -= machine_eps;
+        grid_x_max += machine_eps;
+        grid_y_min -= machine_eps;
+        grid_y_max += machine_eps;
+        grid_z_min -= machine_eps + pxl_dz * 0.5;
+        grid_z_max += machine_eps + pxl_dz * 0.5;
+
+        // Note: the interior is bounded within the positive side of all planes.
+        this->bounding_volume_planes.emplace_back(GridZ * -1.0, zero + GridZ * grid_z_max);
+        this->bounding_volume_planes.emplace_back(GridZ *  1.0, zero + GridZ * grid_z_min);
+        this->bounding_volume_planes.emplace_back(GridX * -1.0, zero + GridX * grid_x_max);
+        this->bounding_volume_planes.emplace_back(GridX *  1.0, zero + GridX * grid_x_min);
+        this->bounding_volume_planes.emplace_back(GridY * -1.0, zero + GridY * grid_y_max);
+        this->bounding_volume_planes.emplace_back(GridY *  1.0, zero + GridY * grid_y_min);
+    }
+
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -5638,14 +5713,20 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
                                                       R out_of_bounds ) const {
     if(this->int_to_img.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
     
-    // First, identify the nearest planes that straddle the point.
+    // Check if the point is outside the bounding volume; if the point is on the negative side of any plane, it is
+    // outside the bounding volume.
+    for(const auto &bvp : this->bounding_volume_planes){
+        if(!bvp.Is_Point_Above_Plane(pos)) return out_of_bounds;
+    }
+
+    // Identify the nearest planes that straddle the point.
     const auto nearest_img_refw = this->position_to_image(pos);
     const auto nearest_img_index = this->image_to_index(nearest_img_refw);
     const auto nearest_plane = nearest_img_refw.get().image_plane();
     const auto nearest_dR = (nearest_plane.R_0 - pos).Dot(this->orientation_normal);
     const bool nearest_is_above = (nearest_dR >= 0.0);
 
-    // If the opposing image does not exist, continue with the nearest image in it's place.
+    // If the opposing image does not exist, continue with the nearest image in its place.
     long int other_img_index = nearest_img_index + (nearest_is_above ? -1 : 1);
     const bool other_present = this->index_present(other_img_index);
     other_img_index = (other_present ? other_img_index : nearest_img_index);

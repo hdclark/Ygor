@@ -710,6 +710,15 @@ template <class T,class R>   class planar_image_adjacency {
         std::map<long int, img_ptr_t> int_to_img;
         std::map<img_ptr_t, long int> img_to_int;
 
+        // Planes that define a bounding volume for faster interpolation outside the useful volume.
+        //
+        // Note: These are only used during interpolation.
+        //
+        // Note: This bounding volume is a hyperrectangular volume. If images are not rectilinear or regular, then the
+        //       bounding volume will be larger than the volume occupied by the images. Interpolation in these regions
+        //       will require a more costly inclusivity check.
+        std::vector<plane<R>> bounding_volume_planes;
+
     //------------------------------------------------------------------------
 
         planar_image_adjacency( 
