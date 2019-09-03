@@ -7,6 +7,8 @@
 
 #include <string>
 #include <vector>
+#include <istream>
+#include <ostream>
 
 #include "YgorMath.h"
 
@@ -33,15 +35,15 @@ WriteLineSegmentToOFF(line_segment<T> ls,
 //
 // Note that OFF files can contain lines, unconnected vertices, and other non-polyhedron (non-manifold) elements.
 // This routine does not validate or enforce manifoldness.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
-                   S &ios ); // a stream.
+                   std::istream &is );
 
 // This routine writes an fv_surface_mesh to an OFF format stream.
 //
 // Note that metadata is currently not written.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
-                   S &ios ); // a stream.
+                  std::ostream &os );

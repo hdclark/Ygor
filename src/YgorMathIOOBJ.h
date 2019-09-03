@@ -7,6 +7,8 @@
 
 #include <string>
 #include <vector>
+#include <istream>
+#include <ostream>
 
 #include "YgorMath.h"
 
@@ -14,10 +16,10 @@
 // This routine reads an fv_surface_mesh from an OBJ format stream.
 //
 // Note that this routine does not validate or enforce manifoldness.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
-                   S &ios ); // a stream.
+                   std::istream &is );
 
 // This routine writes an fv_surface_mesh to an OBJ format stream.
 //
@@ -26,8 +28,8 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
 // default.
 //
 // Note that metadata is currently not written.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
-                  S &ios,
-                  bool use_relative_indexing = false); // a stream.
+                  std::ostream &os,
+                  bool use_relative_indexing = false);

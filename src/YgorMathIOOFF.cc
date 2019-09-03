@@ -132,10 +132,10 @@ WriteLineSegmentToOFF(line_segment<T> ls,
 //
 // Note that a subset of the full OFF format is supported; binary files, materials, colours, and other mesh attributes
 // are NOT supported. Vertices must have three coordinates. Faces can comprise [1-inf) number of vertices.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
-                   S &ios ){
+                   std::istream &is ){
 
     bool dims_known = false;
     long long int N_verts = -1;
@@ -145,7 +145,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     fvsm.faces.clear();
 
     std::string line;
-    while(std::getline(ios, line)){
+    while(std::getline(is, line)){
         if(line.empty()) continue;
 
         auto split = SplitStringToVector(line, '#', 'd'); // Remove any comments on any lines.
@@ -262,64 +262,46 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::istream &);
     template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::istream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::ifstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::ifstream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::ifstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::ifstream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::fstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::fstream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::fstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::fstream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint32_t> &, std::stringstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<float , uint64_t> &, std::stringstream &);
-
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint32_t> &, std::stringstream &);
-    template bool ReadFVSMeshFromOFF(fv_surface_mesh<double, uint64_t> &, std::stringstream &);
 #endif
 
 
 // This routine writes an fv_surface_mesh to an OFF format stream.
 //
 // Note that metadata is currently not written.
-template <class S, class T, class I>
+template <class T, class I>
 bool
 WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
-                  S &ios ){ // a stream.
+                  std::ostream &os ){
 
-    ios << "OFF" << std::endl;
-    ios << fvsm.vertices.size() << " "
+    os << "OFF" << std::endl;
+    os << fvsm.vertices.size() << " "
         << fvsm.faces.size() << " "
         << "0" << std::endl; // Number of edges.
 
     // Maximize precision prior to emitting the vertices.
-    const auto original_precision = ios.precision();
-    ios.precision( std::numeric_limits<T>::digits10 + 1 );
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::digits10 + 1 );
     for(const auto &v : fvsm.vertices){
-        ios << v.x << " "
+        os << v.x << " "
             << v.y << " "
             << v.z << '\n';
     }
     // Reset the precision on the stream.
-    ios.precision( original_precision );
+    os.precision( original_precision );
 
     // Emit faces.
     for(const auto &fv : fvsm.faces){
         if(fv.empty()) continue;
 
-        ios << fv.size(); // Preface lines with the number of vertices connected by this face.
+        os << fv.size(); // Preface lines with the number of vertices connected by this face.
         for(const auto &v_i : fv){
-            ios << " " << v_i;
+            os << " " << v_i;
         }
-        ios << '\n';
+        os << '\n';
     }
-    ios.flush();
+    os.flush();
 
-    return(!ios.fail());
+    return(!os.fail());
 }
 #ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
@@ -327,23 +309,5 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::ostream &);
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::ofstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::ofstream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::ofstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ofstream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::fstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::fstream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::fstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::fstream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::stringstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint64_t> &, std::stringstream &);
-
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint32_t> &, std::stringstream &);
-    template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::stringstream &);
 #endif
 
