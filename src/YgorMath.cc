@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+//#include <ctype.h> 
 
 #include "YgorFilesDirs.h"  //Used in samples_1D<T>::Write_To_File(...).
 #include "YgorMath.h"
@@ -26,6 +27,7 @@
 #include "YgorPlot.h"    //A wrapper used for producing plots of contours.
 #include "YgorStats.h"
 #include "YgorString.h"
+#include "YgorBase64.h"   //Used for samples_1D metadata serialization.
 
 //#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -9415,7 +9417,7 @@ template <class T>   bool samples_1D<T>::Write_To_File(const std::string &filena
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filename){
-    //This routine reads numerical data from a file in 4-column format. No metadata is retained or recovered. 
+    //This routine reads numerical data from a file in 4-column format. Metadata is recovered. 
     //
     // NOTE: This routine will return 'false' on any error.
     //
@@ -9441,24 +9443,48 @@ template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filen
         
         std::size_t nonspace = line.find_first_not_of(" \t");
         if(nonspace == std::string::npos) continue; //Only whitespace.
-        if(line[nonspace] == '#') continue; //Comment.
+        if(line[nonspace] == '#'){
+            // Note: Syntax should be:
+            // |  # metadata: key = value
+            // |  # base64 metadata: encoded_key = encoded_value
+            const auto p_assign = line.find(" = ");
+            const auto p_metadata = line.find("metadata: ");
+            const auto p_base64 = line.find("base64 ");
+            if(p_assign == std::string::npos) continue; // A comment.
+            if(p_metadata == std::string::npos) continue; // A comment.
 
-        std::stringstream ss(line);
-        T a, b, c, d;
-        ss >> a >> b;
-        const auto ab_ok = (!ss.fail());
-        ss >> c >> d;
-        const auto cd_ok = (!ss.fail());
-        if(ab_ok && !cd_ok){
-            indata.push_back(a, static_cast<T>(0),
-                             b, static_cast<T>(0), InhibitSort);
-        }else if(ab_ok && cd_ok){
-            indata.push_back(a, b, c, d, InhibitSort);
+            // Determine the boundaries of the key and value.
+            const auto value = line.substr(p_assign + 3);
+            const auto key_offset = p_metadata + 10;
+            const auto key = line.substr(key_offset, (p_assign - key_offset));
+
+            // Decode using base64, if necessary.
+            if(p_base64 == std::string::npos){
+                indata.metadata[key] = value;
+            }else{
+                const auto decoded_key = Base64::DecodeToString(key);
+                const auto decoded_value = Base64::DecodeToString(value);
+                indata.metadata[decoded_key] = decoded_value;
+            }
+        
+        }else{ // Line contains a datum, either 'x f' or 'x dx f df'.
+            std::stringstream ss(line);
+            T a, b, c, d;
+            ss >> a >> b;
+            const auto ab_ok = (!ss.fail());
+            ss >> c >> d;
+            const auto cd_ok = (!ss.fail());
+            if(ab_ok && !cd_ok){
+                indata.push_back(a, static_cast<T>(0),
+                                 b, static_cast<T>(0), InhibitSort);
+            }else if(ab_ok && cd_ok){
+                indata.push_back(a, b, c, d, InhibitSort);
+            }
         }
     }
 
     *this = indata;
-    this->metadata.clear();
+    //this->metadata.clear();
     return true;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -9468,6 +9494,27 @@ template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filen
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   std::string samples_1D<T>::Write_To_String() const {
     std::stringstream out;
+
+    for(const auto &mp : this->metadata){
+        // Note: Syntax should be:
+        // |  # metadata: key = value
+        // |  # base64 metadata: encoded_key = encoded_value
+
+        bool is_printable = true;
+        for(const auto &x : mp.first)  if(!std::isprint(x)) is_printable = false;
+        for(const auto &x : mp.second) if(!std::isprint(x)) is_printable = false;
+
+        const auto key = mp.first;
+        const auto value = mp.second;
+        if(is_printable){
+            out << "# metadata: " << key << " = " << value << std::endl;
+        }else{
+            const auto encoded_key = Base64::EncodeFromString(key);
+            const auto encoded_value = Base64::EncodeFromString(value);
+            out << "# base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
+        }
+    }
+
     for(const auto &P : this->samples) out << P[0] << " " << P[1] << " " << P[2] << " " << P[3] << std::endl;
     return out.str();
 }
@@ -9512,6 +9559,13 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const sample
     for(auto s_it = L.samples.begin(); s_it != L.samples.end(); ++s_it){
         out << (*s_it)[0] << " " << (*s_it)[1] << " " << (*s_it)[2] << " " << (*s_it)[3] << " ";
     }
+    out << "num_metadata= " << L.metadata.size() << " ";
+    for(const auto &mp : L.metadata){
+        const auto enc_key = Base64::EncodeFromString(mp.first);
+        const auto enc_val = Base64::EncodeFromString(mp.second);
+        out << enc_key << " ";
+        out << enc_val << " ";
+    }
     out << ")";
     return out;
 }
@@ -9530,13 +9584,13 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
     //      Naiively reusing a stringstream will probably cause issues. 
     const bool skip_sort = true;
     L.samples.clear(); 
-    std::string grbg;
+    std::string shtl;
     long int N;
     long int U;
-    in >> grbg; //'(samples_1D.'
-    in >> grbg; //'normalityassumed='
+    in >> shtl; //'(samples_1D.'
+    in >> shtl; //'normalityassumed='
     in >> U;    //'1' or '0'
-    in >> grbg; //'num_samples='
+    in >> shtl; //'num_samples='
     in >> N;    //'13'   ...or something...
     //FUNCINFO("N is " << N);
     for(long int i=0; i<N; ++i){
@@ -9544,7 +9598,19 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
         in >> x_i >> sigma_x_i >> f_i >> sigma_f_i;
         L.push_back({x_i, sigma_x_i, f_i, sigma_f_i}, skip_sort);
     }
-    in >> grbg; //')'
+
+    //Metadata/
+    in >> shtl; //'num_metadata='
+    in >> N;    //'13'   ...or something...
+    for(long int i=0; i<N; ++i){
+        in >> shtl;
+        const auto key = Base64::DecodeToString(shtl);
+        in >> shtl;
+        const auto val = Base64::DecodeToString(shtl);
+        L.metadata[key] = val;
+    }
+
+    in >> shtl; //')'
     if(U == 1){     L.uncertainties_known_to_be_independent_and_random = true;
     }else{          L.uncertainties_known_to_be_independent_and_random = false;
     }

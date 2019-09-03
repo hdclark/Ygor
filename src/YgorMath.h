@@ -944,16 +944,18 @@ template <class T> class samples_1D {
 
 
         //Various IO routines.
-        bool Write_To_File(const std::string &filename) const; //Writes data to file as 4 columns. Use it to plot/fit.
-        std::string Write_To_String(void) const; //Writes data to file as 4 columns. Use it to plot/fit.
+        bool Write_To_File(const std::string &filename) const; //Writes metadata and data to file as 4 columns. Use it to plot/fit.
+        std::string Write_To_String(void) const; //Writes metadata and data to file as 4 columns. Use it to plot/fit.
 
-        bool Read_From_File(const std::string &filename); //Reads data from a file as 4 columns. True iff all went OK.
+        bool Read_From_File(const std::string &filename); //Reads metadata and data from a file as 4 columns. True iff all went OK.
 
         void Plot(const std::string &Title = "") const; //Spits out a default plot of the data. 
         void Plot_as_PDF(const std::string &Title = "",const std::string &Filename = "/tmp/plot.pdf") const; //May overwrite existing files!
 
         //----------------------------------------------------- Friends ----------------------------------------------------
         //Overloaded stream operators for reading, writing, and serializing the samples.
+        //
+        // Note: These routines will NOT serialize metadata.
         template<class Y> friend std::ostream & operator << (std::ostream &, const samples_1D<Y> &);
         template<class Y> friend std::istream & operator >> (std::istream &, samples_1D<Y> &);
 };
