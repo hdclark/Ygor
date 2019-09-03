@@ -9401,6 +9401,52 @@ samples_1D<T>::GetMetadataValueAs(std::string key) const {
     template std::experimental::optional<std::string> samples_1D<float >::GetMetadataValueAs(std::string key) const;
     template std::experimental::optional<std::string> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 #endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>
+bool
+samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
+    for(const auto &mp : this->metadata){
+        // Note: Syntax should be:
+        // |  # metadata: key = value
+        // |  # base64 metadata: encoded_key = encoded_value
+
+        bool is_printable = true;
+        for(const auto &x : mp.first)  if(!std::isprint(x)) is_printable = false;
+        for(const auto &x : mp.second) if(!std::isprint(x)) is_printable = false;
+
+        const auto key = mp.first;
+        const auto value = mp.second;
+        if(is_printable){
+            SO << "# metadata: " << key << " = " << value << std::endl;
+        }else{
+            const auto encoded_key = Base64::EncodeFromString(key);
+            const auto encoded_value = Base64::EncodeFromString(value);
+            SO << "# base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
+        }
+    }
+
+    for(const auto &P : this->samples) SO << P[0] << " " << P[1] << " " << P[2] << " " << P[3] << std::endl;
+    return true;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool samples_1D<float >::Write_To_Stream(std::ostream &) const;
+    template bool samples_1D<double>::Write_To_Stream(std::ostream &) const;
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   std::string samples_1D<T>::Write_To_String() const {
+    std::stringstream out;
+    if(!this->Write_To_Stream(out)){
+        throw std::runtime_error("Unable to write to stream. Cannot continue.");
+    }
+    return out.str();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::string samples_1D<float >::Write_To_String() const;
+    template std::string samples_1D<double>::Write_To_String() const;
+#endif
+
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T>   bool samples_1D<T>::Write_To_File(const std::string &filename) const {
     //This routine writes the numerical data to file in a 4-column format. It can be directly plotted or otherwise 
@@ -9409,38 +9455,37 @@ template <class T>   bool samples_1D<T>::Write_To_File(const std::string &filena
     //NOTE: This routine will not overwrite or append an existing file. It will return 'false' on any error or if 
     //      encountering an existing file.
     if(Does_File_Exist_And_Can_Be_Read(filename)) return false;
-    return WriteStringToFile(this->Write_To_String(), filename);
+    std::ofstream OF(filename);
+    return this->Write_To_Stream(OF);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool samples_1D<float >::Write_To_File(const std::string &filename) const;
     template bool samples_1D<double>::Write_To_File(const std::string &filename) const;
 #endif
+
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filename){
-    //This routine reads numerical data from a file in 4-column format. Metadata is recovered. 
+template <class T>
+bool
+samples_1D<T>::Read_From_Stream(std::istream &SI){
+    //This routine reads numerical data from a stream in 4-column format. Metadata is recovered. 
     //
     // NOTE: This routine will return 'false' on any error.
     //
-    // NOTE: This routine shouldn't overwrite existing data if a failure is encountered.
+    // NOTE: This routine shouldn't overwrite existing data if a failure is encountered. Overwriting *this is delayed
+    //       until all data has been read.
     //
-
-    std::ifstream FI(filename, std::ifstream::in);
-    if(!FI.good()) return false;
+    if(!SI.good()) return false;
 
     const bool InhibitSort = false;
     samples_1D<T> indata;
 
     //Read in the numbers until EOF is encountered.
     std::string line;
-    while(FI.good()){
+    while(SI.good()){
         line.clear();
-        std::getline(FI, line);
+        std::getline(SI, line);
         if(line.empty()) continue;
 
-//    while(!FI.eof()){
-//        std::getline(FI, line);
-//        if(FI.eof()) break;
-        
         std::size_t nonspace = line.find_first_not_of(" \t");
         if(nonspace == std::string::npos) continue; //Only whitespace.
         if(line[nonspace] == '#'){
@@ -9488,40 +9533,30 @@ template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filen
     return true;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool samples_1D<float >::Read_From_Stream(std::istream &);
+    template bool samples_1D<double>::Read_From_Stream(std::istream &);
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   bool samples_1D<T>::Read_From_String(const std::string &in){
+    std::stringstream ss(in);
+    return this->Read_From_Stream(ss);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool samples_1D<float >::Read_From_String(const std::string &);
+    template bool samples_1D<double>::Read_From_String(const std::string &);
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   bool samples_1D<T>::Read_From_File(const std::string &filename){
+    std::ifstream FI(filename, std::ifstream::in);
+    return this->Read_From_Stream(FI);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool samples_1D<float >::Read_From_File(const std::string &filename);
     template bool samples_1D<double>::Read_From_File(const std::string &filename);
 #endif
-//---------------------------------------------------------------------------------------------------------------------------
-template <class T>   std::string samples_1D<T>::Write_To_String() const {
-    std::stringstream out;
 
-    for(const auto &mp : this->metadata){
-        // Note: Syntax should be:
-        // |  # metadata: key = value
-        // |  # base64 metadata: encoded_key = encoded_value
-
-        bool is_printable = true;
-        for(const auto &x : mp.first)  if(!std::isprint(x)) is_printable = false;
-        for(const auto &x : mp.second) if(!std::isprint(x)) is_printable = false;
-
-        const auto key = mp.first;
-        const auto value = mp.second;
-        if(is_printable){
-            out << "# metadata: " << key << " = " << value << std::endl;
-        }else{
-            const auto encoded_key = Base64::EncodeFromString(key);
-            const auto encoded_value = Base64::EncodeFromString(value);
-            out << "# base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
-        }
-    }
-
-    for(const auto &P : this->samples) out << P[0] << " " << P[1] << " " << P[2] << " " << P[3] << std::endl;
-    return out.str();
-}
-#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::string samples_1D<float >::Write_To_String() const;
-    template std::string samples_1D<double>::Write_To_String() const;
-#endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> void samples_1D<T>::Plot(const std::string &Title) const {
     //This routine produces a very simple, default plot of the data.
