@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 g++ -std=c++14 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
 g++ -std=c++14 Test_Algorithms.cc -o test_algorithms -lygor -pthread &
 g++ -std=c++14 Test_Algorithms2.cc -o test_algorithms2 -lygor -pthread &
@@ -7,6 +8,7 @@ g++ -std=c++14 Test_Algorithms3.cc -o test_algorithms3 -lygor -pthread &
 wait
 
 g++ -std=c++14 Test_Arguments.cc -o test_arguments -lygor -pthread &
+g++ -std=c++14 Test_Base64.cc -o test_base64 -lygor -pthread &
 g++ -std=c++14 Test_Containers.cc -o test_containers -lygor -pthread & 
 g++ -std=c++14 Test_Containers2.cc -o test_containers2 -lygor -pthread &
 g++ -std=c++14 Test_Environment.cc -o test_environment -lygor -pthread &
