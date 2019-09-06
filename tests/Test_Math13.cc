@@ -21,7 +21,7 @@ int main(int argc, char **argv){
 
        
         for(double dz = 1.0 ; dz <= 10.0 ; dz += 1.0){
-            contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(100);
+            contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(100L);
 
             for(auto p_it = contour2.points.begin(); p_it != contour2.points.end(); ++p_it){
                 p_it->z += dz;

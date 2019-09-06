@@ -32,7 +32,7 @@ int main(int argc, char **argv){
     intmax_t size;
 
     //This call should not fail.
-    std::shared_ptr<unsigned char> representation_A = Load_Binary_File<unsigned char>( argv[0], &size );   
+    auto representation_A = Load_Binary_File<unsigned char>( argv[0], &size );   
     if(representation_A != nullptr){
         std::cout << "Successfully loaded binary file \"" << argv[0] << "\" to memory as an array of unsigned chars. ";
         std::cout << "It is of size " << size*sizeof(unsigned char) << " bytes, or " << size << " unsigned chars." << std::endl;
@@ -44,7 +44,7 @@ int main(int argc, char **argv){
     if( (size*sizeof(unsigned char)) % sizeof(float) != 0 ){
         std::cout << "WARNING: The following test will (rightfully) fail. This is OK! See the source for more info." << std::endl;
     }
-    std::shared_ptr<float> representation_B = Load_Binary_File<float>( argv[0], &size );      
+    auto representation_B = Load_Binary_File<float>( argv[0], &size );      
 
     if(representation_B != nullptr){
         std::cout << "Successfully loaded binary file \"" << argv[0] << "\" to memory as an array of floats. ";

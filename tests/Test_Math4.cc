@@ -41,7 +41,7 @@ int main(int argc, char **argv){
     for(int i=0; i<=10; ++i){
         contour_of_points<double> contour(contour_of_points_sample_gumby());
         contour.Reorient_Counter_Clockwise();
-        contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(250);
+        contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(250L);
 
         //Shift the z-coordinate up by a small amount to show some 3D action!
         for(auto p_it = contour2.points.begin(); p_it != contour2.points.end(); ++p_it){

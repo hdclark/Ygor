@@ -18,7 +18,7 @@ int main(int argc, char **argv){
     {
         contour_of_points<double> contour(contour_of_points_sample_airplane());
         contour.Reorient_Counter_Clockwise();
-        contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(100);
+        contour_of_points<double> contour2 = contour.Resample_Evenly_Along_Perimeter(100L);
 
         for(auto p_it = contour2.points.begin(); p_it != contour2.points.end(); ++p_it){
             p_it->z += static_cast<double>(1.23);

@@ -95,9 +95,9 @@ int main(int argc, char **argv){
         contour_of_points<double> contour(contour_of_points_sample_gumby());
         contour.closed = true;
 
-        auto contour2 = contour.Resample_Evenly_Along_Perimeter(5000);
+        auto contour2 = contour.Resample_Evenly_Along_Perimeter(5000L);
 
-        std::list<contour_of_points<double>> collection({ contour, contour2 });            
+        std::list<contour_of_points<double>> collection({{ contour, contour2 }});            
  
         Plot_Container_of_Contour_of_Points(collection.begin(), collection.end());
 

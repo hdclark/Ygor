@@ -19,7 +19,7 @@ int main(int argc, char **argv){
       //Write some numbers to the memory block.
       while(offset < max){
           const auto aval = static_cast<uint8_t>(offset);
-          mem_chars = SERIALIZE::Put_Intrinsic<uint8_t>(&OK, std::move(mem_chars), &offset, max, aval);
+          mem_chars = SERIALIZE::Put<uint8_t>(&OK, std::move(mem_chars), &offset, max, aval);
           if(OK == false) FUNCERR("Encountered an error. Test failed");
       }
 
@@ -27,7 +27,7 @@ int main(int argc, char **argv){
       offset = 0;
       while(offset < max){
           uint8_t aval;
-          mem_chars = SERIALIZE::Get_Intrinsic<uint8_t>(&OK, std::move(mem_chars), &offset, max, &aval);
+          mem_chars = SERIALIZE::Get<uint8_t>(&OK, std::move(mem_chars), &offset, max, &aval);
           if(OK == false) FUNCERR("Encountered an error. Test failed");
           std::cout << "Read back integer '" << (int)(aval) << "'" << std::endl;
       }
@@ -43,7 +43,7 @@ int main(int argc, char **argv){
       //Write some numbers to the memory block.
       while(offset < max){
           const auto aval = static_cast<double>(offset);
-          mem_dbls = SERIALIZE::Put_Intrinsic<double>(&OK, std::move(mem_dbls), &offset, max, aval);
+          mem_dbls = SERIALIZE::Put<double>(&OK, std::move(mem_dbls), &offset, max, aval);
           if(OK == false) FUNCERR("Encountered an error. Test failed");
       }
 
@@ -51,7 +51,7 @@ int main(int argc, char **argv){
       offset = 0;
       while(offset < max){
           double aval;
-          mem_dbls = SERIALIZE::Get_Intrinsic<double>(&OK, std::move(mem_dbls), &offset, max, &aval);
+          mem_dbls = SERIALIZE::Get<double>(&OK, std::move(mem_dbls), &offset, max, &aval);
           if(OK == false) FUNCERR("Encountered an error. Test failed");
           std::cout << "Read back double '" << aval << "'" << std::endl;
       }
@@ -93,7 +93,7 @@ int main(int argc, char **argv){
       std::list<double> testlist({1.0, 2.0, 3.0, 4.0, 5.0});
 
       //Write the string to the memory block.
-      mem_blk = SERIALIZE::Put_Intrinsic_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
+      mem_blk = SERIALIZE::Put_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
       if(OK == false) FUNCERR("Encountered an error. Test failed");
 
       //Prepare for the read back.
@@ -102,7 +102,7 @@ int main(int argc, char **argv){
       offset = 0;
 
       //Read the string back from the buffer.
-      mem_blk = SERIALIZE::Get_Intrinsic_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testlist);
+      mem_blk = SERIALIZE::Get_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testlist);
       if(OK == false) FUNCERR("Encountered an error. Test failed");
 
       std::cout << "The list of numbers stored was: ";
@@ -121,7 +121,7 @@ int main(int argc, char **argv){
       std::list<double> testlist({1.0, 2.0, 3.0, 4.0, 5.0});
 
       //Write the string to the memory block.
-      mem_blk = SERIALIZE::Put_Intrinsic_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
+      mem_blk = SERIALIZE::Put_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
       if(OK == false) FUNCERR("Encountered an error. Test failed");
 
       //Prepare for the read back.
@@ -131,7 +131,7 @@ int main(int argc, char **argv){
       offset = 0;
 
       //Read the string back from the buffer.
-      mem_blk = SERIALIZE::Get_Intrinsic_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testvec);
+      mem_blk = SERIALIZE::Get_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testvec);
       if(OK == false) FUNCERR("Encountered an error. Test failed");
 
       std::cout << "The vec of numbers (converted from the list of numbers) stored was: ";
