@@ -73,7 +73,10 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec3<T
     // care about friend template when T==Y.
     //
     //There is significant whitespace here!
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << "(" << L.x << ", " << L.y << ", " << L.z << ")";
+    out.precision(defaultprecision);
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -752,7 +755,10 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec2<T
     // care about friend template when T==Y.
     //
     //There is significant whitespace here!
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << "(" << L.x << ", " << L.y << ")";
+    out.precision(defaultprecision);
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -1344,7 +1350,10 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const line<T
     // care about friend template when T==Y.
     //
     //There is significant whitespace here!
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << L.R_0 << ", " << L.U_0;
+    out.precision(defaultprecision);
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -1960,7 +1969,10 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const plane<
     // care about friend template when T==Y.
     //
     //There is significant whitespace here!
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << L.R_0 << ", " << L.N_0;
+    out.precision(defaultprecision);
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -4375,6 +4387,8 @@ template <class T> void contour_of_points<T>::Plot(void) const {
 template <class T> std::string contour_of_points<T>::write_to_string(void) const {
     std::stringstream out;
     //There IS significant spaces in this representation.
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << "{ contour ";
     out << (this->closed ? "closed " : "open ");
     out << this->points.size() << " "; 
@@ -4382,6 +4396,7 @@ template <class T> std::string contour_of_points<T>::write_to_string(void) const
         out << *it << " "; 
     }
     out << " }";
+    out.precision(defaultprecision);
     return out.str();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -5265,12 +5280,15 @@ template <class T> void contour_collection<T>::Plot(void) const {
 template <class T> std::string contour_collection<T>::write_to_string(void) const {
     std::stringstream out;
     //There IS significant spaces in this representation.
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
     out << "{ contour_collection ";
     out << this->contours.size() << " ";
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         out << c_it->write_to_string() << " ENDOFCONTOUR ";
     }
     out << " }";
+    out.precision(defaultprecision);
     return out.str();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -9406,6 +9424,10 @@ samples_1D<T>::GetMetadataValueAs(std::string key) const {
 template <class T>
 bool
 samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
+
+    const auto defaultprecision = SO.precision();
+    SO.precision(std::numeric_limits<T>::digits10 + 1 );
+
     for(const auto &mp : this->metadata){
         // Note: Syntax should be:
         // |  # metadata: key = value
@@ -9427,6 +9449,7 @@ samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
     }
 
     for(const auto &P : this->samples) SO << P[0] << " " << P[1] << " " << P[2] << " " << P[3] << std::endl;
+    SO.precision(defaultprecision);
     return true;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -9588,6 +9611,9 @@ template <class T> void samples_1D<T>::Plot_as_PDF(const std::string &Title, con
 template <class T>    std::ostream & operator<<( std::ostream &out, const samples_1D<T> &L ) {
     //Note: This friend is templated (Y) within the templated class (T). We only
     // care about friend template when T==Y.
+    const auto defaultprecision = out.precision();
+    out.precision(std::numeric_limits<T>::digits10 + 1);
+
     out << "(samples_1D.";
     out << " normalityassumed= " << (L.uncertainties_known_to_be_independent_and_random ? 1 : 0);
     out << " num_samples= " << L.size() << " ";
@@ -9602,6 +9628,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const sample
         out << enc_val << " ";
     }
     out << ")";
+    out.precision(defaultprecision);
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
