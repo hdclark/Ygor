@@ -137,6 +137,7 @@ template <class T, class R> class planar_image {
         //Add and remove channels.
         void add_channel(T channel_value);
         void remove_channel(long int channel_number); // Zero-based.
+        void remove_all_channels_except(long int channel_number); // Zero-based.
 
         //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).
         // Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
@@ -587,6 +588,13 @@ struct Mutate_Voxels_Opts {
         SingleVoxel, // Only consider the individual bounded voxel (for every selected image), ignoring neighbours.
         NearestNeighbours, // Also use the four nearest neighbours (for every selected image; only in the image plane; iff the neighbour exists).
     } adjacency = Adjacency::SingleVoxel;
+
+    enum class
+    MaskStyle {     // Controls where the mask is created.
+        AddChannel, // Add a channel to the image to use as an inclusivity mask. The mask is retained for post-processing.
+                    // Note that the mask channel will not be visited by user functors within the Mutate_Voxels routine.
+        Surrogate,  // Use a surrogate image mask which is discarded afterward.
+    } maskstyle = MaskStyle::Surrogate;
 
     enum class
     MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).

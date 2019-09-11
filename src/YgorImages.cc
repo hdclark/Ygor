@@ -624,6 +624,42 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
     template void planar_image<float   ,double>::remove_channel(long int channel_number);
 #endif
 
+template <class T,class R> void planar_image<T,R>::remove_all_channels_except(long int channel_number){
+
+    //Note: fails on out-of-bounds input.
+    if(!isininc(0,channel_number,this->channels-1)){
+        FUNCERR("Selected channel does not exist");
+    }
+
+    const auto rows = this->rows;
+    const auto cols = this->columns;
+    const auto chnls = 1;
+
+    planar_image<T,R> d = *this;
+    d.init_buffer(rows, cols, chnls);
+
+    for(long int row = 0; row < this->rows; ++row){
+        for(long int col = 0; col < this->columns; ++col){
+            for(long int chnl = 0; chnl < this->channels; ++chnl){
+                if(chnl == channel_number){
+                    d.reference(row, col, 0) = this->value(row, col, chnl);
+                }
+            }
+        }
+    }
+
+    this->data.swap( d.data );
+    this->channels = chnls;
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<uint16_t,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<uint32_t,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<uint64_t,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<float   ,double>::remove_all_channels_except(long int channel_number);
+#endif
+
 
 //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).
 // This routine can be tricky for the user so look at the diagram and see the notes below. 
@@ -4829,16 +4865,23 @@ void Mutate_Voxels(
         std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_unbounded,
         std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_observer){
 
-    //Check if there is anything to operate on.
+    //Check if the operation will be a no-op.
     if(ccsl.empty()){
-        return;
+        throw std::invalid_argument("No contours provided. (Is this intentional?)");
     }
     if(selected_imgs.empty()){
         throw std::invalid_argument("No spatially-overlapping images found. There should be at least one"
                                     " image (the 'seed' image) which should match.");
     }
-    if(!f_bounded && !f_unbounded && !f_observer){
-        throw std::logic_error("User-provided functions are all invalid."); // A no-op!
+    if( (options.maskstyle == Mutate_Voxels_Opts::MaskStyle::Surrogate)
+    &&  !f_bounded 
+    &&  !f_unbounded 
+    &&  !f_observer){
+        throw std::logic_error("This routine will perform a no-op: user-provided functions are all invalid."
+                               " (Is this intentional?)");
+        // The aim of this check if to avoid an unintentional no-op.
+        // Note that this may make sense in other situations, such as those with side-effects.
+        // Tweak the logic as needed.
     }
 
     //Check for incompatible options.
@@ -4874,12 +4917,36 @@ void Mutate_Voxels(
         throw std::logic_error("Unrecognized EditStyle. Cannot continue.");
     }
 
+    // Determine which channels to visit (prior to possibly adding a mask channel).
+    if(working_img_ref.get().channels < 1){
+        throw std::invalid_argument("No channel to operate on. Cannot continue.");
+    }
+    std::set<long int> channels_to_visit;
+    for(auto chan = 0; chan < working_img_ref.get().channels; ++chan) channels_to_visit.insert(chan);
+
     //Prepare a contour mask image.
     //   0 means voxel is not bounded by any contour (or there were contour holes).
     //   !0 means the voxel is bounded by at least one contour (and possibly zero or more holes).
     planar_image<T,R> mask_img;
-    mask_img = img_to_edit_ref.get();
-    mask_img.fill_pixels(static_cast<T>(0));
+    std::reference_wrapper<planar_image<T,R>> mask_img_ref(mask_img);
+    long int mask_chan = 0;
+
+    if(false){
+    }else if(options.maskstyle == Mutate_Voxels_Opts::MaskStyle::Surrogate){
+        mask_img = img_to_edit_ref.get();
+        mask_img_ref = std::ref(mask_img);
+
+        mask_img_ref.get().remove_all_channels_except(0);
+        mask_img_ref.get().fill_pixels(mask_chan,static_cast<T>(0));
+    }else if(options.maskstyle == Mutate_Voxels_Opts::MaskStyle::AddChannel){
+        mask_img_ref = img_to_edit_ref.get();
+
+        const auto orig_channels = mask_img_ref.get().channels;
+        mask_img_ref.get().add_channel(static_cast<T>(0));
+        mask_chan = orig_channels;
+    }else{
+        throw std::logic_error("Unrecognized MaskStyle. Cannot continue.");
+    }
 
     const auto row_unit   = working_img_ref.get().row_unit;
     const auto col_unit   = working_img_ref.get().col_unit;
@@ -4994,17 +5061,17 @@ void Mutate_Voxels(
             };
 
             //Lambda for indicating the boundedness on the contour mask.
-            const auto mark_boundedness = [&mask_img,options,OrientationPositive](long int r, long int c, long int ch) -> void {
+            const auto mark_boundedness = [&mask_img_ref,options,OrientationPositive](long int r, long int c, long int ch) -> void {
                 if(false){
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore){
-                    mask_img.reference(r, c, ch) += static_cast<T>(1);
+                    mask_img_ref.get().reference(r, c, ch) += static_cast<T>(1);
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations){
-                    mask_img.reference(r, c, ch) += (OrientationPositive) ? static_cast<T>(1) 
-                                                                          : static_cast<T>(-1);
+                    mask_img_ref.get().reference(r, c, ch) += (OrientationPositive) ? static_cast<T>(1) 
+                                                                                    : static_cast<T>(-1);
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations){
-                    const auto m_val = mask_img.reference(r, c, ch);
-                    mask_img.reference(r, c, ch) = (m_val != static_cast<T>(0)) ? static_cast<T>(0)
-                                                                                : static_cast<T>(1);
+                    const auto m_val = mask_img_ref.get().reference(r, c, ch);
+                    mask_img_ref.get().reference(r, c, ch) = (m_val != static_cast<T>(0)) ? static_cast<T>(0)
+                                                                                          : static_cast<T>(1);
                 }else{
                     throw std::logic_error("Unrecognized ContourOverlap setting. Cannot continue.");
                 }
@@ -5021,177 +5088,187 @@ void Mutate_Voxels(
                     const auto cornerC = centre - (row_unit * 0.5 * pxl_dx) - (col_unit * 0.5 * pxl_dy);
                     const auto cornerD = centre - (row_unit * 0.5 * pxl_dx) + (col_unit * 0.5 * pxl_dy);
 
-                    for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){  // Note: probably only need one channel here... TODO
+                    if(false){
+                    }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
+                        if(is_interior(centre)) mark_boundedness(row, col, mask_chan);
 
-                        if(false){
-                        }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
-                            if(is_interior(centre)) mark_boundedness(row, col, chan);
+                    }else if( 
+                          // Permit any orientation if the user wants to ignore contour orientation.
+                              ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) )
+                          // Implicit orientations: accept all orientations.
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
+                          // Honoured orientations: the positive-orientation case.
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                && OrientationPositive
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
+                          // Honoured orientations: the negative-orientation case.
+                          // Remember: holes are inverted contours that include infinity!
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                && !OrientationPositive
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) ){
+                        if( is_interior(cornerA) 
+                        ||  is_interior(cornerB) 
+                        ||  is_interior(cornerC) 
+                        ||  is_interior(cornerD) ) mark_boundedness(row, col, mask_chan);
 
-                        }else if( 
-                              // Permit any orientation if the user wants to ignore contour orientation.
-                                  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) )
-                              // Implicit orientations: accept all orientations.
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
-                              // Honoured orientations: the positive-orientation case.
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
-                                    && OrientationPositive
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) 
-                              // Honoured orientations: the negative-orientation case.
-                              // Remember: holes are inverted contours that include infinity!
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
-                                    && !OrientationPositive
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) ){
-                            if( is_interior(cornerA) 
-                            ||  is_interior(cornerB) 
-                            ||  is_interior(cornerC) 
-                            ||  is_interior(cornerD) ) mark_boundedness(row, col, chan);
+                    }else if( 
+                          // Permit any orientation if the user wants to ignore contour orientation.
+                              ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) )
+                          // Implicit orientations: accept all orientations.
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
+                          // Honoured orientations: the positive-orientation case.
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
+                                && OrientationPositive
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
+                          // Honoured orientations: the negative-orientation case.
+                          // Remember: holes are inverted contours that include infinity!
+                          ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
+                                && !OrientationPositive
+                                && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) ){
+                        if( is_interior(cornerA) 
+                        &&  is_interior(cornerB) 
+                        &&  is_interior(cornerC) 
+                        &&  is_interior(cornerD) ) mark_boundedness(row, col, mask_chan);
 
-                        }else if( 
-                              // Permit any orientation if the user wants to ignore contour orientation.
-                                  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore)
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) )
-                              // Implicit orientations: accept all orientations.
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::ImplicitOrientations) 
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
-                              // Honoured orientations: the positive-orientation case.
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations) 
-                                    && OrientationPositive
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Exclusive) ) 
-                              // Honoured orientations: the negative-orientation case.
-                              // Remember: holes are inverted contours that include infinity!
-                              ||  ( (options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::HonourOppositeOrientations)
-                                    && !OrientationPositive
-                                    && (options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Inclusive) ) ){
-                            if( is_interior(cornerA) 
-                            &&  is_interior(cornerB) 
-                            &&  is_interior(cornerC) 
-                            &&  is_interior(cornerD) ) mark_boundedness(row, col, chan);
-
-                        }else{
-                            throw std::logic_error("Unrecognized Inclusivity setting. Cannot continue.");
-                        }
-                    }//Loop over channels.
+                    }else{
+                        throw std::logic_error("Unrecognized Inclusivity setting. Cannot continue.");
+                    }
                 } //Loop over cols
             } //Loop over rows
         } //Loop over ROIs.
     } //Loop over contour_collections.
 
+// Alter the mask.
+//    enum class
+//    MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).
+//        Noop,      // Perform no post-processing on the mask.
+//      //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
+//      //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
+//    } maskmod;
+//};
 
     //Cache the functor validity checks.
     const auto f_bounded_valid   = !!f_bounded;
     const auto f_unbounded_valid = !!f_unbounded;
     const auto f_observer_valid  = !!f_observer;
 
-    //Now, using the mask, apply the user's functor to each voxel as necessary.
-    std::vector<T> shtl;
-    shtl.reserve( selected_imgs.size() );
-    for(auto row = 0; row < working_img_ref.get().rows; ++row){
-        for(auto col = 0; col < working_img_ref.get().columns; ++col){
-            for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){
-                //Only perform the user's functor on bounded voxels.
-                const auto mask_val = mask_img.value(row, col, chan);
-                const auto bounded = (mask_val != static_cast<T>(0));
-                if(!f_observer && !f_unbounded && !bounded) continue;
-                if(!f_observer && !f_bounded   &&  bounded) continue;
+    if( f_bounded_valid
+    ||  f_unbounded_valid
+    ||  f_observer_valid ){
 
-                //Collect the values from the user-provided images.
-                shtl.clear();
-                for(const auto &img_ref : selected_imgs){
+        //Now, using the mask, apply the user's functor to each voxel as necessary.
+        std::vector<T> shtl;
+        shtl.reserve( selected_imgs.size() );
+        for(auto row = 0; row < working_img_ref.get().rows; ++row){
+            for(auto col = 0; col < working_img_ref.get().columns; ++col){
+                //for(auto chan = 0; chan < working_img_ref.get().channels; ++chan){
+                for(const auto &chan : channels_to_visit){
+                    //Only perform the user's functor on bounded voxels.
+                    const auto mask_val = mask_img_ref.get().value(row, col, mask_chan);
+                    const auto bounded = (mask_val != static_cast<T>(0));
+                    if(!f_observer && !f_unbounded && !bounded) continue;
+                    if(!f_observer && !f_bounded   &&  bounded) continue;
 
-                    if(selected_imgs_spatially_equivalent){
-                        const auto pixel_val = img_ref.get().value(row, col, chan);
-                        shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+                    //Collect the values from the user-provided images.
+                    shtl.clear();
+                    for(const auto &img_ref : selected_imgs){
 
-                        if(false){
-                        }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                            const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
-                            const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().rows - 1) );
-                            const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
-                            const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
-                            if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
-                            if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
-                            if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
-                            if( col != col_h ) shtl.emplace_back( img_ref.get().value(row, col_h, chan) );
+                        if(selected_imgs_spatially_equivalent){
+                            const auto pixel_val = img_ref.get().value(row, col, chan);
+                            shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+
+                            if(false){
+                            }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
+                                const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
+                                const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().rows - 1) );
+                                const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
+                                const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
+                                if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
+                                if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
+                                if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
+                                if( col != col_h ) shtl.emplace_back( img_ref.get().value(row, col_h, chan) );
+                            }
+
+                            // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
+
+                        }else{
+                            // Determine the equivalent voxel in the selected image by projection.
+                            //
+                            // Note: We project orthogonally onto the selected image plane because this results in the nearest
+                            //       voxel in the selected image being located.
+                            const auto pos = working_img_ref.get().position(row, col);
+                            const auto proj_pos = img_ref.get().image_plane().Project_Onto_Plane_Orthogonally(pos);
+                            const auto proj_index = img_ref.get().index( proj_pos, chan );
+                            if(proj_index < 0){
+                                throw std::runtime_error("Unable to locate equivalent pixel in adjacent image. Cannot continue.");
+                                // Note: We could instead return a NaN here, or call a user-provided functor to handle it.
+                                //       At the time of writing this functionality was not needed.
+                            }
+                            const auto proj_RRC =img_ref.get().row_column_channel_from_index(proj_index);
+                            const auto proj_row = std::get<0>(proj_RRC);
+                            const auto proj_col = std::get<1>(proj_RRC);
+
+                            // Carry on using the projected row and column numbers.
+                            const auto pixel_val = img_ref.get().value(proj_row, proj_col, chan);
+                            shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
+
+                            if(false){
+                            }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
+                                const auto row_l = std::max( static_cast<long int>(proj_row - 1), static_cast<long int>(0) );
+                                const auto row_h = std::min( static_cast<long int>(proj_row + 1), static_cast<long int>(img_ref.get().rows - 1) );
+                                const auto col_l = std::max( static_cast<long int>(proj_col - 1), static_cast<long int>(0) );
+                                const auto col_h = std::min( static_cast<long int>(proj_col + 1), static_cast<long int>(img_ref.get().columns - 1) );
+                                if( proj_row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, proj_col, chan) );
+                                if( proj_row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, proj_col, chan) );
+                                if( proj_col != col_l ) shtl.emplace_back( img_ref.get().value(proj_row, col_l, chan) );
+                                if( proj_col != col_h ) shtl.emplace_back( img_ref.get().value(proj_row, col_h, chan) );
+                            }
+
+                            // TODO: Provide a 3D interpolation option rather than finding the nearest overlapping voxel.
+
+                            // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
+
                         }
-
-                        // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
-
-                    }else{
-                        // Determine the equivalent voxel in the selected image by projection.
-                        //
-                        // Note: We project orthogonally onto the selected image plane because this results in the nearest
-                        //       voxel in the selected image being located.
-                        const auto pos = working_img_ref.get().position(row, col);
-                        const auto proj_pos = img_ref.get().image_plane().Project_Onto_Plane_Orthogonally(pos);
-                        const auto proj_index = img_ref.get().index( proj_pos, chan );
-                        if(proj_index < 0){
-                            throw std::runtime_error("Unable to locate equivalent pixel in adjacent image. Cannot continue.");
-                            // Note: We could instead return a NaN here, or call a user-provided functor to handle it.
-                            //       At the time of writing this functionality was not needed.
-                        }
-                        const auto proj_RRC =img_ref.get().row_column_channel_from_index(proj_index);
-                        const auto proj_row = std::get<0>(proj_RRC);
-                        const auto proj_col = std::get<1>(proj_RRC);
-
-                        // Carry on using the projected row and column numbers.
-                        const auto pixel_val = img_ref.get().value(proj_row, proj_col, chan);
-                        shtl.emplace_back(pixel_val); // Note: the voxel-centre value must be FIRST for Aggregate::First.
-
-                        if(false){
-                        }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                            const auto row_l = std::max( static_cast<long int>(proj_row - 1), static_cast<long int>(0) );
-                            const auto row_h = std::min( static_cast<long int>(proj_row + 1), static_cast<long int>(img_ref.get().rows - 1) );
-                            const auto col_l = std::max( static_cast<long int>(proj_col - 1), static_cast<long int>(0) );
-                            const auto col_h = std::min( static_cast<long int>(proj_col + 1), static_cast<long int>(img_ref.get().columns - 1) );
-                            if( proj_row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, proj_col, chan) );
-                            if( proj_row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, proj_col, chan) );
-                            if( proj_col != col_l ) shtl.emplace_back( img_ref.get().value(proj_row, col_l, chan) );
-                            if( proj_col != col_h ) shtl.emplace_back( img_ref.get().value(proj_row, col_h, chan) );
-                        }
-
-                        // TODO: Provide a 3D interpolation option rather than finding the nearest overlapping voxel.
-
-                        // TODO: Implement a k-nearest-neighbours search that respects voxel dimensions.
-
                     }
-                }
-                if(shtl.empty()){
-                    throw std::logic_error("No selected images were identified.");
-                }
+                    if(shtl.empty()){
+                        throw std::logic_error("No selected images were identified.");
+                    }
 
-                //Aggregate the values.
-                T &v = working_img_ref.get().reference(row, col, chan);
+                    //Aggregate the values.
+                    T &v = working_img_ref.get().reference(row, col, chan);
 
-                if(false){
-                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Mean){
-                    v = Stats::Mean(shtl);
-                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Median){
-                    v = Stats::Median(shtl);
-                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Sum){
-                    v = Stats::Sum(shtl);
-                }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::First){
-                    v = shtl.front();
-                }else{
-                    throw std::logic_error("Unrecognized Aggregate setting. Cannot continue.");
-                }
+                    if(false){
+                    }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Mean){
+                        v = Stats::Mean(shtl);
+                    }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Median){
+                        v = Stats::Median(shtl);
+                    }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::Sum){
+                        v = Stats::Sum(shtl);
+                    }else if(options.aggregate == Mutate_Voxels_Opts::Aggregate::First){
+                        v = shtl.front();
+                    }else{
+                        throw std::logic_error("Unrecognized Aggregate setting. Cannot continue.");
+                    }
 
-                //Update the values and call user functions as necessary.
-                if(false){
-                }else if(bounded && f_bounded_valid){
-                    f_bounded(row, col, chan, working_img_ref, v);
-                }else if(!bounded && f_unbounded_valid){
-                    f_unbounded(row, col, chan, working_img_ref, v);
-                }
-                if(f_observer_valid){
-                    f_observer(row, col, chan, working_img_ref, v);
-                }
+                    //Update the values and call user functions as necessary.
+                    if(false){
+                    }else if(bounded && f_bounded_valid){
+                        f_bounded(row, col, chan, working_img_ref, v);
+                    }else if(!bounded && f_unbounded_valid){
+                        f_unbounded(row, col, chan, working_img_ref, v);
+                    }
+                    if(f_observer_valid){
+                        f_observer(row, col, chan, working_img_ref, v);
+                    }
 
-            }//Loop over channels.
-        } //Loop over cols
-    } //Loop over rows
-
+                }//Loop over channels.
+            } //Loop over cols
+        } //Loop over rows
+    } // Iff there are valid functors.
 
     //If necessary, commit the working image voxels back to the image to edit.
     if(false){
@@ -5203,13 +5280,6 @@ void Mutate_Voxels(
         throw std::logic_error("Unrecognized EditStyle. Cannot continue.");
     }
 
-//    enum class
-//    MaskMod {      // Controls how the masks denoting whether voxels are bounded are modified (post-processed).
-//        Noop,      // Perform no post-processing on the mask.
-//      //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
-//      //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
-//    } maskmod;
-//};
     return;
 }
 
