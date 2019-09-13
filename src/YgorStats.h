@@ -51,6 +51,23 @@ class Running_MinMax {
 };
 
 
+// Implements Kahan (i.e., compensated) summation. Note that the user should attempt to sum the smallest-magnitude
+// inputs first otherwise serious loss of precision may occur.
+template <class C>
+class Running_Sum {
+    private:
+        C PresentSum;
+        C PresentCompen;
+
+    public:
+        Running_Sum();
+
+        void Digest(C in);
+
+        C Current_Sum(void) const;
+};
+
+
 //-----------------------------------------------------------------------------------------------------------
 //------------------------------------ Statistical Support Routines -----------------------------------------
 //-----------------------------------------------------------------------------------------------------------

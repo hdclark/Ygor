@@ -73,6 +73,7 @@ wait
 g++ -std=c++14 Test_Stats.cc -o test_stats -lygor -lgsl -lgslcblas -pthread&
 g++ -std=c++14 Test_Stats2.cc -o test_stats2  -lygor -pthread &
 g++ -std=c++14 Test_Stats3.cc -o test_stats3  -lygor -pthread &
+g++ -std=c++14 Test_Stats4.cc -o test_stats4  -lygor -pthread &
 wait
 
 g++ -std=c++14 Test_String.cc -o test_string -lygor -pthread &

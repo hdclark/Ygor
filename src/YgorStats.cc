@@ -168,15 +168,22 @@ template <class C> typename C::value_type Stats::Sum(C in){
     for(auto it = std::next(in.begin()); it != in.end(); ++it){
         //Since *it is a single (small compared to sum) number, and compen will be small,
         // apply the correction term to it ASAP. 
-        const T y = *it - compen;
+        volatile const T y = *it - compen;
 
         //The sum is potentially large compared to this single term, so precision is lost here.
-        const T nextsum = sum + y;
+        volatile const T nextsum = sum + y;
 
         //Now figure out if anything was lost by individually subracting the sum and compensated
         // term. Also roll nextsum into sum.
+        volatile T dummy = static_cast<T>(0);
+
         compen = nextsum - sum;
+        dummy = compen;  // Pass through the volatile register to ensure this step is not fast-math optimized away.
+        compen = dummy;
+
         compen -= y;
+        dummy = compen;  // Pass through the volatile register to ensure this step is not fast-math optimized away.
+        compen = dummy;
  
         sum = nextsum;
     }
@@ -196,11 +203,11 @@ template <class C> typename C::value_type Stats::Sum(C in){
     template float    Stats::Sum(std::list<float >     in);
     template float    Stats::Sum(std::vector<float >   in);
     
-    template uint8_t Stats::Sum(std::list<uint8_t>   in);
-    template uint8_t Stats::Sum(std::vector<uint8_t> in);
+    template uint8_t  Stats::Sum(std::list<uint8_t>   in);
+    template uint8_t  Stats::Sum(std::vector<uint8_t> in);
 
-    template int8_t  Stats::Sum(std::list<int8_t>    in);
-    template int8_t  Stats::Sum(std::vector<int8_t>  in);
+    template int8_t   Stats::Sum(std::list<int8_t>    in);
+    template int8_t   Stats::Sum(std::vector<int8_t>  in);
 
     template uint16_t Stats::Sum(std::list<uint16_t>   in);
     template uint16_t Stats::Sum(std::vector<uint16_t> in);
@@ -518,6 +525,80 @@ T Stats::Running_MinMax<T>::Current_Max(void) const {
     template float    Stats::Running_MinMax<float   >::Current_Max(void) const;
     template uint64_t Stats::Running_MinMax<uint64_t>::Current_Max(void) const;
     template int64_t  Stats::Running_MinMax<int64_t >::Current_Max(void) const;
+#endif
+
+
+
+// Implements Kahan (i.e., compensated) summation. Note that the user should attempt to sum the smallest-magnitude
+// inputs first otherwise serious loss of precision may occur.
+
+//     template <class C>
+//     class Running_Sum {
+//         private:
+//             C PresentSum;
+//             C PresentCompen;
+//     
+//         public:
+//             Running_Sum();
+//     
+//             void Digest(C in);
+//     
+//             C Current_Sum(void) const;
+//     };
+
+template <typename T>
+Stats::Running_Sum<T>::Running_Sum() : PresentSum(static_cast<T>(0)),
+                                       PresentCompen(static_cast<T>(0)) { };
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template Stats::Running_Sum<double  >::Running_Sum();
+    template Stats::Running_Sum<float   >::Running_Sum();
+    template Stats::Running_Sum<uint64_t>::Running_Sum();
+    template Stats::Running_Sum<int64_t >::Running_Sum();
+#endif
+
+template <typename T>
+void Stats::Running_Sum<T>::Digest(T in){
+
+    //Since the input is a single (small compared to sum) number, and compen will be small,
+    // apply the correction term to it ASAP. 
+    volatile const T y = in - this->PresentCompen;
+
+    //The sum is potentially large compared to this single term, so precision is lost here.
+    volatile const T nextsum = this->PresentSum + y;
+
+    //Now figure out if anything was lost by individually subtracting the sum and compensated
+    // term. Also roll nextsum into sum.
+    volatile T dummy = static_cast<T>(0);
+    this->PresentCompen = nextsum - this->PresentSum;
+    dummy = this->PresentCompen; // Pass through the volatile register to ensure this step is not fast-math optimized away.
+    this->PresentCompen = dummy;
+
+    this->PresentCompen -= y;
+    dummy = this->PresentCompen; // Pass through the volatile register to ensure this step is not fast-math optimized away.
+    this->PresentCompen = dummy;
+
+    this->PresentSum = nextsum;
+
+    return;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template void Stats::Running_Sum<double  >::Digest(double   in);
+    template void Stats::Running_Sum<float   >::Digest(float    in);
+    template void Stats::Running_Sum<uint64_t>::Digest(uint64_t in);
+    template void Stats::Running_Sum<int64_t >::Digest(int64_t  in);
+#endif
+
+template <typename T>
+T Stats::Running_Sum<T>::Current_Sum(void) const {
+    //There is potentially a small compensation term and the large sum term. In the general case the
+    // compensation term cannot be summed into the sum but it might work in certain circumstances.
+    return (this->PresentSum - this->PresentCompen);
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double   Stats::Running_Sum<double  >::Current_Sum(void) const;
+    template float    Stats::Running_Sum<float   >::Current_Sum(void) const;
+    template uint64_t Stats::Running_Sum<uint64_t>::Current_Sum(void) const;
+    template int64_t  Stats::Running_Sum<int64_t >::Current_Sum(void) const;
 #endif
 
 
