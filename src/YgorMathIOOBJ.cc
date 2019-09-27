@@ -211,3 +211,103 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<double, uint64_t> &, std::ostream &, bool);
 #endif
 
+
+
+// This routine reads an point_set from an OBJ format stream.
+//
+// Note that a subset of the full OBJ format is supported; materials, colours, and other mesh attributes are NOT
+// supported. Vertices must have three coordinates.
+//
+// Note that the presence of edges/lines or faces will cause the read to fail since the file describes a polyhedron and
+// not a point set.
+//
+template <class T>
+bool
+ReadPointSetFromOBJ(point_set<T> &ps,
+                   std::istream &is ){
+
+    ps.points.clear();
+
+    std::string line;
+    while(std::getline(is, line)){
+        if(line.empty()) continue;
+
+        auto split = SplitStringToVector(line, '#', 'd'); // Remove any comments on any lines.
+        if(split.size() > 1) split.resize(1);
+        split = SplitVector(split, ' ', 'd');
+        split = SplitVector(split, '\t', 'd');
+        //split = SplitVector(split, ',', 'd');
+        split.erase( std::remove_if(std::begin(split),
+                                    std::end(split),
+                                    [](const std::string &t) -> bool {
+                                        return t.empty();
+                                    }),
+                     std::end(split) );
+
+        if(split.empty()) continue;
+
+        // Add a new vertex.
+        if(false){
+        }else if(split.at(0) == "v"_s){
+            if(split.size() != 4) continue; // Actually an error...
+            try{
+                const auto x = std::stod(split.at(1));
+                const auto y = std::stod(split.at(2));
+                const auto z = std::stod(split.at(3));
+                ps.points.emplace_back( static_cast<T>(x), 
+                                        static_cast<T>(y),
+                                        static_cast<T>(z) );
+            }catch(const std::exception &){ 
+                continue; 
+            }
+
+        }else if( split.at(0) == "l"_s ){
+            FUNCWARN("File contains an edge -- refusing to parse as point set");
+            return false;
+
+        }else if( split.at(0) == "f"_s ){
+            FUNCWARN("File contains a face -- refusing to parse as point set");
+            return false;
+        }
+
+    }
+
+    return true;
+}
+#ifndef YGORMATHIOOBJ_DISABLE_ALL_SPECIALIZATIONS
+    template bool ReadPointSetFromOBJ(point_set<float > &, std::istream &);
+    template bool ReadPointSetFromOBJ(point_set<double> &, std::istream &);
+#endif
+
+
+// This routine writes an point_set to an OBJ format stream.
+//
+// Note that metadata is currently not written.
+template <class T>
+bool
+WritePointSetToOBJ(const point_set<T> &ps,
+                  std::ostream &os){
+
+    os << "# Wavefront OBJ file." << std::endl;
+
+    // Maximize precision prior to emitting the vertices.
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    for(const auto &v : ps.points){
+        os << "v "
+           << v.x << " "
+           << v.y << " "
+           << v.z << '\n';
+    }
+
+    // Reset the precision on the stream.
+    os.precision( original_precision );
+    os.flush();
+
+    return(!os.fail());
+}
+#ifndef YGORMATHIOOBJ_DISABLE_ALL_SPECIALIZATIONS
+    template bool WritePointSetToOBJ(const point_set<float > &, std::ostream &);
+    template bool WritePointSetToOBJ(const point_set<double> &, std::ostream &);
+#endif
+

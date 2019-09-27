@@ -1,5 +1,8 @@
 #!/bin/bash
 
+g++ -std=c++14 Test_Math25.cc -o test_math25 -lygor -pthread &
+wait
+exit
 
 g++ -std=c++14 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
 g++ -std=c++14 Test_Algorithms.cc -o test_algorithms -lygor -pthread &
@@ -57,6 +60,8 @@ wait
 g++ -std=c++14 Test_Math21.cc -o test_math21 -lygor -pthread &
 g++ -std=c++14 Test_Math22.cc -o test_math22 -lygor -pthread &
 g++ -std=c++14 Test_Math23.cc -o test_math23 -lygor -pthread &
+g++ -std=c++14 Test_Math24.cc -o test_math24 -lygor -pthread &
+g++ -std=c++14 Test_Math25.cc -o test_math25 -lygor -pthread &
 wait
 
 g++ -std=c++14 Test_Misc.cc -o test_misc -lygor -pthread  &

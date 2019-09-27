@@ -311,3 +311,146 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
 #endif
 
+
+
+// This routine reads an point_set from an OFF format stream.
+//
+// Note that OFF files can contain many irrelevant elements.
+// This routine will extract only vertices.
+//
+// Note that a subset of the full OFF format is supported; binary files, materials, colours, and other mesh attributes
+// are NOT supported. Vertices must have three coordinates.
+template <class T>
+bool
+ReadPointSetFromOFF(point_set<T> &ps,
+                      std::istream &is ){
+
+    bool dims_known = false;
+    long long int N_verts = -1;
+
+    ps.points.clear();
+
+    std::string line;
+    while(std::getline(is, line)){
+        if(line.empty()) continue;
+
+        auto split = SplitStringToVector(line, '#', 'd'); // Remove any comments on any lines.
+        if(split.size() > 1) split.resize(1);
+        split = SplitVector(split, ' ', 'd');
+        split = SplitVector(split, '\t', 'd');
+        //split = SplitVector(split, ',', 'd');
+        split.erase( std::remove_if(std::begin(split),
+                                    std::end(split),
+                                    [](const std::string &t) -> bool {
+                                        return t.empty();
+                                    }),
+                     std::end(split) );
+
+        if(split.empty()) continue;
+
+        // If the number of verts and faces are not yet known, seek this info before reading any other information.
+        if(!dims_known){
+            // The first line might contain merely "OFF", but it is not required. So we ignore anything that is not what we
+            // need at a given moment. Note that out-of-order files will thus not be parsed correctly!
+            if(split.size() != 3) continue;
+
+            try{
+                const auto v = std::stoll(split.at(0));
+                const auto f = std::stoll(split.at(1));
+                const auto e = std::stoll(split.at(2));
+                // Allow #_of_edges to be anything for now, but still validate it is a number.
+                if((v <= 0) || (f < 0) || (e < 0)){
+                    continue;
+                }
+                N_verts = v;
+                dims_known = true;
+
+                if(f != 0){
+                    FUNCWARN("File contains a face -- refusing to parse as point set");
+                    return false;
+                }
+                if(e != 0){
+                    FUNCWARN("File contains an edge -- refusing to parse as point set");
+                    return false;
+                }
+                continue;
+
+            }catch(const std::exception &){ 
+                continue; 
+            }
+
+        // If dimensions are known, then try reading until we fulfill the vert count.
+        }else{
+            // Fill up vertices.
+            if(static_cast<long long int>(ps.points.size()) != N_verts){
+                if(split.size() != 3) continue; // Actually an error...
+                try{
+                    const auto x = std::stod(split.at(0));
+                    const auto y = std::stod(split.at(1));
+                    const auto z = std::stod(split.at(2));
+                    ps.points.emplace_back( static_cast<T>(x), 
+                                            static_cast<T>(y),
+                                            static_cast<T>(z) );
+                }catch(const std::exception &){ 
+                    continue; 
+                }
+                continue;
+
+            // Then fill up edges.
+            }else{
+                // TODO -- not needed at time of writing, and appear to rarely be used in the wild ...
+            }
+
+        } // Filling up verts.
+    } // While loop over lines in the file.
+
+    // Verify the file was consistent.
+    if( !dims_known ){
+        FUNCWARN("Dimensions could not be determined");
+        return false;
+    }
+    if( (static_cast<long long int>(ps.points.size()) != N_verts) ){
+        FUNCWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
+        return false;
+    }
+
+    return true;
+}
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
+    template bool ReadPointSetFromOFF(point_set<float > &, std::istream &);
+    template bool ReadPointSetFromOFF(point_set<double> &, std::istream &);
+#endif
+
+
+// This routine writes an point_set to an OFF format stream.
+//
+// Note that metadata is currently not written.
+template <class T>
+bool
+WritePointSetToOFF(const point_set<T> &ps,
+                     std::ostream &os ){
+
+    os << "OFF" << std::endl;
+    os << ps.points.size() << " "
+       << "0 "              // Number of faces.
+       << "0" << std::endl; // Number of edges.
+
+    // Maximize precision prior to emitting the vertices.
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    for(const auto &p : ps.points){
+        os << p.x << " "
+           << p.y << " "
+           << p.z << '\n';
+    }
+    // Reset the precision on the stream.
+    os.precision( original_precision );
+    os.flush();
+
+    return(!os.fail());
+}
+#ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
+    template bool WritePointSetToOFF(const point_set<float > &, std::ostream &);
+    template bool WritePointSetToOFF(const point_set<double> &, std::ostream &);
+#endif
+

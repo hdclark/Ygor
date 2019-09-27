@@ -549,7 +549,40 @@ template <class T, class I>   class fv_surface_mesh {
         template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
 };
 
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+template <class T>   class point_set {
+    public:
+        std::vector< vec3<T> > points;
 
+        std::map< std::string, std::string > metadata; //User-defined metadata.
+
+        // How to enable serializable and runtime-inspectable attributes? (Maybe by allowing for a user-provided closure
+        // that can (de-)serialize the attribute?)
+        //
+        // std::map< std::string, std::any > attributes;
+        //
+        // std::vector< vec3<double> > normals;
+        // std::vector< double >       intensity;
+        //
+        // Disabling ALL attributes until I can sort this out. If attributes are needed, they will have to be maintained
+        // externally for now.
+
+        //Constructors.
+        point_set();
+        point_set(const point_set &in);
+
+        //Member functions.
+        point_set & operator= (const point_set &);
+
+        vec3<T> Centroid(void) const; // Estimate the centroid (i.e., the centre of mass if all points have identical mass).
+
+        bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
+
+        //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
+        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+};
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------

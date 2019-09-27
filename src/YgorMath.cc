@@ -5634,7 +5634,120 @@ fv_surface_mesh<T,I>::GetMetadataValueAs(std::string key) const {
 
     template std::experimental::optional<std::string> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
     template std::experimental::optional<std::string> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<std::string> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<std::string> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 #endif
+
+//---------------------------------------------------------------------------------------------------------------------------
+//------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+
+//------------------------------------------------------ Constructors -------------------------------------------------------
+template <class T>
+point_set<T>::point_set() { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template point_set< float  >::point_set(void);
+    template point_set< double >::point_set(void);
+#endif
+
+template <class T>
+point_set<T>::point_set( const point_set &in ) : points(in.points),
+                                                 metadata(in.metadata) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template point_set< float  >::point_set(const point_set< float  > &);
+    template point_set< double >::point_set(const point_set< double > &);
+#endif
+
+//--------------------------------------------------------- Members ---------------------------------------------------------
+template <class T>
+point_set<T> &
+point_set<T>::operator=(const point_set<T> &rhs) {
+    //Check if it is itself.
+    if(this == &rhs) return *this; 
+
+    this->points   = rhs.points;
+    this->metadata = rhs.metadata;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template point_set<float > & point_set<float >::operator=(const point_set<float > &);
+    template point_set<double> & point_set<double>::operator=(const point_set<double> &);
+#endif
+    
+template <class T>
+vec3<T>
+point_set<T>::Centroid(void) const {
+    vec3<T> out( std::numeric_limits<T>::quiet_NaN(),
+                 std::numeric_limits<T>::quiet_NaN(),
+                 std::numeric_limits<T>::quiet_NaN() );
+    if(!this->points.empty()){
+        Stats::Running_Sum<T> rs_x;
+        Stats::Running_Sum<T> rs_y;
+        Stats::Running_Sum<T> rs_z;
+        for(const auto &p : this->points){
+            rs_x.Digest(p.x);
+            rs_y.Digest(p.y);
+            rs_z.Digest(p.z);
+        }
+        const auto N_inv = static_cast<T>(1)/static_cast<T>(this->points.size());
+        out.x = rs_x.Current_Sum() * N_inv;
+        out.y = rs_y.Current_Sum() * N_inv;
+        out.z = rs_z.Current_Sum() * N_inv;
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > point_set<float >::Centroid(void) const;
+    template vec3<double> point_set<double>::Centroid(void) const;
+#endif
+
+template <class T>
+bool
+point_set<T>::MetadataKeyPresent(std::string key) const {
+    //Checks if the key is present without inspecting the value.
+    return (this->metadata.find(key) != this->metadata.end());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_set<float >::MetadataKeyPresent(std::string key) const;
+    template bool point_set<double>::MetadataKeyPresent(std::string key) const;
+#endif
+
+template <class T>
+template <class U>
+std::experimental::optional<U>
+point_set<T>::GetMetadataValueAs(std::string key) const {
+    //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
+    const auto metadata_cit = this->metadata.find(key);
+    if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
+        return std::experimental::optional<U>();
+    }else{
+        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::experimental::optional<int32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<int64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<int64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<uint64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<uint64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<float> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<float> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<double> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<double> point_set<double>::GetMetadataValueAs(std::string key) const;
+
+    template std::experimental::optional<std::string> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::experimental::optional<std::string> point_set<double>::GetMetadataValueAs(std::string key) const;
+#endif
+
 
 
 //---------------------------------------------------------------------------------------------------------------------------

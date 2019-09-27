@@ -47,3 +47,21 @@ template <class T, class I>
 bool
 WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
                   std::ostream &os );
+
+
+// This routine reads an point_set from an OFF format stream.
+//
+// Note that OFF files can contain many irrelevant elements.
+// This routine will extract only vertices.
+template <class T>
+bool
+ReadPointSetFromOFF(point_set<T> &ps,
+                    std::istream &is );
+
+// This routine writes an point_set to an OFF format stream.
+//
+// Note that metadata is currently not written.
+template <class T>
+bool
+WritePointSetToOFF(const point_set<T> &ps,
+                   std::ostream &os );
