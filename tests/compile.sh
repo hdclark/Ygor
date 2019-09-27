@@ -1,90 +1,88 @@
 #!/bin/bash
 
-g++ -std=c++14 Test_Math25.cc -o test_math25 -lygor -pthread &
-wait
-exit
-
 g++ -std=c++14 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
-g++ -std=c++14 Test_Algorithms.cc -o test_algorithms -lygor -pthread &
-g++ -std=c++14 Test_Algorithms2.cc -o test_algorithms2 -lygor -pthread &
-g++ -std=c++14 Test_Algorithms3.cc -o test_algorithms3 -lygor -pthread &
+g++ -std=c++14 Test_Algorithms_01.cc -o test_algorithms_01 -lygor -pthread &
+g++ -std=c++14 Test_Algorithms_02.cc -o test_algorithms_02 -lygor -pthread &
+g++ -std=c++14 Test_Algorithms_03.cc -o test_algorithms_03 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Arguments.cc -o test_arguments -lygor -pthread &
-g++ -std=c++14 Test_Base64.cc -o test_base64 -lygor -pthread &
-g++ -std=c++14 Test_Containers.cc -o test_containers -lygor -pthread & 
-g++ -std=c++14 Test_Containers2.cc -o test_containers2 -lygor -pthread &
-g++ -std=c++14 Test_Environment.cc -o test_environment -lygor -pthread &
-g++ -std=c++14 Test_Environment2.cc -o test_environment2 -lygor -pthread &
+g++ -std=c++14 Test_Arguments_01.cc -o test_arguments_01 -lygor -pthread &
+g++ -std=c++14 Test_Base64_01.cc -o test_base64_01 -lygor -pthread &
+g++ -std=c++14 Test_Containers_01.cc -o test_containers_01 -lygor -pthread & 
+g++ -std=c++14 Test_Containers_02.cc -o test_containers_02 -lygor -pthread &
+g++ -std=c++14 Test_Environment_01.cc -o test_environment_01 -lygor -pthread &
+g++ -std=c++14 Test_Environment_02.cc -o test_environment_02 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_FilesDirs.cc -o test_filesdirs -lygor -pthread &
-g++ -std=c++14 Test_FilesDirs1.cc -o test_filesdirs1 -lygor -pthread &
-g++ -std=c++14 Test_FilesDirs2.cc -o test_filesdirs2 -lygor -pthread &
-g++ -std=c++14 Test_FilesDirs3.cc -o test_filesdirs3 -lygor -pthread &
-g++ -std=c++14 Test_FilesDirs4.cc -o test_filesdirs4 -lygor -pthread &
+g++ -std=c++14 Test_FilesDirs_00.cc -o test_filesdirs_00 -lygor -pthread &
+g++ -std=c++14 Test_FilesDirs_01.cc -o test_filesdirs_01 -lygor -pthread &
+g++ -std=c++14 Test_FilesDirs_02.cc -o test_filesdirs_02 -lygor -pthread &
+g++ -std=c++14 Test_FilesDirs_03.cc -o test_filesdirs_03 -lygor -pthread &
+g++ -std=c++14 Test_FilesDirs_04.cc -o test_filesdirs_04 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Images.cc -o test_images -lygor -pthread &
-g++ -std=c++14 Test_Images2.cc -o test_images2 -lygor -pthread -lboost_serialization -lboost_iostreams &
+g++ -std=c++14 Test_Images_01.cc -o test_images_01 -lygor -pthread &
+g++ -std=c++14 Test_Images_02.cc -o test_images_02 -lygor -pthread -lboost_serialization -lboost_iostreams &
 wait
 
-g++ -std=c++14 Test_Math.cc -o test_math -lygor -pthread &
-g++ -std=c++14 Test_Math2.cc -o test_math2 -lygor -pthread &
-g++ -std=c++14 Test_Math3.cc -o test_math3 -lygor -pthread &
-g++ -std=c++14 Test_Math4.cc -o test_math4 -lygor -pthread &
-g++ -std=c++14 Test_Math5.cc -o test_math5 -lygor -pthread &
+g++ -std=c++14 Test_Math_01.cc -o test_math_01 -lygor -pthread &
+g++ -std=c++14 Test_Math_02.cc -o test_math_02 -lygor -pthread &
+g++ -std=c++14 Test_Math_03.cc -o test_math_03 -lygor -pthread &
+g++ -std=c++14 Test_Math_04.cc -o test_math_04 -lygor -pthread &
+g++ -std=c++14 Test_Math_05.cc -o test_math_05 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Math6.cc -o test_math6 -lygor -pthread &
-g++ -std=c++14 Test_Math7.cc -o test_math7 -lygor -pthread &
-g++ -std=c++14 Test_Math8.cc -o test_math8 -lygor -pthread &
-g++ -std=c++14 Test_Math9.cc -o test_math9 -lygor -pthread &
-g++ -std=c++14 Test_Math10.cc -o test_math10 -lygor -pthread &
+g++ -std=c++14 Test_Math_06.cc -o test_math_06 -lygor -pthread &
+g++ -std=c++14 Test_Math_07.cc -o test_math_07 -lygor -pthread &
+g++ -std=c++14 Test_Math_08.cc -o test_math_08 -lygor -pthread &
+g++ -std=c++14 Test_Math_09.cc -o test_math_09 -lygor -pthread &
+g++ -std=c++14 Test_Math_10.cc -o test_math_10 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Math11.cc -o test_math11 -lygor -pthread -lboost_serialization -lboost_iostreams &
-g++ -std=c++14 Test_Math12.cc -o test_math12 -lygor -pthread &
-g++ -std=c++14 Test_Math13.cc -o test_math13 -lygor -pthread &
-g++ -std=c++14 Test_Math14.cc -o test_math14 -lygor -pthread &
-g++ -std=c++14 Test_Math15.cc -o test_math15 -lygor -pthread &
+g++ -std=c++14 Test_Math_11.cc -o test_math_11 -lygor -pthread -lboost_serialization -lboost_iostreams &
+g++ -std=c++14 Test_Math_12.cc -o test_math_12 -lygor -pthread &
+g++ -std=c++14 Test_Math_13.cc -o test_math_13 -lygor -pthread &
+g++ -std=c++14 Test_Math_14.cc -o test_math_14 -lygor -pthread &
+g++ -std=c++14 Test_Math_15.cc -o test_math_15 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Math16.cc -o test_math16 -lygor -pthread &
-g++ -std=c++14 Test_Math17.cc -o test_math17 -lygor -pthread &
-g++ -std=c++14 Test_Math18.cc -o test_math18 -lygor -pthread &
-g++ -std=c++14 Test_Math19.cc -o test_math19 -lygor -pthread &
-g++ -std=c++14 Test_Math20.cc -o test_math20 -lygor -pthread &
+g++ -std=c++14 Test_Math_16.cc -o test_math_16 -lygor -pthread &
+g++ -std=c++14 Test_Math_17.cc -o test_math_17 -lygor -pthread &
+g++ -std=c++14 Test_Math_18.cc -o test_math_18 -lygor -pthread &
+g++ -std=c++14 Test_Math_19.cc -o test_math_19 -lygor -pthread &
+g++ -std=c++14 Test_Math_20.cc -o test_math_20 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Math21.cc -o test_math21 -lygor -pthread &
-g++ -std=c++14 Test_Math22.cc -o test_math22 -lygor -pthread &
-g++ -std=c++14 Test_Math23.cc -o test_math23 -lygor -pthread &
-g++ -std=c++14 Test_Math24.cc -o test_math24 -lygor -pthread &
-g++ -std=c++14 Test_Math25.cc -o test_math25 -lygor -pthread &
+g++ -std=c++14 Test_Math_21.cc -o test_math_21 -lygor -pthread &
+g++ -std=c++14 Test_Math_22.cc -o test_math_22 -lygor -pthread &
+g++ -std=c++14 Test_Math_23.cc -o test_math_23 -lygor -pthread &
+g++ -std=c++14 Test_Math_24.cc -o test_math_24 -lygor -pthread &
+g++ -std=c++14 Test_Math_25.cc -o test_math_25 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Misc.cc -o test_misc -lygor -pthread  &
-g++ -std=c++14 Test_Networking_2.cc -o test_networking_2 -lygor -pthread &
-g++ -std=c++14 Test_Networking_Beacon.cc -o test_networking_beacon -lygor -pthread &
-g++ -std=c++14 Test_Networking_Radio.cc -o test_networking_radio -lygor -pthread &
+g++ -std=c++14 Test_Networking_A_01.cc -o test_networking_a_01 -lygor -pthread &
+g++ -std=c++14 Test_Networking_B_01.cc -o test_networking_b_01 -lygor -pthread &
+g++ -std=c++14 Test_Networking_02.cc -o test_networking_02 -lygor -pthread &
+g++ -std=c++14 Test_Networking_Beacon_03.cc -o test_networking_beacon_03 -lygor -pthread &
+g++ -std=c++14 Test_Networking_Radio_03.cc -o test_networking_radio_03 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Noise.cc -o test_noise -lygor -pthread &
-g++ -std=c++14 Test_Noise2.cc -o test_noise2 -lygor -pthread &
-g++ -std=c++14 Test_Serialization.cc -o test_serialization -lygor -pthread &
+g++ -std=c++14 Test_Misc_01.cc -o test_misc_01 -lygor -pthread  &
+g++ -std=c++14 Test_Noise_01.cc -o test_noise_01 -lygor -pthread &
+g++ -std=c++14 Test_Noise_02.cc -o test_noise_02 -lygor -pthread &
+g++ -std=c++14 Test_Serialization_01.cc -o test_serialization_01 -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_Stats.cc -o test_stats -lygor -lgsl -lgslcblas -pthread&
-g++ -std=c++14 Test_Stats2.cc -o test_stats2  -lygor -pthread &
-g++ -std=c++14 Test_Stats3.cc -o test_stats3  -lygor -pthread &
-g++ -std=c++14 Test_Stats4.cc -o test_stats4  -lygor -pthread &
+g++ -std=c++14 Test_Stats_01.cc -o test_stats_01 -lygor -lgsl -lgslcblas -pthread&
+g++ -std=c++14 Test_Stats_02.cc -o test_stats_02  -lygor -pthread &
+g++ -std=c++14 Test_Stats_03.cc -o test_stats_03  -lygor -pthread &
+g++ -std=c++14 Test_Stats_04.cc -o test_stats_04  -lygor -pthread &
 wait
 
-g++ -std=c++14 Test_String.cc -o test_string -lygor -pthread &
-g++ -std=c++14 Test_Video.cc -o test_video -lygor -pthread &
-g++ -std=c++14 Test_YgorCONFIGTools.cc -o test_configtools -lygor -pthread &
-g++ -std=c++14 Test_YgorDICOMTools.cc -o test_dicomtools -lygor -pthread &
+g++ -std=c++14 Test_String_01.cc -o test_string_01 -lygor -pthread &
+g++ -std=c++14 Test_Video_01.cc -o test_video_01 -lygor -pthread &
+g++ -std=c++14 Test_YgorCONFIGTools_01.cc -o test_configtools_01 -lygor -pthread &
+g++ -std=c++14 Test_YgorDICOMTools_01.cc -o test_dicomtools_01 -lygor -pthread &
 wait
 
 
