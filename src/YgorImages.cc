@@ -5499,11 +5499,17 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
     for(auto & img_coll_refw : img_colls){
         for(auto & l_img : img_coll_refw.get().images){
             auto plane = l_img.image_plane();
+// Implementation note:
+// Ensure all plane N_0's are aligned with the orientation_normal?            
+// Note: it will not necessarily perfectly align, so only toggle the sign!
             this->img_plane_to_img.emplace_back( std::make_pair(plane, std::addressof(l_img)) );
         }
     }
     for(auto & img_refw : imgs){
         auto plane = img_refw.get().image_plane();
+// Implementation note:
+// Ensure all plane N_0's are aligned with the orientation_normal?            
+// Note: it will not necessarily perfectly align, so only toggle the sign!
         this->img_plane_to_img.emplace_back( std::make_pair(plane, std::addressof(img_refw.get())) );
     }
 
@@ -5537,6 +5543,7 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
         auto GridX = top_img_ptr->row_unit.unit();
         auto GridY = top_img_ptr->col_unit.unit();
         auto GridZ = GridX.Cross(GridY).unit();
+// Swap GridZ with the plane normal?
         if(!GridZ.GramSchmidt_orthogonalize(GridX, GridY)){
             throw std::runtime_error("Unable to find grid orientation vectors.");
         }
