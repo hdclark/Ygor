@@ -4367,6 +4367,7 @@ template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpola
             const auto A_out = planes_above.front().second.get().bilinearly_interpolate_in_pixel_number_space(A_frc.first, A_frc.second, chnl);
             const auto B_out = planes_below.front().second.get().bilinearly_interpolate_in_pixel_number_space(B_frc.first, B_frc.second, chnl);
 
+            // Note: A and B distances are intentionally swapped here! This is to weight shorter distances more heavily.
             out = static_cast<T>( (B_dist/tot_dist)*static_cast<R>(A_out)
                                 + (A_dist/tot_dist)*static_cast<R>(B_out) );
         }catch(const std::exception &){
@@ -5825,8 +5826,11 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
             const auto A_out = nearest_img_refw.get().bilinearly_interpolate_in_pixel_number_space(A_frc.first, A_frc.second, chnl);
             const auto B_out = other_img_refw.get().bilinearly_interpolate_in_pixel_number_space(B_frc.first, B_frc.second, chnl);
 
-            out = static_cast<T>( (std::abs(nearest_dR)/tot_dist)*static_cast<R>(A_out)
-                                + (std::abs(other_dR)/tot_dist)*static_cast<R>(B_out) );
+            // Interpolate the in-plane interpolations, weighting the shortest distance more heavily.
+            //
+            // Note: other_dR and nearest_dR are intentionally swapped here!
+            out = static_cast<T>( (std::abs(other_dR  )/tot_dist)*static_cast<R>(A_out)  
+                                + (std::abs(nearest_dR)/tot_dist)*static_cast<R>(B_out) );
         }catch(const std::exception &){
             out = out_of_bounds;
         }
