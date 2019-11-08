@@ -16,9 +16,9 @@
 #include <utility>
 #include <vector>
 
-#ifndef YGOR_IMAGES_DISABLE_EIGEN
+#ifdef YGOR_USE_EIGEN
     #include <eigen3/Eigen/Dense>
-#endif
+#endif // YGOR_USE_EIGEN
 
 #include "YgorImages.h"
 #include "YgorMath.h"
@@ -1624,12 +1624,7 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     const auto d2ydrdc_r_max_c_min = static_cast<double>(this->cross_second_derivative_centered_finite_difference(r_max,c_min,chnl));
     const auto d2ydrdc_r_max_c_max = static_cast<double>(this->cross_second_derivative_centered_finite_difference(r_max,c_max,chnl));
 
-#ifdef YGOR_IMAGES_DISABLE_EIGEN
-    FUNCERR("This routine depends on Eigen and this functionality was disabled. Cannot continue");
-    //NOTE: This particular application can be easily worked out and expressed in non-matrix form.
-    //      Fire up your CAS of choice iff needed.
-    return static_cast<T>(0);
-#else
+#ifdef YGOR_USE_EIGEN
     Eigen::Matrix4d A;
     A <<  1.0,  0.0,  0.0,  0.0,
           0.0,  0.0,  1.0,  0.0,
@@ -1652,8 +1647,12 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
         }
     } 
     return static_cast<T>( res );
-#endif
-
+#else // YGOR_USE_EIGEN
+    FUNCERR("This routine depends on Eigen and this functionality was disabled. Cannot continue");
+    //NOTE: This particular application can be easily worked out and expressed in non-matrix form.
+    //      Fire up your CAS of choice iff needed.
+    return static_cast<T>(0);
+#endif // YGOR_USE_EIGEN
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template uint8_t  planar_image<uint8_t ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;

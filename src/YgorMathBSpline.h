@@ -3,6 +3,8 @@
 #ifndef YGOR_MATH_BSPLINE_H_
 #define YGOR_MATH_BSPLINE_H_
 
+#ifdef YGOR_USE_GNU_GSL
+
 #include <gsl/gsl_bspline.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_multifit.h>
@@ -131,4 +133,6 @@ class basis_spline {
 
 };
 
-#endif
+#endif // YGOR_MATH_BSPLINE_H_
+
+#endif // YGOR_USE_GNU_GSL

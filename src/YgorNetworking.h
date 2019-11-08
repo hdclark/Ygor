@@ -56,7 +56,6 @@ std::string Range_HTTP_Response_File_Header_Only(const std::string &filename, of
 
 //Some simple, non-nonsense, low-customizability routines for sending HTTP requests.
 std::string Simple_HTTP_Request(const std::string &host, const std::string &request);
-std::string Simple_HTTPS_Request(const std::string &host, const std::string &port = "", const std::string &request = "");   //Currently implemented using pipe/wget! FIXME
 
 
 //----------------------------------------------------------------------------------------------
@@ -74,10 +73,6 @@ std::string Simple_HTTPS_Request(const std::string &host, const std::string &por
 std::list<std::pair<std::string, std::string>> Get_All_Local_IP4_Addresses(void);
 std::list<std::pair<std::string, std::string>> Get_All_Local_IP6_Addresses(void);
 std::list<std::pair<std::string, std::string>> Get_All_Local_IP_Addresses(void);
-
-//These 'distant' functions may or may not have an associated name. Do not rely on it...
-std::list<std::pair<std::string, std::string>> Get_All_Distant_IP_Addresses(void);
-
 
 
 //----------------------------------------------------------------------------------------------

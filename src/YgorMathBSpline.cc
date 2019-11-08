@@ -1,5 +1,7 @@
 //YgorMathBSpline.cc.
 
+#ifdef YGOR_USE_GNU_GSL
+
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <iterator>
 #include <limits>      //Needed for std::numeric_limits::max().
@@ -240,3 +242,6 @@ basis_spline::Sample(double t) const {
 
     return { t, 0.0, f_i, df_i };
 }
+
+#endif // YGOR_USE_GNU_GSL
+

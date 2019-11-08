@@ -128,7 +128,6 @@
 #include "YgorMisc.h"              //Needed for FUNCINFO, FUNCWARN, FUNCERR macro functions.
 #include "YgorNetworking.h"
 #include "YgorString.h"            //Needed for Xtostring(), some tokenization routines.
-#include "YgorURITools.h"            //Needed for Request_URL(...)
 
 
 extern bool YGORNETWORKING_VERBOSE;
@@ -199,8 +198,7 @@ std::string Basic_HTTP_Response_Text_Header(const std::string &thetext){
 std::string Basic_HTTP_Response_File_Header(const std::string &filename){
     std::string out;
 
-//    const std::string mimetype = Execute_Command_In_Pipe( std::string(" file -b --mime-type '") + filename + "'");
-    const std::string mimetype = Guess_Mime_Type(filename); //Execute_Command_In_Pipe(" file -b --mime-type -- "_s + Quote_Static_for_Bash(filename) + " | tr -d '\\\n' "_s);
+    const std::string mimetype = "unknown";
 ///////////////////
 //    const std::string thetext = LoadFileToString(filename);
 ///////////////////
@@ -235,7 +233,7 @@ std::string Basic_HTTP_Response_File_Header(const std::string &filename){
 
 std::string Basic_HTTP_Response_File_Header_Only(const std::string &filename){
     std::string out;
-    const std::string mimetype = Guess_Mime_Type(filename); //Execute_Command_In_Pipe(" file -b --mime-type -- "_s + Quote_Static_for_Bash(filename) + " | tr -d '\\\n' "_s);
+    const std::string mimetype = "unknown";
     const auto thesize = Size_of_File(filename);
 
     out += "HTTP/1.1 200 OK\r\n";
@@ -263,7 +261,7 @@ std::string Basic_HTTP_Response_File_Header_Only(const std::string &filename){
 
 std::string Range_HTTP_Response_File_Header_Only(const std::string &filename, off_t range_l, off_t range_u){
     std::string out;
-    const std::string mimetype = Guess_Mime_Type(filename);
+    const std::string mimetype = "unknown";
     const auto thesize = Size_of_File(filename);
 
 /*   Sample from YouTube.
@@ -363,16 +361,6 @@ std::string Simple_HTTP_Request(const std::string &host, const std::string &requ
     return result;
 }
 
-std::string Simple_HTTPS_Request(const std::string &host, const std::string &port, const std::string &request){   //Currently implemented using pipe/wget! FIXME
-    //Example:   "127.0.0.1", "443", "some/resource/or/file.html".
-    std::string req = "https://"_s + host;
-    if(!port.empty()) req += ":"_s + port;
-    if(!request.empty()) req += "/"_s + request;
-
-    if(YGORNETWORKING_VERBOSE) FUNCINFO("REQUESTING: '" << req << "'");
-    return Request_URL(req);
-}
-
 //----------------------------------------------------------------------------------------------
 //--------------------------------- IP Address utilities ---------------------------------------
 //----------------------------------------------------------------------------------------------
@@ -441,48 +429,6 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP_Addresses(void){
     out.splice(out.end(), Get_All_Local_IP6_Addresses());
     return out;
 }
-
-std::list<std::pair<std::string, std::string>> Get_All_Distant_IP_Addresses(void){
-    std::list<std::pair<std::string, std::string>> out;
-    std::set<std::string> candidates;
-
-    //We try a few websites until we get something which looks reasonable. Add as many
-    // as possible. We will 
-    std::list<std::string> sites({  "http://icanhazip.com/", 
-                                    "http://checkip.dyndns.com/",
-                                    "http://automation.whatismyip.com/n09230945.asp",
-                                    "http://ifconfig.me/ip",
-                                    "http://ip.appspot.com/",
-                                    "http://myip.dnsomatic.com/",
-
-                                    //These *appear* to be less reliable. Meh, we'll error check.
-                                    "http://www.joetesta.com/user.php",
-                                    "http://sputnick-area.net/ip"
-                                    
-    });
-
-    //Shuffle the list randomly to spread out the load as much as possible.
-    shuffle_list_randomly(sites); 
-
-    for(auto & site : sites){
-        const auto page = Request_URL(site);
-        const auto address = GetFirstRegex(page, "([0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3}[.][0-9]{1,3})");
-
-        if(!address.empty()){
-            //Check if the address already exists in the set. If so, it is probably correct.
-            if(candidates.find(address) != candidates.end()){
-                out.emplace_back("", address);
-                return out;
-
-            //Otherwise, keep going until we find a match.
-            }else{
-                candidates.insert(address);
-            }
-        }
-    }
-    return out;
-}
-
 
 //----------------------------------------------------------------------------------------------
 //---------------------------- Server_and_Client: a TCP networking class -----------------------

@@ -1,24 +1,27 @@
 # Maintainer: Hal Clark <gmail.com[at]hdeanclark>
 pkgname=ygor
-pkgver=20170327_220203
+pkgver=20191108_093000
 pkgver() {
   date +%Y%m%d_%H%M%S
 }
 pkgrel=1
 
-pkgdesc="D.R.Y. support library with scientific emphasis."
+pkgdesc="Support library with scientific emphasis."
 url="http://www.halclark.ca"
 arch=('x86_64' 'i686' 'armv7h')
 license=('unknown')
 depends=(
-   'htmlcxx'
-   'gsl'
+   'boost'   # If enabled (see below).
+   'gsl'     # If enabled (see below).
 )
-#optdepends=()
 makedepends=(
    'cmake'
-   'eigen'
-   'boost'
+   'eigen'   # If enabled (see below).
+   'boost'   # Library dependency, if enabled (see below).
+)
+optdepends=(
+   'gnuplot' # Runtime optional dependency.
+   'boost'   # User build header-only AND/OR library optional dependency.
 )
 # conflicts=()
 # replaces=()
@@ -33,8 +36,14 @@ makedepends=(
 options=(strip staticlibs)
 
 build() {
-  #cmake "${pkgdir}" -DCMAKE_INSTALL_PREFIX=/usr
-  cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
+  #cmake "${pkgdir}" ...
+  cmake \
+    ../ \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DWITH_LINUX_SYS=ON \
+    -DWITH_EIGEN=ON \
+    -DWITH_GNU_GSL=ON \
+    -DWITH_BOOST=ON 
   make -j 4
 }
 

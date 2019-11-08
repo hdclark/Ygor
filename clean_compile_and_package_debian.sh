@@ -9,7 +9,13 @@ rsync -avz --no-links --cvs-exclude --delete ./ "${BUILDDIR}"  # Removes CMake c
 
 pushd .
 cd "${BUILDDIR}"
-cmake . -DCMAKE_INSTALL_PREFIX=/usr
+cmake \
+  . \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DWITH_LINUX_SYS=ON \
+  -DWITH_EIGEN=ON \
+  -DWITH_GNU_GSL=ON \
+  -DWITH_BOOST=ON 
 make -j $(nproc) && make package
 mv *.deb "${BUILTPKGSDIR}/"
 popd

@@ -1,11 +1,14 @@
 //YgorStats.cc.
 
+#ifdef YGOR_USE_GNU_GSL
 #include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
 //#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)
 #include <gsl/gsl_integration.h> //Needed to numerically compute an integral in lieu of the hypergeometric function.
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_sf_gamma.h>  //Gamma function.
 #include <gsl/gsl_sf_result.h>
+#endif // YGOR_USE_GNU_GSL
+
 #include <algorithm>
 #include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
@@ -607,6 +610,7 @@ double Stats::P_From_StudT_1Tail(double tval, double dof){
     //This routine is applicable to any Student's t-test. 
     //
     // As a reminder, it computes the "P-value" which is the probability of randomly observing a t > tval.
+#ifdef YGOR_USE_GNU_GSL
     const double y = std::sqrt(std::pow(tval,2) + dof);
     const double x = 0.5*(y - tval)/y;
     const double a = dof/2.0;
@@ -635,6 +639,9 @@ double Stats::P_From_StudT_1Tail(double tval, double dof){
         return std::numeric_limits<double>::quiet_NaN();
     }
     return res.val;
+#else  // YGOR_USE_GNU_GSL
+    return std::numeric_limits<double>::quiet_NaN();
+#endif // YGOR_USE_GNU_GSL
 }
 double Stats::P_From_StudT_2Tail(double tval, double dof){
     //This routine is applicable to any Student's t-test.
@@ -913,6 +920,7 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
     // numerical integration. This is probably good enough for a p-value, which really doesn't need much 
     // precision beyond a few leading terms. And the integrand is not bad when N > 5 when it will be of
     // most use.
+#ifdef YGOR_USE_GNU_GSL
     double N = total_num_of_datum;
     const double pi = 3.14159265358979323846264338328;
     const double r = std::abs(corr_coeff);
@@ -954,6 +962,9 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
     }
 
     return pval_factora * pval_factorb * pval_factorc;
+#else  // YGOR_USE_GNU_GSL
+    return std::numeric_limits<double>::quiet_NaN();
+#endif // YGOR_USE_GNU_GSL
 }
 
 
@@ -967,7 +978,11 @@ double Stats::Q_From_ChiSq_Fit(double chi_square, double dof){
     // If Q is too near 1.0, the errors are probably overestimated.
     // If Q is a little lower then 0.001, errors are probably underestimated.
     // If Q is very low (<1E-6) the model is a terrible fit.
+#ifdef YGOR_USE_GNU_GSL
     return gsl_sf_gamma_inc_Q(dof/2.0, chi_square/2.0);
+#else  // YGOR_USE_GNU_GSL
+    return std::numeric_limits<double>::quiet_NaN();
+#endif // YGOR_USE_GNU_GSL
 }
 
 //-----------------------------------------------------------------------------------------------------------

@@ -12,7 +12,14 @@ cd "${BUILDDIR}"
 if [ -f CMakeCache.txt ] ; then 
     touch CMakeCache.txt  # To bump CMake-defined compilation time.
 else
-    cmake . -DCMAKE_INSTALL_PREFIX=/usr
+    cmake \
+      . \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DWITH_LINUX_SYS=ON \
+      -DWITH_EIGEN=ON \
+      -DWITH_GNU_GSL=ON \
+      -DWITH_BOOST=ON 
+
 fi
 make -j $(nproc) && make package
 mv *.deb "${BUILTPKGSDIR}/"

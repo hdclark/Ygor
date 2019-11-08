@@ -824,7 +824,7 @@ Ygor_Fit_Driver(bool *wasOK,
         const auto chi_sq = best_WSSR;
         const auto red_chi_sq = chi_sq/static_cast<double>(DOF);
         const auto Qvalue = Stats::Q_From_ChiSq_Fit(chi_sq, static_cast<double>(DOF));
- 
+
         //Not sure which is more useful. See http://en.wikipedia.org/wiki/Coefficient_of_determination. 
         const auto raw_coeff_deter = 1.0 - best_SSres/best_SStot; //Uses unweighted SSres, not weighted SSres. Use this if worried about weight scaling.
         const auto mod_coeff_deter = 1.0 - best_WSSR/best_SStot;  //Uses weighted SSres. This is the consistent choice. Use this if in doubt.

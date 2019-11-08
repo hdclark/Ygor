@@ -7,7 +7,9 @@
 #include <vector>
 //#include <experimental/optional>
 
+#ifdef YGOR_USE_BOOST
 #include <boost/math/special_functions/bessel.hpp>
+#endif // YGOR_USE_BOOST
 
 #include "YgorMathChebyshev.h"
 #include "YgorMathChebyshevFunctions.h"
@@ -231,6 +233,7 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
 #endif
 
 
+#ifdef YGOR_USE_BOOST
 template <class T>
 cheby_approx<T>
 Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
@@ -316,6 +319,7 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     template cheby_approx<double> Chebyshev_Basis_Approx_Exp_Analytic1<double>(size_t, double, double, double, double, double);
 #endif
 
+#endif // YGOR_USE_BOOST
 
 
 //Static support functions for the following routine.

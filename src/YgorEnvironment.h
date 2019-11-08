@@ -3,6 +3,8 @@
 #ifndef YGOR_ENVIRONMENT_HDR_GRD_H
 #define YGOR_ENVIRONMENT_HDR_GRD_H
 
+#ifdef YGOR_USE_LINUX_SYS
+
 #include <string>
 #include <utility>
 
@@ -39,4 +41,7 @@ double Amount_Of_Total_Memory_MB(void);
 double Amount_Of_Totally_Free_Memory_MB(void);
 
 
-#endif
+#endif //YGOR_USE_LINUX_SYS
+
+#endif //YGOR_ENVIRONMENT_HDR_GRD_H
+

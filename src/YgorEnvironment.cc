@@ -1,5 +1,7 @@
 //YgorEnvironment.cc - Routines for collecting info about the local (system) environment. 
 
+#ifdef YGOR_USE_LINUX_SYS
+
 #include <cstdio>      //Needed for getchar();
 #include <iostream>
 #include <string>
@@ -295,4 +297,6 @@ double Amount_Of_Totally_Free_Memory_MB(void){
     //Information unavailable. Check for system-specific work around.
     return -1.0;
 }
+
+#endif //YGOR_USE_LINUX_SYS
 
