@@ -2639,10 +2639,11 @@ template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<
     planar_image<T,R> ref_img(*this);
 
     //Gaussian blur over PIXELS via a rectangular grid of width and height 2*cutoff*sigma.
+    const double pi               = 3.14159265358979323846264338328;
     const double pixel_sigma      = sigma_in_units_of_pixels;  //Width of Gaussian (for pixel intensity weighting).
     const double pixel_box_radius = 3.0*pixel_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
     const long int pixel_R        = std::ceil(pixel_box_radius);
-    const double w_denom          = 2.0*M_PI*pixel_sigma*pixel_sigma; //Helps prevent overflow.
+    const double w_denom          = 2.0*pi*pixel_sigma*pixel_sigma; //Helps prevent overflow.
 
     //Loop over the rows, columns, and channels.
     for(long int row = 0; row < this->rows; ++row){

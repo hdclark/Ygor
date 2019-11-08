@@ -112,10 +112,11 @@ Chebyshev_Basis_Approx_Exp_Sampled( size_t numb_of_c_in,
     std::vector<T> c(N,static_cast<T>(0));
     std::vector<T> f(N,static_cast<T>(0));
 
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
     for(size_t i = 0; i < numb_of_c_in; ++i){
         //The point we sample f(x) at (i.e., a root of a Chebyshev polynomial) on the domain [-1,+1].
         const T iT = static_cast<T>(i);
-        const T x = std::cos(M_PI * (iT + 0.5)/nT);
+        const T x = std::cos(pi * (iT + 0.5)/nT);
 
         //The point x on domain [-1,+1] mapped onto the user-provided domain [xmin,xmax].
         const T z = ( xmax * (x + static_cast<T>(1)) 
@@ -128,7 +129,7 @@ Chebyshev_Basis_Approx_Exp_Sampled( size_t numb_of_c_in,
         T sum = static_cast<T>(0);
         for(size_t j = 0; j < numb_of_c_in; ++j){
             const T jT = static_cast<T>(j);
-            sum += f[j] * static_cast<T>(std::cos(M_PI * iT * (jT + 0.5)/nT));
+            sum += f[j] * static_cast<T>(std::cos(pi * iT * (jT + 0.5)/nT));
         }
         c[i] = (sum * static_cast<T>(2) / nT);
     }
@@ -197,6 +198,7 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
     const auto N = numb_of_c_in;
     std::vector<T> c(N,static_cast<T>(0));
     const T g = static_cast<T>(2)/Aprime;
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
 
     //We traverse the coefficients in reverse order. We set $C_{N}$ and higher terms to zero.
     // This amounts to fixing one of the free parameters in the recurrence relation. We
@@ -211,7 +213,7 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
     T sum = static_cast<T>(0);
     for(size_t j = (N-1); j >= 1; --j){
         c[j-1] = g*static_cast<T>(j)*c[j] + ( ((j+1) > (N-1) ) ? static_cast<T>(0) : c[j+1] );
-        sum += c[j] * static_cast<T>(std::cos(0.5*M_PI*static_cast<double>(j)));
+        sum += c[j] * static_cast<T>(std::cos(0.5*pi*static_cast<double>(j)));
     }
     sum += c[0]/static_cast<T>(2);
 
@@ -285,6 +287,7 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     const auto N = numb_of_c_in;
     std::vector<T> c(N,static_cast<T>(0));
     cheby_approx<T> out;
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
 
     T sum = static_cast<T>(0);
     for(size_t j = 0; j < N; ++j){
@@ -297,7 +300,7 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
             out.Prepare(c,xmin,xmax);
             return out;
         }
-        sum += c[j] * static_cast<T>(std::cos(0.5*M_PI*static_cast<double>(j)));
+        sum += c[j] * static_cast<T>(std::cos(0.5*pi*static_cast<double>(j)));
     }
     sum -= c[0]/static_cast<T>(2); //Evaluation of $c_{0} T_{n}(x)$ is special case. Correct for T-count.
 
@@ -460,6 +463,7 @@ Chebyshev_Basis_Approx_Exp_Analytic2( size_t numb_of_c_in,
 
     const auto N = numb_of_c_in;
     std::vector<T> c(N,static_cast<T>(0));
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
 
     //Choose the combining factor such that the next coefficient ($C_{N}$) is zero.
     const T g = -static_cast<T>(2)/Aprime;
@@ -467,7 +471,7 @@ Chebyshev_Basis_Approx_Exp_Analytic2( size_t numb_of_c_in,
     T sum = static_cast<T>(0);
     for(size_t j = 0; j < N; ++j){
         c[j] = Chebyshev_basis_exp_C_fn(g,j) + relative_fac * Chebyshev_basis_exp_C_gn(g,j);
-        sum += c[j] * static_cast<T>(std::cos(0.5*M_PI*static_cast<double>(j)));
+        sum += c[j] * static_cast<T>(std::cos(0.5*pi*static_cast<double>(j)));
         //sum += c[j]; //Evaluate at x=+1 and z=zmax.
     }
     sum -= c[0]/static_cast<T>(2); //Evaluation of $c_{0} T_{n}(x)$ is special case. Correct for T-count.

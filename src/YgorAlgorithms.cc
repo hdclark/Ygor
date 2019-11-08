@@ -53,7 +53,8 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         return (70.0/81.0)*std::pow(1.0 - xabs*xabs*xabs, 3.0);
     
         //Gaussian:
-        return std::exp(-0.5*x*x)/std::sqrt(2.0*M_PI);
+        const double pi = 3.14159265358979323846264338328;
+        return std::exp(-0.5*x*x)/std::sqrt(2.0*pi);
     }
     
     static inline double l_vector_S(const double h, const samples_1D<double> &data, double x, double j_power){
@@ -353,7 +354,8 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         //Now, using our rough k0, compute the corresponding c.
         double c;
         {
-          const double numer = (1.0/std::sqrt(2.0*M_PI)) + (k0/M_PI);
+          const double pi = 3.14159265358979323846264338328;
+          const double numer = (1.0/std::sqrt(2.0*pi)) + (k0/pi);
           const double denom = 0.05;
           const double theln = std::log(numer/denom);
           if(theln < 0.0){ *OK = false; return -1.0; }

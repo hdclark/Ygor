@@ -178,10 +178,11 @@ cheby_approx<T>::Prepare( const samples_1D<T> &s1D,
     std::vector<T> f;
     f.reserve(numb_of_c_in);
 
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
     for(size_t i = 0; i < numb_of_c_in; ++i){
         //The point we sample f(x) at (i.e., a root of a Chebyshev polynomial) on the domain [-1,+1].
         const T iT = static_cast<T>(i);
-        const T x = std::cos(M_PI * (iT + 0.5)/nT);
+        const T x = std::cos(pi * (iT + 0.5)/nT);
         
         //The point x on domain [-1,+1] mapped onto the user-provided domain.
         const T z = ( this->xmax * (x + 1.0) - this->xmin * (x - 1.0) )/2.0;
@@ -193,7 +194,7 @@ cheby_approx<T>::Prepare( const samples_1D<T> &s1D,
         T sum = static_cast<T>(0);
         for(size_t j = 0; j < numb_of_c_in; ++j){
             const T jT = static_cast<T>(j);
-            sum += f[j] * std::cos(M_PI * iT * (jT + 0.5)/nT);
+            sum += f[j] * std::cos(pi * iT * (jT + 0.5)/nT);
         }
         this->c.push_back(sum * 2.0 / nT);
     }
@@ -243,10 +244,11 @@ cheby_approx<T>::Prepare( const std::function<T(T)> &func,
     std::vector<T> f;
     f.reserve(numb_of_c_in);
 
+    const auto pi = static_cast<T>(3.14159265358979323846264338328);
     for(size_t i = 0; i < numb_of_c_in; ++i){
         //The point we sample f(x) at (i.e., a root of a Chebyshev polynomial) on the domain [-1,+1].
         const T iT = static_cast<T>(i);
-        const T x = std::cos(M_PI * (iT + 0.5)/nT);
+        const T x = std::cos(pi * (iT + 0.5)/nT);
         
         //The point x on domain [-1,+1] mapped onto the user-provided domain.
         const T z = ( this->xmax * (x + 1.0) - this->xmin * (x - 1.0) )/2.0;
@@ -258,7 +260,7 @@ cheby_approx<T>::Prepare( const std::function<T(T)> &func,
         T sum = static_cast<T>(0);
         for(size_t j = 0; j < numb_of_c_in; ++j){
             const T jT = static_cast<T>(j);
-            sum += f[j] * std::cos(M_PI * iT * (jT + 0.5)/nT);
+            sum += f[j] * std::cos(pi * iT * (jT + 0.5)/nT);
         }
         this->c.push_back(sum * 2.0 / nT);
     }

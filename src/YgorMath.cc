@@ -192,7 +192,8 @@ template <class T>  T vec3<T>::angle(const vec3<T> &rhs, bool *OK) const {
     if(AdotB > (T)(0)){ //Pointing in same direction: angle < 90 degrees.
         theangle = absprinangle;
     }else{
-        theangle = (T)(M_PI) - absprinangle;
+        const auto pi = static_cast<T>(3.14159265358979323846264338328);
+        theangle = pi - absprinangle;
     }
     if(useOK) *OK = true;
     return theangle;
@@ -8463,9 +8464,10 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Gaussia
     //
     if(datum_sigma <= (T)(0)) FUNCERR("Nonsensical datum_sigma parameter passed in. Try increasing it");
 
+    const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
     const long int window_size = static_cast<long int>(std::ceil(window_size_f));
-    const T w_denom            = static_cast<T>(std::sqrt(2.0*M_PI)*datum_sigma);
+    const T w_denom            = static_cast<T>(std::sqrt(2.0*pi)*datum_sigma);
 
     std::vector<T> weights;
     for(long int i = 0; i < window_size; ++i){
@@ -8605,9 +8607,10 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
     // 
     if(datum_sigma <= (T)(0)) FUNCERR("Nonsensical datum_sigma parameter passed in. Try increasing it");
 
+    const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
     const long int window_size = static_cast<long int>(std::ceil(window_size_f));
-    const T w_denom            = static_cast<T>(std::sqrt(2.0*M_PI)*datum_sigma);
+    const T w_denom            = static_cast<T>(std::sqrt(2.0*pi)*datum_sigma);
 
     //Number of discrete, distinct weightings to use. Higher means more precise, but also dramatically more expensive 
     // computations. Consider 1/resolution to be approx. equal to the weighting fidelity. So 1/20 = 0.05 which is probably

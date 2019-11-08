@@ -914,8 +914,9 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
     // precision beyond a few leading terms. And the integrand is not bad when N > 5 when it will be of
     // most use.
     double N = total_num_of_datum;
+    const double pi = 3.14159265358979323846264338328;
     const double r = std::abs(corr_coeff);
-    const double pval_factora = 2.0/std::sqrt(M_PI);
+    const double pval_factora = 2.0/std::sqrt(pi);
     const double pval_factorb = std::exp(std::lgamma(0.5*N-0.5) - std::lgamma(0.5*N-1.0));
 
     //GNU GSL fails here fairly often. I've also tried catching GSL errors to no avail. Try some random numbers.
