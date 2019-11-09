@@ -16,12 +16,15 @@ target_include_directories(ygor
 )
 
 target_link_libraries(ygor
-    htmlcxx
-    gsl
-    gslcblas
     m
     Threads::Threads
 )
+if(WITH_GNU_GSL)
+target_link_libraries(ygor
+    gsl
+    gslcblas
+)
+endif()
 
 # Installation info.
 install(TARGETS 
