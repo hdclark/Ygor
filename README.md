@@ -54,8 +54,6 @@ various bits of Ygor rely on:
 
 - STL/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
 - Boost: various.
-- htmlcxx: URItools.
-- Cyassl: YgorNetworking.
 - spookyhash: YgorAlgorithms. Very little - one function at time of writing.
 - GNU Scientific Library: YgorStats and YgorMathBasisSplines.
 - GNU plotutils: YgorPlot. Weakly - via shell/pipe.
