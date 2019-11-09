@@ -59,6 +59,11 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -Wall -Wextra -Wno-strict-aliasing")
 endif()
 
+# Used to compile on MSYS2:
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -U__STRICT_ANSI__")
+# Alternatively define _GNU_SOURCE or _XOPEN_SOURCE or enable GNU extensions via CMake mechanism?
+
+
 if(WITH_LINUX_SYS)
     message(STATUS "Assuming Linux-specific sys interfaces are available.")
     add_definitions(-DYGOR_USE_LINUX_SYS=1)
