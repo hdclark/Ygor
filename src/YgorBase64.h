@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "YgorDefinitions.h"
 
 namespace Base64 {
 

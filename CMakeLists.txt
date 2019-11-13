@@ -18,13 +18,26 @@ option(WITH_BOOST     "Compile assuming Boost is available (note: won't impact h
 ####################################################################################
 #                                  Dependencies
 ####################################################################################
-# Note: dependencies are listed in CPACK list below.
+# Note: Dependencies are listed in CPACK list below.
 
 find_package(Threads REQUIRED)
 
-# GNU GSL.
+if(WITH_EIGEN)
+    #find_package(Eigen3 3.1.0)
+    #include(${EIGEN3_USE_FILE})
+    #
+    # or via pkg-config method:
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(EIGEN3 REQUIRED eigen3)
+    include_directories( ${EIGEN3_INCLUDE_DIRS} )
+    #
+    # Fallback if the above methods fail:
+    #include_directories("/usr/include/eigen3/")
+endif()
 
-# Header-only: Eigen.
+# GNU GSL.
+# Boost.
+
 # Header-only: Boost.Serialization.
 # Header-only: VTK.
 
@@ -35,53 +48,101 @@ find_package(Threads REQUIRED)
 #                                  Configuration
 ####################################################################################
 
+# Override the default CXX flags, which are controlled by the release type.
+#
+# Note: The '_DEBUG' flags are only applied when the release mode is 'Debug' -- likewise for the other flags.
+#
+# Note: If you want to fully override the CXX_FLAGS, then do not supply a build type and specify your CXX_FLAGS by
+#       defining CMAKE_CXX_FLAGS when calling cmake.
+set(CMAKE_CXX_FLAGS_DEBUG           "-O2 -g")
+set(CMAKE_CXX_FLAGS_MINSIZEREL      "-Os -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE         "-O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-O3 -g")
+
+if(MEMORY_CONSTRAINED_BUILD)
+    # Do not overwrite user-provided flags, but do provide sane defaults.
+    if(NOT CMAKE_CXX_FLAGS)
+        set(CMAKE_CXX_FLAGS "-O0 -DNDEBUG")
+    endif()
+    set(CMAKE_CXX_FLAGS_DEBUG           "-O0 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL      "-O0 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE         "-O0 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-O0 -DNDEBUG")
+endif()
+
+
+# Add other appropriate CXX flags.
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frounding-math")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-finite-math-only")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-var-tracking-assignments")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing")
+
+    if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        # Add gprof profiling flag.
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+    endif()
+
+    if(MEMORY_CONSTRAINED_BUILD)
+        # Trigger garbage collection more frequently.
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param ggc-min-expand=10")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param ggc-min-heapsize=32768")
+    endif()
+
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-var-tracking-assignments")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+endif()
+
 # Set the release type. 
-set(CMAKE_BUILD_TYPE Release) # Comment this line to use fallback default.
 if(NOT CMAKE_BUILD_TYPE)
     # Default to debug builds.
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "default to debug" FORCE)
 endif()
 
+
+####################################################################################
+#                                    Definitions
+####################################################################################
+#add_definitions(-U__STRICT_ANSI__)  # Used to compile on MSYS2.
+                                     # Alternatively define _GNU_SOURCE or _XOPEN_SOURCE
+                                     # or enable GNU extensions via CMake mechanism?
+
+if(WITH_LINUX_SYS)
+    message(STATUS "Assuming Linux-specific sys interfaces are available.")
+    set(YGOR_USE_LINUX_SYS 1)
+endif()
+if(WITH_EIGEN)
+    message(STATUS "Assuming Eigen is available.")
+    set(YGOR_USE_EIGEN 1)
+endif()
+if(WITH_GNU_GSL)
+    message(STATUS "Assuming GNU GSL is available.")
+    set(YGOR_USE_GNU_GSL 1)
+endif()
+if(WITH_BOOST)
+    message(STATUS "Assuming Boost libraries are available.")
+    set(YGOR_USE_BOOST 1)
+endif()
+
+
+# Add other compiler options.
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(BUILD_SHARED_LIBS TRUE)
 set(POSITION_INDEPENDENT_CODE TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF) # Disable GNU extensions (e.g., std=gnu++14).
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -frounding-math -fno-finite-math-only")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -fno-var-tracking-assignments")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -Wall -Wextra -Wno-strict-aliasing")
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -frounding-math -fno-finite-math-only")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -Wall -Wextra -Wno-strict-aliasing")
-endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For use with clang-tidy et al.
 
-# Used to compile on MSYS2:
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -U__STRICT_ANSI__")
-# Alternatively define _GNU_SOURCE or _XOPEN_SOURCE or enable GNU extensions via CMake mechanism?
-
-
-if(WITH_LINUX_SYS)
-    message(STATUS "Assuming Linux-specific sys interfaces are available.")
-    add_definitions(-DYGOR_USE_LINUX_SYS=1)
-endif()
-if(WITH_EIGEN)
-    message(STATUS "Assuming Eigen is available.")
-    add_definitions(-DYGOR_USE_EIGEN=1)
-endif()
-if(WITH_GNU_GSL)
-    message(STATUS "Assuming GNU GSL is available.")
-    add_definitions(-DYGOR_USE_GNU_GSL=1)
-endif()
-if(WITH_BOOST)
-    message(STATUS "Assuming Boost libraries are available.")
-    add_definitions(-DYGOR_USE_BOOST=1)
-endif()
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For clang-tidy et al.
 
 # Use the directory where CMakeLists.txt is for inclusions.
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -105,7 +166,7 @@ add_subdirectory(binaries)
 ####################################################################################
 
 set(CPACK_GENERATOR "DEB")
-#SET(CPACK_PACKAGE_NAME "ygor")
+#set(CPACK_PACKAGE_NAME "ygor")
 
 string(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
 set(CPACK_PACKAGE_VERSION "${INVOCATION_TIMESTAMP}")

@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <iostream>
 
+#include "YgorDefinitions.h"
 #include "YgorPerformance.h"
 
 

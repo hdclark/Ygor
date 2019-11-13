@@ -16,6 +16,7 @@ cmake \
   -DWITH_EIGEN=ON \
   -DWITH_GNU_GSL=ON \
   -DWITH_BOOST=ON 
+
 make -j $(nproc) && make package
 mv *.deb "${BUILTPKGSDIR}/"
 popd

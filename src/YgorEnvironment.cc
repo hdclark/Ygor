@@ -1,5 +1,7 @@
 //YgorEnvironment.cc - Routines for collecting info about the local (system) environment. 
 
+#include "YgorDefinitions.h"
+
 #ifdef YGOR_USE_LINUX_SYS
 
 #include <cstdio>      //Needed for getchar();

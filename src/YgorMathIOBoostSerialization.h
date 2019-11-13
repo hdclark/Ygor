@@ -20,6 +20,7 @@
 #include <boost/serialization/map.hpp>
 
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 
 namespace boost {

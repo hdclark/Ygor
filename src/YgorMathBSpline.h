@@ -3,6 +3,8 @@
 #ifndef YGOR_MATH_BSPLINE_H_
 #define YGOR_MATH_BSPLINE_H_
 
+#include "YgorDefinitions.h"
+
 #ifdef YGOR_USE_GNU_GSL
 
 #include <gsl/gsl_bspline.h>

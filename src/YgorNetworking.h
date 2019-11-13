@@ -4,6 +4,8 @@
 #ifndef HDR_GRD_YGORNETWORKING_H_
 #define HDR_GRD_YGORNETWORKING_H_
 
+#include "YgorDefinitions.h"
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>

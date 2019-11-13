@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
 
 //----------------------------------------------------------------------------------------------------------------------------

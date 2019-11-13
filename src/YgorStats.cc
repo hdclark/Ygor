@@ -1,5 +1,7 @@
 //YgorStats.cc.
 
+#include "YgorDefinitions.h"
+
 #ifdef YGOR_USE_GNU_GSL
 #include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
 //#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)

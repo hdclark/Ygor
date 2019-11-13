@@ -10,6 +10,8 @@
 #include <iosfwd>
 #include <string>
 
+#include "YgorDefinitions.h"
+
 bool Is_File_A_DICOM_File(const std::string &in);
 
 

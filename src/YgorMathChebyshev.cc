@@ -9,6 +9,7 @@
 #include <vector>
 //#include <experimental/optional>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMathChebyshev.h"
 

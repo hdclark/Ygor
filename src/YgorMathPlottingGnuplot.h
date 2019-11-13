@@ -18,6 +18,7 @@
 //#include <unistd.h> //For fork.
 #include <csignal>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 
 namespace YgorMathPlottingGnuplot {

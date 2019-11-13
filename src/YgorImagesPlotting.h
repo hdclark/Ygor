@@ -9,6 +9,7 @@
 
 #include <cstdio>  //For popen, class FILE.
 
+#include "YgorDefinitions.h"
 #include "YgorImages.h"
 
 

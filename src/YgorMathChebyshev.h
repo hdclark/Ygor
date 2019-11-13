@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include "YgorDefinitions.h"
+
 template <class T> class samples_1D;
 
 

@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
 #include "YgorPlot.h"
 #include "YgorString.h"

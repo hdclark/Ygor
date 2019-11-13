@@ -17,6 +17,8 @@
 #include <string>
 
 #include "External/MD5/md5.h" //Needed for MD5_of_File(...)
+
+#include "YgorDefinitions.h"
 #include "YgorFilesDirs.h"
 #include "YgorMisc.h"    //Needed for FUNCINFO,FUNCWARN,FUNCERR macros.
 #include "YgorString.h"  //Needed for Xtostring routine.

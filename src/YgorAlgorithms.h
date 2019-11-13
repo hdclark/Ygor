@@ -38,6 +38,7 @@
 #include <stdexcept>
 //#include <chrono>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"
 #include "YgorPlot.h"

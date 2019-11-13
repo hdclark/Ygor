@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "YgorDefinitions.h"
 #include "YgorImages.h"
 #include "YgorMath.h"
 

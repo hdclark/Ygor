@@ -37,6 +37,7 @@
                       //--------------------------------------------
                       //--------------------------------------------
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"   //Needed for error functions (for debugging) and isininc macro.
 #include "YgorString.h" //Includes namespace constants, function decl.'s, etc..
 

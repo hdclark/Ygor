@@ -7,6 +7,7 @@
 #include <sstream>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"
 #include "YgorMath.h"
 #include "YgorString.h"

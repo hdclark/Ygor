@@ -80,7 +80,6 @@ g++ -std=c++14 Test_Stats_04.cc -o test_stats_04  -lygor -pthread &
 wait
 
 g++ -std=c++14 Test_String_01.cc -o test_string_01 -lygor -pthread &
-g++ -std=c++14 Test_Video_01.cc -o test_video_01 -lygor -pthread &
 g++ -std=c++14 Test_YgorCONFIGTools_01.cc -o test_configtools_01 -lygor -pthread &
 g++ -std=c++14 Test_YgorDICOMTools_01.cc -o test_dicomtools_01 -lygor -pthread &
 wait

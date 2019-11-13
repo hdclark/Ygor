@@ -5,6 +5,7 @@
 #include <list>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMath_Samples.h"
 

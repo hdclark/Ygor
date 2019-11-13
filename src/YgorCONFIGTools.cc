@@ -10,6 +10,7 @@
 const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:space:]]*#)***", std::regex::ECMAScript | std::regex::icase );
 //const std::regex regex_contains_a_colon( R"***(:)***", std::regex::basic | std::regex::icase );
 
+#include "YgorDefinitions.h"
 #include "YgorCONFIGTools.h"    
 #include "YgorFilesDirs.h"    //Needed for Does_File_Exist_And_Can_Be_Read(..)
 #include "YgorMisc.h"         //Needed for FUNCINFO/FUNCWARN/FUNCERR macro-functions.

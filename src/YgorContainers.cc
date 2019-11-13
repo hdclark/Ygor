@@ -2,6 +2,7 @@
 #include "YgorMisc.h"
 #include <algorithm>    //Needed for std::sort(..).
 
+#include "YgorDefinitions.h"
 #include "YgorContainers.h"
 
 //#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS

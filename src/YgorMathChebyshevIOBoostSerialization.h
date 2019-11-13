@@ -21,6 +21,7 @@
 #include <boost/serialization/version.hpp>
 #include <boost/serialization/split_free.hpp>
 
+#include "YgorDefinitions.h"
 #include "YgorMathChebyshev.h"
 
 namespace boost {

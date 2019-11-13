@@ -3,11 +3,12 @@
 #ifndef YGOR_ENVIRONMENT_HDR_GRD_H
 #define YGOR_ENVIRONMENT_HDR_GRD_H
 
+#include "YgorDefinitions.h"
+
 #ifdef YGOR_USE_LINUX_SYS
 
 #include <string>
 #include <utility>
-
 
 //--------------------------------------------------------------------------------------------------------
 //----------------------------------------- /bin/bash system(3) ------------------------------------------

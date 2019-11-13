@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 
+#include "YgorDefinitions.h"
 #include "YgorSerialize.h"
 
 //--------------------------------------------------------------------------------------------------------------------------------
