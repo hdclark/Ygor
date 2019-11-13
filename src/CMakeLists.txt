@@ -1,6 +1,7 @@
 
 
-configure_file(YgorDefinitions.h.in YgorDefinitions.h)
+configure_file(YgorDefinitions.h.in 
+               ${CMAKE_CURRENT_SOURCE_DIR}/YgorDefinitions.h)
 
 FILE(GLOB ygor_sources "*cc")
 FILE(GLOB ygor_headers "*.h")
