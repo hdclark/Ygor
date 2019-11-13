@@ -24,6 +24,7 @@
 #include <memory>
 #include <cstdint>   //For uint8_t, uint32_t, etc..
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"
 
 

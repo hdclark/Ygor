@@ -48,6 +48,7 @@
 #include <vtkPen.h>
 #include <vtkAxis.h>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorString.h"
 

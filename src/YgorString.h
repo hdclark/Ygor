@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "YgorDefinitions.h"
 
 //To turn off user literals, define a macro like so (or pass in to compiler with -DYGOR_STRING_...
 // NOTE: This is a compile-time macro (NOT a header-only thing!)

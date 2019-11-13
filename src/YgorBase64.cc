@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 
+#include "YgorDefinitions.h"
 #include "YgorBase64.h"
 
 #include "YgorMath.h"

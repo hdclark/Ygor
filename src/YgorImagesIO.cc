@@ -17,6 +17,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"
 //#include "YgorMath.h"
 //#include "YgorStats.h"    //For Stats::Mean().

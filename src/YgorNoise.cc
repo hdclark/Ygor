@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for some bitwise operations.
 
 

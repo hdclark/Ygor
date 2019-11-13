@@ -2,6 +2,7 @@
 #ifndef YGOR_MISC_HDR_GRD_H
 #define YGOR_MISC_HDR_GRD_H
 
+#include "YgorDefinitions.h"
 
 #include <iostream>
 #include <sstream>
@@ -17,7 +18,6 @@
 #include <algorithm>
 
 #include <unistd.h>              //Needed for read.
-
 
 //------------------------------------------------------------------------------------------------------
 //----------------------------------- Error/Warning/Verbosity macros -----------------------------------

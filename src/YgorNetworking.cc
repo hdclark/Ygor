@@ -1,4 +1,5 @@
 //YgorNetworking.cc.
+#include "YgorDefinitions.h"
 
 
 //Gross fix for compiling without glibc: Define this constant to avoid getting compilation errors regarding

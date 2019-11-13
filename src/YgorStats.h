@@ -9,6 +9,7 @@
 #include <list>
 #include <vector>
 
+#include "YgorDefinitions.h"
 
 namespace Stats {
 

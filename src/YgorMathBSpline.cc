@@ -1,5 +1,7 @@
 //YgorMathBSpline.cc.
 
+#include "YgorDefinitions.h"
+
 #ifdef YGOR_USE_GNU_GSL
 
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...

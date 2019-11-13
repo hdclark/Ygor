@@ -3,6 +3,8 @@
 #ifndef YGOR_MATH_CHEBYSHEV_FUNCTIONS_H_
 #define YGOR_MATH_CHEBYSHEV_FUNCTIONS_H_
 
+#include "YgorDefinitions.h"
+
 #include <stddef.h>
 #include <array>
 #include <cmath>

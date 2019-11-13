@@ -1,5 +1,7 @@
 //YgorImages.cc - Routines to help manage buffers of 2D data.
 //
+#include "YgorDefinitions.h"
+
 #include <stdlib.h>
 #include <algorithm>
 #include <cmath>      //For std::round(...)
@@ -16,16 +18,16 @@
 #include <utility>
 #include <vector>
 
-#ifdef YGOR_USE_EIGEN
-    #include <eigen3/Eigen/Dense>
-#endif // YGOR_USE_EIGEN
-
 #include "YgorImages.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"
 #include "YgorStats.h"    //For Stats::Mean().
 //#include "YgorPlot.h"
 #include "YgorString.h"   //For Is_String_An_X<>().
+
+#ifdef YGOR_USE_EIGEN
+    #include <eigen3/Eigen/Dense>
+#endif // YGOR_USE_EIGEN
 
 
 //#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS

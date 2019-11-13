@@ -18,6 +18,8 @@
 //#include "External/SpookyHash/SpookyV2.cpp"
 #include "External/MD5/md5.h"
 #include "External/SpookyHash/SpookyV2.h"
+
+#include "YgorDefinitions.h"
 #include "YgorAlgorithms.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"

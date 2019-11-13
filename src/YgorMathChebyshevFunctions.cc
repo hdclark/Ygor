@@ -1,5 +1,7 @@
 //YgorMathChebyshevFunctions.cc.
 
+#include "YgorDefinitions.h"
+
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <stdexcept>

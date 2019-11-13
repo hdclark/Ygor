@@ -10,6 +10,7 @@
 #include <istream>
 #include <ostream>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 
 

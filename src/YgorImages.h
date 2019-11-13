@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 
 

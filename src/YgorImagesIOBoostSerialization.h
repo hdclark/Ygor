@@ -17,6 +17,7 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/map.hpp>
 
+#include "YgorDefinitions.h"
 #include "YgorImages.h"
 
 #include "YgorMathIOBoostSerialization.h"

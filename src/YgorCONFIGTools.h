@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "YgorDefinitions.h"
+
 //A simple config file is one where:
 //  1) Each line is self-contained. There is no positional awareness (at least, no structural awareness.)
 //  2) Each comment line begins with optional whitespace and non-optional '#'. Non-comment lines with a '#' is OK.
