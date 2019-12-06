@@ -160,7 +160,7 @@ basis_spline::basis_spline(const samples_1D<double> &samps,
 // TODO! HACKED SOLUTION WITH NO BALANCING!
 for( ; used_extras < extras; ++used_extras) datum_count_for_bucket[used_extras] += 1;
         
-        if(std::accumulate(datum_count_for_bucket.begin(), datum_count_for_bucket.end(), 0) != this->datum){
+        if(static_cast<long long int>(std::accumulate(datum_count_for_bucket.begin(), datum_count_for_bucket.end(), 0)) != static_cast<long long int>(this->datum)){
             throw std::logic_error("Miscounted datum distributed to buckets.");
         }
 

@@ -539,7 +539,7 @@ bool CopyFile(const std::string &source, const std::string &destination){
 bool Does_Dir_Exist_And_Can_Be_Read(const std::string &dir){
     std::list<std::string> out;
     struct dirent **eps;
-    auto one = [](const struct dirent *unused) -> int { return 1; };
+    auto one = [](const struct dirent *) -> int { return 1; };
     int n = scandir(dir.c_str(), &eps, one, alphasort);
 
     return (n >= 0);
@@ -577,7 +577,7 @@ bool Append_List_of_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const
     // To discriminate certain attributes, see 
     //   http://www.gnu.org/software/libc/manual/html_node/Directory-Entries.html#Directory-Entries 
     // (where this routine originally came from!)
-    auto one = [](const struct dirent *unused) -> int { return 1; };
+    auto one = [](const struct dirent *) -> int { return 1; };
     int n = scandir(dir.c_str(), &eps, one, alphasort);
     if(n >= 0){
         for(int cnt = 0; cnt < n; ++cnt){
@@ -593,8 +593,9 @@ bool Append_List_of_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const
 }
 std::list<std::string> Get_List_of_File_and_Dir_Names_in_Dir(const std::string &dir){
     std::list<std::string> out;
-    const auto wasOK = Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
+    //const auto wasOK = Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
     //if(!wasOK) out.clear();
+    Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
     return out;
 }
 
@@ -613,8 +614,9 @@ bool Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(std::list<std::string> &
 }
 std::list<std::string> Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(const std::string &dir){
     std::list<std::string> out;
-    const auto wasOK = Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
+    //const auto wasOK = Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
     //if(!wasOK) out.clear();
+    Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
     return out;
 }
 

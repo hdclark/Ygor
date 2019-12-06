@@ -2092,16 +2092,15 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
 
     //If the user has provided an override, attempt to fallback to the safest (but also slowest) way to compute area.
     //
-    // NOTE: this special routine could be obviated in liey of the perimeter-walking method following. TODO FIXME.
+    // NOTE: this special routine could be obviated in lieu of the perimeter-walking method following. TODO FIXME.
     if(true){ //AssumePlanarContours){
-#pragma message "Warning - UGLY HACK FOR SKEW CONTOURS! FIXME! TODO!"
+#pragma message "Warning - This routine assumes all contours are planar. This assumption should be enforced or validated."
 
         //const auto C = this->Average_Point();
         const auto C = this->Centroid();
 
         auto itA = std::prev(this->points.end());
         auto itB = this->points.begin();
-        T signed_area = (T)(0);
         std::vector<T> dArea;
         while(itB != this->points.end()){
             //Compute the area by treating the contour as a triangle fan and summing the contribution from each
@@ -3428,7 +3427,7 @@ template <class T>  vec3<T> contour_of_points<T>::Get_Point_Within_Contour(void)
     const bool AlreadyProjected = true;
 
     //A simplistic, incomprehensive approach.
-    for(long int i = 3; i < N; ++i){
+    for(unsigned long int i = 3; i < N; ++i){
         const auto P = proj_cont.First_N_Point_Avg(i);    
         if(proj_cont.Is_Point_In_Polygon_Projected_Orthogonally(theplane, P, AlreadyProjected)){
             return P;
@@ -3710,7 +3709,7 @@ contour_of_points<T>:: Remove_Vertices(T area_threshold) const {
         throw std::runtime_error("Cannot simplify, contour is already a triangle");
     }
 
-    const bool AssumePlanar = true;
+    //const bool AssumePlanar = true;
     auto trimmed_area = static_cast<T>(0);
 
     contour_of_points<T> out(*this);
@@ -3775,7 +3774,7 @@ contour_of_points<T>:: Collapse_Vertices(T area_threshold) const {
         throw std::runtime_error("Cannot simplify, contour is already a triangle");
     }
 
-    const bool AssumePlanar = true;
+    //const bool AssumePlanar = true;
     auto trimmed_area = static_cast<T>(0);
 
     contour_of_points<T> out(*this);
@@ -4887,7 +4886,7 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
 
        //Given the current upper and lower planar bounds, compute the mid-plane.
        const auto lower_plane = plane<T>(planar_unit_normal, lower_bound);
-       const auto upper_plane = plane<T>(planar_unit_normal, upper_bound);
+       //const auto upper_plane = plane<T>(planar_unit_normal, upper_bound);
 
        const auto dist_between_planes = lower_plane.Get_Signed_Distance_To_Point( upper_bound );
        const auto mid_plane = plane<T>(planar_unit_normal, lower_bound + planar_unit_normal * dist_between_planes * static_cast<T>(0.5));
@@ -5785,8 +5784,9 @@ lin_reg_results<T>::sample_uniformly_over(T xmin, T xmax, size_t n) const {
     const auto zero = static_cast<T>(0);
     for(size_t i = 0; i < n; ++i){
         const auto x = static_cast<T>(i) * dx + xmin;
-        out.push_back( x, zero, this->evaluate_simple(x), zero );
+        out.push_back( x, zero, this->evaluate_simple(x), zero, InhibitSort );
     }
+    out.stable_sort();
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -7227,7 +7227,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Sum_With(const samples_1D<T> &g
                     out.push_back(*f_it, inhibit_sort);
                 }else{
                     const auto GG = g.Interpolate_Linearly(F_x_i);
-                    const T GG_x_i       = GG[0];
+                    //const T GG_x_i       = GG[0];
                     //const T GG_sigma_x_i = GG[1]; //Should always be zero.
                     const T GG_f_i       = GG[2];
                     const T GG_sigma_f_i = GG[3];
@@ -7252,7 +7252,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Sum_With(const samples_1D<T> &g
                     out.push_back(*g_it, inhibit_sort);
                 }else{
                     const auto FF = this->Interpolate_Linearly(G_x_i);
-                    const T FF_x_i       = FF[0];
+                    //const T FF_x_i       = FF[0];
                     //const T FF_sigma_x_i = FF[1]; //Should always be zero.
                     const T FF_f_i       = FF[2];
                     const T FF_sigma_f_i = FF[3];
@@ -7374,9 +7374,9 @@ template <class Function> std::array<T,2> samples_1D<T>::Integrate_Generic(const
     T res = (T)(0);
     T sigma = (T)(0);
     for(auto x = lowest_x;  x < (highest_x-(T)(0.5)*dx); x += dx){
-        const T x_low = x;
+        //const T x_low = x;
         const T x_mid = x + (T)(0.5)*dx;
-        const T x_top = x + dx;
+        //const T x_top = x + dx;
 
         const auto f_at_mid = this->Interpolate_Linearly(x_mid);
         const auto g_at_mid = g.Interpolate_Linearly(x_mid);
@@ -8329,13 +8329,15 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Driver(
             const auto Lendpoint = (pm_indx <= 0);                    //inclusive to the L endpoint.
             const auto Rendpoint = (pm_indx >= (sample_count-1));     //inclusive to the R endpoint.
 
-            long int bnd_index;
+            long int bnd_index = 0;
             if(realpoint){
                 bnd_index = indx;
             }else if(Lendpoint){
                 bnd_index = 0;
             }else if(Rendpoint){
                 bnd_index = (sample_count-1);
+            }else{
+                throw std::logic_error("Index was not anticipated. Refusing to continue.");
             }
 
             //Compute the weighted contribution from this point, virtual or real.
@@ -8547,13 +8549,15 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_D
             const auto Lendpoint = (pm_indx <= 0);                    //inclusive to the L endpoint.
             const auto Rendpoint = (pm_indx >= (sample_count-1));     //inclusive to the R endpoint.
 
-            long int bnd_index;
+            long int bnd_index = 0;
             if(realpoint){
                 bnd_index = indx;
             }else if(Lendpoint){
                 bnd_index = 0;
             }else if(Rendpoint){
                 bnd_index = (sample_count-1);
+            }else{
+                throw std::logic_error("Index was not anticipated. Refusing to continue.");
             }
 
             //Push the datum into the shuttle as many times as the weighting requires.
@@ -8727,11 +8731,10 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differ
     //       Ideally, they should propagate standard operations errors AND the inherent finite-difference
     //       errors (of order O(dx)) PLUS any estimated local sampling noise (if possible).
 
-    #pragma message "Warning - finite difference routine are lacking uncertainty-handling!"
+    #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
     if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
-    const bool InhibitSort = true;
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -8787,11 +8790,10 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Backward_Finite_Diffe
     //       Ideally, they should propagate standard operations errors AND the inherent finite-difference
     //       errors (of order O(dx)) PLUS any estimated local sampling noise (if possible).
 
-    #pragma message "Warning - finite difference routine are lacking uncertainty-handling!"
+    #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
     if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
-    const bool InhibitSort = true;
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -8847,11 +8849,10 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Centered_Finite_Diffe
     //       Ideally, they should propagate standard operations errors AND the inherent finite-difference
     //       errors (of order O(dx)) PLUS any estimated local sampling noise (if possible).
 
-    #pragma message "Warning - finite difference routine are lacking uncertainty-handling!"
+    #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
     if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
-    const bool InhibitSort = true;
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -8984,8 +8985,8 @@ samples_1D<T> samples_1D<T>::Local_Signed_Curvature_Three_Datum(void) const {
         
         const T AymBy(Ay-By), AymCy(Ay-Cy), BymCy(By-Cy);
         const T AxmBx(Ax-Bx), AxmCx(Ax-Cx), BxmCx(Bx-Cx);
-        const T BymAy(-AymBy), CymAy(-AymCy), CymBy(-BymCy);
-        const T BxmAx(-AxmBx), CxmAx(-AxmCx), CxmBx(-BxmCx);
+        const T BymAy(-AymBy), /*CymAy(-AymCy),*/ CymBy(-BymCy);
+        const T /*BxmAx(-AxmBx),*/ CxmAx(-AxmCx) /*, CxmBx(-BxmCx)*/;
         
         const T det = AymBy*AxmCx-AxmBx*AymCy;
         const T invdet = (T)(1)/det;

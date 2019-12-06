@@ -237,7 +237,6 @@ template <class C> typename C::value_type Stats::Sum(C in){
 
 template <class C> typename C::value_type Stats::Sum_Squares(C in){
     //Sums the squares of the given numbers. Overflow is not currently detected, though it could be if needed.
-    using T = typename C::value_type; //Internal type, like double or integer.
     for(auto &elem : in) elem = std::pow(elem,2);
     return Stats::Sum(std::move(in));
 }
@@ -712,7 +711,7 @@ double Stats::P_From_Paired_Ttest_2Tail(const std::vector<std::array<double,2>> 
 
     //Compute the signed difference between paired elements.
     std::vector<double> diffs(N);
-    for(auto i = 0; i < N; ++i) diffs[i] = paired_datum[i][1] - paired_datum[i][0];
+    for(size_t i = 0; i < N; ++i) diffs[i] = paired_datum[i][1] - paired_datum[i][0];
 
     const auto mean  = Stats::Mean(diffs); //Mean difference.
     const auto var   = Stats::Unbiased_Var_Est(diffs); //Variance of differences.
@@ -754,7 +753,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     }
  
     //Verify there is still enough data to perform a meaningful comparison.
-    const auto N_red = working.size();
+    const auto N_red = static_cast<long int>(working.size());
     if(N_red < 6){  // <--- equiv to (N_red*(N_red + 1))/2 <= 20.
         FUNCWARN("Too few datum remaining after pruning identically-valued pairs to provide meaningful statistics");
         return std::numeric_limits<double>::quiet_NaN();
@@ -775,7 +774,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     double W_pos_shtl = 0.0;   //Sum of ranks for positive-signed elements.
     double W_neg_shtl = 0.0;   //Sum of ranks for negitive-signed elements.
     long int N_tied_ranks = 0; //Number of tied ranks (+1 for each element, so +2 if rank is shared by two elements).
-    for(auto i = 0; i < N_red;  ){
+    for(long int i = 0; i < N_red;  ){
         auto j = i+1;
         for(  ; j < N_red; ++j){
             if(working[i][0] != working[j][0]) break;
@@ -786,7 +785,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
         const double start_rank = static_cast<double>(i+1); //One-based rank.
         const double end_rank   = static_cast<double>(dup_elems - 1) + start_rank;
         const double avg_rank   = 0.5*start_rank + 0.5*end_rank;
-        for(auto k = 0; k < dup_elems; ++k){
+        for(long int k = 0; k < dup_elems; ++k){
             const auto elems_sign = working[k+i][1];
             if(elems_sign > 0){
                 W_pos_shtl += avg_rank;
@@ -955,7 +954,8 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
       F.function = integrand;
       F.params = static_cast<void*>(&N);
 
-      const int status = gsl_integration_qags(&F, r, 1.0, 0.0, 1e-4, 5000, w, &result, &error); 
+      //const int status = gsl_integration_qags(&F, r, 1.0, 0.0, 1e-4, 5000, w, &result, &error); 
+      gsl_integration_qags(&F, r, 1.0, 0.0, 1e-4, 5000, w, &result, &error); 
       if(w->size >= 5000){
           FUNCERR("GNU GSL failed to numerically integrate. Cannot continue");
       }

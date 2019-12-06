@@ -21,7 +21,7 @@ else
       -DWITH_BOOST=ON 
 
 fi
-make -j $(nproc) && make package
+make -j $(nproc) VERBOSE=1 && make package
 mv *.deb "${BUILTPKGSDIR}/"
 popd
 

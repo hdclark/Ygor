@@ -63,8 +63,7 @@ Detect_Machine_Endianness(void){
 //Dump raw pixel data to file as type T.
 //
 // NOTE: This data can be converted to whatever using ImageMagick ala:
-//       convert -size `W`x`H` -depth `sizeof(T)` -define quantum:format=`T` \
-//               -type grayscale  input.gray -depth 16 ... out.jpg
+//       convert -size `W`x`H` -depth `sizeof(T)` -define quantum:format=`T` -type grayscale in.gray -depth 16 ... out.jpg
 //       where the number of channels, pixel size, etc.. are recorded in other places (no header).
 //       At the time of writing, this does not work when T = uint32_t, and no info is produced as 
 //       to why. It seems the ImageMagick QuantumDepth might be compiled-in too low, but it is not
@@ -472,7 +471,9 @@ ReadFromFITS(const std::string &filename, YgorImageIOEndianness userE){
 
     for(auto & acard : primary_header){
         FI.read(acard.data(),acard.size());
-        if(FI.gcount() != acard.size()) throw std::runtime_error("Not enough data to read full card.");
+        if(static_cast<long long int>(FI.gcount()) != static_cast<long long int>(acard.size())){
+            throw std::runtime_error("Not enough data to read full card.");
+        }
     }
 
     //Decipher metadata needed to continue reading. Separate the key and parse the value and then use the value
@@ -727,7 +728,7 @@ ReadFromFITS(const std::string &filename, YgorImageIOEndianness userE){
     for(long int i = 0; i < BytesOfPad; ++i) FI.get();
 
     //Check if there is another HDU to read.
-    if((BytesToRead + BytesOfPad + 2880) != FileLength){
+    if(static_cast<long int>(BytesToRead + BytesOfPad + 2880) != FileLength){
          throw std::runtime_error("There is additional data to be read. This is not yet supported"); 
     }
 

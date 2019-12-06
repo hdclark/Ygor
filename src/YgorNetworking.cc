@@ -311,7 +311,7 @@ std::string Simple_HTTP_Request(const std::string &host, const std::string &requ
     //   ... = Simple_HTTP_Request("icanhazip.com/", "");
 
     std::string result;
-    auto dialog = [&](int fd, char *host, long int port) -> bool {
+    auto dialog = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
         int nbytes;
         const int buffsz = 5000;
         char buff[buffsz];
@@ -473,7 +473,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
 
     //Provide some sane default dialog routines. These do not have to be fancy, they just
     // need to work and do something basic but non-trivial.
-    this->DEFAULT_SERVER_DIALOG_LAMBDA = [&](int fd, char *host, long int port) -> bool {
+    this->DEFAULT_SERVER_DIALOG_LAMBDA = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
 
         //Upon connection, we immediately send a message to the client.
         if(send(fd, "This is the default dialog response!", 39, MSG_NOSIGNAL) == -1){
@@ -485,7 +485,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
         return true;
     };
 
-    this->DEFAULT_CLIENT_DIALOG_LAMBDA = [&](int fd, char *host, long int port) -> bool {
+    this->DEFAULT_CLIENT_DIALOG_LAMBDA = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
         int numbytes;
         const int BUFFSIZE = 100;
         char buff[BUFFSIZE];
@@ -600,7 +600,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     }
 
     //"Reap" all dead processes.
-    auto handler_lambda = [](int s) -> void {  while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
+    auto handler_lambda = [](int) -> void {  while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
     this->SERVER_sa.sa_handler = handler_lambda; //[](int s) -> void {  while(waitpid(-1, NULL, WNOHANG) > 0){
 
     sigemptyset(&this->SERVER_sa.sa_mask);
@@ -1246,7 +1246,7 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
 
     //Provide some sane default dialog routines. These do not have to be fancy, they just
     // need to work and do something basic but non-trivial.
-    this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char *host, long int port) -> bool {
+    this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char * /*host*/, long int /*port*/) -> bool {
         //Send a simple message to all radios. This entire lambda will be looped over forever.
         if(send(fd, "This is the default beacon message!", 38, MSG_NOSIGNAL) == -1){
             if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon unable to send()");
@@ -1259,7 +1259,7 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
         return true;
     };
 
-    this->DEFAULT_RADIO_DIALOG_LAMBDA = [](int fd, char *host, long int port) -> bool {
+    this->DEFAULT_RADIO_DIALOG_LAMBDA = [](int fd, char * /*host*/, long int /*port*/) -> bool {
         int numbytes;
         const int BUFFSIZE = 100;
         char buff[BUFFSIZE];
@@ -1355,7 +1355,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     signal(SIGPIPE, SIG_IGN);
 
     //"Reap" all dead processes.
-    auto handler_lambda = [](int s) -> void { while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
+    auto handler_lambda = [](int) -> void { while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
     this->RADIO_sa.sa_handler = handler_lambda;
 
     sigemptyset(&this->RADIO_sa.sa_mask);

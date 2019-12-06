@@ -432,7 +432,6 @@ cheby_approx<T>::Sample_On( const samples_1D<T> &s1D,
         //If you want more, simply re-prepare requesting a sufficiently high number of coefficients.
     }
 
-    const bool InhibitSort = true;
     for(auto &asample : s1D_sorted.samples){
         const T x = asample[0];
         const T f = this->Sample(x,numb_of_c_to_use);
