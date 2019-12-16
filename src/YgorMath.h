@@ -474,8 +474,8 @@ template <class T>   class contour_collection {
 
         void Insert_Metadata(const std::string &key, const std::string &val); //For all contours. Overwrites if existing keys present.
 
-        std::map<std::string,std::string> get_common_metadata(const std::list<std::reference_wrapper<contour_collection<T>>> &ccl,
-                                                              const std::list<std::reference_wrapper<contour_of_points<T>>> &copl); //Uses both *this and input.
+        std::map<std::string,std::string> get_common_metadata(const std::list<std::reference_wrapper<const contour_collection<T>>> &ccl,
+                                                              const std::list<std::reference_wrapper<const contour_of_points<T>>> &copl) const; //Uses both *this and input.
         std::list<std::string> get_all_values_for_key(const std::string &akey) const;
         std::list<std::string> get_unique_values_for_key(const std::string &akey) const;
 

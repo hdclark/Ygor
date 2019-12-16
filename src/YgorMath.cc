@@ -5152,18 +5152,18 @@ contour_collection<T>::Insert_Metadata(const std::string &key, const std::string
 // For ordering purposes, contours in *this are considered to have priority over those in 'in'.
 template <class T>
 std::map<std::string,std::string> 
-contour_collection<T>::get_common_metadata(const std::list<std::reference_wrapper<contour_collection<T>>> &ccl,
-                                           const std::list<std::reference_wrapper<contour_of_points<T>>> &copl){
+contour_collection<T>::get_common_metadata(const std::list<std::reference_wrapper<const contour_collection<T>>> &ccl,
+                                           const std::list<std::reference_wrapper<const contour_of_points<T>>> &copl) const {
 
     //Collect all available metadata.
-    std::list<std::reference_wrapper<contour_of_points<T>>> c_refs;
+    std::list<std::reference_wrapper<const contour_of_points<T>>> c_refs;
 
-    for(auto &c : this->contours){
-        c_refs.emplace_back( std::ref(c) );
+    for(const auto &c : this->contours){
+        c_refs.emplace_back( std::cref(c) );
     }
     for(const auto &cc : ccl){
         for(auto &c : cc.get().contours){
-            c_refs.emplace_back( std::ref(c) );
+            c_refs.emplace_back( std::cref(c) );
         }
     }
     for(const auto &cr : copl) c_refs.emplace_back(cr);
@@ -5192,12 +5192,12 @@ contour_collection<T>::get_common_metadata(const std::list<std::reference_wrappe
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template std::map<std::string,std::string> 
         contour_collection<float >::get_common_metadata(
-                const std::list<std::reference_wrapper<contour_collection<float >>> &,
-                const std::list<std::reference_wrapper<contour_of_points<float >>> &);
+                const std::list<std::reference_wrapper<const contour_collection<float >>> &,
+                const std::list<std::reference_wrapper<const contour_of_points<float >>> &) const;
     template std::map<std::string,std::string> 
         contour_collection<double>::get_common_metadata(
-                const std::list<std::reference_wrapper<contour_collection<double>>> &,
-                const std::list<std::reference_wrapper<contour_of_points<double>>> &);
+                const std::list<std::reference_wrapper<const contour_collection<double>>> &,
+                const std::list<std::reference_wrapper<const contour_of_points<double>>> &) const;
 #endif
 
 //Returns a copy of all values that correspond to the given key. Order is maintained.
