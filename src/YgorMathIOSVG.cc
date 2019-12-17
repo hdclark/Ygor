@@ -21,13 +21,30 @@ template <class T>
 bool
 WriteCCToSVG(const contour_collection<T> &cc,
              const plane<T> &P,
-             std::ostream &os ){
+             std::ostream &os,
+             T extra_space,     // The nearest separation between the contour and the edge of the viewbox.
+             T font_size,       // The size of the text's font in the same units as the contours (i.e., mm).
+             std::string perimeter_text){
 
     // Ensure the contour is planar by projecting it onto a plane derived from the contour itself.
     //const auto N = cop.Estimate_Planar_Normal();
     //const auto P = cop.Least_Squares_Best_Fit_Plane(N);
     const auto N = P.N_0;
     const auto P_zero = P.Project_Onto_Plane_Orthogonally(vec3<T>(0.0, 0.0, 0.0));
+
+    // Used to determine when text must be base64 encoded.
+    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
+        for(const auto &x : in){
+            // Permit words/sentences but not characters that could potentially affect file interpretation.
+            if( !std::isprint(x) 
+                || (x == static_cast<unsigned char>('<'))
+                || (x == static_cast<unsigned char>('>'))
+                || (x == static_cast<unsigned char>('&')) ) return true;
+                //|| (x == static_cast<unsigned char>('"'))
+                //|| (x == static_cast<unsigned char>('\'')) ) return true;
+        }
+        return false;
+    };
 
     // Create a reproducible 2D coordinate system.
     const T pi = static_cast<T>(3.14159265358979323846264338328);
@@ -54,11 +71,10 @@ WriteCCToSVG(const contour_collection<T> &cc,
 
             const auto x_proj = P_X.Dot( p - P_zero );
             const auto y_proj = P_Y.Dot( p - P_zero );
-            const auto eps = static_cast<T>(1.5); // Extra space surrounding the contours to avoid clipping at edges and line thickness.
-            if(!std::isfinite(x_min) || ((x_proj - eps) < x_min)) x_min = (x_proj - eps);
-            if(!std::isfinite(x_max) || ((x_proj + eps) > x_max)) x_max = (x_proj + eps);
-            if(!std::isfinite(y_min) || ((y_proj - eps) < y_min)) y_min = (y_proj - eps);
-            if(!std::isfinite(y_max) || ((y_proj + eps) > y_max)) y_max = (y_proj + eps);
+            if(!std::isfinite(x_min) || ((x_proj - extra_space) < x_min)) x_min = (x_proj - extra_space);
+            if(!std::isfinite(x_max) || ((x_proj + extra_space) > x_max)) x_max = (x_proj + extra_space);
+            if(!std::isfinite(y_min) || ((y_proj - extra_space) < y_min)) y_min = (y_proj - extra_space);
+            if(!std::isfinite(y_max) || ((y_proj + extra_space) > y_max)) y_max = (y_proj + extra_space);
         }
     }
 
@@ -84,18 +100,6 @@ WriteCCToSVG(const contour_collection<T> &cc,
     {
         auto cm = cc.get_common_metadata({}, {});
 
-        const auto needs_to_be_escaped = [](const std::string &in) -> bool {
-            for(const auto &x : in){
-                // Permit words/sentences but not characters that could potentially affect file interpretation.
-                if( !std::isprint(x) 
-                    || (x == static_cast<unsigned char>('<'))
-                    || (x == static_cast<unsigned char>('>'))
-                    || (x == static_cast<unsigned char>('&'))
-                    || (x == static_cast<unsigned char>('"'))
-                    || (x == static_cast<unsigned char>('\'')) ) return true;
-            }
-            return false;
-        };
         for(const auto &mp : cm){
             const auto key = mp.first;
             const auto value = mp.second;
@@ -109,6 +113,39 @@ WriteCCToSVG(const contour_collection<T> &cc,
                 os << "<!-- metadata: '" << key << "' = '" << value << "' -->" << std::endl;
             }
         }
+    }
+
+    // Emit a non-displayed path that we can later attach text to.
+    if(!perimeter_text.empty()){
+        os << R"***(<defs>)***" << std::endl;
+        long int contour_number = 0;
+        for(const auto &cop : cc.contours){
+            const auto proj = cop.Project_Onto_Plane_Orthogonally(P);
+            contour_of_points<T> reoriented;
+            reoriented.closed = true;
+            for(const auto &p : proj.points){
+                const auto x_proj = P_X.Dot( p - P_zero );
+                const auto y_proj = P_Y.Dot( p - P_zero );
+                reoriented.points.emplace_back(x_proj, -y_proj, static_cast<T>(0));
+            }
+            reoriented.Reorient_Counter_Clockwise();
+
+            os << R"***(<path id="contour)***" << contour_number++ << R"***(" fill="none" stroke="black")***";
+            os << R"***( d=")***";
+
+            bool first = true;
+            for(const auto &p : reoriented.points){
+                if(first){
+                    first = false;
+                    os << "M "; // Move to the first vertex without creating a line.
+                }else{
+                    os << " L "; // Line to the next vertex.
+                }
+                os << p.x << "," << p.y;
+            }
+            os << R"***( Z " />)***" << std::endl; // Close the polygon.
+        }
+        os << R"***(</defs>)***" << std::endl;
     }
 
     // Emit contours.
@@ -128,8 +165,27 @@ WriteCCToSVG(const contour_collection<T> &cc,
         }
         os << R"***(")***";
         //os << R"***( style="fill: silver; stroke: black; stroke-width: 0.1mm; fill-rule: nonzero;" />)***" << std::endl;
-        os << R"***( style="fill: none; stroke: black; stroke-width: 0.1mm; " />)***" << std::endl;
+        os << R"***( style="fill: silver; fill-opacity: 75%; stroke: black; stroke-width: 0.1mm; " />)***" << std::endl;
     }
+
+    // Place text along the paths.
+    if(!perimeter_text.empty()){
+        os << R"***(<text>)***" << std::endl;
+        long int contour_number = 0;
+        for(const auto &cop : cc.contours){
+            os << R"***(<textPath href="#contour)***" << contour_number++ << R"***(")***" << std::endl;
+            os << R"***( style="font-size: )***" << font_size << R"***(mm; ">)***" << std::endl;
+            const auto expanded_perimeter_text = ExpandMacros(perimeter_text, cop.metadata, "$");
+            if(needs_to_be_escaped(expanded_perimeter_text)){
+                os << "base64: " << Base64::EncodeFromString(expanded_perimeter_text) << std::endl;
+            }else{
+                os << expanded_perimeter_text << std::endl;
+            }
+            os << R"***(</textPath>)***" << std::endl;
+        }
+        os << R"***(</text>)***" << std::endl;
+    }
+
     os << R"***(</svg>)***" << std::endl;
 
     // Reset the precision on the stream.
@@ -139,8 +195,10 @@ WriteCCToSVG(const contour_collection<T> &cc,
     return(!os.fail());
 }
 #ifndef YGORMATHIOSVG_DISABLE_ALL_SPECIALIZATIONS
-    template bool WriteCCToSVG(const contour_collection<float > &, const plane<float > &, std::ostream &);
-    template bool WriteCCToSVG(const contour_collection<double> &, const plane<double> &, std::ostream &);
+    template bool WriteCCToSVG(const contour_collection<float > &, const plane<float > &, std::ostream &,
+                               float , float , std::string);
+    template bool WriteCCToSVG(const contour_collection<double> &, const plane<double> &, std::ostream &,
+                               double, double, std::string);
 #endif
 
 

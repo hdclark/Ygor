@@ -170,6 +170,11 @@ std::string GetLineNBelow( std::vector<std::string> &source, std::string query, 
 
 std::vector<std::vector<std::string>> GetSubVectorFromTo( std::vector<std::string> &in, std::string from, std::string to);
 
+std::string ExpandMacros(std::string unexpanded, 
+                         const std::map<std::string, std::string> &replacements,
+                         std::string indicator_symbol = "$"_s, 
+                         std::string allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------- URL-handling routines ---------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------

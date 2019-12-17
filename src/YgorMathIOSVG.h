@@ -19,5 +19,8 @@ template <class T>
 bool
 WriteCCToSVG(const contour_collection<T> &cc,
              const plane<T> &plane,
-             std::ostream &os );
+             std::ostream &os,
+             T extra_space = static_cast<T>(5),     // The nearest separation between the contour and the edge of the viewbox.
+             T font_size = static_cast<T>(1),       // The size of the text's font in the same units as the contours (i.e., mm).
+             std::string perimeter_text = "");      // Text to render along the contour. Reference metadata keys like '$Key'.
 

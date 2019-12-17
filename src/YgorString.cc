@@ -1241,6 +1241,29 @@ std::vector<std::vector<std::string> > GetSubVectorFromTo( std::vector<std::stri
     return matches;
 }
 
+// This routine performs macro expansion over a given text using a regex lookup and replacement, replacing instances of
+// the indicator symbol (e.g., '$') followed by one or more of the specified allowed characters (i.e., '$Modality' or
+// '$Variable123'). The parameter in the text is replaced with the key's corresponding value from the provided map.
+std::string ExpandMacros(std::string text, 
+                         const std::map<std::string, std::string> &replacements,
+                         std::string indicator_symbol, 
+                         std::string allowed_characters){
+
+    // Detect all parameters that need to be replaced. For example: "Lorem ipsum $SomeKeyToReplace sit amet ..."
+    const auto param_regex = "["_s + indicator_symbol + "]([" + allowed_characters + "]+)[^" + allowed_characters + indicator_symbol + "]*";
+    auto parameters = GetAllRegex2(text, param_regex);
+    if(parameters.empty()) return text; // No parameters detected, so no expansion needed.
+
+    // Lookup the replacement. If present, replace it. Otherwise, ignore it.
+    for(const auto &p : parameters){
+        const auto p_it = replacements.find(p);
+        if(p_it != std::end(replacements)){
+            text = ReplaceAllInstances(text, "["_s + indicator_symbol + "]" + p_it->first, p_it->second);
+        }
+    }
+    return text;
+}
+
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------- URL-handling routines ---------------------------------------------------

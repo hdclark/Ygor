@@ -32,12 +32,14 @@ int main(int, char **){
         copA.points.emplace_back(vec3<double>(x,y,0.0));
         ssA >> dummy; // Consume the next separator char.
     }
+    copA.metadata["ROIName"] = "patient's left lung";
 
     contour_of_points<double> copB;
     while(ssB >> x >> dummy >> y){
         copB.points.emplace_back(vec3<double>(x,y,0.0));
         ssB >> dummy; // Consume the next separator char.
     }
+    copB.metadata["ROIName"] = "patient's right lung";
 
     // Rescale all coordinates by a constant factor.
     for(auto &p : copA.points){
@@ -61,7 +63,7 @@ int main(int, char **){
         const plane<double> P( vec3<double>(0.0, 0.0, 1.0),
                                vec3<double>(0.0, 0.0, 0.0) );
         std::ofstream os("/tmp/cc.svg");
-        if(!WriteCCToSVG(cc, P, os)){
+        if(!WriteCCToSVG(cc, P, os, 5.0, 1.0, "ROI Name: $ROIName.")){
             FUNCERR("Unable to write contour collection to SVG file. Refusing to continue.");
         }
     }
