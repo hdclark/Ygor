@@ -100,7 +100,7 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
     if(size == nullptr){
         FUNCWARN("Passed a nullptr instead of a space to store buffer size. Bailing");
         if(OK == nullptr) FUNCERR("Cannot signal error through OK ptr. Cannot continue");
-        return std::move(out);
+        return out;
     }
     *size = 0U;
     const auto l_size = in.size(); //Size of string in bytes.
@@ -117,14 +117,14 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
         // in a pinch, try adding a few more elements until the numbers work out.
         FUNCWARN("Data cannot be represented as the specified type. File is of size " << l_size << "b and template has size " << sizeof(T) << "b");
         if(OK == nullptr) FUNCERR("Cannot signal error through OK ptr. Cannot continue");
-        return std::move(out);
+        return out;
     }
 
     out = std::make_unique<T[]>( l_size/sizeof(T) );      //Allocate space for the entire block to be pulled into memory.
     memcpy((void *)(out.get()), (void *)(in.data()), l_size);
     *size = static_cast<uint64_t>(l_size/sizeof(T));
     if(OK != nullptr) *OK = true;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
 template std::unique_ptr<uint8_t[]>  str_to_buf(bool *OK, const std::string &in, uint64_t *size);
@@ -619,7 +619,7 @@ std::string Get_Preceeding_Chars(const std::string &in, size_t N){
         out.push_back(*it);
         ++it;
     }
-    return std::move(out);
+    return out;
 }
 
 //Returns N or less characters, as counted from the back.
@@ -633,7 +633,7 @@ std::string Get_Trailing_Chars(const std::string &in, size_t N){
         ++it;
     }
     std::reverse(out.begin(), out.end());
-    return std::move(out);
+    return out;
 }
 
 
@@ -660,7 +660,7 @@ std::string Remove_Unneeded_Surrounding_Parenthesis(const std::string &in, char 
         if(level < 0) break;
         out = out.substr(1, (out.size()-1)-1);
     }
-    return std::move(out);
+    return out;
 }
 
 //This function explicitly wraps objects separated by commas into parenthesis-delimited blocks.
@@ -690,7 +690,7 @@ std::string Wrap_Comma_Separated_Stuff_At_Same_Depth(const std::string &in, char
         }
     }
     if(foundcommas) return std::string(1,L) + out + std::string(1,R);
-    return std::move(out);
+    return out;
 }
 
 

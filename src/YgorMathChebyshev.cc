@@ -173,7 +173,7 @@ cheby_approx<T>::Prepare( const samples_1D<T> &s1D,
     const T nT = static_cast<T>(numb_of_c_in);
 
     //Calculate the Chebyshev coefficients (up to user-specified n; not all must be used later).    
-    this->c.empty();
+    this->c.clear();
     this->c.reserve(numb_of_c_in);
 
     std::vector<T> f;
@@ -239,7 +239,7 @@ cheby_approx<T>::Prepare( const std::function<T(T)> &func,
     const T nT = static_cast<T>(numb_of_c_in);
 
     //Calculate the Chebyshev coefficients (up to user-specified n; not all must be used later).    
-    this->c.empty();
+    this->c.clear();
     this->c.reserve(numb_of_c_in);
 
     std::vector<T> f;
@@ -304,7 +304,7 @@ cheby_approx<T>::Prepare( const std::vector<T> &c_in,
         throw std::invalid_argument("Domain consists of a single point. Approximation not useful");
     }
 
-    this->c.empty();
+    this->c.clear();
     this->c = c_in;
     return;
 }

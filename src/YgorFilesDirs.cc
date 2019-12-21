@@ -152,7 +152,7 @@ template <class T> std::unique_ptr<T[]> Get_Piece_of_Binary_File(const std::stri
     in.seekg(0,std::ios::beg);
     in.seekg(N);
     in.read(reinterpret_cast<char*>(mem.get()), static_cast<std::streamsize>(L));
-    return std::move(mem); 
+    return mem; 
 }
 #ifndef YGORFILESDIRS_DISABLE_ALL_SPECIALIZATIONS
 /*
@@ -287,7 +287,7 @@ template <class T> std::unique_ptr<T[]> Load_Binary_File(const std::string &file
     in.close();
 
     (*size) = static_cast<intmax_t>(l_size/sizeof(T));
-    return std::move(mem);
+    return mem;
 }
 #ifndef YGORFILESDIRS_DISABLE_ALL_SPECIALIZATIONS
 /*

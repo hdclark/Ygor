@@ -77,7 +77,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
             const double bi(l_vector_kernel(dx/h)*(S2 - dx*S1));
             out[cnt] = bi;
         }
-        return std::move(out);
+        return out;
     }
     
     static std::vector<double> l_vector(const double h, const samples_1D<double> &data , double x, bool *OK){
@@ -89,10 +89,10 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
         //Divide each b_i by the sum of all b_i's.
         const double b_sum(std::accumulate(bs.begin(), bs.end(), 0.0));
-        if(!std::isnormal(b_sum) || !std::isnormal(1.0/b_sum)){ *OK = false; return std::move(bs); }
+        if(!std::isnormal(b_sum) || !std::isnormal(1.0/b_sum)){ *OK = false; return bs; }
         for(double & b : bs) b /= b_sum;
     
-        *OK = true; return std::move(bs);
+        *OK = true; return bs;
     }
     
     double Get_Smoothed_at_X(double h, double x, const samples_1D<double> &in, bool *OK){
@@ -583,7 +583,7 @@ std::unique_ptr<uint8_t[]> MD5_Hash(bool *OK, std::unique_ptr<uint8_t[]> in, uin
     if(hash == nullptr){
         if(OK == nullptr) FUNCERR("Passed a nullptr instead of a space to store resulting hash. Cannot continue");
         FUNCWARN("Passed a nullptr instead of a space to store resulting hash. Bailing");
-        return std::move(in);
+        return in;
     }
     if(!hash->empty()){
         FUNCWARN("Passed a non-empty hash store. Assuming appending hashes is desired");
@@ -604,7 +604,7 @@ std::unique_ptr<uint8_t[]> MD5_Hash(bool *OK, std::unique_ptr<uint8_t[]> in, uin
     *hash += ss.str();
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 

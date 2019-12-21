@@ -2524,7 +2524,7 @@ template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void)
     out.push_back(this->position(this->rows-1,              0) + Rrow - Rcol);
     out.push_back(this->position(this->rows-1,this->columns-1) + Rrow + Rcol);
     out.push_back(this->position(           0,this->columns-1) - Rrow + Rcol);
-    return std::move(out);
+    return out;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template std::list<vec3<double>> planar_image<uint8_t ,double>::corners2D(void) const;

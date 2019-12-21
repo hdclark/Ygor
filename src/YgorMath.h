@@ -177,6 +177,7 @@ template <class T>   class line {
         line(const vec3<T> &R_A, const vec3<T> &R_B);
 
         //Member functions.
+        line<T>& operator=(const line<T> &) = default;
         T Distance_To_Point( const vec3<T> & ) const;
 
         bool Intersects_With_Line_Once( const line<T> &, vec3<T> &) const;
@@ -207,6 +208,7 @@ template <class T>   class line_segment : public line<T> {
         line_segment(const vec3<T> &R_A, const vec3<T> &R_B);  //Line segment starts at A (at t=t_0), terminates at B (at t=t_1.)
 
         //Member functions.
+        line_segment<T>& operator=(const line_segment<T> &) = default;
         vec3<T> Closest_Point_To(const vec3<T> &) const; // Finds the point along the segment nearest to the given point.
                                                          // Honours the endpoints.
 
@@ -236,6 +238,7 @@ template <class T>   class sphere {
         sphere(const vec3<T> &C, T r);
 
         //Member functions.
+        sphere<T>& operator=(const sphere<T> &) = default;
         T Distance_To_Point( const vec3<T> & ) const;
 
         std::vector<vec3<T>> Line_Intersections( const line<T> & ) const; // Can have size 0, 1, or 2.
@@ -267,6 +270,8 @@ template <class T>   class plane {
         plane(const vec3<T> &N_0_in, const vec3<T> &R_0_in);
 
         //Member functions.
+        plane<T>& operator=(const plane<T> &) = default;
+
         T Get_Signed_Distance_To_Point(const vec3<T> &R) const;
         bool Is_Point_Above_Plane(const vec3<T> &R) const;      //Essentially returns the sign. True if pointing in direction of plane's 
                                                                 // positive normal, false if in opposite direction. Do not rely on any sign

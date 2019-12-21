@@ -372,8 +372,8 @@ bool time_mark::Occur_on_same_day(const time_mark &in) const {
 std::unique_ptr<uint8_t[]> 
 time_mark::Serialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, uint64_t *buf_size) const {
     if(OK != nullptr) *OK = false;
-    SERIALIZE_WARNFAIL_OR_DIE((buf_size == nullptr), OK, "Passed an invalid *buf_size.",std::move(in));
-    SERIALIZE_WARNFAIL_OR_DIE((offset == nullptr), OK, "Passed an invalid *offset.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE((buf_size == nullptr), OK, "Passed an invalid *buf_size.",in);
+    SERIALIZE_WARNFAIL_OR_DIE((offset == nullptr), OK, "Passed an invalid *offset.",in);
 
     //If the buffer is not yet allocated, allocate an appropriately-sized buffer.
     if(in == nullptr){
@@ -410,21 +410,21 @@ time_mark::Serialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, 
            (std::numeric_limits<double>::max_exponent == 1024) &&
            (std::numeric_limits<double>::digits == 53) &&
            (std::numeric_limits<double>::radix == 2));
-    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Non-standard platform double representation.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Non-standard platform double representation.",in);
 
     //Version number.
     const uint64_t version = 2;
     in = SERIALIZE::Put_Size(&l_OK,std::move(in),offset,*buf_size, version);
-    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Put version.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Put version.",in);
 
     //When (in std::string format).
     const auto stringified = this->Dump_as_string();
     in = SERIALIZE::Put(&l_OK,std::move(in),offset,*buf_size, stringified);
-    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Put stringified this->When.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Put stringified this->When.",in);
     //------ </Version 2 @ 20131017> -------
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 //Deserialize (deeply) from buffer starting at *offset. Contrary to the counterpart
@@ -439,12 +439,12 @@ time_mark::Serialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, 
 std::unique_ptr<uint8_t[]> 
 time_mark::Deserialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, uint64_t buf_size){
     if(OK != nullptr) *OK = false;
-    SERIALIZE_WARNFAIL_OR_DIE((offset == nullptr), OK, "Passed an invalid *offset.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE((offset == nullptr), OK, "Passed an invalid *offset.",in);
 
     bool l_OK;
     uint64_t version;
     in = SERIALIZE::Get_Size(&l_OK,std::move(in),offset,buf_size, &(version));
-    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Get version.",std::move(in));
+    SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Get version.",in);
 
     if(version == 1){
         /*
@@ -461,7 +461,7 @@ time_mark::Deserialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset
         //------ </Version 1 @ 20130905> -------
         */
         l_OK = false;
-        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Can't handle v1 serialization. Functionality was removed.",std::move(in));
+        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Can't handle v1 serialization. Functionality was removed.",in);
 
     }else if(version == 2){
         //------ <Version 2 @ 20131017> -------
@@ -470,23 +470,23 @@ time_mark::Deserialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset
                (std::numeric_limits<double>::max_exponent == 1024) &&
                (std::numeric_limits<double>::digits == 53) &&
                (std::numeric_limits<double>::radix == 2));
-        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Non-standard platform double representation.",std::move(in));
+        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Non-standard platform double representation.",in);
 
         //When (in std::string format).
         std::string stringified;
         in = SERIALIZE::Get(&l_OK,std::move(in),offset,buf_size, &stringified);
-        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Get stringified this->When.",std::move(in));
+        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to Get stringified this->When.",in);
 
         l_OK = this->Read_from_string(stringified);
-        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to interpret stringified this->When as valid date.",std::move(in));
+        SERIALIZE_WARNFAIL_OR_DIE(!l_OK,OK,"Unable to interpret stringified this->When as valid date.",in);
         //------ </Version 2 @ 20131017> -------
 
     }else{
-        SERIALIZE_WARNFAIL_OR_DIE(false,OK,"Version not recognized.",std::move(in));
+        SERIALIZE_WARNFAIL_OR_DIE(false,OK,"Version not recognized.",in);
     }
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 //Returns the (maximum) number of bytes required to serialize *this (at this moment).

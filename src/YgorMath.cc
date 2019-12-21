@@ -714,7 +714,7 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
         std::get<1>(last) = std::get<1>(out);
     }
 
-    return std::move(out);
+    return out;
 }
 
 
@@ -2775,7 +2775,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
         c_it->metadata = this->metadata;
     }
 
-    return std::move(output);
+    return output;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 template std::list< contour_of_points<double>> contour_of_points<double>::Split_Along_Plane( const plane<double> &theplane ) const;
@@ -3189,7 +3189,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
         c_it->metadata = this->metadata;
     }
 
-    return std::move(output);
+    return output;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 template std::list<contour_of_points<double>> contour_of_points<double>::Split_Against_Ray(const vec3<double> &) const;
@@ -3208,14 +3208,14 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_I
     std::list<contour_of_points<T>> output;
     if(frac_dist < (T)(0.0)){
         FUNCWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
-        return std::move(output);
+        return output;
     }else if(frac_dist > (T)(1.0)){
         FUNCWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
-        return std::move(output);
+        return output;
     }
     if(this->points.empty()){
         FUNCWARN("Attempted to perform core and peel splitting with no contour points! Continuing");
-        return std::move(output);
+        return output;
     }
     if(this->closed != true){ 
         FUNCERR("The core and peel technique is not able to reasonably handle open contours. Unable to continue");
@@ -3256,7 +3256,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_I
     }
 
     //The inner (core, first) is ready to go, but we need to boolean subtract it from the outer (peel).
-    if(output.front().points.empty()) return std::move(output);
+    if(output.front().points.empty()) return output;
     const auto peel_final_point = output.back().points.back();
 
     decltype(output.front().points) inner_copy(output.front().points);
@@ -3275,7 +3275,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_I
         c_it->metadata = this->metadata;
     }
 
-    return std::move(output);
+    return output;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template std::list<contour_of_points<float >> contour_of_points<float >::Split_Into_Core_Peel_Spherical(const vec3<float > &, float  frac_dist) const;
@@ -3612,7 +3612,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     contour_of_points<T> out(std::move(newpoints));
     out.closed = this->closed;
     out.metadata = this->metadata;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const float  dl) const;
@@ -3662,7 +3662,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     contour_of_points<T> out(std::move(newpoints));
     out.closed = this->closed;
     out.metadata = this->metadata;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const long int N) const;
@@ -3691,7 +3691,7 @@ contour_of_points<T>::Subdivide_Midway(void) const {
     contour_of_points<T> out(std::move(newpoints));
     out.closed = this->closed;
     out.metadata = this->metadata;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Subdivide_Midway(void) const;
@@ -3758,7 +3758,7 @@ contour_of_points<T>:: Remove_Vertices(T area_threshold) const {
         out.points.erase(removal_penalties.front().second);
     }
 
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Remove_Vertices(float ) const;
@@ -3847,7 +3847,7 @@ contour_of_points<T>:: Collapse_Vertices(T area_threshold) const {
         out.points.erase(C_it);
     }
 
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Collapse_Vertices(float ) const;
@@ -3877,7 +3877,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Scale_Dist_From
         // retained.
         *p_it = (*p_it)*scale + point*((T)(1.0) - scale);
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template contour_of_points<float > contour_of_points<float >::Scale_Dist_From_Point(const vec3<float > &, float  scale) const;
@@ -4751,10 +4751,10 @@ template <class T> std::list<contour_collection<T>> contour_collection<T>::Split
     std::list<contour_collection> output;
     if(frac_dist < (T)(0.0)){
         FUNCWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
-        return std::move(output);
+        return output;
     }else if(frac_dist > (T)(1.0)){
         FUNCWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
-        return std::move(output);
+        return output;
     }
 
     //Prepare space for the inner and outer data.
@@ -6113,7 +6113,7 @@ template <class T> samples_1D<T> samples_1D<T>::Strip_Uncertainties_in_x(void) c
     //Sets uncertainties to zero. Useful in certain situations, such as computing aggregate std dev's.
     samples_1D<T> out(*this);
     for(auto &P : out.samples) P[1] = (T)(0);
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Strip_Uncertainties_in_x(void) const;
@@ -6124,7 +6124,7 @@ template <class T> samples_1D<T> samples_1D<T>::Strip_Uncertainties_in_y(void) c
     //Sets uncertainties to zero. Useful in certain situations, such as computing aggregate std dev's.
     samples_1D<T> out(*this);
     for(auto &P : out.samples) P[3] = (T)(0);
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Strip_Uncertainties_in_y(void) const;
@@ -6222,11 +6222,11 @@ template <class T> samples_1D<T> samples_1D<T>::Rank_x(void) const {
     samples_1D<T> out(*this);
 
     //Step 0 - special cases.
-    if(out.empty()) return std::move(out);
+    if(out.empty()) return out;
     if(out.size() == 1){
         out.samples.front()[0] = (T)(0);
         out.samples.front()[1] = (T)(0);
-        return std::move(out);
+        return out;
     }
 
     //Step 1 - cycle through the sorted samples.
@@ -6249,7 +6249,7 @@ template <class T> samples_1D<T> samples_1D<T>::Rank_x(void) const {
             ++p_it;
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Rank_x(void) const;
@@ -6270,7 +6270,7 @@ template <class T> samples_1D<T> samples_1D<T>::Rank_y(void) const {
     //Note: All neighbouring points which share a common y ("N-plicates") get an averaged rank. This is important for
     //      statistical purposes and could be filtered out afterward if desired.
     samples_1D<T> out(this->Swap_x_and_y().Rank_x().Swap_x_and_y());
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Rank_y(void) const;
@@ -6293,7 +6293,7 @@ template <class T> samples_1D<T> samples_1D<T>::Swap_x_and_y(void) const {
         (*p_it)[3] = F[1];
     }
     out.stable_sort();
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Swap_x_and_y(void) const;
@@ -6709,7 +6709,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Select_Those_Within_Inc(T L, T 
         const T x_i = elem[0];
         if(isininc(L, x_i, H)) out.push_back(elem, inhibit_sort);
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Select_Those_Within_Inc(float  L, float  H) const;
@@ -7040,7 +7040,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Multiply_With(T factor) const {
         elem[2] *= factor;
         elem[3] *= abs_factor; //Same for either type of uncertainty.
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Multiply_With(float  factor) const;
@@ -7055,7 +7055,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Sum_With(T factor) const {
     for(auto &elem : out.samples){
         elem[2] += factor;
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Sum_With(float  factor) const;
@@ -7067,7 +7067,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Apply_Abs(void) const {
     samples_1D<T> out;
     out = *this;
     for(auto &elem : out.samples) elem[2] = std::abs(elem[2]);
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Apply_Abs(void) const;
@@ -7079,7 +7079,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Sum_x_With(T dx) const {
     samples_1D<T> out;
     out = *this;
     for(auto &sample : out.samples) sample[0] += dx;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Sum_x_With(float  dx) const;
@@ -7091,7 +7091,7 @@ template <class T>  samples_1D<T> samples_1D<T>::Multiply_x_With(T x) const {
     samples_1D<T> out;
     out = *this;
     for(auto &sample : out.samples) sample[0] *= x;
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Multiply_x_With(float  x) const;
@@ -7971,7 +7971,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
             out.push_back({xtop_base, (T)(0),    (T)(0),    (T)(0)}, inhibit_sort);
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Aggregate_Equal_Sized_Bins_Weighted_Mean(long int N, bool showbins) const;
@@ -8053,7 +8053,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weigh
         out.push_back({ binwmx[0], binwmx[1], binwmy[0], binwmy[1] }, inhibit_sort);
     }
     out.stable_sort(); //In case the weighted mean somehow screws up the order.
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Aggregate_Equal_Datum_Bins_Weighted_Mean(long int N) const;
@@ -8148,7 +8148,7 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
             out.push_back({xtop_base, (T)(0),     (T)(0),     (T)(0)}, inhibit_sort);
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Histogram_Equal_Sized_Bins(long int N, bool showbins) const;
@@ -8707,7 +8707,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long i
         const auto var = static_cast<T>(Stats::Unbiased_Var_Est(shtl));        
         out.push_back({ this->samples[i][0], this->samples[i][1], var, (T)(0) }, InhibitSort);
     } 
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Variance_Two_Sided(long int N) const;
@@ -8766,7 +8766,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differ
 
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Forward_Finite_Differences(void) const;
@@ -8825,7 +8825,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Backward_Finite_Diffe
 
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Backward_Finite_Differences(void) const;
@@ -8896,7 +8896,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Centered_Finite_Diffe
 
         }
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Centered_Finite_Differences(void) const;
@@ -9053,7 +9053,7 @@ samples_1D<T> samples_1D<T>::Local_Signed_Curvature_Three_Datum(void) const {
         std::advance(itR,1);
     }
 
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Local_Signed_Curvature_Three_Datum(void) const;
@@ -9191,7 +9191,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
 
     if(SkipExtras){
         if(OK != nullptr) *OK = true;
-        return std::move(res);
+        return res;
     }
 
     //Now compute the statistical stuff.
@@ -9218,7 +9218,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     res.pvalue = Stats::P_From_StudT_2Tail(res.tvalue, res.dof);
 
     if(OK != nullptr) *OK = true;
-    return std::move(res);
+    return res;
 }       
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template lin_reg_results<float > samples_1D<float >::Linear_Least_Squares_Regression(bool *OK, bool SkipExtras) const;
@@ -9442,7 +9442,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         res.corr_params     = -res.sum_wx/std::sqrt(res.sum_w*res.sum_wxx);
 
         if(OK != nullptr) *OK = true;
-        return std::move(res);
+        return res;
 
     //Case 2 - some data had infinite weighting.
     }else{
@@ -9496,7 +9496,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         res.corr_params     = -res.sum_x/std::sqrt(res.N*res.sum_xx);
 
         if(OK != nullptr) *OK = true;
-        return std::move(res);
+        return res;
     }
   
     FUNCERR("Programming error. Should not have got to this point"); 
@@ -9835,7 +9835,7 @@ Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, long int N, bo
         P[2] /= NDasT;
         P[3] = (T)(0);
     }
-    return std::move(out);
+    return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::list<float > &nums, long int N, bool explicitbins);

@@ -48,7 +48,7 @@ FailWarn_or_Die(bool *OK, std::unique_ptr<uint8_t[]> in, const std::string &fail
     //Otherwise, issue a warning message, ensure the fail bit is set, and return.
     *OK = false;
     FUNCWARN(fail);
-    return std::move(in);
+    return in;
 }
 
 
@@ -87,7 +87,7 @@ SERIALIZE::Put(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, uint64
     *offset += sizeof(T);
     *ptrtomem = val;
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
@@ -179,7 +179,7 @@ SERIALIZE::Get(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, uint64
     *offset += sizeof(T);
     *val = *ptrtovar;
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
@@ -260,7 +260,7 @@ SERIALIZE::Put_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
                                                     "Could not write size value assuming uint8_t. Unable to continue");
       }else if(shtl != std::numeric_limits<uint8_t>::max()){ //Success.
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -281,7 +281,7 @@ SERIALIZE::Put_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
                                                     "Could not write size value assuming uint16_t. Unable to continue");
       }else if(shtl != std::numeric_limits<uint16_t>::max()){ //Success.
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -302,7 +302,7 @@ SERIALIZE::Put_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
                                                     "Could not write size value assuming uint64_t. Unable to continue");
       }else if(shtl != std::numeric_limits<uint64_t>::max()){ //Success.
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -360,7 +360,7 @@ SERIALIZE::Put_Fixed_Width_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_
                                                     "Could not write size value assuming uint64_t. Unable to continue");
       }else if(shtl != std::numeric_limits<uint64_t>::max()){ //Success.
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -414,7 +414,7 @@ SERIALIZE::Get_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
           // *offset += sizeof(T); //Get() has already advanced the offset.
           *val = static_cast<uint64_t>(shtl);
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -434,7 +434,7 @@ SERIALIZE::Get_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
           // *offset += sizeof(T); //Get() has already advanced the offset.
           *val = static_cast<uint64_t>(shtl);
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -454,7 +454,7 @@ SERIALIZE::Get_Size(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, u
           // *offset += sizeof(T); //Get() has already advanced the offset.
           *val = static_cast<uint64_t>(shtl);
           if(OK != nullptr) *OK = true;
-          return std::move(in);
+          return in;
       }
     }
 
@@ -489,7 +489,7 @@ SERIALIZE::Put_Raw(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, ui
     *offset += num_bytes;
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 std::unique_ptr<uint8_t[]>
@@ -513,7 +513,7 @@ SERIALIZE::Get_Raw(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, ui
     *offset += num_bytes;
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 
@@ -542,12 +542,12 @@ FUNCWARN("*********** This function has not been tested yet. Please verify it **
     const std::string test(reinterpret_cast<char *>(in.get() + *offset), seq.size());
 
     //If they do not match, then *OK stays false.
-    if(test != seq) return std::move(in);
+    if(test != seq) return in;
 
     //Otherwise, it is a match. Advance offset and return.
     *offset += seq.size();
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 
 
@@ -583,7 +583,7 @@ SERIALIZE::Get_String(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset,
     val->assign(reinterpret_cast<T *>(in.get() + *offset), str_size/sizeof(T));
     *offset += str_size;
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
     template std::unique_ptr<uint8_t[]> SERIALIZE::Get_String(bool *, std::unique_ptr<uint8_t[]>, uint64_t *, uint64_t, std::basic_string<uint8_t> *);
@@ -631,7 +631,7 @@ SERIALIZE::Put_String(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset,
 //    memcpy((void *)(in.get() + *offset), (void *)(val.data()), str_size);
 //    *offset += str_size;
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
     template std::unique_ptr<uint8_t[]> SERIALIZE::Put_String(bool *, std::unique_ptr<uint8_t[]>, uint64_t *, uint64_t, std::basic_string<uint8_t>);
@@ -690,7 +690,7 @@ SERIALIZE::Get_Sequence_Container(bool *OK, std::unique_ptr<uint8_t[]> in, uint6
     }
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
     //Fill this in with anything which is needed.
@@ -735,7 +735,7 @@ SERIALIZE::Put_Sequence_Container(bool *OK, std::unique_ptr<uint8_t[]> in, uint6
     }
 
     if(OK != nullptr) *OK = true;
-    return std::move(in);
+    return in;
 }
 #ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS
     //Fill this in with anything which is needed.
