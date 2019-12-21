@@ -8395,7 +8395,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Spencer
     const std::vector<T> weights = { (T)(74)/(T)(320), (T)(67)/(T)(320), (T)(46)/(T)(320), (T)(21)/(T)(320),
                                      (T)( 3)/(T)(320), (T)(-5)/(T)(320), (T)(-6)/(T)(320), (T)(-3)/(T)(320) };
     return this->Moving_Average_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Spencers_15_point(void) const;
     template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Spencers_15_point(void) const;
@@ -8423,7 +8423,7 @@ Filter Length   Symmetric Weighting Pattern for Henderson Moving Average
 13 Term (-0.019, -0.028, 0.0, 0.066, 0.147, 0.214, 0.240, 0.214, 0.147, 0.066, 0.0, -0.028, -0.019)
 From http://www.abs.gov.au/websitedbs/d3310114.nsf/51c9a3d36edfd0dfca256acb00118404/5fc845406def2c3dca256ce100188f8e!OpenDocument 
 */
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Hendersons_23_point(void) const;
     template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Hendersons_23_point(void) const;
@@ -8448,7 +8448,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Equal_W
 
     std::vector<T> weights(N+1, (T)(1.0)/static_cast<T>(2*N+1)); //Fill constructor. Uniform weights for all datum in window.
     return this->Moving_Average_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Equal_Weighting(long int N) const;
     template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Equal_Weighting(long int N) const;
@@ -8485,7 +8485,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Gaussia
     if(weights.size() > 1) summed_weight += std::accumulate(std::next(weights.begin()), weights.end(), (T)(0));
     for(auto &weight : weights) weight /= summed_weight;
     return this->Moving_Average_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Gaussian_Weighting(float  datum_sigma) const;
     template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Gaussian_Weighting(double datum_sigma) const;
@@ -8593,7 +8593,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_E
     if(N == 0) return *this;
     std::vector<uint64_t> weights(N+1, static_cast<uint64_t>(1)); //Fill constructor. Uniform weights for all datum in window.
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const;
     template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const;
@@ -8634,7 +8634,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
 
     //There is no need (or means) to normalize the weights. (Contrast to the weighted moving average case.)
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Gaussian_Weighting(float  datum_sigma) const;
     template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Gaussian_Weighting(double datum_sigma) const;
@@ -8666,7 +8666,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_T
     for(uint64_t i = static_cast<uint64_t>(N); i > 0; --i) weights.push_back(i);
 
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const;
     template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const;
@@ -8708,7 +8708,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long i
         out.push_back({ this->samples[i][0], this->samples[i][1], var, (T)(0) }, InhibitSort);
     } 
     return std::move(out);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Moving_Variance_Two_Sided(long int N) const;
     template samples_1D<double> samples_1D<double>::Moving_Variance_Two_Sided(long int N) const;
@@ -8767,7 +8767,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differ
         }
     }
     return std::move(out);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Forward_Finite_Differences(void) const;
     template samples_1D<double> samples_1D<double>::Derivative_Forward_Finite_Differences(void) const;
@@ -8826,7 +8826,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Backward_Finite_Diffe
         }
     }
     return std::move(out);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Backward_Finite_Differences(void) const;
     template samples_1D<double> samples_1D<double>::Derivative_Backward_Finite_Differences(void) const;
@@ -8897,7 +8897,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Centered_Finite_Diffe
         }
     }
     return std::move(out);
-};
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > samples_1D<float >::Derivative_Centered_Finite_Differences(void) const;
     template samples_1D<double> samples_1D<double>::Derivative_Centered_Finite_Differences(void) const;

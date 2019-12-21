@@ -469,7 +469,7 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
 //----------------------------------------- Running Accumulators and Tallies ----------------------------------------------
 template <typename T>
 Stats::Running_MinMax<T>::Running_MinMax() : PresentMin(std::numeric_limits<T>::max()),
-                                             PresentMax(std::numeric_limits<T>::min()) { };
+                                             PresentMax(std::numeric_limits<T>::min()) { }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template Stats::Running_MinMax<double  >::Running_MinMax();
     template Stats::Running_MinMax<float   >::Running_MinMax();
@@ -552,7 +552,7 @@ T Stats::Running_MinMax<T>::Current_Max(void) const {
 
 template <typename T>
 Stats::Running_Sum<T>::Running_Sum() : PresentSum(static_cast<T>(0)),
-                                       PresentCompen(static_cast<T>(0)) { };
+                                       PresentCompen(static_cast<T>(0)) { }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template Stats::Running_Sum<double  >::Running_Sum();
     template Stats::Running_Sum<float   >::Running_Sum();

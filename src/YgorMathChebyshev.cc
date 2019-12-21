@@ -22,7 +22,7 @@
 //---------------------------------------------------------------------------------------------------------------------------
 
 template <class T> 
-cheby_approx<T>::cheby_approx(){};
+cheby_approx<T>::cheby_approx(){}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float >::cheby_approx(void);
     template cheby_approx<double>::cheby_approx(void);
@@ -31,7 +31,7 @@ cheby_approx<T>::cheby_approx(){};
 template <class T>
 cheby_approx<T>::cheby_approx( const cheby_approx<T> &in ){
     *this = in;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float >::cheby_approx( const cheby_approx<float > &);
     template cheby_approx<double>::cheby_approx( const cheby_approx<double> &);
@@ -47,7 +47,7 @@ cheby_approx<T>::operator=(const cheby_approx<T> &rhs){
     this->xmin = rhs.xmin;
     this->xmax = rhs.xmax;
     return *this;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > & cheby_approx<float >::operator=( const cheby_approx<float > &);
     template cheby_approx<double> & cheby_approx<double>::operator=( const cheby_approx<double> &);
@@ -129,7 +129,7 @@ cheby_approx<T>::operator*(const cheby_approx<T> &rhs) const {
     c[0] *= static_cast<T>(2);
     out.Prepare(c,xmin,xmax);
     return out;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > cheby_approx<float >::operator*( const cheby_approx<float > &) const;
     template cheby_approx<double> cheby_approx<double>::operator*( const cheby_approx<double> &) const;
@@ -201,7 +201,7 @@ cheby_approx<T>::Prepare( const samples_1D<T> &s1D,
     }
 
     return;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template void cheby_approx<float >::Prepare(const samples_1D<float > &, size_t, float , float );
     template void cheby_approx<double>::Prepare(const samples_1D<double> &, size_t, double, double);
@@ -269,7 +269,7 @@ cheby_approx<T>::Prepare( const std::function<T(T)> &func,
     //for(size_t j = 0; j < numb_of_c_in; ++j) std::cout << "userfunc: c[" << j << "] = " << c[j] << std::endl;
 
     return;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template void cheby_approx<float >::Prepare(const std::function<float (float )> &, size_t, float , float );
     template void cheby_approx<double>::Prepare(const std::function<double(double)> &, size_t, double, double);
@@ -307,7 +307,7 @@ cheby_approx<T>::Prepare( const std::vector<T> &c_in,
     this->c.empty();
     this->c = c_in;
     return;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template void cheby_approx<float >::Prepare(const std::vector<float > &c_in, float , float );
     template void cheby_approx<double>::Prepare(const std::vector<double> &c_in, double, double);
@@ -339,7 +339,7 @@ cheby_approx<T>::Sample( T z,
     }
     const T approx_f = x*d - dd + 0.5*c[0];
     return approx_f;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template float  cheby_approx<float >::Sample(float , size_t) const;
     template double cheby_approx<double>::Sample(double, size_t) const;
@@ -401,7 +401,7 @@ cheby_approx<T>::Sample_Uniformly( size_t numb_of_samples,
         out.push_back( x, static_cast<T>(0), f, static_cast<T>(0), InhibitSort );
     }
     return out;       
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > cheby_approx<float >::Sample_Uniformly(size_t, size_t, float , float ) const;
     template samples_1D<double> cheby_approx<double>::Sample_Uniformly(size_t, size_t, double, double) const;
@@ -438,7 +438,7 @@ cheby_approx<T>::Sample_On( const samples_1D<T> &s1D,
         asample[2] = f;
     }
     return s1D_sorted;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template samples_1D<float > cheby_approx<float >::Sample_On(const samples_1D<float > &, size_t) const;
     template samples_1D<double> cheby_approx<double>::Sample_On(const samples_1D<double> &, size_t) const;
@@ -471,7 +471,7 @@ cheby_approx<T>::Chebyshev_Derivative(void) const {
     }
     for(size_t j = 0; j < n; ++j) out.c[j] *= con;
     return out;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > cheby_approx<float >::Chebyshev_Derivative(void) const;
     template cheby_approx<double> cheby_approx<double>::Chebyshev_Derivative(void) const;
@@ -505,7 +505,7 @@ cheby_approx<T>::Chebyshev_Integral(void) const {
     sum += fac * out.c[n-1];
     out.c[0] = sum * static_cast<T>(2);
     return out;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > cheby_approx<float >::Chebyshev_Integral(void) const;
     template cheby_approx<double> cheby_approx<double>::Chebyshev_Integral(void) const;
@@ -515,7 +515,7 @@ template <class T>
 std::vector<T>
 cheby_approx<T>::Get_Coefficients(void) const {
     return this->c;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template std::vector<float > cheby_approx<float >::Get_Coefficients(void) const;
     template std::vector<double> cheby_approx<double>::Get_Coefficients(void) const;
@@ -525,7 +525,7 @@ template <class T>
 std::pair<T,T>
 cheby_approx<T>::Get_Domain(void) const {
     return std::make_pair(this->xmin,this->xmax);
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template std::pair<float , float > cheby_approx<float >::Get_Domain(void) const;
     template std::pair<double, double> cheby_approx<double>::Get_Domain(void) const;
@@ -627,7 +627,7 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
     c[0] *= static_cast<T>(2);
     out.Prepare(c,xmin,xmax);
     return out;
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > 
         cheby_approx<float >::Fast_Approx_Multiply(const cheby_approx<float > &, size_t) const;
@@ -649,7 +649,7 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
     const auto P = static_cast<size_t>( std::round( fraction_of_max_c_to_use * std::max(N,M) ) );
 
     return this->Fast_Approx_Multiply(rhs, P);
-};
+}
 #ifndef YGORMATHCHEBYSHEV_DISABLE_ALL_SPECIALIZATIONS
     template cheby_approx<float > 
         cheby_approx<float >::Fast_Approx_Multiply(const cheby_approx<float > &, double) const;
