@@ -7,8 +7,8 @@
 #include <cmath>      //For std::round(...)
 #include <cstdio>  //For popen.
 #include <exception>
-#include <experimental/any>
-#include <experimental/optional>
+#include <any>
+#include <optional>
 #include <functional>
 #include <future>
 #include <iterator>
@@ -2709,45 +2709,45 @@ template <class T,class R> bool planar_image<T,R>::MetadataKeyPresent(std::strin
 #endif
 
 //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-template <class T,class R> template <class U> std::experimental::optional<U> 
+template <class T,class R> template <class U> std::optional<U> 
 planar_image<T,R>::GetMetadataValueAs(std::string key) const {
     const auto metadata_cit = this->metadata.find(key);
     if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
-        return std::experimental::optional<U>();
+        return std::optional<U>();
     }else{
-        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template std::experimental::optional<uint32_t> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<long int> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<float> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -3326,10 +3326,10 @@ bool planar_image_collection<T,R>::Process_Images(
                                       std::list<images_list_it_t>,
                                       std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
-                                      std::experimental::any )>                                       operation_functor,      
+                                      std::any )>                                                     operation_functor,      
                              std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_images,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
-                             std::experimental::any                                                   user_data ){
+                             std::any                                                                 user_data ){
 
 
     //Generate a comprehensive list of iterators to all remaining images in the deep-copied array. This list will be
@@ -3436,7 +3436,7 @@ bool planar_image_collection<T,R>::Process_Images(
                                   typename std::list<planar_image_collection<T,R>::images_list_it_t>,
                                   typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                   typename std::list<std::reference_wrapper<contour_collection<R>>>,
-                                  typename std::experimental::any ) -> bool {
+                                  typename std::any ) -> bool {
 
             //Default: do absolutely nothing.
             return true;
@@ -3491,10 +3491,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint16_t,double>::Process_Images(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3503,10 +3503,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>, 
+                  std::any )>, 
          std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint32_t,double>::Process_Images(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3515,10 +3515,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>, 
+                  std::any )>, 
          std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint64_t,double>::Process_Images(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3527,10 +3527,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<float   ,double>::Process_Images(
          std::function<typename std::list<images_list_it_t> (images_list_it_t,
@@ -3539,10 +3539,10 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<images_list_it_t>,
                   std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
 #endif
 
@@ -3560,10 +3560,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                                       std::list<images_list_it_t>,
                                       std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
-                                      std::experimental::any )>                                       operation_functor,      
+                                      std::any )>                                                     operation_functor,      
                              std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_images,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
-                             std::experimental::any                                                   user_data ){
+                             std::any                                                                 user_data ){
 
     //It is much more tedious to provide a 'sane' default, so we require users to provide a valid image grouping
     // functor.
@@ -3664,7 +3664,7 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                               typename std::list<planar_image_collection<T,R>::images_list_it_t>,
                               typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                               typename std::list<std::reference_wrapper<contour_collection<R>>>,
-                              typename std::experimental::any ) -> bool {
+                              typename std::any ) -> bool {
 
         //Default: do absolutely nothing.
         return true;
@@ -3732,10 +3732,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint16_t,double>::Process_Images_Parallel(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3744,10 +3744,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>, 
+                  std::any )>, 
          std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint32_t,double>::Process_Images_Parallel(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3756,10 +3756,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>, 
+                  std::any )>, 
          std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<uint64_t,double>::Process_Images_Parallel(
          std::function<typename std::list<images_list_it_t> (images_list_it_t, 
@@ -3768,10 +3768,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                   std::list<images_list_it_t>, 
                   std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>, 
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
     template bool planar_image_collection<float   ,double>::Process_Images_Parallel(
          std::function<typename std::list<images_list_it_t> (images_list_it_t,
@@ -3780,10 +3780,10 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
                   std::list<images_list_it_t>,
                   std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                   std::list<std::reference_wrapper<contour_collection<double>>>,
-                  std::experimental::any )>,
+                  std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
-         std::experimental::any );
+         std::any );
 
 #endif
 
@@ -3797,10 +3797,10 @@ bool planar_image_collection<T,R>::Transform_Images(
             std::function<bool (images_list_it_t,                              
                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                      std::list<std::reference_wrapper<contour_collection<R>>>,
-                     std::experimental::any )>                                          op_func,
+                     std::any )>                                                        op_func,
             std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
             std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
-            std::experimental::any                                                      user_data ){
+            std::any                                                                    user_data ){
 
     if(!op_func) return false;
     for(auto img_it = this->images.begin(); img_it != this->images.end(); ++img_it){
@@ -3813,46 +3813,46 @@ bool planar_image_collection<T,R>::Transform_Images(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint16_t,double>::Transform_Images(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint32_t,double>::Transform_Images(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint64_t,double>::Transform_Images(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<float   ,double>::Transform_Images(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
 #endif
 
@@ -3864,10 +3864,10 @@ bool planar_image_collection<T,R>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,                              
                      std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                      std::list<std::reference_wrapper<contour_collection<R>>>,
-                     std::experimental::any )>                                          op_func,
+                     std::any )>                                                        op_func,
             std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
             std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
-            std::experimental::any                                                      user_data ){
+            std::any                                                                    user_data ){
 
     if(!op_func) return false;
 
@@ -3904,46 +3904,46 @@ bool planar_image_collection<T,R>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint16_t,double>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint32_t,double>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint64_t,double>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<float   ,double>::Transform_Images_Parallel(
             std::function<bool (images_list_it_t,
                      std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
 #endif
 
@@ -3960,10 +3960,10 @@ bool planar_image_collection<T,R>::Compute_Images(
             std::function<bool ( planar_image_collection<T,R> &, 
                                  std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                  std::list<std::reference_wrapper<contour_collection<R>>>,
-                                 std::experimental::any )>                                    op_func,
+                                 std::any )>                                                  op_func,
             std::list<std::reference_wrapper<planar_image_collection<T,R>>>                   external_imgs,
             std::list<std::reference_wrapper<contour_collection<R>>>                          contour_collections,
-            std::experimental::any                                                            user_data ){
+            std::any                                                                          user_data ){
 
     if(!op_func) return false;
     return op_func(std::ref(*this), external_imgs, contour_collections, user_data);
@@ -3974,46 +3974,46 @@ bool planar_image_collection<T,R>::Compute_Images(
             std::function<bool (planar_image_collection<uint8_t,double> &,
                      std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint8_t ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint16_t,double>::Compute_Images(
             std::function<bool (planar_image_collection<uint16_t,double> &,
                      std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint16_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint32_t,double>::Compute_Images(
             std::function<bool (planar_image_collection<uint32_t,double> &,
                      std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint32_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<uint64_t,double>::Compute_Images(
             std::function<bool (planar_image_collection<uint64_t,double> &,
                      std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>, 
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<uint64_t,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections, 
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
     template bool planar_image_collection<float   ,double>::Compute_Images(
             std::function<bool (planar_image_collection<float,double> &,
                      std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
                      std::list<std::reference_wrapper<contour_collection<double>>>,
-                     std::experimental::any )>                                            op_func,
+                     std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
-            std::experimental::any                                                        user_data );
+            std::any                                                                      user_data );
 
 #endif
 
@@ -4055,7 +4055,7 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
                       typename std::list<planar_image_collection<T,R>::images_list_it_t> selected_img_its,
                       typename std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                       typename std::list<std::reference_wrapper<contour_collection<R>>>,
-                      typename std::experimental::any ) -> bool {
+                      typename std::any ) -> bool {
         //Loop over the rows, columns, and channels.
         for(auto row = 0; row < first_img_it->rows; ++row){
             for(auto col = 0; col < first_img_it->columns; ++col){ 

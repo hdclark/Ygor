@@ -4,7 +4,7 @@
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <complex>
 #include <exception>
-#include <experimental/optional>
+#include <optional>
 #include <fstream>
 #include <functional>  //Needed for passing kernel functions to integration schemes.
 #include <iomanip>     //Needed for std::setw() for pretty-printing.
@@ -4339,27 +4339,27 @@ template <class T> bool contour_of_points<T>::MetadataKeyPresent(std::string key
 #endif
 
 //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-template <class T> template <class U> std::experimental::optional<U>
+template <class T> template <class U> std::optional<U>
 contour_of_points<T>::GetMetadataValueAs(std::string key) const {
     const auto metadata_cit = this->metadata.find(key);
     if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
-        return std::experimental::optional<U>();
+        return std::optional<U>();
     }else{
-        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::experimental::optional<uint32_t> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<long int> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 #endif
 
 
@@ -5588,58 +5588,58 @@ fv_surface_mesh<T,I>::MetadataKeyPresent(std::string key) const {
 
 template <class T, class I>
 template <class U>
-std::experimental::optional<U>
+std::optional<U>
 fv_surface_mesh<T,I>::GetMetadataValueAs(std::string key) const {
     //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
     const auto metadata_cit = this->metadata.find(key);
     if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
-        return std::experimental::optional<U>();
+        return std::optional<U>();
     }else{
-        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::experimental::optional<int32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<int32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<int64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<int64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<float> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<float> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> fv_surface_mesh<float , uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> fv_surface_mesh<float , uint64_t>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> fv_surface_mesh<double, uint32_t>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -5718,37 +5718,37 @@ point_set<T>::MetadataKeyPresent(std::string key) const {
 
 template <class T>
 template <class U>
-std::experimental::optional<U>
+std::optional<U>
 point_set<T>::GetMetadataValueAs(std::string key) const {
     //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
     const auto metadata_cit = this->metadata.find(key);
     if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
-        return std::experimental::optional<U>();
+        return std::optional<U>();
     }else{
-        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::experimental::optional<int32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<int32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<int64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<int64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<uint64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint64_t> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<float> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<float> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> point_set<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> point_set<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> point_set<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> point_set<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> point_set<double>::GetMetadataValueAs(std::string key) const;
 #endif
 
 
@@ -9516,28 +9516,28 @@ template <class T>   bool samples_1D<T>::MetadataKeyPresent(std::string key) con
     template bool samples_1D<double>::MetadataKeyPresent(std::string key) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> template <class U> std::experimental::optional<U>
+template <class T> template <class U> std::optional<U>
 samples_1D<T>::GetMetadataValueAs(std::string key) const {
     //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
     const auto metadata_cit = this->metadata.find(key);
     if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
-        return std::experimental::optional<U>();
+        return std::optional<U>();
     }else{
-        return std::experimental::make_optional(stringtoX<U>(metadata_cit->second));
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::experimental::optional<uint32_t> samples_1D<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<uint32_t> samples_1D<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> samples_1D<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<long int> samples_1D<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<long int> samples_1D<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> samples_1D<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<double> samples_1D<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<double> samples_1D<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> samples_1D<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::experimental::optional<std::string> samples_1D<float >::GetMetadataValueAs(std::string key) const;
-    template std::experimental::optional<std::string> samples_1D<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> samples_1D<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------------

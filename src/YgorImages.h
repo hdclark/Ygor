@@ -3,8 +3,8 @@
 #ifndef YGOR_IMAGES_HDR_GRD_H
 #define YGOR_IMAGES_HDR_GRD_H
 
-#include <experimental/any>
-#include <experimental/optional>
+#include <any>
+#include <optional>
 #include <functional>
 #include <limits>
 #include <list>
@@ -261,7 +261,7 @@ template <class T, class R> class planar_image {
         bool MetadataKeyPresent(std::string key) const;
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 
 };
 
@@ -358,10 +358,10 @@ template <class T,class R>   class planar_image_collection {
                                       std::list<images_list_it_t>,
                                       std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
-                                      std::experimental::any )>                                       operation_functor, 
+                                      std::any )>                                                     operation_functor, 
                              std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_imgs,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
-                             std::experimental::any                                                   user_data = std::experimental::any() );
+                             std::any                                                                 user_data = std::any() );
 
         bool Process_Images_Parallel( std::function<typename std::list<images_list_it_t> (images_list_it_t,
                                       std::reference_wrapper<planar_image_collection<T,R>> )>         image_grouper,
@@ -369,10 +369,10 @@ template <class T,class R>   class planar_image_collection {
                                       std::list<images_list_it_t>,
                                       std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
-                                      std::experimental::any )>                                       operation_functor, 
+                                      std::any )>                                                     operation_functor, 
                              std::list<std::reference_wrapper<planar_image_collection<T,R>>>          external_imgs,
                              std::list<std::reference_wrapper<contour_collection<R>>>                 contour_collections,
-                             std::experimental::any                                                   user_data = std::experimental::any() );
+                             std::any                                                                 user_data = std::any() );
 
 
         //Generic routine for performing an operation on images which may depend on external images (such as pixel maps).
@@ -381,18 +381,18 @@ template <class T,class R>   class planar_image_collection {
         bool Transform_Images( std::function<bool (images_list_it_t, 
                                         std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                         std::list<std::reference_wrapper<contour_collection<R>>>,
-                                        std::experimental::any )>                                          op_func,
+                                        std::any )>                                                        op_func,
                                std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
                                std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
-                               std::experimental::any                                                      user_data = std::experimental::any() );
+                               std::any                                                                    user_data = std::any() );
 
         bool Transform_Images_Parallel( std::function<bool (images_list_it_t, 
                                         std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                         std::list<std::reference_wrapper<contour_collection<R>>>,
-                                        std::experimental::any )>                                          op_func,
+                                        std::any )>                                                        op_func,
                                std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
                                std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
-                               std::experimental::any                                                      user_data = std::experimental::any() );
+                               std::any                                                                    user_data = std::any() );
 
 
         //Generic routine for altering images as a whole, or computing histograms, time courses, or any sort of distribution using 
@@ -402,10 +402,10 @@ template <class T,class R>   class planar_image_collection {
         bool Compute_Images( std::function<bool (planar_image_collection<T,R> &,    //<-- gets populated with *this.
                                       std::list<std::reference_wrapper<planar_image_collection<T,R>>>,
                                       std::list<std::reference_wrapper<contour_collection<R>>>,
-                                      std::experimental::any )>                                          op_func,
+                                      std::any )>                                                        op_func,
                              std::list<std::reference_wrapper<planar_image_collection<T,R>>>             external_imgs,
                              std::list<std::reference_wrapper<contour_collection<R>>>                    contour_collections,
-                             std::experimental::any                                                      user_data = std::experimental::any() );
+                             std::any                                                                    user_data = std::any() );
         
 
         //Condense groups of images to a single image by averaging at the pixel level, channel by channel. Only the final,

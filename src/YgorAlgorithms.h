@@ -11,7 +11,7 @@
 
 
 #include <stdlib.h>
-#include <algorithm>     //Needed for random_shuffle(...)
+#include <algorithm>     //Needed for shuffle(...)
 #include <cmath>
 #include <cstddef>       //Needed for ptrdiff_t
 #include <cstdint>
@@ -320,9 +320,10 @@ void For_Each_In_Parallel(T it, T end, Function Task){
 template<typename T> void shuffle_list_consistently( std::list<T> &mylist ){
     //Uses a consistent scheme to shuffle. Repeated calls will return the same order.
     //
-    //NOTE: I don't know how it is implemented, so do not depend on the consistency!
+    //NOTE: I don't know how it is implemented, so do not depend on the consistency across machines, compilers, c++
+    // libraries, etc.!
     std::vector<T> v( mylist.begin(), mylist.end() );
-    std::random_shuffle( v.begin(), v.end() );
+    std::shuffle( v.begin(), v.end(), std::mt19937(11));
     mylist.assign( v.begin(), v.end() );
     return;
 }

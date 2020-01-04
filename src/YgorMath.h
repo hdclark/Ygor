@@ -7,7 +7,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
-#include <experimental/optional>
+#include <optional>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -388,7 +388,7 @@ template <class T>   class contour_of_points {
         bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 
         void Plot(void) const;                            //Spits out a default R^2 plot of the data. Ignores the z-component entirely!
 
@@ -553,7 +553,7 @@ template <class T, class I>   class fv_surface_mesh {
         bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 };
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -588,7 +588,7 @@ template <class T>   class point_set {
         bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 };
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -980,7 +980,7 @@ template <class T> class samples_1D {
         bool MetadataKeyPresent(std::string key) const;
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
-        template <class U> std::experimental::optional<U> GetMetadataValueAs(std::string key) const;
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 
 
         //Various IO routines.

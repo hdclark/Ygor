@@ -67,7 +67,7 @@ WriteToFITS(const planar_image<T,R> &img,
 //       of the same program in mind. So the image types T and R were known before reading was
 //       attempted. Because it is hard to have compile-time templated code react at run-time,
 //       it may be possible to return an arbitrary planar_image<T,R> stuffed into a boost::any
-//       or std::experimental::any. This logic is how Boost.Gil does it. Alternatively, you 
+//       or std::any. This logic is how Boost.Gil does it. Alternatively, you 
 //       could merely assume the largest format possible (T=long double, R=long double), read 
 //       the file, and convert after-the-fact. Regardless, this functionality was simply not 
 //       needed at the time of writing. 
