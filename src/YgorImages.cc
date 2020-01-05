@@ -3685,6 +3685,15 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
     };
     auto the_op_func = (operation_functor) ? operation_functor : default_op_func;
 
+    // Wrap the op func so that std::async() doesn't get confused passing a std::any by value (C++17).
+    auto the_op_func_wrapper = [&the_op_func](typename planar_image_collection<T,R>::images_list_it_t a,
+                                              typename std::list<planar_image_collection<T,R>::images_list_it_t> b,
+                                              typename std::list<std::reference_wrapper<planar_image_collection<T,R>>> c,
+                                              typename std::list<std::reference_wrapper<contour_collection<R>>> d,
+                                              typename std::any *e) -> bool {
+        return the_op_func(a, b, c, d, *e);
+    };
+
     //Launch and wait on the tasks.
     size_t images_processed = 0;
     std::list<std::future<bool>> futures;
@@ -3693,7 +3702,7 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
     if(at_a_time == 0) at_a_time = 2;
     for(const auto &agroup : groupings){
         images_processed += agroup.second.size();
-        futures.emplace_back( std::async( std::launch::async, the_op_func, agroup.first, agroup.second, external_images, contour_collections, user_data ) );
+        futures.emplace_back( std::async( std::launch::async, the_op_func_wrapper, agroup.first, agroup.second, external_images, contour_collections, &user_data ) );
         if(futures.size() > at_a_time){
             for(auto &afuture : futures){
                 auto res = afuture.get();
@@ -3803,8 +3812,18 @@ bool planar_image_collection<T,R>::Transform_Images(
             std::any                                                                    user_data ){
 
     if(!op_func) return false;
+
+    // Wrap the op func so that std::async() doesn't get confused passing a std::any by value (C++17).
+    auto op_func_wrapper = [&op_func](
+                     images_list_it_t a,
+                     std::list<std::reference_wrapper<planar_image_collection<T,R>>> b,
+                     std::list<std::reference_wrapper<contour_collection<R>>> c,
+                     std::any *d) -> bool {
+        return op_func(a, b, c, *d);
+    };
+
     for(auto img_it = this->images.begin(); img_it != this->images.end(); ++img_it){
-        if(!op_func(img_it, external_imgs, contour_collections, user_data)) return false;
+        if(!op_func_wrapper(img_it, external_imgs, contour_collections, &user_data)) return false;
     }
     return true;
 }
@@ -3877,8 +3896,17 @@ bool planar_image_collection<T,R>::Transform_Images_Parallel(
     auto at_a_time = std::thread::hardware_concurrency();
     if(at_a_time == 0) at_a_time = 2;
 
+    // Wrap the op func so that std::async() doesn't get confused passing a std::any by value (C++17).
+    auto op_func_wrapper = [&op_func](
+                     images_list_it_t a,
+                     std::list<std::reference_wrapper<planar_image_collection<T,R>>> b,
+                     std::list<std::reference_wrapper<contour_collection<R>>> c,
+                     std::any *d) -> bool {
+        return op_func(a, b, c, *d);
+    };
+
     for(auto img_it = this->images.begin(); img_it != this->images.end(); ++img_it){
-        futures.emplace_back( std::async( std::launch::async, op_func, img_it, external_imgs, contour_collections, user_data ) );
+        futures.emplace_back( std::async( std::launch::async, op_func_wrapper, img_it, external_imgs, contour_collections, &user_data ) );
         if(futures.size() > at_a_time){
 
             for(auto &afuture : futures){
@@ -3965,8 +3993,17 @@ bool planar_image_collection<T,R>::Compute_Images(
             std::list<std::reference_wrapper<contour_collection<R>>>                          contour_collections,
             std::any                                                                          user_data ){
 
+    // Wrap the op func so that std::async() doesn't get confused passing a std::any by value (C++17).
+    auto op_func_wrapper = [&op_func](
+                                 planar_image_collection<T,R> &a,
+                                 std::list<std::reference_wrapper<planar_image_collection<T,R>>> b,
+                                 std::list<std::reference_wrapper<contour_collection<R>>> c,
+                                 std::any *d) -> bool {
+        return op_func(a, b, c, *d);
+    };
+
     if(!op_func) return false;
-    return op_func(std::ref(*this), external_imgs, contour_collections, user_data);
+    return op_func_wrapper(std::ref(*this), external_imgs, contour_collections, &user_data);
 }
 
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
