@@ -549,6 +549,8 @@ template <class T, class I>   class fv_surface_mesh {
 
         void recreate_involved_face_index(void); // Regenerates this->involved_faces using this->vertices and this->faces.
 
+        void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) ); // Eliminates duplicate overlapping vertices.
+
 
         bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
 

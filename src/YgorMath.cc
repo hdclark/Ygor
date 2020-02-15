@@ -5572,6 +5572,114 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
 #endif
 
 
+// Eliminates duplicate overlapping vertices.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
+
+    const auto sq_dist_eps = std::pow(static_cast<double>(distance_eps), 2.0);
+
+    std::map<I,I> duplicates;
+
+    // Create an index vector to reflect the original vertex ordering.
+    // The index vector is used as a proxy to the vertex vector.
+    std::vector<I> ivec_x( this->vertices.size() );
+    std::iota( std::begin(ivec_x), std::end(ivec_x), static_cast<I>(0) );
+    std::vector<I> ivec_y( ivec_x );
+    std::vector<I> ivec_z( ivec_x );
+
+    // Sort the index vectors so vertices close to one another will be close in layout, simplifying adjacency searches.
+    std::sort( std::begin(ivec_x), std::end(ivec_x),
+               [&](const I &l, const I &r){ return (this->vertices[l].x < this->vertices[r].x); } );
+    std::sort( std::begin(ivec_y), std::end(ivec_y),
+               [&](const I &l, const I &r){ return (this->vertices[l].y < this->vertices[r].y); } );
+    std::sort( std::begin(ivec_z), std::end(ivec_z),
+               [&](const I &l, const I &r){ return (this->vertices[l].z < this->vertices[r].z); } );
+
+    // Walk the index vector, identifying duplicates.
+    {
+        const auto end = std::end(ivec_z);
+        for(auto i_it = std::begin(ivec_z); i_it != end; ++i_it){
+            // Skip this vertex if it has already been found to be a duplicate.
+            if(duplicates.count(*i_it) != 0) continue;
+
+            const auto v_i = this->vertices[*i_it];
+
+            // Determine the range of candidate vertices that need to be searched.
+            //
+            // This is done to limit the number of full-distance calculations.
+            const auto adj_end = std::find_if_not(std::next(i_it), end, [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= sq_dist_eps; });
+
+            // Find all vertices that can be considered duplicates by searching through all candidates.
+            for(auto a_it = std::next(i_it); a_it != adj_end; ++a_it){
+                const auto v_a = this->vertices[*a_it];
+                if(v_i.sq_dist(v_a) <= sq_dist_eps){
+                    duplicates[ *a_it ] = *i_it;
+                }
+            }
+        }
+    }
+
+    // Begin alterations. Invalidate the locality index.
+    this->involved_faces.clear();
+
+    // Replace all references to duplicate vertices.
+    for(auto &f : this->faces){
+        for(auto &i : f){
+            if(duplicates.count(i) != 0) i = duplicates[i];
+        }
+    }
+
+    // Determine the mapping from old to new vertex numbers.
+    std::map<I,I> new_number;
+    {
+        const auto N = this->vertices.size();
+        for(size_t i = 0; i < N; ++i){
+            if(duplicates.count(i) == 0){
+                new_number[static_cast<I>(i)] = static_cast<I>(new_number.size());
+            }
+        }
+    }
+
+    // Update the vertex numbers referenced by faces.
+    for(auto &f : this->faces){
+        for(auto &i : f){
+            if(new_number.count(i) != 0) i = new_number[i];
+        }
+    }
+
+    // Purge all unreferenced vertices.
+    //
+    // Note: This is a very slow way to purge vertices. There are much faster ways. TODO.
+    for(auto dp_it = std::rbegin(duplicates); dp_it != std::rend(duplicates); ++dp_it){
+        this->vertices.erase( std::next(std::begin(this->vertices),dp_it->first) );
+    }
+
+    // Remove any degenerate faces that might have collapsed during the de-duplication.
+    //
+    // Note: This is a somewhat slow way to detect duplicates in the face vectors. TODO.
+    this->faces.erase( std::remove_if( std::begin(this->faces), std::end(this->faces),
+        [&](const std::vector<I> &fiv){
+            std::set<I> vis;
+            for(const auto &i : fiv) vis.insert(i);
+            return (fiv.size() != vis.size());
+        }), std::end(this->faces));
+
+    // Ensure the index is in a valid state.
+    this->involved_faces.clear();
+    this->recreate_involved_face_index();
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::merge_duplicate_vertices(float );
+    template void fv_surface_mesh<float , uint64_t >::merge_duplicate_vertices(float );
+
+    template void fv_surface_mesh<double, uint32_t >::merge_duplicate_vertices(double);
+    template void fv_surface_mesh<double, uint64_t >::merge_duplicate_vertices(double);
+#endif
+
+
 template <class T, class I>
 bool
 fv_surface_mesh<T,I>::MetadataKeyPresent(std::string key) const {
