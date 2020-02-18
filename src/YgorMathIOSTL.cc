@@ -1,4 +1,4 @@
-//YgorMathIOSTL.cc - Routines for reading and writing simple (ascii) STL ("Wavefront Object") files.
+//YgorMathIOSTL.cc - Routines for reading and writing simple STL ("Stereolithography") files.
 //
 #include <iostream>
 #include <istream>
@@ -13,6 +13,41 @@
 #include "YgorString.h"
 
 #include "YgorMathIOSTL.h"
+
+
+//This enum is used by the user to signal whether they want little- or big-endianness when the IO format
+// can handle either (e.g., writing raw pixels, FITS files).
+enum YgorMathIOSTLEndianness { 
+    Little,   // i.e., least significant byte at lowest memory address.
+    Big,      // i.e., most significant byte at lowest memory address.
+    Default   // User unspecified: use the default or try to detect.
+};
+
+static inline
+YgorMathIOSTLEndianness
+Detect_Machine_Endianness(void){
+
+    //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine. We do this by 
+    // probing where a single bit resides in memory.
+    //
+    // NOTE: If endianness is not little or big, this routine throws! Feel free to add additional
+    //       endian types if needed.
+    //
+    volatile uint64_t EndianScape = static_cast<uint64_t>(1); //Anything larger than 1 byte will suffice.
+    volatile uint8_t *EndianCheck = reinterpret_cast<volatile uint8_t *>(&EndianScape);
+
+    const bool UsingLittleEndian = (EndianCheck[0] == static_cast<uint8_t>(1)); // "LSB".
+    const bool UsingBigEndian    = (EndianCheck[sizeof(uint64_t)-1] == static_cast<uint8_t>(1)); // "MSB".
+
+    if(UsingLittleEndian){
+        return YgorMathIOSTLEndianness::Little;
+    }else if(UsingBigEndian){
+        return YgorMathIOSTLEndianness::Big;
+    }
+
+    throw std::runtime_error("Cannot determine machine's endianness!");
+    return YgorMathIOSTLEndianness::Default; //(You should never get here.)        
+}
 
 
 // This routine reads an fv_surface_mesh from an ASCII STL format stream.
@@ -217,5 +252,128 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
 
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<double, uint32_t> &, std::ostream &);
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
+#endif
+
+
+// This routine writes an fv_surface_mesh to an STL format stream.
+//
+// Note that STL files do not support metadata.
+//
+template <class T, class I>
+bool
+WriteFVSMeshToBinarySTL(const fv_surface_mesh<T,I> &fvsm,
+                        std::ostream &os ){
+
+    // Work out the endianness of this machine.
+    //
+    // The STL file (implicitly?) requires little-endian writes.
+    const auto MachineEndianness = Detect_Machine_Endianness();
+
+    auto WriteUint16 = [&](uint16_t j){
+        unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(uint16_t)-1] only!
+        if( false ){
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            //Reverse the order of the bytes written to the stream.
+            for(size_t i = 0; i <= (sizeof(uint16_t)-1); ++i) os.put(c[sizeof(uint16_t)-1-i]);
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            //Keep the byte order unaltered.
+            os.write( reinterpret_cast<char *>( &c[0] ), sizeof(uint16_t) );
+        }else{
+            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+        }
+        return;
+    };
+
+    auto WriteUint32 = [&](uint32_t j){
+        unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(T)-1] only!
+        if( false ){
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            //Reverse the order of the bytes written to the stream.
+            for(size_t i = 0; i <= (sizeof(uint32_t)-1); ++i) os.put(c[sizeof(uint32_t)-1-i]);
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            //Keep the byte order unaltered.
+            os.write( reinterpret_cast<char *>( &c[0] ), sizeof(uint32_t) );
+        }else{
+            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+        }
+        return;
+    };
+
+    auto WriteVec3T = [&](vec3<T> v){
+        // Verify we conform to standard types.
+        //
+        // The STL format requires IEEE-formatted 32 bit floats.
+        if(!std::numeric_limits<float>::is_iec559) throw std::runtime_error("Refusing to write non-IEEE754 floating point values.");
+        if((sizeof(float)) != 4) throw std::runtime_error("Float is not 32 bit. Refusing to continue.");
+
+        auto v_pack = std::vector<float>{{ static_cast<float>(v.x), 
+                                           static_cast<float>(v.y),
+                                           static_cast<float>(v.z) }};
+        for(float &x : v_pack){
+            unsigned char *c = reinterpret_cast<unsigned char *>(&x); //c[0] to c[sizeof(float)-1] only!
+            if( false ){
+            }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+                //Reverse the order of the bytes written to the stream.
+                for(size_t i = 0; i <= (sizeof(float)-1); ++i) os.put(c[sizeof(float)-1-i]);
+            }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+                //Keep the byte order unaltered.
+                os.write( reinterpret_cast<char *>( &c[0] ), sizeof(float) );
+            }else{
+                throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+            }
+        }
+        return;
+    };
+
+    // Header. The contents are arbitrary but should not begin with 'solid' since readers may then assume this is an
+    // ASCII STL file. Conversely, the header should ideally inform users what the file contains...
+    os << "STL";
+    for(size_t i = 3; i < 80; ++i) os << '\0';
+
+    // Emit the number of faces.
+    auto N_faces = static_cast<uint32_t>(fvsm.faces.size());
+    WriteUint32(N_faces);
+
+    // Emit the faces one at a time.
+    for(const auto &fv : fvsm.faces){
+        if(fv.size() != 3){
+            throw std::runtime_error("Found non-triangle face; STL files only support triangles.");
+        }
+        auto v_A = fvsm.vertices.at( static_cast<size_t>(fv[0]) );
+        auto v_B = fvsm.vertices.at( static_cast<size_t>(fv[1]) );
+        auto v_C = fvsm.vertices.at( static_cast<size_t>(fv[2]) );
+
+        // Compute face normal.
+        //
+        // Note that it must be consistent with the normal derived from vertices.
+        //const auto N = (v_B - v_A).Cross(v_C - v_A).unit();
+
+        // Disregard the normal, forcing the reader to compute up-to-date normals as needed.
+        const auto N = vec3<T>( static_cast<T>(0),
+                                static_cast<T>(0),
+                                static_cast<T>(0) );
+
+        // Emit normal.
+        WriteVec3T(N);
+
+        // Emit vertices.
+        WriteVec3T(v_A);
+        WriteVec3T(v_B);
+        WriteVec3T(v_C);
+
+        // Emit a dummy 2-byte 'attribute byte count' that should be zero.
+        uint16_t dummy = 0;
+        WriteUint16(dummy);
+    }
+    os.flush();
+
+    return(!os.fail());
+}
+#ifndef YGORMATHIOSTL_DISABLE_ALL_SPECIALIZATIONS
+    template bool WriteFVSMeshToBinarySTL(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
+    template bool WriteFVSMeshToBinarySTL(const fv_surface_mesh<float , uint64_t> &, std::ostream &);
+
+    template bool WriteFVSMeshToBinarySTL(const fv_surface_mesh<double, uint32_t> &, std::ostream &);
+    template bool WriteFVSMeshToBinarySTL(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
 #endif
 
