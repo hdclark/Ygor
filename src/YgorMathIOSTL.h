@@ -30,6 +30,14 @@ bool
 WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
                        std::ostream &os );
 
+// This routine reads an fv_surface_mesh from a binary STL format stream.
+//
+// Note that this routine does not validate or enforce manifoldness.
+template <class T, class I>
+bool
+ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
+                         std::istream &is );
+
 // This routine writes an fv_surface_mesh to a binary STL format stream.
 //
 // Note that metadata can not be written.

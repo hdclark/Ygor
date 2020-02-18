@@ -191,7 +191,7 @@ int main(int argc, char **argv){
 
     std::cout << "--------------" << std::endl;
 
-    // Attempt to write and read as an STL file.
+    // Attempt to write and read as an ASCII STL file.
     {
         fv_surface_mesh<double, uint64_t> smesh;
 
@@ -286,7 +286,107 @@ int main(int argc, char **argv){
         if(output_A != output_B){
             throw std::runtime_error("Round-tripping mesh failed.");
         }
-        FUNCINFO("ASCIISTL round-trip tests passed");
+        FUNCINFO("ASCII STL round-trip tests passed");
+    }
+
+    std::cout << "--------------" << std::endl;
+
+    // Attempt to write and read as a binary STL file.
+    {
+        fv_surface_mesh<double, uint64_t> smesh;
+
+        std::stringstream ss;
+        ss << "OFF" << std::endl
+           << "# Whole-line comment" << std::endl
+           << "# A # Confusing # comment" << std::endl
+           << "100 100 #0 # An invalid line that should be disregarded" << std::endl
+           << "12 20 0" << std::endl
+           << "0 1.618034 1 " << std::endl  // The vertices.
+           << "0 1.618034 -1 " << std::endl
+           << "0 -1.618034 1 " << std::endl
+           << "0 -1.618034 -1 " << std::endl
+           << "1.618034 1 0 " << std::endl
+           << "1.618034 -1 0 " << std::endl
+           << "-1.618034 1 0 " << std::endl
+           << "-1.618034 -1 0 " << std::endl
+           << "1 0 1.618034 " << std::endl
+           << "-1 0 1.618034 " << std::endl
+           << "1 0 -1.618034 " << std::endl
+           << "-1 0 -1.618034 " << std::endl
+           << "3 1 0 4" << std::endl          // The faces.
+           << "3 0 1 6" << std::endl
+           << "3 2 3 5" << std::endl
+           << "3 3 2 7" << std::endl
+           << "3 4 5 10" << std::endl
+           << "3 5 4 8" << std::endl
+           << "3 6 7 9" << std::endl
+           << "3 7 6 11" << std::endl
+           << "3 8 9 2" << std::endl
+           << "3 9 8 0" << std::endl
+           << "3 10 11 1" << std::endl
+           << "3 11 10 3" << std::endl
+           << "3 0 8 4" << std::endl
+           << "3 0 6 9" << std::endl
+           << "3 1 4 10" << std::endl
+           << "3 1 11 6" << std::endl
+           << "3 2 5 8" << std::endl
+           << "3 2 9 7" << std::endl
+           << "3 3 10 5 # Another comment." << std::endl
+           << "3 3 7 11" << std::endl
+           << "" << std::endl;
+
+        // Round-trip #1.
+        if(!ReadFVSMeshFromOFF(smesh, ss)){
+            throw std::runtime_error("Unable to read mesh from OFF stream: 1.");
+        }else{
+            FUNCINFO("First read OK");
+        }
+        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        std::stringstream ss2;
+        if(!WriteFVSMeshToBinarySTL(smesh, ss2)){
+            throw std::runtime_error("Unable to write mesh to Binary STL stream: 1.");
+        }else{
+            FUNCINFO("First write OK");
+        }
+        const auto output_A = ss2.str();
+
+        // Round-trip #2.
+        if(!ReadFVSMeshFromBinarySTL(smesh, ss2)){
+            throw std::runtime_error("Unable to read mesh from Binary STL stream: 2.");
+        }else{
+            FUNCINFO("Second read OK");
+        }
+        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        std::stringstream ss3;
+        if(!WriteFVSMeshToBinarySTL(smesh, ss3)){
+            throw std::runtime_error("Unable to write mesh to Binary STL stream: 2.");
+        }else{
+            FUNCINFO("Second write OK");
+        }
+
+        // Round-trip #3.
+        if(!ReadFVSMeshFromBinarySTL(smesh, ss3)){
+            throw std::runtime_error("Unable to read mesh from Binary STL stream: 3.");
+        }else{
+            FUNCINFO("Third read OK");
+        }
+        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        std::stringstream ss4;
+        if(!WriteFVSMeshToBinarySTL(smesh, ss4)){
+            throw std::runtime_error("Unable to write mesh to Binary STL stream: 3.");
+        }else{
+            FUNCINFO("Third write OK");
+        }
+        const auto output_B = ss4.str();
+
+
+        if(output_A != output_B){
+            throw std::runtime_error("Round-tripping mesh failed.");
+        }
+        FUNCINFO("Binary STL round-trip tests passed");
     }
 
     return 0;

@@ -244,7 +244,7 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
     os << "endsolid a" << std::endl;
     os.flush();
 
-    return(!os.fail());
+    return (!os.fail());
 }
 #ifndef YGORMATHIOSTL_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
@@ -252,6 +252,188 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
 
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<double, uint32_t> &, std::ostream &);
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<double, uint64_t> &, std::ostream &);
+#endif
+
+
+// This routine reads an fv_surface_mesh from a binary STL format stream.
+//
+// Note that this routine does not validate or enforce manifoldness.
+//
+// Note that STL files can not contain metadata.
+//
+template <class T, class I>
+bool
+ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
+                         std::istream &is ){
+
+    // Work out the endianness of this machine.
+    //
+    // The STL file (implicitly?) requires little-endian writes.
+    const auto MachineEndianness = Detect_Machine_Endianness();
+
+    auto ReadUint16 = [&](void){
+        uint16_t j = 0;
+        unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(uint16_t)-1] only!
+        if( false ){
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            //Reverse the order of the bytes read from the stream.
+            for(size_t i = 0; i <= (sizeof(uint16_t)-1); ++i){
+                is.get( reinterpret_cast<char *>(&c[sizeof(uint16_t)-1-i]), sizeof(char) );
+            }
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            //Keep the byte order unaltered.
+            is.read( reinterpret_cast<char *>( &c[0] ), sizeof(uint16_t) );
+        }else{
+            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+        }
+        return j;
+    };
+
+    auto ReadUint32 = [&](void){
+        uint32_t j = 0;
+        unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(T)-1] only!
+        if( false ){
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            //Reverse the order of the bytes read from the stream.
+            for(size_t i = 0; i <= (sizeof(uint32_t)-1); ++i){
+                is.get( reinterpret_cast<char *>(&c[sizeof(uint32_t)-1-i]), sizeof(char) );
+            }
+        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            //Keep the byte order unaltered.
+            is.read( reinterpret_cast<char *>( &c[0] ), sizeof(uint32_t) );
+        }else{
+            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+        }
+        return j;
+    };
+
+    auto ReadVec3T = [&](void){
+        // Verify we conform to standard types.
+        //
+        // The STL format requires IEEE-formatted 32 bit floats. If this computer does not implement it,
+        // we cannot read the file correctly.
+        if(!std::numeric_limits<float>::is_iec559) throw std::runtime_error("Refusing to read non-IEEE754 floating point values.");
+        if((sizeof(float)) != 4) throw std::runtime_error("Float is not 32 bit. Refusing to continue.");
+
+        auto v_pack = std::vector<float>{{ static_cast<float>(0), 
+                                           static_cast<float>(0),
+                                           static_cast<float>(0) }};
+        for(float &x : v_pack){
+            unsigned char *c = reinterpret_cast<unsigned char *>(&x); //c[0] to c[sizeof(float)-1] only!
+            if( false ){
+            }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+                //Reverse the order of the bytes read from the stream.
+                for(size_t i = 0; i <= (sizeof(float)-1); ++i){
+                    is.get( reinterpret_cast<char *>(&c[sizeof(float)-1-i]), sizeof(char) );
+                }
+            }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+                //Keep the byte order unaltered.
+                is.read( reinterpret_cast<char *>( &c[0] ), sizeof(float) );
+            }else{
+                throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
+            }
+        }
+
+        return vec3<T>( static_cast<T>(v_pack[0]),
+                        static_cast<T>(v_pack[1]),
+                        static_cast<T>(v_pack[2]) );
+    };
+
+    fvsm.vertices.clear();
+    fvsm.faces.clear();
+    fvsm.involved_faces.clear();
+
+    std::vector< vec3<T> > vectors; // Buffer for unit vector and vertices.
+
+    // Skip the first 80 bytes, which can contain anything.
+    is.seekg( 80, is.cur );
+
+    // Read the number of faces (all assumed to be triangles).
+    const auto N_faces = static_cast<I>( ReadUint32() );
+
+    if((N_faces <= 0) || (220'000'000 < N_faces)){ 
+        // Approx 10 GiB limit. Seems reasonable (for now), given that the file is fully loaded into memory. A uint32_t
+        // can go up to 4'294'967'295, which would consume ~200 GiB. The chosen limit here is 1/20th the maximum to both
+        // reduce the risk of a memory DOS, and reduce the risk of a large, non-STL file being misinterpretted as an STL
+        // file.
+        FUNCWARN("File is either not an STL file, or is too large to handle. Refusing to proceed");
+        return false;
+    }
+    
+    for(I i = 0; i < N_faces; ++i){
+        //const auto normal = ReadVec3T();
+        ReadVec3T(); // Read and discard the normal.
+        const auto v_A = ReadVec3T();
+        const auto v_B = ReadVec3T();
+        const auto v_C = ReadVec3T();
+        const auto N_attr = ReadUint16();
+
+        if(N_attr != static_cast<uint16_t>(0)){
+            FUNCWARN("This routine cannot handle attributes. Refusing to continue");
+            return false;
+        }
+        if(is.fail()){
+            FUNCWARN("File prematurely ended. File is either not an STL file, or is damaged");
+            return false;
+        }
+
+        fvsm.vertices.emplace_back(v_A);
+        fvsm.vertices.emplace_back(v_B);
+        fvsm.vertices.emplace_back(v_C);
+
+        const auto v_offset = static_cast<long long int>(fvsm.vertices.size()) - 3LL;
+        const std::vector<I> faces = {{ static_cast<I>(v_offset + 0LL),
+                                        static_cast<I>(v_offset + 1LL),
+                                        static_cast<I>(v_offset + 2LL) }};
+        fvsm.faces.emplace_back( faces );
+    }
+    if(is.peek() != std::char_traits<char>::eof()){
+        FUNCWARN("All faces have been read, but EOF has not been reached. File may be invalid. Refusing to continue");
+        // This could potentially indicate non-triangular faces have been encountered (and not handled correctly), the
+        // file is corrupt, or there are additional file elements that this reader does not implement. It is safest to
+        // assume the worst and refuse to continue.
+        return false;
+    }
+
+    // Connect duplicate vertices.
+    //
+    // Note: STL only requires single precision vertices, so we can safely ignore greater precision below 
+    //       a reasonable threshold.
+    fvsm.merge_duplicate_vertices( static_cast<T>(1E-5) );
+
+    // Verify that the indices are reasonable.
+    {
+        const auto N_verts = fvsm.vertices.size();
+        for(const auto &fv : fvsm.faces){
+            if(fv.empty()){
+                FUNCWARN("Encountered face with zero involved vertices");
+                return false;
+            }
+            for(const auto &v_i : fv){
+                if((v_i < 0) || (N_verts <= v_i)){
+                    FUNCWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
+                    return false;
+                }
+            }
+        }
+    }
+
+    // Create the involved_faces index.
+    try{
+        fvsm.recreate_involved_face_index();
+    }catch(const std::exception &){ 
+        FUNCWARN("Failed to recreate involved_faces index");
+        return false;
+    }
+
+    return true;
+}
+#ifndef YGORMATHIOSTL_DISABLE_ALL_SPECIALIZATIONS
+    template bool ReadFVSMeshFromBinarySTL(fv_surface_mesh<float , uint32_t> &, std::istream &);
+    template bool ReadFVSMeshFromBinarySTL(fv_surface_mesh<float , uint64_t> &, std::istream &);
+
+    template bool ReadFVSMeshFromBinarySTL(fv_surface_mesh<double, uint32_t> &, std::istream &);
+    template bool ReadFVSMeshFromBinarySTL(fv_surface_mesh<double, uint64_t> &, std::istream &);
 #endif
 
 
