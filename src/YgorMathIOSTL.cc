@@ -146,7 +146,8 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
             // Do nothing.
 
         }else{
-            FUNCWARN("Unanticipated line '" << line << "' (number " << lineN << "). Refusing to continue.");
+            // Note: the following warning is helpful for debugging, but can pollute stdout with arbitrary code!
+            //FUNCWARN("Unanticipated line '" << line << "' (number " << lineN << "). Refusing to continue.");
             return false;
         }
     }
