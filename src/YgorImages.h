@@ -716,7 +716,7 @@ template <class T,class R>   class planar_image_adjacency {
         std::vector<img_planes_t> img_plane_to_img;
 
         // Index-to-image and vice versa.
-        std::map<long int, img_ptr_t> int_to_img;
+        std::vector<img_ptr_t> int_to_img;
         std::map<img_ptr_t, long int> img_to_int;
 
         // Planes that define a bounding volume for faster interpolation outside the useful volume.

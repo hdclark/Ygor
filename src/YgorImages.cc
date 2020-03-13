@@ -5561,11 +5561,13 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
                    return (lhs_proj < rhs_proj);
                } );
 
-    // Give each image an index. The absolute number is arbitrary, but 0 is also the default map value initializer.
-    long int dummy = 100;
+    // Give each image an index. The number is arbitrary, but for convenience the first is given 0 so we can more
+    // consistently traverse the entire set.
+    long int dummy = 0;
+    this->int_to_img.reserve(this->img_plane_to_img.size());
     for(auto &p : this->img_plane_to_img){
         const auto img_ptr = std::get<1>(p);
-        this->int_to_img[dummy] = img_ptr;
+        this->int_to_img.push_back(img_ptr);
         this->img_to_int[img_ptr] = dummy;
         ++dummy;
     }
@@ -5755,7 +5757,7 @@ planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_
 template <class T,class R>
 bool
 planar_image_adjacency<T,R>::index_present(long int index) const {
-    return (this->int_to_img.count(index) != 0);
+    return (0L <= index) && (index < static_cast<long int>(this->int_to_img.size()));
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template bool planar_image_adjacency<uint8_t ,double>::index_present(long int) const;
