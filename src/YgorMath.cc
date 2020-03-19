@@ -120,7 +120,7 @@ template <class T> T vec3<T>::Dot(const vec3<T> &in) const {
     
     
 template <class T> vec3<T> vec3<T>::unit(void) const {
-    const T tot = sqrt(x*x + y*y + z*z);
+    const T tot = std::sqrt(x*x + y*y + z*z);
     return vec3<T>(x/tot, y/tot, z/tot);
 } 
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -130,8 +130,7 @@ template <class T> vec3<T> vec3<T>::unit(void) const {
     
     
 template <class T> T vec3<T>::length(void) const {
-    const T tot = sqrt(x*x + y*y + z*z);
-    return tot;
+    return std::sqrt(x*x + y*y + z*z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float vec3<float>::length(void) const;
@@ -139,24 +138,24 @@ template <class T> T vec3<T>::length(void) const {
 #endif
     
     
+template <class T> T vec3<T>::sq_length(void) const {
+    return (x*x + y*y + z*z);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float vec3<float>::sq_length(void) const;
+    template double vec3<double>::sq_length(void) const;
+#endif
+    
+    
 template <class T>  T vec3<T>::distance(const vec3<T> &rhs) const {
-    const T dist = sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y) + (z-rhs.z)*(z-rhs.z));
-    return dist;
+    return std::sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y) + (z-rhs.z)*(z-rhs.z));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float vec3<float>::distance(const vec3<float> &rhs) const;
     template double vec3<double>::distance(const vec3<double> &rhs) const;
 #endif
     
-/*
-template <class T>  T vec3<T>::distance(vec3 rhs){
-    const T dist = sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y) + (z-rhs.z)*(z-rhs.z));
-    return dist;
-}
-    
-template float vec3<float>::distance(vec3<float> rhs);
-template double vec3<double>::distance(vec3<double> rhs);
-*/
+
 template <class T>  T vec3<T>::sq_dist(const vec3<T> &rhs) const {
     return ((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y) + (z-rhs.z)*(z-rhs.z));
 }
@@ -667,7 +666,7 @@ vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &th
 
     //Note that taking the real part messes up the normalization, leading to some fairly funky 'strands' in the rotated vector.
     // If you sample theta but leave A and R static, you should see these strands if you remove the following renormalization.
-    const double utot = sqrt( u1*u1 + u2*u2 + u3*u3 );
+    const double utot = std::sqrt( u1*u1 + u2*u2 + u3*u3 );
     u1 /= utot;
     u2 /= utot;
     u3 /= utot;
@@ -791,7 +790,7 @@ template <class T> vec2<T> vec2<T>::Mask(const vec2<T> &in) const {
  
     
 template <class T> vec2<T> vec2<T>::unit(void) const {
-    const T tot = sqrt(x*x + y*y);
+    const T tot = std::sqrt(x*x + y*y);
     return vec2<T>(x/tot, y/tot);
 } 
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -801,8 +800,7 @@ template <class T> vec2<T> vec2<T>::unit(void) const {
     
     
 template <class T> T vec2<T>::length(void) const {
-    const T tot = sqrt(x*x + y*y);
-    return tot;
+    return std::sqrt(x*x + y*y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float vec2<float>::length(void) const;
@@ -810,9 +808,17 @@ template <class T> T vec2<T>::length(void) const {
 #endif
     
     
+template <class T> T vec2<T>::sq_length(void) const {
+    return (x*x + y*y);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float vec2<float>::sq_length(void) const;
+    template double vec2<double>::sq_length(void) const;
+#endif
+    
+    
 template <class T>  T vec2<T>::distance(const vec2<T> &rhs) const {
-    const T dist = sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
-    return dist;
+    return std::sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float vec2<float>::distance(const vec2<float> &rhs) const;
@@ -1182,6 +1188,16 @@ template <class T>  T line<T>::Distance_To_Point( const vec3<T> &R ) const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float line<float>::Distance_To_Point( const vec3<float> &R ) const;
     template double line<double>::Distance_To_Point( const vec3<double> &R ) const;
+#endif
+
+//This function computes the square of the distance from any line to any point in 3D space.
+template <class T>  T line<T>::Sq_Distance_To_Point( const vec3<T> &R ) const {
+    const vec3<T> dR = R - (*this).R_0;
+    return  ( dR.Cross( dR - (*this).U_0 ) ).sq_length();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float line<float>::Sq_Distance_To_Point( const vec3<float> &R ) const;
+    template double line<double>::Sq_Distance_To_Point( const vec3<double> &R ) const;
 #endif
 
 /*
@@ -6205,7 +6221,7 @@ template <class T>   void samples_1D<T>::Normalize_wrt_Self_Overlap(void){
     // This routine ultimately scales all f_i by a constant factor. The sigma_f_i are also scaled.
     const auto I = this->Integrate_Overlap( *this );
     const T AA = I[0]; //We ignore the uncertainty of the integral because it isn't relevant for a simple scaling.
-    const T A  = sqrt(AA);
+    const T A  = std::sqrt(AA);
     for(auto &P : this->samples){
         P[2] /= A;
         P[3] /= A;

@@ -66,6 +66,7 @@ template <class T> class vec3 {
     
         vec3 unit() const;                // ---> Return a normalized version of this vector.
         T length() const;                 // ---> (pythagorean) length of vector.
+        T sq_length() const;              // ---> Square of the (pythagorean) length of vector. Avoids a sqrt().
         T distance(const vec3 &) const;   // ---> (pythagorean) distance between vectors.
         T sq_dist(const vec3 &) const;    // ---> Square of the (pythagorean) distance. Avoids a sqrt().
         T angle(const vec3 &, bool *OK=nullptr) const;  // ---> The |angle| (in radians, [0,2*pi]) separating two vectors. 
@@ -147,6 +148,7 @@ template <class T> class vec2 {
 
         vec2 unit() const;                // ---> Return a normalized version of this vector.
         T length() const;                 // ---> (pythagorean) length of vector.
+        T sq_length() const;              // ---> Square of the (pythagorean) length of vector. Avoids a sqrt().
         T distance(const vec2 &) const;   // ---> (pythagorean) distance between vectors.
         T sq_dist(const vec2 &) const;    // ---> Square of the (pythagorean) distance. Avoids a sqrt().
 
@@ -179,6 +181,7 @@ template <class T>   class line {
         //Member functions.
         line<T>& operator=(const line<T> &) = default;
         T Distance_To_Point( const vec3<T> & ) const;
+        T Sq_Distance_To_Point( const vec3<T> & ) const;
 
         bool Intersects_With_Line_Once( const line<T> &, vec3<T> &) const;
 
