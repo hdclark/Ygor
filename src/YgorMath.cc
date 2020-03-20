@@ -1308,6 +1308,7 @@ template <class T>  bool line<T>::Intersects_With_Line_Once( const line<T> &in, 
     template bool line<double>::Intersects_With_Line_Once( const line<double> &in, vec3<double> &out) const;
 #endif
 
+
 template <class T>  bool line<T>::Closest_Point_To_Line(const line<T> &in, vec3<T> &out) const {
     //Returns the point on (*this) which is closest to the given line. Can only fail if the lines
     // are parallel (or due to fp uncertainties).
@@ -1816,6 +1817,27 @@ template <class T>    bool plane<T>::Intersects_With_Line_Once(const line<T> &L,
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool plane<float >::Intersects_With_Line_Once(const line<float > &L, vec3<float > &out) const;
     template bool plane<double>::Intersects_With_Line_Once(const line<double> &L, vec3<double> &out) const;
+#endif
+
+
+//This function accepts any line_segment embedded in 3D space.
+//
+//NOTE: If 'false' is returned, then the vec3 passed in will be undefined.
+template <class T>  bool plane<T>::Intersects_With_Line_Segment_Once( const line_segment<T> &in, vec3<T> &out) const {
+    // Make a line coincident with the line_segment, determine if there is an intersection, and then verify the
+    // intersection occurs between the endpoints.
+    line<T> L(in.Get_R0(), in.Get_R1());
+
+    if(!this->Intersects_With_Line_Once(L, out)){
+        return false;
+    }
+
+    const auto t = in.U_0.Dot( out - in.R_0 );
+    return (in.t_0 <= t) && (t <= in.t_1);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool plane<float>::Intersects_With_Line_Segment_Once( const line_segment<float> &in, vec3<float> &out) const;
+    template bool plane<double>::Intersects_With_Line_Segment_Once( const line_segment<double> &in, vec3<double> &out) const;
 #endif
 
 

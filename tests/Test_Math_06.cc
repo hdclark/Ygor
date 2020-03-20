@@ -130,9 +130,49 @@ int main(int argc, char **argv){
         }
     }
 
+    {
+        line_segment<double> L( vec3<double>(0.0, 0.0, -1.0), vec3<double>(0.0, 0.0, 1.0) );
 
+        plane<double> PA( vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.0) );
+        plane<double> PB( vec3<double>(2.0, 2.0, 2.0), vec3<double>(0.0, 0.0, 1.1) );
 
+        vec3<double> P;
 
+        if( PA.Intersects_With_Line_Segment_Once(L, P)
+        &&  (P.distance(vec3<double>(0.0, 0.0, 0.0)) < 1E-5) ){
+            FUNCINFO("Correctly located line_segment-plane intersection");
+        }else{
+            FUNCERR("Failed to locate line_segment-plane intersection");
+        }
+
+        if( !PB.Intersects_With_Line_Segment_Once(L, P) ){
+            FUNCINFO("Correctly rejected line_segment-plane intersection");
+        }else{
+            FUNCERR("Erroneously located an invalid line_segment-plane intersection");
+        }
+    }
+
+    {
+        line_segment<double> L( vec3<double>(0.0, 0.0, -100.0), vec3<double>(0.0, 0.0, 0.1) );
+
+        plane<double> PA( vec3<double>(0.0, 1.0, 1.0), vec3<double>(0.0, 0.0, 0.0) );
+        plane<double> PB( vec3<double>(2.0, 2.0, -2.0), vec3<double>(0.0, 0.0, 0.2) );
+
+        vec3<double> P;
+
+        if( PA.Intersects_With_Line_Segment_Once(L, P)
+        &&  (P.distance(vec3<double>(0.0, 0.0, 0.0)) < 1E-5) ){
+            FUNCINFO("Correctly located line_segment-plane intersection");
+        }else{
+            FUNCERR("Failed to locate line_segment-plane intersection");
+        }
+
+        if( !PB.Intersects_With_Line_Segment_Once(L, P) ){
+            FUNCINFO("Correctly rejected line_segment-plane intersection");
+        }else{
+            FUNCERR("Erroneously located an invalid line_segment-plane intersection");
+        }
+    }
 
     return 0;
 }
