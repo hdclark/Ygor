@@ -2506,7 +2506,7 @@ template <class T,class R> R planar_image<T,R>::volume(void) const {
 template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void) const {
     std::list<vec3<R>> out;
     const auto Rrow(this->row_unit*this->pxl_dx*(R)(0.5)); //Vectors along the row/col vecs. Used for 
-    const auto Rcol(this->row_unit*this->pxl_dx*(R)(0.5)); // translating the center to the corner.
+    const auto Rcol(this->col_unit*this->pxl_dy*(R)(0.5)); // translating the center to the corner.
 
     // Guaranteed point ordering:
     //
@@ -4961,6 +4961,12 @@ void Mutate_Voxels(
     if(working_img_ref.get().channels < 1){
         throw std::invalid_argument("No channel to operate on. Cannot continue.");
     }
+    if(working_img_ref.get().rows < 1){
+        throw std::invalid_argument("No rows to operate on. Cannot continue.");
+    }
+    if(working_img_ref.get().columns < 1){
+        throw std::invalid_argument("No columns to operate on. Cannot continue.");
+    }
     std::set<long int> channels_to_visit;
     for(auto chan = 0; chan < working_img_ref.get().channels; ++chan) channels_to_visit.insert(chan);
 
@@ -4995,6 +5001,9 @@ void Mutate_Voxels(
     const auto pxl_dy     = working_img_ref.get().pxl_dy;
     //const auto pxl_dz     = working_img_ref.get().pxl_dz;
 
+    const auto zeroth_voxel_pos = working_img_ref.get().position(0,0);
+
+
     //Test whether the selected images have the same image characteristics so (row,column) coordinates are identical (up to
     // translation along the planer normal).
     bool selected_imgs_spatially_equivalent;
@@ -5008,7 +5017,8 @@ void Mutate_Voxels(
     //Loop over the ccsl, rois, rows, columns, and channels to determine boundedness. Record on the mask.
     for(auto &ccs : ccsl){
         for(auto roi_it = ccs.get().contours.begin(); roi_it != ccs.get().contours.end(); ++roi_it){
-            if(roi_it->points.empty()) continue;
+            // A zero-area contour may overlap a voxel (depending on inclusivity).
+            if(roi_it->points.size() < 2) continue;
             {
                 //Only run if the contour fits entirely in the frame (i.e., bounded by the edges too).
                 // Note: I had this originally. Is it ever desirable over the next option?
@@ -5084,21 +5094,115 @@ void Mutate_Voxels(
             auto ProjectedContour = roi_it->Project_Onto_Plane_Orthogonally(BestFitPlane);
             const bool AlreadyProjected = true;
     
+
+/*
             //Lambda for testing if a given point is bounded by (i.e., interior to) the ROI.
             const auto is_interior = [BestFitPlane,ProjectedContour,AlreadyProjected](vec3<double> point) -> bool {
                 auto ProjectedPoint = BestFitPlane.Project_Onto_Plane_Orthogonally(point);
-    /*
-                    //Check if within the bounding box. It will generally be cheaper than the full contour (4 points vs. ? points).
-                    auto BBoxProjectedPoint = BBoxBestFitPlane.Project_Onto_Plane_Orthogonally(point);
-                    if(!BBoxProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BBoxBestFitPlane,
-                                                                                        BBoxProjectedPoint,
-                                                                                        BBoxAlreadyProjected)) return false;
-    */
+
+                //    //Check if within the bounding box. It will generally be cheaper than the full contour (4 points vs. ? points).
+                //    auto BBoxProjectedPoint = BBoxBestFitPlane.Project_Onto_Plane_Orthogonally(point);
+                //    if(!BBoxProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BBoxBestFitPlane,
+                //                                                                        BBoxProjectedPoint,
+                //                                                                        BBoxAlreadyProjected)) return false;
+
                 //Perform a more detailed check.
                 return ProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BestFitPlane,
                                                                                    ProjectedPoint,
                                                                                    AlreadyProjected);
             };
+*/
+
+// const auto row_unit   = working_img_ref.get().row_unit;
+// const auto col_unit   = working_img_ref.get().col_unit;
+// const auto ortho_unit = row_unit.Cross( col_unit ).unit();
+// const auto pxl_dx     = working_img_ref.get().pxl_dx;
+// const auto pxl_dy     = working_img_ref.get().pxl_dy;
+
+            //Precompute which line segments cross over each row line (or column line).
+            std::map<long int, std::vector<double>> row_contour_crossings;
+            {
+                auto end = std::end(ProjectedContour.points);
+                auto p1_it = std::prev( end );
+                for(auto p2_it = std::begin(ProjectedContour.points); p2_it != end; ){
+
+                    for(auto row : RowsToVisit){
+                        // See if this line segment crosses the row line.
+                        const auto row_line_offset = static_cast<double>(row) * pxl_dy;
+
+                        const auto p1_row_offset = std::abs( row_unit.Dot((*p1_it) - zeroth_voxel_pos) );
+                        const auto p2_row_offset = std::abs( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+
+                        const bool p1_lower = (p1_row_offset <= row_line_offset);
+                        const bool p2_lower = (p2_row_offset <= row_line_offset);
+
+                        if(p1_lower == p2_lower) continue; // Both endpoints are on the same side, so no crossing.
+
+                        // Find the point on the line segment that crosses the row line.
+                        const auto d1 = std::abs(row_line_offset - p1_row_offset);
+                        const auto d2 = std::abs(row_line_offset - p2_row_offset);
+                        const auto t = d1 / (d1 + d2);
+                        if(!isininc(0.0,t,1.0)) throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
+                        const auto crossing_pos = ((*p2_it) - (*p1_it)) * t + (*p1_it);
+
+                        const auto crossing_offset = std::abs( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
+                        row_contour_crossings[row].emplace_back(crossing_offset);
+                    }
+
+                    p1_it = p2_it;
+                    ++p2_it;
+                }
+            }
+
+            //Sort the crossings and verify there are a valid number of them.
+            for(auto &rcc : row_contour_crossings){
+                std::sort( std::begin(rcc.second),
+                           std::end(rcc.second) );
+
+                if(rcc.second.size() % 2 != 0){
+                    throw std::runtime_error("Encountered invalid number of line crossings due to numerical instability. Unable to continue.");
+                }
+            }
+
+            //Lambda for testing if a given point is bounded by (i.e., interior to) the ROI.
+            const auto is_interior = [BestFitPlane,
+                                      row_unit,
+                                      col_unit,
+                                      pxl_dx,
+                                      pxl_dy,
+                                      zeroth_voxel_pos,
+                                      &row_contour_crossings](vec3<double> point) -> bool {
+                auto ProjectedPoint = BestFitPlane.Project_Onto_Plane_Orthogonally(point);
+
+                // Determine the corresponding row number.
+                const auto row_num = std::abs( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dy;
+                const auto row = static_cast<long int>( std::round(row_num) );
+
+                if(row_contour_crossings[row].empty()){
+                    throw std::runtime_error("Encountered an unexpected row. Refusing to continue.");
+                }
+
+                // Determine the distance along the row line.
+                const auto row_line_dist = std::abs( col_unit.Dot(ProjectedPoint - zeroth_voxel_pos) );
+
+                // Count how many crossings surround each.
+                const auto end = std::end(row_contour_crossings[row]);
+                auto l_it = std::upper_bound(std::begin(row_contour_crossings[row]), 
+                                             end,
+                                             row_line_dist);
+
+                // Count the number of elements to the right.
+                const auto num_crossings_to_right = std::distance(l_it, end);
+
+                const bool is_within = (num_crossings_to_right % 2 != 0);
+                return is_within;
+
+                //return ProjectedContour.Is_Point_In_Polygon_Projected_Orthogonally(BestFitPlane,
+                //                                                                   ProjectedPoint,
+                //                                                                   AlreadyProjected);
+            };
+
+
 
             //Lambda for indicating the boundedness on the contour mask.
             const auto mark_boundedness = [&mask_img_ref,options,OrientationPositive](long int r, long int c, long int ch) -> void {
