@@ -86,7 +86,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
     if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         # Add gprof profiling flag.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
     endif()
 
     if(MEMORY_CONSTRAINED_BUILD)

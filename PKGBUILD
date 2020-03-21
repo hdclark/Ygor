@@ -34,17 +34,19 @@ optdepends=(
 
 #options=(!strip staticlibs)
 options=(strip staticlibs)
+#PKGEXT='.pkg.tar' # Disable compression.
 
 build() {
   #cmake "${pkgdir}" ...
   cmake \
     ../ \
     -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Debug \
     -DWITH_LINUX_SYS=ON \
     -DWITH_EIGEN=ON \
     -DWITH_GNU_GSL=ON \
     -DWITH_BOOST=ON 
-  make -j 4
+  make -j 4 VERBOSE=1
 }
 
 package() {
