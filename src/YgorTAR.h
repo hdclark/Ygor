@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <iosfwd>
 #include <string>
+#include <array>
+#include <functional>
 
 #include "YgorDefinitions.h"
 
@@ -38,7 +40,7 @@ void nullify_all(ustar_header &);
 void compute_checksum(ustar_header &);
 
 // RAII manager class that simplifies constructing TAR format for the user.
-class ustar_archive_writer {
+class ustar_writer {
     private:
         long int blocks_written; // The total number of 512-byte blocks written.
                                  // Customarily, the final number of blocks will be a multiple of 20.
@@ -46,7 +48,7 @@ class ustar_archive_writer {
         std::ostream &os;
 
     public:
-        ustar_archive_writer(std::ostream &os); // Note: stream scope must outlast this instance!
+        ustar_writer(std::ostream &os); // Note: stream scope must outlast this instance!
 
         void add_file(std::istream &is,            // Contents of the file. If no file size provided, this stream must be seekable!
                       std::string fname,           // e.g., 'afile.txt'.
@@ -59,8 +61,20 @@ class ustar_archive_writer {
                       std::string g_name  = "",    // Owner name, e.g., "users".
                       std::string fprefix = "" );  // Prefix directory, e.g., "/path/to/a/directory".
 
-        ~ustar_archive_writer(); // Finalizes file and flushes stream.
-
+        ~ustar_writer(); // Finalizes file and flushes stream.
 };
+
+// Callback-based TAR file reader; user-provided functor called once per file.
+void read_ustar(std::istream &is,
+                std::function<void(std::istream &is,
+                                   std::string fname,
+                                   long int fsize,
+                                   std::string fmode,
+                                   std::string fuser,
+                                   std::string fgroup,
+                                   long int ftime,
+                                   std::string o_name,
+                                   std::string g_name,
+                                   std::string fprefix)> file_handler );
 
 #endif

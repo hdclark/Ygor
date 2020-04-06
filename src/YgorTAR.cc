@@ -1,3 +1,5 @@
+//YgorTAR.h - A collection of routines for writing and reading TAR files.
+
 #include <stddef.h>
 #include <fstream>
 #include <iomanip>
@@ -5,6 +7,8 @@
 #include <memory>
 #include <string>
 #include <limits>
+#include <array>
+#include <functional>
 
 #include "YgorDefinitions.h"
 #include "YgorString.h"
@@ -88,19 +92,20 @@ void compute_checksum(ustar_header &a){
     return;
 }
 
-ustar_archive_writer::ustar_archive_writer(std::ostream &os) : blocks_written(0L), os(os) { }
+ustar_writer::ustar_writer(std::ostream &os) : blocks_written(0L),
+                                               os(os) { }
 
 void 
-ustar_archive_writer::add_file(std::istream &is,
-                               std::string fname,
-                               long int fsize,
-                               std::string fmode,
-                               std::string fuser,
-                               std::string fgroup,
-                               long int ftime,
-                               std::string o_name,
-                               std::string g_name,
-                               std::string fprefix ){
+ustar_writer::add_file(std::istream &is,
+                       std::string fname,
+                       long int fsize,
+                       std::string fmode,
+                       std::string fuser,
+                       std::string fgroup,
+                       long int ftime,
+                       std::string o_name,
+                       std::string g_name,
+                       std::string fprefix ){
 
     ustar_header ustar = {}; // Aggregate initialization, should be all-zero IFF POD.
     nullify_all(ustar); // Explicitly zero'd incase the ustar struct is modified (e.g., in case constructor added).
@@ -238,9 +243,7 @@ ustar_archive_writer::add_file(std::istream &is,
     return;
 }
 
-
-
-ustar_archive_writer::~ustar_archive_writer(){
+ustar_writer::~ustar_writer(){
     // Write two full empty records to signify the end.
     for(size_t i = 0; i < 512; ++i) os.put('\0');
     for(size_t i = 0; i < 512; ++i) os.put('\0');
@@ -262,5 +265,215 @@ ustar_archive_writer::~ustar_archive_writer(){
         // what we'll go with for now.
     }
     os.flush();
+}
+
+
+// Callback-based TAR file reader; user-provided functor called once per file.
+void read_ustar(std::istream &is,
+                std::function<void(std::istream &is,
+                                   std::string fname,
+                                   long int fsize,
+                                   std::string fmode,
+                                   std::string fuser,
+                                   std::string fgroup,
+                                   long int ftime,
+                                   std::string o_name,
+                                   std::string g_name,
+                                   std::string fprefix)> file_handler ){
+
+    if(!file_handler){
+        throw std::invalid_argument("User-provided functor is invalid. Cannot continue.");
+    }
+
+    const auto octal_string_to_signed_long_int = [](std::string in) -> long int {
+        size_t pos;
+        return std::stol(in, &pos, 8);
+    };
+
+    long int invalid_headers = 0;
+
+    // Loop over the contents of the TAR file.
+    while(true){
+
+        // Finished parsing file when two invalid or empty headers are encountered.
+        if(invalid_headers >= 2) break;
+
+        // Read in enough data to populate the header (512 bytes).
+        ustar_header ustar = {}; // Aggregate initialization, should be all-zero IFF POD.
+        nullify_all(ustar); // Explicitly zero'd incase the ustar struct is modified (e.g., in case constructor added).
+        //is.read(reinterpret_cast<char *>(&ustar), 512);
+        if( false
+        || !is.read(reinterpret_cast<char *>(ustar.fname.data()),   ustar.fname.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.fmode.data()),   ustar.fmode.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.fuser.data()),   ustar.fuser.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.fgroup.data()),  ustar.fgroup.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.fsize.data()),   ustar.fsize.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.ftime.data()),   ustar.ftime.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.chksum.data()),  ustar.chksum.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.ftype.data()),   ustar.ftype.size()  )
+        || !is.read(reinterpret_cast<char *>(ustar.flname.data()),  ustar.flname.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.ustari.data()),  ustar.ustari.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.ustarv.data()),  ustar.ustarv.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.o_name.data()),  ustar.o_name.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.g_name.data()),  ustar.g_name.size() )
+        || !is.read(reinterpret_cast<char *>(ustar.d_major.data()), ustar.d_major.size())
+        || !is.read(reinterpret_cast<char *>(ustar.d_minor.data()), ustar.d_minor.size())
+        || !is.read(reinterpret_cast<char *>(ustar.fprefix.data()), ustar.fprefix.size())
+        || !is.read(reinterpret_cast<char *>(ustar.padding.data()), ustar.padding.size()) ){
+            // Incomplete header, parse error, or no more files remaining.
+            ++invalid_headers;
+            continue;
+        }
+
+        // Extract strings.
+        std::string fname  (reinterpret_cast<char *>(ustar.fname.data()),   ustar.fname.size()  );
+        std::string fmode  (reinterpret_cast<char *>(ustar.fmode.data()),   ustar.fmode.size()  );
+        std::string fuser  (reinterpret_cast<char *>(ustar.fuser.data()),   ustar.fuser.size()  );
+        std::string fgroup (reinterpret_cast<char *>(ustar.fgroup.data()),  ustar.fgroup.size() );
+        std::string fsize  (reinterpret_cast<char *>(ustar.fsize.data()),   ustar.fsize.size()  );
+        std::string ftime  (reinterpret_cast<char *>(ustar.ftime.data()),   ustar.ftime.size()  );
+        std::string chksum (reinterpret_cast<char *>(ustar.chksum.data()),  ustar.chksum.size() );
+        std::string ftype  (reinterpret_cast<char *>(ustar.ftype.data()),   ustar.ftype.size()  );
+        std::string flname (reinterpret_cast<char *>(ustar.flname.data()),  ustar.flname.size() );
+        std::string ustari (reinterpret_cast<char *>(ustar.ustari.data()),  ustar.ustari.size() );
+        std::string ustarv (reinterpret_cast<char *>(ustar.ustarv.data()),  ustar.ustarv.size() );
+        std::string o_name (reinterpret_cast<char *>(ustar.o_name.data()),  ustar.o_name.size() );
+        std::string g_name (reinterpret_cast<char *>(ustar.g_name.data()),  ustar.g_name.size() );
+        std::string d_major(reinterpret_cast<char *>(ustar.d_major.data()), ustar.d_major.size());
+        std::string d_minor(reinterpret_cast<char *>(ustar.d_minor.data()), ustar.d_minor.size());
+        std::string fprefix(reinterpret_cast<char *>(ustar.fprefix.data()), ustar.fprefix.size());
+        std::string padding(reinterpret_cast<char *>(ustar.padding.data()), ustar.padding.size());
+
+        const auto crop_at_first_null = [](std::string &in) -> void {
+            in.erase(std::find(in.begin(), in.end(), '\0'), in.end());
+            return;
+        };
+
+        crop_at_first_null(fname  );
+        crop_at_first_null(fmode  );
+        crop_at_first_null(fuser  );
+        crop_at_first_null(fgroup );
+        crop_at_first_null(fsize  );
+        crop_at_first_null(ftime  );
+        crop_at_first_null(chksum );
+        crop_at_first_null(ftype  );
+        crop_at_first_null(flname );
+        crop_at_first_null(ustari );
+        crop_at_first_null(ustarv );
+        crop_at_first_null(o_name );
+        crop_at_first_null(g_name );
+        crop_at_first_null(d_major);
+        crop_at_first_null(d_minor);
+        crop_at_first_null(fprefix);
+        crop_at_first_null(padding);
+
+        // Skip if header is empty.
+        //
+        // Two of these indicate the end of further records.
+        if(true
+        && fname  .empty()
+        && fmode  .empty()
+        && fuser  .empty()
+        && fgroup .empty()
+        && fsize  .empty()
+        && ftime  .empty()
+        && chksum .empty()
+        && ftype  .empty()
+        && flname .empty()
+        && ustari .empty()
+        && ustarv .empty()
+        && o_name .empty()
+        && g_name .empty()
+        && d_major.empty()
+        && d_minor.empty()
+        && fprefix.empty()
+        && padding.empty() ){
+            ++invalid_headers;
+            continue;
+        }
+        
+        // Assume the record is not empty, and therefore a valid record.
+
+        // Determine whether the record is sound and we support the file type.
+        if( (ustari != "ustar")
+        ||  (ustarv != "00") ){
+            throw std::runtime_error("File format is not supported; only 'ustar' POSIX IEEE P1003.1-1990 is supported.");
+        }
+
+        const long int fsize_l = octal_string_to_signed_long_int(fsize);
+        if( (fsize_l < 0) || (1073741824 < fsize_l) ){
+            // Ustar file format limited to 8GB per individual file. If larger, this is probably not a ustar formatted file.
+            ++invalid_headers;
+            continue;
+        }
+
+        long int ftime_l = 0;
+        if(!ftime.empty()){
+            try{
+                ftime_l = octal_string_to_signed_long_int(ftime);
+            }catch(const std::exception &){
+                //Consider file invalid if one of the parameters is malformed.
+                ++invalid_headers;
+                continue;
+            }
+        }
+        
+        if(!padding.empty()){
+            // If the padding space has been used for something, this file likely uses an extension that is not supported.
+            ++invalid_headers;
+            continue;
+        }
+
+        // Re-compute the checksum.
+        {
+            const auto chksum_existing = ustar.chksum;
+            ustar.chksum.fill(' ');
+            compute_checksum(ustar);
+            const auto chksum_recalc = ustar.chksum;
+            if(chksum_existing != chksum_recalc){
+                ++invalid_headers;
+                continue;
+            }
+        }
+
+        // Trust the header is valid and has been parsed correctly.
+
+        // Marshall the file contents into a separate stream so we don't have to trust the file handler functor to consume
+        // only the indicated number of bytes.
+        std::stringstream ss;
+        {
+            auto total_bytes_remaining = static_cast<std::streamsize>(fsize_l);
+            std::array<char, 512> buf;
+            while(true){
+                const auto bytes_to_read = std::min<std::streamsize>(buf.size(), total_bytes_remaining);
+                is.read(buf.data(), bytes_to_read);
+                const auto last_bytes_read = is.gcount(); // Note: can be less than requested.
+                ss.write(buf.data(), last_bytes_read);
+                total_bytes_remaining -= last_bytes_read;
+                if(total_bytes_remaining == 0) break;
+                if(!is.good()) throw std::runtime_error("Insufficient data available in archive; it is likely invalid.");
+            }
+        }
+        ss.flush();
+
+        // Invoke the user functor.
+        file_handler(ss,
+                     fname,
+                     fsize_l,
+                     fmode,
+                     fuser,
+                     fgroup,
+                     ftime_l,
+                     o_name,
+                     g_name,
+                     fprefix);
+
+        // Read the remaining padding bytes.
+        const auto rem = std::ldiv(fsize_l, 512L).rem;
+        const auto zero_pad_bytes = (rem == 0L ? 0L : 512L - rem);
+        for(long int i = 0L; i < zero_pad_bytes; ++i) is.get();
+    }
+
+    return;
 }
 
