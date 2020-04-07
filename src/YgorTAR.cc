@@ -401,7 +401,7 @@ void read_ustar(std::istream &is,
         }
 
         const long int fsize_l = octal_string_to_signed_long_int(fsize);
-        if( (fsize_l < 0) || (1073741824 < fsize_l) ){
+        if( (fsize_l < 0) || (8'589'934'591 < fsize_l) ){
             // Ustar file format limited to 8GB per individual file. If larger, this is probably not a ustar formatted file.
             ++invalid_headers;
             continue;
