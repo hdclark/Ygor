@@ -269,6 +269,13 @@ ustar_writer::~ustar_writer(){
 
 
 // Callback-based TAR file reader; user-provided functor called once per file.
+//
+// This routine will be able to handle (a subset of the functionality of) files in the following formats:
+// - 'ustar' -- POSIX IEEE P1003.1-1990 format TAR files.
+// - 'gnu'   -- the default format produced by GNU tar between versions 1.12 and 1.13.25.
+// - 'posix' -- (aka 'pax') the default format produced by GNU tar after version 1.13.25, but long filenames
+//               will be parsed as though the long filenames are separate files.
+//
 void read_ustar(std::istream &is,
                 std::function<void(std::istream &is,
                                    std::string fname,
@@ -395,16 +402,37 @@ void read_ustar(std::istream &is,
         // Assume the record is not empty, and therefore a valid record.
 
         // Determine whether the record is sound and we support the file type.
-        if( (ustari != "ustar")
-        ||  (ustarv != "00") ){
-            throw std::runtime_error("File format is not supported; only 'ustar' POSIX IEEE P1003.1-1990 is supported.");
+        if(false){
+        }else if( (ustari == "ustar") && (ustarv == "00") ){ // 'ustar\0' and '  '.
+            // 'ustar' POSIX IEEE P1003.1-1990 format. Nothing needs to be done...
+        }else if( (ustari == "ustar ") && (ustarv == " ") ){ // 'ustar ' and ' \0'. 
+            // 'gnu' format: incompatible extensions with ustar and posix/pax formats.
+            //
+            // Differences in the header start at byte 345, replacing the ustar 'prefix' and 'padding' fields with
+            // the atime[12], ctime[12], offset[12], longnames[4], padding[1], sparse[96], realsize[12],
+            // isextended[1], and padding[17].
+            //
+            // Since this metadata is not supported, we simply ensure none of the data layout modifying extensions are
+            // actually being used.
+            fprefix.empty();
+            padding.empty();
+
+            std::string gnu_extensions(reinterpret_cast<char *>(ustar.fprefix.data()) + 12 + 12, 12 + 4 + 1 + 96 + 12 + 1);
+            crop_at_first_null(gnu_extensions);
+            if(!gnu_extensions.empty()){
+                throw std::runtime_error("Unsupported GNU extensions encountered. Refusing to continue.");
+            }
+        }else{
+            throw std::runtime_error("Unrecognized TAR format. Refusing to continue.");
         }
 
         const long int fsize_l = octal_string_to_signed_long_int(fsize);
-        if( (fsize_l < 0) || (8'589'934'591 < fsize_l) ){
-            // Ustar file format limited to 8GB per individual file. If larger, this is probably not a ustar formatted file.
-            ++invalid_headers;
-            continue;
+        if( (fsize_l < 0) 
+        // Ustar file format limited to 8GB per individual file.
+        ||  ( (ustari == "ustar") && (ustarv == "00") && (8'589'934'591 < fsize_l) )
+        // GNU can be larger, but the highest bit indicates the size is stored elsewhere.
+        ||  ( (ustari == "ustar ") && (ustarv == " ") && (4'294'967'295 < fsize_l) ) ){
+            throw std::runtime_error("Unsupported encapsulated file size. Refusing to continue.");
         }
 
         long int ftime_l = 0;
@@ -416,12 +444,6 @@ void read_ustar(std::istream &is,
                 ++invalid_headers;
                 continue;
             }
-        }
-        
-        if(!padding.empty()){
-            // If the padding space has been used for something, this file likely uses an extension that is not supported.
-            ++invalid_headers;
-            continue;
         }
 
         // Re-compute the checksum.
@@ -435,6 +457,8 @@ void read_ustar(std::istream &is,
                 continue;
             }
         }
+
+        const auto is_regular_file = (ftype == "0"_s) || ftype.empty();
 
         // Trust the header is valid and has been parsed correctly.
 
@@ -457,16 +481,18 @@ void read_ustar(std::istream &is,
         ss.flush();
 
         // Invoke the user functor.
-        file_handler(ss,
-                     fname,
-                     fsize_l,
-                     fmode,
-                     fuser,
-                     fgroup,
-                     ftime_l,
-                     o_name,
-                     g_name,
-                     fprefix);
+        if(is_regular_file){
+            file_handler(ss,
+                         fname,
+                         fsize_l,
+                         fmode,
+                         fuser,
+                         fgroup,
+                         ftime_l,
+                         o_name,
+                         g_name,
+                         fprefix);
+        }
 
         // Read the remaining padding bytes.
         const auto rem = std::ldiv(fsize_l, 512L).rem;
