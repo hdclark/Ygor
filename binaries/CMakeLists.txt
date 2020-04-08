@@ -36,11 +36,23 @@ target_link_libraries(regex_tester
     Threads::Threads
 )
 
+add_executable(parse_TAR_files
+    Parse_TAR_Files.cc
+)
+target_include_directories(parse_TAR_files
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(parse_TAR_files
+    ygor
+    m
+    Threads::Threads
+)
 
 install(TARGETS 
     fits_replace_nans
     twot_pvalue
     regex_tester
+    parse_TAR_files
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
