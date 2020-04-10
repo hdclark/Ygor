@@ -4232,9 +4232,10 @@ template <class T> long int contour_of_points<T>::Avoids_Plane(const plane<T> &P
 
     for(auto it = this->points.begin(); it != this->points.end(); ++it){
         //Update the 'above' and 'below' bools as necessary.
-        if(P.Is_Point_Above_Plane(*it)){
+        if(!above && P.Is_Point_Above_Plane(*it)){
             above = true;
-        }else if(PN.Is_Point_Above_Plane(*it)){
+        } 
+        if(!below && PN.Is_Point_Above_Plane(*it)){
             below = true;
         }
 

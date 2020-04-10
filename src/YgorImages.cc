@@ -5129,12 +5129,12 @@ void Mutate_Voxels(
                     auto p1_it = std::prev( end );
                     for(auto p2_it = std::begin(ProjectedContour.points); p2_it != end; ){
 
-                        for(auto row : RowsToVisit){
+                        for(const auto &row : RowsToVisit){
                             // See if this line segment crosses the row line.
-                            const auto row_line_offset = static_cast<double>(row) * pxl_dy;
+                            const auto row_line_offset = static_cast<double>(row) * pxl_dx;
 
-                            const auto p1_row_offset = std::abs( row_unit.Dot((*p1_it) - zeroth_voxel_pos) );
-                            const auto p2_row_offset = std::abs( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                            const auto p1_row_offset = ( row_unit.Dot((*p1_it) - zeroth_voxel_pos) );
+                            const auto p2_row_offset = ( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
 
                             const bool p1_lower = (p1_row_offset <= row_line_offset);
                             const bool p2_lower = (p2_row_offset <= row_line_offset);
@@ -5148,7 +5148,7 @@ void Mutate_Voxels(
                             if(!isininc(0.0,t,1.0)) throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
                             const auto crossing_pos = ((*p2_it) - (*p1_it)) * t + (*p1_it);
 
-                            const auto crossing_offset = std::abs( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
+                            const auto crossing_offset = ( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
                             row_contour_crossings[row].emplace_back(crossing_offset);
                         }
 
@@ -5177,15 +5177,18 @@ void Mutate_Voxels(
                     auto ProjectedPoint = BestFitPlane.Project_Onto_Plane_Orthogonally(point);
 
                     // Determine the corresponding row number.
-                    const auto row_num = std::abs( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dx;
+                    const auto row_num = ( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dx;
                     const auto row = static_cast<long int>( std::round(row_num) );
 
+                    if(row_contour_crossings.count(row) == 0){
+                        return false; // Not interior, because no bounds were found earlier.
+                    }
                     if(row_contour_crossings.at(row).empty()){
                         throw std::runtime_error("Encountered an unexpected row. Refusing to continue.");
                     }
 
                     // Determine the distance along the row line.
-                    const auto row_line_dist = std::abs( col_unit.Dot(ProjectedPoint - zeroth_voxel_pos) );
+                    const auto row_line_dist = ( col_unit.Dot(ProjectedPoint - zeroth_voxel_pos) );
 
                     // Count how many crossings surround each.
                     const auto end = std::end(row_contour_crossings.at(row));
