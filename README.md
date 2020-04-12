@@ -71,25 +71,29 @@ available at [https://gitlab.com/hdeanclark/Ygor/] and
 
 This project uses CMake. Use the usual commands to compile:
 
-     $>  cd /path/to/source/directory
-     $>  mkdir build && cd build/
+    $>  cd /path/to/source/directory
+    $>  mkdir build && cd build/
 
 Then, iff by-passing your package manager:
 
-     $>  cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
-     $>  make && sudo make install
+    $>  cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
+    $>  make && sudo make install
 
-Or, if building for Debian:
+or, if building for Debian:
 
-     $>  cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
-     $>  make && make package
-     $>  sudo apt install -f ./*.deb
+    $>  cmake ../ -DCMAKE_INSTALL_PREFIX=/usr
+    $>  make && make package
+    $>  sudo apt install -f ./*.deb
 
-Or, if building for Arch Linux:
+or, if building for Arch Linux:
 
-     $>  rsync -aC --exclude build ../ ./
-     $>  makepkg --syncdeps --noconfirm # Optionally also [--install].
+    $>  rsync -aC --exclude build ../ ./
+    $>  makepkg --syncdeps --noconfirm # Optionally also [--install].
 
+A helper script that will auto-detect the system and package or install properly
+can be invoked as:
+
+    $>  ./compile_and_install.sh
 
 # Known Issues
 
@@ -174,4 +178,26 @@ Or, if building for Arch Linux:
 - April 2019
 
   - Added integration with static analysis tools and rudimentary CI tooling.
+
+- January 2020
+
+  - Added support for writing many types of mesh file formats (obj, off, stl) 
+    over the last few months. Limited reading support since some of the formats
+    are fairly open-ended.
+
+- February 2020
+
+  - Improved 3D voxel lookup efficiency for regular images via the 
+    `planar_image_adjacency` routine.
+
+- March 2020
+
+  - Added faster projection-based `is_point_in_poly` sub-routine to generic 
+    `Mutate_Voxels` interface routine. 
+  - Revisited test cases, ensuring they all build.
+
+- April 2020
+
+  - Added generic TAR file read and write support. Small clean-up primarily in
+    math and image files.
 
