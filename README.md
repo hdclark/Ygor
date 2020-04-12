@@ -5,6 +5,7 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/4b2ac86e6fe446a69891e5d61fb3312a)](https://www.codacy.com/app/hdclark/Ygor?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hdclark/Ygor&amp;utm_campaign=Badge_Grade)
 [![Hit count](http://hits.dwyl.io/hdclark/Ygor.svg)](http://hits.dwyl.io/hdclark/Ygor)
 
+
 # Introduction
 
 This supporting library was written by hal clark over the span of many years
@@ -67,6 +68,11 @@ available at [https://gitlab.com/hdeanclark/Ygor/] and
 [https://github.com/hdclark/Ygor/].
 
 
+# Dependencies
+
+See `PKGBUILD` for concise list of dependencies.
+
+
 # Installation
 
 This project uses CMake. Use the usual commands to compile:
@@ -94,6 +100,7 @@ A helper script that will auto-detect the system and package or install properly
 can be invoked as:
 
     $>  ./compile_and_install.sh
+
 
 # Known Issues
 
