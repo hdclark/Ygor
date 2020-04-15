@@ -178,7 +178,7 @@ set(CPACK_GENERATOR "DEB")
 string(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
 set(CPACK_PACKAGE_VERSION "${INVOCATION_TIMESTAMP}")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64") # i386, amd64, armel, armhf, ...
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "D.R.Y. support library with scientific emphasis.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Support library with scientific emphasis.")
 set(CPACK_PACKAGE_CONTACT "hdeanclark@gmail.com")
 set(CPACK_PACKAGE_MAINTAINER "Haley Clark <hdeanclark@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_SECTION "Science")
