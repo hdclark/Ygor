@@ -48,14 +48,13 @@ target_link_libraries(parse_TAR_files
     Threads::Threads
 )
 
-install(TARGETS 
-    fits_replace_nans
-    twot_pvalue
-    regex_tester
-    parse_TAR_files
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
+install(TARGETS fits_replace_nans
+                twot_pvalue
+                regex_tester
+                parse_TAR_files
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 

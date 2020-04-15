@@ -30,14 +30,13 @@ target_link_libraries(ygor
 endif()
 
 # Installation info.
-install(TARGETS 
-    ygor
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
+install(TARGETS ygor
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(FILES 
-    ${ygor_headers} DESTINATION include
+install(FILES ${ygor_headers}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
