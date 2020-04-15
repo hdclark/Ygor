@@ -414,8 +414,8 @@ void read_ustar(std::istream &is,
             //
             // Since this metadata is not supported, we simply ensure none of the data layout modifying extensions are
             // actually being used.
-            fprefix.empty();
-            padding.empty();
+            fprefix.clear();
+            padding.clear();
 
             std::string gnu_extensions(reinterpret_cast<char *>(ustar.fprefix.data()) + 12 + 12, 12 + 4 + 1 + 96 + 12 + 1);
             crop_at_first_null(gnu_extensions);

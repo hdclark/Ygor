@@ -213,7 +213,6 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
     os << std::scientific;
 
     // Emit faces one at a time.
-    const auto N_verts = static_cast<long long int>(fvsm.vertices.size());
     for(const auto &fv : fvsm.faces){
         if(fv.empty()) continue;
 
@@ -244,6 +243,7 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
     }
     os << "endsolid a" << std::endl;
     os.flush();
+    os.precision( original_precision );
 
     return (!os.fail());
 }
