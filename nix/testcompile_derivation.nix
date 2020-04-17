@@ -21,14 +21,21 @@ stdenv.mkDerivation rec {
   ];
 
   buildPhase = ''
-    echo '#include <YgorMisc.h>' > in.cc
-    echo 'int main(int argc, char **argv){ return 0; }' >> in.cc
+    echo '#include <YgorMisc.h>'                    >  in.cc
+    echo 'int main(int argc, char **argv){'         >> in.cc
+    echo '    FUNCINFO("Compilation successful!");' >> in.cc
+    echo '    return 0;'                            >> in.cc
+    echo '}'                                        >> in.cc
+
     $CXX -std=c++17 -Wall -Wextra -pedantic -o testcompile in.cc -lygor
   '';
 
   installPhase = ''
     mkdir -p $out/bin/
     cp testcompile $out/bin/
+    echo " "
+    $out/bin/testcompile
+    echo " "
   '';
 
 }

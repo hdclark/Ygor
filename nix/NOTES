@@ -31,12 +31,20 @@ path is '/nix/store/6bmpmdjlvlyh0462pl1g8x6rb3fsf0n8-a0f0c5911b72466b587b312cc1b
 #    10zyv17a2qymm0xf5ysb3qs54zy9xsap58ns9ph075ic4f5r0an3
 
 
-# Building a nixpkgs-style derivation directly:
-nix-build -E 'with import <nixpkgs> {}; callPackage ./ygor.nix {}'
+# Building a nixpkgs-style derivation directly.
+#
+# Note: this nix file does NOT rely on any special nixpkgs repos. It uses the default.
+#
+# Note: this nix file invokes multiple (local) nix files to provide necessary dependencies.
+nix build -L -f default.nix
 
-#or
+# Or, compile a single nixpkgs-style derivation file.
+#
+# Note: custom dependencies likely won't be handled this way.
+nix-build -E 'with import <nixpkgs> {}; callPackage ./ygor_derivation.nix {}'
 
-cd nixpkgs
+# Or, compile a nixpkg derivation file directly from the repo.
+cd /path/to/.../nixpkgs/
 nix-build -E 'with import <nixpkgs> {}; callPackage ./pkgs/development/libraries/ygor/default.nix {}'
 
 
