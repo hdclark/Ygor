@@ -56,6 +56,19 @@ nix build -L -f release.nix nix-build-clang
 # Add the result to the current environment (note: binaries only).
 nix-env -i ./result
 
+# Launch a shell to test a derivation.
+nix-shell --pure default.nix
+ldd -r $(/usr/bin/which regex_tester)
+ldd -r $(/usr/bin/which fits_replace_nans)
+ldd -r $(/usr/bin/which parse_TAR_files)
+# Ensure the environment is capable of linking Ygor correctly:
+#    echo '#include <YgorMisc.h> ' > /tmp/in.cc
+#    echo 'int main(int argc, char **argv){ FUNCINFO("OK!") ; return 0; }' >> /tmp/in.cc
+#    g++ /tmp/in.cc -o /tmp/test -lygor
+#    /tmp/test
+#    --(I) In function: main: OK!.
+
+
 # Test the built library with a simplistic derivation that merely attempts to include a source and link the built library.
 #
 # Note: if the library has not been built already, it will be build on-demand. If it isn't part of nixpkgs, it won't work.
