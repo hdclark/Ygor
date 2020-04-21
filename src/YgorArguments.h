@@ -120,7 +120,6 @@ class ArgumentHandler {
                 const long int longW  = static_cast<long int>(max_long + 2); //And an extra space after.
                 const long int remain = termW - (longW + shrtW + 1);
                 const long int descW  = (remain > 20) ? remain : 20; 
-FUNCINFO("shrtW, longW, remain, descW = " << shrtW << ", " << longW << ", " << remain << ", " << descW);
 
                 //Now we cycle over the arguments, displaying them in a tabular fashion on the screen.
                 std::cout << DoubleLine << std::endl << " Usage." << std::endl << SingleLine << std::endl;
