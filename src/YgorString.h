@@ -195,11 +195,11 @@ std::string Break_Paragraphs_Into_Text(const std::vector<std::string> &in);
 
 //Returns a broken vector which fits within the given max width.
 //NOTE: Takes a single line. Knows nothing about paragraphs.
-std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W = 80, long int indent = 0);
+std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W = 120, long int indent = 0);
 
 //Returns a broken vector of possibly multiple paragraphs which fits within the given max width and is indented.
 //NOTE: Takes a linear collection of paragraphs. Assumes paragraphs are separated by "\n\n".
-std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, long int W = 80, long int indent = 0);
+std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, long int W = 120, long int indent = 0);
 
 //Returns a broken vector composed of (possibly multiple) paragraphs which are laid side-by-side. 
 std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std::string &inL, long int WL, long int indentL, 
@@ -207,6 +207,6 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
                                                                       const std::string &inR, long int WR, long int indentR);
 
 //Centers a given line to a specified width by padding the left side with ' 's.
-std::string Reflow_Line_Align_Center(const std::string &in, long int W = 80);
+std::string Reflow_Line_Align_Center(const std::string &in, long int W = 120);
 
 #endif

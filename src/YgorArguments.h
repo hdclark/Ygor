@@ -81,10 +81,10 @@ class ArgumentHandler {
                 //Environmental information and common things.
 #ifdef YGOR_USE_LINUX_SYS
                 const auto terminal_dims = Get_Terminal_Char_Dimensions();
-                const long int termW = (terminal_dims.first < 80) ? 120 : terminal_dims.first;
-                //const long int termH = (terminal_dims.second == -1) ? 50 : terminal_dims.second;
+                const auto termWL = static_cast<long int>(terminal_dims.first);
+                const long int termW = ((termWL < 80L) || (300L < termWL)) ? 120L : termWL;
 #else
-                const long int termW = 120;
+                const long int termW = 120L;
 #endif // YGOR_USE_LINUX_SYS
                 std::string DoubleLine, SingleLine(" ");
                 for(long int i=0; i<termW; ++i) DoubleLine += '=';
@@ -120,6 +120,7 @@ class ArgumentHandler {
                 const long int longW  = static_cast<long int>(max_long + 2); //And an extra space after.
                 const long int remain = termW - (longW + shrtW + 1);
                 const long int descW  = (remain > 20) ? remain : 20; 
+FUNCINFO("shrtW, longW, remain, descW = " << shrtW << ", " << longW << ", " << remain << ", " << descW);
 
                 //Now we cycle over the arguments, displaying them in a tabular fashion on the screen.
                 std::cout << DoubleLine << std::endl << " Usage." << std::endl << SingleLine << std::endl;
