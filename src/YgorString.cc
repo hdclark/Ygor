@@ -1417,8 +1417,8 @@ std::string Break_Paragraphs_Into_Text(const std::vector<std::string> &in){
 // of specified spaces. If zero, nothing is indented. If negative, every line except the first is indented with the
 // abs val of the number of specified spaces.
 std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W, long int indent){
-    if(/*(indent < 0) ||*/ (W <= 0)) FUNCERR("Given impossible width/indentation values. Cannot proceed");
-    if(YGORABS(indent) >= (W-1)) FUNCERR("Given ridiculous width(" << W << ") or indentation(" << indent << ") values. Refusing to proceed");
+    if(W <= 0) FUNCERR("Requested invalid reflow width (" << W << "). Cannot proceed");
+    if(YGORABS(indent) >= (W-1)) FUNCERR("Requested invalid width(" << W << ") or indentation(" << indent << ") values. Refusing to proceed");
 
     std::vector<std::string> out;
 

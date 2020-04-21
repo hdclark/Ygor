@@ -81,10 +81,10 @@ class ArgumentHandler {
                 //Environmental information and common things.
 #ifdef YGOR_USE_LINUX_SYS
                 const auto terminal_dims = Get_Terminal_Char_Dimensions();
-                const long int termW = (terminal_dims.first  == -1) ? 80 : terminal_dims.first;
+                const long int termW = (terminal_dims.first < 80) ? 120 : terminal_dims.first;
                 //const long int termH = (terminal_dims.second == -1) ? 50 : terminal_dims.second;
 #else
-                const long int termW = 80;
+                const long int termW = 120;
 #endif // YGOR_USE_LINUX_SYS
                 std::string DoubleLine, SingleLine(" ");
                 for(long int i=0; i<termW; ++i) DoubleLine += '=';
