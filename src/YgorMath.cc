@@ -6356,6 +6356,40 @@ template <class T> void samples_1D<T>::Average_Coincident_Data(T eps) {
     template void samples_1D<double>::Average_Coincident_Data(double eps);
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
+//Purge samples that are redundant (within eps) in the sense of linear interpolation. All uncertainties are ignored.
+template <class T> samples_1D<T> samples_1D<T>::Purge_Redundant_Samples(T x_eps, T f_eps) {
+    this->stable_sort();
+    const auto N = this->samples.size();
+    if(N < 3) return (*this);
+
+    samples_1D<T> out;
+    out.metadata = this->metadata;
+    out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
+    out.samples.reserve(N);
+
+    out.samples.push_back(this->samples.front()); // Always retain the left-most sample.
+    size_t L_i = 0; // Most recently pushed LHS sample in the output.
+    for(size_t i = 1; (i + 1) < N; ++i){
+        const auto L = this->samples[L_i];
+        const auto M = this->samples[i];
+        const auto R = this->samples[i+1];
+
+        if( ( x_eps < std::abs(L[0] - M[0]) )
+        ||  ( x_eps < std::abs(M[0] - R[0]) )
+        ||  ( f_eps < std::abs(L[2] - M[2]) )
+        ||  ( f_eps < std::abs(M[2] - R[2]) ) ){
+            out.samples.push_back(M);
+            L_i = i;
+        }
+    }
+    out.samples.push_back(this->samples.back()); // Always retain the right-most sample.
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template samples_1D<float > samples_1D<float >::Purge_Redundant_Samples(float  x_eps, float  f_eps);
+    template samples_1D<double> samples_1D<double>::Purge_Redundant_Samples(double x_eps, double f_eps);
+#endif
+//---------------------------------------------------------------------------------------------------------------------------
 template <class T> samples_1D<T> samples_1D<T>::Rank_x(void) const {
     //Replaces x-values with (~integer) rank. {dup,N}-plicates get an averaged (maybe non-integer) rank. The y-values (f_i 
     // and sigma_f_i) are not affected. The order of the elements will not be altered.

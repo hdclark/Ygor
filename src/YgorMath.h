@@ -815,6 +815,9 @@ template <class T> class samples_1D {
         //Ensure there is a single datum with the given x_i (within +-eps), averaging coincident data if necessary.
         void Average_Coincident_Data(T eps);
 
+        //Purge samples that are redundant (within eps) in the sense of linear interpolation. All uncertainties are ignored.
+        samples_1D<T> Purge_Redundant_Samples(T x_eps, T f_eps);
+
         //Replaces {x,y}-values with rank. {dup,N}-plicates get an averaged (maybe non-integer) rank.
         samples_1D<T> Rank_x(void) const;
         samples_1D<T> Rank_y(void) const;
