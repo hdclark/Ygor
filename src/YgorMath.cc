@@ -3974,15 +3974,20 @@ template <class T>
 vec3<T> 
 contour_of_points<T>::Estimate_Planar_Normal() const {
     if(this->points.size() < 3){
-        throw std::runtime_error("Failed to estimate contour plane: too few datum available.");
+        throw std::invalid_argument("Failed to estimate contour plane: too few datum available.");
     }
+
+/*
+    // The following only works when we get lucky and the selected vertex is on the convex hull!
+    //
+    // Works well if you only care about the normal line, but the normal itself will often be backward!
+
     const auto N = this->points.size();
     const vec3<T> p0 = this->Average_Point();
     vec3<T> dp1p0;
     vec3<T> dp2p0;
     size_t n = 0;
 
-    //Look for a usable p1.
     do{
         if((n+1) == N){
             throw std::runtime_error("Exhausted available points: too few usable datum available.");
@@ -3996,6 +4001,31 @@ contour_of_points<T>::Estimate_Planar_Normal() const {
         dp2p0 = *std::next(this->points.begin(),n++) - p0;
     }while(!std::isnormal(dp2p0.length()));
     return dp1p0.Cross(dp2p0).unit(); //Using the counterclockwise <--> positive convention.
+*/
+    if(!this->closed){
+        throw std::invalid_argument("Unable to estimate orientation of an open contour.");
+    }
+
+    // Generic solution: effectively compute the signed area, but do not merely the magnitude of the cross product.
+    const auto beg_it = std::begin(this->points);
+    const auto end_it = std::end(this->points);
+
+    // Note that by choosing the first point on the contour, we can avoid computing the first and last contributions
+    // since they will necessarily be zero.
+    auto p_0_it = std::next(beg_it);
+    auto p_1_it = std::next(p_0_it);
+    vec3<T> res( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
+    while( p_1_it != end_it ){
+        res += (*p_1_it - *p_0_it).Cross(*beg_it - *p_0_it);
+        ++p_0_it;
+        ++p_1_it;
+    }
+
+    if(!std::isnormal(res.length())){
+        throw std::invalid_argument("Contour is degenerate and orientation cannot be computed.");
+    }
+
+    return res.unit();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template vec3<float > contour_of_points<float >::Estimate_Planar_Normal() const;
