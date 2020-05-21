@@ -13,6 +13,7 @@ cat "$@" |
 
       pause 1 ;
       bind all "q" "unset output ; exit gnuplot" ;
+      bind "Close" "unset output ; exit gnuplot" ;
       while(1) {
           pause 1 ;
       };
