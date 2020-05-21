@@ -20,8 +20,9 @@ makedepends=(
    'boost'   # Library dependency, if enabled (see below).
 )
 optdepends=(
-   'gnuplot' # Runtime optional dependency.
-   'boost'   # User build header-only AND/OR library optional dependency.
+   'gnuplot'   # Runtime optional dependency.
+   'boost'     # User build header-only AND/OR library optional dependency.
+   'plotutils' # Runtime optional dependency.
 )
 # conflicts=()
 # replaces=()
