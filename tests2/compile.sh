@@ -11,3 +11,5 @@ rm -rf doctest/
 
 ./run_tests #--success
 
+rm ./run_tests
+

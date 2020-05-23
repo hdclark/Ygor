@@ -434,15 +434,158 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( zero == x_unit.zero() );
         REQUIRE( zero != x_unit );
     }
+
+    SUBCASE("rotate_around_x, rotate_around_y, rotate_around_z"){
+        const double agreement = 1.0 - eps;
+
+        // Correct orientations.
+        REQUIRE( agreement < x_unit.rotate_around_x(0.0).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_x(0.1).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_x(1.0).Dot(x_unit) );
+
+        REQUIRE( agreement < y_unit.rotate_around_y(0.0).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(0.1).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(1.0).Dot(y_unit) );
+
+        REQUIRE( agreement < z_unit.rotate_around_z(0.0).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_z(0.1).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_z(1.0).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_y(2.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(2.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(2.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(2.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(2.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(2.0 * M_PI).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_y(8.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(8.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(8.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(8.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(8.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(8.0 * M_PI).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_z(0.5 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_z(1.5 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(0.5 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_y(1.5 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(0.5 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(1.5 * M_PI).Dot(y_unit) );
+
+        // Maintains length when rotated.
+        REQUIRE( (x_unit.rotate_around_z(1.0).length() - 1.0) < eps );
+        REQUIRE( (y_unit.rotate_around_z(1.0).length() - 1.0) < eps );
+
+        REQUIRE( (x_unit.rotate_around_y(1.0).length() - 1.0) < eps );
+        REQUIRE( (z_unit.rotate_around_y(1.0).length() - 1.0) < eps );
+
+        REQUIRE( (y_unit.rotate_around_x(1.0).length() - 1.0) < eps );
+        REQUIRE( (z_unit.rotate_around_x(1.0).length() - 1.0) < eps );
+
+        REQUIRE( ((x_unit * -20.0).rotate_around_z(1.0).length() - 20.0) < eps );
+        REQUIRE( ((y_unit * -20.0).rotate_around_z(1.0).length() - 20.0) < eps );
+
+        REQUIRE( ((x_unit * -20.0).rotate_around_y(1.0).length() - 20.0) < eps );
+        REQUIRE( ((z_unit * -20.0).rotate_around_y(1.0).length() - 20.0) < eps );
+
+        REQUIRE( ((y_unit * -20.0).rotate_around_x(1.0).length() - 20.0) < eps );
+        REQUIRE( ((z_unit * -20.0).rotate_around_x(1.0).length() - 20.0) < eps );
+    }
+
+    SUBCASE("rotate_around_unit"){
+        const double agreement = 1.0 - eps;
+
+        // Correct orientations.
+        REQUIRE( agreement < x_unit.rotate_around_unit(x_unit, 0.0).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(x_unit, 0.1).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(x_unit, 1.0).Dot(x_unit) );
+
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 0.0).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 0.1).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 1.0).Dot(y_unit) );
+
+        REQUIRE( agreement < z_unit.rotate_around_unit(z_unit, 0.0).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(z_unit, 0.1).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(z_unit, 1.0).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 2.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 2.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 2.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 8.0 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 8.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 8.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(z_unit) );
+
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 0.5 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(z_unit, 1.5 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 0.5 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 1.5 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 0.5 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 1.5 * M_PI).Dot(y_unit) );
+
+        // Rotation about an arbitrary axis is 2pi cyclical.
+        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, 2.0 * M_PI).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, 2.0 * M_PI).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, 2.0 * M_PI).distance(z_unit) < eps );
+
+        // Rotation about an arbitrary axis reproduces simple unit vector decompositions.
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 0.5 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.0 * M_PI).distance((x_unit * -1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.5 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 0.5 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.0 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.5 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 0.5 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.0 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.5 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+
+        // Negative rotations are supported.
+        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, -2.0 * M_PI).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, -2.0 * M_PI).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, -2.0 * M_PI).distance(z_unit) < eps );
+
+        // Negative rotations can also be accomplished by negating the axis vector..
+        REQUIRE( x_unit.rotate_around_unit((y_unit + z_unit) * -1.0, 2.0 * M_PI).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit((x_unit + z_unit) * -1.0, 2.0 * M_PI).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit((x_unit + y_unit) * -1.0, 2.0 * M_PI).distance(z_unit) < eps );
+
+        // Maintains length when rotated.
+        REQUIRE( (x_unit.rotate_around_unit(z_unit, 1.0).length() - 1.0) < eps );
+        REQUIRE( (y_unit.rotate_around_unit(z_unit, 1.0).length() - 1.0) < eps );
+
+        REQUIRE( (x_unit.rotate_around_unit(y_unit, 1.0).length() - 1.0) < eps );
+        REQUIRE( (z_unit.rotate_around_unit(y_unit, 1.0).length() - 1.0) < eps );
+
+        REQUIRE( (y_unit.rotate_around_unit(x_unit, 1.0).length() - 1.0) < eps );
+        REQUIRE( (z_unit.rotate_around_unit(x_unit, 1.0).length() - 1.0) < eps );
+
+        REQUIRE( ((x_unit * -20.0).rotate_around_unit(z_unit, 1.0).length() - 20.0) < eps );
+        REQUIRE( ((y_unit * -20.0).rotate_around_unit(z_unit, 1.0).length() - 20.0) < eps );
+
+        REQUIRE( ((x_unit * -20.0).rotate_around_unit(y_unit, 1.0).length() - 20.0) < eps );
+        REQUIRE( ((z_unit * -20.0).rotate_around_unit(y_unit, 1.0).length() - 20.0) < eps );
+
+        REQUIRE( ((y_unit * -20.0).rotate_around_unit(x_unit, 1.0).length() - 20.0) < eps );
+        REQUIRE( ((z_unit * -20.0).rotate_around_unit(x_unit, 1.0).length() - 20.0) < eps );
+
+        // Maintains length when the axis is not a unit vector.
+        REQUIRE( (x_unit.rotate_around_unit(y_unit + z_unit, 1.0).length() - 1.0) < eps );
+        REQUIRE( (y_unit.rotate_around_unit(x_unit + z_unit, 1.0).length() - 1.0) < eps );
+        REQUIRE( (z_unit.rotate_around_unit(x_unit + y_unit, 1.0).length() - 1.0) < eps );
+    }
 }
 
-//        vec3<T> rotate_around_x(T angle_rad) const; // Rotate by some angle (in radians, [0,2*pi]) around a cardinal axis.
-//        vec3<T> rotate_around_y(T angle_rad) const;
-//        vec3<T> rotate_around_z(T angle_rad) const;
-//
-//        vec3<T> rotate_around_unit(const vec3<T> &axis, T angle_rad) const; // Rotate around the given unit vector by
-//                                                                            // some angle (in radians, [0,2*pi]).
-//
 //        bool GramSchmidt_orthogonalize(vec3<T> &, vec3<T> &) const; //Using *this as seed, orthogonalize (n.b. not orthonormalize) the inputs.
 //
 //        std::string to_string(void) const;
