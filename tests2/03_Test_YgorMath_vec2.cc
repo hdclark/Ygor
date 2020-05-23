@@ -3,7 +3,7 @@
 
 #include <YgorMath.h>
 
-#include <doctest/doctest.h>
+#include "doctest/doctest.h"
 
 
 TEST_CASE( "vec2 constructors are valid" ){

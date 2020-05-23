@@ -69,7 +69,7 @@ template <class T> class vec3 {
         T sq_length() const;              // ---> Square of the (pythagorean) length of vector. Avoids a sqrt().
         T distance(const vec3 &) const;   // ---> (pythagorean) distance between vectors.
         T sq_dist(const vec3 &) const;    // ---> Square of the (pythagorean) distance. Avoids a sqrt().
-        T angle(const vec3 &, bool *OK=nullptr) const;  // ---> The |angle| (in radians, [0,2*pi]) separating two vectors. 
+        T angle(const vec3 &, bool *OK=nullptr) const;  // ---> The |angle| (in radians, [0,pi]) separating two vectors. 
 
         vec3 zero(void) const; //Returns a zero-vector.
 
