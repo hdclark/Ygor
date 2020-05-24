@@ -290,6 +290,7 @@ template <class T>
 bool 
 vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
     //Using *this as seed, orthogonalize the inputs.
+    const auto eps = std::sqrt( static_cast<T>(10) * std::numeric_limits<T>::epsilon() );
     
     //The first vector is *this.
     const auto UA = *this;
@@ -299,7 +300,13 @@ vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
     bool ret = false;
     if( this->isfinite()
     &&  UB.isfinite() 
-    &&  UC.isfinite() ){
+    &&  UC.isfinite() 
+    &&  (UA.Dot(UB) < eps)
+    &&  (UA.Dot(UC) < eps)
+    &&  (UB.Dot(UC) < eps)
+    &&  (eps < UA.length())
+    &&  (eps < UB.length())
+    &&  (eps < UC.length()) ){
         b = UB;
         c = UC;
         ret = true;
