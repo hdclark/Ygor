@@ -352,11 +352,32 @@ template <class T>    std::istream &operator>>(std::istream &in, vec3<T> &L){
     //We have at least TWO options here. We can use a method which is compatible
     // with the ( , , ) notation, or we can ask for straight-up numbers. 
     //We will discriminate here based on what 'in' is.
-//    if(&in != &std::cin){                                            //Neat trick, but makes it hard to build on...
-        char grbg;
-        //... << "("  << L.x << ", " << L.y << ", " <<  L.z  <<  ")";
-        in    >> grbg >> L.x >> grbg >> L.y >> grbg >>  L.z  >> grbg;
-//    }else  in >> L.x >> L.y >> L.z;
+
+    std::string shtl;
+    in.get();
+    if(in.fail()) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
+    
+    std::getline(in, shtl, ',');
+    if(in.fail()) throw std::runtime_error("Unable to read first coordinate. Cannot continue.");
+    L.x = static_cast<T>( std::stold( shtl ) );
+
+    in.get();
+    if(in.fail()) throw std::runtime_error("Unable to read first comma. Cannot continue.");
+
+    std::getline(in, shtl, ',');
+    if(in.fail()) throw std::runtime_error("Unable to read second coordinate. Cannot continue.");
+    L.y = static_cast<T>( std::stold( shtl ) );
+
+    in.get();
+    if(in.fail()) throw std::runtime_error("Unable to read second comma. Cannot continue.");
+
+    std::getline(in, shtl); // Also consumes the trailing ')'.
+    if(in.fail()) throw std::runtime_error("Unable to read third coordinate. Cannot continue.");
+    L.z = static_cast<T>( std::stold( shtl ) ); // stold ignores trailing ')'.
+
+    in.peek();
+    if(!in.eof()) throw std::runtime_error("Input was not fully consumed. Refusing to continue.");
+
     return in;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS

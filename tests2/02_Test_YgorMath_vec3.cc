@@ -1,5 +1,6 @@
 
 #include <limits>
+#include <iostream>
 
 #include <YgorMath.h>
 
@@ -584,12 +585,219 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( (y_unit.rotate_around_unit(x_unit + z_unit, 1.0).length() - 1.0) < eps );
         REQUIRE( (z_unit.rotate_around_unit(x_unit + y_unit, 1.0).length() - 1.0) < eps );
     }
+
+    SUBCASE("GramSchmidt_orthogonalize"){
+        bool OK;
+        vec3<double> A, B, C;
+        
+        // Orthonormal vectors remain orthonormal.
+        A = x_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit) < eps );
+        REQUIRE( B.distance(y_unit) < eps );
+        REQUIRE( C.distance(z_unit) < eps );
+
+        A = x_unit * -1.0;
+        B = y_unit *  1.0;
+        C = z_unit * -1.0;
+        OK = A.GramSchmidt_orthogonalize(C, B);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit * -1.0) < eps );
+        REQUIRE( B.distance(y_unit *  1.0) < eps );
+        REQUIRE( C.distance(z_unit * -1.0) < eps );
+        
+        A = x_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = B.GramSchmidt_orthogonalize(A, C);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit) < eps );
+        REQUIRE( B.distance(y_unit) < eps );
+        REQUIRE( C.distance(z_unit) < eps );
+
+        A = x_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = B.GramSchmidt_orthogonalize(C, A);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit) < eps );
+        REQUIRE( B.distance(y_unit) < eps );
+        REQUIRE( C.distance(z_unit) < eps );
+
+        
+        A = x_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = C.GramSchmidt_orthogonalize(A, B);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit) < eps );
+        REQUIRE( B.distance(y_unit) < eps );
+        REQUIRE( C.distance(z_unit) < eps );
+
+        A = x_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = C.GramSchmidt_orthogonalize(B, A);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit) < eps );
+        REQUIRE( B.distance(y_unit) < eps );
+        REQUIRE( C.distance(z_unit) < eps );
+
+        // Vector lengths are maintained, i.e., orthonormalization is *not* performed.
+        A = x_unit *   2.0;
+        B = y_unit * -10.0;
+        C = z_unit *  50.0;
+        OK = C.GramSchmidt_orthogonalize(B, A);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit *   2.0) < eps );
+        REQUIRE( B.distance(y_unit * -10.0) < eps );
+        REQUIRE( C.distance(z_unit *  50.0) < eps );
+
+        A = x_unit *   2.0E10;
+        B = y_unit * -10.0E-5;
+        C = z_unit *  50.0;
+        OK = C.GramSchmidt_orthogonalize(B, A);
+        REQUIRE(OK);
+        REQUIRE( A.distance(x_unit *   2.0E10) < eps );
+        REQUIRE( B.distance(y_unit * -10.0E-5) < eps );
+        REQUIRE( C.distance(z_unit *  50.0   ) < eps );
+
+        // Inputs that do not span the basis will fail to orthogonalize.
+        A = x_unit;
+        B = x_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = y_unit;
+        B = y_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = x_unit;
+        C = x_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = y_unit;
+        B = y_unit;
+        C = x_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = vec3<double>().zero();
+        B = y_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = vec3<double>().zero();
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = y_unit;
+        C = vec3<double>().zero();
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        // Non-finite inputs cannot reasonably be orthogonalized, in general, so should be rejected.
+        A = x_unit * inf;
+        B = x_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = x_unit * inf;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = x_unit;
+        C = z_unit * inf;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit * nan;
+        B = x_unit;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = x_unit * nan;
+        C = z_unit;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+
+        A = x_unit;
+        B = x_unit;
+        C = z_unit * nan;
+        OK = A.GramSchmidt_orthogonalize(B, C);
+        REQUIRE(!OK);
+    }
+
+    SUBCASE("to_string and from_string"){
+        vec3<double> A;
+        REQUIRE( A.from_string( x_unit.to_string() ).distance(x_unit) < eps );
+        REQUIRE( A.from_string( y_unit.to_string() ).distance(y_unit) < eps );
+        REQUIRE( A.from_string( z_unit.to_string() ).distance(z_unit) < eps );
+
+        const vec3<double> B( std::numeric_limits<double>::min(),
+                              std::numeric_limits<double>::denorm_min(),
+                              1.0E308 ); 
+        A.from_string( B.to_string() );
+        REQUIRE( std::abs(A.x - B.x) < eps );
+        REQUIRE( std::abs(A.y - B.y) < eps );
+        REQUIRE( std::abs(A.z - B.z) < eps );
+
+        const vec3<double> C( 1.234567E-307,
+                              std::nexttoward( 0.0,  1.0),
+                              std::nexttoward( 0.0, -1.0) );
+        A.from_string( C.to_string() );
+        REQUIRE( std::abs(A.x - C.x) < eps );
+        REQUIRE( std::abs(A.y - C.y) < eps );
+        REQUIRE( std::abs(A.z - C.z) < eps );
+
+        const vec3<double> D(  nan,
+                               inf,
+                              -inf );
+        A.from_string( D.to_string() );
+        REQUIRE( std::isnan(D.x));
+        REQUIRE( D.y ==  inf );
+        REQUIRE( D.z == -inf );
+
+        const vec3<double> E( std::numeric_limits<double>::max(),
+                              std::numeric_limits<double>::lowest(),
+                              1.1234567890123456789 );
+        A.from_string( E.to_string() );
+
+        // Note that max() includes a number of significant digits that would be impractical to exactly write to a string.
+        // All text output would be excessively large. So truncation that causes an infinity is acceptable for
+        // stringification.
+        const bool x_is_inf = ( A.x == inf );
+        const bool x_matches_within_eps = ( (E.x / A.x - 1.0) < 0.5);
+        const bool x_is_either = x_is_inf || x_matches_within_eps;
+        REQUIRE( x_is_either );
+
+        const bool y_is_inf = ( A.y == -inf );
+        const bool y_matches_within_eps = ( (E.y / A.y - 1.0) < 0.5);
+        const bool y_is_either = y_is_inf || y_matches_within_eps;
+        REQUIRE( y_is_either );
+
+        REQUIRE( std::abs(A.z - E.z) < eps );
+    }
 }
 
-//        bool GramSchmidt_orthogonalize(vec3<T> &, vec3<T> &) const; //Using *this as seed, orthogonalize (n.b. not orthonormalize) the inputs.
-//
-//        std::string to_string(void) const;
-//        vec3<T> from_string(const std::string &in); //Sets *this and returns a copy.
 //
 //        //Friends.
 //        template<class Y> friend std::ostream & operator << (std::ostream &, const vec3<Y> &); // ---> Overloaded stream operators.
