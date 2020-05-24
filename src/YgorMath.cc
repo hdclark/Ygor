@@ -296,12 +296,15 @@ vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
     const auto UB = b - UA * (UA.Dot(b) / UA.Dot(UA));
     const auto UC = c - UA * (UA.Dot(c) / UA.Dot(UA))
                       - UB * (UB.Dot(c) / UB.Dot(UB));
-    if(this->isfinite() && b.isfinite() && c.isfinite()){
+    bool ret = false;
+    if( this->isfinite()
+    &&  UB.isfinite() 
+    &&  UC.isfinite() ){
         b = UB;
         c = UC;
-        return true;
+        ret = true;
     }
-    return false;
+    return ret;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool vec3<float >::GramSchmidt_orthogonalize(vec3<float > &, vec3<float > &) const;
