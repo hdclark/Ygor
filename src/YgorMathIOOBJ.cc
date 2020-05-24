@@ -176,7 +176,7 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
     for(const auto &v : fvsm.vertices){
         os << "v "
             << v.x << " "
@@ -293,7 +293,7 @@ WritePointSetToOBJ(const point_set<T> &ps,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
     for(const auto &v : ps.points){
         os << "v "
            << v.x << " "

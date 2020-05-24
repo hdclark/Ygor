@@ -207,7 +207,7 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
 
     // Enable scientific floating-point output, as per the STL specification.
     os << std::scientific;

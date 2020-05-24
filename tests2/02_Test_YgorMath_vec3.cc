@@ -748,6 +748,7 @@ TEST_CASE( "vec3 member functions" ){
 
     SUBCASE("to_string and from_string"){
         vec3<double> A;
+
         REQUIRE( A.from_string( x_unit.to_string() ).distance(x_unit) < eps );
         REQUIRE( A.from_string( y_unit.to_string() ).distance(y_unit) < eps );
         REQUIRE( A.from_string( z_unit.to_string() ).distance(z_unit) < eps );
@@ -756,18 +757,20 @@ TEST_CASE( "vec3 member functions" ){
                               std::numeric_limits<double>::denorm_min(),
                               1.0E308 ); 
         A.from_string( B.to_string() );
-        REQUIRE( std::abs(A.x - B.x) < eps );
-        REQUIRE( std::abs(A.y - B.y) < eps );
-        REQUIRE( std::abs(A.z - B.z) < eps );
+        REQUIRE( A.x == B.x );
+        REQUIRE( A.y == B.y );
+        REQUIRE( A.z == B.z );
 
+        // Values expected to be rounded should be exactly reproduced.
         const vec3<double> C( 1.234567E-307,
                               std::nexttoward( 0.0,  1.0),
                               std::nexttoward( 0.0, -1.0) );
         A.from_string( C.to_string() );
-        REQUIRE( std::abs(A.x - C.x) < eps );
-        REQUIRE( std::abs(A.y - C.y) < eps );
-        REQUIRE( std::abs(A.z - C.z) < eps );
+        REQUIRE( A.x == C.x );
+        REQUIRE( A.y == C.y );
+        REQUIRE( A.z == C.z );
 
+        // Non-finites should be correctly parsed by the locale.
         const vec3<double> D(  nan,
                                inf,
                               -inf );
@@ -776,25 +779,23 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( D.y ==  inf );
         REQUIRE( D.z == -inf );
 
+        // Extreme values should round-trip exactly, without any loss of precision.
         const vec3<double> E( std::numeric_limits<double>::max(),
                               std::numeric_limits<double>::lowest(),
                               1.1234567890123456789 );
         A.from_string( E.to_string() );
 
-        // Note that max() includes a number of significant digits that would be impractical to exactly write to a string.
-        // All text output would be excessively large. So truncation that causes an infinity is acceptable for
-        // stringification.
-        const bool x_is_inf = ( A.x == inf );
-        const bool x_matches_within_eps = ( (E.x / A.x - 1.0) < 0.5);
-        const bool x_is_either = x_is_inf || x_matches_within_eps;
-        REQUIRE( x_is_either );
+        REQUIRE( A.x == E.x );
+        REQUIRE( A.y == E.y );
+        REQUIRE( A.z == E.z );
 
-        const bool y_is_inf = ( A.y == -inf );
-        const bool y_matches_within_eps = ( (E.y / A.y - 1.0) < 0.5);
-        const bool y_is_either = y_is_inf || y_matches_within_eps;
-        REQUIRE( y_is_either );
-
-        REQUIRE( std::abs(A.z - E.z) < eps );
+        // Invalid values should throw.
+        REQUIRE_THROWS( A.from_string( "(1.0,2.0)" ) );
+        //REQUIRE_THROWS( A.from_string( "(1.0,2.0,3.0,1.0)" ) );
+        REQUIRE_THROWS( A.from_string( "(1.0,2.0,3.0),1.0" ) );
+        REQUIRE_THROWS( A.from_string( "1.0,2.0,3.0)" ) );
+        REQUIRE_THROWS( A.from_string( "(1.0,2.0,xyz)" ) );
+        REQUIRE_THROWS( A.from_string( "(1.0 2.0 3.0)" ) );
     }
 }
 

@@ -75,7 +75,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec3<T
     //
     //There is significant whitespace here!
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << "(" << L.x << ", " << L.y << ", " << L.z << ")";
     out.precision(defaultprecision);
     return out;
@@ -354,26 +354,33 @@ template <class T>    std::istream &operator>>(std::istream &in, vec3<T> &L){
     //We will discriminate here based on what 'in' is.
 
     std::string shtl;
-    in.get();
-    if(in.fail()) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
+    char c;
+    in.get(c);
+    if(in.fail() || (c != '(')) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
     
     std::getline(in, shtl, ',');
     if(in.fail()) throw std::runtime_error("Unable to read first coordinate. Cannot continue.");
     L.x = static_cast<T>( std::stold( shtl ) );
 
-    in.get();
-    if(in.fail()) throw std::runtime_error("Unable to read first comma. Cannot continue.");
+    //in.get(c);
+    //if(shtl.back() != ',') throw std::runtime_error("Unable to read first comma. Cannot continue.");
+    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read first comma. Cannot continue.");
 
     std::getline(in, shtl, ',');
     if(in.fail()) throw std::runtime_error("Unable to read second coordinate. Cannot continue.");
     L.y = static_cast<T>( std::stold( shtl ) );
 
-    in.get();
-    if(in.fail()) throw std::runtime_error("Unable to read second comma. Cannot continue.");
+    //in.get(c);
+    //if(shtl.back() != ',') throw std::runtime_error("Unable to read second comma. Cannot continue.");
+    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read second comma. Cannot continue.");
 
-    std::getline(in, shtl); // Also consumes the trailing ')'.
+    std::getline(in, shtl, ')'); // Also consumes the trailing ')'.
     if(in.fail()) throw std::runtime_error("Unable to read third coordinate. Cannot continue.");
     L.z = static_cast<T>( std::stold( shtl ) ); // stold ignores trailing ')'.
+
+    //in.get(c);
+    //if(shtl.back() != ')') throw std::runtime_error("Unable to read second bracket. Cannot continue.");
+    //if(in.fail() || (c != ')')) throw std::runtime_error("Unable to read second bracket. Cannot continue.");
 
     in.peek();
     if(!in.eof()) throw std::runtime_error("Input was not fully consumed. Refusing to continue.");
@@ -788,7 +795,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec2<T
     //
     //There is significant whitespace here!
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << "(" << L.x << ", " << L.y << ")";
     out.precision(defaultprecision);
     return out;
@@ -1401,7 +1408,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const line<T
     //
     //There is significant whitespace here!
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << L.R_0 << ", " << L.U_0;
     out.precision(defaultprecision);
     return out;
@@ -2041,7 +2048,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const plane<
     //
     //There is significant whitespace here!
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << L.R_0 << ", " << L.N_0;
     out.precision(defaultprecision);
     return out;
@@ -4489,7 +4496,7 @@ template <class T> std::string contour_of_points<T>::write_to_string(void) const
     std::stringstream out;
     //There IS significant spaces in this representation.
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << "{ contour ";
     out << (this->closed ? "closed " : "open ");
     out << this->points.size() << " "; 
@@ -5384,7 +5391,7 @@ template <class T> std::string contour_collection<T>::write_to_string(void) cons
     std::stringstream out;
     //There IS significant spaces in this representation.
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << "{ contour_collection ";
     out << this->contours.size() << " ";
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
@@ -9788,7 +9795,7 @@ bool
 samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
 
     const auto defaultprecision = SO.precision();
-    SO.precision(std::numeric_limits<T>::digits10 + 1 );
+    SO.precision(std::numeric_limits<T>::max_digits10 );
 
     for(const auto &mp : this->metadata){
         // Note: Syntax should be:
@@ -9974,7 +9981,7 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const sample
     //Note: This friend is templated (Y) within the templated class (T). We only
     // care about friend template when T==Y.
     const auto defaultprecision = out.precision();
-    out.precision(std::numeric_limits<T>::digits10 + 1);
+    out.precision(std::numeric_limits<T>::max_digits10);
 
     out << "(samples_1D.";
     out << " normalityassumed= " << (L.uncertainties_known_to_be_independent_and_random ? 1 : 0);

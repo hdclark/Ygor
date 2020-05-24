@@ -43,7 +43,7 @@ WritePointsToOFF(std::vector<vec3<T>> points,
 
     // Maximize precision of the vertices.
     const auto original_precision = FO.precision();
-    FO.precision( std::numeric_limits<T>::digits10 + 1 );
+    FO.precision( std::numeric_limits<T>::max_digits10 );
 
     //Vertices.
     for(const auto &p : points){
@@ -97,7 +97,7 @@ WriteLineSegmentToOFF(line_segment<T> ls,
 
     // Maximize precision of the vertices.
     const auto original_precision = FO.precision();
-    FO.precision( std::numeric_limits<T>::digits10 + 1 );
+    FO.precision( std::numeric_limits<T>::max_digits10 );
 
     //Vertices.
     const auto R0 = ls.Get_R0();
@@ -281,7 +281,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
     for(const auto &v : fvsm.vertices){
         os << v.x << " "
             << v.y << " "
@@ -438,7 +438,7 @@ WritePointSetToOFF(const point_set<T> &ps,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
     for(const auto &p : ps.points){
         os << p.x << " "
            << p.y << " "

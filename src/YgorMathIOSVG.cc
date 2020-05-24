@@ -80,7 +80,7 @@ WriteCCToSVG(const contour_collection<T> &cc,
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
-    os.precision( std::numeric_limits<T>::digits10 + 1 );
+    os.precision( std::numeric_limits<T>::max_digits10 );
 
     // Emit the SVG header.
     os << R"***(<?xml version="1.0" standalone="no"?>)***" << std::endl;
