@@ -11,7 +11,7 @@ g++ -std=c++17 -Wall -I nonius-1.2.0-beta.1/include/ *.cc -o run_benchmarks -lyg
 
 rm -rf nonius-1.2.0-beta.1/
 
-./run_benchmarks -v
+./run_benchmarks -v -s 500
 
 rm ./run_benchmarks
 
