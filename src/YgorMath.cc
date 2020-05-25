@@ -730,9 +730,9 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
     std::tuple<vec3<double>,vec3<double>> out(x_and_v), last(x_and_v);
     const double m = 1.0;
 
-    if(steps <= 0) FUNCERR("Unable to evolve x and v - the number of steps specified is impossible");
+    if(steps <= 0) throw std::invalid_argument("Invalid number of steps specified.");
     //if(T <= 0.0) ...   This is OK!
-    if(!F) FUNCERR("Given function F is not valid. Unable to do anything");
+    if(!F) throw std::invalid_argument("Invalid evolve functor.");
 
     const double dt = T/static_cast<double>(steps);
 

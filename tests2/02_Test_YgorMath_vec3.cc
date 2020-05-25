@@ -1,5 +1,6 @@
 
 #include <limits>
+#include <utility>
 #include <iostream>
 
 #include <YgorMath.h>
@@ -797,10 +798,262 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE_THROWS( A.from_string( "(1.0,2.0,xyz)" ) );
         REQUIRE_THROWS( A.from_string( "(1.0 2.0 3.0)" ) );
     }
+
+    SUBCASE("operator<< and operator>>"){
+        vec3<double> A;
+
+        const auto round_trip_vec3 = [&A](const vec3<double> &x) -> void {
+            std::stringstream ss;
+            ss << x;
+            ss >> A;
+            return;
+        };
+        const auto parse_from_string = [&A](const std::string &x) -> bool {
+            std::stringstream ss;
+            ss << x;
+            ss >> A;
+            return true;
+        };
+
+        round_trip_vec3(x_unit);
+        REQUIRE( A.distance(x_unit) < eps );
+        round_trip_vec3(y_unit);
+        REQUIRE( A.distance(y_unit) < eps );
+        round_trip_vec3(z_unit);
+        REQUIRE( A.distance(z_unit) < eps );
+
+        const vec3<double> B( std::numeric_limits<double>::min(),
+                              std::numeric_limits<double>::denorm_min(),
+                              1.0E308 ); 
+        round_trip_vec3(B);
+        REQUIRE( A.x == B.x );
+        REQUIRE( A.y == B.y );
+        REQUIRE( A.z == B.z );
+
+        // Values expected to be rounded should be exactly reproduced.
+        const vec3<double> C( 1.234567E-307,
+                              std::nexttoward( 0.0,  1.0),
+                              std::nexttoward( 0.0, -1.0) );
+        round_trip_vec3(C);
+        REQUIRE( A.x == C.x );
+        REQUIRE( A.y == C.y );
+        REQUIRE( A.z == C.z );
+
+        // Non-finites should be correctly parsed by the locale.
+        const vec3<double> D(  nan,
+                               inf,
+                              -inf );
+        round_trip_vec3(D);
+        REQUIRE( std::isnan(D.x));
+        REQUIRE( D.y ==  inf );
+        REQUIRE( D.z == -inf );
+
+        // Extreme values should round-trip exactly, without any loss of precision.
+        const vec3<double> E( std::numeric_limits<double>::max(),
+                              std::numeric_limits<double>::lowest(),
+                              1.1234567890123456789 );
+        round_trip_vec3(E);
+        REQUIRE( A.x == E.x );
+        REQUIRE( A.y == E.y );
+        REQUIRE( A.z == E.z );
+
+        // Invalid values should throw.
+        REQUIRE_THROWS( parse_from_string("(1.0,2.0)") );
+        //REQUIRE_THROWS( parse_from_string("(1.0,2.0,3.0,1.0)") );
+        REQUIRE_THROWS( parse_from_string( "(1.0,2.0,3.0),1.0") );
+        REQUIRE_THROWS( parse_from_string( "1.0,2.0,3.0)") );
+        REQUIRE_THROWS( parse_from_string( "(1.0,2.0,xyz)") );
+        REQUIRE_THROWS( parse_from_string( "(1.0 2.0 3.0)") );
+    }
 }
 
-//
-//        //Friends.
-//        template<class Y> friend std::ostream & operator << (std::ostream &, const vec3<Y> &); // ---> Overloaded stream operators.
-//        template<class Y> friend std::istream & operator >> (std::istream &, vec3<Y> &);
+TEST_CASE( "vec3 affiliated free functions" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    const vec3<double> x_unit(1.0, 0.0, 0.0);
+    const vec3<double> y_unit(0.0, 1.0, 0.0);
+    const vec3<double> z_unit(0.0, 0.0, 1.0);
+    const vec3<double> zeros(0.0, 0.0, 0.0);
+
+    SUBCASE("rotate_unit_vector_in_plane"){
+        // Some simple null rotation cases.
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*M_PI, 0.0*M_PI).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*M_PI, 0.0*M_PI).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*M_PI, 0.0*M_PI).distance(z_unit) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*M_PI, 0.0*M_PI).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*M_PI, 0.0*M_PI).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*M_PI, 0.0*M_PI).distance(z_unit) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*M_PI, 1.0*M_PI).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*M_PI, 1.0*M_PI).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*M_PI, 1.0*M_PI).distance(z_unit) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*M_PI, 1.0*M_PI).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*M_PI, 1.0*M_PI).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*M_PI, 1.0*M_PI).distance(z_unit) < eps );
+
+        // Around x axis.
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  0.0*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  0.5*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  1.0*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  1.5*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
+
+        // Around y axis.
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  0.0*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  0.0*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  0.0*M_PI ).distance(y_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  0.5*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  1.0*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  1.0*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  1.0*M_PI ).distance(y_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  1.5*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
+
+        // Around z axis.
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  0.0*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  0.5*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  0.5*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  0.5*M_PI ).distance(z_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  1.0*M_PI ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
+
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  1.5*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  1.5*M_PI ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  1.5*M_PI ).distance(z_unit *  1.0) < eps );
+    }
+
+    SUBCASE("Evolve_x_v_over_T_via_F"){
+        vec3<double> x_0(0.0, 0.0, 0.0);
+        vec3<double> v_0(0.0, 0.0, 0.0);
+        std::tuple<vec3<double>,vec3<double>> x_and_v_initial{x_0, v_0};
+
+        // Null evolution.
+        const auto Fnull = [](vec3<double>, double) -> vec3<double> {
+            return vec3<double>(0.0, 0.0, 0.0);
+        };
+
+        const auto x_and_v_final_Fnull = Evolve_x_v_over_T_via_F(x_and_v_initial, Fnull, 1.0, 10'000);
+
+        REQUIRE( std::get<0>(x_and_v_final_Fnull).x == 0.0 );
+        REQUIRE( std::get<0>(x_and_v_final_Fnull).y == 0.0 );
+        REQUIRE( std::get<0>(x_and_v_final_Fnull).z == 0.0 );
+
+        REQUIRE( std::get<1>(x_and_v_final_Fnull).x == 0.0 );
+        REQUIRE( std::get<1>(x_and_v_final_Fnull).y == 0.0 );
+        REQUIRE( std::get<1>(x_and_v_final_Fnull).z == 0.0 );
+
+        // Evolution under x only.
+        const auto Fx = [](vec3<double>, double) -> vec3<double> {
+            return vec3<double>(1.0, 0.0, 0.0);
+        };
+
+        const auto x_and_v_final_Fx = Evolve_x_v_over_T_via_F(x_and_v_initial, Fx, 1.0, 10'000);
+
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fx).x - 0.5 ) < 1E-3 );
+        REQUIRE( std::get<0>(x_and_v_final_Fx).y == 0.0 );
+        REQUIRE( std::get<0>(x_and_v_final_Fx).z == 0.0 );
+
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fx).x - 1.0 ) < 1E-3 );
+        REQUIRE( std::get<1>(x_and_v_final_Fx).y == 0.0 );
+        REQUIRE( std::get<1>(x_and_v_final_Fx).z == 0.0 );
+
+        // Evolution under y only.
+        const auto Fy = [](vec3<double>, double) -> vec3<double> {
+            return vec3<double>(0.0, 1.0, 0.0);
+        };
+
+        const auto x_and_v_final_Fy = Evolve_x_v_over_T_via_F(x_and_v_initial, Fy, 1.0, 10'000);
+
+        REQUIRE( std::get<0>(x_and_v_final_Fy).x == 0.0 );
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fy).y - 0.5 ) < 1E-3 );
+        REQUIRE( std::get<0>(x_and_v_final_Fy).z == 0.0 );
+
+        REQUIRE( std::get<1>(x_and_v_final_Fy).x == 0.0 );
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fy).y - 1.0 ) < 1E-3 );
+        REQUIRE( std::get<1>(x_and_v_final_Fy).z == 0.0 );
+
+        // Evolution under z only.
+        const auto Fz = [](vec3<double>, double) -> vec3<double> {
+            return vec3<double>(0.0, 0.0, 1.0);
+        };
+
+        const auto x_and_v_final_Fz = Evolve_x_v_over_T_via_F(x_and_v_initial, Fz, 1.0, 10'000);
+
+        REQUIRE( std::get<0>(x_and_v_final_Fz).x == 0.0 );
+        REQUIRE( std::get<0>(x_and_v_final_Fz).y == 0.0 );
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fz).z - 0.5 ) < 1E-3 );
+
+        REQUIRE( std::get<1>(x_and_v_final_Fz).x == 0.0 );
+        REQUIRE( std::get<1>(x_and_v_final_Fz).y == 0.0 );
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fz).z - 1.0 ) < 1E-3 );
+
+        // Evolution under x, y, and z.
+        const auto Fxyz = [](vec3<double>, double) -> vec3<double> {
+            return vec3<double>(1.0, 2.0, 3.0);
+        };
+
+        const auto x_and_v_final_Fxyz = Evolve_x_v_over_T_via_F(x_and_v_initial, Fxyz, 1.0, 10'000);
+
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fxyz).x - 0.5 ) < 1E-3 );
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fxyz).y - 1.0 ) < 1E-3 );
+        REQUIRE( std::abs( std::get<0>(x_and_v_final_Fxyz).z - 1.5 ) < 1E-3 );
+
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fxyz).x - 1.0 ) < 1E-4 );
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fxyz).y - 2.0 ) < 1E-4 );
+        REQUIRE( std::abs( std::get<1>(x_and_v_final_Fxyz).z - 3.0 ) < 1E-4 );
+
+        // Invalid arguments are rejected.
+        std::function<vec3<double>(vec3<double> x, double T)> Finvalid;
+        REQUIRE_THROWS( Evolve_x_v_over_T_via_F(x_and_v_initial, Fxyz, 1.0,  0) );
+        REQUIRE_THROWS( Evolve_x_v_over_T_via_F(x_and_v_initial, Fxyz, 1.0, -1) );
+        REQUIRE_THROWS( Evolve_x_v_over_T_via_F(x_and_v_initial, Finvalid, 1.0, 100) );
+    }
+}
 
