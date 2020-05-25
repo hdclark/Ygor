@@ -918,18 +918,30 @@ template <class T>  vec2<T> vec2<T>::from_string(const std::string &in){
 
  
 template <class T>    std::istream &operator>>( std::istream &in, vec2<T> &L ) {
-    //Note: This friend is templated (Y) within the templated class (T). We only
-    // care about friend template when T==Y.
-    //
-    //... << "("  << L.x << ", " << L.y << ", " <<  L.z  <<  ")";
-    //We have at least TWO options here. We can use a method which is compatible
-    // with the ( , , ) notation, or we can ask for straight-up numbers. 
-    //We will discriminate here based on what 'in' is.
-//    if(&in != &std::cin){                                   //Neat trick, but makes it hard to build on..
-        char grbg;
-        //... << "("  << L.x << ", " << L.y <<  ")";
-        in    >> grbg >> L.x >> grbg >> L.y >> grbg;
-//    }else  in >> L.x >> L.y;
+    std::string shtl;
+    char c;
+    in.get(c);
+    if(in.fail() || (c != '(')) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
+    
+    std::getline(in, shtl, ',');
+    if(in.fail()) throw std::runtime_error("Unable to read first coordinate. Cannot continue.");
+    L.x = static_cast<T>( std::stold( shtl ) );
+
+    //in.get(c);
+    //if(shtl.back() != ',') throw std::runtime_error("Unable to read comma. Cannot continue.");
+    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read comma. Cannot continue.");
+
+    std::getline(in, shtl, ')'); // Also consumes the trailing ')'.
+    if(in.fail()) throw std::runtime_error("Unable to read second coordinate. Cannot continue.");
+    L.y = static_cast<T>( std::stold( shtl ) ); // stold ignores trailing ')'.
+
+    //in.get(c);
+    //if(shtl.back() != ')') throw std::runtime_error("Unable to read second bracket. Cannot continue.");
+    //if(in.fail() || (c != ')')) throw std::runtime_error("Unable to read second bracket. Cannot continue.");
+
+    in.peek();
+    if(!in.eof()) throw std::runtime_error("Input was not fully consumed. Refusing to continue.");
+
     return in;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
