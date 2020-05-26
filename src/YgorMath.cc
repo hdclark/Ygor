@@ -1158,12 +1158,31 @@ template <class T>    line<T>::line(const vec3<T> &R_A, const vec3<T> &R_B) : R_
     vec3<T> temp(R_B);
     temp -= R_A;
     U_0 = temp.unit();
+    if( !U_0.isfinite() ||
+        !R_0.isfinite() ){
+        throw std::invalid_argument("Inputs are degenerate, cannot create line");
+    }
 } 
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template line<float>::line(const vec3<float> &R_A, const vec3<float> &R_B);
     template line<double>::line(const vec3<double> &R_A, const vec3<double> &R_B);
 #endif
 
+template <class T>    bool line<T>::operator==(const line<T> &rhs) const {
+    return ( (this->R_0 == rhs.R_0) && (this->U_0 == rhs.U_0) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool line<float >::operator==( const line<float > & ) const;
+    template bool line<double>::operator==( const line<double> & ) const;
+#endif
+
+template <class T>    bool line<T>::operator!=(const line<T> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool line<float >::operator!=( const line<float > & ) const;
+    template bool line<double>::operator!=( const line<double> & ) const;
+#endif
 
 //Member functions.
 

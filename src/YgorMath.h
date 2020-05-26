@@ -180,6 +180,9 @@ template <class T>   class line {
 
         //Member functions.
         line<T>& operator=(const line<T> &) = default;
+        bool operator==(const line<T> &) const;
+        bool operator!=(const line<T> &) const;
+
         T Distance_To_Point( const vec3<T> & ) const;
         T Sq_Distance_To_Point( const vec3<T> & ) const;
 
