@@ -600,6 +600,57 @@ template <class T>   class point_set {
         template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 };
 
+//---------------------------------------------------------------------------------------------------------------------
+//-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
+//---------------------------------------------------------------------------------------------------------------------
+//This routine represents an Affine transformation using homogeneous coordinates.
+
+template <class T>
+class affine_transform {
+    private:
+        // The top-left 3x3 sub-matrix is a rotation matrix. The top right-most column 3-vector is a translation vector.
+        //
+        //     (0,0)    (1,0)    (2,0)  |  (3,0)                               |                  
+        //     (0,1)    (1,1)    (2,1)  |  (3,1)             linear transform  |  translation     
+        //     (0,2)    (1,2)    (2,2)  |  (3,2)     =        (inc. scaling)   |                  
+        //     ---------------------------------           ------------------------------------   
+        //     (0,3)    (1,3)    (2,3)  |  (3,3)                 (zeros)       |  projection     
+        //
+        // Note that the bottom row must remain unaltered to be an Affine transform.
+        //
+        // The relative scale of transformed vectors is controlled by the magnitude of the linear transform column
+        // vectors.
+        //
+        // This transformation makes use of 'homogeneous' coordinates, namely vectors are padded with an extra one:
+        // (x, y, z, 1.0). For convenience this padding is handled internally.
+        //
+        std::array< std::array<T, 4>, 4> t;
+
+    public:
+        //Constructors.
+        affine_transform();
+        affine_transform(const affine_transform &in);
+
+        //Member functions.
+        affine_transform & operator= (const affine_transform &);
+
+        // Accessors.
+        T & coeff(long int i, long int j);
+        T read_coeff(long int i, long int j) const;
+
+        // Apply the (full) transformation to a vec3.
+        void apply_to(vec3<T> &in) const;
+
+        // Apply the transformation to a point cloud.
+        void apply_to(point_set<T> &in) const;
+
+        // Write the transformation to a stream.
+        bool write_to( std::ostream &os ) const;
+
+        // Read the transformation from a stream.
+        bool read_from( std::istream &is );
+};
+
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
 //---------------------------------------------------------------------------------------------------------------------------

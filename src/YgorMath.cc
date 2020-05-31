@@ -5997,7 +5997,131 @@ point_set<T>::GetMetadataValueAs(std::string key) const {
     template std::optional<std::string> point_set<double>::GetMetadataValueAs(std::string key) const;
 #endif
 
+//---------------------------------------------------------------------------------------------------------------------
+//-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
+//---------------------------------------------------------------------------------------------------------------------
 
+template <class T>
+affine_transform<T>::affine_transform() : t({{ std::array<T,4>{{ 1.0, 0.0, 0.0, 0.0 }},
+                                               std::array<T,4>{{ 0.0, 1.0, 0.0, 0.0 }},
+                                               std::array<T,4>{{ 0.0, 0.0, 1.0, 0.0 }},
+                                               std::array<T,4>{{ 0.0, 0.0, 0.0, 1.0 }} }}) {}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float >::affine_transform();
+    template affine_transform<double>::affine_transform();
+#endif
+
+template <class T>
+affine_transform<T>::affine_transform(const affine_transform<T> &in) : t(in.t) {}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float >::affine_transform(const affine_transform<float > &in);
+    template affine_transform<double>::affine_transform(const affine_transform<double> &in);
+#endif
+
+template <class T>
+affine_transform<T> &
+affine_transform<T>::operator=(const affine_transform<T> &rhs){
+    if(this == &rhs) return *this;
+    this->t = rhs.t;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > & affine_transform<float >::operator=(const affine_transform<float > &in);
+    template affine_transform<double> & affine_transform<double>::operator=(const affine_transform<double> &in);
+#endif
+
+template <class T>
+T &
+affine_transform<T>::coeff(long int i, long int j){
+    if(!isininc(0L,i,3L) || !isininc(0L,j,2L)){
+        throw std::invalid_argument("Tried to access fixed coefficients. Refusing to continue.");
+    }
+    return this->t[i][j];
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  & affine_transform<float >::coeff(long int, long int);
+    template double & affine_transform<double>::coeff(long int, long int);
+#endif
+
+template <class T>
+T
+affine_transform<T>::read_coeff(long int i, long int j) const {
+    return this->t.at(i).at(j);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  affine_transform<float >::read_coeff(long int, long int) const;
+    template double affine_transform<double>::read_coeff(long int, long int) const;
+#endif
+
+template <class T>
+void
+affine_transform<T>::apply_to(vec3<T> &in) const {
+    in.x = (in.x * this->t[0][0]) + (in.y * this->t[1][0]) + (in.z * this->t[2][0]) + (1.0 * this->t[3][0]);
+    in.y = (in.x * this->t[0][1]) + (in.y * this->t[1][1]) + (in.z * this->t[2][1]) + (1.0 * this->t[3][1]);
+    in.z = (in.x * this->t[0][2]) + (in.y * this->t[1][2]) + (in.z * this->t[2][2]) + (1.0 * this->t[3][2]);
+    const auto w = (in.x * this->t[0][3]) + (in.y * this->t[1][3]) + (in.z * this->t[2][3]) + (1.0 * this->t[3][3]);
+    if(w != 1.0) throw std::runtime_error("Transformation is not Affine. Refusing to continue.");
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void affine_transform<float >::apply_to(vec3<float > &) const;
+    template void affine_transform<double>::apply_to(vec3<double> &) const;
+#endif
+
+template <class T>
+void
+affine_transform<T>::apply_to(point_set<T> &in) const {
+    for(auto &p : in.points){
+        this->apply_to(p);
+    }
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void affine_transform<float >::apply_to(point_set<float > &) const;
+    template void affine_transform<double>::apply_to(point_set<double> &) const;
+#endif
+
+template <class T>
+bool
+affine_transform<T>::write_to(std::ostream &os) const {
+    // Maximize precision prior to emitting the vertices.
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::max_digits10 );
+    os << this->t[0][0] << " " << this->t[1][0] << " " << this->t[2][0] << " " << this->t[3][0] << std::endl;
+    os << this->t[0][1] << " " << this->t[1][1] << " " << this->t[2][1] << " " << this->t[3][1] << std::endl;
+    os << this->t[0][2] << " " << this->t[1][2] << " " << this->t[2][2] << " " << this->t[3][2] << std::endl;
+    os << this->t[0][3] << " " << this->t[1][3] << " " << this->t[2][3] << " " << this->t[3][3] << std::endl;
+    os.precision( original_precision );
+    os.flush();
+    return (!os.fail());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool affine_transform<float >::write_to(std::ostream &) const;
+    template bool affine_transform<double>::write_to(std::ostream &) const;
+#endif
+
+template <class T>
+bool
+affine_transform<T>::read_from(std::istream &is){
+    is >> this->t[0][0] >> this->t[1][0] >> this->t[2][0] >> this->t[3][0];
+    is >> this->t[0][1] >> this->t[1][1] >> this->t[2][1] >> this->t[3][1];
+    is >> this->t[0][2] >> this->t[1][2] >> this->t[2][2] >> this->t[3][2];
+    is >> this->t[0][3] >> this->t[1][3] >> this->t[2][3] >> this->t[3][3];
+
+    const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
+    if( (machine_eps < (std::abs(this->t[0][3] - 0.0)))
+    ||  (machine_eps < (std::abs(this->t[1][3] - 0.0)))
+    ||  (machine_eps < (std::abs(this->t[2][3] - 0.0)))
+    ||  (machine_eps < (std::abs(this->t[3][3] - 1.0))) ){
+        FUNCWARN("Unable to read transformation; not Affine");
+        return false;
+    }
+    return (!is.fail());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool affine_transform<float >::read_from(std::istream &);
+    template bool affine_transform<double>::read_from(std::istream &);
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
