@@ -6014,8 +6014,8 @@ affine_transform<T>::affine_transform() : t({{ std::array<T,4>{{ 1.0, 0.0, 0.0, 
 template <class T>
 affine_transform<T>::affine_transform(const affine_transform<T> &in) : t(in.t) {}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template affine_transform<float >::affine_transform(const affine_transform<float > &in);
-    template affine_transform<double>::affine_transform(const affine_transform<double> &in);
+    template affine_transform<float >::affine_transform(const affine_transform<float > &);
+    template affine_transform<double>::affine_transform(const affine_transform<double> &);
 #endif
 
 template <class T>
@@ -6026,8 +6026,38 @@ affine_transform<T>::operator=(const affine_transform<T> &rhs){
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template affine_transform<float > & affine_transform<float >::operator=(const affine_transform<float > &in);
-    template affine_transform<double> & affine_transform<double>::operator=(const affine_transform<double> &in);
+    template affine_transform<float > & affine_transform<float >::operator=(const affine_transform<float > &);
+    template affine_transform<double> & affine_transform<double>::operator=(const affine_transform<double> &);
+#endif
+
+template <class T>
+bool
+affine_transform<T>::operator==(const affine_transform<T> &rhs) const {
+    return (this->t == rhs.t);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool affine_transform<float >::operator==(const affine_transform<float > &) const;
+    template bool affine_transform<double>::operator==(const affine_transform<double> &) const;
+#endif
+
+template <class T>
+bool
+affine_transform<T>::operator!=(const affine_transform<T> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool affine_transform<float >::operator!=(const affine_transform<float > &) const;
+    template bool affine_transform<double>::operator!=(const affine_transform<double> &) const;
+#endif
+
+template <class T>
+bool
+affine_transform<T>::operator<(const affine_transform<T> &rhs) const {
+    return (this->t < rhs.t);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool affine_transform<float >::operator<(const affine_transform<float > &) const;
+    template bool affine_transform<double>::operator<(const affine_transform<double> &) const;
 #endif
 
 template <class T>
@@ -6056,11 +6086,14 @@ affine_transform<T>::read_coeff(long int i, long int j) const {
 template <class T>
 void
 affine_transform<T>::apply_to(vec3<T> &in) const {
-    in.x = (in.x * this->t[0][0]) + (in.y * this->t[1][0]) + (in.z * this->t[2][0]) + (1.0 * this->t[3][0]);
-    in.y = (in.x * this->t[0][1]) + (in.y * this->t[1][1]) + (in.z * this->t[2][1]) + (1.0 * this->t[3][1]);
-    in.z = (in.x * this->t[0][2]) + (in.y * this->t[1][2]) + (in.z * this->t[2][2]) + (1.0 * this->t[3][2]);
+    const auto x = (in.x * this->t[0][0]) + (in.y * this->t[1][0]) + (in.z * this->t[2][0]) + (1.0 * this->t[3][0]);
+    const auto y = (in.x * this->t[0][1]) + (in.y * this->t[1][1]) + (in.z * this->t[2][1]) + (1.0 * this->t[3][1]);
+    const auto z = (in.x * this->t[0][2]) + (in.y * this->t[1][2]) + (in.z * this->t[2][2]) + (1.0 * this->t[3][2]);
     const auto w = (in.x * this->t[0][3]) + (in.y * this->t[1][3]) + (in.z * this->t[2][3]) + (1.0 * this->t[3][3]);
     if(w != 1.0) throw std::runtime_error("Transformation is not Affine. Refusing to continue.");
+    in.x = x;
+    in.y = y;
+    in.z = z;
     return;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS

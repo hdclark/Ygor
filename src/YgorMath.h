@@ -631,8 +631,11 @@ class affine_transform {
         affine_transform();
         affine_transform(const affine_transform &in);
 
-        //Member functions.
+        //Operators.
         affine_transform & operator= (const affine_transform &);
+        bool operator==(const affine_transform &) const;
+        bool operator!=(const affine_transform &) const;
+        bool operator< (const affine_transform &) const;
 
         // Accessors.
         T & coeff(long int i, long int j);
