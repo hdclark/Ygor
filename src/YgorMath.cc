@@ -5998,6 +5998,428 @@ point_set<T>::GetMetadataValueAs(std::string key) const {
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------
+//--------------------------- num_array: a minimal arbitrary-dimensional matrix class ---------------------------------
+//---------------------------------------------------------------------------------------------------------------------
+
+template <class T>
+num_array<T>::num_array() : rows(0), cols(0) {}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float >::num_array();
+    template num_array<double>::num_array();
+#endif
+
+template <class T>
+num_array<T>::num_array(long int r, long int c, T val) : rows(r),
+                                                         cols(c) {
+    if( !isininc(0,this->rows,1'000'000'000)
+    ||  !isininc(0,this->cols,1'000'000'000) ){
+        throw std::invalid_argument("Requested invalid matrix dimensions. Refusing to continue.");
+    }
+    this->numbers = std::vector<T>(this->rows*this->cols, val);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float >::num_array(long int, long int, float );
+    template num_array<double>::num_array(long int, long int, double);
+#endif
+
+template <class T>
+num_array<T>::num_array(const num_array<T> &in) : numbers(in.numbers),
+                                                  rows(in.rows),
+                                                  cols(in.cols) {
+    if( this->numbers.size() != (this->rows * this->cols) ){
+        throw std::invalid_argument("Dimensions are inconsistent with data. Refusing to continue.");
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float >::num_array(const num_array<float > &);
+    template num_array<double>::num_array(const num_array<double> &);
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator=(const num_array<T> &rhs){
+    if(this == &rhs) return *this;
+    this->numbers = rhs.numbers;
+    this->rows = rhs.rows;
+    this->cols = rhs.cols;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator=(const num_array<float > &);
+    template num_array<double> & num_array<double>::operator=(const num_array<double> &);
+#endif
+
+template <class T>
+bool
+num_array<T>::operator==(const num_array<T> &rhs) const {
+    return (this->rows == rhs.rows)
+        && (this->cols == rhs.cols)
+        && (this->numbers == rhs.numbers);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::operator==(const num_array<float > &) const;
+    template bool num_array<double>::operator==(const num_array<double> &) const;
+#endif
+
+template <class T>
+bool
+num_array<T>::operator!=(const num_array<T> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::operator!=(const num_array<float > &) const;
+    template bool num_array<double>::operator!=(const num_array<double> &) const;
+#endif
+
+template <class T>
+bool
+num_array<T>::operator<(const num_array<T> &rhs) const {
+    return (this->numbers < rhs.numbers);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::operator<(const num_array<float > &) const;
+    template bool num_array<double>::operator<(const num_array<double> &) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::operator*(const T &rhs) const {
+    num_array<T> out(*this);
+    for(auto &x : out.numbers) x *= rhs;
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::operator*(const float  &) const;
+    template num_array<double> num_array<double>::operator*(const double &) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::operator/(const T &rhs) const {
+    num_array<T> out(*this);
+    for(auto &x : out.numbers) x /= rhs;
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::operator/(const float  &) const;
+    template num_array<double> num_array<double>::operator/(const double &) const;
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator*=(const T &rhs){
+    for(auto &x : this->numbers) x *= rhs;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator*=(const float  &);
+    template num_array<double> & num_array<double>::operator*=(const double &);
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator/=(const T &rhs){
+    for(auto &x : this->numbers) x /= rhs;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator/=(const float  &);
+    template num_array<double> & num_array<double>::operator/=(const double &);
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::operator+(const num_array &rhs) const {
+    if( (this->rows != rhs.rows)
+    ||  (this->cols != rhs.cols) ){
+        throw std::invalid_argument("Unable to sum matrices with different dimensions.");
+    }
+    num_array<T> out(*this);
+    std::transform( std::begin(this->numbers), std::end(this->numbers),
+                    std::begin(rhs.numbers),
+                    std::begin(out.numbers),
+                    std::plus<T>() );
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::operator+(const num_array<float > &) const;
+    template num_array<double> num_array<double>::operator+(const num_array<double> &) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::operator-(const num_array &rhs) const {
+    if( (this->rows != rhs.rows)
+    ||  (this->cols != rhs.cols) ){
+        throw std::invalid_argument("Unable to subtract matrices with different dimensions.");
+    }
+    num_array<T> out(*this);
+    std::transform( std::begin(this->numbers), std::end(this->numbers),
+                    std::begin(rhs.numbers),
+                    std::begin(out.numbers),
+                    std::minus<T>() );
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::operator-(const num_array<float > &) const;
+    template num_array<double> num_array<double>::operator-(const num_array<double> &) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::operator*(const num_array &rhs) const {
+    if( this->cols != rhs.rows ){
+        throw std::invalid_argument("Unable to multiply matrices with incompatible dimensions.");
+    }
+    num_array<T> out(this->rows, rhs.cols, static_cast<T>(0));
+
+    // Note: this routine assumes column-major storage.
+    for(long int r = 0; r < out.rows; ++r){
+        for(long int c = 0; c < out.cols; ++c){
+            const auto out_index = out.index(r,c);
+
+            for(long int i = 0; i < this->cols; ++i){
+                const auto LHS_index = this->index(r,i);
+                const auto RHS_index = rhs.index(i,c);
+                out.numbers[out_index] += this->numbers[LHS_index] * rhs.numbers[RHS_index];
+            }
+        }
+    }
+
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::operator*(const num_array<float > &) const;
+    template num_array<double> num_array<double>::operator*(const num_array<double> &) const;
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator+=(const num_array &rhs){
+    if( (this->rows != rhs.rows)
+    ||  (this->cols != rhs.cols) ){
+        throw std::invalid_argument("Unable to sum matrices with different dimensions.");
+    }
+    std::transform( std::begin(this->numbers), std::end(this->numbers),
+                    std::begin(rhs.numbers),
+                    std::begin(this->numbers),
+                    std::plus<T>() );
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator+=(const num_array<float > &);
+    template num_array<double> & num_array<double>::operator+=(const num_array<double> &);
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator-=(const num_array &rhs){
+    if( (this->rows != rhs.rows)
+    ||  (this->cols != rhs.cols) ){
+        throw std::invalid_argument("Unable to subtract matrices with different dimensions.");
+    }
+    std::transform( std::begin(this->numbers), std::end(this->numbers),
+                    std::begin(rhs.numbers),
+                    std::begin(this->numbers),
+                    std::minus<T>() );
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator-=(const num_array<float > &);
+    template num_array<double> & num_array<double>::operator-=(const num_array<double> &);
+#endif
+
+template <class T>
+num_array<T> &
+num_array<T>::operator*=(const num_array &rhs){
+    num_array<T> tmp = (*this) * rhs;
+    this->swap(tmp);
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > & num_array<float >::operator*=(const num_array<float > &);
+    template num_array<double> & num_array<double>::operator*=(const num_array<double> &);
+#endif
+
+template <class T>
+long int
+num_array<T>::index(long int r, long int c) const {
+    // Using column-major ordering for consistency with default Eigen settings.
+    const auto index = (this->rows * c + r);
+    return index;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template long int num_array<float >::index(long int, long int) const;
+    template long int num_array<double>::index(long int, long int) const;
+#endif
+
+template <class T>
+long int
+num_array<T>::num_rows() const {
+    return this->rows;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template long int num_array<float >::num_rows() const;
+    template long int num_array<double>::num_rows() const;
+#endif
+
+template <class T>
+long int
+num_array<T>::num_cols() const {
+    return this->cols;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template long int num_array<float >::num_cols() const;
+    template long int num_array<double>::num_cols() const;
+#endif
+
+template <class T>
+long int
+num_array<T>::size() const {
+    return static_cast<long int>( this->numbers.size() );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template long int num_array<float >::size() const;
+    template long int num_array<double>::size() const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::zero(long int rows, long int cols) const {
+    return num_array<T>(rows, cols, static_cast<T>(0));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::zero(long int, long int) const;
+    template num_array<double> num_array<double>::zero(long int, long int) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::identity(long int rank) const {
+    num_array<T> I(rank, rank, static_cast<T>(0));
+    for(long int i = 0; i < rank; ++i){
+        I.coeff(i,i) = static_cast<T>(1);
+    }
+    return I;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::identity(long int) const;
+    template num_array<double> num_array<double>::identity(long int) const;
+#endif
+
+template <class T>
+num_array<T>
+num_array<T>::iota(long int rows, long int cols, T initial_val) const{
+    auto out = num_array<T>(rows, cols);
+    std::iota( std::begin(out.numbers),
+               std::end(out.numbers),
+               initial_val );
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::iota(long int, long int, float ) const;
+    template num_array<double> num_array<double>::iota(long int, long int, double) const;
+#endif
+
+template <class T>
+T
+num_array<T>::trace() const {
+    if(this->rows != this->cols){
+        throw std::invalid_argument("Matrix is not square. Refusing to compute trace.");
+    }
+    if( (this->rows <= 0) 
+    ||  (this->cols <= 0) ){
+        throw std::invalid_argument("Matrix has invalid shape. Refusing to compute trace.");
+    }
+    T sum = static_cast<T>(0);
+    for(long int i = 0; (i < this->rows) && (i < this->cols); ++i){
+        sum += this->read_coeff(i,i);
+    }
+    return sum;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  num_array<float >::trace() const;
+    template double num_array<double>::trace() const;
+#endif
+
+template <class T>
+T &
+num_array<T>::coeff(long int r, long int c){
+    return this->numbers.at(this->index(r,c));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  & num_array<float >::coeff(long int, long int);
+    template double & num_array<double>::coeff(long int, long int);
+#endif
+
+template <class T>
+T
+num_array<T>::read_coeff(long int r, long int c) const {
+    return this->numbers.at(this->index(r,c));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  num_array<float >::read_coeff(long int, long int) const;
+    template double num_array<double>::read_coeff(long int, long int) const;
+#endif
+
+template <class T>
+void
+num_array<T>::swap(num_array<T> &rhs){
+    std::swap(this->numbers, rhs.numbers);
+    std::swap(this->rows,    rhs.rows);
+    std::swap(this->cols,    rhs.cols);
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void num_array<float >::swap(num_array<float > &);
+    template void num_array<double>::swap(num_array<double> &);
+#endif
+
+template <class T>
+bool
+num_array<T>::write_to(std::ostream &os) const {
+    // Maximize precision prior to emitting the vertices.
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::max_digits10 );
+    os << this->rows << " " << this->cols << std::endl;
+    for(long int r = 0; r < this->rows; ++r){
+        for(long int c = 0; c < this->cols; ++c){
+            os << this->numbers.at(this->index(r,c));
+            if((c+1) == this->cols){
+                os << std::endl;
+            }else{
+                os << " ";
+            }
+        }
+    }
+    os.precision( original_precision );
+    os.flush();
+    return (!os.fail());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::write_to(std::ostream &) const;
+    template bool num_array<double>::write_to(std::ostream &) const;
+#endif
+
+template <class T>
+bool
+num_array<T>::read_from(std::istream &is){
+    is >> this->rows >> this->cols;
+    this->numbers = std::vector<T>(this->rows * this->cols, static_cast<T>(0));
+
+    for(long int r = 0; r < this->rows; ++r){
+        for(long int c = 0; c < this->cols; ++c){
+            is >> this->numbers.at(this->index(r,c));
+        }
+    }
+    return (!is.fail());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::read_from(std::istream &);
+    template bool num_array<double>::read_from(std::istream &);
+#endif
+
+//---------------------------------------------------------------------------------------------------------------------
 //-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
 //---------------------------------------------------------------------------------------------------------------------
 

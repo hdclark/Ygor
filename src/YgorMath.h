@@ -601,6 +601,70 @@ template <class T>   class point_set {
 };
 
 //---------------------------------------------------------------------------------------------------------------------
+//--------------------------- num_array: a minimal arbitrary-dimensional matrix class ---------------------------------
+//---------------------------------------------------------------------------------------------------------------------
+// This class represents a matrix. It is meant to be used for simple applications, as an intermediary to more advanced
+// implementations (e.g., Eigen) via an adaptor, and for easier / more consistent serialization.
+
+template <class T>
+class num_array {
+    private:
+        std::vector<T> numbers;
+        long int rows;
+        long int cols;
+
+    public:
+        //Constructors.
+        num_array();
+        num_array(long int rows, long int cols, T val = static_cast<T>(0));
+        num_array(const num_array &in);
+
+        //Operators.
+        num_array & operator=(const num_array &);
+
+        bool operator==(const num_array &) const;
+        bool operator!=(const num_array &) const;
+        bool operator< (const num_array &) const;
+
+        num_array operator*(const T &) const;
+        num_array operator/(const T &) const;
+
+        num_array & operator*=(const T &);
+        num_array & operator/=(const T &);
+
+        num_array operator+(const num_array &) const;
+        num_array operator-(const num_array &) const;
+        num_array operator*(const num_array &) const;
+
+        num_array & operator+=(const num_array &);
+        num_array & operator-=(const num_array &);
+        num_array & operator*=(const num_array &);
+
+        // Accessors.
+        long int index(long int r, long int c) const; // Note: column-major, for consistency with Eigen defaults.
+        long int num_rows() const;
+        long int num_cols() const;
+        long int size() const;  // Number of coefficients that would fit in the allocated buffer.
+
+        T & coeff(long int r, long int c);
+        T read_coeff(long int r, long int c) const;
+
+        // Other members.
+        void swap(num_array &); // Swaps the contents -- essentially a destructive operator=().
+
+        num_array zero(long int rows, long int cols) const;
+        num_array identity(long int rank) const;
+        num_array iota(long int rows, long int cols, T initial_val) const; // Fill matrix by incrementing each coeff.
+                                                                           // Note: column-major -- fills columns first.
+
+        T trace() const;
+
+        // Serialize and deserialize to a human- and machine-readable format.
+        bool write_to( std::ostream &os ) const;
+        bool read_from( std::istream &is );
+};
+
+//---------------------------------------------------------------------------------------------------------------------
 //-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
 //---------------------------------------------------------------------------------------------------------------------
 //This routine represents an Affine transformation using homogeneous coordinates.
