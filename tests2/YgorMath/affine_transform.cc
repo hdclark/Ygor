@@ -9,9 +9,6 @@
 
 
 TEST_CASE( "affine_transform constructors" ){
-    const auto nan = std::numeric_limits<double>::quiet_NaN();
-    const auto inf = std::numeric_limits<double>::infinity();
-
     const vec3<double> x_unit(1.0, 0.0, 0.0);
     const vec3<double> y_unit(0.0, 1.0, 0.0);
     const vec3<double> z_unit(0.0, 0.0, 1.0);
@@ -64,9 +61,6 @@ TEST_CASE( "affine_transform constructors" ){
 }
 
 TEST_CASE( "affine_transform operators" ){
-    const auto nan = std::numeric_limits<double>::quiet_NaN();
-    const auto inf = std::numeric_limits<double>::infinity();
-
     const vec3<double> x_unit(1.0, 0.0, 0.0);
     const vec3<double> y_unit(0.0, 1.0, 0.0);
     const vec3<double> z_unit(0.0, 0.0, 1.0);
@@ -164,9 +158,6 @@ TEST_CASE( "affine_transform accessors" ){
 }
 
 TEST_CASE( "affine_transform appliers" ){
-    const auto nan = std::numeric_limits<double>::quiet_NaN();
-    const auto inf = std::numeric_limits<double>::infinity();
-
     const vec3<double> x_unit(1.0, 0.0, 0.0);
     const vec3<double> y_unit(0.0, 1.0, 0.0);
     const vec3<double> z_unit(0.0, 0.0, 1.0);

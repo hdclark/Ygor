@@ -17,6 +17,9 @@ TEST_CASE( "num_array constructors" ){
     }
 
     SUBCASE("sized constructor refuses invalid dimensions"){
+        REQUIRE_THROWS( num_array<double>( 0, 2) );
+        REQUIRE_THROWS( num_array<double>( 1, 0) );
+        REQUIRE_THROWS( num_array<double>( 0, 0) );
         REQUIRE_THROWS( num_array<double>(-1, 2) );
         REQUIRE_THROWS( num_array<double>( 2,-1) );
         REQUIRE_THROWS( num_array<double>(-1,-1) );
@@ -40,8 +43,8 @@ TEST_CASE( "num_array constructors" ){
     }
 
     SUBCASE("sized constructor sizes are honoured"){
-        for(long int rows = 0; rows < 10; rows += 3){
-            for(long int cols = 0; cols < 10; cols += 3){
+        for(long int rows = 1; rows < 11; rows += 3){
+            for(long int cols = 1; cols < 11; cols += 3){
                 num_array<double> A(rows, cols);
                 REQUIRE(A.size() == A.num_rows() * A.num_cols());
                 REQUIRE(A.size() == rows * cols);
@@ -88,25 +91,47 @@ TEST_CASE( "num_array assignment operators" ){
 
 TEST_CASE( "num_array comparison operators" ){
     SUBCASE("operator== and operator!="){
-        num_array<double> L1(10,10);
-        num_array<double> L2(L1);
-        REQUIRE( L1 == L1 );
-        REQUIRE( L1 == L2 );
+        // Finite case.
+        {
+            num_array<double> L1(10,10);
+            num_array<double> L2(L1);
+            REQUIRE( L1 == L1 );
+            REQUIRE( L1 == L2 );
 
-        for(long int row = 0; row < 10; ++row){
-            for(long int col = 0; col < 10; ++col){
-                num_array<double> L3(L1);
-                REQUIRE( L1 == L3 );
-                L3.coeff(row,col) = 2.0;
-                REQUIRE( L1 != L3 );
+            for(long int row = 0; row < 10; ++row){
+                for(long int col = 0; col < 10; ++col){
+                    num_array<double> L3(L1);
+                    REQUIRE( L1 == L3 );
+                    L3.coeff(row,col) = 2.0;
+                    REQUIRE( L1 != L3 );
+                }
             }
+
+            num_array<double> L4(5,20);
+            REQUIRE( L1 != L4 );
+            num_array<double> L5(20,5);
+            REQUIRE( L1 != L5 );
+            REQUIRE( L4 != L5 );
         }
 
-        num_array<double> L4(5,20);
-        REQUIRE( L1 != L4 );
-        num_array<double> L5(20,5);
-        REQUIRE( L1 != L5 );
-        REQUIRE( L4 != L5 );
+        // Non-finite case.
+        {
+            auto L1 = num_array<double>().zero(5,2);
+            L1.coeff(2,1) = std::numeric_limits<double>::quiet_NaN();
+            L1.coeff(4,1) = -std::numeric_limits<double>::infinity();
+            const auto L2 = L1;
+            REQUIRE(!L1.isfinite());
+            REQUIRE(!L2.isfinite());
+
+            const auto direct_equality = (L1 == L2); // Should fail due to NaN.
+            REQUIRE(!direct_equality);
+
+            std::stringstream ss1;
+            std::stringstream ss2;
+            L1.write_to(ss1);
+            L2.write_to(ss2);
+            REQUIRE(ss1.str() == ss2.str()); // Will properly handle NaNs.
+        }
     }
 
     SUBCASE("operator<"){
@@ -580,6 +605,20 @@ TEST_CASE( "num_array other member functions" ){
 
     }
 
+    SUBCASE("isnan and isfinite"){
+        auto L1 = num_array<double>().identity(100);
+        REQUIRE(!L1.isnan());
+        REQUIRE(L1.isfinite());
+
+        L1.coeff(23,46) = std::numeric_limits<double>::quiet_NaN();
+        REQUIRE(L1.isnan());
+        REQUIRE(!L1.isfinite());
+
+        L1.coeff(23,46) = std::numeric_limits<double>::infinity();
+        REQUIRE(!L1.isnan());
+        REQUIRE(!L1.isfinite());
+    }
+
     SUBCASE("trace"){
         const auto L1 = num_array<double>().identity(100);
         const auto L2 = num_array<double>().iota(3,3,0.0);
@@ -597,9 +636,140 @@ TEST_CASE( "num_array other member functions" ){
     }
 }
 
-/*
-    Currently outstanding:
-        bool write_to( std::ostream &os ) const;
-        bool read_from( std::istream &is );
-*/
+TEST_CASE( "num_array write_to and read_from" ){
+    SUBCASE("square matrices can be stringified exactly"){
+        {
+            const auto L1 = num_array<double>().identity(4);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+        {
+            const auto L1 = num_array<double>().zero(5,5);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+        {
+            auto L1 = num_array<double>().zero(5,5);
+            L1.coeff(2,3) = std::numeric_limits<double>::quiet_NaN();
+            L1.coeff(4,1) = -std::numeric_limits<double>::infinity();
+            num_array<double> L2;
+            std::stringstream ss1;
+            L1.write_to(ss1);
+            L2.read_from(ss1);
+            const auto direct_equality = (L1 == L2); // Should fail due to NaN.
+            REQUIRE(!direct_equality);
+
+            std::stringstream ss2;
+            std::stringstream ss3;
+            L1.write_to(ss2);
+            L2.write_to(ss3);
+            REQUIRE(ss2.str() == ss3.str()); // Will properly handle NaNs.
+        }
+        {
+            const auto L1 = num_array<double>().iota(3,3,0.0);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+    }
+    SUBCASE("rectangular matrices can be stringified exactly"){
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+        {
+            auto L1 = num_array<double>().zero(5,2);
+            L1.coeff(2,1) = std::numeric_limits<double>::quiet_NaN();
+            L1.coeff(4,1) = -std::numeric_limits<double>::infinity();
+            num_array<double> L2;
+            std::stringstream ss1;
+            L1.write_to(ss1);
+            L2.read_from(ss1);
+            const auto direct_equality = (L1 == L2); // Should fail due to NaN.
+            REQUIRE(!direct_equality);
+
+            std::stringstream ss2;
+            std::stringstream ss3;
+            L1.write_to(ss2);
+            L2.write_to(ss3);
+            REQUIRE(ss2.str() == ss3.str()); // Will properly handle NaNs.
+        }
+        {
+            const auto L1 = num_array<double>().iota(3,5,0.0);
+            std::stringstream ss;
+            L1.write_to(ss);
+            num_array<double> L2;
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+        {
+            const auto L1 = num_array<double>().iota(5,3,0.0) / 1.0E30;
+            std::stringstream ss;
+            L1.write_to(ss);
+            num_array<double> L2;
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+    }
+
+    SUBCASE("stringification rejects invalid data"){
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            ss << "-1 ";
+            L1.write_to(ss);
+            REQUIRE(!L2.read_from(ss));
+        }
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            ss << "5 -2 ";
+            L1.write_to(ss);
+            REQUIRE(!L2.read_from(ss));
+        }
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            ss << "}";
+            L1.write_to(ss);
+            REQUIRE(!L2.read_from(ss));
+        }
+    }
+
+    SUBCASE("stringification ignores irrelevenat data"){
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            L1.write_to(ss);
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+        {
+            const auto L1 = num_array<double>().zero(5,2);
+            num_array<double> L2;
+            std::stringstream ss;
+            L1.write_to(ss);
+            ss << " 5.21 4.3 }";
+            L2.read_from(ss);
+            REQUIRE(L1 == L2);
+        }
+    }
+}
 

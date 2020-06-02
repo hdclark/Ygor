@@ -6011,8 +6011,8 @@ num_array<T>::num_array() : rows(0), cols(0) {}
 template <class T>
 num_array<T>::num_array(long int r, long int c, T val) : rows(r),
                                                          cols(c) {
-    if( !isininc(0,this->rows,1'000'000'000)
-    ||  !isininc(0,this->cols,1'000'000'000) ){
+    if( !isininc(1,this->rows,1'000'000'000)
+    ||  !isininc(1,this->cols,1'000'000'000) ){
         throw std::invalid_argument("Requested invalid matrix dimensions. Refusing to continue.");
     }
     this->numbers = std::vector<T>(this->rows*this->cols, val);
@@ -6309,7 +6309,7 @@ num_array<T>::identity(long int rank) const {
 
 template <class T>
 num_array<T>
-num_array<T>::iota(long int rows, long int cols, T initial_val) const{
+num_array<T>::iota(long int rows, long int cols, T initial_val) const {
     auto out = num_array<T>(rows, cols);
     std::iota( std::begin(out.numbers),
                std::end(out.numbers),
@@ -6319,6 +6319,32 @@ num_array<T>::iota(long int rows, long int cols, T initial_val) const{
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template num_array<float > num_array<float >::iota(long int, long int, float ) const;
     template num_array<double> num_array<double>::iota(long int, long int, double) const;
+#endif
+
+template <class T>
+bool
+num_array<T>::isnan() const {
+    for(const auto &x : this->numbers){
+        if(std::isnan(x)) return true;
+    }
+    return false;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::isnan() const;
+    template bool num_array<double>::isnan() const;
+#endif
+
+template <class T>
+bool
+num_array<T>::isfinite() const {
+    for(const auto &x : this->numbers){
+        if(!std::isfinite(x)) return false;
+    }
+    return true;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool num_array<float >::isfinite() const;
+    template bool num_array<double>::isfinite() const;
 #endif
 
 template <class T>
@@ -6382,8 +6408,8 @@ num_array<T>::write_to(std::ostream &os) const {
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
     os << this->rows << " " << this->cols << std::endl;
-    for(long int r = 0; r < this->rows; ++r){
-        for(long int c = 0; c < this->cols; ++c){
+    for(long int c = 0; c < this->cols; ++c){
+        for(long int r = 0; r < this->rows; ++r){
             os << this->numbers.at(this->index(r,c));
             if((c+1) == this->cols){
                 os << std::endl;
@@ -6405,11 +6431,19 @@ template <class T>
 bool
 num_array<T>::read_from(std::istream &is){
     is >> this->rows >> this->cols;
+    if( is.fail()
+    ||  !isininc(1,this->rows,1'000'000'000)
+    ||  !isininc(1,this->cols,1'000'000'000) ){
+        return false;
+    }
     this->numbers = std::vector<T>(this->rows * this->cols, static_cast<T>(0));
 
-    for(long int r = 0; r < this->rows; ++r){
-        for(long int c = 0; c < this->cols; ++c){
-            is >> this->numbers.at(this->index(r,c));
+    for(long int c = 0; c < this->cols; ++c){
+        for(long int r = 0; r < this->rows; ++r){
+            std::string shtl;
+            is >> shtl;
+            this->numbers.at(this->index(r,c)) = static_cast<T>(std::stold(shtl));
+            if( is.fail() ) return false;
         }
     }
     return (!is.fail());
@@ -6558,11 +6592,13 @@ affine_transform<T>::write_to(std::ostream &os) const {
 template <class T>
 bool
 affine_transform<T>::read_from(std::istream &is){
-    is >> this->t[0][0] >> this->t[1][0] >> this->t[2][0] >> this->t[3][0];
-    is >> this->t[0][1] >> this->t[1][1] >> this->t[2][1] >> this->t[3][1];
-    is >> this->t[0][2] >> this->t[1][2] >> this->t[2][2] >> this->t[3][2];
-    is >> this->t[0][3] >> this->t[1][3] >> this->t[2][3] >> this->t[3][3];
-
+    for(long int c = 0; c < 4; ++c){
+        for(long int r = 0; r < 4; ++r){
+            std::string shtl;
+            is >> shtl;
+            this->t[r][c] = static_cast<T>(std::stold(shtl));
+        }
+    }
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
     if( (machine_eps < (std::abs(this->t[0][3] - 0.0)))
     ||  (machine_eps < (std::abs(this->t[1][3] - 0.0)))

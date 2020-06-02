@@ -657,6 +657,9 @@ class num_array {
         num_array iota(long int rows, long int cols, T initial_val) const; // Fill matrix by incrementing each coeff.
                                                                            // Note: column-major -- fills columns first.
 
+        bool isnan() const; // True iff any coefficient is NaN.
+        bool isfinite() const; // True iff all coefficients are NaN.
+
         T trace() const;
 
         // Serialize and deserialize to a human- and machine-readable format.
