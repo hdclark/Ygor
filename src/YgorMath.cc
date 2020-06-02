@@ -318,6 +318,34 @@ vec3<T>::GramSchmidt_orthogonalize(vec3<T> &b, vec3<T> &c) const {
     template bool vec3<double>::GramSchmidt_orthogonalize(vec3<double> &, vec3<double> &) const;
 #endif
 
+template <class T>
+num_array<T>
+vec3<T>::to_num_array() const {
+    num_array<T> out(3,1);
+    out.coeff(0,0) = this->x;
+    out.coeff(1,0) = this->y;
+    out.coeff(2,0) = this->z;
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > vec3<float >::to_num_array() const;
+    template num_array<double> vec3<double>::to_num_array() const;
+#endif
+
+template <class T>
+num_array<T>
+vec3<T>::to_homogeneous_num_array() const {
+    num_array<T> out(4,1);
+    out.coeff(0,0) = this->x;
+    out.coeff(1,0) = this->y;
+    out.coeff(2,0) = this->z;
+    out.coeff(3,0) = static_cast<T>(1);
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > vec3<float >::to_homogeneous_num_array() const;
+    template num_array<double> vec3<double>::to_homogeneous_num_array() const;
+#endif
 
 template <class T>  std::string vec3<T>::to_string(void) const {
     std::stringstream out;
@@ -6026,7 +6054,7 @@ template <class T>
 num_array<T>::num_array(const num_array<T> &in) : numbers(in.numbers),
                                                   rows(in.rows),
                                                   cols(in.cols) {
-    if( this->numbers.size() != (this->rows * this->cols) ){
+    if( static_cast<long int>(this->numbers.size()) != (this->rows * this->cols) ){
         throw std::invalid_argument("Dimensions are inconsistent with data. Refusing to continue.");
     }
 }
@@ -6382,6 +6410,35 @@ num_array<T>::transpose() const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template num_array<float > num_array<float >::transpose() const;
     template num_array<double> num_array<double>::transpose() const;
+#endif
+
+template <class T>
+vec3<T>
+num_array<T>::to_vec3() const {
+    if( !( (this->rows == 3) && (this->cols == 1) )
+    &&  !( (this->rows == 1) && (this->cols == 3) ) ){
+        throw std::invalid_argument("Dimensions do not match. Refusing to continue.");
+    }
+    return vec3<T>( this->numbers[0], this->numbers[1], this->numbers[2] );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > num_array<float >::to_vec3() const;
+    template vec3<double> num_array<double>::to_vec3() const;
+#endif
+
+template <class T>
+vec3<T>
+num_array<T>::hnormalize_to_vec3() const {
+    if( !( (this->rows == 4) && (this->cols == 1) )
+    &&  !( (this->rows == 1) && (this->cols == 4) ) ){
+        throw std::invalid_argument("Dimensions do not match. Refusing to continue.");
+    }
+    const auto w = this->numbers[3];
+    return vec3<T>( this->numbers[0] / w, this->numbers[1] / w, this->numbers[2] / w );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float > num_array<float >::hnormalize_to_vec3() const;
+    template vec3<double> num_array<double>::hnormalize_to_vec3() const;
 #endif
 
 template <class T>

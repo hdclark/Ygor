@@ -747,6 +747,42 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE(!OK);
     }
 
+    SUBCASE("to_num_array"){
+        auto A = x_unit.to_num_array().to_vec3();
+        auto B = y_unit.to_num_array().to_vec3();
+        auto C = z_unit.to_num_array().to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        const auto D = (x_unit * 1.0 + y_unit * 2.0 - z_unit * 3.0);
+        const auto E = D.to_num_array().to_vec3();
+        REQUIRE(D == E);
+
+        const auto F = vec3<double>(1.0, eps, inf);
+        const auto G = F.to_num_array().to_vec3();
+        REQUIRE(F == G);
+    }
+
+    SUBCASE("to_homogeneous_num_array"){
+        auto A = x_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+        auto B = y_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+        auto C = z_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        const auto D = (x_unit * 1.0 + y_unit * 2.0 - z_unit * 3.0);
+        const auto E = D.to_homogeneous_num_array().hnormalize_to_vec3();
+        REQUIRE(D == E);
+
+        const auto F = vec3<double>(1.0, eps, inf);
+        const auto G = F.to_homogeneous_num_array().hnormalize_to_vec3();
+        REQUIRE(F == G);
+    }
+
     SUBCASE("to_string and from_string"){
         vec3<double> A;
 

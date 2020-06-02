@@ -562,6 +562,14 @@ TEST_CASE( "num_array accessors" ){
 }
 
 TEST_CASE( "num_array other member functions" ){
+    const auto nan = std::numeric_limits<double>::quiet_NaN();
+    const auto inf = std::numeric_limits<double>::infinity();
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    const vec3<double> x_unit(1.0, 0.0, 0.0);
+    const vec3<double> y_unit(0.0, 1.0, 0.0);
+    const vec3<double> z_unit(0.0, 0.0, 1.0);
+
     SUBCASE("swap"){
         num_array<double> L1(10,10,1.0);
         num_array<double> L2(5,5,0.0);
@@ -658,6 +666,78 @@ TEST_CASE( "num_array other member functions" ){
         REQUIRE(L6.read_coeff(1,2) == 5.0);
         REQUIRE(L3.transpose().transpose() == L3);
         REQUIRE(L6.transpose() == L3);
+    }
+
+    SUBCASE("to_vec3"){
+        auto A = x_unit.to_num_array().to_vec3();
+        auto B = y_unit.to_num_array().to_vec3();
+        auto C = z_unit.to_num_array().to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        A = x_unit.to_num_array().transpose().to_vec3();
+        B = y_unit.to_num_array().transpose().to_vec3();
+        C = z_unit.to_num_array().transpose().to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        const auto D = (x_unit * 1.0 + y_unit * 2.0 - z_unit * 3.0);
+        const auto E = D.to_num_array().to_vec3();
+        REQUIRE(D == E);
+
+        const auto F = vec3<double>(1.0, eps, inf);
+        const auto G = F.to_num_array().to_vec3();
+        REQUIRE(F == G);
+
+        REQUIRE_THROWS(num_array<double>(1,1).to_vec3());
+        REQUIRE_THROWS(num_array<double>(3,2).to_vec3());
+        REQUIRE_THROWS(num_array<double>(3,3).to_vec3());
+        REQUIRE_THROWS(num_array<double>(4,1).to_vec3());
+        REQUIRE_THROWS(num_array<double>(1,4).to_vec3());
+    }
+
+    SUBCASE("hnormalize_to_vec3"){
+        auto A = x_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+        auto B = y_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+        auto C = z_unit.to_homogeneous_num_array().hnormalize_to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        A = x_unit.to_homogeneous_num_array().transpose().hnormalize_to_vec3();
+        B = y_unit.to_homogeneous_num_array().transpose().hnormalize_to_vec3();
+        C = z_unit.to_homogeneous_num_array().transpose().hnormalize_to_vec3();
+
+        REQUIRE(A == x_unit);
+        REQUIRE(B == y_unit);
+        REQUIRE(C == z_unit);
+
+        const auto D = (x_unit * 1.0 + y_unit * 2.0 - z_unit * 3.0);
+        const auto E = D.to_homogeneous_num_array().hnormalize_to_vec3();
+        REQUIRE(D == E);
+
+        const auto F = vec3<double>(-1.0, eps, inf);
+        const auto G = F.to_homogeneous_num_array().hnormalize_to_vec3();
+        REQUIRE(F == G);
+
+        REQUIRE_THROWS(num_array<double>(1,1).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(3,2).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(3,3).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(4,2).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(4,4).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(1,5).hnormalize_to_vec3());
+        REQUIRE_THROWS(num_array<double>(5,1).hnormalize_to_vec3());
+
+        auto H = A.to_homogeneous_num_array() * 2.0;
+        REQUIRE(H.hnormalize_to_vec3() == A);
+
+        auto J = A.to_homogeneous_num_array() * -73.0;
+        REQUIRE(J.hnormalize_to_vec3() == A);
     }
 }
 

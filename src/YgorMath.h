@@ -22,6 +22,7 @@
 #include "YgorDefinitions.h"
 
 template <class T> class samples_1D;
+template <class T> class num_array;
 
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------- vec3: A three-dimensional vector -------------------------------------------------
@@ -81,6 +82,9 @@ template <class T> class vec3 {
                                                                             // some angle (in radians, [0,2*pi]).
 
         bool GramSchmidt_orthogonalize(vec3<T> &, vec3<T> &) const; //Using *this as seed, orthogonalize (n.b. not orthonormalize) the inputs.
+
+        num_array<T> to_num_array() const; // A 3x1 matrix.
+        num_array<T> to_homogeneous_num_array() const; // A 4x1 matrix in "homogeneous coordinates" (x, y, z, 1).
 
         std::string to_string(void) const;
         vec3<T> from_string(const std::string &in); //Sets *this and returns a copy. 
@@ -663,10 +667,14 @@ class num_array {
         T trace() const;
         num_array transpose() const;
 
+        vec3<T> to_vec3() const; // Handles both 3x1 and 1x3 matrices.
+        vec3<T> hnormalize_to_vec3() const; // Handles both 4x1 and 1x4 matrices.
+
         // Serialize and deserialize to a human- and machine-readable format.
         bool write_to( std::ostream &os ) const;
         bool read_from( std::istream &is );
 };
+
 
 //---------------------------------------------------------------------------------------------------------------------
 //-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
