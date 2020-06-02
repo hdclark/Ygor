@@ -661,6 +661,7 @@ class num_array {
         bool isfinite() const; // True iff all coefficients are NaN.
 
         T trace() const;
+        num_array transpose() const;
 
         // Serialize and deserialize to a human- and machine-readable format.
         bool write_to( std::ostream &os ) const;

@@ -634,6 +634,31 @@ TEST_CASE( "num_array other member functions" ){
         REQUIRE_THROWS(L5.trace());
         REQUIRE_THROWS(L6.trace());
     }
+
+    SUBCASE("transpose"){
+        auto L1 = num_array<double>().identity(100);
+        auto L2 = num_array<double>().zero(1,10);
+        auto L3 = num_array<double>().iota(3,2,0.0);
+
+        auto L4 = L1.transpose();
+        auto L5 = L2.transpose();
+        auto L6 = L3.transpose();
+
+        REQUIRE(L1.transpose() == L1);
+        REQUIRE(L1 == L4);
+
+        REQUIRE(L5.num_rows() == 10);
+        REQUIRE(L5.num_cols() == 1);
+
+        REQUIRE(L6.read_coeff(0,0) == 0.0); //Assumes coloumn-major ordering.
+        REQUIRE(L6.read_coeff(0,1) == 1.0);
+        REQUIRE(L6.read_coeff(0,2) == 2.0);
+        REQUIRE(L6.read_coeff(1,0) == 3.0);
+        REQUIRE(L6.read_coeff(1,1) == 4.0);
+        REQUIRE(L6.read_coeff(1,2) == 5.0);
+        REQUIRE(L3.transpose().transpose() == L3);
+        REQUIRE(L6.transpose() == L3);
+    }
 }
 
 TEST_CASE( "num_array write_to and read_from" ){

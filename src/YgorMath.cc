@@ -6369,6 +6369,22 @@ num_array<T>::trace() const {
 #endif
 
 template <class T>
+num_array<T>
+num_array<T>::transpose() const {
+    num_array<T> out(this->cols, this->rows);
+    for(long int r = 0; r < this->rows; ++r){
+        for(long int c = 0; c < this->cols; ++c){
+            out.numbers[out.index(c,r)] = this->numbers[this->index(r,c)];
+        }
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::transpose() const;
+    template num_array<double> num_array<double>::transpose() const;
+#endif
+
+template <class T>
 T &
 num_array<T>::coeff(long int r, long int c){
     return this->numbers.at(this->index(r,c));
