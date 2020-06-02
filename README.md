@@ -8,26 +8,27 @@
 # Introduction
 
 This supporting library was written by hal clark over the span of many years
-(~2010-2019) to house bits of code that are useful for multiple projects.
+(~2010-2020) to house bits of code that are convenient for multiple projects.
 
 Most, but not all of Ygor's routines are focused on scientific or mathematic
-applications. These routines will grow, be replaced, be updated, and may even
-disappear when their functionality is superceded by new features in the
-language/better libraries/etc. However, many of these routines are not broadly
-useful enough for a project like Boost to include, and many are not
-comprehensive enough to be submitted to more mature project. The routines in
-this library were all developed for specific projects with specific needs, but
-which may (have) become useful for other projects.
+applications (i.e., geometry, simulation, optimization, and statistics). The
+routines in this library were all developed for specific projects with specific
+needs, but which may (have) become useful for other projects. Ygor's routines
+will grow, be replaced, be updated, and may even disappear when their
+functionality is superceded by new features in the language/better
+libraries/etc. Neither API nor ABI stability is guaranteed.
 
-Pushing (generic) routines from specific projects into these files is
-encouraged, so long as the routines has some hope of being applicable in some
-other situation.
+This library is meant to be 'ugly' -- it houses a ragtag bunch of routines that
+would otherwise pollute other projects and be duplicated multiple times. The
+focus is on providing functionality rather than optimizing the interface, speed,
+or beauty. Additions of new generic routines is welcomed so long as there is
+some reasonable chance they will be applicable or broadly useful.
 
 
 # License and Copying
 
 All materials herein which may be copywrited, where applicable, are. Copyright
-2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019 Hal Clark. See
+2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Hal Clark. See
 [LICENSE.txt] for details about the license. Informally, Ygor is available under
 a GPLv3+ license. 
 
@@ -36,28 +37,6 @@ software do so strictly under their own volition. They assume all associated
 liability for use and misuse, including but not limited to damages, harm,
 injury, and death which may result, including but not limited to that arising
 from unforeseen or unanticipated implementation defects.
-
-
-# Author
-
-The entirety of this project was written by hal clark, unless otherwise noted.
-The majority of routines were written with the assistance of websites like
-StackOverflow, CppReference, and Bjarne's C++11 FAQ. These resources were
-invaluable, and the author thanks those who have made such information available
-both free of charge and often with snippets of free-to-use code. Whenever
-possible, public domain code has been consulted or used. Insignificant portions
-of GPL code have been used verbatim where appropriate.
-
-If a routine existed in a high-quality, widely-available library, it was not
-duplicated in Ygor unless including that library was difficult. As of writing,
-various bits of Ygor rely on:
-
-- STL/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
-- Boost: various.
-- spookyhash: YgorAlgorithms. Very little - one function at time of writing.
-- GNU Scientific Library: YgorStats and YgorMathBasisSplines.
-- GNU plotutils: YgorPlot. Weakly - via shell/pipe.
-- Gnuplot: YgorPlot. Weakly - via shell/pipe.
 
 
 # Project Home
@@ -69,8 +48,19 @@ available at [https://gitlab.com/hdeanclark/Ygor/] and
 
 # Dependencies
 
-See `PKGBUILD` for concise list of dependencies.
+See `PKGBUILD` for a up-to-date list of dependencies.
+As of writing, various bits of Ygor rely on:
 
+- STL/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
+- Boost: various.
+- spookyhash: YgorAlgorithms. Very little - one function at time of writing.
+- GNU Scientific Library: YgorStats and YgorMathBasisSplines.
+- GNU plotutils: YgorPlot. Weakly - via shell/pipe.
+- Gnuplot: YgorPlot. Weakly - via shell/pipe.
+- Eigen: a few YgorMath routines, optionally.
+
+All dependencies can be optionally disabled, though this will result in loss of
+functionality.
 
 # Installation
 
@@ -206,4 +196,17 @@ can be invoked as:
 
   - Added generic TAR file read and write support. Small clean-up primarily in
     math and image files.
+
+- May 2020
+
+  - Started writing unit tests in earnest for core math components focusing on
+    basic usage and edge behaviour (e.g., handling non-finite data).
+  - Added basic Affine transformation class.
+
+- June 2020
+
+  - Added bare-bones arbitrary-dimension matrix class to provide 'polyfill' for
+    when external libraries may not be available, to ensure a means of passing
+    matrices across library interface with a stable API (and ABI, if needed),
+    and as a means of controlling serializability.
 
