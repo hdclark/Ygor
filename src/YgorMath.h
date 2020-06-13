@@ -650,6 +650,11 @@ class num_array {
         long int num_cols() const;
         long int size() const;  // Number of coefficients that would fit in the allocated buffer.
 
+        typename std::vector<T>::iterator begin(); // Used to facilitate mapping to other library types (e.g., Eigen).
+        typename std::vector<T>::iterator end();
+        typename std::vector<T>::const_iterator cbegin() const; // For mapping to other library types (e.g., Eigen).
+        typename std::vector<T>::const_iterator cend() const;
+
         T & coeff(long int r, long int c);
         T read_coeff(long int r, long int c) const;
 

@@ -559,10 +559,29 @@ TEST_CASE( "num_array accessors" ){
         REQUIRE(L1.coeff(2,0) == 40.0);
 
     }
+
+    SUBCASE("begin and end"){
+        auto L1 = num_array<double>().iota(2,2,0.0);
+
+        REQUIRE( *(std::next(L1.begin(), 0)) == 0.0 );
+        REQUIRE( *(std::next(L1.begin(), 1)) == 1.0 );
+        REQUIRE( *(std::next(L1.begin(), 2)) == 2.0 );
+        REQUIRE( *(std::next(L1.begin(), 3)) == 3.0 );
+        REQUIRE( std::distance(L1.begin(), L1.end()) == static_cast<size_t>(4) );
+    }
+
+    SUBCASE("cbegin and cend"){
+        auto L1 = num_array<double>().iota(2,2,0.0);
+
+        REQUIRE( *(std::next(L1.cbegin(), 0)) == 0.0 );
+        REQUIRE( *(std::next(L1.cbegin(), 1)) == 1.0 );
+        REQUIRE( *(std::next(L1.cbegin(), 2)) == 2.0 );
+        REQUIRE( *(std::next(L1.cbegin(), 3)) == 3.0 );
+        REQUIRE( std::distance(L1.cbegin(), L1.cend()) == static_cast<size_t>(4) );
+    }
 }
 
 TEST_CASE( "num_array other member functions" ){
-    const auto nan = std::numeric_limits<double>::quiet_NaN();
     const auto inf = std::numeric_limits<double>::infinity();
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
 

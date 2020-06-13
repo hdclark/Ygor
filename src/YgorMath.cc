@@ -6312,6 +6312,46 @@ num_array<T>::size() const {
 #endif
 
 template <class T>
+typename std::vector<T>::iterator
+num_array<T>::begin(){
+    return this->numbers.begin();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template typename std::vector<float >::iterator num_array<float >::begin();
+    template typename std::vector<double>::iterator num_array<double>::begin();
+#endif
+
+template <class T>
+typename std::vector<T>::iterator
+num_array<T>::end(){
+    return this->numbers.end();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template typename std::vector<float >::iterator num_array<float >::end();
+    template typename std::vector<double>::iterator num_array<double>::end();
+#endif
+
+template <class T>
+typename std::vector<T>::const_iterator
+num_array<T>::cbegin() const {
+    return this->numbers.cbegin();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template typename std::vector<float >::const_iterator num_array<float >::cbegin() const;
+    template typename std::vector<double>::const_iterator num_array<double>::cbegin() const;
+#endif
+
+template <class T>
+typename std::vector<T>::const_iterator
+num_array<T>::cend() const {
+    return this->numbers.cend();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template typename std::vector<float >::const_iterator num_array<float >::cend() const;
+    template typename std::vector<double>::const_iterator num_array<double>::cend() const;
+#endif
+
+template <class T>
 num_array<T>
 num_array<T>::zero(long int rows, long int cols) const {
     return num_array<T>(rows, cols, static_cast<T>(0));
@@ -6481,8 +6521,8 @@ num_array<T>::write_to(std::ostream &os) const {
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
     os << this->rows << " " << this->cols << std::endl;
-    for(long int c = 0; c < this->cols; ++c){
-        for(long int r = 0; r < this->rows; ++r){
+    for(long int r = 0; r < this->rows; ++r){
+        for(long int c = 0; c < this->cols; ++c){
             os << this->numbers.at(this->index(r,c));
             if((c+1) == this->cols){
                 os << std::endl;
@@ -6511,8 +6551,8 @@ num_array<T>::read_from(std::istream &is){
     }
     this->numbers = std::vector<T>(this->rows * this->cols, static_cast<T>(0));
 
-    for(long int c = 0; c < this->cols; ++c){
-        for(long int r = 0; r < this->rows; ++r){
+    for(long int r = 0; r < this->rows; ++r){
+        for(long int c = 0; c < this->cols; ++c){
             std::string shtl;
             is >> shtl;
             this->numbers.at(this->index(r,c)) = static_cast<T>(std::stold(shtl));
