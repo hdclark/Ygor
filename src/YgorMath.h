@@ -682,9 +682,9 @@ class num_array {
 
 
 //---------------------------------------------------------------------------------------------------------------------
-//-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
+//-------------------------- affine_transform: a class that holds an affine transformation ----------------------------
 //---------------------------------------------------------------------------------------------------------------------
-//This routine represents an Affine transformation using homogeneous coordinates.
+//This routine represents an affine transformation using homogeneous coordinates.
 
 template <class T>
 class affine_transform {
@@ -697,7 +697,7 @@ class affine_transform {
         //     ---------------------------------           ------------------------------------   
         //     (0,3)    (1,3)    (2,3)  |  (3,3)                 (zeros)       |  projection     
         //
-        // Note that the bottom row must remain unaltered to be an Affine transform.
+        // Note that the bottom row must remain unaltered to be an affine transform.
         //
         // The relative scale of transformed vectors is controlled by the magnitude of the linear transform column
         // vectors.
@@ -709,7 +709,7 @@ class affine_transform {
 
     public:
         //Constructors.
-        affine_transform();
+        affine_transform(); // Defaults to an identity transform.
         affine_transform(const affine_transform &in);
 
         //Operators.

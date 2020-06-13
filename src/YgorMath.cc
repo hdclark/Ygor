@@ -6567,7 +6567,7 @@ num_array<T>::read_from(std::istream &is){
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------
-//-------------------------- affine_transform: a class that holds an Affine transformation ----------------------------
+//-------------------------- affine_transform: a class that holds an affine transformation ----------------------------
 //---------------------------------------------------------------------------------------------------------------------
 
 template <class T>
@@ -6659,7 +6659,7 @@ affine_transform<T>::apply_to(vec3<T> &in) const {
     const auto y = (in.x * this->t[0][1]) + (in.y * this->t[1][1]) + (in.z * this->t[2][1]) + (1.0 * this->t[3][1]);
     const auto z = (in.x * this->t[0][2]) + (in.y * this->t[1][2]) + (in.z * this->t[2][2]) + (1.0 * this->t[3][2]);
     const auto w = (in.x * this->t[0][3]) + (in.y * this->t[1][3]) + (in.z * this->t[2][3]) + (1.0 * this->t[3][3]);
-    if(w != 1.0) throw std::runtime_error("Transformation is not Affine. Refusing to continue.");
+    if(w != 1.0) throw std::runtime_error("Transformation is not affine. Refusing to continue.");
     in.x = x;
     in.y = y;
     in.z = z;
@@ -6717,7 +6717,7 @@ affine_transform<T>::read_from(std::istream &is){
     ||  (machine_eps < (std::abs(this->t[1][3] - 0.0)))
     ||  (machine_eps < (std::abs(this->t[2][3] - 0.0)))
     ||  (machine_eps < (std::abs(this->t[3][3] - 1.0))) ){
-        FUNCWARN("Unable to read transformation; not Affine");
+        FUNCWARN("Unable to read transformation; not affine");
         return false;
     }
     return (!is.fail());
