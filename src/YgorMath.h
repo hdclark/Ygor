@@ -255,6 +255,8 @@ template <class T>   class sphere {
 };
 
 // Fit a sphere to a container of vec3<T> using surface-orthogonal least-squares regression.
+//
+// NOTE: This template causes issues when clang and gcc are mixed downstream. Should be simplified! TODO.
 template <class C> 
 sphere<typename C::value_type::value_type>
 Sphere_Orthogonal_Regression( C in,
