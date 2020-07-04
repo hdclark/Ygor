@@ -1,10 +1,11 @@
 
 
 configure_file(YgorDefinitions.h.in 
-               ${CMAKE_CURRENT_SOURCE_DIR}/YgorDefinitions.h)
+               ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
 FILE(GLOB ygor_sources "*cc")
-FILE(GLOB ygor_headers "*.h")
+FILE(GLOB ygor_headers "*.h"
+                       ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
 add_library(ygor
     ${ygor_sources}
