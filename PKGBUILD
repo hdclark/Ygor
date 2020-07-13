@@ -38,15 +38,19 @@ options=(strip staticlibs)
 #PKGEXT='.pkg.tar' # Disable compression.
 
 build() {
-  #cmake "${pkgdir}" ...
+  # ---------------- Configure -------------------
+  # Try use environment variable, but fallback to standard. 
+  install_prefix=${INSTALL_PREFIX:-/usr}
+
+  # Default build with default compiler flags.
   cmake \
-    ../ \
-    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
     -DCMAKE_BUILD_TYPE=Debug \
     -DWITH_LINUX_SYS=ON \
     -DWITH_EIGEN=ON \
     -DWITH_GNU_GSL=ON \
-    -DWITH_BOOST=ON 
+    -DWITH_BOOST=ON \
+    ../
   make -j 4 VERBOSE=1
 }
 
