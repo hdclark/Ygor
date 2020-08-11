@@ -40,7 +40,11 @@ build_ci_arch:
   before_script:
     - "curl -o /etc/pacman.d/mirrorlist 'https://www.archlinux.org/mirrorlist/?country=all&protocol=http&ip_version=4&use_mirror_status=on'"
     - "sed -i 's/^#Server/Server/' /etc/pacman.d/mirrorlist"
-    - "chown -R aurbuild:aurbuild ."
+    - "useradd -r -d /var/empty builduser"
+    - "mkdir -p /var/empty/"
+    - "chown -R builduser:builduser /var/empty/"
+    - printf '\n''builduser ALL=(ALL) NOPASSWD: ALL''\n' >> /etc/sudoers
+    - "chown -R builduser:builduser ."
     # Build requirements.
     - "pacman -Syu --noconfirm --needed base-devel git cmake gcc rsync ca-certificates"
     # Binary requirements.
@@ -48,7 +52,7 @@ build_ci_arch:
   script:
     - |
       ( ( while true ; do sleep 30 ; printf '\n\n' ; df -h ; printf '\n\n' ; free -h ; printf '\n\n' ; done ) &)
-      su - aurbuild -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
+      su - builduser -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
       ( cd tests2 && ./compile_and_run.sh )
       ( cd tests  && ./compile.sh )
       ( cd tests  && for i in ./test_* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done )
