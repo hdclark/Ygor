@@ -15,6 +15,7 @@
 #include <list>
 #include <memory>      //Needed for unique_ptrs.
 #include <string>
+#include <system_error>
 #include <filesystem>
 
 #include "External/MD5/md5.h" //Needed for MD5_of_File(...)
@@ -222,12 +223,7 @@ std::string Get_Unique_Sequential_Filename(const std::string &prefix, const long
 
 //Expand a filename/partial path/full path/symbolic link/./.. into a full path. Empty string is returned on fail.
 std::string Fully_Expand_Filename(const std::string &filename){
-    std::string out;
-    char *expanded = reinterpret_cast<char *>(realpath(filename.c_str(), nullptr));
-    if(expanded == nullptr) return out;
-    out.insert(out.size(), expanded); 
-    free(reinterpret_cast<void *>(expanded));
-    return out;
+    return std::filesystem::canonical( filename ).string();
 }
 
 //Determines if a path is below another path. Useful for specifying whitelists of files/directories.
@@ -472,11 +468,15 @@ bool AppendStringToFile(const std::string &in, const std::string &filename_in){
 //
 //NOTE: This function returns 'true' upon success.
 bool CreateFIFOFile(const std::string &filename_in){
+#if defined(_WIN32) || defined(_WIN64)
+    return false;
+#else
     const int result = mknod( filename_in.c_str(), S_IRUSR | S_IWUSR | S_IFIFO, 0);
     if(result < 0){
         return false;
     }
     return true;
+#endif
 }
 
 //Remove a file using the cstdio remove() function. Requires a specific filename.
@@ -549,105 +549,64 @@ bool Does_Dir_Exist_And_Can_Be_Read(const std::string &dir){
 
 bool Create_Dir_and_Necessary_Parents(const std::string &dir){
     //Supposed to behave like `mkdir -p $dir`.
-
-    if(dir.empty()) return false;
-
-    //If the parent directory does not exist, create it first.
-    const auto parent = Get_Parent_Directory(dir);
-    if(!parent.empty() && !Does_Dir_Exist_And_Can_Be_Read(parent)){
-        if(!Create_Dir_and_Necessary_Parents(parent)){
-            //At this point, parent does not exist or is not accessible, and cannot 
-            // be created. There is nothing else we can try.
-            return false;
-        }
-    }
-
-    //Permissions: read, write, search permissions for owner and group, and 
-    // read, search permissions for others.
-    const auto res = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    if(res != 0) return false;
-
-    return true;
+    std::error_code ec;
+    return std::filesystem::create_directories( std::filesystem::path(dir), ec );
 }     
 
 
 bool Append_List_of_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const std::string &dir){
-    struct dirent **eps;
-    //Lambda for picking out directories/filenames. We want to collect everything, so simply return 1.
-    //
-    // To discriminate certain attributes, see 
-    //   http://www.gnu.org/software/libc/manual/html_node/Directory-Entries.html#Directory-Entries 
-    // (where this routine originally came from!)
-    auto one = [](const struct dirent *) -> int { return 1; };
-    int n = scandir(dir.c_str(), &eps, one, alphasort);
-    if(n >= 0){
-        for(int cnt = 0; cnt < n; ++cnt){
-            const std::string the_name( eps[cnt]->d_name );
-            //We choose to ignore the '.' and '..' because it is usually a given 
-            // that they exist and will typically not be of use to return. 
-            if((the_name != ".") && (the_name != "..")) out.push_back(the_name);
-        }
-    }else{
+    //Returns a list of all accessible files found as an immediate child of the given directory.
+    std::error_code ec;
+    if(!std::filesystem::is_directory( std::filesystem::path(dir), ec)){
         return false;
     }
-    return true;;
+    for(auto& p : std::filesystem::directory_iterator(std::filesystem::path(dir))){
+        out.push_back(p.path().string());
+    }
+    return true;
 }
 std::list<std::string> Get_List_of_File_and_Dir_Names_in_Dir(const std::string &dir){
     std::list<std::string> out;
     //const auto wasOK = Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
     //if(!wasOK) out.clear();
-    Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
+    bool wasOK = Append_List_of_File_and_Dir_Names_in_Dir(out, dir);
+    if(!wasOK) out.clear();
     return out;
 }
 
 
 bool Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const std::string &dir){
-    if(dir.empty()) return false;
-    const size_t existing = out.size();
-    if(!Append_List_of_File_and_Dir_Names_in_Dir(out, dir)) return false;
-    
-    //Append the passed in directory to the beginning of the filename.
-    std::string slasheddir(dir);
-    if(*(dir.rbegin()) != '/') slasheddir += "/";
-    auto it = std::next(std::begin(out),existing);
-    for( ; it != out.end(); ++it) *it = slasheddir + *it;
+    //Returns a list of all accessible files found as an immediate child of the given directory.
+    std::error_code ec;
+    if(!std::filesystem::is_directory( std::filesystem::path(dir), ec)){
+        return false;
+    }
+    for(auto& p : std::filesystem::directory_iterator(std::filesystem::path(dir))){
+        out.push_back(std::filesystem::canonical(p.path()).string());
+    }
     return true;
 }
 std::list<std::string> Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(const std::string &dir){
     std::list<std::string> out;
-    //const auto wasOK = Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
-    //if(!wasOK) out.clear();
-    Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
+    bool wasOK = Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(out, dir);
+    if(!wasOK) out.clear();
     return out;
 }
+
 
 std::list<std::string> Get_Recursive_List_of_Full_Path_File_Names_in_Dir(const std::string &dir){
     //Returns a list of all accessible files recursively found as a child of the given directory.
     // If failure is encountered, an empty list is returned.
+    std::error_code ec;
     std::list<std::string> files;
-    std::list<std::string> paths;
-
-    //Seed paths with the specified directories' children, or immediately return.
-    if(Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(paths, dir)){
-        for(auto it = paths.begin(); it != paths.end();   ){
-            //If this is a file, add it to the list of files and remove it.
-            if(Does_File_Exist_And_Can_Be_Read(*it)){
-                files.push_back(*it);
-                it = paths.erase(it);
-
-            //If this is a directory, find children and add them to paths.
-            }else if(Does_Dir_Exist_And_Can_Be_Read(*it)){
-                if(Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(paths, *it)){
-                    it = paths.erase(it);
-                }else{
-                    files.clear();
-                    return files;
-                }
-            //Otherwise, an error has occurred. Maybe the file/dir is not accessible?
-            }else{
-                files.clear();
-                return files;
-            }
+    if(!std::filesystem::is_directory( std::filesystem::path(dir), ec)){
+        return files;
+    }
+    for(auto& p : std::filesystem::recursive_directory_iterator(std::filesystem::path(dir))){
+        const auto p_str = std::filesystem::canonical(p.path()).string();
+        if( Does_File_Exist_And_Can_Be_Read(p_str)
+        &&  std::filesystem::is_regular_file(p.path(), ec) ){
+            files.push_back(p_str);
         }
     }
     return files;
@@ -655,26 +614,16 @@ std::list<std::string> Get_Recursive_List_of_Full_Path_File_Names_in_Dir(const s
 
 
 bool Append_List_of_File_Names_in_Dir(std::list<std::string> &out, const std::string &dir){
-    struct dirent **eps;
-    //Lambda for picking out directories/filenames. Returns 1 only on regular files.
-    //
-    // To discriminate certain attributes, see 
-    //   http://www.gnu.org/software/libc/manual/html_node/Directory-Entries.html#Directory-Entries 
-    // (where this routine originally came from!)
-    auto one = [](const struct dirent *s) -> int {
-        if(s->d_type == DT_REG) return 1; 
-        return 0;
-    };
-    int n = scandir(dir.c_str(), &eps, one, alphasort);
-    if(n >= 0){
-        for(int cnt = 0; cnt < n; ++cnt){
-            const std::string the_name(eps[cnt]->d_name);
-            //We choose to ignore the '.' and '..' because it is usually a given 
-            // that they exist and will typically not be of use to return. 
-            if((the_name != ".") && (the_name != "..")) out.push_back(the_name);
-        }
-    }else{
+    std::error_code ec;
+    if(!std::filesystem::is_directory( std::filesystem::path(dir), ec)){
         return false;
+    }
+    for(auto& p : std::filesystem::directory_iterator(std::filesystem::path(dir))){
+        const auto p_str = p.path().string();
+        if( Does_File_Exist_And_Can_Be_Read(p_str)
+        &&  std::filesystem::is_regular_file(p.path(), ec) ){
+            out.push_back(p_str);
+        }
     }
     return true;
 }
@@ -686,17 +635,18 @@ std::list<std::string> Get_List_of_File_Names_in_Dir(const std::string &dir){
 }
 
 
-
 bool Append_List_of_Full_Path_File_Names_in_Dir(std::list<std::string> &out, const std::string &dir){
-    if(dir.empty()) return false;
-    const size_t existing = out.size();
-    if(!Append_List_of_File_Names_in_Dir(out, dir)) return false;
-
-    //Append the passed in directory to the beginning of the filename.
-    std::string slasheddir(dir);
-    if(*(dir.rbegin()) != '/') slasheddir += "/";
-    auto it = std::next(std::begin(out),existing);
-    for( ; it != out.end(); ++it) *it = slasheddir + *it;
+    std::error_code ec;
+    if(!std::filesystem::is_directory( std::filesystem::path(dir), ec)){
+        return false;
+    }
+    for(auto& p : std::filesystem::directory_iterator(std::filesystem::path(dir))){
+        const auto p_str = std::filesystem::canonical(p.path()).string();
+        if( Does_File_Exist_And_Can_Be_Read(p_str)
+        &&  std::filesystem::is_regular_file(p.path(), ec) ){
+            out.push_back(p_str);
+        }
+    }
     return true;
 }
 std::list<std::string> Get_List_of_Full_Path_File_Names_in_Dir(const std::string &dir){
@@ -705,5 +655,4 @@ std::list<std::string> Get_List_of_Full_Path_File_Names_in_Dir(const std::string
     if(!wasOK) out.clear();
     return out;
 }
-
 

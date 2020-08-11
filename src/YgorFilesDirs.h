@@ -114,9 +114,9 @@ bool Append_List_of_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const
 //Returns a list of the files and (non-'.' and -'..') dirs under a dir. Empty list on error (or empty dir!).
 std::list<std::string> Get_List_of_File_and_Dir_Names_in_Dir(const std::string &dir);
 
-//Same as 'Get_List_of_File_and_Dir_Names_in_Dir()' but with preceeding directory appended.
+//Same as 'Get_List_of_File_and_Dir_Names_in_Dir()' but with canonical path.
 bool Append_List_of_Full_Path_File_and_Dir_Names_in_Dir(std::list<std::string> &out, const std::string &dir);
-//Same as 'Get_List_of_File_and_Dir_Names_in_Dir()' but with preceeding directory appended.
+//Same as 'Get_List_of_File_and_Dir_Names_in_Dir()' but with canonical path.
 std::list<std::string> Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(const std::string &dir);
 
 //Returns a list of all accessible files recursively found as a child of the given directory.
@@ -128,9 +128,10 @@ bool Append_List_of_File_Names_in_Dir(std::list<std::string> &out, const std::st
 //Returns a list of the files under a dir. Empty list on error (or empty dir!).
 std::list<std::string> Get_List_of_File_Names_in_Dir(const std::string &dir);
 
-//Same as 'Get_List_of_File_Names_in_Dir()' but with preceeding directory appended.
+//Same as 'Get_List_of_File_Names_in_Dir()' but with canonical path.
 bool Append_List_of_Full_Path_File_Names_in_Dir(std::list<std::string> &out, const std::string &dir);
-//Same as 'Get_List_of_File_Names_in_Dir()' but with preceeding directory appended.
+//Same as 'Get_List_of_File_Names_in_Dir()' but with canonical path.
 std::list<std::string> Get_List_of_Full_Path_File_Names_in_Dir(const std::string &dir);
 
 #endif
+

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <filesystem>
 #include <list>
+#include <regex>
 
 #include <YgorFilesDirs.h>
 
@@ -66,12 +67,37 @@ TEST_CASE( "directory free functions" ){
         REQUIRE( Create_Dir_and_Necessary_Parents(wdir + d2) ); // Setup.
         REQUIRE( TouchFile(wdir + f3) ); // Setup.
 
+        auto list_items_include_only = [](const std::list<std::string> &l, std::string r){
+            std::regex regex(r, std::regex::icase |
+                                std::regex::nosubs |
+                                std::regex::optimize |
+                                std::regex::extended);
+            for(const auto& n : l){
+                if(!std::regex_search(n, regex)) return false;
+            }
+            return true;
+        };
+
+        auto list_items_all_exist = [](const std::list<std::string> &l){
+            for(const auto& n : l){
+                if(!std::filesystem::exists(std::filesystem::path(n))){
+                    std::cerr << "'" << n << "' does not exist" << std::endl;
+                    return false;
+                }
+            }
+            return true;
+        };
+
         SUBCASE("Get_List_of_File_and_Dir_Names_in_Dir and Append_List_of_File_and_Dir_Names_in_Dir"){
             auto wdir_files_dirs_names = Get_List_of_File_and_Dir_Names_in_Dir(wdir);
             REQUIRE(wdir_files_dirs_names.size() == 3);
+            REQUIRE(list_items_include_only(wdir_files_dirs_names, R"*(file1|file2|dir1)*"));
+            REQUIRE(list_items_all_exist(wdir_files_dirs_names));
 
             auto d1_files_dirs_names = Get_List_of_File_and_Dir_Names_in_Dir(wdir + d1);
             REQUIRE(d1_files_dirs_names.size() == 2);
+            REQUIRE(list_items_include_only(d1_files_dirs_names, R"*(file3|dir2)*"));
+            REQUIRE(list_items_all_exist(d1_files_dirs_names));
 
             auto d2_files_dirs_names = Get_List_of_File_and_Dir_Names_in_Dir(wdir + d2);
             REQUIRE(d2_files_dirs_names.size() == 0);
@@ -83,9 +109,13 @@ TEST_CASE( "directory free functions" ){
         SUBCASE("Get_List_of_Full_Path_File_and_Dir_Names_in_Dir and Append_List_of_Full_Path_File_and_Dir_Names_in_Dir"){
             auto wdir_files_dirs_names = Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(wdir);
             REQUIRE(wdir_files_dirs_names.size() == 3);
+            REQUIRE(list_items_include_only(wdir_files_dirs_names, R"*(file1|file2|dir1)*"));
+            REQUIRE(list_items_all_exist(wdir_files_dirs_names));
 
             auto d1_files_dirs_names = Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(wdir + d1);
             REQUIRE(d1_files_dirs_names.size() == 2);
+            REQUIRE(list_items_include_only(d1_files_dirs_names, R"*(file3|dir2)*"));
+            REQUIRE(list_items_all_exist(d1_files_dirs_names));
 
             auto d2_files_dirs_names = Get_List_of_Full_Path_File_and_Dir_Names_in_Dir(wdir + d2);
             REQUIRE(d2_files_dirs_names.size() == 0);
@@ -97,9 +127,13 @@ TEST_CASE( "directory free functions" ){
         SUBCASE("Get_List_of_File_Names_in_Dir and Append_List_of_File_Names_in_Dir"){
             auto wdir_files_dirs_names = Get_List_of_File_Names_in_Dir(wdir);
             REQUIRE(wdir_files_dirs_names.size() == 2);
+            REQUIRE(list_items_include_only(wdir_files_dirs_names, R"*(file1|file2)*"));
+            REQUIRE(list_items_all_exist(wdir_files_dirs_names));
 
             auto d1_files_dirs_names = Get_List_of_File_Names_in_Dir(wdir + d1);
             REQUIRE(d1_files_dirs_names.size() == 1);
+            REQUIRE(list_items_include_only(d1_files_dirs_names, R"*(file3)*"));
+            REQUIRE(list_items_all_exist(d1_files_dirs_names));
 
             auto d2_files_dirs_names = Get_List_of_File_Names_in_Dir(wdir + d2);
             REQUIRE(d2_files_dirs_names.size() == 0);
@@ -111,9 +145,13 @@ TEST_CASE( "directory free functions" ){
         SUBCASE("Get_List_of_Full_Path_File_Names_in_Dir and Append_List_of_Full_Path_File_Names_in_Dir"){
             auto wdir_files_dirs_names = Get_List_of_Full_Path_File_Names_in_Dir(wdir);
             REQUIRE(wdir_files_dirs_names.size() == 2);
+            REQUIRE(list_items_include_only(wdir_files_dirs_names, R"*(file1|file2)*"));
+            REQUIRE(list_items_all_exist(wdir_files_dirs_names));
 
             auto d1_files_dirs_names = Get_List_of_Full_Path_File_Names_in_Dir(wdir + d1);
             REQUIRE(d1_files_dirs_names.size() == 1);
+            REQUIRE(list_items_include_only(d1_files_dirs_names, R"*(file3)*"));
+            REQUIRE(list_items_all_exist(d1_files_dirs_names));
 
             auto d2_files_dirs_names = Get_List_of_Full_Path_File_Names_in_Dir(wdir + d2);
             REQUIRE(d2_files_dirs_names.size() == 0);
@@ -123,8 +161,10 @@ TEST_CASE( "directory free functions" ){
         }
 
         SUBCASE("Get_Recursive_List_of_Full_Path_File_Names_in_Dir"){
-            auto all_files_dirs_names = Get_Recursive_List_of_Full_Path_File_Names_in_Dir(wdir);
-            REQUIRE(all_files_dirs_names.size() == 3);
+            auto all_files_names = Get_Recursive_List_of_Full_Path_File_Names_in_Dir(wdir);
+            REQUIRE(all_files_names.size() == 3);
+            REQUIRE(list_items_include_only(all_files_names, R"*(file1|file2|file3)*"));
+            REQUIRE(list_items_all_exist(all_files_names));
         }
 
         REQUIRE( std::filesystem::remove_all( std::filesystem::path(wdir)) != 0 ); // Cleanup.
