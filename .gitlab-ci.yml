@@ -21,7 +21,7 @@ build_ci_debian_stable:
     - "export DEBIAN_FRONTEND='noninteractive'"
     - "apt-get update --yes"
     # Build requirements.
-    - "apt-get install --yes --no-install-recommends git cmake make g++ rsync ca-certificates"
+    - "apt-get install --yes --no-install-recommends git cmake make g++ rsync wget ca-certificates"
     # Binary requirements.
     - "apt-get install --yes --no-install-recommends libboost-dev libgsl-dev libeigen3-dev"
   script:
@@ -46,7 +46,7 @@ build_ci_arch:
     - "printf '\\n''builduser ALL=(ALL) NOPASSWD: ALL''\\n' >> /etc/sudoers"
     - "chown -R builduser:builduser ."
     # Build requirements.
-    - "pacman -Syu --noconfirm --needed base-devel git cmake gcc rsync ca-certificates"
+    - "pacman -Syu --noconfirm --needed base-devel git cmake gcc rsync wget ca-certificates"
     # Binary requirements.
     - "pacman -Syu --noconfirm --needed boost gsl eigen"
   script:
