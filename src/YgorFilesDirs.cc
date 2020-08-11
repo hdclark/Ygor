@@ -15,6 +15,7 @@
 #include <list>
 #include <memory>      //Needed for unique_ptrs.
 #include <string>
+#include <filesystem>
 
 #include "External/MD5/md5.h" //Needed for MD5_of_File(...)
 
@@ -537,14 +538,14 @@ bool CopyFile(const std::string &source, const std::string &destination){
 
 
 bool Does_Dir_Exist_And_Can_Be_Read(const std::string &dir){
-    std::list<std::string> out;
-    struct dirent **eps;
-    auto one = [](const struct dirent *) -> int { return 1; };
-    int n = scandir(dir.c_str(), &eps, one, alphasort);
-
-    return (n >= 0);
+    std::error_code ec;
+    const auto p = std::filesystem::path(dir);
+    const auto perms = std::filesystem::status(p, ec).permissions();
+    return std::filesystem::is_directory(p)
+        && ((perms & std::filesystem::perms::owner_read)  != std::filesystem::perms::none)
+        && ((perms & std::filesystem::perms::group_read)  != std::filesystem::perms::none)
+        && ((perms & std::filesystem::perms::others_read) != std::filesystem::perms::none);
 }
-   
 
 bool Create_Dir_and_Necessary_Parents(const std::string &dir){
     //Supposed to behave like `mkdir -p $dir`.
