@@ -21,6 +21,7 @@ target_include_directories(ygor
 
 target_link_libraries(ygor
     m
+    stdc++fs # Workaround for gcc v8 -- can be removed when newer compilers are expected.
     Threads::Threads
 )
 if(WITH_GNU_GSL)
