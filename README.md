@@ -3,16 +3,17 @@
 [![Language](https://img.shields.io/github/languages/top/hdclark/Ygor.svg)](https://gitlab.com/hdeanclark/Ygor)
 [![LOC](https://tokei.rs/b1/gitlab/hdeanclark/Ygor)](https://gitlab.com/hdeanclark/Ygor)
 
+[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/hdclark/Ygor.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hdclark/Ygor/context:cpp)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/4b2ac86e6fe446a69891e5d61fb3312a)](https://www.codacy.com/app/hdclark/Ygor?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hdclark/Ygor&amp;utm_campaign=Badge_Grade)
 
 [![GitLab CI Pipeline Status](https://gitlab.com/hdeanclark/Ygor/badges/master/pipeline.svg)](https://gitlab.com/hdeanclark/Ygor/-/commits/master)
 
-# Introduction
+## Introduction
 
 This supporting library was written by hal clark over the span of many years
 (~2010-2020) to house bits of code that are convenient for multiple projects.
 
-Most, but not all of Ygor's routines are focused on scientific or mathematic
+Most, but not all of `Ygor`'s routines are focused on scientific or mathematic
 applications (i.e., geometry, simulation, optimization, and statistics). The
 routines in this library were all developed for specific projects with specific
 needs, but which may (have) become useful for other projects. Ygor's routines
@@ -27,12 +28,12 @@ or beauty. Additions of new generic routines is welcomed so long as there is
 some reasonable chance they will be applicable or broadly useful.
 
 
-# License and Copying
+## License and Copying
 
 All materials herein which may be copywrited, where applicable, are. Copyright
 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Hal Clark. See
-[LICENSE.txt] for details about the license. Informally, Ygor is available under
-a GPLv3+ license. 
+[LICENSE.txt](LICENSE.txt) for details about the license. Informally, `Ygor` is
+available under a GPLv3 license. 
 
 All liability is herefore disclaimed. The person(s) who use this source and/or
 software do so strictly under their own volition. They assume all associated
@@ -41,32 +42,32 @@ injury, and death which may result, including but not limited to that arising
 from unforeseen or unanticipated implementation defects.
 
 
-# Project Home
+## Project Home
 
-The Ygor homepage can be found at [http://www.halclark.ca/]. Source code is
-available at [https://gitlab.com/hdeanclark/Ygor/] and
-[https://github.com/hdclark/Ygor/].
+The `Ygor` homepage can be found at <http://www.halclark.ca/>. Source code is
+available at <https://gitlab.com/hdeanclark/Ygor/> and
+<https://github.com/hdclark/Ygor/>.
 
 
-# Dependencies
+## Dependencies
 
-See `PKGBUILD` for a up-to-date list of dependencies.
-As of writing, various bits of Ygor rely on:
+See [PKGBUILD](PKGBUILD) for a up-to-date list of dependencies.
+As of writing, various bits of `Ygor` rely on:
 
-- STL/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
-- Boost: various.
-- spookyhash: YgorAlgorithms. Very little - one function at time of writing.
-- GNU Scientific Library: YgorStats and YgorMathBasisSplines.
-- GNU plotutils: YgorPlot. Weakly - via shell/pipe.
-- Gnuplot: YgorPlot. Weakly - via shell/pipe.
-- Eigen: a few YgorMath routines, optionally.
+- `STL`/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
+- `Boost`: various.
+- `Eigen`: a few YgorMath routines, optionally.
+- `spookyhash`: YgorAlgorithms. Very little - one function at time of writing.
+- `GNU Scientific Library`: YgorStats and YgorMathBasisSplines.
+- `GNU plotutils`: YgorPlot. Weakly - via shell/pipe.
+- `Gnuplot`: YgorPlot. Weakly - via shell/pipe.
 
 All dependencies can be optionally disabled, though this will result in loss of
 functionality.
 
-# Installation
+## Installation
 
-This project uses CMake. Use the usual commands to compile:
+This project uses `CMake`. Use the usual commands to compile:
 
     $>  cd /path/to/source/directory
     $>  mkdir build && cd build/
@@ -93,15 +94,15 @@ can be invoked as:
     $>  ./compile_and_install.sh
 
 
-# Known Issues
+## Known Issues
 
-- The Gnuplot async plotter will cause the main thread to hang on some systems.
+- The `Gnuplot` async plotter will cause the main thread to hang on some systems.
   It can be made to block instead, but this is hard-coded at the moment. The
-  core issue appears to be communicating via pipes with Gnuplot rather than via
+  core issue appears to be communicating via pipes with `Gnuplot` rather than via
   a proper API.
 
 
-# Rough Historical Timeline
+## Rough Historical Timeline
 
 - May/June 2012
 
@@ -211,4 +212,9 @@ can be invoked as:
     when external libraries may not be available, to ensure a means of passing
     matrices across library interface with a stable API (and ABI, if needed),
     and as a means of controlling serializability.
+
+- August 2020
+
+  - Expanded testing, added CI build-and-test, and increased static analysis.
+  - Re-wrote a few routines to use more modern features to improve portability.
 
