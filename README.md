@@ -1,9 +1,11 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![LOC](https://tokei.rs/b1/gitlab/hdeanclark/Ygor)](https://gitlab.com/hdeanclark/Ygor)
 [![Language](https://img.shields.io/github/languages/top/hdclark/Ygor.svg)](https://gitlab.com/hdeanclark/Ygor)
+[![LOC](https://tokei.rs/b1/gitlab/hdeanclark/Ygor)](https://gitlab.com/hdeanclark/Ygor)
+
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/4b2ac86e6fe446a69891e5d61fb3312a)](https://www.codacy.com/app/hdclark/Ygor?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hdclark/Ygor&amp;utm_campaign=Badge_Grade)
 
+[![GitLab CI Pipeline Status](https://gitlab.com/hdeanclark/Ygor/badges/master/pipeline.svg)](https://gitlab.com/hdeanclark/Ygor/-/commits/master)
 
 # Introduction
 

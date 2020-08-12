@@ -1,5 +1,10 @@
 #!/bin/bash
 
+set -eu
+
+reporoot=$(git rev-parse --show-toplevel)
+cd "${reporoot}/tests"
+
 g++ -std=c++17 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
 g++ -std=c++17 Test_Algorithms_01.cc -o test_algorithms_01 -lygor -pthread &
 g++ -std=c++17 Test_Algorithms_02.cc -o test_algorithms_02 -lygor -pthread &

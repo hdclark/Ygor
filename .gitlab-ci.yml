@@ -27,8 +27,9 @@ build_ci_debian_stable:
   script:
     - |
       ./compile_and_install.sh
-      ( cd tests2 && ./compile_and_run.sh )
-      ( cd tests  && for i in ./test_* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done )
+      ./tests2/compile_and_run.sh
+      ./tests/compile.sh
+      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
 
 # CI build on Arch Linux.
 # Notes: reduced (or missing) optimization, some components may be missing.
@@ -51,7 +52,7 @@ build_ci_arch:
   script:
     - |
       su - builduser -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
-      ( cd tests2 && ./compile_and_run.sh )
-      ( cd tests  && ./compile.sh )
-      ( cd tests  && for i in ./test_* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done )
+      ./tests2/compile_and_run.sh
+      ./tests/compile.sh
+      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
 

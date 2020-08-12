@@ -2,6 +2,9 @@
 
 set -eu
 
+reporoot=$(git rev-parse --show-toplevel)
+cd "${reporoot}/tests2"
+
 mkdir -p doctest/
 wget -q 'https://raw.githubusercontent.com/onqtam/doctest/master/doctest/doctest.h' -O doctest/doctest.h
 
