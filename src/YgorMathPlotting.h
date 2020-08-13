@@ -31,9 +31,11 @@ struct Waiter {
     Waiter(std::thread in) : t(std::move(in)) {};
     Waiter(Waiter &&) = default;
     ~Waiter(){
+#if !defined(_WIN32) && !defined(_WIN64)
         //At this point we want probably want SIGPIPEs to cause termination.
         // Otherwise we may wait around forever for nothing.
         signal(SIGPIPE, SIG_DFL);
+#endif
 
         //FUNCINFO("Called ~Waiter(). Waiting briefly before attempting to join");
         //std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -107,7 +109,9 @@ void Plot(const std::vector<Shuttle<samples_1D<T>>> &Shuttles,
           const std::string &XLabel = "",      // AKA the "abscissa."
           const std::string &YLabel = "",      // AKA the "ordinate."
           const std::vector<std::string> &UserOpts = { } ){ // Generic user options.
+#if !defined(_WIN32) && !defined(_WIN64)
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     //FILE *fp = popen("gnuplot --persist ", "w");
     FILE *fp = popen("gnuplot", "w");

@@ -593,8 +593,10 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
         if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
     }
 
+#if !defined(_WIN32) && !defined(_WIN64)
     //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     if(listen(this->SERVER_sockfd, this->SERVER_BACKLOG) == -1){
         if(YGORNETWORKING_VERBOSE) FUNCWARN("Server listen issue. Unable to initialize server");
@@ -729,8 +731,10 @@ bool Server_and_Client::Server_Wait_for_Connection(void){
         //Stop listening for connections. Let the parent do so!
         close(this->SERVER_sockfd);
 
+#if !defined(_WIN32) && !defined(_WIN64)
         //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
         signal(SIGPIPE, SIG_IGN);
+#endif
 
         //Call the user's dialog lambda if it exists. Call the default otherwise.
         if( this->USERS_SERVER_DIALOG_LAMBDA ){
@@ -819,8 +823,10 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...mapping done");
 if(YGORNETWORKING_VERBOSE) FUNCINFO("Executing the child's lambda now");
 
         //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
         //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
         signal(SIGPIPE, SIG_IGN);
+#endif
 
         //Cast the input (void *) to a struct so we can pull out all the parts we need.
         if(arg == nullptr){
@@ -916,9 +922,11 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
 
     auto Childs_Lambda = [&](std::string thehost, int thefd, long int theport) -> void {
         //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
         //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
         //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
         signal(SIGPIPE, SIG_IGN);
+#endif
 
         //The following functions expect a raw (char *) array. This may need to change if re-writing 
         // is necessary.
@@ -969,9 +977,11 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
     auto Childs_Lambda = [&,hostcopy,fdcopy,portcopy](void) -> void {
 //std::string thehost, int thefd, long int theport
         //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
         //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
         //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
         signal(SIGPIPE, SIG_IGN);
+#endif
 
         //The following functions expect a raw (char *) array. This may need to change if re-writing 
         // is necessary.
@@ -1068,8 +1078,10 @@ bool Server_and_Client::Client_Init(long int port, std::function<bool (int, char
     //
     this->CLIENT_INITIALIZED = false;
 
+#if !defined(_WIN32) && !defined(_WIN64)
     //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     memset(&this->CLIENT_hints, 0, sizeof(this->CLIENT_hints));
     this->CLIENT_hints.ai_family   = AF_UNSPEC;
@@ -1353,8 +1365,10 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
         if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
     }
 
+#if !defined(_WIN32) && !defined(_WIN64)
     //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     //"Reap" all dead processes.
     auto handler_lambda = [](int) -> void { while(waitpid(-1, nullptr, WNOHANG) > 0){ }; };
@@ -1466,9 +1480,11 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
         //Just fork and execute the lambda!
         if(!fork()){
             //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
             //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
             signal(SIGPIPE, SIG_IGN);
-    
+#endif
+
             //Call the user's dialog lambda if it exists. Call the default otherwise.
             if( this->USERS_RADIO_DIALOG_LAMBDA ){
                 if(!this->USERS_RADIO_DIALOG_LAMBDA( this->RADIO_sockfd, this->RADIO_s, this->RADIO_PORT )){
@@ -1518,9 +1534,11 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
 
         auto Childs_Lambda = [=]/*,hostcopy,fdcopy,portcopy]*/(void) -> int {
             //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
             //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
             //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
             signal(SIGPIPE, SIG_IGN);
+#endif
 
             //The following functions expect a raw (char *) array. This may need to change if re-writing 
             // is necessary.
@@ -1573,10 +1591,12 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
 
         auto Childs_Lambda = [&](std::string thehost, int thefd, long int theport, bool closethefd) -> void {
             //----------------------------- Child Process Fence ---------------------------------
+#if !defined(_WIN32) && !defined(_WIN64)
             //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
             //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
             signal(SIGPIPE, SIG_IGN);
-    
+#endif
+
             //The following functions expect a raw (char *) array. This may need to change if re-writing 
             // is necessary.
             char *thehostcopy = const_cast<char *>(thehost.c_str());
@@ -1675,8 +1695,10 @@ bool Beacon_and_Radio::Beacon_Init(long int port, std::function<bool (int, char 
     //
     this->BEACON_INITIALIZED = false;
 
+#if !defined(_WIN32) && !defined(_WIN64)
     //Ignore SIGPIPE's (as in, if one arises, allow us to handle it locally via the send(...) return error EPIPE.
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     memset(&this->BEACON_hints, 0, sizeof(this->BEACON_hints));
     this->BEACON_hints.ai_family   = AF_UNSPEC;
