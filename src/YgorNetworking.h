@@ -4,6 +4,8 @@
 #ifndef HDR_GRD_YGORNETWORKING_H_
 #define HDR_GRD_YGORNETWORKING_H_
 
+#if !defined(_WIN32) && !defined(_WIN64) // This file will be empty on Windows machines.
+
 #include "YgorDefinitions.h"
 
 #include <arpa/inet.h>
@@ -297,4 +299,6 @@ class Beacon_and_Radio {
         bool Set_TTL_Hops_Beacon(unsigned char); //See source for reasonable values. Usually ~ <32.
 };
 
-#endif
+#endif // !defined(_WIN32) && !defined(_WIN64)
+#endif // header guard
+

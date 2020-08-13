@@ -468,14 +468,14 @@ bool AppendStringToFile(const std::string &in, const std::string &filename_in){
 //
 //NOTE: This function returns 'true' upon success.
 bool CreateFIFOFile(const std::string &filename_in){
-#if defined(_WIN32) || defined(_WIN64)
-    return false;
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
     const int result = mknod( filename_in.c_str(), S_IRUSR | S_IWUSR | S_IFIFO, 0);
     if(result < 0){
         return false;
     }
     return true;
+#else
+    return false;
 #endif
 }
 

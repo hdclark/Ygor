@@ -35,8 +35,12 @@ std::string time_mark::Dump_as_string(void) const {
     //NOTE: In the future, update to use the std::put_time and std::get_time commands.
     //NOTE: If this needs to be changed, update this->Theo_Max_Serialization_Size. Consider making a new serialization version.
     struct tm lt;
+#if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
 //    if(gmtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
+#else
+    if(localtime_s(&lt, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue");
+#endif
     std::stringstream ss("");
 
     //The previously-preferred way. It was easy to parse because of all the landmarks, but made little sense for most
@@ -63,7 +67,11 @@ std::string time_mark::Dump_as_postgres_string(void) const {
     //NOTE: In the future, update to use the std::put_time and std::get_time commands.
     //NOTE: If this needs to be changed, update this->Theo_Max_Serialization_Size. Consider making a new serialization version.
     struct tm lt;
+#if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
+#else
+    if(localtime_s(&lt, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue");
+#endif
     std::stringstream ss("");
 
     //The postgres-displayed (or at least psql) way. Fixed-width numbers with lots of landmarks and a space.
@@ -245,9 +253,12 @@ time_mark time_mark::More_By_Seconds(int64_t dt) const {
 time_mark time_mark::Same_Day_Earliest(void) const {
     time_mark out(*this);
     struct tm A;
-    if(localtime_r(&out.When, &A) == nullptr){
-        FUNCERR("localtime_r produced an error - unable to continue")
-    }else if((A.tm_year == -1) || (A.tm_mon == -1) || (A.tm_mday == -1)
+#if !defined(_WIN32) && !defined(_WIN64)
+    if(localtime_r(&out.When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+#else
+    if(localtime_s(&A, &out.When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+#endif
+    if((A.tm_year == -1) || (A.tm_mon == -1) || (A.tm_mday == -1)
           || (A.tm_hour == -1) || (A.tm_min == -1) || (A.tm_sec  == -1) ){
         FUNCERR("Cannot determine earliest same-day time from input");
     }
@@ -306,13 +317,6 @@ time_t time_mark::Diff_in_Seconds(const time_mark &in) const {
 time_t time_mark::Diff_in_Days(const time_mark &in) const {
     //Returns:  (in.days - this->days). If input is further in the future, result will be positive.
     //Note: This difference does not include fractional days. It has resolution of 1day.
-/*
-    struct tm A,B;
-    if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
-    if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
-    if((A.tm_mday == -1) || (B.tm_mday == -1)) return false; //Error in the data.
-    return B.tm_mday - A.tm_mday;
-*/
     const auto dsec = static_cast<double>(this->Diff_in_Seconds(in));
     const auto spd  = 60.0*60.0*24.0; //"Seconds per day"
     return static_cast<time_t>(dsec/spd);
@@ -320,16 +324,26 @@ time_t time_mark::Diff_in_Days(const time_mark &in) const {
 
 bool time_mark::Have_same_day(const time_mark &in) const {  //Compares ONLY the day (the number) - not the year, month, etc..
     struct tm A,B;
+#if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
     if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+#else
+    if(localtime_s(&A, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+#endif
     if((A.tm_mday == -1) || (B.tm_mday == -1)) return false; //Error in the data.
     return A.tm_mday == B.tm_mday;
 }
 
 bool time_mark::Occur_on_same_day(const time_mark &in) const { 
     struct tm A,B;
+#if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
     if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+#else
+    if(localtime_s(&A, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+#endif
 
     if((A.tm_mday == -1) || (B.tm_mday == -1) 
        || (A.tm_mon == -1) || (B.tm_mon == -1)

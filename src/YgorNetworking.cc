@@ -1,6 +1,8 @@
 //YgorNetworking.cc.
 #include "YgorDefinitions.h"
 
+#if !defined(_WIN32) && !defined(_WIN64) // This file will be empty on Windows machines.
+
 
 //Gross fix for compiling without glibc: Define this constant to avoid getting compilation errors regarding
 // sleep_for not being part of std::this_thread:...
@@ -1817,3 +1819,6 @@ bool Beacon_and_Radio::Set_TTL_Hops_Beacon(unsigned char hops){
     this->BEACON_TTL_HOPS = hops;
     return true;
 }
+
+#endif // !defined(_WIN32) && !defined(_WIN64)
+
