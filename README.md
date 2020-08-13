@@ -217,4 +217,5 @@ can be invoked as:
 
   - Expanded testing, added CI build-and-test, and increased static analysis.
   - Re-wrote a few routines to use more modern features to improve portability.
+    The port is not comprehensive, but `Ygor` can now be compiled with `MXE`.
 
