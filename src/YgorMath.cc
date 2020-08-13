@@ -684,7 +684,8 @@ vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &th
     std::complex<double> a2 = (fabs(A.y) > 1E-11) ? ( (fabs(A.y) < (1.0-1E-10)) ? A.y :  A.y - 1E-10 ) : 1E-11 + A.y;    // ~~ A.y
     std::complex<double> a3 = (fabs(A.z) > 1E-11) ? ( (fabs(A.z) < (1.0-1E-10)) ? A.z :  A.z - 1E-10 ) : 1E-11 + A.z;    // ~~ A.z
 
-    static const std::complex<double> i(0.0,1.0);
+    const std::complex<double> i(0.0,1.0);
+    const auto e = std::exp(1.0);
 
     std::complex<double> p, t; //Angles.
 
@@ -694,31 +695,27 @@ vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &th
     p  = (R > 1E-11) ? R : 1E-11 + R;  // ~~ R
 
     //Two solutions for t when fixing p. Pick one (I think they correspond to the plus/minus orientation, which should be irrelevant here.)
-    t  = -i*log(-1.0*pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)*pow(pow(a3,2.0)*pow(M_E,4.0*i*p)+pow(a2,2.0)*pow(M_E,4.0*i*p)+pow(a1,2.0)*pow(M_E,4.0*i*p)+2.0*pow(a3,2.0)*pow(M_E,2.0*i*p)-2.0*pow(a2,2.0)*pow(M_E,2.0*i*p)-2.0*pow(a1,2.0)*pow(M_E,2.0*i*p)+pow(a3,2.0)+pow(a2,2.0)+pow(a1,2.0),0.5)+a3*pow(M_E,2.0*i*p)*pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)+a3*pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0));
+    t  = -i*std::log(-1.0*std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)*std::pow(std::pow(a3,2.0)*std::pow(e,4.0*i*p)+std::pow(a2,2.0)*std::pow(e,4.0*i*p)+std::pow(a1,2.0)*std::pow(e,4.0*i*p)+2.0*std::pow(a3,2.0)*std::pow(e,2.0*i*p)-2.0*std::pow(a2,2.0)*std::pow(e,2.0*i*p)-2.0*std::pow(a1,2.0)*std::pow(e,2.0*i*p)+std::pow(a3,2.0)+std::pow(a2,2.0)+std::pow(a1,2.0),0.5)+a3*std::pow(e,2.0*i*p)*std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)+a3*std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0));
 
-    //t  = -i*log(pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)*pow(pow(a3,2.0)*pow(M_E,4.0*i*p)+pow(a2,2.0)*pow(M_E,4.0*i*p)+pow(a1,2.0)*pow(M_E,4.0*i*p)+2.0*pow(a3,2.0)*pow(M_E,2.0*i*p)-2.0*pow(a2,2.0)*pow(M_E,2.0*i*p)-2.0*pow(a1,2.0)*pow(M_E,2.0*i*p)+pow(a3,2.0)+pow(a2,2.0)+pow(a1,2.0),0.5)+a3*pow(M_E,2.0*i*p)*pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)+a3*pow(a2*pow(M_E,2.0*i*p)+i*a1*pow(M_E,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0));
+    //t  = -i*std::log(std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)*std::pow(std::pow(a3,2.0)*std::pow(e,4.0*i*p)+std::pow(a2,2.0)*std::pow(e,4.0*i*p)+std::pow(a1,2.0)*std::pow(e,4.0*i*p)+2.0*std::pow(a3,2.0)*std::pow(e,2.0*i*p)-2.0*std::pow(a2,2.0)*std::pow(e,2.0*i*p)-2.0*std::pow(a1,2.0)*std::pow(e,2.0*i*p)+std::pow(a3,2.0)+std::pow(a2,2.0)+std::pow(a1,2.0),0.5)+a3*std::pow(e,2.0*i*p)*std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0)+a3*std::pow(a2*std::pow(e,2.0*i*p)+i*a1*std::pow(e,2.0*i*p)-1.0*a2-1.0*i*a1,-1.0));
 
 
     }else{
     
         t = R;
 
-        //We are going to use least-significant bit selection here. Ugh... Of COURSE this is not portable. Endianness breaks it, if not something else.
+        //We are going to use least-significant bit selection here. (Ugh... this is a terrible approach!)
         union {
             double the_number;
             char   asChars[sizeof(double)];
         };
         the_number = R;
-
-        //This time we cannot simply ignore one of the solutions, lest we have a one-sided universe...
-     
-        // http://stackoverflow.com/questions/4743115/how-do-i-use-bitwise-operators-on-a-double-on-c
  
         //if(asChars[sizeof(double) - 1] & 0x1){
-        if(asChars[0] & 0x1){  //Least significant bit selection. Sorry, if you are reading this, for such a shit solution :(
-            p = -i*log(-1.0*pow(a2*pow(M_E,2.0*i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+i*a1*pow(M_E,2.0*i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+2.0*a3*pow(M_E,i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)-1.0*a2*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+i*a1*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0),0.5));
+        if(asChars[0] & 0x1){  //Least significant bit selection.
+            p = -i*std::log(-1.0*std::pow(a2*std::pow(e,2.0*i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+i*a1*std::pow(e,2.0*i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+2.0*a3*std::pow(e,i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)-1.0*a2*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+i*a1*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0),0.5));
         }else{
-            p = -0.5*i*log(a2*pow(M_E,2.0*i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+i*a1*pow(M_E,2.0*i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+2.0*a3*pow(M_E,i*t)*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)-1.0*a2*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0)+i*a1*pow(a2*pow(M_E,2.0*i*t)+i*a1*pow(M_E,2.0*i*t)-2.0*a3*pow(M_E,i*t)-1.0*a2+i*a1,-1.0));
+            p = -0.5*i*std::log(a2*std::pow(e,2.0*i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+i*a1*std::pow(e,2.0*i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+2.0*a3*std::pow(e,i*t)*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)-1.0*a2*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0)+i*a1*std::pow(a2*std::pow(e,2.0*i*t)+i*a1*std::pow(e,2.0*i*t)-2.0*a3*std::pow(e,i*t)-1.0*a2+i*a1,-1.0));
         }
     }
 
