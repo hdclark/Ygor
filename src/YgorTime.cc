@@ -182,6 +182,7 @@ bool time_mark::Read_from_string(const std::string &in){
     //The format used as an example in the strpcopy manual. Seems nice enough...
     // Example: '6 Dec 2001 12:33:45'
     }else if(strptime(in.c_str(), "%d %b %Y %H:%M:%S", &lt) != nullptr){
+
 #endif // !defined(_WIN32) && !defined(_WIN64)
 
     //}else if( ....        <---add more here. Consider just piping to shell to use GNU date, which handles all sorts of neat formats automagically...
