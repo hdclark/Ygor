@@ -39,7 +39,7 @@ std::string time_mark::Dump_as_string(void) const {
     if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
 //    if(gmtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
 #else
-    if(localtime_s(&lt, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue");
+    if(localtime_s(&lt, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue");
 #endif
     std::stringstream ss("");
 
@@ -70,7 +70,7 @@ std::string time_mark::Dump_as_postgres_string(void) const {
 #if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
 #else
-    if(localtime_s(&lt, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue");
+    if(localtime_s(&lt, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue");
 #endif
     std::stringstream ss("");
 
@@ -258,7 +258,7 @@ time_mark time_mark::Same_Day_Earliest(void) const {
 #if !defined(_WIN32) && !defined(_WIN64)
     if(localtime_r(&out.When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &out.When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &out.When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
 #endif
     if((A.tm_year == -1) || (A.tm_mon == -1) || (A.tm_mday == -1)
           || (A.tm_hour == -1) || (A.tm_min == -1) || (A.tm_sec  == -1) ){
@@ -330,8 +330,8 @@ bool time_mark::Have_same_day(const time_mark &in) const {  //Compares ONLY the 
     if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
     if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
-    if(localtime_s(&B, &in.When)    == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    != 0) FUNCERR("localtime_s produced an error - unable to continue")
 #endif
     if((A.tm_mday == -1) || (B.tm_mday == -1)) return false; //Error in the data.
     return A.tm_mday == B.tm_mday;
@@ -343,8 +343,8 @@ bool time_mark::Occur_on_same_day(const time_mark &in) const {
     if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
     if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &this->When) == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
-    if(localtime_s(&B, &in.When)    == nullptr) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    != 0) FUNCERR("localtime_s produced an error - unable to continue")
 #endif
 
     if((A.tm_mday == -1) || (B.tm_mday == -1) 
