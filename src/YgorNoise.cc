@@ -3,7 +3,7 @@
 
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
+#include <random>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for some bitwise operations.
@@ -54,11 +54,14 @@ static void PERLIN_INIT(){
     float v[3], s;
 
     /* Create an array of random gradient vectors uniformly on the unit sphere */
-    srandom(1);
+    std::mt19937 re;
+    re.seed(1);
+    std::uniform_int_distribution<> rd(0, 2'147'483'647); // (2^31)-1, n.b. inclusive endpoints.
+
     for(i = 0 ; i < PERLIN_B ; i++){
         do{
             /* Choose uniformly in a cube */
-            for(j=0 ; j<3 ; j++)  v[j] = (float)((random() % (PERLIN_B + PERLIN_B)) - PERLIN_B)/PERLIN_B;
+            for(j=0 ; j<3 ; j++)  v[j] = (float)((rd(re) % (PERLIN_B + PERLIN_B)) - PERLIN_B)/PERLIN_B;
             s = PERLIN_DOT(v,v);
         }while(s > 1.0); /* If not in sphere try again */
         s = ::sqrtf(s);
@@ -71,7 +74,7 @@ static void PERLIN_INIT(){
     for(i = 0 ; i < PERLIN_B ; i++)  PERLIN_P[i] = i;
     for(i = PERLIN_B ; i > 0 ; i -= 2){
         k = static_cast<int>(PERLIN_P[i]);
-        PERLIN_P[i] = PERLIN_P[j = static_cast<int>(random() % PERLIN_B)];
+        PERLIN_P[i] = PERLIN_P[j = static_cast<int>(rd(re) % PERLIN_B)];
         PERLIN_P[j] = k;
     }
 
