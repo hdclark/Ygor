@@ -13,19 +13,14 @@ option(WITH_IWYU                "Compile using clang include-what-you-use."     
 
 option(WITH_ASAN                "Compile using ASan, LSan, & UBSan."            OFF)
 option(WITH_TSAN                "Compile using ThreadSanitizer."                OFF)
-<<<<<<< HEAD
-option(WITH_MSAN                "Compile using MemorySanitizer."                OFF
-=======
 option(WITH_MSAN                "Compile using MemorySanitizer."                OFF)
->>>>>>> refs/remotes/trip/master
 
 option(WITH_LINUX_SYS "Compile assuming Linux-specific sys interfaces are available." ON)
 option(WITH_EIGEN     "Compile assuming Eigen is available." ON)
 option(WITH_GNU_GSL   "Compile assuming the GNU GSL is available." ON)
 option(WITH_BOOST     "Compile assuming Boost is available (note: won't impact header-only parts)." ON)
-)
 
-option(BUILD_SHARED_LIBS "Build shared-object/dynamicly-loaded binaries." ON)
+option(BUILD_SHARED_LIBS "Build shared-object/dynamically-loaded binaries." ON)
 
 ####################################################################################
 #                                  Configuration
