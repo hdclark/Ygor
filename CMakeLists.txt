@@ -9,43 +9,76 @@ project(Ygor LANGUAGES CXX)
 #                                  User Options
 ####################################################################################
 
+option(WITH_IWYU                "Compile using clang include-what-you-use."     OFF)
+
+option(WITH_ASAN                "Compile using ASan, LSan, & UBSan."            OFF)
+option(WITH_TSAN                "Compile using ThreadSanitizer."                OFF)
+option(WITH_MSAN                "Compile using MemorySanitizer."                OFF)
+
 option(WITH_LINUX_SYS "Compile assuming Linux-specific sys interfaces are available." ON)
 option(WITH_EIGEN     "Compile assuming Eigen is available." ON)
 option(WITH_GNU_GSL   "Compile assuming the GNU GSL is available." ON)
 option(WITH_BOOST     "Compile assuming Boost is available (note: won't impact header-only parts)." ON)
 
+option(BUILD_SHARED_LIBS "Build shared-object/dynamicly-loaded binaries." ON)
 
 ####################################################################################
-#                                  Dependencies
+#                                  Configuration
+####################################################################################
+
+# High-level configuration.
+if(NOT BUILD_SHARED_LIBS)
+    #set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    link_libraries("-static")
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS OFF) # Disable GNU extensions (e.g., std=gnu++14).
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For use with clang-tidy et al.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(POSITION_INDEPENDENT_CODE TRUE)
+
+# Set the release type. 
+if(NOT CMAKE_BUILD_TYPE)
+    # Default to debug builds.
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "default to debug" FORCE)
+endif()
+
+
+####################################################################################
+#                                  Dependencies 
 ####################################################################################
 # Note: Dependencies are listed in CPACK list below.
 
 find_package(Threads REQUIRED)
 
+if(WITH_BOOST)
+    if(NOT BUILD_SHARED_LIBS)
+        set(Boost_USE_STATIC_RUNTIME ON)
+        set(Boost_USE_STATIC_LIBS ON)
+    endif()
+    find_package(Boost REQUIRED)
+    include_directories(${Boost_INCLUDE_DIRS})
+endif()
+
 if(WITH_EIGEN)
-    #find_package(Eigen3 3.1.0)
-    #include(${EIGEN3_USE_FILE})
-    #
-    # or via pkg-config method:
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(EIGEN3 REQUIRED eigen3)
     include_directories( ${EIGEN3_INCLUDE_DIRS} )
-    #
-    # Fallback if the above methods fail:
-    #include_directories("/usr/include/eigen3/")
 endif()
 
-# GNU GSL.
-# Boost.
-
-# Header-only: Boost.Serialization.
-# Header-only: VTK.
-
-# Optional, at runtime: Gnuplot.
+if(WITH_GNU_GSL)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GNU_GSL REQUIRED gsl)
+    include_directories( ${GNU_GSL_INCLUDE_DIRS} )
+endif()
 
 
 ####################################################################################
-#                                  Configuration
+#                                  Compiler Flags
 ####################################################################################
 
 # Override the default CXX flags, which are controlled by the release type.
@@ -86,6 +119,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
     if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         # Add gprof profiling flag.
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
     endif()
 
@@ -100,6 +134,59 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-optimization-argument")
+
+    if(WITH_IWYU)
+        set(IWYU_INVOCATION iwyu) # Location of the iwyu binary.
+        list(APPEND IWYU_INVOCATION "-Xiwyu;--no_comments")
+        set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${IWYU_INVOCATION})
+    endif()
+endif()
+
+
+# Sanitizers.
+if(WITH_ASAN  OR  WITH_TSAN  OR  WITH_MSAN)
+    #set(CMAKE_CXX_FLAGS " ")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-common")
+
+    # Also enable coverage instrumentation, since sanitizers will typically be used for testing.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    # Clang only? Need to confirm ... TODO
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=trace-pc-guard")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoverage-mapping")
+
+    add_definitions(-U_FORTIFY_SOURCE)
+endif()
+if(WITH_ASAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address") #  <-- includes LSan.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-address-use-after-scope")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=pointer-compare")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=pointer-subtract")
+
+    # Add UBSan checks too, since ASan, LSan, and UBSan are all compatible.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize-recover=undefined")
+    # Clang only? Need to confirm ... TODO
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=implicit-conversion")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=local-bounds")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=nullability-arg")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=nullability-assign")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=nullability-return")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=unsigned-integer-overflow")
+elseif(WITH_TSAN)
+    message(WARNING "TSan may not support exceptions (depends on the compiler version and platform).")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+elseif(WITH_MSAN)
+    message(WARNING "MSan may not be available on your system.")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pie")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-memory-track-origins")
 endif()
 
 
@@ -112,13 +199,6 @@ if(ARCH_IS_ARM OR ARCH_IS_ARM64)
     # Enable to fix linking errors for toolchains that do not auto-detect atomic intrinsics (e.g., some ARM systems).
     # Note: Binaries built this way should not be distributed.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-endif()
-
-
-# Set the release type. 
-if(NOT CMAKE_BUILD_TYPE)
-    # Default to debug builds.
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "default to debug" FORCE)
 endif()
 
 
@@ -147,16 +227,6 @@ if(WITH_BOOST)
 endif()
 
 
-# Add other compiler options.
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(BUILD_SHARED_LIBS TRUE)
-set(POSITION_INDEPENDENT_CODE TRUE)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_EXTENSIONS OFF) # Disable GNU extensions (e.g., std=gnu++14).
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For use with clang-tidy et al.
-
-
 # Use the directory where CMakeLists.txt is for inclusions.
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
@@ -168,7 +238,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 
 ####################################################################################
-#                                 Subdirectories
+#                                 Subdirectories 
 ####################################################################################
 
 add_subdirectory(src)
