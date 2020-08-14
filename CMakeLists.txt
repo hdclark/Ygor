@@ -13,7 +13,11 @@ option(WITH_IWYU                "Compile using clang include-what-you-use."     
 
 option(WITH_ASAN                "Compile using ASan, LSan, & UBSan."            OFF)
 option(WITH_TSAN                "Compile using ThreadSanitizer."                OFF)
+<<<<<<< HEAD
 option(WITH_MSAN                "Compile using MemorySanitizer."                OFF
+=======
+option(WITH_MSAN                "Compile using MemorySanitizer."                OFF)
+>>>>>>> refs/remotes/trip/master
 
 option(WITH_LINUX_SYS "Compile assuming Linux-specific sys interfaces are available." ON)
 option(WITH_EIGEN     "Compile assuming Eigen is available." ON)
