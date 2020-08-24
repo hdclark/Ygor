@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script plots a Ygor contour_of_points that has been stringified and written to a file.
 
