@@ -8,6 +8,7 @@
 #include <cstdio>  //For popen.
 #include <exception>
 #include <any>
+#include <set>
 #include <optional>
 #include <functional>
 #include <future>
@@ -3218,31 +3219,35 @@ planar_image_collection<T,R>::get_all_values_for_key(const std::string &akey) co
         planar_image_collection<float   ,double>::get_all_values_for_key(const std::string &) const;
 #endif
 
-//Returns a copy of all unique values that correspond to the given key. Original order is maintained.
+//Returns a copy of all distinct values that correspond to the given key. Original order is maintained.
+//
+// Note: If there are images with values 'A', 'A', 'B' then this function will return 'A', 'B'.
 template <class T,class R>
 std::list<std::string> 
-planar_image_collection<T,R>::get_unique_values_for_key(const std::string &akey) const {
-    auto all_values = this->get_all_values_for_key(akey);
-    std::map<std::string,size_t> counts;
-    for(const auto &avalue : all_values) counts[avalue]++;
-    
+planar_image_collection<T,R>::get_distinct_values_for_key(const std::string &akey) const {
     std::list<std::string> out;
+
+    auto all_values = this->get_all_values_for_key(akey);
+    std::set<std::string> used;
     for(const auto &avalue : all_values){
-        if(counts[avalue] == 1) out.emplace_back(avalue);
+        if(used.count(avalue) == 0){
+            used.insert(avalue);
+            out.emplace_back(avalue);
+        }
     }
     return out;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template std::list<std::string>
-        planar_image_collection<uint8_t ,double>::get_unique_values_for_key(const std::string &) const;
+        planar_image_collection<uint8_t ,double>::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
-        planar_image_collection<uint16_t,double>::get_unique_values_for_key(const std::string &) const;
+        planar_image_collection<uint16_t,double>::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
-        planar_image_collection<uint32_t,double>::get_unique_values_for_key(const std::string &) const;
+        planar_image_collection<uint32_t,double>::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
-        planar_image_collection<uint64_t,double>::get_unique_values_for_key(const std::string &) const;
+        planar_image_collection<uint64_t,double>::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
-        planar_image_collection<float   ,double>::get_unique_values_for_key(const std::string &) const;
+        planar_image_collection<float   ,double>::get_distinct_values_for_key(const std::string &) const;
 #endif
 
 //Image pruning/partitioning routine. Returns 'pruned' images; retains the rest. If pruning predicate is true, image is pruned.

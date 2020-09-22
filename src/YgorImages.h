@@ -338,7 +338,7 @@ template <class T,class R>   class planar_image_collection {
 
         std::map<std::string,std::string> get_common_metadata(const std::list<images_list_it_t> &in) const; //Uses both *this and input.
         std::list<std::string> get_all_values_for_key(const std::string &akey) const;
-        std::list<std::string> get_unique_values_for_key(const std::string &akey) const;
+        std::list<std::string> get_distinct_values_for_key(const std::string &akey) const;
 
 
         //Image pruning/partitioning routine. Returns 'pruned' images; retains the rest in *this. If pruning predicate is true, 

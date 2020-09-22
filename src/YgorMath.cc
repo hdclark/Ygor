@@ -12,6 +12,7 @@
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <list>
 #include <map>
+#include <set>
 #include <numeric>
 #include <stdexcept>
 #include <string>      //Needed for stringification routines.
@@ -5385,25 +5386,29 @@ contour_collection<T>::get_all_values_for_key(const std::string &akey) const {
         contour_collection<double>::get_all_values_for_key(const std::string &) const;
 #endif
 
-//Returns a copy of all unique values that correspond to the given key. Original order is maintained.
+//Returns a copy of all distinct values that correspond to the given key. Original order is maintained.
+//
+// Note: If there are images with values 'A', 'A', 'B' then this function will return 'A', 'B'.
 template <class T>
 std::list<std::string> 
-contour_collection<T>::get_unique_values_for_key(const std::string &akey) const {
-    auto all_values = this->get_all_values_for_key(akey);
-    std::map<std::string,size_t> counts;
-    for(const auto &avalue : all_values) counts[avalue]++;
-    
+contour_collection<T>::get_distinct_values_for_key(const std::string &akey) const {
     std::list<std::string> out;
+
+    auto all_values = this->get_all_values_for_key(akey);
+    std::set<std::string> used;
     for(const auto &avalue : all_values){
-        if(counts[avalue] == 1) out.emplace_back(avalue);
+        if(used.count(avalue) == 0){
+            used.insert(avalue);
+            out.emplace_back(avalue);
+        }
     }
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template std::list<std::string>
-        contour_collection<float >::get_unique_values_for_key(const std::string &) const;
+        contour_collection<float >::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
-        contour_collection<double>::get_unique_values_for_key(const std::string &) const;
+        contour_collection<double>::get_distinct_values_for_key(const std::string &) const;
 #endif
 
 
