@@ -8,6 +8,8 @@
 
 [![GitLab CI Pipeline Status](https://gitlab.com/hdeanclark/Ygor/badges/master/pipeline.svg)](https://gitlab.com/hdeanclark/Ygor/-/commits/master)
 
+[![Latest Release DOI](https://zenodo.org/badge/89644588.svg)](https://zenodo.org/badge/latestdoi/89644588)
+
 ## Introduction
 
 This supporting library was written by hal clark over the span of many years
