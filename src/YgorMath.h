@@ -496,6 +496,7 @@ template <class T>   class contour_collection {
                                                               const std::list<std::reference_wrapper<contour_of_points<T>>> &copl) const; //Uses both *this and input.
         std::list<std::string> get_all_values_for_key(const std::string &akey) const;
         std::list<std::string> get_distinct_values_for_key(const std::string &akey) const;
+        std::optional<std::string> get_dominant_value_for_key(const std::string &akey) const;
 
         void Plot(const std::string &title) const;         //Spits out a default R^3 plot of the data.
         void Plot(void) const;

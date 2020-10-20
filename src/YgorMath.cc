@@ -5388,7 +5388,7 @@ contour_collection<T>::get_all_values_for_key(const std::string &akey) const {
 
 //Returns a copy of all distinct values that correspond to the given key. Original order is maintained.
 //
-// Note: If there are images with values 'A', 'A', 'B' then this function will return 'A', 'B'.
+// Note: If there are cc's with values 'A', 'A', 'B' then this function will return 'A', 'B'.
 template <class T>
 std::list<std::string> 
 contour_collection<T>::get_distinct_values_for_key(const std::string &akey) const {
@@ -5411,6 +5411,37 @@ contour_collection<T>::get_distinct_values_for_key(const std::string &akey) cons
         contour_collection<double>::get_distinct_values_for_key(const std::string &) const;
 #endif
 
+//Returns a copy of the most common (i.e., dominant) value that corresponds to the given key.
+// If there is a tie, it is undefined which one will be selected. If no values are detected,
+// the optional will be disengaged.
+//
+// Note: If there are cc's with values 'A', 'A', 'B' then this function will return 'A'.
+template <class T>
+std::optional<std::string>
+contour_collection<T>::get_dominant_value_for_key(const std::string &akey) const {
+    std::optional<std::string> out;
+
+    auto all_values = this->get_all_values_for_key(akey);
+    std::map<std::string, long int> occurrences;
+    for(const auto &avalue : all_values){
+        occurrences[avalue] += 1;
+    }
+
+    long int n = 0;
+    for(const auto &o : occurrences){
+        if(n < o.second){
+            n = o.second;
+            out = o.first;
+        }
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::optional<std::string>
+        contour_collection<float >::get_dominant_value_for_key(const std::string &) const;
+    template std::optional<std::string>
+        contour_collection<double>::get_dominant_value_for_key(const std::string &) const;
+#endif
 
 //Removes contours if they have < N points. Duplicate points not considered.
 template <class T> void contour_collection<T>::Purge_Contours_Below_Point_Count_Threshold(size_t N){
