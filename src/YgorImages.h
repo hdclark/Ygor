@@ -496,7 +496,7 @@ struct Encircle_Images_with_Contours_Opts {
         Centre,    // Corner voxel centres will be bounded by the contours.
         Inclusive, // Corner voxel innermost corners will be bounded by the contours.
         Exclusive, // Corner voxels will be fully bounded by the contours.
-    } inclusivity;
+    } inclusivity = Inclusivity::Centre;
 
     //       If the following depicts             The 'Inclusive' option
     //         a 3x3 image's voxels:                gives contours like:
@@ -538,7 +538,7 @@ struct Encircle_Images_with_Contours_Opts {
     ContourOverlap {  // Controls whether ROIs can overlap (e.g., due to duplicate images).
         Allow,        // Allow all overlap, even duplicates.
         Disallow,     // Do not allow any overlap, even partial overlap.
-    } contouroverlap;
+    } contouroverlap = ContourOverlap::Allow;
 };
 
 //Generate contours that fully encircle/encapsulate the provided images.

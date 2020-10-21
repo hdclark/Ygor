@@ -5305,7 +5305,7 @@ void Mutate_Voxels(
 //        Noop,      // Perform no post-processing on the mask.
 //      //Grow,      // Grow the mask to include all voxels that are nearest neighbours to the bounded voxels.
 //      //RemoveIsolated, // Remove voxels that are isolated from other bounded voxels (ala Game of Life).
-//    } maskmod;
+//    } maskmod = MaskMod::Noop;
 //};
 
     //Cache the functor validity checks.
