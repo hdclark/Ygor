@@ -559,14 +559,25 @@ template <class T, class I>   class fv_surface_mesh {
         //Member functions.
         fv_surface_mesh & operator= (const fv_surface_mesh &);
 
-        T surface_area(void) const; // Disregards face orientation; area is always positive.
+        // Disregards face orientation; area is always positive.
+        T surface_area(void) const;
 
-        void recreate_involved_face_index(void); // Regenerates this->involved_faces using this->vertices and this->faces.
+        // Regenerates this->involved_faces using this->vertices and this->faces.
+        void recreate_involved_face_index(void);
 
-        void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) ); // Eliminates duplicate overlapping vertices.
+        // Eliminates duplicate overlapping vertices.
+        void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) );
 
+        // Converts all facets to triangles, assuming they are planar. Lines and disconnected vertices are disconnected,
+        // but their vertices remain and must be explicitly purged if needed.
+        void convert_to_triangles(void);
 
-        bool MetadataKeyPresent(std::string key) const; //Checks if the key is present without inspecting the value.
+        // Purges all disconnected vertices (i.e., vertices not references by any facets) -- essentially a garbage
+        // collection operation. Note that this is a fairly expensive operation.
+        void remove_disconnected_vertices(void);
+
+        //Checks if the key is present without inspecting the value.
+        bool MetadataKeyPresent(std::string key) const;
 
         //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
         template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;

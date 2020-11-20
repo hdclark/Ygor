@@ -5725,7 +5725,7 @@ fv_surface_mesh<T,I>::surface_area(void) const {
     T total_area = static_cast<T>(0);
     for(const auto &fv : this->faces){
         if(fv.size() < 3) continue; // Zero-area cases.
-        if(fv.size() > 3) throw std::runtime_error("Encountered volumetric simplex. Unable to compute surface area.");
+        if(fv.size() > 3) throw std::runtime_error("Encountered facet not with 3 vertices. Could be volumetric. Unable to compute surface area.");
 
         const auto P_A = this->vertices.at( fv[0] );
         const auto P_B = this->vertices.at( fv[1] );
@@ -5856,17 +5856,20 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
 
     // Remove any degenerate faces that might have collapsed during the de-duplication.
     //
-    // Note: This is a somewhat slow way to detect duplicates in the face vectors. TODO.
+    // Note: This is a somewhat slow way to detect duplicates in the face vectors, and won't catch all degeneracies.
+    //       The faces removed will definitely be degenerate though. TODO.
+    //
+    // TODO: This should be a separate member function that the user can configure according to the mesh features (i.e.,
+    //       whether they are OK with edges, points in the mesh -- or want tet meshes or something more exotic.
     this->faces.erase( std::remove_if( std::begin(this->faces), std::end(this->faces),
         [&](const std::vector<I> &fiv){
             std::set<I> vis;
             for(const auto &i : fiv) vis.insert(i);
-            return (fiv.size() != vis.size());
+            return (fiv.size() != vis.size()) && (vis.size() < 3);
         }), std::end(this->faces));
 
     // Ensure the index is in a valid state.
     this->involved_faces.clear();
-    this->recreate_involved_face_index();
 
     return;
 }
@@ -5876,6 +5879,102 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
 
     template void fv_surface_mesh<double, uint32_t >::merge_duplicate_vertices(double);
     template void fv_surface_mesh<double, uint64_t >::merge_duplicate_vertices(double);
+#endif
+
+
+// Converts all facets to triangles, assuming they are planar. Lines and disconnected vertices are disconnected,
+// but their vertices remain and must be explicitly purged if needed. Regenerates involved face index afterward.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::convert_to_triangles(){
+
+    decltype(this->faces) new_faces;
+    new_faces.reserve(this->faces.size());
+
+    bool was_already_triangles_only = true;
+    for(const auto &fv : this->faces){
+        const auto N_f = fv.size();
+        if(N_f < 3){
+            was_already_triangles_only = false;
+            continue; // Zero-area cases. Ignore them for now.
+        }else if(N_f == 3){
+            new_faces.push_back(fv);
+        }else{
+            // Assume that any facets with >3 vertices are planar (not volumetric) and can be split up into triangles
+            // arbitrarily.
+            was_already_triangles_only = false;
+            for(size_t i = 0; i <= (N_f-3); ++i){
+                new_faces.push_back( {{ fv[i+0], fv[i+1], fv[i+2] }} );
+            }
+        }
+    }
+
+    // Update the facets list and reindex.
+    if(!was_already_triangles_only){
+        this->faces = new_faces;
+        this->involved_faces.clear();
+    }
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::convert_to_triangles();
+    template void fv_surface_mesh<float , uint64_t >::convert_to_triangles();
+
+    template void fv_surface_mesh<double, uint32_t >::convert_to_triangles();
+    template void fv_surface_mesh<double, uint64_t >::convert_to_triangles();
+#endif
+
+
+// Purges all disconnected vertices (i.e., vertices not references by any facets) -- essentially a garbage
+// collection operation. Note that this is a fairly expensive operation.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::remove_disconnected_vertices(){
+
+    decltype(this->vertices) new_verts;
+    decltype(this->faces) new_faces;
+    new_verts.reserve(this->vertices.size());
+    new_faces.reserve(this->faces.size());
+
+    std::map<I,I> old_to_new_vert;
+    const auto end = old_to_new_vert.end();
+
+    for(const auto& f : this->faces){
+        std::vector<I> new_face;
+        new_face.reserve(f.size());
+        for(const auto& old_i : f){
+            // Check if this vertex has been encountered yet.
+            auto it = old_to_new_vert.find(old_i);
+
+            // If not, insert it into the new vertex list and add the mapping.
+            if(it == old_to_new_vert.end()){
+                new_verts.push_back(  this->vertices.at( old_i ) );
+
+                auto p = old_to_new_vert.insert( std::make_pair(old_i, static_cast<I>(new_verts.size() - 1)) );
+                it = p.first;
+            }
+
+            // Insert the mapped vert index into the current face.
+            new_face.push_back(it->second);
+        }
+        new_faces.push_back( new_face );
+    }
+
+    this->vertices = new_verts;
+    this->faces = new_faces;
+
+    // Reset the index, which may no longer be valid.
+    this->involved_faces.clear();
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::remove_disconnected_vertices();
+    template void fv_surface_mesh<float , uint64_t >::remove_disconnected_vertices();
+
+    template void fv_surface_mesh<double, uint32_t >::remove_disconnected_vertices();
+    template void fv_surface_mesh<double, uint64_t >::remove_disconnected_vertices();
 #endif
 
 
