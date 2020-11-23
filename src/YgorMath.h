@@ -23,6 +23,7 @@
 
 template <class T> class samples_1D;
 template <class T> class num_array;
+template <class T> class point_set;
 
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------- vec3: A three-dimensional vector -------------------------------------------------
@@ -559,8 +560,9 @@ template <class T, class I>   class fv_surface_mesh {
         //Member functions.
         fv_surface_mesh & operator= (const fv_surface_mesh &);
 
-        // Disregards face orientation; area is always positive.
-        T surface_area(void) const;
+        // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
+        // all faces.
+        T surface_area(long int n = -1) const;
 
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);
@@ -575,6 +577,9 @@ template <class T, class I>   class fv_surface_mesh {
         // Purges all disconnected vertices (i.e., vertices not references by any facets) -- essentially a garbage
         // collection operation. Note that this is a fairly expensive operation.
         void remove_disconnected_vertices(void);
+
+        // Sample the surface using uniform random sampling.
+        point_set<T> sample_surface_randomly(T surface_area_per_sample, long int random_seed) const;
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;

@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <random>
 //#include <ctype.h> 
 
 #include "YgorDefinitions.h"
@@ -5721,9 +5722,21 @@ fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
     
 template <class T, class I>
 T
-fv_surface_mesh<T,I>::surface_area(void) const {
-    T total_area = static_cast<T>(0);
-    for(const auto &fv : this->faces){
+fv_surface_mesh<T,I>::surface_area(long int n) const {
+    // Select which face(s) to use. If n is negative, select all faces.
+    const decltype(this->faces)* faces_of_interest = &(this->faces);
+    decltype(this->faces) selected_faces;
+    if(static_cast<long int>(0) <= n){
+        if(static_cast<long int>(this->faces.size()) <= n){
+            throw std::invalid_argument("Selected face does not exist. Cannot continue.");
+        }
+        selected_faces.push_back( this->faces[n] );
+        faces_of_interest = &(selected_faces);
+    }
+
+    // Compute surface area.
+    Stats::Running_Sum<T> rs_sarea;
+    for(const auto &fv : *faces_of_interest){
         if(fv.size() < 3) continue; // Zero-area cases.
         if(fv.size() > 3) throw std::runtime_error("Encountered facet not with 3 vertices. Could be volumetric. Unable to compute surface area.");
 
@@ -5735,16 +5748,18 @@ fv_surface_mesh<T,I>::surface_area(void) const {
         const auto R_CA = (P_C - P_A);
 
         const auto C = R_BA.Cross( R_CA );
-        total_area += (C.length() / static_cast<T>(2));
+        const auto surf_area = (C.length() / static_cast<T>(2));
+        rs_sarea.Digest(surf_area);
     }
-    return total_area;
+
+    return rs_sarea.Current_Sum();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  fv_surface_mesh<float , uint32_t >::surface_area(void) const;
-    template float  fv_surface_mesh<float , uint64_t >::surface_area(void) const;
+    template float  fv_surface_mesh<float , uint32_t >::surface_area(long int) const;
+    template float  fv_surface_mesh<float , uint64_t >::surface_area(long int) const;
 
-    template double fv_surface_mesh<double, uint32_t >::surface_area(void) const;
-    template double fv_surface_mesh<double, uint64_t >::surface_area(void) const;
+    template double fv_surface_mesh<double, uint32_t >::surface_area(long int) const;
+    template double fv_surface_mesh<double, uint64_t >::surface_area(long int) const;
 #endif
 
 // Regenerates this->involved_faces using this->vertices and this->faces.
@@ -5975,6 +5990,99 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
 
     template void fv_surface_mesh<double, uint32_t >::remove_disconnected_vertices();
     template void fv_surface_mesh<double, uint64_t >::remove_disconnected_vertices();
+#endif
+
+
+// Sample the surface using uniform random sampling.
+template <class T, class I>
+point_set<T>
+fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, long int random_seed) const {
+    if(this->faces.empty()) throw std::runtime_error("No faces to sample. Cannot continue");
+
+    // Compute the surface area of each face and create a cumulative tally for each face in order.
+    Stats::Running_Sum<T> rs_sarea;
+    std::vector<T> cumulative_sarea;
+    for(long int i = 0; i < static_cast<long int>(this->faces.size()); ++i){
+        const auto sarea = this->surface_area(i);
+        rs_sarea.Digest(sarea);
+        cumulative_sarea.push_back( rs_sarea.Current_Sum() );
+    }
+    const auto total_surface_area = rs_sarea.Current_Sum();
+    if(total_surface_area <= static_cast<T>(0)){
+        throw std::runtime_error("Mesh has no surface, cannot sample surface.");
+    }
+    const auto number_of_samples = static_cast<size_t>(total_surface_area / surface_area_per_sample);
+    if(number_of_samples == 0){
+        FUNCWARN("Sampling zero points on the surface. Consider more dense sampling");
+    }
+    if(100'000 < number_of_samples){
+        FUNCWARN("Sampling " << number_of_samples << " points");
+    }
+
+    // Random number generation setup.
+    std::mt19937 re( random_seed );
+    std::uniform_real_distribution<> csa(static_cast<T>(0), total_surface_area); // [0,total_surface_area).
+    std::uniform_real_distribution<> unit_interval(static_cast<T>(0), static_cast<T>(1)); // [0,1).
+
+    // Sample until we reach the desired (average) sampling density.
+    point_set<T> points;
+    points.points.reserve(number_of_samples);
+    const auto beg = std::begin(cumulative_sarea);
+    const auto end = std::end(cumulative_sarea);
+    for(size_t i = 0; i < number_of_samples; ++i){
+        // Select a face to sample.
+        const auto x = csa(re);
+        auto l_it = std::lower_bound(beg, end, x);
+        if(l_it == end) throw std::logic_error("Maximal upper bound sampled, likely due to numerical imprecision.");
+        const auto face_index = std::distance(beg, l_it);
+        
+        // Now select a sample on the face.
+        if(this->faces[face_index].size() != 3){
+            throw std::runtime_error("This function only handles triangular meshes. Cannot continue.");
+            // Note: It's possible to also support volumetric facets here, but it's awkward to differentiate squares
+            // (planar, with four vertices) from tetrahedral facets (volumetric, with four vertices) specifically in
+            // this routine, so we require triangles only until otherwise needed.
+        }
+
+        // Note: The following is a *mostly* unbiased triangle sampler. In a nutshell, it's hard to sample a triangle
+        // directly without bias, so the triangle is extended into a parallelogram. The edges of the parallelogram are
+        // sampled independantly. If the actual triangle is sampled, the sample is kept as-is, otherwise the samples are
+        // mirrored so they select a sample within the triangle. This algorithm is *mostly* unbiased because the
+        // interior has 2x the likelihood of being sampled compared with the edges and the vertices. Accepting this
+        // small bias saves having to rejection sample (where ~50% of samples would be discarded), which would be slower.
+        // Because the edges and vertices have infinitesimally thin area, this seems like a reasonable compromise.
+
+        auto r1 = unit_interval(re);
+        auto r2 = unit_interval(re);
+        // Check if the proposed sample point is outside of the real triangle and into the virtual mirror.
+        if(static_cast<T>(1) < (r1 + r2)){
+            // Option 1: rejection sample. (Slower, but slightly less bias.)
+            // ... (not implemented here, but just re-sample) ...
+
+            // Option 2: mirror back into the real triangle. (Faster, slight bias on edges and vertices.)
+            const auto nr1 = static_cast<T>(1) - r2; // Note: intentionally mixed r1 and r2 here!
+            const auto nr2 = static_cast<T>(1) - r1;
+            r1 = nr1;
+            r2 = nr2;
+        }
+
+        const auto v_a = this->vertices.at( this->faces[face_index][0] );
+        const auto v_b = this->vertices.at( this->faces[face_index][1] );
+        const auto v_c = this->vertices.at( this->faces[face_index][2] );
+
+        const auto p = v_a + (v_b - v_a) * r1
+                           + (v_c - v_a) * r2;
+        points.points.push_back(p); 
+    }
+
+    return points;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template point_set<float > fv_surface_mesh<float , uint32_t >::sample_surface_randomly(float , long int) const;
+    template point_set<float > fv_surface_mesh<float , uint64_t >::sample_surface_randomly(float , long int) const;
+
+    template point_set<double> fv_surface_mesh<double, uint32_t >::sample_surface_randomly(double, long int) const;
+    template point_set<double> fv_surface_mesh<double, uint64_t >::sample_surface_randomly(double, long int) const;
 #endif
 
 
