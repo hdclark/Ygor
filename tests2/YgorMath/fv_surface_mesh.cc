@@ -93,12 +93,43 @@ TEST_CASE( "fv_surface_mesh member functions" ){
     }
 
     SUBCASE("sample_surface_randomly"){
+        const long int random_seed = 123456;
+
+        SUBCASE("degenerate surface (single-vertex)"){
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ p1 }};
+            mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(0), static_cast<uint32_t>(0) }};
+
+            double surface_area_per_sample = 1.0;
+            REQUIRE_THROWS(mesh2.sample_surface_randomly(surface_area_per_sample, random_seed));
+        }
+
+        SUBCASE("degenerate surface (single-edge)"){
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ p1, p2 }};
+            mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(0) }};
+
+            double surface_area_per_sample = 1.0;
+            REQUIRE_THROWS(mesh2.sample_surface_randomly(surface_area_per_sample, random_seed));
+        }
+
+        SUBCASE("degenerate surface (small face)"){
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ p1, p2, p4 }};
+            mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+
+            double surface_area_per_sample = 10.0; // Total surface area = 0.50.
+            // NOTE: The following should *not* throw, since it might be valid to require 0 samples, but it might emit a
+            // warning to stdout.
+            point_set<double> ps = mesh2.sample_surface_randomly(surface_area_per_sample, random_seed);
+            REQUIRE( ps.points.size() == 0 ); // Number of samples should be exact.
+        }
+
         SUBCASE("single triangular facet"){
             fv_surface_mesh<double, uint32_t> mesh2;
             mesh2.vertices = {{ p1, p2, p4 }};
             mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
 
-            long int random_seed = 123456;
             double surface_area_per_sample = 0.001; // Total surface area = 0.50.
             point_set<double> ps = mesh2.sample_surface_randomly(surface_area_per_sample, random_seed);
             REQUIRE( ps.points.size() == 500 ); // Number of samples should be exact.
@@ -117,13 +148,13 @@ TEST_CASE( "fv_surface_mesh member functions" ){
                 REQUIRE(PE.Is_Point_Above_Plane(p));
             }
         }
+
         SUBCASE("two equal-area triangular facets"){
             fv_surface_mesh<double, uint32_t> mesh2;
             mesh2.vertices = {{ p1, p2, p4, p6 }};
             mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
                            { static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(3) }};
 
-            long int random_seed = 123456;
             double surface_area_per_sample = 0.001; // Total surface area = 1.0.
             point_set<double> ps = mesh2.sample_surface_randomly(surface_area_per_sample, random_seed);
             REQUIRE( ps.points.size() == 1000 ); // Number of samples should be exact.
@@ -144,19 +175,19 @@ TEST_CASE( "fv_surface_mesh member functions" ){
                 REQUIRE(PF.Is_Point_Above_Plane(p));
             }
 
-            // Ensure both faces are being sampled.
-            plane<double> PG( (vec3<double>(-1.0, -1.0,  0.0)).unit(), vec3<double>(0.5 + eps, 0.5 + eps, 0.0) );
-            size_t N = 0;
-            for(const auto& p : ps.points){
-                N += (PG.Is_Point_Above_Plane(p)) ? 0 : 1;
-            }
-
+            // Ensure both faces are being sampled by counting the number of samples within each face.
+            //
             // Note: The following is a statistical check, so it might fail.
             //       Both faces have equal area, so each has equal likelihood of being selected (~coin flip).
             //       The binomial equation provides likelihood estimates.
             //       The std. dev. of the binomial eqn. in this case is sqrt(1000 * 0.5 * (1.0 - 0.5)) ~= 15.8.
             //       So we should expect at least 400 samples in each triangle, since it is more than 6 std. dev.s away
             //       from the mean, though it *is* possible that this will (extremely rarely) fail.
+            plane<double> PG( (vec3<double>(-1.0, -1.0,  0.0)).unit(), vec3<double>(0.5 + eps, 0.5 + eps, 0.0) );
+            size_t N = 0;
+            for(const auto& p : ps.points){
+                N += (PG.Is_Point_Above_Plane(p)) ? 0 : 1;
+            }
             const size_t diff = (N < 500) ? (500 - N) : (N - 500);
             INFO("Samples in the lower triangle = " << N);
             REQUIRE(diff < 400); // ~25 std. dev.s. If encountered, this almost certainly indicates bias.
