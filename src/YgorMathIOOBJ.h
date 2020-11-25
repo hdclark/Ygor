@@ -1,4 +1,4 @@
-//YgorMathIOOBJ.h - Written by hal clark in 2019.
+//YgorMathIOOBJ.h - Written by hal clark in 2019, 2020.
 //
 // Routines for reading and writing simple (ascii) OBJ ("Wavefront Object") files.
 //
@@ -36,7 +36,7 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
                   bool use_relative_indexing = false);
 
 
-// This routine reads an point_set from an OBJ format stream.
+// This routine reads an point_set from an OBJ format stream. Normals are optionally supported.
 //
 // Note that this routine will fail if faces or edges are encountered.
 template <class T>
@@ -44,7 +44,7 @@ bool
 ReadPointSetFromOBJ(point_set<T> &ps,
                     std::istream &is );
 
-// This routine writes an point_set to an OBJ format stream.
+// This routine writes an point_set to an OBJ format stream. Normals are optionally supported.
 //
 // Note that metadata is currently not written.
 template <class T>

@@ -1,4 +1,4 @@
-//YgorMathIOOFF.h - Written by hal clark in 2017, 2019.
+//YgorMathIOOFF.h - Written by hal clark in 2017, 2019, 2020.
 //
 // Routines for reading and writing simple (ascii) OFF ("Object File Format") files.
 //
@@ -53,7 +53,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 // This routine reads an point_set from an OFF format stream.
 //
 // Note that OFF files can contain many irrelevant elements.
-// This routine will extract only vertices.
+// This routine will extract only vertices and (optionally) normals.
 template <class T>
 bool
 ReadPointSetFromOFF(point_set<T> &ps,
@@ -61,7 +61,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
 
 // This routine writes an point_set to an OFF format stream.
 //
-// Note that metadata is currently not written.
+// Note that metadata is currently not written. Normals are written if present.
 template <class T>
 bool
 WritePointSetToOFF(const point_set<T> &ps,

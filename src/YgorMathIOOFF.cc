@@ -317,7 +317,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 // This routine reads an point_set from an OFF format stream.
 //
 // Note that OFF files can contain many irrelevant elements.
-// This routine will extract only vertices.
+// This routine will extract only vertices and (optionally) normals.
 //
 // Note that a subset of the full OFF format is supported; binary files, materials, colours, and other mesh attributes
 // are NOT supported. Vertices must have three coordinates.
@@ -330,6 +330,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
     long long int N_verts = -1;
 
     ps.points.clear();
+    ps.normals.clear();
 
     std::string line;
     while(std::getline(is, line)){
@@ -353,7 +354,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
         if(!dims_known){
             // The first line might contain merely "OFF", but it is not required. So we ignore anything that is not what we
             // need at a given moment. Note that out-of-order files will thus not be parsed correctly!
-            if(split.size() != 3) continue;
+            if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
 
             try{
                 const auto v = std::stoll(split.at(0));
@@ -384,14 +385,22 @@ ReadPointSetFromOFF(point_set<T> &ps,
         }else{
             // Fill up vertices.
             if(static_cast<long long int>(ps.points.size()) != N_verts){
-                if(split.size() != 3) continue; // Actually an error...
+                if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
                 try{
-                    const auto x = std::stod(split.at(0));
-                    const auto y = std::stod(split.at(1));
-                    const auto z = std::stod(split.at(2));
+                    const auto x = std::stod(split[0]);
+                    const auto y = std::stod(split[1]);
+                    const auto z = std::stod(split[2]);
                     ps.points.emplace_back( static_cast<T>(x), 
                                             static_cast<T>(y),
                                             static_cast<T>(z) );
+                    if(split.size() == 6){
+                        const auto nx = std::stod(split[3]);
+                        const auto ny = std::stod(split[4]);
+                        const auto nz = std::stod(split[5]);
+                        ps.normals.emplace_back( vec3<T>( static_cast<T>(nx), 
+                                                          static_cast<T>(ny),
+                                                          static_cast<T>(nz) ).unit() );
+                    }
                 }catch(const std::exception &){ 
                     continue; 
                 }
@@ -414,6 +423,11 @@ ReadPointSetFromOFF(point_set<T> &ps,
         FUNCWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
         return false;
     }
+    if( !(ps.normals.empty()) 
+    &&  (static_cast<long long int>(ps.normals.size()) != N_verts) ){
+        FUNCWARN("Read " << static_cast<long long int>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
+        return false;
+    }
 
     return true;
 }
@@ -431,6 +445,12 @@ bool
 WritePointSetToOFF(const point_set<T> &ps,
                      std::ostream &os ){
 
+    const bool has_normals = !ps.normals.empty();
+    if(has_normals && (ps.points.size() != ps.normals.size())){
+        FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        return false;
+    }
+
     os << "OFF" << std::endl;
     os << ps.points.size() << " "
        << "0 "              // Number of faces.
@@ -439,10 +459,25 @@ WritePointSetToOFF(const point_set<T> &ps,
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
-    for(const auto &p : ps.points){
-        os << p.x << " "
-           << p.y << " "
-           << p.z << '\n';
+
+    if(!has_normals){
+        for(const auto &p : ps.points){
+            os << p.x << " "
+               << p.y << " "
+               << p.z << '\n';
+        }
+    }else{
+        auto n_it = std::begin(ps.normals);
+        const auto v_end = std::end(ps.points);
+        const auto n_end = std::end(ps.normals);
+        for(auto v_it = std::begin(ps.points); (v_it != v_end) && (n_it != n_end); ++v_it, ++n_it){
+            os << v_it->x << " "
+               << v_it->y << " "
+               << v_it->z << " "
+               << n_it->x << " "
+               << n_it->y << " "
+               << n_it->z << '\n';
+        }
     }
     // Reset the precision on the stream.
     os.precision( original_precision );

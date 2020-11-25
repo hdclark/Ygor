@@ -38,7 +38,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
     //
     // Only ASCII format is accepted. Multiple separators are accepted, and whitespace is generally not significant
     // (except if used as a separator between numbers). Only lines with 3 scalars are accepted as valid points.
-    // Reading metadata encoded into comments is not currently supported.
+    // Normals, if present, will be ignored. Reading metadata encoded into comments is not currently supported.
     //
     // The accepted format is variable, and it is hard to decide whether a given file is definitively in XYZ format. The
     // threshold to decide is whether any single line contains a point that can be successfully read. If this happens,
@@ -51,6 +51,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
     }
 
     ps.points.clear();
+    ps.normals.clear();
 
     std::string aline;
     while(!is.eof()){
@@ -90,7 +91,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
         if(shtl.empty()){
             continue; // Line contained no numbers -- was probably all whitespace so ignore.
         }else if(shtl.size() == 3){
-            ps.points.emplace_back( shtl.at(0), shtl.at(1), shtl.at(2) );
+            ps.points.emplace_back( shtl[0], shtl[1], shtl[2] );
         }else{
             FUNCWARN("Encountered line with " << shtl.size() << " numerical coordinates. Refusing to continue");
             return false;
@@ -113,7 +114,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
 
 // This routine writes a point_set to an XYZ format stream.
 //
-// Note that metadata is currently not written.
+// Note that metadata and normals are currently not written.
 template <class T>
 bool
 WritePointSetToXYZ(const point_set<T> &ps,

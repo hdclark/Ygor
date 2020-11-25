@@ -217,7 +217,7 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
 // This routine reads an point_set from an OBJ format stream.
 //
 // Note that a subset of the full OBJ format is supported; materials, colours, and other mesh attributes are NOT
-// supported. Vertices must have three coordinates.
+// supported. Vertices must have three coordinates. Normals are supported and are optional.
 //
 // Note that the presence of edges/lines or faces will cause the read to fail since the file describes a polyhedron and
 // not a point set.
@@ -228,6 +228,7 @@ ReadPointSetFromOBJ(point_set<T> &ps,
                    std::istream &is ){
 
     ps.points.clear();
+    ps.normals.clear();
 
     std::string line;
     while(std::getline(is, line)){
@@ -247,14 +248,17 @@ ReadPointSetFromOBJ(point_set<T> &ps,
 
         if(split.empty()) continue;
 
-        // Add a new vertex.
         if(false){
-        }else if(split.at(0) == "v"_s){
-            if(split.size() != 4) continue; // Actually an error...
+        }else if(split[0] == "v"_s){ // Vertex.
+            if( !( (split.size() == 4) || (split.size() == 5) ) ){
+                FUNCWARN("File contains invalid vertex statement -- refusing to parse as point set");
+                return false;
+            }
             try{
-                const auto x = std::stod(split.at(1));
-                const auto y = std::stod(split.at(2));
-                const auto z = std::stod(split.at(3));
+                const auto x = std::stod(split[1]);
+                const auto y = std::stod(split[2]);
+                const auto z = std::stod(split[3]);
+                //const auto w = std::stod(split.at(4)); // Optional weight term. Not supported here.
                 ps.points.emplace_back( static_cast<T>(x), 
                                         static_cast<T>(y),
                                         static_cast<T>(z) );
@@ -262,15 +266,39 @@ ReadPointSetFromOBJ(point_set<T> &ps,
                 continue; 
             }
 
-        }else if( split.at(0) == "l"_s ){
+        }else if(split[0] == "vn"_s){ // Vertex normal.
+            if(split.size() != 4){
+                FUNCWARN("File contains invalid vertex normal statement -- refusing to parse as point set");
+                return false;
+            }
+            try{
+                const auto nx = std::stod(split[1]);
+                const auto ny = std::stod(split[2]);
+                const auto nz = std::stod(split[3]);
+                ps.normals.emplace_back( vec3<T>( static_cast<T>(nx), 
+                                                  static_cast<T>(ny),
+                                                  static_cast<T>(nz) ).unit() );
+            }catch(const std::exception &){ 
+                continue; 
+            }
+
+        }else if( split[0] == "l"_s ){
             FUNCWARN("File contains an edge -- refusing to parse as point set");
             return false;
 
-        }else if( split.at(0) == "f"_s ){
+        }else if( split[0] == "f"_s ){
             FUNCWARN("File contains a face -- refusing to parse as point set");
             return false;
         }
+    }
 
+    if(ps.points.empty()){
+        FUNCWARN("No vertices detected -- refusing to parse as point set");
+        return false;
+    }
+    if(!ps.normals.empty() && (ps.points.size() != ps.normals.size())){
+        FUNCWARN("Inconsistent number of vertices and normals -- refusing to parse as point set");
+        return false;
     }
 
     return true;
@@ -299,6 +327,12 @@ WritePointSetToOBJ(const point_set<T> &ps,
            << v.x << " "
            << v.y << " "
            << v.z << '\n';
+    }
+    for(const auto &vn : ps.normals){
+        os << "vn "
+           << vn.x << " "
+           << vn.y << " "
+           << vn.z << '\n';
     }
 
     // Reset the precision on the stream.

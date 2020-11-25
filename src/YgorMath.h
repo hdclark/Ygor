@@ -594,6 +594,7 @@ template <class T, class I>   class fv_surface_mesh {
 template <class T>   class point_set {
     public:
         std::vector< vec3<T> > points;
+        std::vector< vec3<T> > normals;
 
         std::map< std::string, std::string > metadata; //User-defined metadata.
 

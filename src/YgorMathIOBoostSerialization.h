@@ -99,6 +99,7 @@ void serialize(Archive &a, fv_surface_mesh<T,I> &m, const unsigned int /*version
 template<typename Archive, class T>
 void serialize(Archive &a, point_set<T> &m, const unsigned int /*version*/){
     a & boost::serialization::make_nvp("points", m.points)
+      & boost::serialization::make_nvp("normals", m.normals)
       & boost::serialization::make_nvp("metadata", m.metadata);
     return;
 }
