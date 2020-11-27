@@ -6193,6 +6193,29 @@ point_set<T>::operator=(const point_set<T> &rhs) {
     template point_set<float > & point_set<float >::operator=(const point_set<float > &);
     template point_set<double> & point_set<double>::operator=(const point_set<double> &);
 #endif
+
+template <class T>
+bool
+point_set<T>::operator==(const point_set<T> &rhs) const {
+    if(this == &rhs) return true;
+    return (this->points   == rhs.points)
+        && (this->normals  == rhs.normals)
+        && (this->metadata == rhs.metadata);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_set<float >::operator==(const point_set<float > &) const;
+    template bool point_set<double>::operator==(const point_set<double> &) const;
+#endif
+    
+template <class T>
+bool
+point_set<T>::operator!=(const point_set<T> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_set<float >::operator!=(const point_set<float > &) const;
+    template bool point_set<double>::operator!=(const point_set<double> &) const;
+#endif
     
 template <class T>
 vec3<T>

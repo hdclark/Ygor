@@ -615,6 +615,8 @@ template <class T>   class point_set {
 
         //Member functions.
         point_set & operator= (const point_set &);
+        bool operator==(const point_set &) const;
+        bool operator!=(const point_set &) const;
 
         vec3<T> Centroid(void) const; // Estimate the centroid (i.e., the centre of mass if all points have identical mass).
 
