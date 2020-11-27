@@ -227,8 +227,16 @@ bool
 ReadPointSetFromOBJ(point_set<T> &ps,
                    std::istream &is ){
 
-    ps.points.clear();
-    ps.normals.clear();
+    if(!is.good()){
+        throw std::runtime_error("unable to read file.");
+    }
+
+    const auto reset = [&](){
+        ps.points.clear();
+        ps.normals.clear();
+        ps.metadata.clear();
+    };
+    reset();
 
     std::string line;
     while(std::getline(is, line)){
@@ -251,24 +259,29 @@ ReadPointSetFromOBJ(point_set<T> &ps,
         if(false){
         }else if(split[0] == "v"_s){ // Vertex.
             if( !( (split.size() == 4) || (split.size() == 5) ) ){
-                FUNCWARN("File contains invalid vertex statement -- refusing to parse as point set");
+                FUNCWARN("File contains unknown vertex statement -- refusing to parse as point set");
+                reset();
                 return false;
             }
             try{
                 const auto x = std::stod(split[1]);
                 const auto y = std::stod(split[2]);
                 const auto z = std::stod(split[3]);
-                //const auto w = std::stod(split.at(4)); // Optional weight term. Not supported here.
+                if(split.size() == 5) std::stod(split.at(4)); // Optional weight term. Not supported here.
                 ps.points.emplace_back( static_cast<T>(x), 
                                         static_cast<T>(y),
                                         static_cast<T>(z) );
             }catch(const std::exception &){ 
-                continue; 
+                //continue;
+                FUNCWARN("File contains invalid vertex statement -- refusing to parse as point set");
+                reset();
+                return false;
             }
 
         }else if(split[0] == "vn"_s){ // Vertex normal.
             if(split.size() != 4){
-                FUNCWARN("File contains invalid vertex normal statement -- refusing to parse as point set");
+                FUNCWARN("File contains unknown vertex normal statement -- refusing to parse as point set");
+                reset();
                 return false;
             }
             try{
@@ -279,25 +292,32 @@ ReadPointSetFromOBJ(point_set<T> &ps,
                                                   static_cast<T>(ny),
                                                   static_cast<T>(nz) ).unit() );
             }catch(const std::exception &){ 
-                continue; 
+                //continue; 
+                FUNCWARN("File contains invalid vertex normal statement -- refusing to parse as point set");
+                reset();
+                return false;
             }
 
         }else if( split[0] == "l"_s ){
             FUNCWARN("File contains an edge -- refusing to parse as point set");
+            reset();
             return false;
 
         }else if( split[0] == "f"_s ){
             FUNCWARN("File contains a face -- refusing to parse as point set");
+            reset();
             return false;
         }
     }
 
     if(ps.points.empty()){
         FUNCWARN("No vertices detected -- refusing to parse as point set");
+        reset();
         return false;
     }
     if(!ps.normals.empty() && (ps.points.size() != ps.normals.size())){
         FUNCWARN("Inconsistent number of vertices and normals -- refusing to parse as point set");
+        reset();
         return false;
     }
 
@@ -316,6 +336,16 @@ template <class T>
 bool
 WritePointSetToOBJ(const point_set<T> &ps,
                   std::ostream &os){
+
+    if(ps.points.empty()){
+        FUNCWARN("No vertices present. Refusing to write point set in OFF format");
+        return false;
+    }
+    const bool has_normals = !ps.normals.empty();
+    if(has_normals && (ps.points.size() != ps.normals.size())){
+        FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        return false;
+    }
 
     os << "# Wavefront OBJ file." << std::endl;
 

@@ -326,11 +326,19 @@ bool
 ReadPointSetFromOFF(point_set<T> &ps,
                       std::istream &is ){
 
+    if(!is.good()){
+        throw std::runtime_error("unable to read file.");
+    }
+
+    const auto reset = [&](){
+        ps.points.clear();
+        ps.normals.clear();
+        ps.metadata.clear();
+    };
+    reset();
+
     bool dims_known = false;
     long long int N_verts = -1;
-
-    ps.points.clear();
-    ps.normals.clear();
 
     std::string line;
     while(std::getline(is, line)){
@@ -369,16 +377,21 @@ ReadPointSetFromOFF(point_set<T> &ps,
 
                 if(f != 0){
                     FUNCWARN("File contains a face -- refusing to parse as point set");
+                    reset();
                     return false;
                 }
                 if(e != 0){
                     FUNCWARN("File contains an edge -- refusing to parse as point set");
+                    reset();
                     return false;
                 }
                 continue;
 
             }catch(const std::exception &){ 
-                continue; 
+                //continue; 
+                FUNCWARN("File contains invalid 'VFE' statement -- refusing to parse as point set");
+                reset();
+                return false;
             }
 
         // If dimensions are known, then try reading until we fulfill the vert count.
@@ -402,7 +415,10 @@ ReadPointSetFromOFF(point_set<T> &ps,
                                                           static_cast<T>(nz) ).unit() );
                     }
                 }catch(const std::exception &){ 
-                    continue; 
+                    //continue;
+                    FUNCWARN("File contains invalid vertex statement -- refusing to parse as point set");
+                    reset();
+                    return false;
                 }
                 continue;
 
@@ -417,15 +433,18 @@ ReadPointSetFromOFF(point_set<T> &ps,
     // Verify the file was consistent.
     if( !dims_known ){
         FUNCWARN("Dimensions could not be determined");
+        reset();
         return false;
     }
     if( (static_cast<long long int>(ps.points.size()) != N_verts) ){
         FUNCWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
+        reset();
         return false;
     }
     if( !(ps.normals.empty()) 
     &&  (static_cast<long long int>(ps.normals.size()) != N_verts) ){
         FUNCWARN("Read " << static_cast<long long int>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
+        reset();
         return false;
     }
 
@@ -445,6 +464,10 @@ bool
 WritePointSetToOFF(const point_set<T> &ps,
                      std::ostream &os ){
 
+    if(ps.points.empty()){
+        FUNCWARN("No vertices present. Refusing to write point set in OFF format");
+        return false;
+    }
     const bool has_normals = !ps.normals.empty();
     if(has_normals && (ps.points.size() != ps.normals.size())){
         FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");

@@ -50,8 +50,12 @@ ReadPointSetFromXYZ(point_set<T> &ps,
         throw std::runtime_error("Unable to read file.");
     }
 
-    ps.points.clear();
-    ps.normals.clear();
+    const auto reset = [&](){
+        ps.points.clear();
+        ps.normals.clear();
+        ps.metadata.clear();
+    };
+    reset();
 
     std::string aline;
     while(!is.eof()){
@@ -94,12 +98,14 @@ ReadPointSetFromXYZ(point_set<T> &ps,
             ps.points.emplace_back( shtl[0], shtl[1], shtl[2] );
         }else{
             FUNCWARN("Encountered line with " << shtl.size() << " numerical coordinates. Refusing to continue");
+            reset();
             return false;
         }
     }
 
     // Reject the file if no points were successfully read from it.
     if(ps.points.empty()){
+        reset();
         return false;
     }
 

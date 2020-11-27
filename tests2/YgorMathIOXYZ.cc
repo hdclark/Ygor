@@ -11,6 +11,10 @@
 TEST_CASE( "YgorMathIOXYZ ReadPointSetFromXYZ" ){
 
     SUBCASE("supported: vertices only"){
+        point_set<double> ps_d;
+        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
         std::stringstream ss;
         ss << "# This is a comment. It should be ignored." << std::endl
            << "# The next line is intentionally blank. It should be ignored too." << std::endl
@@ -25,13 +29,17 @@ TEST_CASE( "YgorMathIOXYZ ReadPointSetFromXYZ" ){
            << "6.0,6.0,6.0 # This is also a comment and should be ignored." << std::endl
            << "" << std::endl;
 
-        point_set<double> ps_d;
         REQUIRE(ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 6);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("supported: vertices only, explicit newlines"){
+        point_set<float> ps_f;
+        ps_f.points.emplace_back(vec3<float>(1.0f, 1.0f, 1.0f));
+        ps_f.normals.emplace_back(vec3<float>(1.0f, 1.0f, 1.0f).unit());
+
         std::stringstream ss;
         ss << "# This is a comment. It should be ignored.\n"
               "# The next line is intentionally blank. It should be ignored too.\n"
@@ -46,69 +54,101 @@ TEST_CASE( "YgorMathIOXYZ ReadPointSetFromXYZ" ){
               "6.0,6.0,6.0 # This is also a comment and should be ignored.\n"
               "\n";
 
-        point_set<float> ps_f;
         REQUIRE(ReadPointSetFromXYZ(ps_f, ss));
         REQUIRE(ps_f.points.size() == 6);
         REQUIRE(ps_f.normals.size() == 0);
+        REQUIRE(ps_f.metadata.empty());
     }
 
     SUBCASE("supported: vertices only, tab separators"){
+        point_set<double> ps_d;
+        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
         std::stringstream ss;
         ss << "1.0\t1.0\t1.0" << std::endl
            << "2.0\t2.0\t2.0" << std::endl
            << "3\t3\t3" << std::endl;
 
-        point_set<double> ps_d;
         REQUIRE(ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 3);
         REQUIRE(ps_d.normals.size() == 0);
         REQUIRE(ps_d.points.at(0) == vec3<double>(1.0, 1.0, 1.0));
         REQUIRE(ps_d.points.at(1) == vec3<double>(2.0, 2.0, 2.0));
         REQUIRE(ps_d.points.at(2) == vec3<double>(3.0, 3.0, 3.0));
+        REQUIRE(ps_d.metadata.empty());
+    }
+
+    SUBCASE("supported: vertices followed by a comment"){
+        point_set<double> ps_d;
+        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+        ps_d.metadata["key"] = "value";
+
+        std::stringstream ss("1.0\t1.0\t1.0 # some harmless comment");
+
+        REQUIRE(!ReadPointSetFromXYZ(ps_d, ss));
+        REQUIRE(ps_d.points.size() == 0);
+        REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices with 2 coordinates"){
-        std::stringstream ss("1.0\t1.0\t");
-
         point_set<double> ps_d;
         ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
         ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
+        std::stringstream ss;
+        ss << "1.0\t1.0\t" << std::endl
+           << "2.0\t2.0\t2.0" << std::endl
+           << "3\t3\t3" << std::endl;
+
         REQUIRE(!ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices with 4 coordinates"){
-        std::stringstream ss("1.0\t1.0\t1.0\t1.0");
-
         point_set<double> ps_d;
         ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
         ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
+        std::stringstream ss;
+        ss << "1.0\t1.0\t1.0" << std::endl
+           << "2.0\t2.0\t2.0\t2.0" << std::endl
+           << "3\t3\t3" << std::endl;
+
         REQUIRE(!ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices followed by text"){
-        std::stringstream ss("1.0\t1.0\t1.0\ttext");
-
         point_set<double> ps_d;
         ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
         ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
+        std::stringstream ss("1.0\t1.0\t1.0\ttext");
+
         REQUIRE(!ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: no vertices (empty point cloud)"){
-        std::stringstream ss("");
-
         point_set<double> ps_d;
         ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
         ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+
+        std::stringstream ss("");
+
         REQUIRE(!ReadPointSetFromXYZ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.metadata.empty());
     }
 }
 
@@ -162,6 +202,7 @@ TEST_CASE( "YgorMathIOXYZ WritePointSetToXYZ" ){
 
         std::stringstream ss;
         REQUIRE(!WritePointSetToXYZ(ps_d, ss));
+        REQUIRE(ss.str().empty());
     }
 }
 
@@ -169,7 +210,7 @@ TEST_CASE( "YgorMathIOXYZ point_set round-trips" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();
     const auto inf = std::numeric_limits<double>::infinity();
 
-    SUBCASE("supported: minimal, vertices only"){
+    SUBCASE("supported: vertices only"){
         point_set<double> ps_orig;
         point_set<double> ps_read;
         ps_orig.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));

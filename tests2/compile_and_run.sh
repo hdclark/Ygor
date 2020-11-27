@@ -16,6 +16,8 @@ g++ \
   YgorMath/*.cc \
   YgorFilesDirs.cc \
   YgorMathIOXYZ.cc \
+  YgorMathIOOBJ.cc \
+  YgorMathIOOFF.cc \
   -o run_tests \
   -lygor
 
