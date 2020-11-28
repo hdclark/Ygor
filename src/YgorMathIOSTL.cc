@@ -245,7 +245,7 @@ WriteFVSMeshToASCIISTL(const fv_surface_mesh<T,I> &fvsm,
     os.flush();
     os.precision( original_precision );
 
-    return (!os.fail());
+    return (!os.bad());
 }
 #ifndef YGORMATHIOSTL_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToASCIISTL(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
@@ -373,7 +373,7 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
             FUNCWARN("This routine cannot handle attributes. Refusing to continue");
             return false;
         }
-        if(is.fail()){
+        if(is.bad()){
             FUNCWARN("File prematurely ended. File is either not an STL file, or is damaged");
             return false;
         }
@@ -550,7 +550,7 @@ WriteFVSMeshToBinarySTL(const fv_surface_mesh<T,I> &fvsm,
     }
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOSTL_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToBinarySTL(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
