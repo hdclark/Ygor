@@ -32,5 +32,16 @@ int main(int, char **){
 
     std::cout.precision(defaultprecision);
 
+
+    std::cout << std::endl;
+    std::cout << "Size of int = " << sizeof(int) << std::endl;
+    std::cout << "Size of long int = " << sizeof(long int) << std::endl;
+    std::cout << "Size of long long int = " << sizeof(long long int) << std::endl;
+    std::cout << "Size of float = " << sizeof(float) << std::endl;
+    std::cout << "Size of double = " << sizeof(double) << std::endl;
+    std::cout << "Size of char = " << sizeof(char) << std::endl;
+    std::cout << "Size of unsigned char = " << sizeof(unsigned char) << std::endl;
+    std::cout << std::endl;
+
     return 0;
 }
