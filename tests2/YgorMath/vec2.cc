@@ -2,11 +2,55 @@
 #include <limits>
 #include <utility>
 #include <iostream>
+#include <array>
+#include <type_traits>
 
 #include <YgorMath.h>
 
 #include "doctest/doctest.h"
 
+
+TEST_CASE( "vec2 layout" ){
+    SUBCASE("is_standard_layout"){
+        REQUIRE(std::is_standard_layout<vec2<double>>::value);
+        REQUIRE(std::is_standard_layout<vec2<float >>::value);
+    }
+    SUBCASE("no padding is present and no additional members have been added"){
+        const auto s_vd = sizeof(vec2<double>);
+        const auto s_cd = sizeof(double);
+        const auto s_vf = sizeof(vec2<float>);
+        const auto s_cf = sizeof(float);
+        REQUIRE(s_vd == 2*s_cd);
+        REQUIRE(s_vf == 2*s_cf);
+    }
+    SUBCASE("arrays of vec2s have no padding between elements"){
+        const auto a_vd = std::alignment_of< vec2<double> >::value;
+        const auto a_vf = std::alignment_of< vec2<float > >::value;
+        const bool d = (8 == a_vd) || (4 == a_vd); // depends on compiler and architecture.
+        REQUIRE(d);
+        REQUIRE(4 == a_vf);
+    }
+
+    SUBCASE("arrays of vec2s can be addressed as an array of raw coordinates"){
+        std::array<vec2<double>, 2> ad;
+        ad[0] = vec2<double>(1.23, 2.34);
+        ad[1] = vec2<double>(3.45, 4.56);
+        auto pd = reinterpret_cast<double*>(&(ad[0]));
+        REQUIRE(*(pd + 0) == 1.23);
+        REQUIRE(*(pd + 1) == 2.34);
+        REQUIRE(*(pd + 2) == 3.45);
+        REQUIRE(*(pd + 3) == 4.56);
+
+        std::array<vec2<float>, 2> af;
+        af[0] = vec2<float>(1.23f, 2.34f);
+        af[1] = vec2<float>(3.45f, 4.56f);
+        auto pf = reinterpret_cast<float*>(&(af[0]));
+        REQUIRE(*(pf + 0) == 1.23f);
+        REQUIRE(*(pf + 1) == 2.34f);
+        REQUIRE(*(pf + 2) == 3.45f);
+        REQUIRE(*(pf + 3) == 4.56f);
+    }
+}
 
 TEST_CASE( "vec2 constructors" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();

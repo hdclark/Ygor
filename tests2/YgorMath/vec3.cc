@@ -3,11 +3,58 @@
 #include <utility>
 #include <iostream>
 #include <array>
+#include <type_traits>
 
 #include <YgorMath.h>
 
 #include "doctest/doctest.h"
 
+
+TEST_CASE( "vec3 class layout" ){
+    SUBCASE("is_standard_layout"){
+        REQUIRE(std::is_standard_layout<vec3<double>>::value);
+        REQUIRE(std::is_standard_layout<vec3<float >>::value);
+    }
+    SUBCASE("no padding is present and no additional members have been added"){
+        const auto s_vd = sizeof(vec3<double>);
+        const auto s_cd = sizeof(double);
+        const auto s_vf = sizeof(vec3<float>);
+        const auto s_cf = sizeof(float);
+        REQUIRE(s_vd == 3*s_cd);
+        REQUIRE(s_vf == 3*s_cf);
+    }
+    SUBCASE("arrays of vec3s have no padding between elements"){
+        const auto a_vd = std::alignment_of< vec3<double> >::value;
+        const auto a_vf = std::alignment_of< vec3<float > >::value;
+        const bool d = (8 == a_vd) || (4 == a_vd); // depends on compiler and architecture.
+        REQUIRE(d);
+        REQUIRE(4 == a_vf);
+    }
+
+    SUBCASE("arrays of vec3s can be addressed as an array of raw coordinates"){
+        std::array<vec3<double>, 2> ad;
+        ad[0] = vec3<double>(1.23, 2.34, 3.45);
+        ad[1] = vec3<double>(4.56, 5.67, 6.78);
+        auto pd = reinterpret_cast<double*>(&(ad[0]));
+        REQUIRE(*(pd + 0) == 1.23);
+        REQUIRE(*(pd + 1) == 2.34);
+        REQUIRE(*(pd + 2) == 3.45);
+        REQUIRE(*(pd + 3) == 4.56);
+        REQUIRE(*(pd + 4) == 5.67);
+        REQUIRE(*(pd + 5) == 6.78);
+
+        std::array<vec3<float>, 2> af;
+        af[0] = vec3<float>(1.23f, 2.34f, 3.45f);
+        af[1] = vec3<float>(4.56f, 5.67f, 6.78f);
+        auto pf = reinterpret_cast<float*>(&(af[0]));
+        REQUIRE(*(pf + 0) == 1.23f);
+        REQUIRE(*(pf + 1) == 2.34f);
+        REQUIRE(*(pf + 2) == 3.45f);
+        REQUIRE(*(pf + 3) == 4.56f);
+        REQUIRE(*(pf + 4) == 5.67f);
+        REQUIRE(*(pf + 5) == 6.78f);
+    }
+}
 
 TEST_CASE( "vec3 constructors" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();
