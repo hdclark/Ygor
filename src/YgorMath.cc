@@ -43,28 +43,27 @@
 //Constructors.
 template <class T>    vec3<T>::vec3(){   x=(T)(0);   y=(T)(0);   z=(T)(0);  }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int>::vec3(void);
-//    template vec3<long int>::vec3(void);
-    template vec3<float>::vec3(void);
+    template vec3<float >::vec3(void);
     template vec3<double>::vec3(void);
 #endif
 
 template <class T>    vec3<T>::vec3(T a, T b, T c) : x(a), y(b), z(c) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int>::vec3(int, int, int);
-//    template vec3<long int>::vec3(long int, long int, long int);
-    template vec3<float>::vec3(float, float, float);
+    template vec3<float >::vec3(float , float , float );
     template vec3<double>::vec3(double, double, double);
 #endif
     
 template <class T>    vec3<T>::vec3( const vec3<T> &in ) : x(in.x), y(in.y), z(in.z) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int>::vec3( const vec3<int> & );
-//    template vec3<long int>::vec3( const vec3<long int> & );
-    template vec3<float>::vec3( const vec3<float> & );
+    template vec3<float >::vec3( const vec3<float > & );
     template vec3<double>::vec3( const vec3<double> & );
 #endif
     
+template <class T>    vec3<T>::vec3( std::array<T,3> in ) : x(in[0]), y(in[1]), z(in[2]) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<float >::vec3( std::array<float , 3> );
+    template vec3<double>::vec3( std::array<double, 3> );
+#endif
     
 //More general: (but is it needed?)
 //template<class Ch,class Tr,class T>     std::basic_ostream<Ch,Tr> & operator<<( std::basic_ostream<Ch,Tr> &&out, const vec3<T> &L ){
@@ -809,7 +808,13 @@ template <class T>    vec2<T>::vec2( const vec2<T> &in ) : x(in.x), y(in.y) { }
     template vec2<float>::vec2( const vec2<float> & );
     template vec2<double>::vec2( const vec2<double> & );
 #endif
-    
+
+template <class T>    vec2<T>::vec2( std::array<T,2> in ) : x(in[0]), y(in[1]) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template vec2<float >::vec2( std::array<float , 2> );
+    template vec2<double>::vec2( std::array<double, 2> );
+#endif
+
     
 //More general: (but is it needed?)
 //template<class Ch,class Tr,class T>     std::basic_ostream<Ch,Tr> & operator<<( std::basic_ostream<Ch,Tr> &&out, const vec2<T> &L ){

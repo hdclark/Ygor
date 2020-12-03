@@ -2,6 +2,7 @@
 #include <limits>
 #include <utility>
 #include <iostream>
+#include <array>
 
 #include <YgorMath.h>
 
@@ -74,6 +75,14 @@ TEST_CASE( "vec3 constructors" ){
         REQUIRE( v.y == w.y );
         REQUIRE( v.z == w.z );
     }
+
+    SUBCASE("std::array constructor"){
+        std::array<double,3> w{{ -1.0, 1.0, 2.0 }};
+        vec3<double> v(w);
+        REQUIRE( v.x == -1.0 );
+        REQUIRE( v.y == 1.0 );
+        REQUIRE( v.z == 2.0 );
+    }
 }
 
 
@@ -104,6 +113,13 @@ TEST_CASE( "vec3 operators" ){
         REQUIRE( A.x == B.x );
         REQUIRE( A.y == B.y );
         REQUIRE( A.z == B.z );
+    }
+
+    SUBCASE("operator= with an implicit conversion via std::array"){
+        vec3<double> v = {{ -1.0, 1.0, 2.0 }};
+        REQUIRE( v.x == -1.0 );
+        REQUIRE( v.y == 1.0 );
+        REQUIRE( v.z == 2.0 );
     }
 
     SUBCASE("operator+"){
@@ -215,6 +231,29 @@ TEST_CASE( "vec3 operators" ){
         REQUIRE( A[0] == A.x );
         REQUIRE( A[1] == A.y );
         REQUIRE( A[2] == A.z );
+    }
+
+    SUBCASE("cast operator to std::array"){
+        SUBCASE("explicit casts"){
+            vec3<double> v(-1.0, 1.0, 2.0);
+            auto w = static_cast< std::array<double,3> >(v);
+            REQUIRE( v.x == -1.0 );
+            REQUIRE( v.y == 1.0 );
+            REQUIRE( v.z == 2.0 );
+
+            REQUIRE( v.x == w.at(0) );
+            REQUIRE( v.y == w.at(1) );
+            REQUIRE( v.z == w.at(2) );
+        }
+        SUBCASE("implicit casts"){
+            vec3<double> v(-1.0, 1.0, 2.0);
+            std::array<double,3> w{{ -10.0, 11.0, 22.0 }};
+
+            std::array<double,3> z = v + w;
+            REQUIRE( z.at(0) == (v.x + w.at(0)) );
+            REQUIRE( z.at(1) == (v.y + w.at(1)) );
+            REQUIRE( z.at(2) == (v.z + w.at(2)) );
+        }
     }
 }
 

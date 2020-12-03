@@ -54,6 +54,13 @@ TEST_CASE( "vec2 constructors" ){
         REQUIRE( v.x == w.x );
         REQUIRE( v.y == w.y );
     }
+
+    SUBCASE("std::array constructor"){
+        std::array<double,2> w{{ -1.0, 1.0 }};
+        vec2<double> v(w);
+        REQUIRE( v.x == -1.0 );
+        REQUIRE( v.y == 1.0 );
+    }
 }
 
 
@@ -83,6 +90,12 @@ TEST_CASE( "vec2 operators" ){
         vec2<double> B = A;
         REQUIRE( A.x == B.x );
         REQUIRE( A.y == B.y );
+    }
+
+    SUBCASE("operator= with an implicit conversion via std::array"){
+        vec2<double> v = {{ -1.0, 1.0 }};
+        REQUIRE( v.x == -1.0 );
+        REQUIRE( v.y == 1.0 );
     }
 
     SUBCASE("operator+"){
@@ -178,6 +191,26 @@ TEST_CASE( "vec2 operators" ){
         A.y = 0.0;
         REQUIRE( A[0] == A.x );
         REQUIRE( A[1] == A.y );
+    }
+
+    SUBCASE("cast operator to std::array"){
+        SUBCASE("explicit casts"){
+            vec2<double> v(-1.0, 1.0);
+            auto w = static_cast< std::array<double,2> >(v);
+            REQUIRE( v.x == -1.0 );
+            REQUIRE( v.y == 1.0 );
+
+            REQUIRE( v.x == w.at(0) );
+            REQUIRE( v.y == w.at(1) );
+        }
+        SUBCASE("implicit casts"){
+            vec2<double> v(-1.0, 1.0);
+            std::array<double,2> w{{ -10.0, 11.0}};
+
+            std::array<double,2> z = v + w;
+            REQUIRE( z.at(0) == (v.x + w.at(0)) );
+            REQUIRE( z.at(1) == (v.y + w.at(1)) );
+        }
     }
 }
 

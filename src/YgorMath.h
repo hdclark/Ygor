@@ -38,6 +38,7 @@ template <class T> class vec3 {
         vec3();
         vec3(T a, T b, T c);
         vec3( const vec3 & );
+        vec3( std::array<T,3> );
     
         //Operators - vec3 typed.
         vec3 & operator=(const vec3 &);
@@ -61,6 +62,9 @@ template <class T> class vec3 {
         //Operators - T typed.
         T & operator[](size_t);
     
+        //Operators - casts.
+        operator std::array<T,3> () const { return std::array<T,3>{{x,y,z}}; }
+
         //Member functions.
         T Dot(const vec3 &) const;        // ---> Dot product.
         vec3 Cross(const vec3 &) const;   // ---> Cross product.
@@ -124,6 +128,7 @@ template <class T> class vec2 {
         vec2();
         vec2(T a, T b);
         vec2( const vec2 & );
+        vec2( std::array<T,2> );
 
         //Operators - vec2 typed.
         vec2 & operator=(const vec2 &);
@@ -146,6 +151,9 @@ template <class T> class vec2 {
 
         //Operators - T typed.
         T & operator[](size_t);
+    
+        //Operators - casts.
+        operator std::array<T,2> () const { return std::array<T,2>{{x,y}}; }
 
         //Member functions.
         T Dot(const vec2 &) const;        // ---> Dot product.
