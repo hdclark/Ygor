@@ -427,6 +427,36 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromASCIIPLY" ){
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
+
+    SUBCASE("unsupported: referenced/custom materials"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "element material 1" << std::endl
+           << "property red int" << std::endl
+           << "property green int" << std::endl
+           << "property blue int" << std::endl
+           << "element material 2" << std::endl
+           << "property weight float" << std::endl
+           << "element vertex 2" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "property material_index 0" << std::endl
+           << "property material_index 1" << std::endl
+           << "end_header" << std::endl
+           << "1.0 1.0 1.0" << std::endl
+           << "0.0 0.0 1.0" << std::endl
+           << "1.0" << std::endl
+           << "2.0 2.0 2.0" << std::endl
+           << "0.0 0.0 1.0" << std::endl
+           << "1.0" << std::endl;
+
+        REQUIRE(!ReadFVSMeshFromASCIIPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
 }
 
 TEST_CASE( "YgorMathIOPLY WriteFVSMeshToASCIIPLY" ){

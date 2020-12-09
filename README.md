@@ -107,33 +107,28 @@ can be invoked as:
 ## Rough Historical Timeline
 
 - May/June 2012
-
   - The routines from some of the common convenience headers were collected into
     (this) project folder. The conversion to a set of linkable and/or
     header-only sources was started.
 
 - Sept 2012
-
   - Some routines have gradually been modified or added as needed. The inclusion
     of a binaries directory is designed to expose some library functions to the
     shell. It has been difficult to keep the library free of external
     dependencies.
 
 - May 2013 
-
   - Development in the library has waned somewhat due to functionality existing
     for most of my current use-cases. I haven't bought into unit tests nor
     version control yet. Currently, I'm interested in cleaning and curating what
     I've got to provide as solid a base as possible for future addition.
 
 - June 2013
-
   - Renamed library from 'Project - Utilities' and 'MyUtils' to 'Project - Ygor'
     in order to release it. Haven't had a chance yet because of ongoing thesis
     work. It'll have to wait until afterward.
 
 - July 2013
-
   - Lately, library development has mostly focused on minor additions,
     refactoring, and addition of extra error handling for easier use. I expect
     development to pick up a little after the thesis. Specifically, I'd like to
@@ -143,7 +138,6 @@ can be invoked as:
     which should be broken up into smaller pieces (or several books :) ).
 
 - Aug 2013
-
   - Small additions, mostly elaborations of existing routines. Major additions
     include parametric fitting (partial migration from Project - PolyCAS) and
     some statistical routines for p-values. The latter introduce a GSL
@@ -152,7 +146,6 @@ can be invoked as:
     code publically available.
 
 - Apr 2014
-
   - Cleanup effort underway. I've tried to fix inconsistent naming schemes,
     performed static analysis to find any bugs which haven't yet been found,
     shuffled code around -- either into more specific files or namespaces, and
@@ -161,63 +154,70 @@ can be invoked as:
     scheme. This was a big undertaking!
 
 - July 2016
-
   - Migrated code and limited history (~late 2015) to git to ease deployment.
     Some clean-up of junk files was performed. Still relying on GNU Make(files),
     and the project hierarchy is a bit of a mess. Modernization is planned.
 
 - March 2017
-
   - Migrated to CMake. Removed a few small extraneous files, but the repo needs
     a good clean. The code also needs to be modernized and warnings dealt with.
 
 - April 2017
-
   - Made sources publically available on GitHub and GitLab at
     [https://gitlab.com/hdeanclark/Ygor] and [https://github.com/hdclark/Ygor].
 
 - April 2019
-
   - Added integration with static analysis tools and rudimentary CI tooling.
 
 - January 2020
-
   - Added support for writing many types of mesh file formats (obj, off, stl) 
     over the last few months. Limited reading support since some of the formats
     are fairly open-ended.
 
 - February 2020
-
   - Improved 3D voxel lookup efficiency for regular images via the 
     `planar_image_adjacency` routine.
 
 - March 2020
-
   - Added faster projection-based `is_point_in_poly` sub-routine to generic 
     `Mutate_Voxels` interface routine. 
   - Revisited test cases, ensuring they all build.
 
 - April 2020
-
   - Added generic TAR file read and write support. Small clean-up primarily in
     math and image files.
 
 - May 2020
-
   - Started writing unit tests in earnest for core math components focusing on
     basic usage and edge behaviour (e.g., handling non-finite data).
   - Added basic Affine transformation class.
 
 - June 2020
-
   - Added bare-bones arbitrary-dimension matrix class to provide 'polyfill' for
     when external libraries may not be available, to ensure a means of passing
     matrices across library interface with a stable API (and ABI, if needed),
     and as a means of controlling serializability.
 
 - August 2020
-
   - Expanded testing, added CI build-and-test, and increased static analysis.
   - Re-wrote a few routines to use more modern features to improve portability.
     The port is not comprehensive, but `Ygor` can now be compiled with `MXE`.
+
+- October 2020
+  - Encircle\_Images: provide default enum class.
+  - contour\_collection: added metadata selector.
+  - Document release DOI.
+
+- November 2020
+  - Overhauled XYZ, OBJ, and OFF file IO readers to be less stringent when
+    reading point sets.
+  - Point sets gained support for normals.
+  - Added unbiased surface mesh random sampler. This can be used for Monte Carlo
+    surface sampling.
+  - Factored surface mesh garbage collection into a single cleanup routine.
+  - Only link libstdc++fs if it is present.
+
+- December 2020
+  - Added basic ASCII PLY read and write support for surface meshes.
+  - Added vec2 and vec3 layout checks and cast operators to and from std::array.
 
