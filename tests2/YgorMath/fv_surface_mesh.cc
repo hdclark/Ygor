@@ -35,6 +35,24 @@ TEST_CASE( "fv_surface_mesh member functions" ){
     mesh1.vertices = {{ p1, p3, p4 }};
     mesh1.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
 
+    SUBCASE("operator=="){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+        REQUIRE( mesh1 == mesh2 );
+
+        // Member 'involved_faces' should not impact equality since it is a derived structure that may be in an
+        // indeterminate state (i.e., it can be generated on-demand whenever needed, and may not have been generated
+        // recently).
+        mesh1.involved_faces.clear();
+        mesh2.recreate_involved_face_index();
+        REQUIRE( mesh1 == mesh2 );
+        mesh2.involved_faces.clear();
+
+        // Metadata *is* significant for equality.
+        mesh2.metadata["new key"] = "new value";
+        REQUIRE( mesh1 != mesh2 );
+    }
 
     SUBCASE("surface_area"){
         REQUIRE( mesh1.surface_area() == 0.5 );

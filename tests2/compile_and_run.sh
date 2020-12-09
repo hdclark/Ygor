@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eu
+set -eux
 
 reporoot=$(git rev-parse --show-toplevel)
 cd "${reporoot}/tests2"

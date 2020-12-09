@@ -273,6 +273,30 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromASCIIPLY" ){
         REQUIRE(sm_d.metadata.empty());
     }
 
+    SUBCASE("supported: metadata"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "comment metadata: test_key_1 = test_value_1" << std::endl
+           << "element vertex 2" << std::endl
+           << "property float x" << std::endl
+           << "comment metadata: test_key_2 = test_value_2" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "comment metadata: test_key_3 = test_value_3" << std::endl
+           << "end_header" << std::endl
+           << "1.0 1.0 1.0" << std::endl
+           << "2.0 2.0 2.0" << std::endl;
+
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 2);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.size() == 3);
+        REQUIRE(sm_d.metadata.at("test_key_1") == "test_value_1");
+        REQUIRE(sm_d.metadata.at("test_key_2") == "test_value_2");
+        REQUIRE(sm_d.metadata.at("test_key_3") == "test_value_3");
+    }
+
     SUBCASE("unsupported: PLY format versions beyond 1.0"){
         std::stringstream ss;
         ss << "ply" << std::endl
@@ -340,7 +364,7 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromASCIIPLY" ){
            << "property float z" << std::endl
            << "end_header" << std::endl
            << "1.0 1.0 1.0" << std::endl
-           << "comment this should probably be rejected" << std::endl
+           << "comment this placement should be rejected" << std::endl
            << "2.0 2.0 2.0" << std::endl;
 
         REQUIRE(!ReadFVSMeshFromASCIIPLY(sm_d, ss));
@@ -518,6 +542,21 @@ TEST_CASE( "YgorMathIOPLY WriteFVSMeshToASCIIPLY" ){
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_d, ss));
     }
 
+    SUBCASE("supported: metadata"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.faces = {{ static_cast<uint32_t>(0),
+                        static_cast<uint32_t>(1),
+                        static_cast<uint32_t>(2) }};
+        sm_d.metadata["test_key_A"] = "test_value_A";
+        sm_d.metadata["test_key_B"] = "test_value_B";
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToASCIIPLY(sm_d, ss));
+    }
+
     SUBCASE("unsupported: no vertices or faces"){
         fv_surface_mesh<double,uint32_t> sm_d;
 
@@ -533,7 +572,7 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
 
     SUBCASE("supported: vertices only"){
         fv_surface_mesh<double,uint32_t> sm_orig;
-        fv_surface_mesh<double,uint32_t> ps_read;
+        fv_surface_mesh<double,uint32_t> sm_read;
 
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
@@ -541,13 +580,13 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
-        REQUIRE(ReadFVSMeshFromASCIIPLY(ps_read, ss));
-        REQUIRE(sm_orig == ps_read);
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
     }
 
     SUBCASE("supported: vertices and faces"){
         fv_surface_mesh<double,uint32_t> sm_orig;
-        fv_surface_mesh<double,uint32_t> ps_read;
+        fv_surface_mesh<double,uint32_t> sm_read;
 
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
@@ -558,13 +597,13 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
-        REQUIRE(ReadFVSMeshFromASCIIPLY(ps_read, ss));
-        REQUIRE(sm_orig == ps_read);
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
     }
 
     SUBCASE("supported: vertices with infs"){
         fv_surface_mesh<double,uint32_t> sm_orig;
-        fv_surface_mesh<double,uint32_t> ps_read;
+        fv_surface_mesh<double,uint32_t> sm_read;
 
         sm_orig.vertices.emplace_back(vec3<double>(1.0, inf, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(inf, 1.0, 0.0));
@@ -572,13 +611,13 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
-        REQUIRE(ReadFVSMeshFromASCIIPLY(ps_read, ss));
-        REQUIRE(sm_orig == ps_read);
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
     }
 
     SUBCASE("supported: vertices with nans"){
         fv_surface_mesh<double,uint32_t> sm_orig;
-        fv_surface_mesh<double,uint32_t> ps_read;
+        fv_surface_mesh<double,uint32_t> sm_read;
 
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 1.0, nan));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
@@ -586,16 +625,16 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
-        REQUIRE(ReadFVSMeshFromASCIIPLY(ps_read, ss));
-        REQUIRE(sm_orig.vertices.size() == ps_read.vertices.size());
-        REQUIRE(sm_orig.vertices.at(0).x == ps_read.vertices.at(0).x);
-        REQUIRE(sm_orig.vertices.at(0).y == ps_read.vertices.at(0).y);
-        REQUIRE(std::isnan(ps_read.vertices.at(0).z));
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_orig.vertices.size() == sm_read.vertices.size());
+        REQUIRE(sm_orig.vertices.at(0).x == sm_read.vertices.at(0).x);
+        REQUIRE(sm_orig.vertices.at(0).y == sm_read.vertices.at(0).y);
+        REQUIRE(std::isnan(sm_read.vertices.at(0).z));
     }
 
-    SUBCASE("unsupported: metadata"){
+    SUBCASE("supported: metadata"){
         fv_surface_mesh<double,uint32_t> sm_orig;
-        fv_surface_mesh<double,uint32_t> ps_read;
+        fv_surface_mesh<double,uint32_t> sm_read;
 
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
@@ -603,14 +642,45 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips" ){
         sm_orig.faces = {{ static_cast<uint32_t>(0),
                            static_cast<uint32_t>(1),
                            static_cast<uint32_t>(2) }};
-        sm_orig.metadata["key"] = "value";
+        sm_orig.metadata["test_key_A"] = "test_value_A";
+        sm_orig.metadata["test_key_B"] = "test_value_B";
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
-        REQUIRE(ReadFVSMeshFromASCIIPLY(ps_read, ss));
-        REQUIRE(sm_orig != ps_read);
-        REQUIRE(ps_read.metadata.empty());
-        REQUIRE(!sm_orig.metadata.empty());
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
+        REQUIRE(sm_orig.metadata == sm_read.metadata);
+        REQUIRE(sm_read.metadata.size() == 2);
+    }
+
+    SUBCASE("supported: metadata that needs to be base64 encoded/decoded"){
+        fv_surface_mesh<double,uint32_t> sm_orig;
+        fv_surface_mesh<double,uint32_t> sm_read;
+
+        sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.faces = {{ static_cast<uint32_t>(0),
+                           static_cast<uint32_t>(1),
+                           static_cast<uint32_t>(2) }};
+        sm_orig.metadata["test_key_A"] = "test_problematic_char_next_=";
+        sm_orig.metadata["test_key_B"] = "test_value_B";
+        sm_orig.metadata["test_key_C"] = "test_problematic_because_\r_is_unprintable";
+        sm_orig.metadata["test_key_D"] = "test_problematic_because_\n_is_unprintable";
+        sm_orig.metadata["test_key_E"] = "test_problematic_because_\t_is_unprintable";
+        sm_orig.metadata["test_key\r\t\n_F"] = "test_value_F";
+
+        // Note: text-mode line ending conversion should NOT be a concern here.
+        // The probematic sequences will be encoded before being written.
+        sm_orig.metadata["test_key\r\n_G"] = "test_value\r\n_G";
+        sm_orig.metadata["test_key\n\r_H"] = "test_value\n\r_H";
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToASCIIPLY(sm_orig, ss));
+        REQUIRE(ReadFVSMeshFromASCIIPLY(sm_read, ss));
+        REQUIRE(sm_read.metadata.size() == 8);
+        REQUIRE(sm_orig.metadata == sm_read.metadata);
+        REQUIRE(sm_orig == sm_read);
     }
 }
 

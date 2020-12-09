@@ -5989,7 +5989,6 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
     new_faces.reserve(this->faces.size());
 
     std::map<I,I> old_to_new_vert;
-    const auto end = old_to_new_vert.end();
 
     for(const auto& f : this->faces){
         std::vector<I> new_face;
@@ -10857,18 +10856,26 @@ samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
     const auto defaultprecision = SO.precision();
     SO.precision(std::numeric_limits<T>::max_digits10 );
 
+    // Used to determine when text must be base64 encoded.
+    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
+        for(const auto &x : in){
+            // Permit words/sentences but not characters that could potentially affect file interpretation.
+            // Note that whitespace is significant and will not be altered.
+            if( !std::isprint(x) 
+                || (x == static_cast<unsigned char>('=')) ) return true;
+        }
+        return false;
+    };
+
     for(const auto &mp : this->metadata){
         // Note: Syntax should be:
         // |  # metadata: key = value
         // |  # base64 metadata: encoded_key = encoded_value
 
-        bool is_printable = true;
-        for(const auto &x : mp.first)  if(!std::isprint(x)) is_printable = false;
-        for(const auto &x : mp.second) if(!std::isprint(x)) is_printable = false;
-
         const auto key = mp.first;
         const auto value = mp.second;
-        if(is_printable){
+        const auto should_escape = (needs_to_be_escaped(key) || needs_to_be_escaped(value));
+        if(should_escape){
             SO << "# metadata: " << key << " = " << value << std::endl;
         }else{
             const auto encoded_key = Base64::EncodeFromString(key);
@@ -10946,7 +10953,7 @@ samples_1D<T>::Read_From_Stream(std::istream &SI){
             // |  # base64 metadata: encoded_key = encoded_value
             const auto p_assign = line.find(" = ");
             const auto p_metadata = line.find("metadata: ");
-            const auto p_base64 = line.find("base64 ");
+            const auto p_base64 = line.find("base64 metadata:");
             if(p_assign == std::string::npos) continue; // A comment.
             if(p_metadata == std::string::npos) continue; // A comment.
 
@@ -10956,7 +10963,8 @@ samples_1D<T>::Read_From_Stream(std::istream &SI){
             const auto key = line.substr(key_offset, (p_assign - key_offset));
 
             // Decode using base64, if necessary.
-            if(p_base64 == std::string::npos){
+            if( (p_base64 == std::string::npos)
+            ||  (p_metadata < p_base64) ){ // If the base64 term appears in the metadata itself.
                 indata.metadata[key] = value;
             }else{
                 const auto decoded_key = Base64::DecodeToString(key);

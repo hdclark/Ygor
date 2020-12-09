@@ -11,43 +11,9 @@
 #include "YgorMisc.h"
 #include "YgorMath.h"
 #include "YgorString.h"
+#include "YgorBase64.h"   //Used for metadata serialization.
 
 #include "YgorMathIOPLY.h"
-
-
-//This enum is used by the user to signal whether they want little- or big-endianness when the IO format
-// can handle either (e.g., writing raw pixels, FITS files).
-enum YgorMathIOPLYEndianness { 
-    Little,   // i.e., least significant byte at lowest memory address.
-    Big,      // i.e., most significant byte at lowest memory address.
-    Default   // User unspecified: use the default or try to detect.
-};
-
-static inline
-YgorMathIOPLYEndianness
-Detect_Machine_Endianness(void){
-
-    //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine. We do this by 
-    // probing where a single bit resides in memory.
-    //
-    // NOTE: If endianness is not little or big, this routine throws! Feel free to add additional
-    //       endian types if needed.
-    //
-    volatile uint64_t EndianScape = static_cast<uint64_t>(1); //Anything larger than 1 byte will suffice.
-    volatile uint8_t *EndianCheck = reinterpret_cast<volatile uint8_t *>(&EndianScape);
-
-    const bool UsingLittleEndian = (EndianCheck[0] == static_cast<uint8_t>(1)); // "LSB".
-    const bool UsingBigEndian    = (EndianCheck[sizeof(uint64_t)-1] == static_cast<uint8_t>(1)); // "MSB".
-
-    if(UsingLittleEndian){
-        return YgorMathIOPLYEndianness::Little;
-    }else if(UsingBigEndian){
-        return YgorMathIOPLYEndianness::Big;
-    }
-
-    throw std::runtime_error("Cannot determine machine's endianness!");
-    return YgorMathIOPLYEndianness::Default; //(You should never get here.)        
-}
 
 
 // This routine reads an fv_surface_mesh from an ASCII PLY format stream.
@@ -116,9 +82,9 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
         ++lineN;
         if(line.empty()) continue;
 
-        auto split = SplitStringToVector(line, "comment", 'd'); // Remove any comments on any lines.
-        if(split.size() > 1) split.resize(1);
-        split = SplitVector(split, ' ', 'd');
+        //auto split = SplitStringToVector(line, "comment", 'd'); // Remove any comments on any lines.
+        //if(split.size() > 1) split.resize(1);
+        auto split = SplitStringToVector(line, ' ', 'd');
         //split = SplitVector(split, '\t', 'd');
         //split = SplitVector(split, ',', 'd');
         split.erase( std::remove_if(std::begin(split),
@@ -130,8 +96,34 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
 
         if(split.empty()) continue; // Skip all empty lines.
 
-        // Read the magic number.
+        // Handle metadata comments anywhere in the header.
         if(false){
+        }else if( (1 <= split.size()) && (split.at(0) == "comment"_s)){
+            // Note: Syntax should be:
+            // |  # metadata: key = value
+            // |  # base64 metadata: encoded_key = encoded_value
+            const auto p_assign = line.find(" = ");
+            const auto p_metadata = line.find("metadata: ");
+            const auto p_base64 = line.find("base64 metadata: ");
+            if( (p_assign == std::string::npos)
+            ||  (p_metadata == std::string::npos) ) continue; // Is a non-metadata comment.
+
+            // Determine the boundaries of the key and value.
+            const auto value = line.substr(p_assign + 3);
+            const auto key_offset = p_metadata + 10;
+            const auto key = line.substr(key_offset, (p_assign - key_offset));
+
+            // Decode using base64, if necessary.
+            if( (p_base64 == std::string::npos)
+            ||  (p_metadata < p_base64) ){ // If the base64 keyword appears in the metadata itself.
+                fvsm.metadata[key] = value;
+            }else{
+                const auto decoded_key = Base64::DecodeToString(key);
+                const auto decoded_value = Base64::DecodeToString(value);
+                fvsm.metadata[decoded_key] = decoded_value;
+            }
+
+        // Read the magic number.
         }else if( (parse_stage == 0) && (split.size() == 1) && (split.at(0) == "ply"_s)){
             ++parse_stage;
 
@@ -227,8 +219,9 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
                 long int index_x = -1;
                 long int index_y = -1;
                 long int index_z = -1;
+                const auto N_props = static_cast<long int>(element.properties.size());
 
-                for(long int i = 0; i < element.properties.size(); ++i){
+                for(long int i = 0; i < N_props; ++i){
                     if(false){
                     }else if( (index_x == -1)
                           &&  !element.properties[i].is_list
@@ -257,7 +250,7 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
                 fvsm.vertices.reserve(element.count);
                 vec3<T> shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );;
                 for(long int n = 0; n < element.count; ++n){
-                    for(long int i = 0; i < element.properties.size(); ++i){
+                    for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_x){
                             shtl.x = get_another_T();
@@ -280,7 +273,8 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
                   ||  (element.name == "facet")
                   ||  (element.name == "facets") ){
                 long int index_vs = -1;
-                for(long int i = 0; i < element.properties.size(); ++i){
+                const auto N_props = static_cast<long int>(element.properties.size());
+                for(long int i = 0; i < N_props; ++i){
 
                     if(false){
                     }else if( (index_vs == -1)
@@ -300,7 +294,7 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
                 // Read in all properties, disregarding those other than the face's connected vertices list.
                 fvsm.vertices.reserve(element.count);
                 for(long int n = 0; n < element.count; ++n){
-                    for(long int i = 0; i < element.properties.size(); ++i){
+                    for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_vs){
                             const auto l = get_list_T(); // Should already be zero-indexed.
@@ -323,7 +317,8 @@ ReadFVSMeshFromASCIIPLY(fv_surface_mesh<T,I> &fvsm,
             // improve interoperability, even if it makes it harder to verify file contents were parsed correctly.
             }else{
                 for(long int n = 0; n < element.count; ++n){
-                    for(long int i = 0; i < element.properties.size(); ++i){
+                    const auto N_props = static_cast<long int>(element.properties.size());
+                    for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(element.properties[i].is_list){
                             get_list_T();
@@ -391,12 +386,38 @@ WriteFVSMeshToASCIIPLY(const fv_surface_mesh<T,I> &fvsm,
         return false;
     }
 
+    // Used to determine when text must be base64 encoded.
+    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
+        for(const auto &x : in){
+            // Permit words/sentences but not characters that could potentially affect file interpretation.
+            // Note that whitespace is significant and will not be altered.
+            if( !std::isprint(x) 
+                || (x == static_cast<unsigned char>('=')) ) return true;
+        }
+        return false;
+    };
+
     os << "ply" << std::endl
-       << "format ascii 1.0" << std::endl
-       //<< "comment ... encode metadata here ..." << std::endl
-       //<< "comment ... encode metadata here ..." << std::endl
-       //<< "comment ... encode metadata here ..." << std::endl
-       << "element vertex " << fvsm.vertices.size() << std::endl
+       << "format ascii 1.0" << std::endl;
+
+    // Emit metadata.
+    {
+        for(const auto &mp : fvsm.metadata){
+            const auto key = mp.first;
+            const auto value = mp.second;
+            const bool must_encode = needs_to_be_escaped(key) || needs_to_be_escaped(value);
+            if(must_encode){
+                const auto encoded_key   = Base64::EncodeFromString(key);
+                const auto encoded_value = Base64::EncodeFromString(value);
+                os << "comment base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
+            }else{
+                // If encoding is not needed then don't. It will make the data more accessible.
+                os << "comment metadata: " << key << " = " << value << std::endl;
+            }
+        }
+    }
+
+    os << "element vertex " << fvsm.vertices.size() << std::endl
        << "property float x" << std::endl
        << "property float y" << std::endl
        << "property float z" << std::endl

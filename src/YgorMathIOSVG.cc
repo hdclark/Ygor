@@ -37,6 +37,7 @@ WriteCCToSVG(const contour_collection<T> &cc,
         for(const auto &x : in){
             // Permit words/sentences but not characters that could potentially affect file interpretation.
             if( !std::isprint(x) 
+                || (x == static_cast<unsigned char>('\''))
                 || (x == static_cast<unsigned char>('<'))
                 || (x == static_cast<unsigned char>('>'))
                 || (x == static_cast<unsigned char>('&')) ) return true;
