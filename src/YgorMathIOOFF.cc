@@ -302,7 +302,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
     }
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToOFF(const fv_surface_mesh<float , uint32_t> &, std::ostream &);
@@ -506,7 +506,7 @@ WritePointSetToOFF(const point_set<T> &ps,
     os.precision( original_precision );
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOOFF_DISABLE_ALL_SPECIALIZATIONS
     template bool WritePointSetToOFF(const point_set<float > &, std::ostream &);

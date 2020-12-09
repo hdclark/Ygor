@@ -143,7 +143,7 @@ WritePointSetToXYZ(const point_set<T> &ps,
     os.precision( original_precision );
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOXYZ_DISABLE_ALL_SPECIALIZATIONS
     template bool WritePointSetToXYZ(const point_set<float > &, std::ostream &);

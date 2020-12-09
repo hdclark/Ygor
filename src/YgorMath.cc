@@ -5726,6 +5726,37 @@ fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
 #endif
     
 template <class T, class I>
+bool
+fv_surface_mesh<T,I>::operator==(const fv_surface_mesh<T,I> &rhs) const {
+    if(this == &rhs) return true;
+    // Note: omits involved faces, which is regenerated on-demand from vertices and faces.
+    return (this->vertices   == rhs.vertices)
+        && (this->faces      == rhs.faces)
+        && (this->metadata   == rhs.metadata);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_surface_mesh<float , uint32_t>::operator==(const fv_surface_mesh<float , uint32_t> &) const;
+    template bool fv_surface_mesh<float , uint64_t>::operator==(const fv_surface_mesh<float , uint64_t> &) const;
+
+    template bool fv_surface_mesh<double, uint32_t>::operator==(const fv_surface_mesh<double, uint32_t> &) const;
+    template bool fv_surface_mesh<double, uint64_t>::operator==(const fv_surface_mesh<double, uint64_t> &) const;
+#endif
+    
+template <class T, class I>
+bool
+fv_surface_mesh<T,I>::operator!=(const fv_surface_mesh<T,I> &rhs) const {
+    // Note: omits involved faces, which is regenerated on-demand from vertices and faces.
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_surface_mesh<float , uint32_t>::operator!=(const fv_surface_mesh<float , uint32_t> &) const;
+    template bool fv_surface_mesh<float , uint64_t>::operator!=(const fv_surface_mesh<float , uint64_t> &) const;
+
+    template bool fv_surface_mesh<double, uint32_t>::operator!=(const fv_surface_mesh<double, uint32_t> &) const;
+    template bool fv_surface_mesh<double, uint64_t>::operator!=(const fv_surface_mesh<double, uint64_t> &) const;
+#endif
+
+template <class T, class I>
 T
 fv_surface_mesh<T,I>::surface_area(long int n) const {
     // Select which face(s) to use. If n is negative, select all faces.

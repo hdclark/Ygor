@@ -13,11 +13,12 @@ g++ \
   -Wall \
   -I. \
   Main.cc \
-  YgorMath/*.cc \
   YgorFilesDirs.cc \
-  YgorMathIOXYZ.cc \
+  YgorMath/*.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
+  YgorMathIOPLY.cc \
+  YgorMathIOXYZ.cc \
   -o run_tests \
   -lygor
 

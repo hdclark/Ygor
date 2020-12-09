@@ -567,6 +567,8 @@ template <class T, class I>   class fv_surface_mesh {
 
         //Member functions.
         fv_surface_mesh & operator= (const fv_surface_mesh &);
+        bool operator==(const fv_surface_mesh &) const;
+        bool operator!=(const fv_surface_mesh &) const;
 
         // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
         // all faces.

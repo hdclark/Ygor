@@ -192,7 +192,7 @@ WriteCCToSVG(const contour_collection<T> &cc,
     os.precision( original_precision );
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOSVG_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteCCToSVG(const contour_collection<float > &, const plane<float > &, std::ostream &,

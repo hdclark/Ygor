@@ -202,7 +202,7 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
     }
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOOBJ_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteFVSMeshToOBJ(const fv_surface_mesh<float , uint32_t> &, std::ostream &, bool);
@@ -369,7 +369,7 @@ WritePointSetToOBJ(const point_set<T> &ps,
     os.precision( original_precision );
     os.flush();
 
-    return(!os.fail());
+    return(!os.bad());
 }
 #ifndef YGORMATHIOOBJ_DISABLE_ALL_SPECIALIZATIONS
     template bool WritePointSetToOBJ(const point_set<float > &, std::ostream &);
