@@ -5708,6 +5708,7 @@ fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
     if(this == &rhs) return *this; 
 
     this->vertices = rhs.vertices;
+    this->vertex_normals = rhs.vertex_normals;
     this->faces = rhs.faces;
     this->involved_faces = rhs.involved_faces;
     this->metadata = rhs.metadata;
@@ -5730,9 +5731,10 @@ bool
 fv_surface_mesh<T,I>::operator==(const fv_surface_mesh<T,I> &rhs) const {
     if(this == &rhs) return true;
     // Note: omits involved faces, which is regenerated on-demand from vertices and faces.
-    return (this->vertices   == rhs.vertices)
-        && (this->faces      == rhs.faces)
-        && (this->metadata   == rhs.metadata);
+    return (this->vertices       == rhs.vertices)
+        && (this->vertex_normals == rhs.vertex_normals)
+        && (this->faces          == rhs.faces)
+        && (this->metadata       == rhs.metadata);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool fv_surface_mesh<float , uint32_t>::operator==(const fv_surface_mesh<float , uint32_t> &) const;
@@ -5829,6 +5831,11 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
 
     const auto sq_dist_eps = std::pow(static_cast<double>(distance_eps), 2.0);
 
+    if( !this->vertex_normals.empty()
+    &&  (this->vertices.size() != this->vertex_normals.size()) ){
+        throw std::runtime_error("Vertices and vertex normals are not consistent. Refusing to continue");
+    }
+
     std::map<I,I> duplicates;
 
     // Create an index vector to reflect the original vertex ordering.
@@ -5902,7 +5909,11 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
     //
     // Note: This is a very slow way to purge vertices. There are much faster ways. TODO.
     for(auto dp_it = std::rbegin(duplicates); dp_it != std::rend(duplicates); ++dp_it){
-        this->vertices.erase( std::next(std::begin(this->vertices),dp_it->first) );
+        this->vertices.erase( std::next(std::begin(this->vertices), dp_it->first) );
+
+        if( !this->vertex_normals.empty() ){
+            this->vertex_normals.erase( std::next(std::begin(this->vertex_normals), dp_it->first) );
+        }
     }
 
     // Remove any degenerate faces that might have collapsed during the de-duplication.
@@ -5982,10 +5993,16 @@ fv_surface_mesh<T,I>::convert_to_triangles(){
 template <class T, class I>
 void
 fv_surface_mesh<T,I>::remove_disconnected_vertices(){
+    if( !this->vertex_normals.empty()
+    &&  (this->vertices.size() != this->vertex_normals.size()) ){
+        throw std::runtime_error("Vertices and vertex normals are not consistent. Refusing to continue");
+    }
 
     decltype(this->vertices) new_verts;
+    decltype(this->vertices) new_vert_normals;
     decltype(this->faces) new_faces;
     new_verts.reserve(this->vertices.size());
+    new_vert_normals.reserve(this->vertex_normals.size());
     new_faces.reserve(this->faces.size());
 
     std::map<I,I> old_to_new_vert;
@@ -6000,6 +6017,9 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
             // If not, insert it into the new vertex list and add the mapping.
             if(it == old_to_new_vert.end()){
                 new_verts.push_back(  this->vertices.at( old_i ) );
+                if( !this->vertex_normals.empty() ){
+                    new_vert_normals.push_back(  this->vertex_normals.at( old_i ) );
+                }
 
                 auto p = old_to_new_vert.insert( std::make_pair(old_i, static_cast<I>(new_verts.size() - 1)) );
                 it = p.first;
@@ -6012,6 +6032,7 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
     }
 
     this->vertices = new_verts;
+    this->vertex_normals = new_vert_normals;
     this->faces = new_faces;
 
     // Reset the index, which may no longer be valid.

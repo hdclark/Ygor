@@ -546,6 +546,10 @@ template <class T, class I>   class fv_surface_mesh {
         std::vector<vec3<T>> vertices; // List of all vertices appearing in the mesh.
                                        // Note that vertices may be disconnected from all faces.
 
+        std::vector<vec3<T>> vertex_normals; // Optional per-vertex orientation normal.
+                                             // Should always be empty OR have the same size as this->vertices.
+
+
         std::vector<std::vector<I>> faces; // List of faces (simplicies) appearing in the mesh.
                                            // Each face is composed of several vertices.
                                            // Index starts at zero.
@@ -555,7 +559,7 @@ template <class T, class I>   class fv_surface_mesh {
         std::vector<std::vector<I>> involved_faces; // List of faces each vertex is involved in.
                                                     // Useful for neighbourhood look-ups.
                                                     // This component is not critical; it is a convenient index.
-                                                    // This vector should always have the same size as this->vertices.
+                                                    // Should always be empty OR have the same size as this->vertices.
                                                     // Use the provided member function to regenerate.
 
         std::map<std::string,std::string> metadata; // User-defined metadata.
@@ -578,6 +582,7 @@ template <class T, class I>   class fv_surface_mesh {
         void recreate_involved_face_index(void);
 
         // Eliminates duplicate overlapping vertices.
+        // Corresponding normals are removed.
         void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) );
 
         // Converts all facets to triangles, assuming they are planar. Lines and disconnected vertices are disconnected,
@@ -586,6 +591,7 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Purges all disconnected vertices (i.e., vertices not references by any facets) -- essentially a garbage
         // collection operation. Note that this is a fairly expensive operation.
+        // Corresponding normals are removed.
         void remove_disconnected_vertices(void);
 
         // Sample the surface using uniform random sampling.
