@@ -394,6 +394,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
     const auto reset = [&](){
         ps.points.clear();
         ps.normals.clear();
+        ps.colours.clear();
         ps.metadata.clear();
     };
     reset();

@@ -248,6 +248,8 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
 
     const auto reset = [&](){
         fvsm.vertices.clear();
+        fvsm.vertex_normals.clear();
+        fvsm.vertex_colours.clear();
         fvsm.faces.clear();
         fvsm.involved_faces.clear();
         fvsm.metadata.clear();

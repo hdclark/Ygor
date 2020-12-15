@@ -427,9 +427,29 @@ TEST_CASE( "YgorMathIOOBJ fv_surface_mesh round-trips" ){
 TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
 
     point_set<double> ps_d;
-    ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-    ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+    ps_d.points.emplace_back(vec3<double>(1.0, 2.0, 3.0));
+    ps_d.points.emplace_back(vec3<double>(4.0, 5.0, 6.0));
+    ps_d.points.emplace_back(vec3<double>(7.0, 8.0, 9.0));
+    ps_d.normals.emplace_back(vec3<double>(1.0,-1.0,2.0).unit());
+    ps_d.normals.emplace_back(vec3<double>(-1.0,0.0,3.0).unit());
+    ps_d.normals.emplace_back(vec3<double>(0.1,3.0,-1.0).unit());
+    ps_d.colours.emplace_back( static_cast<uint32_t>(1234567890) );
+    ps_d.colours.emplace_back( static_cast<uint32_t>(2345678901) );
+    ps_d.colours.emplace_back( static_cast<uint32_t>(3456789012) );
     ps_d.metadata["key"] = "value";
+
+    point_set<float> ps_f;
+    ps_f.points.emplace_back(vec3<float>(1.0f, 2.0f, 3.0f));
+    ps_f.points.emplace_back(vec3<float>(4.0f, 5.0f, 6.0f));
+    ps_f.points.emplace_back(vec3<float>(7.0f, 8.0f, 9.0f));
+    ps_f.normals.emplace_back(vec3<float>(1.0f,-1.0f,2.0f).unit());
+    ps_f.normals.emplace_back(vec3<float>(-1.0f,0.0f,3.0f).unit());
+    ps_f.normals.emplace_back(vec3<float>(0.1f,3.0f,-1.0f).unit());
+    ps_f.colours.emplace_back( static_cast<uint32_t>(1234567890) );
+    ps_f.colours.emplace_back( static_cast<uint32_t>(2345678901) );
+    ps_f.colours.emplace_back( static_cast<uint32_t>(3456789012) );
+    ps_f.metadata["key"] = "value";
+
 
     SUBCASE("supported: vertices only"){
         std::stringstream ss;
@@ -448,15 +468,11 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 5);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("supported: vertices only, explicit newlines"){
-        point_set<float> ps_f;
-        ps_f.points.emplace_back(vec3<float>(1.0f, 1.0f, 1.0f));
-        ps_f.normals.emplace_back(vec3<float>(1.0f, 1.0f, 1.0f).unit());
-        ps_f.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "# This is a comment. It should be ignored.\n"
               "# The next line is intentionally blank. It should be ignored too.\n"
@@ -473,15 +489,11 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(ReadPointSetFromOBJ(ps_f, ss));
         REQUIRE(ps_f.points.size() == 5);
         REQUIRE(ps_f.normals.size() == 0);
+        REQUIRE(ps_f.colours.size() == 0);
         REQUIRE(ps_f.metadata.empty());
     }
 
     SUBCASE("supported: vertices and normals"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "v 1.0\t1.0\t1.0" << std::endl
            << "v 2.0\t2.0\t2.0" << std::endl
@@ -495,44 +507,32 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(ps_d.points.at(1) == vec3<double>(2.0, 2.0, 2.0));
         REQUIRE(ps_d.normals.at(0) == vec3<double>(0.0, 0.0, 1.0));
         REQUIRE(ps_d.normals.at(1) == vec3<double>(0.0, 1.0, 0.0));
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("supported: vertices with extra weight parameter"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("v 1.0\t2.0\t3.0\t0.5");
 
         REQUIRE(ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 1);
         REQUIRE(ps_d.normals.size() == 0);
         REQUIRE(ps_d.points.at(0) == vec3<double>(1.0, 2.0, 3.0));
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("supported: vertices followed by a comment"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("v 1.0\t1.0\t1.0 # some harmless comment");
 
         REQUIRE(ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 1);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("supported: vertices and normals followed by a comment"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "v 1.0\t1.0\t1.0" << std::endl
            << "v 2.0\t2.0\t2.0 # some harmless comment" << std::endl
@@ -544,57 +544,41 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 3);
         REQUIRE(ps_d.normals.size() == 3);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: unspecified primitive type"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("1.0 1.0 1.0"); // Note: no 'v' prefix.
 
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices with 2 coordinates"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("v 1.0\t1.0\t");
 
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices with 5 coordinates"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("v 1.0\t1.0\t1.0\t1.0\t1.0");
 
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: normals with 2 coordinates"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "v 1.0\t1.0\t1.0" << std::endl
            << "vn 0\t1" << std::endl;
@@ -602,15 +586,11 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: normals with 4 coordinates"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "v 1.0\t1.0\t1.0" << std::endl
            << "vn 0\t1\t0\t0" << std::endl;
@@ -618,43 +598,31 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: vertices followed by text"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("v 1.0\t1.0\t1.0\ttext");
 
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: no vertices (empty point cloud)"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss("");
 
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 
     SUBCASE("unsupported: different number of vertices and normals"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
-
         std::stringstream ss;
         ss << "v 1.0\t1.0\t1.0" << std::endl
            << "v 2.0\t2.0\t2.0" << std::endl
@@ -665,6 +633,7 @@ TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
         REQUIRE(!ReadPointSetFromOBJ(ps_d, ss));
         REQUIRE(ps_d.points.size() == 0);
         REQUIRE(ps_d.normals.size() == 0);
+        REQUIRE(ps_d.colours.size() == 0);
         REQUIRE(ps_d.metadata.empty());
     }
 }

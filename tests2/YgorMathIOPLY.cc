@@ -9,15 +9,38 @@
 #include "doctest/doctest.h"
 
 TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
-    // Prepare a mesh that will be purged during the read.
+
     fv_surface_mesh<double,uint32_t> sm_d;
-    sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
-    sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
-    sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+    sm_d.vertices.emplace_back(vec3<double>(1.0, 2.0, 3.0));
+    sm_d.vertices.emplace_back(vec3<double>(4.0, 5.0, 6.0));
+    sm_d.vertices.emplace_back(vec3<double>(7.0, 8.0, 9.0));
+    sm_d.vertex_colours.emplace_back(static_cast<uint32_t>(1234567890));
+    sm_d.vertex_colours.emplace_back(static_cast<uint32_t>(2345678901));
+    sm_d.vertex_colours.emplace_back(static_cast<uint32_t>(3456789012));
+    sm_d.vertex_normals.emplace_back(vec3<double>(1.0,-1.0,2.0).unit());
+    sm_d.vertex_normals.emplace_back(vec3<double>(-2.0,0.0,1.0).unit());
+    sm_d.vertex_normals.emplace_back(vec3<double>(0.1,3.0,-1.0).unit());
     sm_d.faces = {{ static_cast<uint32_t>(0),
                     static_cast<uint32_t>(1),
                     static_cast<uint32_t>(2) }};
     sm_d.metadata["key"] = "value";
+
+
+    fv_surface_mesh<float,uint64_t> sm_f;
+    sm_f.vertices.emplace_back(vec3<float>(1.0f, 2.0f, 3.0f));
+    sm_f.vertices.emplace_back(vec3<float>(4.0f, 5.0f, 6.0f));
+    sm_f.vertices.emplace_back(vec3<float>(7.0f, 8.0f, 9.0f));
+    sm_f.vertex_colours.emplace_back(static_cast<uint64_t>(1234567890));
+    sm_f.vertex_colours.emplace_back(static_cast<uint64_t>(2345678901));
+    sm_f.vertex_colours.emplace_back(static_cast<uint64_t>(3456789012));
+    sm_f.vertex_normals.emplace_back(vec3<float>(1.0f,-1.0f,2.0f).unit());
+    sm_f.vertex_normals.emplace_back(vec3<float>(-2.0f,0.0f,1.0f).unit());
+    sm_f.vertex_normals.emplace_back(vec3<float>(0.1f,3.0f,-1.0f).unit());
+    sm_f.faces = {{ static_cast<uint64_t>(0),
+                    static_cast<uint64_t>(1),
+                    static_cast<uint64_t>(2) }};
+    sm_f.metadata["key"] = "value";
+
 
     SUBCASE("supported: vertices only"){
         std::stringstream ss;
@@ -43,6 +66,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -70,6 +95,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -101,6 +128,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
         REQUIRE(sm_d.vertices.back().z == 5.0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -132,6 +161,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
         REQUIRE(sm_d.vertices.back().z == 5.0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -166,6 +197,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
         REQUIRE(sm_d.vertices.back().z == 5.0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -197,6 +230,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
         REQUIRE(sm_d.vertices.back().z == 5.0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -233,6 +268,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 3);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -269,6 +306,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 5);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 3);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -290,6 +329,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 2);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.size() == 3);
         REQUIRE(sm_d.metadata.at("test_key_1") == "test_value_1");
@@ -310,6 +351,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -328,6 +371,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -350,6 +395,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -369,6 +416,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -391,6 +440,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -408,6 +459,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -426,6 +479,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -448,6 +503,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
@@ -478,6 +535,8 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
 
         REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
         REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
         REQUIRE(sm_d.faces.size() == 0);
         REQUIRE(sm_d.metadata.empty());
     }
