@@ -5709,6 +5709,7 @@ fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
 
     this->vertices = rhs.vertices;
     this->vertex_normals = rhs.vertex_normals;
+    this->vertex_colours = rhs.vertex_colours;
     this->faces = rhs.faces;
     this->involved_faces = rhs.involved_faces;
     this->metadata = rhs.metadata;
@@ -5733,6 +5734,7 @@ fv_surface_mesh<T,I>::operator==(const fv_surface_mesh<T,I> &rhs) const {
     // Note: omits involved faces, which is regenerated on-demand from vertices and faces.
     return (this->vertices       == rhs.vertices)
         && (this->vertex_normals == rhs.vertex_normals)
+        && (this->vertex_colours == rhs.vertex_colours)
         && (this->faces          == rhs.faces)
         && (this->metadata       == rhs.metadata);
 }
@@ -5760,7 +5762,7 @@ fv_surface_mesh<T,I>::operator!=(const fv_surface_mesh<T,I> &rhs) const {
 
 template <class T, class I>
 T
-fv_surface_mesh<T,I>::surface_area(long int n) const {
+fv_surface_mesh<T,I>::surface_area(long long int n) const {
     // Select which face(s) to use. If n is negative, select all faces.
     const decltype(this->faces)* faces_of_interest = &(this->faces);
     decltype(this->faces) selected_faces;
@@ -5793,11 +5795,11 @@ fv_surface_mesh<T,I>::surface_area(long int n) const {
     return rs_sarea.Current_Sum();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  fv_surface_mesh<float , uint32_t >::surface_area(long int) const;
-    template float  fv_surface_mesh<float , uint64_t >::surface_area(long int) const;
+    template float  fv_surface_mesh<float , uint32_t >::surface_area(long long int) const;
+    template float  fv_surface_mesh<float , uint64_t >::surface_area(long long int) const;
 
-    template double fv_surface_mesh<double, uint32_t >::surface_area(long int) const;
-    template double fv_surface_mesh<double, uint64_t >::surface_area(long int) const;
+    template double fv_surface_mesh<double, uint32_t >::surface_area(long long int) const;
+    template double fv_surface_mesh<double, uint64_t >::surface_area(long long int) const;
 #endif
 
 // Regenerates this->involved_faces using this->vertices and this->faces.
@@ -5834,6 +5836,10 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
     if( !this->vertex_normals.empty()
     &&  (this->vertices.size() != this->vertex_normals.size()) ){
         throw std::runtime_error("Vertices and vertex normals are not consistent. Refusing to continue");
+    }
+    if( !this->vertex_colours.empty()
+    &&  (this->vertices.size() != this->vertex_colours.size()) ){
+        throw std::runtime_error("Vertices and vertex colours are not consistent. Refusing to continue");
     }
 
     std::map<I,I> duplicates;
@@ -5913,6 +5919,9 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
 
         if( !this->vertex_normals.empty() ){
             this->vertex_normals.erase( std::next(std::begin(this->vertex_normals), dp_it->first) );
+        }
+        if( !this->vertex_colours.empty() ){
+            this->vertex_colours.erase( std::next(std::begin(this->vertex_colours), dp_it->first) );
         }
     }
 
@@ -5997,12 +6006,18 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
     &&  (this->vertices.size() != this->vertex_normals.size()) ){
         throw std::runtime_error("Vertices and vertex normals are not consistent. Refusing to continue");
     }
+    if( !this->vertex_colours.empty()
+    &&  (this->vertices.size() != this->vertex_colours.size()) ){
+        throw std::runtime_error("Vertices and vertex colours are not consistent. Refusing to continue");
+    }
 
     decltype(this->vertices) new_verts;
-    decltype(this->vertices) new_vert_normals;
+    decltype(this->vertex_normals) new_vert_normals;
+    decltype(this->vertex_colours) new_vert_colours;
     decltype(this->faces) new_faces;
     new_verts.reserve(this->vertices.size());
     new_vert_normals.reserve(this->vertex_normals.size());
+    new_vert_colours.reserve(this->vertex_colours.size());
     new_faces.reserve(this->faces.size());
 
     std::map<I,I> old_to_new_vert;
@@ -6020,6 +6035,9 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
                 if( !this->vertex_normals.empty() ){
                     new_vert_normals.push_back(  this->vertex_normals.at( old_i ) );
                 }
+                if( !this->vertex_colours.empty() ){
+                    new_vert_colours.push_back(  this->vertex_colours.at( old_i ) );
+                }
 
                 auto p = old_to_new_vert.insert( std::make_pair(old_i, static_cast<I>(new_verts.size() - 1)) );
                 it = p.first;
@@ -6033,6 +6051,7 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
 
     this->vertices = new_verts;
     this->vertex_normals = new_vert_normals;
+    this->vertex_colours = new_vert_colours;
     this->faces = new_faces;
 
     // Reset the index, which may no longer be valid.

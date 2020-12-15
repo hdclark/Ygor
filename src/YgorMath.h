@@ -549,6 +549,11 @@ template <class T, class I>   class fv_surface_mesh {
         std::vector<vec3<T>> vertex_normals; // Optional per-vertex orientation normal.
                                              // Should always be empty OR have the same size as this->vertices.
 
+        std::vector<uint32_t> vertex_colours; // Optional per-vertex colour.
+                                              // Nominally 8bit R, 8bit G, 8bit B, and 8bit A, but user-defined.
+                                              // Should always be empty OR have the same size as this->vertices.
+             
+
 
         std::vector<std::vector<I>> faces; // List of faces (simplicies) appearing in the mesh.
                                            // Each face is composed of several vertices.
@@ -576,7 +581,7 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
         // all faces.
-        T surface_area(long int n = -1) const;
+        T surface_area(long long int n = -1) const;
 
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);

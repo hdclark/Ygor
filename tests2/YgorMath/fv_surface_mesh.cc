@@ -15,10 +15,12 @@ TEST_CASE( "fv_surface_mesh constructors" ){
     SUBCASE("default constructor gives an empty mesh"){
         REQUIRE( mesh1.vertices.size() == 0 );
         REQUIRE( mesh1.vertex_normals.size() == 0 );
+        REQUIRE( mesh1.vertex_colours.size() == 0 );
         REQUIRE( mesh1.faces.size() == 0 );
 
         REQUIRE( mesh1.vertices == mesh2.vertices );
         REQUIRE( mesh1.vertex_normals == mesh2.vertex_normals );
+        REQUIRE( mesh1.vertex_colours == mesh2.vertex_colours );
         REQUIRE( mesh1.faces == mesh2.faces );
     }
 }
@@ -70,42 +72,95 @@ TEST_CASE( "fv_surface_mesh member functions" ){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p1, p4 }};
         mesh2.vertex_normals = {{ p1, p2, p3 }};
-        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+        mesh2.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901) }};
+        mesh2.faces = {{ static_cast<uint32_t>(0),
+                         static_cast<uint32_t>(1),
+                         static_cast<uint32_t>(2) }};
 
         REQUIRE( mesh2.vertices.size() == 3 );
         REQUIRE( mesh2.vertex_normals.size() == 3 );
+        REQUIRE( mesh2.vertex_colours.size() == 3 );
         REQUIRE( mesh2.faces.size() == 1 );
         mesh2.merge_duplicate_vertices();
         REQUIRE( mesh2.vertices.size() == 2 );
         REQUIRE( mesh2.vertex_normals.size() == 2 );
+        REQUIRE( mesh2.vertex_colours.size() == 2 );
         REQUIRE( mesh2.faces.size() == 0 );  // Degenerate case where the face collapses.
 
         fv_surface_mesh<double, uint32_t> mesh3;
         mesh3.vertices = {{ p1, p1, p4, p5 }};
         mesh3.vertex_normals = {{ p1, p2, p3, p4 }};
+        mesh3.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901),
+                                  static_cast<uint32_t>(456789012) }};
         mesh3.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }};
 
         REQUIRE( mesh3.vertices.size() == 4 );
         REQUIRE( mesh3.vertex_normals.size() == 4 );
+        REQUIRE( mesh3.vertex_colours.size() == 4 );
         REQUIRE( mesh3.faces.size() == 1 );
         mesh3.merge_duplicate_vertices();
         REQUIRE( mesh3.vertices.size() == 3 );
         REQUIRE( mesh3.vertex_normals.size() == 3 );
+        REQUIRE( mesh3.vertex_colours.size() == 3 );
         REQUIRE( mesh3.faces.size() == 1 );   // Facet still has non-zero area.
+
+        SUBCASE("throws when vertex normals are inconsistent"){
+            mesh3.vertex_normals.push_back(p1);
+            REQUIRE_THROWS( mesh3.merge_duplicate_vertices() );
+
+            mesh3.vertex_normals.pop_back();
+            mesh3.vertex_normals.pop_back();
+            REQUIRE_THROWS( mesh3.merge_duplicate_vertices() );
+        }
+
+        SUBCASE("throws when vertex colours are inconsistent"){
+            mesh3.vertex_colours.push_back(static_cast<uint32_t>(123456789));
+            REQUIRE_THROWS( mesh3.merge_duplicate_vertices() );
+
+            mesh3.vertex_colours.pop_back();
+            mesh3.vertex_colours.pop_back();
+            REQUIRE_THROWS( mesh3.merge_duplicate_vertices() );
+        }
+
+        SUBCASE("can proceed when attributes are missing"){
+            fv_surface_mesh<double, uint32_t> mesh4;
+            mesh4.vertices = {{ p1, p1, p4, p5 }};
+            mesh4.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }};
+
+            REQUIRE( mesh4.vertices.size() == 4 );
+            REQUIRE( mesh4.vertex_normals.size() == 0 );
+            REQUIRE( mesh4.vertex_colours.size() == 0 );
+            REQUIRE( mesh4.faces.size() == 1 );
+            mesh4.merge_duplicate_vertices();
+            REQUIRE( mesh4.vertices.size() == 3 );
+            REQUIRE( mesh4.vertex_normals.size() == 0 );
+            REQUIRE( mesh4.vertex_colours.size() == 0 );
+            REQUIRE( mesh4.faces.size() == 1 );   // Facet still has non-zero area.
+        }
     }
 
     SUBCASE("convert_to_triangles"){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p3, p4, p5 }};
         mesh2.vertex_normals = {{ p1, p2, p3, p4 }};
+        mesh2.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901),
+                                  static_cast<uint32_t>(456789012) }};
         mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }};
 
         REQUIRE( mesh2.vertices.size() == 4 );
         REQUIRE( mesh2.vertex_normals.size() == 4 );
+        REQUIRE( mesh2.vertex_colours.size() == 4 );
         REQUIRE( mesh2.faces.size() == 1 );
         mesh2.convert_to_triangles();
         REQUIRE( mesh2.vertices.size() == 4 );
         REQUIRE( mesh2.vertex_normals.size() == 4 );
+        REQUIRE( mesh2.vertex_colours.size() == 4 );
         REQUIRE( mesh2.faces.size() == 2 );
     }
 
@@ -113,15 +168,55 @@ TEST_CASE( "fv_surface_mesh member functions" ){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p3, p4, p5 }};
         mesh2.vertex_normals = {{ p1, p2, p3, p4 }};
+        mesh2.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901),
+                                  static_cast<uint32_t>(456789012) }};
         mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
 
         REQUIRE( mesh2.vertices.size() == 4 );
         REQUIRE( mesh2.vertex_normals.size() == 4 );
+        REQUIRE( mesh2.vertex_colours.size() == 4 );
         REQUIRE( mesh2.faces.size() == 1 );
         mesh2.remove_disconnected_vertices();
         REQUIRE( mesh2.vertices.size() == 3 );
         REQUIRE( mesh2.vertex_normals.size() == 3 );
+        REQUIRE( mesh2.vertex_colours.size() == 3 );
         REQUIRE( mesh2.faces.size() == 1 );
+
+        SUBCASE("throws when vertex normals are inconsistent"){
+            mesh2.vertex_normals.push_back(p1);
+            REQUIRE_THROWS( mesh2.remove_disconnected_vertices() );
+
+            mesh2.vertex_normals.pop_back();
+            mesh2.vertex_normals.pop_back();
+            REQUIRE_THROWS( mesh2.remove_disconnected_vertices() );
+        }
+
+        SUBCASE("throws when vertex colours are inconsistent"){
+            mesh2.vertex_colours.push_back(static_cast<uint32_t>(123456789));
+            REQUIRE_THROWS( mesh2.remove_disconnected_vertices() );
+
+            mesh2.vertex_colours.pop_back();
+            mesh2.vertex_colours.pop_back();
+            REQUIRE_THROWS( mesh2.remove_disconnected_vertices() );
+        }
+
+        SUBCASE("can proceed when attributes are missing"){
+            fv_surface_mesh<double, uint32_t> mesh4;
+            mesh4.vertices = {{ p1, p1, p4, p5 }};
+            mesh4.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+
+            REQUIRE( mesh4.vertices.size() == 4 );
+            REQUIRE( mesh4.vertex_normals.size() == 0 );
+            REQUIRE( mesh4.vertex_colours.size() == 0 );
+            REQUIRE( mesh4.faces.size() == 1 );
+            mesh4.remove_disconnected_vertices();
+            REQUIRE( mesh4.vertices.size() == 3 );
+            REQUIRE( mesh4.vertex_normals.size() == 0 );
+            REQUIRE( mesh4.vertex_colours.size() == 0 );
+            REQUIRE( mesh4.faces.size() == 1 );   // Facet still has non-zero area.
+        }
     }
 
     SUBCASE("sample_surface_randomly"){
