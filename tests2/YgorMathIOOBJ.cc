@@ -426,12 +426,12 @@ TEST_CASE( "YgorMathIOOBJ fv_surface_mesh round-trips" ){
 
 TEST_CASE( "YgorMathIOOBJ ReadPointSetFromOBJ" ){
 
-    SUBCASE("supported: vertices only"){
-        point_set<double> ps_d;
-        ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
-        ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
-        ps_d.metadata["key"] = "value";
+    point_set<double> ps_d;
+    ps_d.points.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+    ps_d.normals.emplace_back(vec3<double>(1.0, 1.0, 1.0).unit());
+    ps_d.metadata["key"] = "value";
 
+    SUBCASE("supported: vertices only"){
         std::stringstream ss;
         ss << "# This is a comment. It should be ignored." << std::endl
            << "# The next line is intentionally blank. It should be ignored too." << std::endl
