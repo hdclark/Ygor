@@ -483,6 +483,90 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
     }
 }
 
+TEST_CASE( "YgorMathIOPLY WriteFVSMeshToPLY (binary-only)" ){
+    const auto nan = std::numeric_limits<double>::quiet_NaN();
+    const auto inf = std::numeric_limits<double>::infinity();
+    const bool as_binary = true;
+
+    SUBCASE("supported: vertices only, doubles"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
+    SUBCASE("supported: vertices only, floats"){
+        fv_surface_mesh<float,uint32_t> sm_f;
+        sm_f.vertices.emplace_back(vec3<float>(1.0f, 1.0f, 1.0f));
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_f, ss));
+    }
+
+    SUBCASE("supported: vertices and faces"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.faces = {{ static_cast<uint32_t>(0),
+                        static_cast<uint32_t>(1),
+                        static_cast<uint32_t>(2) }};
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
+    SUBCASE("supported: vertices with infs"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, inf, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0,-inf));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.faces = {{ static_cast<uint32_t>(0),
+                        static_cast<uint32_t>(1),
+                        static_cast<uint32_t>(2) }};
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
+    SUBCASE("supported: vertices with nans"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, nan, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(nan, 1.0, 1.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, nan));
+        sm_d.faces = {{ static_cast<uint32_t>(0),
+                        static_cast<uint32_t>(1),
+                        static_cast<uint32_t>(2) }};
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
+    SUBCASE("supported: metadata"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.faces = {{ static_cast<uint32_t>(0),
+                        static_cast<uint32_t>(1),
+                        static_cast<uint32_t>(2) }};
+        sm_d.metadata["test_key_A"] = "test_value_A";
+        sm_d.metadata["test_key_B"] = "test_value_B";
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
+    SUBCASE("unsupported: no vertices or faces"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+
+        std::stringstream ss;
+        REQUIRE(!WriteFVSMeshToPLY(sm_d, ss, as_binary));
+        REQUIRE(ss.str().empty());
+    }
+}
+
 TEST_CASE( "YgorMathIOPLY WriteFVSMeshToPLY (ASCII-only)" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();
     const auto inf = std::numeric_limits<double>::infinity();
