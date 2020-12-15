@@ -101,6 +101,33 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(sm_d.metadata.empty());
     }
 
+    SUBCASE("supported: vertices and normals"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "comment this is a comment" << std::endl
+           << " comment this is another comment  " << std::endl
+           << "element vertex 3" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "property float nx" << std::endl
+           << "property float ny" << std::endl
+           << "property float nz" << std::endl
+           << "end_header" << std::endl
+           << "1 2 3 1 0 0" << std::endl
+           << "4 5 6 0 1 0" << std::endl
+           << "7 8 9 0 0 1" << std::endl
+           << "" << std::endl;
+
+        REQUIRE(ReadFVSMeshFromPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 3);
+        REQUIRE(sm_d.vertex_normals.size() == 3);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
+
     SUBCASE("supported: vertices only, extraneous numbers in stream"){
         std::stringstream ss;
         ss << "ply" << std::endl
@@ -401,6 +428,81 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(sm_d.metadata.empty());
     }
 
+    SUBCASE("unsupported: different number of vertices and normals"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "comment this is a comment" << std::endl
+           << " comment this is another comment  " << std::endl
+           << "element vertex 3" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "property float nx" << std::endl
+           << "property float ny" << std::endl
+           << "property float nz" << std::endl
+           << "end_header" << std::endl
+           << "1 2 3 1 0 0" << std::endl
+           << "4 5 6 0 1 0" << std::endl
+           << "7 8 9" << std::endl
+           << "" << std::endl;
+
+        REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
+
+    SUBCASE("unsupported: incomplete vertex elements"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "comment this is a comment" << std::endl
+           << " comment this is another comment  " << std::endl
+           << "element vertex 3" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "end_header" << std::endl
+           << "1 2" << std::endl
+           << "4 5" << std::endl
+           << "7 8" << std::endl
+           << "" << std::endl;
+
+        REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
+
+    SUBCASE("unsupported: incomplete normal elements"){
+        std::stringstream ss;
+        ss << "ply" << std::endl
+           << "format ascii 1.0" << std::endl
+           << "comment this is a comment" << std::endl
+           << " comment this is another comment  " << std::endl
+           << "element vertex 3" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "property float nx" << std::endl
+           << "end_header" << std::endl
+           << "1 2 3 1" << std::endl
+           << "4 5 6 0" << std::endl
+           << "7 8 9 1" << std::endl
+           << "" << std::endl;
+
+        REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
+
     SUBCASE("unsupported: comments in the numbers section"){
         std::stringstream ss;
         ss << "ply" << std::endl
@@ -563,6 +665,19 @@ TEST_CASE( "YgorMathIOPLY WriteFVSMeshToPLY (binary-only)" ){
         REQUIRE(WriteFVSMeshToPLY(sm_f, ss));
     }
 
+    SUBCASE("supported: vertices and normals"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss, as_binary));
+    }
+
     SUBCASE("supported: vertices and faces"){
         fv_surface_mesh<double,uint32_t> sm_d;
         sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
@@ -644,6 +759,19 @@ TEST_CASE( "YgorMathIOPLY WriteFVSMeshToPLY (ASCII-only)" ){
 
         std::stringstream ss;
         REQUIRE(WriteFVSMeshToPLY(sm_f, ss));
+    }
+
+    SUBCASE("supported: vertices and normals"){
+        fv_surface_mesh<double,uint32_t> sm_d;
+        sm_d.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_d.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_d, ss));
     }
 
     SUBCASE("supported: vertices and faces"){
@@ -734,6 +862,43 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips (ASCII-only)" ){
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.faces = {{ static_cast<uint32_t>(0),
+                           static_cast<uint32_t>(1),
+                           static_cast<uint32_t>(2) }};
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_orig, ss));
+        REQUIRE(ReadFVSMeshFromPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
+    }
+
+    SUBCASE("supported: vertices and normals"){
+        fv_surface_mesh<double,uint32_t> sm_orig;
+        fv_surface_mesh<double,uint32_t> sm_read;
+
+        sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_orig, ss));
+        REQUIRE(ReadFVSMeshFromPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
+    }
+
+    SUBCASE("supported: vertices, vertex normals, and faces"){
+        fv_surface_mesh<double,uint32_t> sm_orig;
+        fv_surface_mesh<double,uint32_t> sm_read;
+
+        sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0));
         sm_orig.faces = {{ static_cast<uint32_t>(0),
                            static_cast<uint32_t>(1),
                            static_cast<uint32_t>(2) }};
@@ -853,6 +1018,43 @@ TEST_CASE( "YgorMathIOPLY fv_surface_mesh round-trips (binary-only)" ){
         sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
         sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.faces = {{ static_cast<uint32_t>(0),
+                           static_cast<uint32_t>(1),
+                           static_cast<uint32_t>(2) }};
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_orig, ss, as_binary));
+        REQUIRE(ReadFVSMeshFromPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
+    }
+
+    SUBCASE("supported: vertices and normals"){
+        fv_surface_mesh<double,uint32_t> sm_orig;
+        fv_surface_mesh<double,uint32_t> sm_read;
+
+        sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0).unit());
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0).unit());
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0).unit());
+
+        std::stringstream ss;
+        REQUIRE(WriteFVSMeshToPLY(sm_orig, ss, as_binary));
+        REQUIRE(ReadFVSMeshFromPLY(sm_read, ss));
+        REQUIRE(sm_orig == sm_read);
+    }
+
+    SUBCASE("supported: vertices, vertex normals, and faces"){
+        fv_surface_mesh<double,uint32_t> sm_orig;
+        fv_surface_mesh<double,uint32_t> sm_read;
+
+        sm_orig.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertices.emplace_back(vec3<double>(0.0, 0.0, 1.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 1.0, 0.0));
+        sm_orig.vertex_normals.emplace_back(vec3<double>(0.0, 0.0, 1.0));
         sm_orig.faces = {{ static_cast<uint32_t>(0),
                            static_cast<uint32_t>(1),
                            static_cast<uint32_t>(2) }};

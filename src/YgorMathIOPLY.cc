@@ -406,9 +406,12 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             if(false){
             }else if( (element.name == "vertex")
                   ||  (element.name == "vertices") ){
-                long int index_x = -1;
+                long int index_x = -1; // vertices
                 long int index_y = -1;
                 long int index_z = -1;
+                long int index_nx = -1; // vertex normals
+                long int index_ny = -1;
+                long int index_nz = -1;
                 const auto N_props = static_cast<long int>(element.properties.size());
 
                 for(long int i = 0; i < N_props; ++i){
@@ -428,6 +431,22 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                           &&  (element.properties[i].name == "z")
                           &&  number_type_is_floating_point(element.properties[i].type) ){
                         index_z = i;
+
+                    }else if( (index_nx == -1)
+                          &&  !element.properties[i].is_list
+                          &&  (element.properties[i].name == "nx")
+                          &&  number_type_is_floating_point(element.properties[i].type) ){
+                        index_nx = i;
+                    }else if( (index_ny == -1)
+                          &&  !element.properties[i].is_list
+                          &&  (element.properties[i].name == "ny")
+                          &&  number_type_is_floating_point(element.properties[i].type) ){
+                        index_ny = i;
+                    }else if( (index_nz == -1)
+                          &&  !element.properties[i].is_list
+                          &&  (element.properties[i].name == "nz")
+                          &&  number_type_is_floating_point(element.properties[i].type) ){
+                        index_nz = i;
                     }
                 }
                 if( (index_x == -1)
@@ -435,26 +454,44 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                 ||  (index_z == -1) ){
                     throw std::runtime_error("Unable to identify PLY vertex position properties. Unable to continue");
                 }
+                const bool has_normal = (index_nx != -1) || (index_ny != -1) || (index_nz != -1);
+                if( has_normal ){
+                    if( (index_nx == -1) // Ensure all normal components are accounted for.
+                    ||  (index_ny == -1)
+                    ||  (index_nz == -1) ){
+                        throw std::runtime_error("Unable to identify PLY vertex normal properties. Unable to continue");
+                    }
+                }
 
                 // Read in all properties, disregarding those other than the vertex positions.
                 fvsm.vertices.reserve(element.count);
-                vec3<T> shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );;
+                vec3<T> v_shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
+                vec3<T> n_shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
                 for(long int n = 0; n < element.count; ++n){
                     for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_x){
-                            shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
                         }else if(i == index_y){
-                            shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
                         }else if(i == index_z){
-                            shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+
+                        }else if(i == index_nx){
+                            n_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                        }else if(i == index_ny){
+                            n_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                        }else if(i == index_nz){
+                            n_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+
                         }else if(element.properties[i].is_list){
                             read_list_as<I>(is, element.properties[i].list_type, element.properties[i].type, is_binary_opt.value());
                         }else{
                             read_as<T>(is, element.properties[i].type, is_binary_opt.value());
                         }
                     }
-                    fvsm.vertices.push_back(shtl);
+                    fvsm.vertices.push_back(v_shtl);
+                    if(has_normal) fvsm.vertex_normals.push_back(n_shtl.unit());
                 }
 
             // Face elements.
@@ -527,6 +564,10 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             if(N_verts == 0){
                 throw std::runtime_error("No vertices present. Refusing to continue");
             }
+            if( !fvsm.vertex_normals.empty()
+            &&  (fvsm.vertex_normals.size() != fvsm.vertices.size())){
+                throw std::runtime_error("Inconsistent number of vertices and normals -- refusing to parse as surface mesh");
+            }
             for(const auto &fv : fvsm.faces){
                 if(fv.empty()){
                     throw std::runtime_error("Encountered face with zero involved vertices");
@@ -581,6 +622,13 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
         FUNCWARN("No vertices to write. Refusing to continue");
         return false;
     }
+    const size_t N_verts = fvsm.vertices.size();
+
+    const bool has_normals = !fvsm.vertex_normals.empty();
+    if( has_normals
+    &&  (fvsm.vertex_normals.size() != fvsm.vertices.size())){
+        throw std::runtime_error("Inconsistent number of vertices and normals -- refusing to write PLY file");
+    }
 
     // Used to determine when text must be base64 encoded.
     const auto needs_to_be_escaped = [](const std::string &in) -> bool {
@@ -626,6 +674,11 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
        << "property float" << sizeof(T)*8 << " x\n"
        << "property float" << sizeof(T)*8 << " y\n"
        << "property float" << sizeof(T)*8 << " z\n";
+    if(has_normals){
+        os << "property float" << sizeof(T)*8 << " nx\n"
+           << "property float" << sizeof(T)*8 << " ny\n"
+           << "property float" << sizeof(T)*8 << " nz\n";
+    }
     if(N_faces != 0){
         os << "element face " << N_faces << "\n"
            << "property list uchar int" << sizeof(I)*8 << " vertex_index\n";
@@ -646,12 +699,20 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     os.precision( std::numeric_limits<T>::max_digits10 );
 
     if(as_binary){
-        for(const auto &v : fvsm.vertices){
-            if( !os.write(reinterpret_cast<const char*>(&(v.x)), sizeof(v.x))
-            ||  !os.write(reinterpret_cast<const char*>(&(v.y)), sizeof(v.y))
-            ||  !os.write(reinterpret_cast<const char*>(&(v.z)), sizeof(v.z)) ){
+        for(size_t i = 0; i < N_verts; ++i){
+            if( !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].x)), sizeof(fvsm.vertices[i].x))
+            ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].y)), sizeof(fvsm.vertices[i].y))
+            ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].z)), sizeof(fvsm.vertices[i].z)) ){
                 FUNCWARN("Unable to write vertex to stream. Cannot continue");
                 return false;
+            }
+            if( has_normals ){
+                if( !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].x)), sizeof(fvsm.vertex_normals[i].x))
+                ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].y)), sizeof(fvsm.vertex_normals[i].y))
+                ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].z)), sizeof(fvsm.vertex_normals[i].z)) ){
+                    FUNCWARN("Unable to write vertex normals to stream. Cannot continue");
+                    return false;
+                }
             }
         }
         for(const auto &fv : fvsm.faces){
@@ -672,10 +733,20 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
         }
 
     }else{
-        for(const auto &v : fvsm.vertices){
-            if(!(os << v.x << " " << v.y << " " << v.z << "\n")){
+        for(size_t i = 0; i < N_verts; ++i){
+            if(!(os << fvsm.vertices[i].x << " "
+                    << fvsm.vertices[i].y << " "
+                    << fvsm.vertices[i].z << "\n")){
                 FUNCWARN("Unable to write vertex to stream. Cannot continue");
                 return false;
+            }
+            if( has_normals ){
+                if(!(os << fvsm.vertex_normals[i].x << " "
+                        << fvsm.vertex_normals[i].y << " "
+                        << fvsm.vertex_normals[i].z << "\n")){
+                    FUNCWARN("Unable to write vertex normals to stream. Cannot continue");
+                    return false;
+                }
             }
         }
         for(const auto &fv : fvsm.faces){
