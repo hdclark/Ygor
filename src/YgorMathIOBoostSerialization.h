@@ -94,6 +94,8 @@ void serialize(Archive &a, contour_collection<T> &c, const unsigned int /*versio
 template<typename Archive, class T, class I>
 void serialize(Archive &a, fv_surface_mesh<T,I> &m, const unsigned int /*version*/){
     a & boost::serialization::make_nvp("vertices", m.vertices)
+      & boost::serialization::make_nvp("vertex_normals", m.vertex_normals)
+      & boost::serialization::make_nvp("vertex_colours", m.vertex_colours)
       & boost::serialization::make_nvp("faces", m.faces)
       & boost::serialization::make_nvp("involved_faces", m.involved_faces)
       & boost::serialization::make_nvp("metadata", m.metadata);
@@ -105,6 +107,7 @@ template<typename Archive, class T>
 void serialize(Archive &a, point_set<T> &m, const unsigned int /*version*/){
     a & boost::serialization::make_nvp("points", m.points)
       & boost::serialization::make_nvp("normals", m.normals)
+      & boost::serialization::make_nvp("colours", m.colours)
       & boost::serialization::make_nvp("metadata", m.metadata);
     return;
 }

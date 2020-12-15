@@ -552,7 +552,6 @@ template <class T, class I>   class fv_surface_mesh {
         std::vector<uint32_t> vertex_colours; // Optional per-vertex colour.
                                               // Nominally 8bit R, 8bit G, 8bit B, and 8bit A, but user-defined.
                                               // Should always be empty OR have the same size as this->vertices.
-             
 
 
         std::vector<std::vector<I>> faces; // List of faces (simplicies) appearing in the mesh.
@@ -615,20 +614,15 @@ template <class T, class I>   class fv_surface_mesh {
 template <class T>   class point_set {
     public:
         std::vector< vec3<T> > points;
-        std::vector< vec3<T> > normals;
+
+        std::vector< vec3<T> > normals; // Optional per-vertex orientation normal.
+                                        // Should always be empty OR have the same size as this->points.
+
+        std::vector<uint32_t> colours;  // Optional per-point colour.
+                                        // Nominally 8bit R, 8bit G, 8bit B, and 8bit A, but user-defined.
+                                        // Should always be empty OR have the same size as this->points.
 
         std::map< std::string, std::string > metadata; //User-defined metadata.
-
-        // How to enable serializable and runtime-inspectable attributes? (Maybe by allowing for a user-provided closure
-        // that can (de-)serialize the attribute?)
-        //
-        // std::map< std::string, std::any > attributes;
-        //
-        // std::vector< vec3<double> > normals;
-        // std::vector< double >       intensity;
-        //
-        // Disabling ALL attributes until I can sort this out. If attributes are needed, they will have to be maintained
-        // externally for now.
 
         //Constructors.
         point_set();

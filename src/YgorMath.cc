@@ -6246,6 +6246,7 @@ point_set<T>::point_set() { }
 template <class T>
 point_set<T>::point_set( const point_set &in ) : points(in.points),
                                                  normals(in.normals),
+                                                 colours(in.colours),
                                                  metadata(in.metadata) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template point_set< float  >::point_set(const point_set< float  > &);
@@ -6261,6 +6262,7 @@ point_set<T>::operator=(const point_set<T> &rhs) {
 
     this->points   = rhs.points;
     this->normals  = rhs.normals;
+    this->colours  = rhs.colours;
     this->metadata = rhs.metadata;
     return *this;
 }
@@ -6275,6 +6277,7 @@ point_set<T>::operator==(const point_set<T> &rhs) const {
     if(this == &rhs) return true;
     return (this->points   == rhs.points)
         && (this->normals  == rhs.normals)
+        && (this->colours  == rhs.colours)
         && (this->metadata == rhs.metadata);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
