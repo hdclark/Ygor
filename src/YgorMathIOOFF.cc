@@ -142,10 +142,17 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     long long int N_verts = -1;
     long long int N_faces = -1;
 
-    fvsm.vertices.clear();
-    fvsm.faces.clear();
+    const auto reset = [&](){
+        fvsm.vertices.clear();
+        fvsm.vertex_normals.clear();
+        fvsm.vertex_colours.clear();
+        fvsm.faces.clear();
+        fvsm.metadata.clear();
+    };
+    reset();
 
     std::string line;
+    long int header_failures = 0;
     while(std::getline(is, line)){
         if(line.empty()) continue;
 
@@ -183,6 +190,12 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                 continue;
 
             }catch(const std::exception &){ 
+                ++header_failures;
+                if(5 < header_failures){
+                    FUNCWARN("Unable to locate header counts -- refusing to parse as surface mesh");
+                    reset();
+                    return false;
+                }
                 continue; 
             }
 
@@ -190,16 +203,27 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
         }else{
             // Fill up the vertices first.
             if(static_cast<long long int>(fvsm.vertices.size()) != N_verts){
-                if(split.size() != 3) continue; // Actually an error...
+                if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
                 try{
-                    const auto x = std::stod(split.at(0));
-                    const auto y = std::stod(split.at(1));
-                    const auto z = std::stod(split.at(2));
+                    const auto x = std::stod(split[0]);
+                    const auto y = std::stod(split[1]);
+                    const auto z = std::stod(split[2]);
                     fvsm.vertices.emplace_back( static_cast<T>(x), 
                                                 static_cast<T>(y),
                                                 static_cast<T>(z) );
+                    if(split.size() == 6){
+                        const auto nx = std::stod(split[3]);
+                        const auto ny = std::stod(split[4]);
+                        const auto nz = std::stod(split[5]);
+                        fvsm.vertex_normals.emplace_back( vec3<T>( static_cast<T>(nx), 
+                                                                   static_cast<T>(ny),
+                                                                   static_cast<T>(nz) ).unit() );
+                    }
+
                 }catch(const std::exception &){ 
-                    continue; 
+                    FUNCWARN("File contains invalid vertex statement -- refusing to parse as surface mesh");
+                    reset();
+                    return false;
                 }
                 continue;
 
@@ -211,7 +235,11 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                 try{
                     const auto N = static_cast<long long int>(split.size());
                     const auto n = std::stoll(split.at(0)); // Number of verts for this face.
-                    if(N != (n+1)) continue;
+                    if(N != (n+1)){
+                        FUNCWARN("File contains invalid face size statement -- refusing to parse as surface mesh");
+                        reset();
+                        return false;
+                    }
                     std::vector<I> shtl;
                     for(long int i = 1; i < N; ++i){
                         const auto x = std::stoll(split.at(i));
@@ -220,7 +248,9 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
                     fvsm.faces.emplace_back(shtl);
                 }catch(const std::exception &){ 
-                    continue; 
+                    FUNCWARN("File contains invalid face statement -- refusing to parse as surface mesh");
+                    reset();
+                    return false;
                 }
                 continue;
 
@@ -236,14 +266,23 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     // Verify the file was consistent.
     if( !dims_known ){
         FUNCWARN("Dimensions could not be determined");
+        reset();
         return false;
     }
     if( (static_cast<long long int>(fvsm.vertices.size()) != N_verts) ){
         FUNCWARN("Read " << static_cast<long long int>(fvsm.vertices.size()) << " vertices (should be " << N_verts << ")");
+        reset();
         return false;
     }
     if( (static_cast<long long int>(fvsm.faces.size()) != N_faces) ){
         FUNCWARN("Read " << static_cast<long long int>(fvsm.faces.size()) << " faces (should be " << N_faces << ")");
+        reset();
+        return false;
+    }
+    if( !fvsm.vertex_normals.empty()
+    &&  (fvsm.vertex_normals.size() != fvsm.vertices.size()) ){
+        FUNCWARN("Read " << static_cast<long long int>(fvsm.vertex_normals.size()) << " vertex normals (should be 0 or " << N_verts << ")");
+        reset();
         return false;
     }
 
@@ -274,18 +313,40 @@ bool
 WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
                   std::ostream &os ){
 
-    os << "OFF" << std::endl;
+    const bool has_normals = !fvsm.vertex_normals.empty();
+    if(has_normals && (fvsm.vertices.size() != fvsm.vertex_normals.size())){
+        FUNCWARN("Vertex normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        return false;
+    }
+
+    if(fvsm.vertices.empty()){
+        FUNCWARN("No vertices detected -- refusing to write surface mesh");
+        return false;
+    }
+
+    if(!( os << "OFF\n" )){
+        FUNCWARN("Unable to write to stream. Cannot continue");
+        return false;
+    }
     os << fvsm.vertices.size() << " "
-        << fvsm.faces.size() << " "
-        << "0" << std::endl; // Number of edges.
+       << fvsm.faces.size() << " "
+       << "0\n"; // Number of edges.
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
-    for(const auto &v : fvsm.vertices){
-        os << v.x << " "
-            << v.y << " "
-            << v.z << '\n';
+    
+    const auto N_verts = fvsm.vertices.size();
+    for(size_t i = 0; i < N_verts; ++i){
+        os << fvsm.vertices[i].x << " "
+           << fvsm.vertices[i].y << " "
+           << fvsm.vertices[i].z;
+        if(has_normals){
+            os << " " << fvsm.vertex_normals[i].x
+               << " " << fvsm.vertex_normals[i].y
+               << " " << fvsm.vertex_normals[i].z;
+        }
+        os << "\n";
     }
     // Reset the precision on the stream.
     os.precision( original_precision );
@@ -324,7 +385,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 template <class T>
 bool
 ReadPointSetFromOFF(point_set<T> &ps,
-                      std::istream &is ){
+                    std::istream &is ){
 
     if(!is.good()){
         throw std::runtime_error("unable to read file.");
@@ -362,7 +423,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
         if(!dims_known){
             // The first line might contain merely "OFF", but it is not required. So we ignore anything that is not what we
             // need at a given moment. Note that out-of-order files will thus not be parsed correctly!
-            if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
+            if(split.size() != 3) continue;
 
             try{
                 const auto v = std::stoll(split.at(0));

@@ -53,7 +53,7 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 // This routine reads an point_set from an OFF format stream.
 //
 // Note that OFF files can contain many irrelevant elements.
-// This routine will extract only vertices and (optionally) normals.
+// This routine will extract only vertices and, if present, normals.
 template <class T>
 bool
 ReadPointSetFromOFF(point_set<T> &ps,

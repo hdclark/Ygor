@@ -29,9 +29,15 @@ bool
 ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                    std::istream &is ){
 
-    fvsm.vertices.clear();
-    fvsm.faces.clear();
-    fvsm.involved_faces.clear();
+    const auto reset = [&](){
+        fvsm.vertices.clear();
+        fvsm.vertex_normals.clear();
+        fvsm.vertex_colours.clear();
+        fvsm.faces.clear();
+        fvsm.involved_faces.clear();
+        fvsm.metadata.clear();
+    };
+    reset();
 
     std::string line;
     while(std::getline(is, line)){
@@ -54,17 +60,46 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
         // Add a new vertex.
         if(false){
         }else if(split.at(0) == "v"_s){
-            if(split.size() != 4) continue; // Actually an error...
+            if( !( (split.size() == 4) || (split.size() == 5) ) ){
+                FUNCWARN("File contains unknown vertex statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
+            }
             try{
                 const auto x = std::stod(split.at(1));
                 const auto y = std::stod(split.at(2));
                 const auto z = std::stod(split.at(3));
+                if(split.size() == 5) std::stod(split.at(4)); // Optional weight term. Not supported here.
                 fvsm.vertices.emplace_back( static_cast<T>(x), 
                                             static_cast<T>(y),
                                             static_cast<T>(z) );
             }catch(const std::exception &){ 
-                continue; 
+                //continue;
+                FUNCWARN("File contains invalid vertex statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
             }
+
+        // Add a vertex normal.
+        }else if(split[0] == "vn"_s){
+            if(split.size() != 4){
+                FUNCWARN("File contains unknown vertex normal statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
+            }
+            try{
+                const auto nx = std::stod(split[1]);
+                const auto ny = std::stod(split[2]);
+                const auto nz = std::stod(split[3]);
+                fvsm.vertex_normals.emplace_back( vec3<T>( static_cast<T>(nx), 
+                                                           static_cast<T>(ny),
+                                                           static_cast<T>(nz) ).unit() );
+            }catch(const std::exception &){ 
+                FUNCWARN("File contains invalid vertex normal statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
+            }
+
 
         // Add a new line (aka edge).
         //
@@ -81,7 +116,9 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                 const auto x = std::stoll(split.at(1));
                 const auto y = std::stoll(split.at(2));
                 if((x == 0LL) || (y == 0LL)){
-                    FUNCERR("This file is invalid; line indexes should never be zero");
+                    FUNCWARN("This file is invalid; line indexes should never be zero");
+                    reset();
+                    return false;
                 }
 
                 // Convert to absolute vertices.
@@ -96,7 +133,9 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                                                 static_cast<I>(abs_y - 1LL) }};
                 fvsm.faces.emplace_back( faces );
             }catch(const std::exception &){ 
-                continue; 
+                FUNCWARN("File contains invalid line (ie edge) statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
             }
 
         // Add a new face.
@@ -110,7 +149,9 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                     // last vertex).
                     const auto x = std::stoll(split.at(i));
                     if(x == 0LL){
-                        FUNCERR("This file is invalid; face indexes should never be zero");
+                        FUNCWARN("This file is invalid; face indexes should never be zero in OBJ files");
+                        reset();
+                        return false;
                     }
 
                     // Convert to absolute vertices.
@@ -121,7 +162,9 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                 }
                 fvsm.faces.emplace_back(fi);
             }catch(const std::exception &){ 
-                continue; 
+                FUNCWARN("File contains invalid face statement -- refusing to parse as surface mesh");
+                reset();
+                return false;
             }
         }
 
@@ -130,17 +173,34 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
     // Verify that the indices are reasonable.
     {
         const auto N_verts = fvsm.vertices.size();
+        if(N_verts == 0){
+            FUNCWARN("No vertices detected -- refusing to parse as surface mesh");
+            reset();
+            return false;
+        }
         for(const auto &fv : fvsm.faces){
             if(fv.empty()){
                 FUNCWARN("Encountered face with zero involved vertices");
+                reset();
                 return false;
             }
             for(const auto &v_i : fv){
                 if((v_i < 0) || (N_verts <= v_i)){
                     FUNCWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
+                    reset();
                     return false;
                 }
             }
+        }
+    }
+
+    // Verify that vertex normals are reasonable.
+    {
+        const bool has_normals = !fvsm.vertex_normals.empty();
+        if(has_normals && (fvsm.vertices.size() != fvsm.vertex_normals.size())){
+            FUNCWARN("Vertex normals are inconsistent with vertices");
+            reset();
+            return false;
         }
     }
 
@@ -149,6 +209,7 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
         fvsm.recreate_involved_face_index();
     }catch(const std::exception &){ 
         FUNCWARN("Failed to recreate involved_faces index");
+        reset();
         return false;
     }
 
@@ -172,7 +233,21 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
                   std::ostream &os,
                   bool use_relative_indexing){
 
-    os << "# Wavefront OBJ file." << std::endl;
+    const bool has_normals = !fvsm.vertex_normals.empty();
+    if(has_normals && (fvsm.vertices.size() != fvsm.vertex_normals.size())){
+        FUNCWARN("Vertex normals are inconsistent with vertices. Refusing to write point set in OBJ format");
+        return false;
+    }
+
+    if(fvsm.vertices.empty()){
+        FUNCWARN("No vertices detected -- refusing to write surface mesh");
+        return false;
+    }
+
+    if(!( os << "# Wavefront OBJ file.\n" )){
+        FUNCWARN("Unable to write to stream. Cannot continue");
+        return false;
+    }
 
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
@@ -182,6 +257,12 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
             << v.x << " "
             << v.y << " "
             << v.z << '\n';
+    }
+    for(const auto &vn : fvsm.vertex_normals){
+        os << "vn "
+            << vn.x << " "
+            << vn.y << " "
+            << vn.z << '\n';
     }
 
     // Reset the precision on the stream.
@@ -234,6 +315,7 @@ ReadPointSetFromOBJ(point_set<T> &ps,
     const auto reset = [&](){
         ps.points.clear();
         ps.normals.clear();
+        ps.colours.clear();
         ps.metadata.clear();
     };
     reset();
@@ -338,12 +420,12 @@ WritePointSetToOBJ(const point_set<T> &ps,
                   std::ostream &os){
 
     if(ps.points.empty()){
-        FUNCWARN("No vertices present. Refusing to write point set in OFF format");
+        FUNCWARN("No vertices present. Refusing to write point set in OBJ format");
         return false;
     }
     const bool has_normals = !ps.normals.empty();
     if(has_normals && (ps.points.size() != ps.normals.size())){
-        FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OBJ format");
         return false;
     }
 
