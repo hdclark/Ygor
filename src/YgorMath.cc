@@ -5689,6 +5689,8 @@ fv_surface_mesh<T,I>::fv_surface_mesh() { }
 
 template <class T, class I>
 fv_surface_mesh<T,I>::fv_surface_mesh( const fv_surface_mesh &in) : vertices(in.vertices),
+                                                                    vertex_normals(in.vertex_normals),
+                                                                    vertex_colours(in.vertex_colours),
                                                                     faces(in.faces),
                                                                     involved_faces(in.involved_faces),
                                                                     metadata(in.metadata) { }
@@ -5707,12 +5709,12 @@ fv_surface_mesh<T,I>::operator=(const fv_surface_mesh<T,I> &rhs) {
     //Check if it is itself.
     if(this == &rhs) return *this; 
 
-    this->vertices = rhs.vertices;
+    this->vertices       = rhs.vertices;
     this->vertex_normals = rhs.vertex_normals;
     this->vertex_colours = rhs.vertex_colours;
-    this->faces = rhs.faces;
+    this->faces          = rhs.faces;
     this->involved_faces = rhs.involved_faces;
-    this->metadata = rhs.metadata;
+    this->metadata       = rhs.metadata;
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -5759,6 +5761,28 @@ fv_surface_mesh<T,I>::operator!=(const fv_surface_mesh<T,I> &rhs) const {
     template bool fv_surface_mesh<double, uint32_t>::operator!=(const fv_surface_mesh<double, uint32_t> &) const;
     template bool fv_surface_mesh<double, uint64_t>::operator!=(const fv_surface_mesh<double, uint64_t> &) const;
 #endif
+
+
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::swap(fv_surface_mesh<T,I> &in){
+    if(this == &in) return;
+    std::swap(this->vertices      , in.vertices);
+    std::swap(this->vertex_normals, in.vertex_normals);
+    std::swap(this->vertex_colours, in.vertex_colours);
+    std::swap(this->faces         , in.faces);
+    std::swap(this->involved_faces, in.involved_faces);
+    std::swap(this->metadata      , in.metadata);
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::swap(fv_surface_mesh<float , uint32_t> &);
+    template void fv_surface_mesh<float , uint64_t >::swap(fv_surface_mesh<float , uint64_t> &);
+
+    template void fv_surface_mesh<double, uint32_t >::swap(fv_surface_mesh<double, uint32_t> &);
+    template void fv_surface_mesh<double, uint64_t >::swap(fv_surface_mesh<double, uint64_t> &);
+#endif
+
 
 template <class T, class I>
 T
@@ -6161,6 +6185,30 @@ fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, long in
 #endif
 
 
+// Converts mesh to a point set, stealing all relevant members. Only possible if there are no faces.
+template <class T, class I>
+point_set<T>
+fv_surface_mesh<T,I>::convert_to_point_set() {
+    if(!this->faces.empty()) throw std::runtime_error("Faces present. Refusing to convert to point_set");
+
+    point_set<T> p;
+    std::swap(p.points, this->vertices);
+    std::swap(p.normals, this->vertex_normals);
+    std::swap(p.colours, this->vertex_colours);
+    std::swap(p.metadata, this->metadata);
+
+    *this = fv_surface_mesh<T,I>(); // Ensure *this is reset (e.g., involved_faces).
+    return p;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template point_set<float > fv_surface_mesh<float , uint32_t >::convert_to_point_set();
+    template point_set<float > fv_surface_mesh<float , uint64_t >::convert_to_point_set();
+
+    template point_set<double> fv_surface_mesh<double, uint32_t >::convert_to_point_set();
+    template point_set<double> fv_surface_mesh<double, uint64_t >::convert_to_point_set();
+#endif
+
+
 template <class T, class I>
 bool
 fv_surface_mesh<T,I>::MetadataKeyPresent(std::string key) const {
@@ -6174,6 +6222,7 @@ fv_surface_mesh<T,I>::MetadataKeyPresent(std::string key) const {
     template bool fv_surface_mesh<double, uint32_t>::MetadataKeyPresent(std::string key) const;
     template bool fv_surface_mesh<double, uint64_t>::MetadataKeyPresent(std::string key) const;
 #endif
+
 
 template <class T, class I>
 template <class U>
@@ -6294,7 +6343,24 @@ point_set<T>::operator!=(const point_set<T> &rhs) const {
     template bool point_set<float >::operator!=(const point_set<float > &) const;
     template bool point_set<double>::operator!=(const point_set<double> &) const;
 #endif
-    
+
+
+template <class T>
+void
+point_set<T>::swap(point_set<T> &in){
+    if(this == &in) return;
+    std::swap(this->points   , in.points);
+    std::swap(this->normals  , in.normals);
+    std::swap(this->colours  , in.colours);
+    std::swap(this->metadata , in.metadata);
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void point_set<float >::swap(point_set<float > &);
+    template void point_set<double>::swap(point_set<double> &);
+#endif
+
+
 template <class T>
 vec3<T>
 point_set<T>::Centroid(void) const {

@@ -578,6 +578,8 @@ template <class T, class I>   class fv_surface_mesh {
         bool operator==(const fv_surface_mesh &) const;
         bool operator!=(const fv_surface_mesh &) const;
 
+        void swap(fv_surface_mesh &);
+
         // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
         // all faces.
         T surface_area(long long int n = -1) const;
@@ -600,6 +602,9 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Sample the surface using uniform random sampling.
         point_set<T> sample_surface_randomly(T surface_area_per_sample, long int random_seed) const;
+
+        // Converts mesh to a point set, stealing all relevant members. Only possible if there are no faces.
+        point_set<T> convert_to_point_set();
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
@@ -632,6 +637,8 @@ template <class T>   class point_set {
         point_set & operator= (const point_set &);
         bool operator==(const point_set &) const;
         bool operator!=(const point_set &) const;
+
+        void swap(point_set &);
 
         vec3<T> Centroid(void) const; // Estimate the centroid (i.e., the centre of mass if all points have identical mass).
 

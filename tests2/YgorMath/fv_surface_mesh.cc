@@ -8,24 +8,7 @@
 #include "doctest/doctest.h"
 
 
-TEST_CASE( "fv_surface_mesh constructors" ){
-    fv_surface_mesh<double, uint32_t> mesh1;
-    fv_surface_mesh<double, uint32_t> mesh2;
-
-    SUBCASE("default constructor gives an empty mesh"){
-        REQUIRE( mesh1.vertices.size() == 0 );
-        REQUIRE( mesh1.vertex_normals.size() == 0 );
-        REQUIRE( mesh1.vertex_colours.size() == 0 );
-        REQUIRE( mesh1.faces.size() == 0 );
-
-        REQUIRE( mesh1.vertices == mesh2.vertices );
-        REQUIRE( mesh1.vertex_normals == mesh2.vertex_normals );
-        REQUIRE( mesh1.vertex_colours == mesh2.vertex_colours );
-        REQUIRE( mesh1.faces == mesh2.faces );
-    }
-}
-
-TEST_CASE( "fv_surface_mesh member functions" ){
+TEST_CASE( "fv_surface_mesh class" ){
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
 
     const vec3<double> p1(1.0, 0.0, 0.0);
@@ -39,10 +22,47 @@ TEST_CASE( "fv_surface_mesh member functions" ){
     mesh1.vertices = {{ p1, p3, p4 }};
     mesh1.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
 
-    SUBCASE("operator=="){
+    SUBCASE("default constructor gives an empty mesh"){
+        fv_surface_mesh<double, uint32_t> mesh1;
+        fv_surface_mesh<double, uint32_t> mesh2;
+
+        REQUIRE( mesh1.vertices.size() == 0 );
+        REQUIRE( mesh1.vertex_normals.size() == 0 );
+        REQUIRE( mesh1.vertex_colours.size() == 0 );
+        REQUIRE( mesh1.faces.size() == 0 );
+
+        REQUIRE( mesh1.vertices == mesh2.vertices );
+        REQUIRE( mesh1.vertex_normals == mesh2.vertex_normals );
+        REQUIRE( mesh1.vertex_colours == mesh2.vertex_colours );
+        REQUIRE( mesh1.faces == mesh2.faces );
+    }
+
+    SUBCASE("copy constructor and operator="){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p3, p4, p5 }};
+        mesh2.vertex_normals = {{ p1, p2, p3, p4 }};
+        mesh2.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901),
+                                  static_cast<uint32_t>(456789012) }};
+        mesh2.metadata["new key"] = "new value";
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(3) }};
+        mesh2.recreate_involved_face_index();
+
+        fv_surface_mesh<double, uint32_t> mesh3(mesh2);
+        fv_surface_mesh<double, uint32_t> mesh4 = mesh2;
+        REQUIRE(mesh2 == mesh2);
+        REQUIRE(mesh3 == mesh2);
+        REQUIRE(mesh4 == mesh2);
+        REQUIRE(mesh4 == mesh3);
+    }
+
+    SUBCASE("operator== and operator!="){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p3, p4 }};
         mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+        REQUIRE( mesh1 == mesh1 );
         REQUIRE( mesh1 == mesh2 );
 
         // Member 'involved_faces' should not impact equality since it is a derived structure that may be in an
@@ -56,6 +76,25 @@ TEST_CASE( "fv_surface_mesh member functions" ){
         // Metadata *is* significant for equality.
         mesh2.metadata["new key"] = "new value";
         REQUIRE( mesh1 != mesh2 );
+    }
+
+    SUBCASE("swap"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3 }};
+        mesh2.faces = {{ static_cast<uint32_t>(2), static_cast<uint32_t>(1), static_cast<uint32_t>(0) }};
+
+        fv_surface_mesh<double, uint32_t> mesh3 = mesh1;
+        fv_surface_mesh<double, uint32_t> mesh4 = mesh2;
+
+        REQUIRE( mesh1 == mesh3 );
+        REQUIRE( mesh2 == mesh4 );
+        REQUIRE( mesh1 != mesh4 );
+        REQUIRE( mesh2 != mesh3 );
+        mesh3.swap(mesh4);
+        REQUIRE( mesh1 != mesh3 );
+        REQUIRE( mesh2 != mesh4 );
+        REQUIRE( mesh1 == mesh4 );
+        REQUIRE( mesh2 == mesh3 );
     }
 
     SUBCASE("surface_area"){
@@ -324,6 +363,39 @@ TEST_CASE( "fv_surface_mesh member functions" ){
             WARN_MESSAGE(diff < 48, "3 std. dev. statistical test failed");
             WARN_MESSAGE(diff < 32, "2 std. dev. statistical test failed");
             WARN_MESSAGE(diff < 16, "1 std. dev. statistical test failed");
+        }
+    }
+
+    SUBCASE("convert_to_point_set"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p3, p4, p5 }};
+        mesh2.vertex_normals = {{ p1, p2, p3, p4 }};
+        mesh2.vertex_colours = {{ static_cast<uint32_t>(123456789),
+                                  static_cast<uint32_t>(234567890),
+                                  static_cast<uint32_t>(345678901),
+                                  static_cast<uint32_t>(456789012) }};
+        mesh2.metadata["new key"] = "new value";
+
+        SUBCASE("throws if conversion would be lossy"){
+            mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(3) }};
+            mesh2.recreate_involved_face_index();
+            REQUIRE_THROWS(mesh2.convert_to_point_set());
+        }
+
+        SUBCASE("conversion is lossless and leaves mesh in default state"){
+            fv_surface_mesh<double, uint32_t> mesh3 = mesh2;
+            point_set<double> p = mesh3.convert_to_point_set();
+
+            // The point_set should steal member data.
+            REQUIRE(p.points == mesh2.vertices);
+            REQUIRE(p.metadata == mesh2.metadata);
+            REQUIRE(p.normals == mesh2.vertex_normals);
+            REQUIRE(p.colours == mesh2.vertex_colours);
+
+            // The mesh should be reset to default state.
+            fv_surface_mesh<double, uint32_t> mesh4;
+            REQUIRE(mesh3 == mesh4);
         }
     }
 }
