@@ -43,26 +43,66 @@
 //Constructors.
 template <class T>    vec3<T>::vec3(){   x=(T)(0);   y=(T)(0);   z=(T)(0);  }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float >::vec3(void);
-    template vec3<double>::vec3(void);
+    template vec3<float   >::vec3(void);
+    template vec3<double  >::vec3(void);
+
+    template vec3<uint8_t >::vec3(void);
+    template vec3<uint16_t>::vec3(void);
+    template vec3<uint32_t>::vec3(void);
+    template vec3<uint64_t>::vec3(void);
+
+    template vec3<int8_t  >::vec3(void);
+    template vec3<int16_t >::vec3(void);
+    template vec3<int32_t >::vec3(void);
+    template vec3<int64_t >::vec3(void);
 #endif
 
 template <class T>    vec3<T>::vec3(T a, T b, T c) : x(a), y(b), z(c) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float >::vec3(float , float , float );
-    template vec3<double>::vec3(double, double, double);
+    template vec3<float   >::vec3(float   , float   , float   );
+    template vec3<double  >::vec3(double  , double  , double  );
+
+    template vec3<uint8_t >::vec3(uint8_t , uint8_t , uint8_t );
+    template vec3<uint16_t>::vec3(uint16_t, uint16_t, uint16_t);
+    template vec3<uint32_t>::vec3(uint32_t, uint32_t, uint32_t);
+    template vec3<uint64_t>::vec3(uint64_t, uint64_t, uint64_t);
+
+    template vec3<int8_t  >::vec3(int8_t  , int8_t  , int8_t  );
+    template vec3<int16_t >::vec3(int16_t , int16_t , int16_t );
+    template vec3<int32_t >::vec3(int32_t , int32_t , int32_t );
+    template vec3<int64_t >::vec3(int64_t , int64_t , int64_t );
 #endif
     
 template <class T>    vec3<T>::vec3( const vec3<T> &in ) : x(in.x), y(in.y), z(in.z) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float >::vec3( const vec3<float > & );
-    template vec3<double>::vec3( const vec3<double> & );
+    template vec3<float   >::vec3( const vec3<float   > & );
+    template vec3<double  >::vec3( const vec3<double  > & );
+
+    template vec3<uint8_t >::vec3( const vec3<uint8_t > & );
+    template vec3<uint16_t>::vec3( const vec3<uint16_t> & );
+    template vec3<uint32_t>::vec3( const vec3<uint32_t> & );
+    template vec3<uint64_t>::vec3( const vec3<uint64_t> & );
+
+    template vec3<int8_t  >::vec3( const vec3<int8_t  > & );
+    template vec3<int16_t >::vec3( const vec3<int16_t > & );
+    template vec3<int32_t >::vec3( const vec3<int32_t > & );
+    template vec3<int64_t >::vec3( const vec3<int64_t > & );
 #endif
     
 template <class T>    vec3<T>::vec3( std::array<T,3> in ) : x(in[0]), y(in[1]), z(in[2]) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float >::vec3( std::array<float , 3> );
-    template vec3<double>::vec3( std::array<double, 3> );
+    template vec3<float   >::vec3( std::array<float   , 3> );
+    template vec3<double  >::vec3( std::array<double  , 3> );
+
+    template vec3<uint8_t >::vec3( std::array<uint8_t , 3> );
+    template vec3<uint16_t>::vec3( std::array<uint16_t, 3> );
+    template vec3<uint32_t>::vec3( std::array<uint32_t, 3> );
+    template vec3<uint64_t>::vec3( std::array<uint64_t, 3> );
+
+    template vec3<int8_t  >::vec3( std::array<int8_t  , 3> );
+    template vec3<int16_t >::vec3( std::array<int16_t , 3> );
+    template vec3<int32_t >::vec3( std::array<int32_t , 3> );
+    template vec3<int64_t >::vec3( std::array<int64_t , 3> );
 #endif
     
 //More general: (but is it needed?)
@@ -82,10 +122,18 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec3<T
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template std::ostream & operator<<(std::ostream &out, const vec3<int> &L );
-//    template std::ostream & operator<<(std::ostream &out, const vec3<long int> &L );
-    template std::ostream & operator<<(std::ostream &out, const vec3<float> &L );
-    template std::ostream & operator<<(std::ostream &out, const vec3<double> &L );
+    template std::ostream & operator<<(std::ostream &out, const vec3<float   > & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<double  > & );
+
+    template std::ostream & operator<<(std::ostream &out, const vec3<uint8_t > & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<uint16_t> & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<uint32_t> & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<uint64_t> & );
+
+    template std::ostream & operator<<(std::ostream &out, const vec3<int8_t  > & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<int16_t > & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<int32_t > & );
+    template std::ostream & operator<<(std::ostream &out, const vec3<int64_t > & );
 #endif
     
     
@@ -96,8 +144,13 @@ template <class T> vec3<T> vec3<T>::Cross(const vec3<T> &in) const {
     return vec3<T>( thex, they, thez );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float>  vec3<float>::Cross(const vec3<float> &in) const ;
-    template vec3<double> vec3<double>::Cross(const vec3<double> &in) const ;
+    template vec3<float   > vec3<float   >::Cross(const vec3<float   > &in) const ;
+    template vec3<double  > vec3<double  >::Cross(const vec3<double  > &in) const ;
+
+    template vec3<int8_t  > vec3<int8_t  >::Cross(const vec3<int8_t  > &in) const ;
+    template vec3<int16_t > vec3<int16_t >::Cross(const vec3<int16_t > &in) const ;
+    template vec3<int32_t > vec3<int32_t >::Cross(const vec3<int32_t > &in) const ;
+    template vec3<int64_t > vec3<int64_t >::Cross(const vec3<int64_t > &in) const ;
 #endif
    
 template <class T> vec3<T> vec3<T>::Mask(const vec3<T> &in) const {
@@ -107,16 +160,36 @@ template <class T> vec3<T> vec3<T>::Mask(const vec3<T> &in) const {
     return vec3<T>( thex, they, thez );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float>  vec3<float>::Mask(const vec3<float> &in) const ;
-    template vec3<double> vec3<double>::Mask(const vec3<double> &in) const ;
+    template vec3<float   > vec3<float   >::Mask(const vec3<float   > &in) const ;
+    template vec3<double  > vec3<double  >::Mask(const vec3<double  > &in) const ;
+
+    template vec3<uint8_t > vec3<uint8_t >::Mask(const vec3<uint8_t > &in) const ;
+    template vec3<uint16_t> vec3<uint16_t>::Mask(const vec3<uint16_t> &in) const ;
+    template vec3<uint32_t> vec3<uint32_t>::Mask(const vec3<uint32_t> &in) const ;
+    template vec3<uint64_t> vec3<uint64_t>::Mask(const vec3<uint64_t> &in) const ;
+
+    template vec3<int8_t  > vec3<int8_t  >::Mask(const vec3<int8_t  > &in) const ;
+    template vec3<int16_t > vec3<int16_t >::Mask(const vec3<int16_t > &in) const ;
+    template vec3<int32_t > vec3<int32_t >::Mask(const vec3<int32_t > &in) const ;
+    template vec3<int64_t > vec3<int64_t >::Mask(const vec3<int64_t > &in) const ;
 #endif 
     
 template <class T> T vec3<T>::Dot(const vec3<T> &in) const {
     return (*this).x * in.x + (*this).y * in.y + (*this).z * in.z;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec3<float>::Dot(const vec3<float> &in) const;
-    template double vec3<double>::Dot(const vec3<double> &in) const;
+    template float    vec3<float   >::Dot(const vec3<float   > &in) const;
+    template double   vec3<double  >::Dot(const vec3<double  > &in) const;
+
+    template uint8_t  vec3<uint8_t >::Dot(const vec3<uint8_t > &in) const;
+    template uint16_t vec3<uint16_t>::Dot(const vec3<uint16_t> &in) const;
+    template uint32_t vec3<uint32_t>::Dot(const vec3<uint32_t> &in) const;
+    template uint64_t vec3<uint64_t>::Dot(const vec3<uint64_t> &in) const;
+
+    template int8_t   vec3<int8_t  >::Dot(const vec3<int8_t  > &in) const;
+    template int16_t  vec3<int16_t >::Dot(const vec3<int16_t > &in) const;
+    template int32_t  vec3<int32_t >::Dot(const vec3<int32_t > &in) const;
+    template int64_t  vec3<int64_t >::Dot(const vec3<int64_t > &in) const;
 #endif
     
     
@@ -143,8 +216,18 @@ template <class T> T vec3<T>::sq_length(void) const {
     return (x*x + y*y + z*z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec3<float>::sq_length(void) const;
-    template double vec3<double>::sq_length(void) const;
+    template float    vec3<float   >::sq_length(void) const;
+    template double   vec3<double  >::sq_length(void) const;
+
+    template uint8_t  vec3<uint8_t >::sq_length(void) const;
+    template uint16_t vec3<uint16_t>::sq_length(void) const;
+    template uint32_t vec3<uint32_t>::sq_length(void) const;
+    template uint64_t vec3<uint64_t>::sq_length(void) const;
+
+    template int8_t   vec3<int8_t  >::sq_length(void) const;
+    template int16_t  vec3<int16_t >::sq_length(void) const;
+    template int32_t  vec3<int32_t >::sq_length(void) const;
+    template int64_t  vec3<int64_t >::sq_length(void) const;
 #endif
     
     
@@ -161,8 +244,13 @@ template <class T>  T vec3<T>::sq_dist(const vec3<T> &rhs) const {
     return ((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y) + (z-rhs.z)*(z-rhs.z));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec3<float>::sq_dist(const vec3<float> &rhs) const;
-    template double vec3<double>::sq_dist(const vec3<double> &rhs) const;
+    template float    vec3<float   >::sq_dist(const vec3<float   > &rhs) const;
+    template double   vec3<double  >::sq_dist(const vec3<double  > &rhs) const;
+
+    template int8_t   vec3<int8_t  >::sq_dist(const vec3<int8_t  > &rhs) const;
+    template int16_t  vec3<int16_t >::sq_dist(const vec3<int16_t > &rhs) const;
+    template int32_t  vec3<int32_t >::sq_dist(const vec3<int32_t > &rhs) const;
+    template int64_t  vec3<int64_t >::sq_dist(const vec3<int64_t > &rhs) const;
 #endif
 
 
@@ -212,8 +300,18 @@ vec3<T>::zero(void) const {
                     static_cast<T>(0) );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float > vec3<float >::zero(void) const;
-    template vec3<double> vec3<double>::zero(void) const;
+    template vec3<float   > vec3<float   >::zero(void) const;
+    template vec3<double  > vec3<double  >::zero(void) const;
+
+    template vec3<uint8_t > vec3<uint8_t >::zero(void) const;
+    template vec3<uint16_t> vec3<uint16_t>::zero(void) const;
+    template vec3<uint32_t> vec3<uint32_t>::zero(void) const;
+    template vec3<uint64_t> vec3<uint64_t>::zero(void) const;
+
+    template vec3<int8_t  > vec3<int8_t  >::zero(void) const;
+    template vec3<int16_t > vec3<int16_t >::zero(void) const;
+    template vec3<int32_t > vec3<int32_t >::zero(void) const;
+    template vec3<int64_t > vec3<int64_t >::zero(void) const;
 #endif
     
 template <class T>
@@ -329,8 +427,18 @@ vec3<T>::to_num_array() const {
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float > vec3<float >::to_num_array() const;
-    template num_array<double> vec3<double>::to_num_array() const;
+    template num_array<float   > vec3<float   >::to_num_array() const;
+    template num_array<double  > vec3<double  >::to_num_array() const;
+
+    template num_array<uint8_t > vec3<uint8_t >::to_num_array() const;
+    template num_array<uint16_t> vec3<uint16_t>::to_num_array() const;
+    template num_array<uint32_t> vec3<uint32_t>::to_num_array() const;
+    template num_array<uint64_t> vec3<uint64_t>::to_num_array() const;
+
+    template num_array<int8_t  > vec3<int8_t  >::to_num_array() const;
+    template num_array<int16_t > vec3<int16_t >::to_num_array() const;
+    template num_array<int32_t > vec3<int32_t >::to_num_array() const;
+    template num_array<int64_t > vec3<int64_t >::to_num_array() const;
 #endif
 
 template <class T>
@@ -344,8 +452,18 @@ vec3<T>::to_homogeneous_num_array() const {
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float > vec3<float >::to_homogeneous_num_array() const;
-    template num_array<double> vec3<double>::to_homogeneous_num_array() const;
+    template num_array<float   > vec3<float   >::to_homogeneous_num_array() const;
+    template num_array<double  > vec3<double  >::to_homogeneous_num_array() const;
+
+    template num_array<uint8_t > vec3<uint8_t >::to_homogeneous_num_array() const;
+    template num_array<uint16_t> vec3<uint16_t>::to_homogeneous_num_array() const;
+    template num_array<uint32_t> vec3<uint32_t>::to_homogeneous_num_array() const;
+    template num_array<uint64_t> vec3<uint64_t>::to_homogeneous_num_array() const;
+
+    template num_array<int8_t  > vec3<int8_t  >::to_homogeneous_num_array() const;
+    template num_array<int16_t > vec3<int16_t >::to_homogeneous_num_array() const;
+    template num_array<int32_t > vec3<int32_t >::to_homogeneous_num_array() const;
+    template num_array<int64_t > vec3<int64_t >::to_homogeneous_num_array() const;
 #endif
 
 template <class T>  std::string vec3<T>::to_string(void) const {
@@ -354,8 +472,18 @@ template <class T>  std::string vec3<T>::to_string(void) const {
     return out.str();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::string vec3<float >::to_string(void) const;
-    template std::string vec3<double>::to_string(void) const;
+    template std::string vec3<float   >::to_string(void) const;
+    template std::string vec3<double  >::to_string(void) const;
+
+    template std::string vec3<uint8_t >::to_string(void) const;
+    template std::string vec3<uint16_t>::to_string(void) const;
+    template std::string vec3<uint32_t>::to_string(void) const;
+    template std::string vec3<uint64_t>::to_string(void) const;
+
+    template std::string vec3<int8_t  >::to_string(void) const;
+    template std::string vec3<int16_t >::to_string(void) const;
+    template std::string vec3<int32_t >::to_string(void) const;
+    template std::string vec3<int64_t >::to_string(void) const;
 #endif
 
 
@@ -367,11 +495,20 @@ template <class T>  vec3<T> vec3<T>::from_string(const std::string &in){
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float > vec3<float >::from_string(const std::string &in);
-    template vec3<double> vec3<double>::from_string(const std::string &in);
+    template vec3<float   > vec3<float   >::from_string(const std::string &in);
+    template vec3<double  > vec3<double  >::from_string(const std::string &in);
+
+    template vec3<uint8_t > vec3<uint8_t >::from_string(const std::string &in);
+    template vec3<uint16_t> vec3<uint16_t>::from_string(const std::string &in);
+    template vec3<uint32_t> vec3<uint32_t>::from_string(const std::string &in);
+    template vec3<uint64_t> vec3<uint64_t>::from_string(const std::string &in);
+
+    template vec3<int8_t  > vec3<int8_t  >::from_string(const std::string &in);
+    template vec3<int16_t > vec3<int16_t >::from_string(const std::string &in);
+    template vec3<int32_t > vec3<int32_t >::from_string(const std::string &in);
+    template vec3<int64_t > vec3<int64_t >::from_string(const std::string &in);
 #endif
     
-
  
 template <class T>    std::istream &operator>>(std::istream &in, vec3<T> &L){
     //Note: This friend is templated (Y) within the templated class (T). We only
@@ -417,13 +554,21 @@ template <class T>    std::istream &operator>>(std::istream &in, vec3<T> &L){
     return in;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template std::istream & operator>>(std::istream &out, vec3<int> &L );
-//    template std::istream & operator>>(std::istream &out, vec3<long int> &L );
-    template std::istream & operator>>(std::istream &out, vec3<float> &L );
-    template std::istream & operator>>(std::istream &out, vec3<double> &L );
+    template std::istream & operator>>(std::istream &out, vec3<float   > &L );
+    template std::istream & operator>>(std::istream &out, vec3<double  > &L );
+
+    template std::istream & operator>>(std::istream &out, vec3<uint8_t > &L );
+    template std::istream & operator>>(std::istream &out, vec3<uint16_t> &L );
+    template std::istream & operator>>(std::istream &out, vec3<uint32_t> &L );
+    template std::istream & operator>>(std::istream &out, vec3<uint64_t> &L );
+
+    template std::istream & operator>>(std::istream &out, vec3<int8_t  > &L );
+    template std::istream & operator>>(std::istream &out, vec3<int16_t > &L );
+    template std::istream & operator>>(std::istream &out, vec3<int32_t > &L );
+    template std::istream & operator>>(std::istream &out, vec3<int64_t > &L );
 #endif
-     
-    
+
+
 template <class T>    vec3<T> & vec3<T>::operator=(const vec3<T> &rhs) {
     //Check if it is itself.
     if(this == &rhs) return *this; 
@@ -431,10 +576,18 @@ template <class T>    vec3<T> & vec3<T>::operator=(const vec3<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> & vec3<int>::operator=(const vec3<int> &rhs);
-//    template vec3<long int> & vec3<long int>::operator=(const vec3<long int> &rhs);
-    template vec3<float> & vec3<float>::operator=(const vec3<float> &rhs);
-    template vec3<double> & vec3<double>::operator=(const vec3<double> &rhs);
+    template vec3<float   > & vec3<float   >::operator=(const vec3<float   > &rhs);
+    template vec3<double  > & vec3<double  >::operator=(const vec3<double  > &rhs);
+
+    template vec3<uint8_t > & vec3<uint8_t >::operator=(const vec3<uint8_t > &rhs);
+    template vec3<uint16_t> & vec3<uint16_t>::operator=(const vec3<uint16_t> &rhs);
+    template vec3<uint32_t> & vec3<uint32_t>::operator=(const vec3<uint32_t> &rhs);
+    template vec3<uint64_t> & vec3<uint64_t>::operator=(const vec3<uint64_t> &rhs);
+
+    template vec3<int8_t  > & vec3<int8_t  >::operator=(const vec3<int8_t  > &rhs);
+    template vec3<int16_t > & vec3<int16_t >::operator=(const vec3<int16_t > &rhs);
+    template vec3<int32_t > & vec3<int32_t >::operator=(const vec3<int32_t > &rhs);
+    template vec3<int64_t > & vec3<int64_t >::operator=(const vec3<int64_t > &rhs);
 #endif
     
     
@@ -442,10 +595,18 @@ template <class T>    vec3<T> vec3<T>::operator+(const vec3<T> &rhs) const {
     return vec3<T>( (*this).x + rhs.x, (*this).y + rhs.y, (*this).z + rhs.z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> vec3<int>::operator+(const vec3<int> &rhs) const;
-//    template vec3<long int> vec3<long int>::operator+(const vec3<long int> &rhs) const;
-    template vec3<float> vec3<float>::operator+(const vec3<float> &rhs) const;
-    template vec3<double> vec3<double>::operator+(const vec3<double> &rhs) const;
+    template vec3<float   > vec3<float   >::operator+(const vec3<float   > &rhs) const;
+    template vec3<double  > vec3<double  >::operator+(const vec3<double  > &rhs) const;
+
+    template vec3<uint8_t > vec3<uint8_t >::operator+(const vec3<uint8_t > &rhs) const;
+    template vec3<uint16_t> vec3<uint16_t>::operator+(const vec3<uint16_t> &rhs) const;
+    template vec3<uint32_t> vec3<uint32_t>::operator+(const vec3<uint32_t> &rhs) const;
+    template vec3<uint64_t> vec3<uint64_t>::operator+(const vec3<uint64_t> &rhs) const;
+
+    template vec3<int8_t  > vec3<int8_t  >::operator+(const vec3<int8_t  > &rhs) const;
+    template vec3<int16_t > vec3<int16_t >::operator+(const vec3<int16_t > &rhs) const;
+    template vec3<int32_t > vec3<int32_t >::operator+(const vec3<int32_t > &rhs) const;
+    template vec3<int64_t > vec3<int64_t >::operator+(const vec3<int64_t > &rhs) const;
 #endif
 
     
@@ -454,10 +615,18 @@ template <class T>    vec3<T> & vec3<T>::operator+=(const vec3<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> & vec3<int>::operator+=(const vec3<int> &rhs);
-//    template vec3<long int> & vec3<long int>::operator+=(const vec3<long int> &rhs);
-    template vec3<float> & vec3<float>::operator+=(const vec3<float> &rhs);
-    template vec3<double> & vec3<double>::operator+=(const vec3<double> &rhs);
+    template vec3<float   > & vec3<float   >::operator+=(const vec3<float   > &rhs);
+    template vec3<double  > & vec3<double  >::operator+=(const vec3<double  > &rhs);
+
+    template vec3<uint8_t > & vec3<uint8_t >::operator+=(const vec3<uint8_t > &rhs);
+    template vec3<uint16_t> & vec3<uint16_t>::operator+=(const vec3<uint16_t> &rhs);
+    template vec3<uint32_t> & vec3<uint32_t>::operator+=(const vec3<uint32_t> &rhs);
+    template vec3<uint64_t> & vec3<uint64_t>::operator+=(const vec3<uint64_t> &rhs);
+
+    template vec3<int8_t  > & vec3<int8_t  >::operator+=(const vec3<int8_t  > &rhs);
+    template vec3<int16_t > & vec3<int16_t >::operator+=(const vec3<int16_t > &rhs);
+    template vec3<int32_t > & vec3<int32_t >::operator+=(const vec3<int32_t > &rhs);
+    template vec3<int64_t > & vec3<int64_t >::operator+=(const vec3<int64_t > &rhs);
 #endif
     
     
@@ -465,10 +634,13 @@ template <class T> vec3<T> vec3<T>::operator-(const vec3<T> &rhs) const {
     return vec3<T>( (*this).x - rhs.x, (*this).y - rhs.y, (*this).z - rhs.z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> vec3<int>::operator-(const vec3<int> &rhs) const;
-//    template vec3<long int> vec3<long int>::operator-(const vec3<long int> &rhs) const;
-    template vec3<float> vec3<float>::operator-(const vec3<float> &rhs) const;
-    template vec3<double> vec3<double>::operator-(const vec3<double> &rhs) const;
+    template vec3<float   > vec3<float   >::operator-(const vec3<float   > &rhs) const;
+    template vec3<double  > vec3<double  >::operator-(const vec3<double  > &rhs) const;
+
+    template vec3<int8_t  > vec3<int8_t  >::operator-(const vec3<int8_t  > &rhs) const;
+    template vec3<int16_t > vec3<int16_t >::operator-(const vec3<int16_t > &rhs) const;
+    template vec3<int32_t > vec3<int32_t >::operator-(const vec3<int32_t > &rhs) const;
+    template vec3<int64_t > vec3<int64_t >::operator-(const vec3<int64_t > &rhs) const;
 #endif
 
     
@@ -477,50 +649,32 @@ template <class T>    vec3<T> & vec3<T>::operator-=(const vec3<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> & vec3<int>::operator-=(const vec3<int> &rhs);
-//    template vec3<long int> & vec3<long int>::operator-=(const vec3<long int> &rhs);
-    template vec3<float> & vec3<float>::operator-=(const vec3<float> &rhs);
-    template vec3<double> & vec3<double>::operator-=(const vec3<double> &rhs);
+    template vec3<float   > & vec3<float   >::operator-=(const vec3<float   > &rhs);
+    template vec3<double  > & vec3<double  >::operator-=(const vec3<double  > &rhs);
+
+    template vec3<int8_t  > & vec3<int8_t  >::operator-=(const vec3<int8_t  > &rhs);
+    template vec3<int16_t > & vec3<int16_t >::operator-=(const vec3<int16_t > &rhs);
+    template vec3<int32_t > & vec3<int32_t >::operator-=(const vec3<int32_t > &rhs);
+    template vec3<int64_t > & vec3<int64_t >::operator-=(const vec3<int64_t > &rhs);
 #endif
     
-//------------------------------ overloaded native-types -----------------------------
-
-/*
-template <class T>    vec3<T> vec3<T>::operator*(const T rhs) {
-    return vec3<T>(x*rhs,y*rhs,z*rhs);
-}
-template <class T>    vec3<T> & vec3<T>::operator*=(const T rhs) {
-    (*this).x *= rhs;    (*this).y *= rhs;    (*this).z *= rhs;
-     return *this;
-}
-template vec3<int> & vec3<int>::operator*=(const int rhs);
-template vec3<float> & vec3<float>::operator*=(const float rhs);
-template vec3<double> & vec3<double>::operator*=(const double rhs);
-
-
-
-template <class T>    vec3<T> vec3<T>::operator/(const T rhs) {
-    return vec3<T>(x/rhs,y/rhs,z/rhs);
-}
-template <class T>    vec3<T> & vec3<T>::operator/=(const T rhs) {
-    (*this).x /= rhs;    (*this).y /= rhs;    (*this).z /= rhs;
-     return *this;
-}
-template vec3<int> & vec3<int>::operator/=(const int rhs);
-template vec3<float> & vec3<float>::operator/=(const float rhs);
-template vec3<double> & vec3<double>::operator/=(const double rhs);
-*/
-
-//--------
 
 template <class T>    vec3<T> vec3<T>::operator*(const T &rhs) const {
     return vec3<T>(x*rhs,y*rhs,z*rhs);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> vec3<int>::operator*(const int &rhs) const;
-//    template vec3<long int> vec3<long int>::operator*(const long int &rhs) const;
-    template vec3<float> vec3<float>::operator*(const float &rhs) const;
-    template vec3<double> vec3<double>::operator*(const double &rhs) const;
+    template vec3<float   > vec3<float   >::operator*(const float    &rhs) const;
+    template vec3<double  > vec3<double  >::operator*(const double   &rhs) const;
+
+    template vec3<uint8_t > vec3<uint8_t >::operator*(const uint8_t  &rhs) const;
+    template vec3<uint16_t> vec3<uint16_t>::operator*(const uint16_t &rhs) const;
+    template vec3<uint32_t> vec3<uint32_t>::operator*(const uint32_t &rhs) const;
+    template vec3<uint64_t> vec3<uint64_t>::operator*(const uint64_t &rhs) const;
+
+    template vec3<int8_t  > vec3<int8_t  >::operator*(const int8_t   &rhs) const;
+    template vec3<int16_t > vec3<int16_t >::operator*(const int16_t  &rhs) const;
+    template vec3<int32_t > vec3<int32_t >::operator*(const int32_t  &rhs) const;
+    template vec3<int64_t > vec3<int64_t >::operator*(const int64_t  &rhs) const;
 #endif
     
 template <class T>    vec3<T> & vec3<T>::operator*=(const T &rhs) {
@@ -528,10 +682,18 @@ template <class T>    vec3<T> & vec3<T>::operator*=(const T &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> & vec3<int>::operator*=(const int &rhs);
-//    template vec3<long int> & vec3<long int>::operator*=(const long int &rhs);
-    template vec3<float> & vec3<float>::operator*=(const float &rhs);
-    template vec3<double> & vec3<double>::operator*=(const double &rhs);
+    template vec3<float   > & vec3<float   >::operator*=(const float    &rhs);
+    template vec3<double  > & vec3<double  >::operator*=(const double   &rhs);
+
+    template vec3<uint8_t > & vec3<uint8_t >::operator*=(const uint8_t  &rhs);
+    template vec3<uint16_t> & vec3<uint16_t>::operator*=(const uint16_t &rhs);
+    template vec3<uint32_t> & vec3<uint32_t>::operator*=(const uint32_t &rhs);
+    template vec3<uint64_t> & vec3<uint64_t>::operator*=(const uint64_t &rhs);
+
+    template vec3<int8_t  > & vec3<int8_t  >::operator*=(const int8_t   &rhs);
+    template vec3<int16_t > & vec3<int16_t >::operator*=(const int16_t  &rhs);
+    template vec3<int32_t > & vec3<int32_t >::operator*=(const int32_t  &rhs);
+    template vec3<int64_t > & vec3<int64_t >::operator*=(const int64_t  &rhs);
 #endif
     
     
@@ -540,10 +702,18 @@ template <class T>    vec3<T> vec3<T>::operator/(const T &rhs) const {
     return vec3<T>(x/rhs,y/rhs,z/rhs);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> vec3<int>::operator/(const int &rhs) const;
-//    template vec3<long int> vec3<long int>::operator/(const long int &rhs) const;
-    template vec3<float> vec3<float>::operator/(const float &rhs) const;
-    template vec3<double> vec3<double>::operator/(const double &rhs) const;
+    template vec3<float   > vec3<float   >::operator/(const float    &rhs) const;
+    template vec3<double  > vec3<double  >::operator/(const double   &rhs) const;
+
+    template vec3<uint8_t > vec3<uint8_t >::operator/(const uint8_t  &rhs) const;
+    template vec3<uint16_t> vec3<uint16_t>::operator/(const uint16_t &rhs) const;
+    template vec3<uint32_t> vec3<uint32_t>::operator/(const uint32_t &rhs) const;
+    template vec3<uint64_t> vec3<uint64_t>::operator/(const uint64_t &rhs) const;
+
+    template vec3<int8_t  > vec3<int8_t  >::operator/(const int8_t   &rhs) const;
+    template vec3<int16_t > vec3<int16_t >::operator/(const int16_t  &rhs) const;
+    template vec3<int32_t > vec3<int32_t >::operator/(const int32_t  &rhs) const;
+    template vec3<int64_t > vec3<int64_t >::operator/(const int64_t  &rhs) const;
 #endif
     
 template <class T>    vec3<T> & vec3<T>::operator/=(const T &rhs) {
@@ -551,10 +721,18 @@ template <class T>    vec3<T> & vec3<T>::operator/=(const T &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec3<int> & vec3<int>::operator/=(const int &rhs);
-//    template vec3<long int> & vec3<long int>::operator/=(const long int &rhs);
-    template vec3<float> & vec3<float>::operator/=(const float &rhs);
-    template vec3<double> & vec3<double>::operator/=(const double &rhs);
+    template vec3<float   > & vec3<float   >::operator/=(const float    &rhs);
+    template vec3<double  > & vec3<double  >::operator/=(const double   &rhs);
+
+    template vec3<uint8_t > & vec3<uint8_t >::operator/=(const uint8_t  &rhs);
+    template vec3<uint16_t> & vec3<uint16_t>::operator/=(const uint16_t &rhs);
+    template vec3<uint32_t> & vec3<uint32_t>::operator/=(const uint32_t &rhs);
+    template vec3<uint64_t> & vec3<uint64_t>::operator/=(const uint64_t &rhs);
+
+    template vec3<int8_t  > & vec3<int8_t  >::operator/=(const int8_t   &rhs);
+    template vec3<int16_t > & vec3<int16_t >::operator/=(const int16_t  &rhs);
+    template vec3<int32_t > & vec3<int32_t >::operator/=(const int32_t  &rhs);
+    template vec3<int64_t > & vec3<int64_t >::operator/=(const int64_t  &rhs);
 #endif
     
 template <class T>    T & vec3<T>::operator[](size_t i) {
@@ -570,8 +748,18 @@ template <class T>    T & vec3<T>::operator[](size_t i) {
     return this->x;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  & vec3<float >::operator[](size_t);
-    template double & vec3<double>::operator[](size_t);
+    template float    & vec3<float   >::operator[](size_t);
+    template double   & vec3<double  >::operator[](size_t);
+
+    template uint8_t  & vec3<uint8_t >::operator[](size_t);
+    template uint16_t & vec3<uint16_t>::operator[](size_t);
+    template uint32_t & vec3<uint32_t>::operator[](size_t);
+    template uint64_t & vec3<uint64_t>::operator[](size_t);
+
+    template int8_t   & vec3<int8_t  >::operator[](size_t);
+    template int16_t  & vec3<int16_t >::operator[](size_t);
+    template int32_t  & vec3<int32_t >::operator[](size_t);
+    template int64_t  & vec3<int64_t >::operator[](size_t);
 #endif
     
     
@@ -603,20 +791,36 @@ template <class T>    bool vec3<T>::operator==(const vec3<T> &rhs) const {
     return false;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec3<int>::operator==(const vec3<int> &rhs) const;
-//    template bool vec3<long int>::operator==(const vec3<long int> &rhs) const;
-    template bool vec3<float>::operator==(const vec3<float> &rhs) const;
-    template bool vec3<double>::operator==(const vec3<double> &rhs) const;
+    template bool vec3<float   >::operator==(const vec3<float   > &rhs) const;
+    template bool vec3<double  >::operator==(const vec3<double  > &rhs) const;
+
+    template bool vec3<uint8_t >::operator==(const vec3<uint8_t > &rhs) const;
+    template bool vec3<uint16_t>::operator==(const vec3<uint16_t> &rhs) const;
+    template bool vec3<uint32_t>::operator==(const vec3<uint32_t> &rhs) const;
+    template bool vec3<uint64_t>::operator==(const vec3<uint64_t> &rhs) const;
+
+    template bool vec3<int8_t  >::operator==(const vec3<int8_t  > &rhs) const;
+    template bool vec3<int16_t >::operator==(const vec3<int16_t > &rhs) const;
+    template bool vec3<int32_t >::operator==(const vec3<int32_t > &rhs) const;
+    template bool vec3<int64_t >::operator==(const vec3<int64_t > &rhs) const;
 #endif
    
 template <class T>    bool vec3<T>::operator!=(const vec3<T> &rhs) const {
     return !( *this == rhs );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec3<int>::operator!=(const vec3<int> &rhs) const;
-//    template bool vec3<long int>::operator!=(const vec3<long int> &rhs) const;
-    template bool vec3<float>::operator!=(const vec3<float> &rhs) const;
-    template bool vec3<double>::operator!=(const vec3<double> &rhs) const;
+    template bool vec3<float   >::operator!=(const vec3<float   > &rhs) const;
+    template bool vec3<double  >::operator!=(const vec3<double  > &rhs) const;
+
+    template bool vec3<uint8_t >::operator!=(const vec3<uint8_t > &rhs) const;
+    template bool vec3<uint16_t>::operator!=(const vec3<uint16_t> &rhs) const;
+    template bool vec3<uint32_t>::operator!=(const vec3<uint32_t> &rhs) const;
+    template bool vec3<uint64_t>::operator!=(const vec3<uint64_t> &rhs) const;
+
+    template bool vec3<int8_t  >::operator!=(const vec3<int8_t  > &rhs) const;
+    template bool vec3<int16_t >::operator!=(const vec3<int16_t > &rhs) const;
+    template bool vec3<int32_t >::operator!=(const vec3<int32_t > &rhs) const;
+    template bool vec3<int64_t >::operator!=(const vec3<int64_t > &rhs) const;
 #endif
  
     
@@ -655,18 +859,36 @@ template <class T>    bool vec3<T>::operator<(const vec3<T> &rhs) const {
     //return ( (y < rhs.y) ); //  <--- BAD! (See previous note above ^)
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec3<int>::operator<(const vec3<int> &rhs) const;
-//    template bool vec3<long int>::operator<(const vec3<long int> &rhs) const;
-    template bool vec3<float>::operator<(const vec3<float> &rhs) const;
-    template bool vec3<double>::operator<(const vec3<double> &rhs) const;
+    template bool vec3<float   >::operator<(const vec3<float   > &rhs) const;
+    template bool vec3<double  >::operator<(const vec3<double  > &rhs) const;
+
+    template bool vec3<uint8_t >::operator<(const vec3<uint8_t > &rhs) const;
+    template bool vec3<uint16_t>::operator<(const vec3<uint16_t> &rhs) const;
+    template bool vec3<uint32_t>::operator<(const vec3<uint32_t> &rhs) const;
+    template bool vec3<uint64_t>::operator<(const vec3<uint64_t> &rhs) const;
+
+    template bool vec3<int8_t  >::operator<(const vec3<int8_t  > &rhs) const;
+    template bool vec3<int16_t >::operator<(const vec3<int16_t > &rhs) const;
+    template bool vec3<int32_t >::operator<(const vec3<int32_t > &rhs) const;
+    template bool vec3<int64_t >::operator<(const vec3<int64_t > &rhs) const;
 #endif
    
 template <class T>    bool vec3<T>::isfinite(void) const {
     return std::isfinite(this->x) && std::isfinite(this->y) && std::isfinite(this->z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template bool vec3<float >::isfinite(void) const;
-    template bool vec3<double>::isfinite(void) const;
+    template bool vec3<float   >::isfinite(void) const;
+    template bool vec3<double  >::isfinite(void) const;
+
+    template bool vec3<uint8_t >::isfinite(void) const;
+    template bool vec3<uint16_t>::isfinite(void) const;
+    template bool vec3<uint32_t>::isfinite(void) const;
+    template bool vec3<uint64_t>::isfinite(void) const;
+
+    template bool vec3<int8_t  >::isfinite(void) const;
+    template bool vec3<int16_t >::isfinite(void) const;
+    template bool vec3<int32_t >::isfinite(void) const;
+    template bool vec3<int64_t >::isfinite(void) const;
 #endif 
 
 //-------------------------------------------------------------------------------------------------------------------------------------
@@ -787,40 +1009,69 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
 //Constructors.
 template <class T>    vec2<T>::vec2(){   x=(T)(0);   y=(T)(0); }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int>::vec2(void);
-//    template vec2<long int>::vec2(void);
-    template vec2<float>::vec2(void);
-    template vec2<double>::vec2(void);
+    template vec2<float   >::vec2(void);
+    template vec2<double  >::vec2(void);
+
+    template vec2<uint8_t >::vec2(void);
+    template vec2<uint16_t>::vec2(void);
+    template vec2<uint32_t>::vec2(void);
+    template vec2<uint64_t>::vec2(void);
+
+    template vec2<int8_t  >::vec2(void);
+    template vec2<int16_t >::vec2(void);
+    template vec2<int32_t >::vec2(void);
+    template vec2<int64_t >::vec2(void);
 #endif
 
 template <class T>    vec2<T>::vec2(T a, T b) : x(a), y(b) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int>::vec2(int, int);
-//    template vec2<long int>::vec2(long int, long int);
-    template vec2<float>::vec2(float, float);
-    template vec2<double>::vec2(double, double);
+    template vec2<float   >::vec2(float   , float   );
+    template vec2<double  >::vec2(double  , double  );
+
+    template vec2<uint8_t >::vec2(uint8_t , uint8_t );
+    template vec2<uint16_t>::vec2(uint16_t, uint16_t);
+    template vec2<uint32_t>::vec2(uint32_t, uint32_t);
+    template vec2<uint64_t>::vec2(uint64_t, uint64_t);
+
+    template vec2<int8_t  >::vec2(int8_t  , int8_t  );
+    template vec2<int16_t >::vec2(int16_t , int16_t );
+    template vec2<int32_t >::vec2(int32_t , int32_t );
+    template vec2<int64_t >::vec2(int64_t , int64_t );
 #endif
     
 template <class T>    vec2<T>::vec2( const vec2<T> &in ) : x(in.x), y(in.y) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int>::vec2( const vec2<int> & );
-//    template vec2<long int>::vec2( const vec2<long int> & );
-    template vec2<float>::vec2( const vec2<float> & );
-    template vec2<double>::vec2( const vec2<double> & );
+    template vec2<float   >::vec2( const vec2<float   > & );
+    template vec2<double  >::vec2( const vec2<double  > & );
+
+    template vec2<uint8_t >::vec2( const vec2<uint8_t > & );
+    template vec2<uint16_t>::vec2( const vec2<uint16_t> & );
+    template vec2<uint32_t>::vec2( const vec2<uint32_t> & );
+    template vec2<uint64_t>::vec2( const vec2<uint64_t> & );
+
+    template vec2<int8_t  >::vec2( const vec2<int8_t  > & );
+    template vec2<int16_t >::vec2( const vec2<int16_t > & );
+    template vec2<int32_t >::vec2( const vec2<int32_t > & );
+    template vec2<int64_t >::vec2( const vec2<int64_t > & );
 #endif
 
 template <class T>    vec2<T>::vec2( std::array<T,2> in ) : x(in[0]), y(in[1]) { }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec2<float >::vec2( std::array<float , 2> );
-    template vec2<double>::vec2( std::array<double, 2> );
+    template vec2<float   >::vec2( std::array<float   , 2> );
+    template vec2<double  >::vec2( std::array<double  , 2> );
+
+    template vec2<uint8_t >::vec2( std::array<uint8_t , 2> );
+    template vec2<uint16_t>::vec2( std::array<uint16_t, 2> );
+    template vec2<uint32_t>::vec2( std::array<uint32_t, 2> );
+    template vec2<uint64_t>::vec2( std::array<uint64_t, 2> );
+
+    template vec2<int8_t  >::vec2( std::array<int8_t  , 2> );
+    template vec2<int16_t >::vec2( std::array<int16_t , 2> );
+    template vec2<int32_t >::vec2( std::array<int32_t , 2> );
+    template vec2<int64_t >::vec2( std::array<int64_t , 2> );
 #endif
 
     
-//More general: (but is it needed?)
-//template<class Ch,class Tr,class T>     std::basic_ostream<Ch,Tr> & operator<<( std::basic_ostream<Ch,Tr> &&out, const vec2<T> &L ){
-//    out << "(" << L.x << ", " << L.y << ", " << L.z << ")";
-//    return out;
-//}
 template <class T>    std::ostream & operator<<( std::ostream &out, const vec2<T> &L ) {
     //Note: This friend is templated (Y) within the templated class (T). We only
     // care about friend template when T==Y.
@@ -833,10 +1084,18 @@ template <class T>    std::ostream & operator<<( std::ostream &out, const vec2<T
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template std::ostream & operator<<(std::ostream &out, const vec2<int> &L );
-//    template std::ostream & operator<<(std::ostream &out, const vec2<long int> &L );
-    template std::ostream & operator<<(std::ostream &out, const vec2<float> &L );
-    template std::ostream & operator<<(std::ostream &out, const vec2<double> &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<float   > &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<double  > &L );
+
+    template std::ostream & operator<<(std::ostream &out, const vec2<uint8_t > &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<uint16_t> &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<uint32_t> &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<uint64_t> &L );
+
+    template std::ostream & operator<<(std::ostream &out, const vec2<int8_t  > &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<int16_t > &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<int32_t > &L );
+    template std::ostream & operator<<(std::ostream &out, const vec2<int64_t > &L );
 #endif
     
     
@@ -844,8 +1103,18 @@ template <class T> T vec2<T>::Dot(const vec2<T> &in) const {
     return (*this).x * in.x + (*this).y * in.y;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec2<float>::Dot(const vec2<float> &in) const;
-    template double vec2<double>::Dot(const vec2<double> &in) const;
+    template float    vec2<float   >::Dot(const vec2<float   > &in) const;
+    template double   vec2<double  >::Dot(const vec2<double  > &in) const;
+
+    template uint8_t  vec2<uint8_t >::Dot(const vec2<uint8_t > &in) const;
+    template uint16_t vec2<uint16_t>::Dot(const vec2<uint16_t> &in) const;
+    template uint32_t vec2<uint32_t>::Dot(const vec2<uint32_t> &in) const;
+    template uint64_t vec2<uint64_t>::Dot(const vec2<uint64_t> &in) const;
+
+    template int8_t   vec2<int8_t  >::Dot(const vec2<int8_t  > &in) const;
+    template int16_t  vec2<int16_t >::Dot(const vec2<int16_t > &in) const;
+    template int32_t  vec2<int32_t >::Dot(const vec2<int32_t > &in) const;
+    template int64_t  vec2<int64_t >::Dot(const vec2<int64_t > &in) const;
 #endif
    
 template <class T> vec2<T> vec2<T>::Mask(const vec2<T> &in) const {
@@ -854,8 +1123,18 @@ template <class T> vec2<T> vec2<T>::Mask(const vec2<T> &in) const {
     return vec2<T>( thex, they );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec2<float > vec2<float >::Mask(const vec2<float > &in) const ;
-    template vec2<double> vec2<double>::Mask(const vec2<double> &in) const ;
+    template vec2<float   > vec2<float   >::Mask(const vec2<float   > &in) const ;
+    template vec2<double  > vec2<double  >::Mask(const vec2<double  > &in) const ;
+
+    template vec2<uint8_t > vec2<uint8_t >::Mask(const vec2<uint8_t > &in) const ;
+    template vec2<uint16_t> vec2<uint16_t>::Mask(const vec2<uint16_t> &in) const ;
+    template vec2<uint32_t> vec2<uint32_t>::Mask(const vec2<uint32_t> &in) const ;
+    template vec2<uint64_t> vec2<uint64_t>::Mask(const vec2<uint64_t> &in) const ;
+
+    template vec2<int8_t  > vec2<int8_t  >::Mask(const vec2<int8_t  > &in) const ;
+    template vec2<int16_t > vec2<int16_t >::Mask(const vec2<int16_t > &in) const ;
+    template vec2<int32_t > vec2<int32_t >::Mask(const vec2<int32_t > &in) const ;
+    template vec2<int64_t > vec2<int64_t >::Mask(const vec2<int64_t > &in) const ;
 #endif
  
     
@@ -864,8 +1143,8 @@ template <class T> vec2<T> vec2<T>::unit(void) const {
     return vec2<T>(x/tot, y/tot);
 } 
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec2<float> vec2<float>::unit(void) const;
-    template vec2<double> vec2<double>::unit(void) const;
+    template vec2<float   > vec2<float   >::unit(void) const;
+    template vec2<double  > vec2<double  >::unit(void) const;
 #endif
     
     
@@ -873,8 +1152,8 @@ template <class T> T vec2<T>::length(void) const {
     return std::sqrt(x*x + y*y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec2<float>::length(void) const;
-    template double vec2<double>::length(void) const;
+    template float    vec2<float   >::length(void) const;
+    template double   vec2<double  >::length(void) const;
 #endif
     
     
@@ -882,8 +1161,18 @@ template <class T> T vec2<T>::sq_length(void) const {
     return (x*x + y*y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec2<float>::sq_length(void) const;
-    template double vec2<double>::sq_length(void) const;
+    template float    vec2<float   >::sq_length(void) const;
+    template double   vec2<double  >::sq_length(void) const;
+
+    template uint8_t  vec2<uint8_t >::sq_length(void) const;
+    template uint16_t vec2<uint16_t>::sq_length(void) const;
+    template uint32_t vec2<uint32_t>::sq_length(void) const;
+    template uint64_t vec2<uint64_t>::sq_length(void) const;
+
+    template int8_t   vec2<int8_t  >::sq_length(void) const;
+    template int16_t  vec2<int16_t >::sq_length(void) const;
+    template int32_t  vec2<int32_t >::sq_length(void) const;
+    template int64_t  vec2<int64_t >::sq_length(void) const;
 #endif
     
     
@@ -891,16 +1180,21 @@ template <class T>  T vec2<T>::distance(const vec2<T> &rhs) const {
     return std::sqrt((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float vec2<float>::distance(const vec2<float> &rhs) const;
-    template double vec2<double>::distance(const vec2<double> &rhs) const;
+    template float    vec2<float   >::distance(const vec2<float   > &rhs) const;
+    template double   vec2<double  >::distance(const vec2<double  > &rhs) const;
 #endif
    
 template <class T>  T vec2<T>::sq_dist(const vec2<T> &rhs) const {
     return ((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  vec2<float >::sq_dist(const vec2<float > &rhs) const;
-    template double vec2<double>::sq_dist(const vec2<double> &rhs) const;
+    template float    vec2<float   >::sq_dist(const vec2<float   > &rhs) const;
+    template double   vec2<double  >::sq_dist(const vec2<double  > &rhs) const;
+
+    template int8_t   vec2<int8_t  >::sq_dist(const vec2<int8_t  > &rhs) const;
+    template int16_t  vec2<int16_t >::sq_dist(const vec2<int16_t > &rhs) const;
+    template int32_t  vec2<int32_t >::sq_dist(const vec2<int32_t > &rhs) const;
+    template int64_t  vec2<int64_t >::sq_dist(const vec2<int64_t > &rhs) const;
 #endif
 
 template <class T>
@@ -910,8 +1204,18 @@ vec2<T>::zero(void) const {
                     static_cast<T>(0) );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec2<float > vec2<float >::zero(void) const;
-    template vec2<double> vec2<double>::zero(void) const;
+    template vec2<float   > vec2<float   >::zero(void) const;
+    template vec2<double  > vec2<double  >::zero(void) const;
+
+    template vec2<uint8_t > vec2<uint8_t >::zero(void) const;
+    template vec2<uint16_t> vec2<uint16_t>::zero(void) const;
+    template vec2<uint32_t> vec2<uint32_t>::zero(void) const;
+    template vec2<uint64_t> vec2<uint64_t>::zero(void) const;
+
+    template vec2<int8_t  > vec2<int8_t  >::zero(void) const;
+    template vec2<int16_t > vec2<int16_t >::zero(void) const;
+    template vec2<int32_t > vec2<int32_t >::zero(void) const;
+    template vec2<int64_t > vec2<int64_t >::zero(void) const;
 #endif
     
 
@@ -932,8 +1236,18 @@ template <class T>  std::string vec2<T>::to_string(void) const {
     return out.str();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::string vec2<float >::to_string(void) const;
-    template std::string vec2<double>::to_string(void) const;
+    template std::string vec2<float   >::to_string(void) const;
+    template std::string vec2<double  >::to_string(void) const;
+
+    template std::string vec2<uint8_t >::to_string(void) const;
+    template std::string vec2<uint16_t>::to_string(void) const;
+    template std::string vec2<uint32_t>::to_string(void) const;
+    template std::string vec2<uint64_t>::to_string(void) const;
+
+    template std::string vec2<int8_t  >::to_string(void) const;
+    template std::string vec2<int16_t >::to_string(void) const;
+    template std::string vec2<int32_t >::to_string(void) const;
+    template std::string vec2<int64_t >::to_string(void) const;
 #endif
 
 //Sets *this and returns a copy.
@@ -944,8 +1258,18 @@ template <class T>  vec2<T> vec2<T>::from_string(const std::string &in){
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec2<float > vec2<float >::from_string(const std::string &in);
-    template vec2<double> vec2<double>::from_string(const std::string &in); 
+    template vec2<float   > vec2<float   >::from_string(const std::string &in); 
+    template vec2<double  > vec2<double  >::from_string(const std::string &in); 
+
+    template vec2<uint8_t > vec2<uint8_t >::from_string(const std::string &in); 
+    template vec2<uint16_t> vec2<uint16_t>::from_string(const std::string &in); 
+    template vec2<uint32_t> vec2<uint32_t>::from_string(const std::string &in); 
+    template vec2<uint64_t> vec2<uint64_t>::from_string(const std::string &in); 
+
+    template vec2<int8_t  > vec2<int8_t  >::from_string(const std::string &in); 
+    template vec2<int16_t > vec2<int16_t >::from_string(const std::string &in); 
+    template vec2<int32_t > vec2<int32_t >::from_string(const std::string &in); 
+    template vec2<int64_t > vec2<int64_t >::from_string(const std::string &in); 
 #endif
 
  
@@ -977,13 +1301,21 @@ template <class T>    std::istream &operator>>( std::istream &in, vec2<T> &L ) {
     return in;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template std::istream & operator>>(std::istream &out, vec2<int> &L );
-//    template std::istream & operator>>(std::istream &out, vec2<long int> &L );
-    template std::istream & operator>>(std::istream &out, vec2<float> &L );
-    template std::istream & operator>>(std::istream &out, vec2<double> &L );
+    template std::istream & operator>>(std::istream &out, vec2<float   > &L );
+    template std::istream & operator>>(std::istream &out, vec2<double  > &L );
+
+    template std::istream & operator>>(std::istream &out, vec2<uint8_t > &L );
+    template std::istream & operator>>(std::istream &out, vec2<uint16_t> &L );
+    template std::istream & operator>>(std::istream &out, vec2<uint32_t> &L );
+    template std::istream & operator>>(std::istream &out, vec2<uint64_t> &L );
+
+    template std::istream & operator>>(std::istream &out, vec2<int8_t  > &L );
+    template std::istream & operator>>(std::istream &out, vec2<int16_t > &L );
+    template std::istream & operator>>(std::istream &out, vec2<int32_t > &L );
+    template std::istream & operator>>(std::istream &out, vec2<int64_t > &L );
 #endif
-    
-    
+
+
 template <class T>    vec2<T> & vec2<T>::operator=(const vec2<T> &rhs) {
     //Check if it is itself.
     if (this == &rhs) return *this; 
@@ -991,10 +1323,18 @@ template <class T>    vec2<T> & vec2<T>::operator=(const vec2<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> & vec2<int>::operator=(const vec2<int> &rhs);
-//    template vec2<long int> & vec2<long int>::operator=(const vec2<long int> &rhs);
-    template vec2<float> & vec2<float>::operator=(const vec2<float> &rhs);
-    template vec2<double> & vec2<double>::operator=(const vec2<double> &rhs);
+    template vec2<float   > & vec2<float   >::operator=(const vec2<float   > &rhs);
+    template vec2<double  > & vec2<double  >::operator=(const vec2<double  > &rhs);
+
+    template vec2<uint8_t > & vec2<uint8_t >::operator=(const vec2<uint8_t > &rhs);
+    template vec2<uint16_t> & vec2<uint16_t>::operator=(const vec2<uint16_t> &rhs);
+    template vec2<uint32_t> & vec2<uint32_t>::operator=(const vec2<uint32_t> &rhs);
+    template vec2<uint64_t> & vec2<uint64_t>::operator=(const vec2<uint64_t> &rhs);
+
+    template vec2<int8_t  > & vec2<int8_t  >::operator=(const vec2<int8_t  > &rhs);
+    template vec2<int16_t > & vec2<int16_t >::operator=(const vec2<int16_t > &rhs);
+    template vec2<int32_t > & vec2<int32_t >::operator=(const vec2<int32_t > &rhs);
+    template vec2<int64_t > & vec2<int64_t >::operator=(const vec2<int64_t > &rhs);
 #endif
     
     
@@ -1002,10 +1342,18 @@ template <class T>    vec2<T> vec2<T>::operator+(const vec2<T> &rhs) const {
     return vec2<T>( (*this).x + rhs.x, (*this).y + rhs.y );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> vec2<int>::operator+(const vec2<int> &rhs) const;
-//    template vec2<long int> vec2<long int>::operator+(const vec2<long int> &rhs) const;
-    template vec2<float> vec2<float>::operator+(const vec2<float> &rhs) const;
-    template vec2<double> vec2<double>::operator+(const vec2<double> &rhs) const;
+    template vec2<float   > vec2<float   >::operator+(const vec2<float   > &rhs) const;
+    template vec2<double  > vec2<double  >::operator+(const vec2<double  > &rhs) const;
+
+    template vec2<uint8_t > vec2<uint8_t >::operator+(const vec2<uint8_t > &rhs) const;
+    template vec2<uint16_t> vec2<uint16_t>::operator+(const vec2<uint16_t> &rhs) const;
+    template vec2<uint32_t> vec2<uint32_t>::operator+(const vec2<uint32_t> &rhs) const;
+    template vec2<uint64_t> vec2<uint64_t>::operator+(const vec2<uint64_t> &rhs) const;
+
+    template vec2<int8_t  > vec2<int8_t  >::operator+(const vec2<int8_t  > &rhs) const;
+    template vec2<int16_t > vec2<int16_t >::operator+(const vec2<int16_t > &rhs) const;
+    template vec2<int32_t > vec2<int32_t >::operator+(const vec2<int32_t > &rhs) const;
+    template vec2<int64_t > vec2<int64_t >::operator+(const vec2<int64_t > &rhs) const;
 #endif
 
     
@@ -1014,10 +1362,18 @@ template <class T>    vec2<T> & vec2<T>::operator+=(const vec2<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> & vec2<int>::operator+=(const vec2<int> &rhs);
-//    template vec2<long int> & vec2<long int>::operator+=(const vec2<long int> &rhs);
-    template vec2<float> & vec2<float>::operator+=(const vec2<float> &rhs);
-    template vec2<double> & vec2<double>::operator+=(const vec2<double> &rhs);
+    template vec2<float   > & vec2<float   >::operator+=(const vec2<float   > &rhs);
+    template vec2<double  > & vec2<double  >::operator+=(const vec2<double  > &rhs);
+
+    template vec2<uint8_t > & vec2<uint8_t >::operator+=(const vec2<uint8_t > &rhs);
+    template vec2<uint16_t> & vec2<uint16_t>::operator+=(const vec2<uint16_t> &rhs);
+    template vec2<uint32_t> & vec2<uint32_t>::operator+=(const vec2<uint32_t> &rhs);
+    template vec2<uint64_t> & vec2<uint64_t>::operator+=(const vec2<uint64_t> &rhs);
+
+    template vec2<int8_t  > & vec2<int8_t  >::operator+=(const vec2<int8_t  > &rhs);
+    template vec2<int16_t > & vec2<int16_t >::operator+=(const vec2<int16_t > &rhs);
+    template vec2<int32_t > & vec2<int32_t >::operator+=(const vec2<int32_t > &rhs);
+    template vec2<int64_t > & vec2<int64_t >::operator+=(const vec2<int64_t > &rhs);
 #endif
     
     
@@ -1025,10 +1381,13 @@ template <class T> vec2<T> vec2<T>::operator-(const vec2<T> &rhs) const {
     return vec2<T>( (*this).x - rhs.x, (*this).y - rhs.y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> vec2<int>::operator-(const vec2<int> &rhs) const;
-//    template vec2<long int> vec2<long int>::operator-(const vec2<long int> &rhs) const;
-    template vec2<float> vec2<float>::operator-(const vec2<float> &rhs) const;
-    template vec2<double> vec2<double>::operator-(const vec2<double> &rhs) const;
+    template vec2<float   > vec2<float   >::operator-(const vec2<float   > &rhs) const;
+    template vec2<double  > vec2<double  >::operator-(const vec2<double  > &rhs) const;
+
+    template vec2<int8_t  > vec2<int8_t  >::operator-(const vec2<int8_t  > &rhs) const;
+    template vec2<int16_t > vec2<int16_t >::operator-(const vec2<int16_t > &rhs) const;
+    template vec2<int32_t > vec2<int32_t >::operator-(const vec2<int32_t > &rhs) const;
+    template vec2<int64_t > vec2<int64_t >::operator-(const vec2<int64_t > &rhs) const;
 #endif
 
     
@@ -1037,10 +1396,13 @@ template <class T>    vec2<T> & vec2<T>::operator-=(const vec2<T> &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> & vec2<int>::operator-=(const vec2<int> &rhs);
-//    template vec2<long int> & vec2<long int>::operator-=(const vec2<long int> &rhs);
-    template vec2<float> & vec2<float>::operator-=(const vec2<float> &rhs);
-    template vec2<double> & vec2<double>::operator-=(const vec2<double> &rhs);
+    template vec2<float   > & vec2<float   >::operator-=(const vec2<float   > &rhs);
+    template vec2<double  > & vec2<double  >::operator-=(const vec2<double  > &rhs);
+
+    template vec2<int8_t  > & vec2<int8_t  >::operator-=(const vec2<int8_t  > &rhs);
+    template vec2<int16_t > & vec2<int16_t >::operator-=(const vec2<int16_t > &rhs);
+    template vec2<int32_t > & vec2<int32_t >::operator-=(const vec2<int32_t > &rhs);
+    template vec2<int64_t > & vec2<int64_t >::operator-=(const vec2<int64_t > &rhs);
 #endif
     
 //------------------------------ overloaded native-types -----------------------------
@@ -1050,10 +1412,18 @@ template <class T>    vec2<T> vec2<T>::operator*(const T &rhs) const {
     return vec2<T>(x*rhs,y*rhs);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> vec2<int>::operator*(const int &rhs) const;
-//    template vec2<long int> vec2<long int>::operator*(const long int &rhs) const;
-    template vec2<float> vec2<float>::operator*(const float &rhs) const;
-    template vec2<double> vec2<double>::operator*(const double &rhs) const;
+    template vec2<float   > vec2<float   >::operator*(const float    &rhs) const;
+    template vec2<double  > vec2<double  >::operator*(const double   &rhs) const;
+
+    template vec2<uint8_t > vec2<uint8_t >::operator*(const uint8_t  &rhs) const;
+    template vec2<uint16_t> vec2<uint16_t>::operator*(const uint16_t &rhs) const;
+    template vec2<uint32_t> vec2<uint32_t>::operator*(const uint32_t &rhs) const;
+    template vec2<uint64_t> vec2<uint64_t>::operator*(const uint64_t &rhs) const;
+
+    template vec2<int8_t  > vec2<int8_t  >::operator*(const int8_t   &rhs) const;
+    template vec2<int16_t > vec2<int16_t >::operator*(const int16_t  &rhs) const;
+    template vec2<int32_t > vec2<int32_t >::operator*(const int32_t  &rhs) const;
+    template vec2<int64_t > vec2<int64_t >::operator*(const int64_t  &rhs) const;
 #endif
     
 template <class T>    vec2<T> & vec2<T>::operator*=(const T &rhs) {
@@ -1061,20 +1431,36 @@ template <class T>    vec2<T> & vec2<T>::operator*=(const T &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> & vec2<int>::operator*=(const int &rhs);
-//    template vec2<long int> & vec2<long int>::operator*=(const long int &rhs);
-    template vec2<float> & vec2<float>::operator*=(const float &rhs);
-    template vec2<double> & vec2<double>::operator*=(const double &rhs);
+    template vec2<float   > & vec2<float   >::operator*=(const float    &rhs);
+    template vec2<double  > & vec2<double  >::operator*=(const double   &rhs);
+
+    template vec2<uint8_t > & vec2<uint8_t >::operator*=(const uint8_t  &rhs);
+    template vec2<uint16_t> & vec2<uint16_t>::operator*=(const uint16_t &rhs);
+    template vec2<uint32_t> & vec2<uint32_t>::operator*=(const uint32_t &rhs);
+    template vec2<uint64_t> & vec2<uint64_t>::operator*=(const uint64_t &rhs);
+
+    template vec2<int8_t  > & vec2<int8_t  >::operator*=(const int8_t   &rhs);
+    template vec2<int16_t > & vec2<int16_t >::operator*=(const int16_t  &rhs);
+    template vec2<int32_t > & vec2<int32_t >::operator*=(const int32_t  &rhs);
+    template vec2<int64_t > & vec2<int64_t >::operator*=(const int64_t  &rhs);
 #endif
     
 template <class T>    vec2<T> vec2<T>::operator/(const T &rhs) const {
     return vec2<T>(x/rhs,y/rhs);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> vec2<int>::operator/(const int &rhs) const;
-//    template vec2<long int> vec2<long int>::operator/(const long int &rhs) const;
-    template vec2<float> vec2<float>::operator/(const float &rhs) const;
-    template vec2<double> vec2<double>::operator/(const double &rhs) const;
+    template vec2<float   > vec2<float   >::operator/(const float    &rhs) const;
+    template vec2<double  > vec2<double  >::operator/(const double   &rhs) const;
+
+    template vec2<uint8_t > vec2<uint8_t >::operator/(const uint8_t  &rhs) const;
+    template vec2<uint16_t> vec2<uint16_t>::operator/(const uint16_t &rhs) const;
+    template vec2<uint32_t> vec2<uint32_t>::operator/(const uint32_t &rhs) const;
+    template vec2<uint64_t> vec2<uint64_t>::operator/(const uint64_t &rhs) const;
+
+    template vec2<int8_t  > vec2<int8_t  >::operator/(const int8_t   &rhs) const;
+    template vec2<int16_t > vec2<int16_t >::operator/(const int16_t  &rhs) const;
+    template vec2<int32_t > vec2<int32_t >::operator/(const int32_t  &rhs) const;
+    template vec2<int64_t > vec2<int64_t >::operator/(const int64_t  &rhs) const;
 #endif
     
 template <class T>    vec2<T> & vec2<T>::operator/=(const T &rhs) {
@@ -1082,10 +1468,18 @@ template <class T>    vec2<T> & vec2<T>::operator/=(const T &rhs) {
     return *this;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template vec2<int> & vec2<int>::operator/=(const int &rhs);
-//    template vec2<long int> & vec2<long int>::operator/=(const long int &rhs);
-    template vec2<float> & vec2<float>::operator/=(const float &rhs);
-    template vec2<double> & vec2<double>::operator/=(const double &rhs);
+    template vec2<float   > & vec2<float   >::operator/=(const float    &rhs);
+    template vec2<double  > & vec2<double  >::operator/=(const double   &rhs);
+
+    template vec2<uint8_t > & vec2<uint8_t >::operator/=(const uint8_t  &rhs);
+    template vec2<uint16_t> & vec2<uint16_t>::operator/=(const uint16_t &rhs);
+    template vec2<uint32_t> & vec2<uint32_t>::operator/=(const uint32_t &rhs);
+    template vec2<uint64_t> & vec2<uint64_t>::operator/=(const uint64_t &rhs);
+
+    template vec2<int8_t  > & vec2<int8_t  >::operator/=(const int8_t   &rhs);
+    template vec2<int16_t > & vec2<int16_t >::operator/=(const int16_t  &rhs);
+    template vec2<int32_t > & vec2<int32_t >::operator/=(const int32_t  &rhs);
+    template vec2<int64_t > & vec2<int64_t >::operator/=(const int64_t  &rhs);
 #endif
     
     
@@ -1100,8 +1494,18 @@ template <class T>    T & vec2<T>::operator[](size_t i) {
     return this->x;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  & vec2<float >::operator[](size_t);
-    template double & vec2<double>::operator[](size_t);
+    template float    & vec2<float   >::operator[](size_t);
+    template double   & vec2<double  >::operator[](size_t);
+
+    template uint8_t  & vec2<uint8_t >::operator[](size_t);
+    template uint16_t & vec2<uint16_t>::operator[](size_t);
+    template uint32_t & vec2<uint32_t>::operator[](size_t);
+    template uint64_t & vec2<uint64_t>::operator[](size_t);
+
+    template int8_t   & vec2<int8_t  >::operator[](size_t);
+    template int16_t  & vec2<int16_t >::operator[](size_t);
+    template int32_t  & vec2<int32_t >::operator[](size_t);
+    template int64_t  & vec2<int64_t >::operator[](size_t);
 #endif
     
     
@@ -1109,20 +1513,36 @@ template <class T>    bool vec2<T>::operator==(const vec2<T> &rhs) const {
     return ( (x == rhs.x) && (y == rhs.y) );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec2<int>::operator==(const vec2<int> &rhs) const;
-//    template bool vec2<long int>::operator==(const vec2<long int> &rhs) const;
-    template bool vec2<float>::operator==(const vec2<float> &rhs) const;
-    template bool vec2<double>::operator==(const vec2<double> &rhs) const;
+    template bool vec2<float   >::operator==(const vec2<float   > &rhs) const;
+    template bool vec2<double  >::operator==(const vec2<double  > &rhs) const;
+
+    template bool vec2<uint8_t >::operator==(const vec2<uint8_t > &rhs) const;
+    template bool vec2<uint16_t>::operator==(const vec2<uint16_t> &rhs) const;
+    template bool vec2<uint32_t>::operator==(const vec2<uint32_t> &rhs) const;
+    template bool vec2<uint64_t>::operator==(const vec2<uint64_t> &rhs) const;
+
+    template bool vec2<int8_t  >::operator==(const vec2<int8_t  > &rhs) const;
+    template bool vec2<int16_t >::operator==(const vec2<int16_t > &rhs) const;
+    template bool vec2<int32_t >::operator==(const vec2<int32_t > &rhs) const;
+    template bool vec2<int64_t >::operator==(const vec2<int64_t > &rhs) const;
 #endif
    
 template <class T>    bool vec2<T>::operator!=(const vec2<T> &rhs) const {
     return !( *this == rhs );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec2<int>::operator!=(const vec2<int> &rhs) const;
-//    template bool vec2<long int>::operator!=(const vec2<long int> &rhs) const;
-    template bool vec2<float>::operator!=(const vec2<float> &rhs) const;
-    template bool vec2<double>::operator!=(const vec2<double> &rhs) const;
+    template bool vec2<float   >::operator!=(const vec2<float   > &rhs) const;
+    template bool vec2<double  >::operator!=(const vec2<double  > &rhs) const;
+
+    template bool vec2<uint8_t >::operator!=(const vec2<uint8_t > &rhs) const;
+    template bool vec2<uint16_t>::operator!=(const vec2<uint16_t> &rhs) const;
+    template bool vec2<uint32_t>::operator!=(const vec2<uint32_t> &rhs) const;
+    template bool vec2<uint64_t>::operator!=(const vec2<uint64_t> &rhs) const;
+
+    template bool vec2<int8_t  >::operator!=(const vec2<int8_t  > &rhs) const;
+    template bool vec2<int16_t >::operator!=(const vec2<int16_t > &rhs) const;
+    template bool vec2<int32_t >::operator!=(const vec2<int32_t > &rhs) const;
+    template bool vec2<int64_t >::operator!=(const vec2<int64_t > &rhs) const;
 #endif
  
     
@@ -1160,10 +1580,18 @@ template <class T>    bool vec2<T>::operator<(const vec2<T> &rhs) const {
     //return ( (y < rhs.y) ); //  <--- BAD! (See previous note above ^)
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-//    template bool vec2<int>::operator<(const vec2<int> &rhs) const;
-//    template bool vec2<long int>::operator<(const vec2<long int> &rhs) const;
-    template bool vec2<float>::operator<(const vec2<float> &rhs) const;
-    template bool vec2<double>::operator<(const vec2<double> &rhs) const;
+    template bool vec2<float   >::operator<(const vec2<float   > &rhs) const;
+    template bool vec2<double  >::operator<(const vec2<double  > &rhs) const;
+
+    template bool vec2<uint8_t >::operator<(const vec2<uint8_t > &rhs) const;
+    template bool vec2<uint16_t>::operator<(const vec2<uint16_t> &rhs) const;
+    template bool vec2<uint32_t>::operator<(const vec2<uint32_t> &rhs) const;
+    template bool vec2<uint64_t>::operator<(const vec2<uint64_t> &rhs) const;
+
+    template bool vec2<int8_t  >::operator<(const vec2<int8_t  > &rhs) const;
+    template bool vec2<int16_t >::operator<(const vec2<int16_t > &rhs) const;
+    template bool vec2<int32_t >::operator<(const vec2<int32_t > &rhs) const;
+    template bool vec2<int64_t >::operator<(const vec2<int64_t > &rhs) const;
 #endif
 
     
@@ -1171,8 +1599,18 @@ template <class T>    bool vec2<T>::isfinite(void) const {
     return std::isfinite(this->x) && std::isfinite(this->y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template bool vec2<float >::isfinite(void) const;
-    template bool vec2<double>::isfinite(void) const;
+    template bool vec2<float   >::isfinite(void) const;
+    template bool vec2<double  >::isfinite(void) const;
+
+    template bool vec2<uint8_t >::isfinite(void) const;
+    template bool vec2<uint16_t>::isfinite(void) const;
+    template bool vec2<uint32_t>::isfinite(void) const;
+    template bool vec2<uint64_t>::isfinite(void) const;
+
+    template bool vec2<int8_t  >::isfinite(void) const;
+    template bool vec2<int16_t >::isfinite(void) const;
+    template bool vec2<int32_t >::isfinite(void) const;
+    template bool vec2<int64_t >::isfinite(void) const;
 #endif
 
 

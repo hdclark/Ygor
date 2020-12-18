@@ -548,3 +548,27 @@ TEST_CASE( "vec2 member functions" ){
     }
 }
 
+// Note: The following function is a link-time check. At runtime the code unconditionally passes.
+//       The optimization level is overridden to avoid the code being optimized away.
+//       Use of this pragma (at time of writing) cannot appear inside a function.
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+static bool instantiate_vec2_types(){
+    vec2<float   > v0;
+    vec2<double  > v1;
+    vec2<uint8_t > v2;
+    vec2<uint16_t> v3;
+    vec2<uint32_t> v4;
+    vec2<uint64_t> v5;
+    vec2<int8_t  > v6;
+    vec2<int16_t > v7;
+    vec2<int32_t > v8;
+    vec2<int64_t > v9;
+    return true;
+}
+#pragma GCC pop_options
+
+TEST_CASE( "vec2 with integer type template specializations are available" ){
+    REQUIRE(instantiate_vec2_types());
+}
+

@@ -1181,3 +1181,27 @@ TEST_CASE( "vec3 affiliated free functions" ){
     }
 }
 
+// Note: The following function is a link-time check. At runtime the code unconditionally passes.
+//       The optimization level is overridden to avoid the code being optimized away.
+//       Use of this pragma (at time of writing) cannot appear inside a function.
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+static bool instantiate_vec3_types(){
+    vec3<float   > v0;
+    vec3<double  > v1;
+    vec3<uint8_t > v2;
+    vec3<uint16_t> v3;
+    vec3<uint32_t> v4;
+    vec3<uint64_t> v5;
+    vec3<int8_t  > v6;
+    vec3<int16_t > v7;
+    vec3<int32_t > v8;
+    vec3<int64_t > v9;
+    return true;
+}
+#pragma GCC pop_options
+
+TEST_CASE( "vec3 with integer type template specializations are available" ){
+    REQUIRE(instantiate_vec3_types());
+}
+
