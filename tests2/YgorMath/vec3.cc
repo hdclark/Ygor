@@ -309,6 +309,7 @@ TEST_CASE( "vec3 member functions" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();
     const auto inf = std::numeric_limits<double>::infinity();
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+    const auto pi = std::acos(-1.0);
 
     const vec3<double> x_unit(1.0, 0.0, 0.0);
     const vec3<double> y_unit(0.0, 1.0, 0.0);
@@ -486,25 +487,25 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( (z_unit.angle(z_unit, &OK) == 0.0) );
         REQUIRE( OK );
 
-        REQUIRE( (std::abs(x_unit.angle(y_unit, &OK) - M_PI * 0.5) < eps) );
+        REQUIRE( (std::abs(x_unit.angle(y_unit, &OK) - pi * 0.5) < eps) );
         REQUIRE( OK );
-        REQUIRE( (std::abs(x_unit.angle(z_unit, &OK) - M_PI * 0.5) < eps) );
+        REQUIRE( (std::abs(x_unit.angle(z_unit, &OK) - pi * 0.5) < eps) );
         REQUIRE( OK );
-        REQUIRE( (std::abs(y_unit.angle(z_unit, &OK) - M_PI * 0.5) < eps) );
-        REQUIRE( OK );
-
-        REQUIRE( (std::abs(x_unit.angle(x_unit * -1.0, &OK) - M_PI) < eps) );
-        REQUIRE( OK );
-        REQUIRE( (std::abs(y_unit.angle(y_unit * -1.0, &OK) - M_PI) < eps) );
-        REQUIRE( OK );
-        REQUIRE( (std::abs(z_unit.angle(z_unit * -1.0, &OK) - M_PI) < eps) );
+        REQUIRE( (std::abs(y_unit.angle(z_unit, &OK) - pi * 0.5) < eps) );
         REQUIRE( OK );
 
-        REQUIRE( (std::abs((x_unit + z_unit).angle((x_unit + z_unit) * -1.0, &OK) - M_PI) < eps) );
+        REQUIRE( (std::abs(x_unit.angle(x_unit * -1.0, &OK) - pi) < eps) );
         REQUIRE( OK );
-        REQUIRE( (std::abs((x_unit + y_unit).angle((x_unit + y_unit) * -1.0, &OK) - M_PI) < eps) );
+        REQUIRE( (std::abs(y_unit.angle(y_unit * -1.0, &OK) - pi) < eps) );
         REQUIRE( OK );
-        REQUIRE( (std::abs((y_unit + x_unit).angle((y_unit + x_unit) * -1.0, &OK) - M_PI) < eps) );
+        REQUIRE( (std::abs(z_unit.angle(z_unit * -1.0, &OK) - pi) < eps) );
+        REQUIRE( OK );
+
+        REQUIRE( (std::abs((x_unit + z_unit).angle((x_unit + z_unit) * -1.0, &OK) - pi) < eps) );
+        REQUIRE( OK );
+        REQUIRE( (std::abs((x_unit + y_unit).angle((x_unit + y_unit) * -1.0, &OK) - pi) < eps) );
+        REQUIRE( OK );
+        REQUIRE( (std::abs((y_unit + x_unit).angle((y_unit + x_unit) * -1.0, &OK) - pi) < eps) );
         REQUIRE( OK );
 
         x_unit.angle(zero, &OK);
@@ -539,26 +540,26 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( agreement < z_unit.rotate_around_z(0.1).Dot(z_unit) );
         REQUIRE( agreement < z_unit.rotate_around_z(1.0).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_y(2.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_z(2.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_x(2.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_y(2.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_x(2.0 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_y(2.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_y(2.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(2.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(2.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(2.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(2.0 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(2.0 * pi).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_y(8.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_z(8.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_x(8.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_y(8.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_x(8.0 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_y(8.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_y(8.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(8.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(8.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_y(8.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(8.0 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(8.0 * pi).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_z(0.5 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_z(1.5 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_y(0.5 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_y(1.5 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_x(0.5 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_x(1.5 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(0.5 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_z(1.5 * pi).Dot(x_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_y(0.5 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_y(1.5 * pi).Dot(z_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_x(0.5 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_x(1.5 * pi).Dot(y_unit) );
 
         // Maintains length when rotated.
         REQUIRE( (x_unit.rotate_around_z(1.0).length() - 1.0) < eps );
@@ -596,57 +597,57 @@ TEST_CASE( "vec3 member functions" ){
         REQUIRE( agreement < z_unit.rotate_around_unit(z_unit, 0.1).Dot(z_unit) );
         REQUIRE( agreement < z_unit.rotate_around_unit(z_unit, 1.0).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 2.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 2.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 2.0 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 2.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 2.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 2.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 2.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 2.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 2.0 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 2.0 * pi).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 8.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 8.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 8.0 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 8.0 * M_PI).Dot(z_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 8.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 8.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 8.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(y_unit, 8.0 * pi).Dot(y_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 8.0 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 8.0 * pi).Dot(z_unit) );
 
-        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 0.5 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(z_unit, 1.5 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 0.5 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 1.5 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 0.5 * M_PI).Dot(z_unit) );
-        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 1.5 * M_PI).Dot(y_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(z_unit, 0.5 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(z_unit, 1.5 * pi).Dot(x_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(y_unit, 0.5 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_unit(y_unit, 1.5 * pi).Dot(z_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_unit(x_unit, 0.5 * pi).Dot(z_unit) );
+        REQUIRE( agreement < z_unit.rotate_around_unit(x_unit, 1.5 * pi).Dot(y_unit) );
 
         // Rotation about an arbitrary axis is 2pi cyclical.
-        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, 2.0 * M_PI).distance(x_unit) < eps );
-        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, 2.0 * M_PI).distance(y_unit) < eps );
-        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, 2.0 * M_PI).distance(z_unit) < eps );
+        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, 2.0 * pi).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, 2.0 * pi).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, 2.0 * pi).distance(z_unit) < eps );
 
         // Rotation about an arbitrary axis reproduces simple unit vector decompositions.
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 0.5 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.0 * M_PI).distance((x_unit * -1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.5 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 0.5 * pi).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.0 * pi).distance((x_unit * -1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 1.5 * pi).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(z_unit, 2.0 * pi).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
 
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 0.5 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.0 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.5 * M_PI).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 0.5 * pi).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.0 * pi).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 1.5 * pi).distance((x_unit * -1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(y_unit, 2.0 * pi).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
 
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 0.5 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.0 * M_PI).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit * -1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.5 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
-        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 2.0 * M_PI).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 0.5 * pi).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit *  1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.0 * pi).distance((x_unit *  1.0) + (y_unit * -1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 1.5 * pi).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit * -1.0)) < eps );
+        REQUIRE( (x_unit + y_unit + z_unit).rotate_around_unit(x_unit, 2.0 * pi).distance((x_unit *  1.0) + (y_unit *  1.0) + (z_unit *  1.0)) < eps );
 
         // Negative rotations are supported.
-        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, -2.0 * M_PI).distance(x_unit) < eps );
-        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, -2.0 * M_PI).distance(y_unit) < eps );
-        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, -2.0 * M_PI).distance(z_unit) < eps );
+        REQUIRE( x_unit.rotate_around_unit(y_unit + z_unit, -2.0 * pi).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit(x_unit + z_unit, -2.0 * pi).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit(x_unit + y_unit, -2.0 * pi).distance(z_unit) < eps );
 
         // Negative rotations can also be accomplished by negating the axis vector..
-        REQUIRE( x_unit.rotate_around_unit((y_unit + z_unit) * -1.0, 2.0 * M_PI).distance(x_unit) < eps );
-        REQUIRE( y_unit.rotate_around_unit((x_unit + z_unit) * -1.0, 2.0 * M_PI).distance(y_unit) < eps );
-        REQUIRE( z_unit.rotate_around_unit((x_unit + y_unit) * -1.0, 2.0 * M_PI).distance(z_unit) < eps );
+        REQUIRE( x_unit.rotate_around_unit((y_unit + z_unit) * -1.0, 2.0 * pi).distance(x_unit) < eps );
+        REQUIRE( y_unit.rotate_around_unit((x_unit + z_unit) * -1.0, 2.0 * pi).distance(y_unit) < eps );
+        REQUIRE( z_unit.rotate_around_unit((x_unit + y_unit) * -1.0, 2.0 * pi).distance(z_unit) < eps );
 
         // Maintains length when rotated.
         REQUIRE( (x_unit.rotate_around_unit(z_unit, 1.0).length() - 1.0) < eps );
@@ -991,6 +992,7 @@ TEST_CASE( "vec3 member functions" ){
 
 TEST_CASE( "vec3 affiliated free functions" ){
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+    const auto pi = std::acos(-1.0);
 
     const vec3<double> x_unit(1.0, 0.0, 0.0);
     const vec3<double> y_unit(0.0, 1.0, 0.0);
@@ -999,96 +1001,96 @@ TEST_CASE( "vec3 affiliated free functions" ){
 
     SUBCASE("rotate_unit_vector_in_plane"){
         // Some simple null rotation cases.
-        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*M_PI, 0.0*M_PI).distance(x_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*M_PI, 0.0*M_PI).distance(y_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*M_PI, 0.0*M_PI).distance(z_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*pi, 0.0*pi).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*pi, 0.0*pi).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*pi, 0.0*pi).distance(z_unit) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*M_PI, 0.0*M_PI).distance(x_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*M_PI, 0.0*M_PI).distance(y_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*M_PI, 0.0*M_PI).distance(z_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*pi, 0.0*pi).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*pi, 0.0*pi).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*pi, 0.0*pi).distance(z_unit) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*M_PI, 1.0*M_PI).distance(x_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*M_PI, 1.0*M_PI).distance(y_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*M_PI, 1.0*M_PI).distance(z_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 0.0*pi, 1.0*pi).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 0.0*pi, 1.0*pi).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 0.0*pi, 1.0*pi).distance(z_unit) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*M_PI, 1.0*M_PI).distance(x_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*M_PI, 1.0*M_PI).distance(y_unit) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*M_PI, 1.0*M_PI).distance(z_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit, 2.0*pi, 1.0*pi).distance(x_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit, 2.0*pi, 1.0*pi).distance(y_unit) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit, 2.0*pi, 1.0*pi).distance(z_unit) < eps );
 
         // Around x axis.
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  0.0*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*pi,  0.0*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*pi,  0.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*pi,  0.0*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*pi,  0.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*pi,  0.0*pi ).distance(x_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  0.5*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*pi,  0.5*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*pi,  0.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*pi,  0.5*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*pi,  0.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*pi,  0.5*pi ).distance(x_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  1.0*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*pi,  1.0*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*pi,  1.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*pi,  1.0*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*pi,  1.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*pi,  1.0*pi ).distance(x_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*M_PI,  1.5*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.0*pi,  1.5*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  0.5*pi,  1.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.0*pi,  1.5*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  1.5*pi,  1.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(x_unit,  2.0*pi,  1.5*pi ).distance(x_unit *  1.0) < eps );
 
         // Around y axis.
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  0.0*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  0.0*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  0.0*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*pi,  0.0*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*pi,  0.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*pi,  0.0*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*pi,  0.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*pi,  0.0*pi ).distance(y_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  0.5*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  0.5*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*pi,  0.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*pi,  0.5*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*pi,  0.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*pi,  0.5*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*pi,  0.5*pi ).distance(y_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  1.0*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  1.0*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  1.0*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*pi,  1.0*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*pi,  1.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*pi,  1.0*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*pi,  1.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*pi,  1.0*pi ).distance(y_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*M_PI,  1.5*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*M_PI,  1.5*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.0*pi,  1.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  0.5*pi,  1.5*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.0*pi,  1.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  1.5*pi,  1.5*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(y_unit,  2.0*pi,  1.5*pi ).distance(y_unit *  1.0) < eps );
 
         // Around z axis.
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  0.0*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  0.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  0.0*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  0.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*pi,  0.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*pi,  0.0*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*pi,  0.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*pi,  0.0*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*pi,  0.0*pi ).distance(z_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  0.5*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  0.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  0.5*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  0.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  0.5*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*pi,  0.5*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*pi,  0.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*pi,  0.5*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*pi,  0.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*pi,  0.5*pi ).distance(z_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  1.0*M_PI ).distance(x_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  1.0*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  1.0*M_PI ).distance(x_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  1.0*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*pi,  1.0*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*pi,  1.0*pi ).distance(x_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*pi,  1.0*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*pi,  1.0*pi ).distance(x_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*pi,  1.0*pi ).distance(z_unit *  1.0) < eps );
 
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*M_PI,  1.5*M_PI ).distance(z_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*M_PI,  1.5*M_PI ).distance(y_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*M_PI,  1.5*M_PI ).distance(z_unit * -1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*M_PI,  1.5*M_PI ).distance(y_unit *  1.0) < eps );
-        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*M_PI,  1.5*M_PI ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.0*pi,  1.5*pi ).distance(z_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  0.5*pi,  1.5*pi ).distance(y_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.0*pi,  1.5*pi ).distance(z_unit * -1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  1.5*pi,  1.5*pi ).distance(y_unit *  1.0) < eps );
+        REQUIRE( rotate_unit_vector_in_plane(z_unit,  2.0*pi,  1.5*pi ).distance(z_unit *  1.0) < eps );
     }
 
     SUBCASE("Evolve_x_v_over_T_via_F"){

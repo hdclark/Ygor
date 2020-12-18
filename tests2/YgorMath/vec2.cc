@@ -263,6 +263,7 @@ TEST_CASE( "vec2 member functions" ){
     const auto nan = std::numeric_limits<double>::quiet_NaN();
     const auto inf = std::numeric_limits<double>::infinity();
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+    const auto pi = std::acos(-1.0);
 
     const vec2<double> x_unit(1.0, 0.0);
     const vec2<double> y_unit(0.0, 1.0);
@@ -382,10 +383,10 @@ TEST_CASE( "vec2 member functions" ){
         const double agreement = 1.0 - eps;
 
         // Correct orientations.
-        REQUIRE( agreement < x_unit.rotate_around_z(2.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_z(8.0 * M_PI).Dot(x_unit) );
-        REQUIRE( agreement < x_unit.rotate_around_z(0.5 * M_PI).Dot(y_unit) );
-        REQUIRE( agreement < y_unit.rotate_around_z(1.5 * M_PI).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(2.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(8.0 * pi).Dot(x_unit) );
+        REQUIRE( agreement < x_unit.rotate_around_z(0.5 * pi).Dot(y_unit) );
+        REQUIRE( agreement < y_unit.rotate_around_z(1.5 * pi).Dot(x_unit) );
 
         // Maintains length when rotated.
         REQUIRE( (x_unit.rotate_around_z(1.0).length() - 1.0) < eps );
