@@ -97,6 +97,24 @@ TEST_CASE( "fv_surface_mesh class" ){
         REQUIRE( mesh2 == mesh3 );
     }
 
+    SUBCASE("pack_RGBA32_colour and unpack_RGBA32_colour"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+
+        const auto R1 = static_cast<uint8_t>(0x12);
+        const auto G1 = static_cast<uint8_t>(0x34);
+        const auto B1 = static_cast<uint8_t>(0x56);
+        const auto A1 = static_cast<uint8_t>(0x78);
+
+        const auto p1 = mesh2.pack_RGBA32_colour( {{ R1, G1, B1, A1 }} );
+        REQUIRE(p1 == static_cast<uint32_t>(0x12345678));
+
+        const auto u1 = mesh2.unpack_RGBA32_colour(p1);
+        REQUIRE( u1.at(0) == R1 );
+        REQUIRE( u1.at(1) == G1 );
+        REQUIRE( u1.at(2) == B1 );
+        REQUIRE( u1.at(3) == A1 );
+    }
+
     SUBCASE("surface_area"){
         REQUIRE( mesh1.surface_area() == 0.5 );
     }

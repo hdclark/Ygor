@@ -6221,6 +6221,38 @@ fv_surface_mesh<T,I>::swap(fv_surface_mesh<T,I> &in){
     template void fv_surface_mesh<double, uint64_t >::swap(fv_surface_mesh<double, uint64_t> &);
 #endif
 
+template <class T, class I>
+uint32_t
+fv_surface_mesh<T,I>::pack_RGBA32_colour(std::array<uint8_t,4> in) const {
+    return static_cast<uint32_t>(   (in[0] << 24)    // R
+                                  | (in[1] << 16)    // G
+                                  | (in[2] << 8 )    // B
+                                  | (in[3] << 0 ) ); // A
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template uint32_t fv_surface_mesh<float , uint32_t>::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+    template uint32_t fv_surface_mesh<float , uint64_t>::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+
+    template uint32_t fv_surface_mesh<double, uint32_t>::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+    template uint32_t fv_surface_mesh<double, uint64_t>::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+#endif
+
+template <class T, class I>
+std::array<uint8_t,4>
+fv_surface_mesh<T,I>::unpack_RGBA32_colour(uint32_t in) const {
+    return {{ static_cast<uint8_t>((in & 0xFF000000) >> 24),    // R
+              static_cast<uint8_t>((in & 0x00FF0000) >> 16),    // G
+              static_cast<uint8_t>((in & 0x0000FF00) >> 8 ),    // B
+              static_cast<uint8_t>((in & 0x000000FF) >> 0 ) }}; // A
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::array<uint8_t,4> fv_surface_mesh<float , uint32_t>::unpack_RGBA32_colour(uint32_t) const;
+    template std::array<uint8_t,4> fv_surface_mesh<float , uint64_t>::unpack_RGBA32_colour(uint32_t) const;
+
+    template std::array<uint8_t,4> fv_surface_mesh<double, uint32_t>::unpack_RGBA32_colour(uint32_t) const;
+    template std::array<uint8_t,4> fv_surface_mesh<double, uint64_t>::unpack_RGBA32_colour(uint32_t) const;
+#endif
+
 
 template <class T, class I>
 T
@@ -6782,7 +6814,6 @@ point_set<T>::operator!=(const point_set<T> &rhs) const {
     template bool point_set<double>::operator!=(const point_set<double> &) const;
 #endif
 
-
 template <class T>
 void
 point_set<T>::swap(point_set<T> &in){
@@ -6796,6 +6827,28 @@ point_set<T>::swap(point_set<T> &in){
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template void point_set<float >::swap(point_set<float > &);
     template void point_set<double>::swap(point_set<double> &);
+#endif
+
+template <class T>
+uint32_t
+point_set<T>::pack_RGBA32_colour(std::array<uint8_t,4> in) const {
+    // Re-use surface mesh RGBA32 colour packing for consistency.
+    return fv_surface_mesh<T,uint32_t>().pack_RGBA32_colour(in);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template uint32_t point_set<float >::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+    template uint32_t point_set<double>::pack_RGBA32_colour(std::array<uint8_t,4>) const;
+#endif
+
+template <class T>
+std::array<uint8_t,4>
+point_set<T>::unpack_RGBA32_colour(uint32_t in) const {
+    // Re-use surface mesh RGBA32 colour packing for consistency.
+    return fv_surface_mesh<T,uint32_t>().unpack_RGBA32_colour(in);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::array<uint8_t,4> point_set<float >::unpack_RGBA32_colour(uint32_t) const;
+    template std::array<uint8_t,4> point_set<double>::unpack_RGBA32_colour(uint32_t) const;
 #endif
 
 

@@ -580,6 +580,12 @@ template <class T, class I>   class fv_surface_mesh {
 
         void swap(fv_surface_mesh &);
 
+        // The 'default' way to pack/unpack/intepret 8-bit colour data. Provided here to avoid rewriting everywhere.
+        // Note that the user can of course pack some other way, but this is the way file reader/writers will
+        // pack/unpack colour data (if supported, present, and applicable).
+        uint32_t pack_RGBA32_colour(std::array<uint8_t,4>) const;
+        std::array<uint8_t,4> unpack_RGBA32_colour(uint32_t) const;
+
         // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
         // all faces.
         T surface_area(long long int n = -1) const;
@@ -639,6 +645,9 @@ template <class T>   class point_set {
         bool operator!=(const point_set &) const;
 
         void swap(point_set &);
+
+        uint32_t pack_RGBA32_colour(std::array<uint8_t,4>) const; // Same as for fv_surface_mesh.
+        std::array<uint8_t,4> unpack_RGBA32_colour(uint32_t) const;
 
         vec3<T> Centroid(void) const; // Estimate the centroid (i.e., the centre of mass if all points have identical mass).
 
