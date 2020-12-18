@@ -365,6 +365,24 @@ TEST_CASE( "YgorMathIOPLY ReadFVSMeshFromPLY (ASCII-only)" ){
         REQUIRE(sm_d.metadata.at("test_key_3") == "test_value_3");
     }
 
+    SUBCASE("unsupported: magic numbers missing"){
+        std::stringstream ss;
+        ss << "format ascii 1.0" << std::endl
+           << "element vertex 1" << std::endl
+           << "property float x" << std::endl
+           << "property float y" << std::endl
+           << "property float z" << std::endl
+           << "end_header" << std::endl
+           << "1.0 1.0 1.0" << std::endl;
+
+        REQUIRE(!ReadFVSMeshFromPLY(sm_d, ss));
+        REQUIRE(sm_d.vertices.size() == 0);
+        REQUIRE(sm_d.vertex_normals.size() == 0);
+        REQUIRE(sm_d.vertex_colours.size() == 0);
+        REQUIRE(sm_d.faces.size() == 0);
+        REQUIRE(sm_d.metadata.empty());
+    }
+
     SUBCASE("unsupported: PLY format versions beyond 1.0"){
         std::stringstream ss;
         ss << "ply" << std::endl

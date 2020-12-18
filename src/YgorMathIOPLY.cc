@@ -256,8 +256,26 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
     };
     reset();
 
+    // Check the magic number, which is required for either ASCII or binary files, before proceeding.
+    try{
+        char a, b, c;
+        if( !is.get(a)
+        ||  !is.get(b)
+        ||  !is.get(c) ){
+            throw std::runtime_error("Unable to read from stream");
+        }
+        if( ((a != 'p') && (a != 'P')) 
+        ||  ((b != 'l') && (b != 'L'))
+        ||  ((c != 'y') && (c != 'Y')) ){
+            throw std::runtime_error("Missing 'ply' magic number");
+        }
+    }catch(const std::exception& e){
+        FUNCWARN(e.what());
+        reset();
+        return false;
+    }
 
-    int parse_stage = 0;
+    int parse_stage = 1;
     std::optional<bool> is_binary_opt;
     struct property_t {
         std::string name = "";
@@ -321,10 +339,6 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                     const auto decoded_value = Base64::DecodeToString(value);
                     fvsm.metadata[decoded_key] = decoded_value;
                 }
-
-            // Read the magic number.
-            }else if( (parse_stage == 0) && (split.size() == 1) && (split.at(0) == "ply"_s)){
-                ++parse_stage;
 
             // Read the version statement.
             }else if( (parse_stage == 1) && (split.size() == 3) && (split.at(0) == "format"_s) 
