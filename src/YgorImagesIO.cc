@@ -33,33 +33,6 @@
 //#endif
 
 
-static inline
-YgorImageIOEndianness
-Detect_Machine_Endianness(void){
-
-    //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine. We do this by 
-    // probing where a single bit resides in memory.
-    //
-    // NOTE: If endianness is not little or big, this routine throws! Feel free to add additional
-    //       endian types if needed.
-    //
-    volatile uint64_t EndianScape = static_cast<uint64_t>(1); //Anything larger than 1 byte will suffice.
-    volatile uint8_t *EndianCheck = reinterpret_cast<volatile uint8_t *>(&EndianScape);
-
-    const bool UsingLittleEndian = (EndianCheck[0] == static_cast<uint8_t>(1)); // "LSB".
-    const bool UsingBigEndian    = (EndianCheck[sizeof(uint64_t)-1] == static_cast<uint8_t>(1)); // "MSB".
-
-    if(UsingLittleEndian){
-        return YgorImageIOEndianness::Little;
-    }else if(UsingBigEndian){
-        return YgorImageIOEndianness::Big;
-    }
-
-    throw std::runtime_error("Cannot determine machine's endianness!");
-    return YgorImageIOEndianness::Default; //(You should never get here.)        
-}
-
-
 //Dump raw pixel data to file as type T.
 //
 // NOTE: This data can be converted to whatever using ImageMagick ala:
@@ -88,7 +61,7 @@ template <class T, class R>
 bool
 Dump_Pixels(const planar_image<T,R> &img,
             const std::string &filename,
-            YgorImageIOEndianness destendian){
+            YgorEndianness destendian){
 
     //Check if the file exists. If it does, we will refuse to overwrite it.
     {
@@ -97,13 +70,12 @@ Dump_Pixels(const planar_image<T,R> &img,
     }
 
     //Work out the endianness of this machine and the destination file.
-    const auto MachineEndianness = Detect_Machine_Endianness();
-    const auto UsingLittleEndian = (MachineEndianness == YgorImageIOEndianness::Little);
-    const auto UsingBigEndian = (MachineEndianness == YgorImageIOEndianness::Big);
+    const auto MachineEndianness = YgorEndianness::Host;
+    const auto UsingLittleEndian = (MachineEndianness == YgorEndianness::Little);
+    const auto UsingBigEndian = (MachineEndianness == YgorEndianness::Big);
 
-    const bool WriteLittleEndian = (destendian == YgorImageIOEndianness::Little);
-    const bool WriteBigEndian    = (  (destendian == YgorImageIOEndianness::Big)
-                                   || (destendian == YgorImageIOEndianness::Default) );
+    const bool WriteLittleEndian = (destendian == YgorEndianness::Little);
+    const bool WriteBigEndian    = (destendian == YgorEndianness::Big);
     if( (!WriteLittleEndian && !WriteBigEndian) || (WriteLittleEndian && WriteBigEndian) ){
         throw std::runtime_error("Cannot determine which endianness to write!");
         // NOTE: This routine needs to be modified to handle additional endian-types if the above throws.
@@ -135,11 +107,11 @@ Dump_Pixels(const planar_image<T,R> &img,
     return true;
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
-    template bool Dump_Pixels(const planar_image<uint8_t ,double> &, const std::string &, YgorImageIOEndianness);
-    template bool Dump_Pixels(const planar_image<uint16_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool Dump_Pixels(const planar_image<uint32_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool Dump_Pixels(const planar_image<uint64_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool Dump_Pixels(const planar_image<float   ,double> &, const std::string &, YgorImageIOEndianness);
+    template bool Dump_Pixels(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
+    template bool Dump_Pixels(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
+    template bool Dump_Pixels(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
+    template bool Dump_Pixels(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
+    template bool Dump_Pixels(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
 #endif
 
 
@@ -150,7 +122,7 @@ bool
 Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                           const std::string &filename,
                           YgorImageIOPixelScaling scaling,
-                          YgorImageIOEndianness destendian){
+                          YgorEndianness destendian){
 
     //Check if the file exists. If it does, we will refuse to overwrite it.
     {
@@ -159,13 +131,12 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
     }
 
     //Work out the endianness of this machine and the destination file.
-    const auto MachineEndianness = Detect_Machine_Endianness();
-    const auto UsingLittleEndian = (MachineEndianness == YgorImageIOEndianness::Little);
-    const auto UsingBigEndian = (MachineEndianness == YgorImageIOEndianness::Big);
+    const auto MachineEndianness = YgorEndianness::Host;
+    const auto UsingLittleEndian = (MachineEndianness == YgorEndianness::Little);
+    const auto UsingBigEndian = (MachineEndianness == YgorEndianness::Big);
 
-    const bool WriteLittleEndian = (destendian == YgorImageIOEndianness::Little);
-    const bool WriteBigEndian    = (  (destendian == YgorImageIOEndianness::Big)
-                                   || (destendian == YgorImageIOEndianness::Default) );
+    const bool WriteLittleEndian = (destendian == YgorEndianness::Little);
+    const bool WriteBigEndian    = (destendian == YgorEndianness::Big);
     if( (!WriteLittleEndian && !WriteBigEndian) || (WriteLittleEndian && WriteBigEndian) ){
         throw std::runtime_error("Cannot determine which endianness to write!");
         // NOTE: This routine needs to be modified to handle additional endian-types if the above throws.
@@ -206,48 +177,48 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, uint8_t >(const planar_image<uint8_t ,double> &, const std::string &, 
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint16_t,double, uint8_t >(const planar_image<uint16_t,double> &, const std::string &, 
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint32_t,double, uint8_t >(const planar_image<uint32_t,double> &, const std::string &, 
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, uint8_t >(const planar_image<uint64_t,double> &, const std::string &, 
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, uint8_t >(const planar_image<float   ,double> &, const std::string &, 
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, uint16_t>(const planar_image<uint8_t ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint16_t,double, uint16_t>(const planar_image<uint16_t,double> &, const std::string &,  
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint32_t,double, uint16_t>(const planar_image<uint32_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, uint16_t>(const planar_image<uint64_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, uint16_t>(const planar_image<float   ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, float   >(const planar_image<uint8_t ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint16_t,double, float   >(const planar_image<uint16_t,double> &, const std::string &,  
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint32_t,double, float   >(const planar_image<uint32_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, float   >(const planar_image<uint64_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, float   >(const planar_image<float   ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, double  >(const planar_image<uint8_t ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint16_t,double, double  >(const planar_image<uint16_t,double> &, const std::string &,  
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint32_t,double, double  >(const planar_image<uint32_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, double  >(const planar_image<uint64_t,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, double  >(const planar_image<float   ,double> &, const std::string &,    
-                                                    YgorImageIOPixelScaling, YgorImageIOEndianness);
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 #endif
 
 
@@ -255,7 +226,7 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
 //
 // NOTE: You can easily examine such files like so: `fold -w 80 theimage.fit | less`
 template <class T, class R>
-bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, YgorImageIOEndianness userE){
+bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, YgorEndianness userE){
 
     if((img.rows*img.columns*img.channels) < 0){
         throw std::runtime_error("Attempted to store unitialized or nonsenical image data");
@@ -279,15 +250,14 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
     }
 
     //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine.
-    const auto UsingEndian = Detect_Machine_Endianness();
-    const bool UsingLittleEndian = (UsingEndian == YgorImageIOEndianness::Little);
-    const bool UsingBigEndian = (UsingEndian == YgorImageIOEndianness::Big);
+    const auto UsingEndian = YgorEndianness::Host;
+    const bool UsingLittleEndian = (UsingEndian == YgorEndianness::Little);
+    const bool UsingBigEndian = (UsingEndian == YgorEndianness::Big);
 
     //Determine which endianness to use. The FITS standard way is big endian, but some folks prefer to write
     // as little endian for whatever reason. The default is big endian.
-    const bool WriteLittleEndian = (userE == YgorImageIOEndianness::Little);
-    const bool WriteBigEndian    = (  (userE == YgorImageIOEndianness::Big)
-                                   || (userE == YgorImageIOEndianness::Default) );
+    const bool WriteLittleEndian = (userE == YgorEndianness::Little);
+    const bool WriteBigEndian    = (userE == YgorEndianness::Big);
     if( (!WriteLittleEndian && !WriteBigEndian) || (WriteLittleEndian && WriteBigEndian) ){
         throw std::runtime_error("Cannot determine which endianness to write!");
         // NOTE: This routine needs to be modified to handle additional endian-types if the above throws.
@@ -402,18 +372,18 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
     return true;
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
-    template bool WriteToFITS(const planar_image<uint8_t ,double> &, const std::string &, YgorImageIOEndianness);
-    template bool WriteToFITS(const planar_image<uint16_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool WriteToFITS(const planar_image<uint64_t,double> &, const std::string &, YgorImageIOEndianness);
-    template bool WriteToFITS(const planar_image<float   ,double> &, const std::string &, YgorImageIOEndianness);
+    template bool WriteToFITS(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
 #endif
 
 
 //Read pixels and metadata from a FITS formatted file.
 template <class T, class R>
 planar_image<T,R> 
-ReadFromFITS(const std::string &filename, YgorImageIOEndianness userE){
+ReadFromFITS(const std::string &filename, YgorEndianness userE){
 
     planar_image<T,R> img;
 
@@ -434,15 +404,14 @@ ReadFromFITS(const std::string &filename, YgorImageIOEndianness userE){
     }
 
     //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine.
-    const auto UsingEndian = Detect_Machine_Endianness();
-    const bool UsingLittleEndian = (UsingEndian == YgorImageIOEndianness::Little);
-    const bool UsingBigEndian = (UsingEndian == YgorImageIOEndianness::Big);
+    const auto UsingEndian = YgorEndianness::Host;
+    const bool UsingLittleEndian = (UsingEndian == YgorEndianness::Little);
+    const bool UsingBigEndian = (UsingEndian == YgorEndianness::Big);
 
     //Determine which endianness to use. The FITS standard way is big endian, but some folks prefer to write
     // as little endian for whatever reason. The default is big endian.
-    bool ReadLittleEndian = (userE == YgorImageIOEndianness::Little);
-    bool ReadBigEndian    = (   (userE == YgorImageIOEndianness::Big)
-                                   || (userE == YgorImageIOEndianness::Default) );
+    bool ReadLittleEndian = (userE == YgorEndianness::Little);
+    bool ReadBigEndian    = (userE == YgorEndianness::Big);
     if( (!ReadLittleEndian && !ReadBigEndian) || (ReadLittleEndian && ReadBigEndian) ){
         throw std::runtime_error("Cannot determine which endianness to read!");
         // NOTE: This routine needs to be modified to handle additional endian-types if the above throws.
@@ -735,115 +704,10 @@ ReadFromFITS(const std::string &filename, YgorImageIOEndianness userE){
     return img;
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
-    template planar_image<uint8_t ,double> ReadFromFITS(const std::string &, YgorImageIOEndianness);
-    template planar_image<uint16_t,double> ReadFromFITS(const std::string &, YgorImageIOEndianness);
-    template planar_image<uint32_t,double> ReadFromFITS(const std::string &, YgorImageIOEndianness);
-    template planar_image<uint64_t,double> ReadFromFITS(const std::string &, YgorImageIOEndianness);
-    template planar_image<float   ,double> ReadFromFITS(const std::string &, YgorImageIOEndianness);
+    template planar_image<uint8_t ,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint16_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint32_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint64_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<float   ,double> ReadFromFITS(const std::string &, YgorEndianness);
 #endif
-
-
-/*
-
-// === 20151001 ===
-// Is this still needed / desired? I never made much progress on it. What is the scope? samples_1Ds? Contours? planar_images? ...
-//
-// It would probably be better to just write a one-off 'write_to_postscript' function as needed.
-// I don't think reading arbitrary postscript files is going to be necessary.
-
-//---------------------------------------------------------------------------------------------------------------------------
-//--------------------------- postscriptinator: a thin class for generating Postscript images -------------------------------
-//---------------------------------------------------------------------------------------------------------------------------
-//This class generates Postscript files from simple data. It was developed to convert the workflow 
-// R^3 -> OpenGL Bitmap -> R^3 (using potrace or similar) into just R^3.
-
-template <class R> class postscriptinator {
-    R xmin, xmax, ymin, ymax;  //Drawing coordinates.
-    R PageW, PageH;            //Page geometry (in [cm]).
-    bool Enable_Auto_Sizing;   //Default is yes. Will be flipped to no if size explicitly set by user.
-    std::string Definitions;
-    std::string Header; //Note: Does NOT hold the '%!PS' at the top!
-    std::list<std::string> Stack; //Holds postscript commands. May morph into something more easily parseable (true stack)...
-    std::string Footer;
-
-    //Constructor.
-    postscriptinator();
-
-    //Methods. 
-    void Import_Contour(const contour_of_points<R> &C, const vec3<R> &Proj2);
-
-
-    std::string Generate_Page_Geom(void) const;
-    std::string Assemble(void) const; //Assembles all the pieces into a single string.
-};
-
-
-//---------------------------------------------------------------------------------------------------------------------------
-//--------------------------- postscriptinator: a thin class for generating Postscript images -------------------------------
-//---------------------------------------------------------------------------------------------------------------------------
-//This class generates Postscript files from simple data. It was developed to convert the workflow 
-// R^3 -> OpenGL Bitmap -> R^3 (using potrace or similar) into just R^3.
-
-template <class R> 
-postscriptinator<R>::postscriptinator(){
-    this->xmin = this->ymin = (R)( 1E99);
-    this->xmax = this->ymax = (R)(-1E99);
-
-    this->PageW = 21.0; //[cm]
-    this->PageW = 24.0; //[cm]
-    this->Enable_Auto_Sizing = true;
-
-    //Set the page dimensions and coordinates.
-    // Bottom left corner: (0,0). Top right: (21,24). Units are [cm]. Page size is 8.5"x11".
-    this->Header += "%!PS\n";
-
-    //Some definitions which are used to ~compress the resulting file.
-    this->Definitions += "\n";
-    this->Definitions += "/m {newpath moveto} bind def\n";
-    this->Definitions += "/l {lineto} bind def\n";
-    this->Definitions += "/cp {closepath} bind def\n";
-    this->Definitions += "/s {stroke} bind def\n";
-    this->Definitions += "/sg {setgray} bind def\n";
-    this->Definitions += "\n";
-
-    //Closing things.
-    this->Footer += "showpage\n";
-}
-
-
-template <class R> void postscriptinator<R>::Import_Contour(const contour_of_points<R> &C, const vec3<R> &Proj2){
-    //Performs two passes. First is to adjust the min/max values.
-
-
-FUNCERR("This routine has not yet been written!");
-
-}
-
-
-template <class R> std::string postscriptinator<R>::Generate_Page_Geom(void) const {
-    std::string out;
-    //Compute the page dimension/density information.
-    //Default is: 72 dpi (ie. 28.3465 dots/cm).
-    out += "matrix currentmatrix /originmat exch def\n";
-    out += "/umatrix {originmat matrix concatmatrix setmatrix} def\n";
-    out += "[28.3465 0 0 28.3465 10.5 100.0] umatrix\n";
-
-    return std::move(out);
-}
-
-template <class R> std::string postscriptinator<R>::Assemble(void) const {
-    std::string out;
-    out += this->Header;
-    out += this->Definitions;
-    out += this->Generate_Page_Geom();    
-    for(auto it = this->Stack.begin(); it != this->Stack.end(); ++it){
-        out += *it;
-    }
-    out += this->Footer;
-    return std::move(out);
-}
-
-*/
-
-
 

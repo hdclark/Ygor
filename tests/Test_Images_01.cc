@@ -113,7 +113,7 @@ int main(int argc, char **argv){
     }
 
     if(!WriteToFITS(img, "/tmp/test_image_be.fits")) FUNCERR("Could not write test image to big endian FITS file");
-    if(!WriteToFITS(img, "/tmp/test_image_le.fits", YgorImageIOEndianness::Little))  FUNCERR("Could not write test image to little endian FITS file");
+    if(!WriteToFITS(img, "/tmp/test_image_le.fits", YgorEndianness::Little))  FUNCERR("Could not write test image to little endian FITS file");
 
   }
 

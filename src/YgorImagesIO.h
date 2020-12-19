@@ -7,16 +7,10 @@
 #include <string>
 
 #include "YgorDefinitions.h"
-#include "YgorImages.h"
+#include "YgorMisc.h"
 #include "YgorMath.h"
 
-//This enum is used by the user to signal whether they want little- or big-endianness when the IO format
-// can handle either (e.g., writing raw pixels, FITS files).
-enum YgorImageIOEndianness { 
-    Little,   // i.e., least significant byte at lowest memory address.
-    Big,      // i.e., most significant byte at lowest memory address.
-    Default   // User unspecified: use the default or try to detect.
-};
+#include "YgorImages.h"
 
 //This enum is used to specify which type of pixel scaling should be used.
 enum YgorImageIOPixelScaling {
@@ -31,7 +25,7 @@ template <class T, class R>
 bool
 Dump_Pixels(const planar_image<T,R> &img,
             const std::string &filename,
-            YgorImageIOEndianness destendian = YgorImageIOEndianness::Default);
+            YgorEndianness destendian = YgorEndianness::Little);
 
 //Dump raw pixel data to file, but static_cast to type Y and possibly autoscaled to fill
 // the range of type Y (scaling proportionally to the min and max of type T).
@@ -40,11 +34,12 @@ bool
 Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                           const std::string &filename,
                           YgorImageIOPixelScaling scaling = YgorImageIOPixelScaling::None,
-                          YgorImageIOEndianness destendian = YgorImageIOEndianness::Default);
+                          YgorEndianness destendian = YgorEndianness::Little);
 
 //Write pixels and class members other than the metadata member to a FITS formatted file.
 //
-// NOTE: Do not alter the endianness unless you're certain what you're doing!
+// NOTE: Do not alter the endianness unless you're certain what you're doing! FITS files
+//       conventionally written in big-endian.
 //
 // NOTE: The metadata member *could* be serialized and written/read as an extension HDU.
 //       This was not done because it was not needed at the time of writing.
@@ -53,11 +48,12 @@ template <class T, class R>
 bool 
 WriteToFITS(const planar_image<T,R> &img, 
             const std::string &filename, 
-            YgorImageIOEndianness destendian = YgorImageIOEndianness::Default);
+            YgorEndianness destendian = YgorEndianness::Big);
 
 //Read pixels and class members other than the metadata member from a FITS formatted file.
 //
-// NOTE: Do not alter the endianness unless you're certain what you're doing!
+// NOTE: Do not alter the endianness unless you're certain what you're doing! FITS files
+//       conventionally written in big-endian.
 //
 // NOTE: If types T and R do not match, pixel values and image class member metadata are 
 //       converted using static_cast after reading. Alternatively, the file could be probed
@@ -78,6 +74,6 @@ WriteToFITS(const planar_image<T,R> &img,
 template <class T, class R>
 planar_image<T,R> 
 ReadFromFITS(const std::string &filename, 
-             YgorImageIOEndianness destend = YgorImageIOEndianness::Default);
+             YgorEndianness destend = YgorEndianness::Big);
 
 #endif

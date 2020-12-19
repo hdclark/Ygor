@@ -6,6 +6,7 @@
 #include "YgorDefinitions.h"
 #include "YgorBase64.h"
 
+#include "YgorMisc.h"
 #include "YgorMath.h"
 #include "YgorString.h"
 
@@ -23,6 +24,10 @@ std::string Encode(const std::vector<uint8_t> &in){
     // See https://web.archive.org/web/20190903021333/https://en.wikibooks.org/wiki/Algorithm_Implementation/Miscellaneous/Base64
     // for an archive of the implementation.
     //
+
+    static_assert( (YgorEndianness::Host == YgorEndianness::Little),
+                   "This routine assumes the host is little-endian. Cannot continue." );
+
     const static std::array<char, 64> char_table = { 
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
         'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',

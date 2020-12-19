@@ -246,6 +246,9 @@ bool
 ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                    std::istream &is ){
 
+    static_assert( (YgorEndianness::Host == YgorEndianness::Little),
+                   "This routine assumes the host is little-endian. Cannot continue." );
+
     const auto reset = [&](){
         fvsm.vertices.clear();
         fvsm.vertex_normals.clear();
@@ -621,6 +624,9 @@ bool
 WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
                   std::ostream &os,
                   bool as_binary ){
+
+    static_assert( (YgorEndianness::Host == YgorEndianness::Little),
+                   "This routine assumes the host is little-endian. Cannot continue." );
 
     size_t N_faces = 0;
     for(const auto &fv : fvsm.faces){

@@ -211,6 +211,24 @@ inline T PER_BYTE_BITWISE_ROT_R(const T N, const R S){
 #endif
 
 
+//Endianness.
+enum class YgorEndianness { 
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
+    Little = __ORDER_LITTLE_ENDIAN__,   // i.e., least significant byte at lowest memory address.
+    Big    = __ORDER_BIG_ENDIAN__,      // i.e., most significant byte at lowest memory address.
+    Host   = __BYTE_ORDER,              // Endianness of the machine compiling this code.
+    Other                               // Unknown or alternative endianness.
+#else    
+    // Assume little-endian.
+    //
+    // Note: can switch to std::endian when more widely supported.
+    Little = 1,
+    Big    = 2,
+    Host   = little,
+    Other  = 3
+#endif
+};
+
 //------------------------------------------------------------------------------------------------------
 //-------------------------------------- Homogeneous Sorting -------------------------------------------
 //------------------------------------------------------------------------------------------------------

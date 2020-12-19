@@ -15,41 +15,6 @@
 #include "YgorMathIOSTL.h"
 
 
-//This enum is used by the user to signal whether they want little- or big-endianness when the IO format
-// can handle either (e.g., writing raw pixels, FITS files).
-enum YgorMathIOSTLEndianness { 
-    Little,   // i.e., least significant byte at lowest memory address.
-    Big,      // i.e., most significant byte at lowest memory address.
-    Default   // User unspecified: use the default or try to detect.
-};
-
-static inline
-YgorMathIOSTLEndianness
-Detect_Machine_Endianness(void){
-
-    //Check if we are on a big-endian (i.e., "MSB") or little-endian ("LSB") machine. We do this by 
-    // probing where a single bit resides in memory.
-    //
-    // NOTE: If endianness is not little or big, this routine throws! Feel free to add additional
-    //       endian types if needed.
-    //
-    volatile uint64_t EndianScape = static_cast<uint64_t>(1); //Anything larger than 1 byte will suffice.
-    volatile uint8_t *EndianCheck = reinterpret_cast<volatile uint8_t *>(&EndianScape);
-
-    const bool UsingLittleEndian = (EndianCheck[0] == static_cast<uint8_t>(1)); // "LSB".
-    const bool UsingBigEndian    = (EndianCheck[sizeof(uint64_t)-1] == static_cast<uint8_t>(1)); // "MSB".
-
-    if(UsingLittleEndian){
-        return YgorMathIOSTLEndianness::Little;
-    }else if(UsingBigEndian){
-        return YgorMathIOSTLEndianness::Big;
-    }
-
-    throw std::runtime_error("Cannot determine machine's endianness!");
-    return YgorMathIOSTLEndianness::Default; //(You should never get here.)        
-}
-
-
 // This routine reads an fv_surface_mesh from an ASCII STL format stream.
 //
 // Note that this routine does not validate or enforce manifoldness.
@@ -267,25 +232,23 @@ bool
 ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
                          std::istream &is ){
 
-    // Work out the endianness of this machine.
-    //
-    // The STL file (implicitly?) requires little-endian writes.
-    const auto MachineEndianness = Detect_Machine_Endianness();
+    // The STL format (implicitly?) requires little-endian writes.
+    static_assert( ( YgorEndianness::Host == YgorEndianness::Little )
+                || ( YgorEndianness::Host == YgorEndianness::Big ),
+                "Unable to determine machine endianness. Cannot continue." );
 
     auto ReadUint16 = [&](void){
         uint16_t j = 0;
         unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(uint16_t)-1] only!
-        if( false ){
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+        if constexpr ( false ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
             //Reverse the order of the bytes read from the stream.
             for(size_t i = 0; i <= (sizeof(uint16_t)-1); ++i){
                 is.get( reinterpret_cast<char *>(&c[sizeof(uint16_t)-1-i]), sizeof(char) );
             }
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
             //Keep the byte order unaltered.
             is.read( reinterpret_cast<char *>( &c[0] ), sizeof(uint16_t) );
-        }else{
-            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
         }
         return j;
     };
@@ -293,17 +256,15 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
     auto ReadUint32 = [&](void){
         uint32_t j = 0;
         unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(T)-1] only!
-        if( false ){
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+        if constexpr ( false ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
             //Reverse the order of the bytes read from the stream.
             for(size_t i = 0; i <= (sizeof(uint32_t)-1); ++i){
                 is.get( reinterpret_cast<char *>(&c[sizeof(uint32_t)-1-i]), sizeof(char) );
             }
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
             //Keep the byte order unaltered.
             is.read( reinterpret_cast<char *>( &c[0] ), sizeof(uint32_t) );
-        }else{
-            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
         }
         return j;
     };
@@ -321,17 +282,15 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
                                            static_cast<float>(0) }};
         for(float &x : v_pack){
             unsigned char *c = reinterpret_cast<unsigned char *>(&x); //c[0] to c[sizeof(float)-1] only!
-            if( false ){
-            }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            if constexpr ( false ){
+            }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
                 //Reverse the order of the bytes read from the stream.
                 for(size_t i = 0; i <= (sizeof(float)-1); ++i){
                     is.get( reinterpret_cast<char *>(&c[sizeof(float)-1-i]), sizeof(char) );
                 }
-            }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
                 //Keep the byte order unaltered.
                 is.read( reinterpret_cast<char *>( &c[0] ), sizeof(float) );
-            }else{
-                throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
             }
         }
 
@@ -341,6 +300,8 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
     };
 
     fvsm.vertices.clear();
+    fvsm.vertex_normals.clear();
+    fvsm.vertex_colours.clear();
     fvsm.faces.clear();
     fvsm.involved_faces.clear();
 
@@ -447,37 +408,33 @@ bool
 WriteFVSMeshToBinarySTL(const fv_surface_mesh<T,I> &fvsm,
                         std::ostream &os ){
 
-    // Work out the endianness of this machine.
-    //
-    // The STL file (implicitly?) requires little-endian writes.
-    const auto MachineEndianness = Detect_Machine_Endianness();
+    // The STL format (implicitly?) requires little-endian writes. This routine can handle little and big-endian hosts.
+    static_assert( ( YgorEndianness::Host == YgorEndianness::Little )
+                || ( YgorEndianness::Host == YgorEndianness::Big ),
+                "This routine requires either little or big-endian hosts. Cannot continue." );
 
     auto WriteUint16 = [&](uint16_t j){
         unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(uint16_t)-1] only!
-        if( false ){
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+        if constexpr ( false ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
             //Reverse the order of the bytes written to the stream.
             for(size_t i = 0; i <= (sizeof(uint16_t)-1); ++i) os.put(c[sizeof(uint16_t)-1-i]);
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
             //Keep the byte order unaltered.
             os.write( reinterpret_cast<char *>( &c[0] ), sizeof(uint16_t) );
-        }else{
-            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
         }
         return;
     };
 
     auto WriteUint32 = [&](uint32_t j){
         unsigned char *c = reinterpret_cast<unsigned char *>(&j); //c[0] to c[sizeof(T)-1] only!
-        if( false ){
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+        if constexpr ( false ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
             //Reverse the order of the bytes written to the stream.
             for(size_t i = 0; i <= (sizeof(uint32_t)-1); ++i) os.put(c[sizeof(uint32_t)-1-i]);
-        }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+        }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
             //Keep the byte order unaltered.
             os.write( reinterpret_cast<char *>( &c[0] ), sizeof(uint32_t) );
-        }else{
-            throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
         }
         return;
     };
@@ -494,15 +451,13 @@ WriteFVSMeshToBinarySTL(const fv_surface_mesh<T,I> &fvsm,
                                            static_cast<float>(v.z) }};
         for(float &x : v_pack){
             unsigned char *c = reinterpret_cast<unsigned char *>(&x); //c[0] to c[sizeof(float)-1] only!
-            if( false ){
-            }else if( MachineEndianness == YgorMathIOSTLEndianness::Big ){
+            if constexpr ( false ){
+            }else if constexpr ( YgorEndianness::Host == YgorEndianness::Big ){
                 //Reverse the order of the bytes written to the stream.
                 for(size_t i = 0; i <= (sizeof(float)-1); ++i) os.put(c[sizeof(float)-1-i]);
-            }else if( MachineEndianness == YgorMathIOSTLEndianness::Little ){
+            }else if constexpr ( YgorEndianness::Host == YgorEndianness::Little ){
                 //Keep the byte order unaltered.
                 os.write( reinterpret_cast<char *>( &c[0] ), sizeof(float) );
-            }else{
-                throw std::logic_error("Unable to determine machine endianness. Cannot continue.");
             }
         }
         return;

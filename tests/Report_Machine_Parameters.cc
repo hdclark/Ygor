@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 
+#include "YgorMisc.h"
+
 int main(int, char **){
   
     const auto defaultprecision = std::cout.precision();
@@ -32,6 +34,15 @@ int main(int, char **){
 
     std::cout.precision(defaultprecision);
 
+    std::cout << "Endianness: ";
+    if constexpr (YgorEndianness::Host == YgorEndianness::Little){
+        std::cout << "little";
+    }else if constexpr (YgorEndianness::Host == YgorEndianness::Big){
+        std::cout << "big";
+    }else{
+        std::cout << "(unknown)";
+    }
+    std::cout << std::endl;
 
     std::cout << std::endl;
     std::cout << "Size of int = " << sizeof(int) << std::endl;
