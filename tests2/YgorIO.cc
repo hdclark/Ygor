@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <array>
 
 #include <YgorMisc.h>
 #include <YgorIO.h>
