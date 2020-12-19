@@ -12,6 +12,7 @@
 #include "YgorMath.h"
 #include "YgorString.h"
 #include "YgorBase64.h"   //Used for metadata serialization.
+#include "YgorIO.h"
 
 #include "YgorMathIOPLY.h"
 
@@ -117,93 +118,85 @@ encode_number_type(number_type format){
     return name;
 }
 
+// Implmentation function for endian-aware binary reads. This function converts the runtime endian parameter to a
+// compilation-time template parameter as needed for upstream routine.
+template <class T>
+[[maybe_unused]]
+T
+endian_binary_read_as( std::istream &is,
+                       YgorEndianness stream_endianness){
+    T shtl;
+    if(false){
+    }else if( (stream_endianness == YgorEndianness::Little)
+          &&  !ygor::io::read_binary<T,YgorEndianness::Little>(is, shtl) ){
+        throw std::runtime_error("Binary stream read error (little-endian)");
+    }else if( (stream_endianness == YgorEndianness::Big)
+          &&  !ygor::io::read_binary<T,YgorEndianness::Big>(is, shtl) ){
+        throw std::runtime_error("Binary stream read error (big-endian)");
+    }
+    return shtl;
+}
+
 template <class T>
 [[maybe_unused]]
 T
 read_as( std::istream &is,
          number_type format,
-         bool read_as_binary ){
+         bool read_as_binary,
+         YgorEndianness stream_endianness){
+
     T shtl;
     if(read_as_binary){
+
         if(false){
         }else if(format == number_type::t_float32){
-            float val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (float32)");
-            }
+            auto val = endian_binary_read_as<float>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_float64){
-            double val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (float64)");
-            }
+            auto val = endian_binary_read_as<double>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_uint8){
-            uint8_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (uint8)");
-            }
+            auto val = endian_binary_read_as<uint8_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_uint16){
-            uint16_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (uint16)");
-            }
+            auto val = endian_binary_read_as<uint16_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_uint32){
-            uint32_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (uint32)");
-            }
+            auto val = endian_binary_read_as<uint32_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_uint64){
-            uint64_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (uint64)");
-            }
+            auto val = endian_binary_read_as<uint64_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
 
         }else if(format == number_type::t_int8){
-            int8_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (int8)");
-            }
+            auto val = endian_binary_read_as<int8_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_int16){
-            int16_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (int16)");
-            }
+            auto val = endian_binary_read_as<int16_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_int32){
-            int32_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (int32)");
-            }
+            auto val = endian_binary_read_as<int32_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else if(format == number_type::t_int64){
-            int64_t val = 0;
-            if(!is.read(reinterpret_cast<char*>(&(val)), sizeof(val))){
-                throw std::runtime_error("Binary stream read error (int64)");
-            }
+            auto val = endian_binary_read_as<int64_t>(is,stream_endianness);
             shtl = static_cast<T>(val);
 
         }else{
             throw std::logic_error("Binary stream: unrecognized number format");
-        }
+       }
 
     }else{
         // Attempting to read the number directly as a T can cause nan and inf to be missed, so rely on more explicit
-        // conversion.
+        // (but slower) conversion.
         std::string w;
         if(!(is >> w)){
             throw std::runtime_error("Text stream read error");
@@ -224,10 +217,11 @@ std::vector<T>
 read_list_as( std::istream &is,
               number_type list_format,
               number_type format,
-              bool read_as_binary ){
+              bool read_as_binary,
+              YgorEndianness stream_endianness){
 
     // Lists are preceeded by a number describing the length, so read it first.
-    const auto N_list = read_as<T>(is, list_format, read_as_binary);
+    const auto N_list = read_as<T>(is, list_format, read_as_binary, stream_endianness);
     if( (N_list <= static_cast<T>(0)) 
     ||  (static_cast<T>(50) < N_list) ){
         throw std::runtime_error("List size invalid. Refusing to continue");
@@ -235,7 +229,7 @@ read_list_as( std::istream &is,
     std::vector<T> out;
     out.reserve(N_list);
     for(auto i = static_cast<T>(0); i < N_list; ++i){
-        out.push_back( read_as<T>(is, format, read_as_binary) );
+        out.push_back( read_as<T>(is, format, read_as_binary, stream_endianness) );
     }
     return out;
 }
@@ -245,9 +239,6 @@ template <class T, class I>
 bool
 ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                    std::istream &is ){
-
-    static_assert( (YgorEndianness::Host == YgorEndianness::Little),
-                   "This routine assumes the host is little-endian. Cannot continue." );
 
     const auto reset = [&](){
         fvsm.vertices.clear();
@@ -280,6 +271,8 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
 
     int parse_stage = 1;
     std::optional<bool> is_binary_opt;
+    YgorEndianness stream_endianness = YgorEndianness::Little;
+
     struct property_t {
         std::string name = "";
         number_type type = number_type::other;
@@ -354,6 +347,14 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                                                                 && (split.at(1) == "binary_little_endian"_s)
                                                                 && (split.at(2) == "1.0"_s) ){
                 is_binary_opt = true;
+                stream_endianness = YgorEndianness::Little;
+                ++parse_stage;
+
+            }else if( (parse_stage == 1) && (split.size() == 3) && (split.at(0) == "format"_s) 
+                                                                && (split.at(1) == "binary_big_endian"_s)
+                                                                && (split.at(2) == "1.0"_s) ){
+                is_binary_opt = true;
+                stream_endianness = YgorEndianness::Big;
                 ++parse_stage;
 
             // Read which elements are present and what their properties are.
@@ -488,23 +489,26 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                     for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_x){
-                            v_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
                         }else if(i == index_y){
-                            v_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
                         }else if(i == index_z){
-                            v_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            v_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
 
                         }else if(i == index_nx){
-                            n_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            n_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
                         }else if(i == index_ny){
-                            n_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            n_shtl.y = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
                         }else if(i == index_nz){
-                            n_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            n_shtl.z = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
 
                         }else if(element.properties[i].is_list){
-                            read_list_as<I>(is, element.properties[i].list_type, element.properties[i].type, is_binary_opt.value());
+                            read_list_as<I>(is, element.properties[i].list_type,
+                                                element.properties[i].type,
+                                                is_binary_opt.value(),
+                                                stream_endianness);
                         }else{
-                            read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
                         }
                     }
                     fvsm.vertices.push_back(v_shtl);
@@ -543,13 +547,21 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                         if(false){
                         }else if(i == index_vs){
                             // Note: list should already be zero-indexed.
-                            const auto l = read_list_as<I>(is, element.properties[i].list_type, element.properties[i].type, is_binary_opt.value());
+                            const auto l = read_list_as<I>(is, element.properties[i].list_type,
+                                                               element.properties[i].type,
+                                                               is_binary_opt.value(),
+                                                               stream_endianness);
                             fvsm.faces.push_back(l);
 
                         }else if(element.properties[i].is_list){
-                            read_list_as<I>(is, element.properties[i].list_type, element.properties[i].type, is_binary_opt.value());
+                            read_list_as<I>(is, element.properties[i].list_type,
+                                                element.properties[i].type,
+                                                is_binary_opt.value(),
+                                                stream_endianness);
                         }else{
-                            read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            read_as<T>(is, element.properties[i].type,
+                                           is_binary_opt.value(),
+                                           stream_endianness);
                         }
                     }
                 }
@@ -564,9 +576,14 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                     for(long int i = 0; i < N_props; ++i){
                         if(false){
                         }else if(element.properties[i].is_list){
-                            read_list_as<I>(is, element.properties[i].list_type, element.properties[i].type, is_binary_opt.value());
+                            read_list_as<I>(is, element.properties[i].list_type,
+                                                element.properties[i].type,
+                                                is_binary_opt.value(),
+                                                stream_endianness);
                         }else{
-                            read_as<T>(is, element.properties[i].type, is_binary_opt.value());
+                            read_as<T>(is, element.properties[i].type,
+                                           is_binary_opt.value(),
+                                           stream_endianness);
                         }
                     }
                 }
@@ -625,9 +642,6 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
                   std::ostream &os,
                   bool as_binary ){
 
-    static_assert( (YgorEndianness::Host == YgorEndianness::Little),
-                   "This routine assumes the host is little-endian. Cannot continue." );
-
     size_t N_faces = 0;
     for(const auto &fv : fvsm.faces){
         if(!fv.empty()) ++N_faces;
@@ -665,6 +679,10 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
         FUNCWARN("Stream initially in invalid state. Refusing to continue");
         return false;
     }
+
+   // For simplicity, we will always write little-endian binaries, regardless of whether the host is little- or
+   // big-endian. If needed, this can be made a function parameter.
+    constexpr YgorEndianness write_endianness = YgorEndianness::Little;
 
     os << "ply\n";
     if(as_binary){
@@ -720,16 +738,16 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
 
     if(as_binary){
         for(size_t i = 0; i < N_verts; ++i){
-            if( !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].x)), sizeof(fvsm.vertices[i].x))
-            ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].y)), sizeof(fvsm.vertices[i].y))
-            ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertices[i].z)), sizeof(fvsm.vertices[i].z)) ){
+            if( !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].x)
+            ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].y)
+            ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].z) ){
                 FUNCWARN("Unable to write vertex to stream. Cannot continue");
                 return false;
             }
             if( has_normals ){
-                if( !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].x)), sizeof(fvsm.vertex_normals[i].x))
-                ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].y)), sizeof(fvsm.vertex_normals[i].y))
-                ||  !os.write(reinterpret_cast<const char*>(&(fvsm.vertex_normals[i].z)), sizeof(fvsm.vertex_normals[i].z)) ){
+                if( !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].x)
+                ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].y)
+                ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].z) ){
                     FUNCWARN("Unable to write vertex normals to stream. Cannot continue");
                     return false;
                 }
@@ -739,13 +757,13 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
             if(fv.empty()) continue;
 
             const auto N = static_cast<uint8_t>(fv.size());
-            if( !os.write(reinterpret_cast<const char*>(&(N)), sizeof(N)) ){
+            if( !ygor::io::write_binary<uint8_t,write_endianness>(os, N) ){
                 FUNCWARN("Unable to write facet list length to stream. Cannot continue");
                 return false;
             }
 
             for(const auto &i : fv){
-                if( !os.write(reinterpret_cast<const char*>(&(i)), sizeof(i)) ){
+                if( !ygor::io::write_binary<I,write_endianness>(os, i) ){
                     FUNCWARN("Unable to write facet list number. Cannot continue");
                     return false;
                 }

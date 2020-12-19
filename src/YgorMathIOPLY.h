@@ -14,8 +14,8 @@
 #include "YgorMath.h"
 
 
-// This routine reads an fv_surface_mesh from a PLY format stream. Both ASCII and little-endian binary encodings are
-// supported.
+// This routine reads an fv_surface_mesh from a PLY format stream. ASCII, little-endian binary, and big-endian binary
+// encodings are supported regardless of the host architecture.
 //
 // Note: Reading arbitrary metadata is written as a comment and will be base64-encoded if necessary.
 //
@@ -29,7 +29,8 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                    std::istream &is );
 
 
-// This routine writes an fv_surface_mesh to an ASCII or binary encoded PLY format stream (little-endian).
+// This routine writes an fv_surface_mesh to an ASCII or binary encoded PLY format stream (little-endian regardless of
+// the host architecture).
 //
 // Note: Binary files are wrought with problems:
 //
