@@ -14,6 +14,7 @@ g++ \
   -I. \
   Main.cc \
   YgorFilesDirs.cc \
+  YgorIO.cc \
   YgorMath/*.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
