@@ -13,7 +13,7 @@
 ## Introduction
 
 This supporting library was written by hal clark over the span of many years
-(~2010-2020) to house bits of code that are convenient for multiple projects.
+(2010-2021) to house bits of code that are convenient for multiple projects.
 
 Most, but not all of `Ygor`'s routines are focused on scientific or mathematic
 applications (i.e., geometry, simulation, optimization, and statistics). The
@@ -33,9 +33,9 @@ some reasonable chance they will be applicable or broadly useful.
 ## License and Copying
 
 All materials herein which may be copywrited, where applicable, are. Copyright
-2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 Hal Clark. See
-[LICENSE.txt](LICENSE.txt) for details about the license. Informally, `Ygor` is
-available under a GPLv3 license. 
+2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Hal
+Clark. See [LICENSE.txt](LICENSE.txt) for details about the license. Informally,
+`Ygor` is available under a GPLv3 license. 
 
 All liability is herefore disclaimed. The person(s) who use this source and/or
 software do so strictly under their own volition. They assume all associated
@@ -220,4 +220,15 @@ can be invoked as:
 - December 2020
   - Added basic ASCII PLY read and write support for surface meshes.
   - Added vec2 and vec3 layout checks and cast operators to and from std::array.
+  - Support for Boost::Serialization 1.74 and earlier versions.
+  - Created endian-aware binary IO routines.
+  - Added binary PLY support.
+  - Improved test portability by removing non-standard math constants (e.g.,
+    M\_PI).
+  - Added minimal support for vertex colour and vertex normals to point clouds
+    and surface meshes, as well as for OBJ, OFF, and PLY IO (where applicable).
+    Still not yet fully supported for all formats.
+  - Improved interoperability between point clouds and surface meshe.
+  - Added 'standard' 32 bit RGBA packing routine for point clouds and surface
+    meshes.
 
