@@ -298,7 +298,7 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             //auto split = SplitStringToVector(line, "comment", 'd'); // Remove any comments on any lines.
             //if(split.size() > 1) split.resize(1);
             auto split = SplitStringToVector(line, ' ', 'd');
-            //split = SplitVector(split, '\t', 'd');
+            split = SplitVector(split, '\r', 'd'); // in case on Windows and the stream is in binary mode.
             //split = SplitVector(split, ',', 'd');
             split.erase( std::remove_if(std::begin(split),
                                         std::end(split),
