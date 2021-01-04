@@ -746,12 +746,13 @@ template <class T>
 class affine_transform {
     private:
         // The top-left 3x3 sub-matrix is a rotation matrix. The top right-most column 3-vector is a translation vector.
+        // In (row,column) notation:
         //
-        //     (0,0)    (1,0)    (2,0)  |  (3,0)                               |                  
-        //     (0,1)    (1,1)    (2,1)  |  (3,1)             linear transform  |  translation     
-        //     (0,2)    (1,2)    (2,2)  |  (3,2)     =        (inc. scaling)   |                  
+        //     (0,0)    (0,1)    (0,2)  |  (0,3)                               |                  
+        //     (1,0)    (1,1)    (1,2)  |  (1,3)             linear transform  |  translation     
+        //     (2,0)    (2,1)    (2,2)  |  (2,3)     =        (inc. scaling)   |                  
         //     ---------------------------------           ------------------------------------   
-        //     (0,3)    (1,3)    (2,3)  |  (3,3)                 (zeros)       |  projection     
+        //     (3,0)    (3,1)    (3,2)  |  (3,3)                 (zeros)       |  projection     
         //
         // Note that the bottom row must remain unaltered to be an affine transform.
         //
@@ -777,8 +778,8 @@ class affine_transform {
         bool operator< (const affine_transform &) const;
 
         // Accessors.
-        T & coeff(long int i, long int j);
-        T read_coeff(long int i, long int j) const;
+        T & coeff(long int r, long int c);
+        T read_coeff(long int r, long int c) const;
 
         // Apply the (full) transformation to a vec3.
         void apply_to(vec3<T> &in) const;

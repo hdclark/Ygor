@@ -144,20 +144,20 @@ TEST_CASE( "affine_transform accessors" ){
     REQUIRE( A.coeff(1,1) == 1.0 );
     REQUIRE( A.coeff(2,2) == 1.0 );
 
-    REQUIRE( A.coeff(0,1) == 0.0 );
-    REQUIRE( A.coeff(0,2) == 0.0 );
-    REQUIRE( A.coeff(1,2) == 0.0 );
     REQUIRE( A.coeff(1,0) == 0.0 );
     REQUIRE( A.coeff(2,0) == 0.0 );
-    REQUIRE( A.coeff(3,0) == 0.0 );
     REQUIRE( A.coeff(2,1) == 0.0 );
-    REQUIRE( A.coeff(3,1) == 0.0 );
-    REQUIRE( A.coeff(3,2) == 0.0 );
+    REQUIRE( A.coeff(0,1) == 0.0 );
+    REQUIRE( A.coeff(0,2) == 0.0 );
+    REQUIRE( A.coeff(0,3) == 0.0 );
+    REQUIRE( A.coeff(1,2) == 0.0 );
+    REQUIRE( A.coeff(1,3) == 0.0 );
+    REQUIRE( A.coeff(2,3) == 0.0 );
 
     REQUIRE_THROWS( A.coeff(3,3) == 1.0 );
-    REQUIRE_THROWS( A.coeff(0,3) == 0.0 );
-    REQUIRE_THROWS( A.coeff(1,3) == 0.0 );
-    REQUIRE_THROWS( A.coeff(2,3) == 0.0 );
+    REQUIRE_THROWS( A.coeff(3,0) == 0.0 );
+    REQUIRE_THROWS( A.coeff(3,1) == 0.0 );
+    REQUIRE_THROWS( A.coeff(3,2) == 0.0 );
 
 
     REQUIRE( A.read_coeff(0,0) == 1.0 );
@@ -165,19 +165,19 @@ TEST_CASE( "affine_transform accessors" ){
     REQUIRE( A.read_coeff(2,2) == 1.0 );
     REQUIRE( A.read_coeff(3,3) == 1.0 );
 
-    REQUIRE( A.read_coeff(0,1) == 0.0 );
-    REQUIRE( A.read_coeff(0,2) == 0.0 );
-    REQUIRE( A.read_coeff(0,3) == 0.0 );
-    REQUIRE( A.read_coeff(1,2) == 0.0 );
-    REQUIRE( A.read_coeff(1,3) == 0.0 );
-    REQUIRE( A.read_coeff(2,3) == 0.0 );
-
     REQUIRE( A.read_coeff(1,0) == 0.0 );
     REQUIRE( A.read_coeff(2,0) == 0.0 );
     REQUIRE( A.read_coeff(3,0) == 0.0 );
     REQUIRE( A.read_coeff(2,1) == 0.0 );
     REQUIRE( A.read_coeff(3,1) == 0.0 );
     REQUIRE( A.read_coeff(3,2) == 0.0 );
+
+    REQUIRE( A.read_coeff(0,1) == 0.0 );
+    REQUIRE( A.read_coeff(0,2) == 0.0 );
+    REQUIRE( A.read_coeff(0,3) == 0.0 );
+    REQUIRE( A.read_coeff(1,2) == 0.0 );
+    REQUIRE( A.read_coeff(1,3) == 0.0 );
+    REQUIRE( A.read_coeff(2,3) == 0.0 );
 }
 
 TEST_CASE( "affine_transform appliers" ){
@@ -231,9 +231,9 @@ TEST_CASE( "affine_transform appliers" ){
 
     SUBCASE( "Shift transforms on vec3" ){
         affine_transform<double> X;
-        X.coeff(3,0) = 2.0;
-        X.coeff(3,1) = -3.0;
-        X.coeff(3,2) = 7.0;
+        X.coeff(0,3) = 2.0;
+        X.coeff(1,3) = -3.0;
+        X.coeff(2,3) = 7.0;
         vec3<double> A(x_unit);
         vec3<double> B(y_unit);
         vec3<double> C(z_unit);
@@ -256,8 +256,8 @@ TEST_CASE( "affine_transform appliers" ){
         SUBCASE( "XY" ){
             affine_transform<double> XY;
             XY.coeff(0,0) = 0.0;
-            XY.coeff(0,1) = 1.0;
             XY.coeff(1,0) = 1.0;
+            XY.coeff(0,1) = 1.0;
             XY.coeff(1,1) = 0.0;
             vec3<double> A(x_unit);
             vec3<double> B(y_unit);
@@ -280,8 +280,8 @@ TEST_CASE( "affine_transform appliers" ){
         SUBCASE( "XZ" ){
             affine_transform<double> XZ;
             XZ.coeff(0,0) = 0.0;
-            XZ.coeff(0,2) = 1.0;
             XZ.coeff(2,0) = 1.0;
+            XZ.coeff(0,2) = 1.0;
             XZ.coeff(2,2) = 0.0;
             vec3<double> A(x_unit);
             vec3<double> B(y_unit);
@@ -304,8 +304,8 @@ TEST_CASE( "affine_transform appliers" ){
         SUBCASE( "YZ" ){
             affine_transform<double> YZ;
             YZ.coeff(1,1) = 0.0;
-            YZ.coeff(1,2) = 1.0;
             YZ.coeff(2,1) = 1.0;
+            YZ.coeff(1,2) = 1.0;
             YZ.coeff(2,2) = 0.0;
             vec3<double> A(x_unit);
             vec3<double> B(y_unit);

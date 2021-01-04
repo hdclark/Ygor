@@ -74,9 +74,9 @@ TEST_CASE( "num_array constructors" ){
 
         REQUIRE_THROWS( static_cast<affine_transform<double>>(A) );
 
-        A.coeff(0,3) = 0.0;
-        A.coeff(1,3) = 0.0;
-        A.coeff(2,3) = 0.0;
+        A.coeff(3,0) = 0.0;
+        A.coeff(3,1) = 0.0;
+        A.coeff(3,2) = 0.0;
         A.coeff(3,3) = 1.0;
 
         auto B = static_cast<affine_transform<double>>(A);
@@ -85,21 +85,21 @@ TEST_CASE( "num_array constructors" ){
         REQUIRE( B.read_coeff(0,0) ==  1.0 );
         REQUIRE( B.read_coeff(1,0) ==  2.0 );
         REQUIRE( B.read_coeff(2,0) ==  3.0 );
-        REQUIRE( B.read_coeff(3,0) ==  4.0 );
+        REQUIRE( B.read_coeff(3,0) ==  0.0 );
 
         REQUIRE( B.read_coeff(0,1) ==  5.0 );
         REQUIRE( B.read_coeff(1,1) ==  6.0 );
         REQUIRE( B.read_coeff(2,1) ==  7.0 );
-        REQUIRE( B.read_coeff(3,1) ==  8.0 );
+        REQUIRE( B.read_coeff(3,1) ==  0.0 );
 
         REQUIRE( B.read_coeff(0,2) ==  9.0 );
         REQUIRE( B.read_coeff(1,2) == 10.0 );
         REQUIRE( B.read_coeff(2,2) == 11.0 );
-        REQUIRE( B.read_coeff(3,2) == 12.0 );
+        REQUIRE( B.read_coeff(3,2) ==  0.0 );
 
-        REQUIRE( B.read_coeff(0,3) ==  0.0 );
-        REQUIRE( B.read_coeff(1,3) ==  0.0 );
-        REQUIRE( B.read_coeff(2,3) ==  0.0 );
+        REQUIRE( B.read_coeff(0,3) == 13.0 );
+        REQUIRE( B.read_coeff(1,3) == 14.0 );
+        REQUIRE( B.read_coeff(2,3) == 15.0 );
         REQUIRE( B.read_coeff(3,3) ==  1.0 );
     }
 }

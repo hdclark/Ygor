@@ -6967,16 +6967,16 @@ template <class T>
 num_array<T>::operator affine_transform<T>() const {
     if( (this->rows != static_cast<long int>(4)) 
     ||  (this->cols != static_cast<long int>(4))
-    ||  (this->read_coeff(0,3) != static_cast<T>(0))
-    ||  (this->read_coeff(1,3) != static_cast<T>(0))
-    ||  (this->read_coeff(2,3) != static_cast<T>(0))
+    ||  (this->read_coeff(3,0) != static_cast<T>(0))
+    ||  (this->read_coeff(3,1) != static_cast<T>(0))
+    ||  (this->read_coeff(3,2) != static_cast<T>(0))
     ||  (this->read_coeff(3,3) != static_cast<T>(1)) ){
         throw std::invalid_argument("num_array does not contain an affine matrix. Refusing to continue.");
         // Note that other conventions *could* be handled, but this is currently not needed.
     }
     affine_transform<T> a;
-    for(size_t r = 0; r < 4; ++r){
-        for(size_t c = 0; c < 3; ++c){
+    for(size_t r = 0; r < 3; ++r){
+        for(size_t c = 0; c < 4; ++c){
             a.coeff(r,c) = this->read_coeff(r,c);
         }
     }
@@ -7570,11 +7570,11 @@ affine_transform<T>::operator<(const affine_transform<T> &rhs) const {
 
 template <class T>
 T &
-affine_transform<T>::coeff(long int i, long int j){
-    if(!isininc(0L,i,3L) || !isininc(0L,j,2L)){
+affine_transform<T>::coeff(long int r, long int c){
+    if(!isininc(0L,r,2L) || !isininc(0L,c,3L)){
         throw std::invalid_argument("Tried to access fixed coefficients. Refusing to continue.");
     }
-    return this->t[i][j];
+    return this->t[r][c];
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float  & affine_transform<float >::coeff(long int, long int);
@@ -7583,8 +7583,8 @@ affine_transform<T>::coeff(long int i, long int j){
 
 template <class T>
 T
-affine_transform<T>::read_coeff(long int i, long int j) const {
-    return this->t.at(i).at(j);
+affine_transform<T>::read_coeff(long int r, long int c) const {
+    return this->t.at(r).at(c);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float  affine_transform<float >::read_coeff(long int, long int) const;
@@ -7594,10 +7594,10 @@ affine_transform<T>::read_coeff(long int i, long int j) const {
 template <class T>
 void
 affine_transform<T>::apply_to(vec3<T> &in) const {
-    const auto x = (in.x * this->t[0][0]) + (in.y * this->t[1][0]) + (in.z * this->t[2][0]) + (1.0 * this->t[3][0]);
-    const auto y = (in.x * this->t[0][1]) + (in.y * this->t[1][1]) + (in.z * this->t[2][1]) + (1.0 * this->t[3][1]);
-    const auto z = (in.x * this->t[0][2]) + (in.y * this->t[1][2]) + (in.z * this->t[2][2]) + (1.0 * this->t[3][2]);
-    const auto w = (in.x * this->t[0][3]) + (in.y * this->t[1][3]) + (in.z * this->t[2][3]) + (1.0 * this->t[3][3]);
+    const auto x = (in.x * this->t[0][0]) + (in.y * this->t[0][1]) + (in.z * this->t[0][2]) + (1.0 * this->t[0][3]);
+    const auto y = (in.x * this->t[1][0]) + (in.y * this->t[1][1]) + (in.z * this->t[1][2]) + (1.0 * this->t[1][3]);
+    const auto z = (in.x * this->t[2][0]) + (in.y * this->t[2][1]) + (in.z * this->t[2][2]) + (1.0 * this->t[2][3]);
+    const auto w = (in.x * this->t[3][0]) + (in.y * this->t[3][1]) + (in.z * this->t[3][2]) + (1.0 * this->t[3][3]);
     if(w != 1.0) throw std::runtime_error("Transformation is not affine. Refusing to continue.");
     in.x = x;
     in.y = y;
@@ -7628,10 +7628,10 @@ affine_transform<T>::write_to(std::ostream &os) const {
     // Maximize precision prior to emitting the vertices.
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
-    os << this->t[0][0] << " " << this->t[1][0] << " " << this->t[2][0] << " " << this->t[3][0] << std::endl;
-    os << this->t[0][1] << " " << this->t[1][1] << " " << this->t[2][1] << " " << this->t[3][1] << std::endl;
-    os << this->t[0][2] << " " << this->t[1][2] << " " << this->t[2][2] << " " << this->t[3][2] << std::endl;
-    os << this->t[0][3] << " " << this->t[1][3] << " " << this->t[2][3] << " " << this->t[3][3] << std::endl;
+    os << this->t[0][0] << " " << this->t[0][1] << " " << this->t[0][2] << " " << this->t[0][3] << std::endl;
+    os << this->t[1][0] << " " << this->t[1][1] << " " << this->t[1][2] << " " << this->t[1][3] << std::endl;
+    os << this->t[2][0] << " " << this->t[2][1] << " " << this->t[2][2] << " " << this->t[2][3] << std::endl;
+    os << this->t[3][0] << " " << this->t[3][1] << " " << this->t[3][2] << " " << this->t[3][3] << std::endl;
     os.precision( original_precision );
     os.flush();
     return (!os.fail());
@@ -7652,13 +7652,17 @@ affine_transform<T>::read_from(std::istream &is){
         }
     }
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
-    if( (machine_eps < (std::abs(this->t[0][3] - 0.0)))
-    ||  (machine_eps < (std::abs(this->t[1][3] - 0.0)))
-    ||  (machine_eps < (std::abs(this->t[2][3] - 0.0)))
+    if( (machine_eps < (std::abs(this->t[3][0] - 0.0)))
+    ||  (machine_eps < (std::abs(this->t[3][1] - 0.0)))
+    ||  (machine_eps < (std::abs(this->t[3][2] - 0.0)))
     ||  (machine_eps < (std::abs(this->t[3][3] - 1.0))) ){
         FUNCWARN("Unable to read transformation; not affine");
         return false;
     }
+    this->t[3][0] = static_cast<T>(0);
+    this->t[3][1] = static_cast<T>(0);
+    this->t[3][2] = static_cast<T>(0);
+    this->t[3][3] = static_cast<T>(1);
     return (!is.fail());
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
