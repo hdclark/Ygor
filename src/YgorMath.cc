@@ -6964,6 +6964,30 @@ num_array<T>::num_array(const num_array<T> &in) : numbers(in.numbers),
 #endif
 
 template <class T>
+num_array<T>::operator affine_transform<T>() const {
+    if( (this->rows != static_cast<long int>(4)) 
+    ||  (this->cols != static_cast<long int>(4))
+    ||  (this->read_coeff(0,3) != static_cast<T>(0))
+    ||  (this->read_coeff(1,3) != static_cast<T>(0))
+    ||  (this->read_coeff(2,3) != static_cast<T>(0))
+    ||  (this->read_coeff(3,3) != static_cast<T>(1)) ){
+        throw std::invalid_argument("num_array does not contain an affine matrix. Refusing to continue.");
+        // Note that other conventions *could* be handled, but this is currently not needed.
+    }
+    affine_transform<T> a;
+    for(size_t r = 0; r < 4; ++r){
+        for(size_t c = 0; c < 3; ++c){
+            a.coeff(r,c) = this->read_coeff(r,c);
+        }
+    }
+    return a;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float >::operator affine_transform<float >() const;
+    template num_array<double>::operator affine_transform<double>() const;
+#endif
+
+template <class T>
 num_array<T> &
 num_array<T>::operator=(const num_array<T> &rhs){
     if(this == &rhs) return *this;
@@ -7485,6 +7509,21 @@ affine_transform<T>::affine_transform(const affine_transform<T> &in) : t(in.t) {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template affine_transform<float >::affine_transform(const affine_transform<float > &);
     template affine_transform<double>::affine_transform(const affine_transform<double> &);
+#endif
+
+template <class T>
+affine_transform<T>::operator num_array<T>() const {
+    num_array<T> n(4, 4, static_cast<T>(0));
+    for(size_t r = 0; r < 4; ++r){
+        for(size_t c = 0; c < 4; ++c){
+            n.coeff(r, c) = this->read_coeff(r,c);
+        }
+    }
+    return n;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float >::operator num_array<float >() const;
+    template affine_transform<double>::operator num_array<double>() const;
 #endif
 
 template <class T>

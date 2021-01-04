@@ -24,6 +24,7 @@
 template <class T> class samples_1D;
 template <class T> class num_array;
 template <class T> class point_set;
+template <class T> class affine_transform;
 
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------- vec3: A three-dimensional vector -------------------------------------------------
@@ -676,6 +677,8 @@ class num_array {
         num_array(long int rows, long int cols, T val = static_cast<T>(0));
         num_array(const num_array &in);
 
+        explicit operator affine_transform<T>() const;
+
         //Operators.
         num_array & operator=(const num_array &);
 
@@ -764,6 +767,8 @@ class affine_transform {
         //Constructors.
         affine_transform(); // Defaults to an identity transform.
         affine_transform(const affine_transform &in);
+
+        explicit operator num_array<T>() const;
 
         //Operators.
         affine_transform & operator= (const affine_transform &);

@@ -58,6 +58,29 @@ TEST_CASE( "affine_transform constructors" ){
         REQUIRE( B.read_coeff(3,1) == 0.0 );
         REQUIRE( B.read_coeff(3,2) == 0.0 );
     }
+
+    SUBCASE("operator cast to num_array"){
+        affine_transform<double> A;
+        auto B = static_cast<num_array<double>>(A);
+        REQUIRE( B.read_coeff(0,0) == 1.0 );
+        REQUIRE( B.read_coeff(1,1) == 1.0 );
+        REQUIRE( B.read_coeff(2,2) == 1.0 );
+        REQUIRE( B.read_coeff(3,3) == 1.0 );
+
+        REQUIRE( B.read_coeff(0,1) == 0.0 );
+        REQUIRE( B.read_coeff(0,2) == 0.0 );
+        REQUIRE( B.read_coeff(0,3) == 0.0 );
+        REQUIRE( B.read_coeff(1,2) == 0.0 );
+        REQUIRE( B.read_coeff(1,3) == 0.0 );
+        REQUIRE( B.read_coeff(2,3) == 0.0 );
+
+        REQUIRE( B.read_coeff(1,0) == 0.0 );
+        REQUIRE( B.read_coeff(2,0) == 0.0 );
+        REQUIRE( B.read_coeff(3,0) == 0.0 );
+        REQUIRE( B.read_coeff(2,1) == 0.0 );
+        REQUIRE( B.read_coeff(3,1) == 0.0 );
+        REQUIRE( B.read_coeff(3,2) == 0.0 );
+    }
 }
 
 TEST_CASE( "affine_transform operators" ){
