@@ -126,8 +126,10 @@ bool
 WritePointSetToXYZ(const point_set<T> &ps,
                    std::ostream &os ){
 
-    FUNCWARN("Point set is empty. Refusing to write empty point cloud to XYZ file");
-    if(ps.points.empty()) return false;
+    if(ps.points.empty()){
+        FUNCWARN("Point set is empty. Refusing to write empty point cloud to XYZ file");
+        return false;
+    }
 
     os << "# XYZ point cloud file" << std::endl;
 
