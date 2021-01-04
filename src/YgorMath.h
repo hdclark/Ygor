@@ -794,6 +794,18 @@ class affine_transform {
         bool read_from( std::istream &is );
 };
 
+template <class T>
+affine_transform<T> affine_translate(const vec3<T> &offset);
+
+template <class T>
+affine_transform<T> affine_scale(const vec3<T> &centre, T scale_factor);
+
+template <class T>
+affine_transform<T> affine_mirror(const plane<T> &reflection_plane);
+
+template <class T>
+affine_transform<T> affine_rotate(const vec3<T> &centre, const vec3<T> &axis_unit, T angle_rads);
+
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
 //---------------------------------------------------------------------------------------------------------------------------

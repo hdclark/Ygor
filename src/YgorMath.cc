@@ -7670,6 +7670,113 @@ affine_transform<T>::read_from(std::istream &is){
     template bool affine_transform<double>::read_from(std::istream &);
 #endif
 
+
+template <class T>
+affine_transform<T>
+affine_translate(const vec3<T> &offset){
+    if(!offset.isfinite()) throw std::invalid_argument("Translation vector invalid. Cannot continue.");
+
+    affine_transform<T> l_affine;
+    l_affine.coeff(0,3) = offset.x;
+    l_affine.coeff(1,3) = offset.y;
+    l_affine.coeff(2,3) = offset.z;
+    return l_affine;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > affine_translate(const vec3<float > &);
+    template affine_transform<double> affine_translate(const vec3<double> &);
+#endif
+
+template <class T>
+affine_transform<T>
+affine_scale(const vec3<T> &centre, T scale_factor){
+    if(!centre.isfinite()) throw std::invalid_argument("Scale centre invalid. Cannot continue.");
+    if(!std::isfinite(scale_factor)) throw std::invalid_argument("Scale factor invalid. Cannot continue.");
+
+    affine_transform<T> scale;
+    scale.coeff(0,0) = scale_factor;
+    scale.coeff(1,1) = scale_factor;
+    scale.coeff(2,2) = scale_factor;
+
+    return static_cast<affine_transform<T>>(
+               static_cast<num_array<T>>(affine_translate<T>(centre))
+             * static_cast<num_array<T>>(scale)
+             * static_cast<num_array<T>>(affine_translate<T>(centre * static_cast<T>(-1))) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > affine_scale(const vec3<float > &, float );
+    template affine_transform<double> affine_scale(const vec3<double> &, double);
+#endif
+
+template <class T>
+affine_transform<T>
+affine_mirror(const plane<T> &reflection_plane){
+    const auto centre = reflection_plane.R_0;
+    const auto normal = reflection_plane.N_0;
+
+    if(!centre.isfinite()) throw std::invalid_argument("Mirror centre invalid. Cannot continue.");
+    if(!normal.isfinite()) throw std::invalid_argument("Mirror normal invalid. Cannot continue.");
+
+    // Note: this is the Householder transformation.
+    affine_transform<T> mirror;
+    mirror.coeff(0,0) = static_cast<T>(1) - static_cast<T>(2) * normal.x * normal.x;
+    mirror.coeff(1,0) = static_cast<T>(0) - static_cast<T>(2) * normal.x * normal.y;
+    mirror.coeff(2,0) = static_cast<T>(0) - static_cast<T>(2) * normal.x * normal.z;
+
+    mirror.coeff(0,1) = static_cast<T>(0) - static_cast<T>(2) * normal.y * normal.x;
+    mirror.coeff(1,1) = static_cast<T>(1) - static_cast<T>(2) * normal.y * normal.y;
+    mirror.coeff(2,1) = static_cast<T>(0) - static_cast<T>(2) * normal.y * normal.z;
+
+    mirror.coeff(0,2) = static_cast<T>(0) - static_cast<T>(2) * normal.z * normal.x;
+    mirror.coeff(1,2) = static_cast<T>(0) - static_cast<T>(2) * normal.z * normal.y;
+    mirror.coeff(2,2) = static_cast<T>(1) - static_cast<T>(2) * normal.z * normal.z;
+
+    return static_cast<affine_transform<T>>(
+               static_cast<num_array<T>>(affine_translate<T>(centre))
+             * static_cast<num_array<T>>(mirror)
+             * static_cast<num_array<T>>(affine_translate<T>(centre * static_cast<T>(-1))) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > affine_mirror(const plane<float > &);
+    template affine_transform<double> affine_mirror(const plane<double> &);
+#endif
+
+template <class T>
+affine_transform<T>
+affine_rotate(const vec3<T> &centre, const vec3<T> &axis_unit, T angle_rads){
+    const auto axis = axis_unit.unit();
+    if(!centre.isfinite()) throw std::invalid_argument("Rotation centre invalid. Cannot continue.");
+    if(!axis.isfinite()) throw std::invalid_argument("Rotation axis invalid. Cannot continue.");
+    if(!std::isfinite(angle_rads)) throw std::invalid_argument("Rotation angle invalid. Cannot continue.");
+
+    // Rotation matrix for an arbitrary rotation around unit vector at origin.
+    const auto s = std::sin(angle_rads);
+    const auto c = std::cos(angle_rads);
+    const auto one = static_cast<T>(1);
+    affine_transform<T> rotate;
+    rotate.coeff(0,0) = ((one - c) * axis.x * axis.x) + c;
+    rotate.coeff(1,0) = ((one - c) * axis.y * axis.x) + (s * axis.z);
+    rotate.coeff(2,0) = ((one - c) * axis.z * axis.x) - (s * axis.y);
+
+    rotate.coeff(0,1) = ((one - c) * axis.x * axis.y) - (s * axis.z);
+    rotate.coeff(1,1) = ((one - c) * axis.y * axis.y) + c;
+    rotate.coeff(2,1) = ((one - c) * axis.z * axis.y) + (s * axis.x);
+
+    rotate.coeff(0,2) = ((one - c) * axis.x * axis.z) + (s * axis.y);
+    rotate.coeff(1,2) = ((one - c) * axis.y * axis.z) - (s * axis.x);
+    rotate.coeff(2,2) = ((one - c) * axis.z * axis.z) + c;
+
+    return static_cast<affine_transform<T>>(
+               static_cast<num_array<T>>(affine_translate<T>(centre))
+             * static_cast<num_array<T>>(rotate)
+             * static_cast<num_array<T>>(affine_translate<T>(centre * static_cast<T>(-1))) );
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > affine_rotate(const vec3<float > &, const vec3<float > &, float );
+    template affine_transform<double> affine_rotate(const vec3<double> &, const vec3<double> &, double);
+#endif
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //-------------- lin_reg_results: a simple helper class for dealing with output from linear regression routines -------------
 //---------------------------------------------------------------------------------------------------------------------------

@@ -327,6 +327,138 @@ TEST_CASE( "affine_transform appliers" ){
     }
 }
 
+TEST_CASE( "affine_transform factories" ){
+    const auto nan = std::numeric_limits<double>::quiet_NaN();
+    const auto inf = std::numeric_limits<double>::infinity();
+    const auto eps = 10.0 * std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    const vec3<double> x_unit(1.0, 0.0, 0.0);
+    const vec3<double> y_unit(0.0, 1.0, 0.0);
+    const vec3<double> z_unit(0.0, 0.0, 1.0);
+
+    SUBCASE( "affine_translate" ){
+        const vec3<double> shift(1.5, 2.5, -3.5);
+        const vec3<double> shift_inf(1.5, 2.5, inf);
+        const vec3<double> shift_nan(nan, 2.5, 3.5);
+
+        REQUIRE_THROWS( affine_translate<double>(shift_inf) );
+        REQUIRE_THROWS( affine_translate<double>(shift_nan) );
+        
+        {
+            auto A = affine_translate<double>(shift);
+            vec3<double> x(1.0, 2.0, 3.0);
+            const auto orig_x = x;
+            A.apply_to(x);
+            REQUIRE(x == (orig_x + shift));
+        }
+    }
+
+    SUBCASE( "affine_scale" ){
+        const vec3<double> centre(1.5, 2.5, -3.5);
+        const vec3<double> centre_inf(1.5, 2.5, inf);
+        const vec3<double> centre_nan(nan, 2.5, 3.5);
+
+        REQUIRE_THROWS( affine_scale<double>(centre_inf, 1.0) );
+        REQUIRE_THROWS( affine_scale<double>(centre_nan, 1.0) );
+        REQUIRE_THROWS( affine_scale<double>(centre, nan) );
+        REQUIRE_THROWS( affine_scale<double>(centre, inf) );
+        
+        {
+            vec3<double> x(1.0, 2.0, 3.0);
+            const auto orig_x = x;
+
+            // These should combine to form an identity transformation.
+            affine_scale<double>(centre *  1.0, 3.0/1.0).apply_to(x);
+            affine_scale<double>(centre *  1.0, 1.0/3.0).apply_to(x);
+
+            affine_scale<double>(centre * -1.0, 1.0/2.5).apply_to(x);
+            affine_scale<double>(centre * -1.0, 2.5/1.0).apply_to(x);
+
+            affine_scale<double>(centre *  2.3, 0.5/1.0).apply_to(x);
+            affine_scale<double>(centre *  2.3, 1.0/0.5).apply_to(x);
+            REQUIRE(orig_x.distance(x) < eps);
+        }
+    }
+
+    SUBCASE( "affine_mirror" ){
+        const vec3<double> centre(1.5, 2.5, -3.5);
+        const vec3<double> centre_inf(1.5, 2.5, inf);
+        const vec3<double> centre_nan(nan, 2.5, 3.5);
+
+        const auto unit = vec3<double>(1.5, 2.5, -3.5).unit();;
+        const vec3<double> unit_inf(1.5, 2.5, inf);
+        const vec3<double> unit_nan(nan, 2.5, 3.5);
+
+        REQUIRE_THROWS( affine_mirror<double>( plane<double>(unit, centre_inf) ) );
+        REQUIRE_THROWS( affine_mirror<double>( plane<double>(unit, centre_nan) ) );
+        REQUIRE_THROWS( affine_mirror<double>( plane<double>(unit_inf, centre) ) );
+        REQUIRE_THROWS( affine_mirror<double>( plane<double>(unit_nan, centre) ) );
+        
+        {
+            vec3<double> x(1.0, 2.0, 3.0);
+            const auto orig_x = x;
+
+            // These should combine to form an identity transformation.
+            affine_mirror<double>(plane<double>(unit.rotate_around_x( 0.0 ), centre)).apply_to(x);
+            affine_mirror<double>(plane<double>(unit.rotate_around_x( 0.0 ), centre)).apply_to(x);
+
+            affine_mirror<double>(plane<double>(unit.rotate_around_y( 3.1 ), centre)).apply_to(x);
+            affine_mirror<double>(plane<double>(unit.rotate_around_y( 3.1 ), centre)).apply_to(x);
+                                                           
+            affine_mirror<double>(plane<double>(unit.rotate_around_x( 1.3 ), centre)).apply_to(x);
+            affine_mirror<double>(plane<double>(unit.rotate_around_x( 1.3 ), centre)).apply_to(x);
+                                                           
+            affine_mirror<double>(plane<double>(unit.rotate_around_z( 0.2 ), centre)).apply_to(x);
+            affine_mirror<double>(plane<double>(unit.rotate_around_z( 0.2 ), centre)).apply_to(x);
+
+            // Mirroring should not be altered by the sign of the plane's normal.
+            affine_mirror<double>(plane<double>(unit * -1.0, centre)).apply_to(x);
+            affine_mirror<double>(plane<double>(unit *  1.0, centre)).apply_to(x);
+            REQUIRE(orig_x.distance(x) < eps);
+        }
+    }
+
+    SUBCASE( "affine_rotate" ){
+        const vec3<double> centre(1.5, 2.5, -3.5);
+        const vec3<double> centre_inf(1.5, 2.5, inf);
+        const vec3<double> centre_nan(nan, 2.5, 3.5);
+
+        const auto unit = vec3<double>(1.5, 2.5, -3.5).unit();;
+        const vec3<double> unit_inf(1.5, 2.5, inf);
+        const vec3<double> unit_nan(nan, 2.5, 3.5);
+
+        const auto angle = 3.45;
+
+        REQUIRE_THROWS( affine_rotate<double>( unit, centre_inf, angle) );
+        REQUIRE_THROWS( affine_rotate<double>( unit, centre_nan, angle) );
+        REQUIRE_THROWS( affine_rotate<double>( unit_inf, centre, angle) );
+        REQUIRE_THROWS( affine_rotate<double>( unit_nan, centre, angle) );
+        REQUIRE_THROWS( affine_rotate<double>( unit, centre, inf) );
+        REQUIRE_THROWS( affine_rotate<double>( unit, centre, nan) );
+        
+        {
+            vec3<double> x(1.0, 2.0, 3.0);
+            const auto orig_x = x;
+
+            // These should combine to form an identity transformation.
+            affine_rotate<double>(unit.rotate_around_x( 0.0 ), centre.rotate_around_y( 0.5 ),  1.23).apply_to(x);
+            affine_rotate<double>(unit.rotate_around_x( 0.0 ), centre.rotate_around_y( 0.5 ), -1.23).apply_to(x);
+
+            affine_rotate<double>(unit.rotate_around_y( 3.1 ), centre.rotate_around_x( 1.5 ), -2.34).apply_to(x);
+            affine_rotate<double>(unit.rotate_around_y( 3.1 ), centre.rotate_around_x( 1.5 ),  2.34).apply_to(x);
+                                             
+            affine_rotate<double>(unit.rotate_around_x( 1.3 ), centre.rotate_around_z( 2.1 ),  3.45).apply_to(x);
+            affine_rotate<double>(unit.rotate_around_x( 1.3 ), centre.rotate_around_z( 2.1 ), -3.45).apply_to(x);
+                                             
+            affine_rotate<double>(unit.rotate_around_z( 0.2 ), centre.rotate_around_x( 4.5 ), -4.56).apply_to(x);
+            affine_rotate<double>(unit.rotate_around_z( 0.2 ), centre.rotate_around_x( 4.5 ),  4.56).apply_to(x);
+
+            REQUIRE(orig_x.distance(x) < eps);
+        }
+    }
+
+}
+
 /*
 Currently outstanding:
     void apply_to(point_set<T> &in) const;
