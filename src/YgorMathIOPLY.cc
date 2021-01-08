@@ -664,6 +664,14 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
         throw std::runtime_error("Inconsistent number of vertices and normals -- refusing to write PLY file");
     }
 
+    // To minimize storage requirements and improve portability, we use the smallest integer possible for faces.
+    //
+    // NOTE: use_uint8_t and use_uint16_t are disabled to maximize portability. They work, but Meshlab/VCGlib doesn't
+    //       honour them, so we disable them until a better workaround is found.
+    const bool use_uint8_t  = false; //(N_verts < std::numeric_limits<uint8_t >::max());
+    const bool use_uint16_t = false; //(N_verts < std::numeric_limits<uint16_t>::max());
+    const bool use_uint32_t = (N_verts < std::numeric_limits<uint32_t>::max());
+
     // Used to determine when text must be base64 encoded.
     const auto needs_to_be_escaped = [](const std::string &in) -> bool {
         for(const auto &x : in){
@@ -709,17 +717,18 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     }
 
     os << "element vertex " << fvsm.vertices.size() << "\n"
-       << "property float" << sizeof(T)*8 << " x\n"
-       << "property float" << sizeof(T)*8 << " y\n"
-       << "property float" << sizeof(T)*8 << " z\n";
+       << "property float" << (sizeof(T)*8) << " x\n"
+       << "property float" << (sizeof(T)*8) << " y\n"
+       << "property float" << (sizeof(T)*8) << " z\n";
     if(has_normals){
-        os << "property float" << sizeof(T)*8 << " nx\n"
-           << "property float" << sizeof(T)*8 << " ny\n"
-           << "property float" << sizeof(T)*8 << " nz\n";
+        os << "property float" << (sizeof(T)*8) << " nx\n"
+           << "property float" << (sizeof(T)*8) << " ny\n"
+           << "property float" << (sizeof(T)*8) << " nz\n";
     }
     if(N_faces != 0){
+        const size_t face_bytes = (use_uint8_t ? 1 : (use_uint16_t ? 2 : (use_uint32_t ? 4 : sizeof(I))));
         os << "element face " << N_faces << "\n"
-           << "property list uchar int" << sizeof(I)*8 << " vertex_index\n";
+           << "property list uchar int" << (face_bytes*8) << " vertex_index\n";
     }
     os << "end_header\n";
     if(os.bad()){
@@ -763,9 +772,28 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
             }
 
             for(const auto &i : fv){
-                if( !ygor::io::write_binary<I,write_endianness>(os, i) ){
-                    FUNCWARN("Unable to write facet list number. Cannot continue");
-                    return false;
+                if(false){
+                }else if(use_uint8_t){
+                    if( !ygor::io::write_binary<uint8_t ,write_endianness>(os, static_cast<uint8_t >(i)) ){
+                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        return false;
+                    }
+                }else if(use_uint16_t){
+                    if( !ygor::io::write_binary<uint16_t,write_endianness>(os, static_cast<uint16_t>(i)) ){
+                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        return false;
+                    }
+
+                }else if(use_uint32_t){
+                    if( !ygor::io::write_binary<uint32_t,write_endianness>(os, static_cast<uint32_t>(i)) ){
+                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        return false;
+                    }
+                }else{
+                    if( !ygor::io::write_binary<I,write_endianness>(os, i) ){
+                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        return false;
+                    }
                 }
             }
         }
@@ -795,7 +823,8 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
                 return false;
             }
             for(const auto &i : fv){
-                if(!( os << " " << i )){
+                // Cast to avoid a uint8_t face being treated as a char by the stream.
+                if(!( os << " " << static_cast<uint64_t>(i) )){
                     FUNCWARN("Unable to write facet list number. Cannot continue");
                     return false;
                 }
