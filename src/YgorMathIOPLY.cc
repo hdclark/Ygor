@@ -95,23 +95,24 @@ decode_number_type(const std::string& in){
     return t;
 }
 
-static
+template <class T>
+inline
 std::string
-encode_number_type(number_type format){
+encode_number_type(){
     std::string name;
     if(false){
-    }else if( format == number_type::t_int8 ){     name = "char8";
-    }else if( format == number_type::t_int16 ){    name = "short16";
-    }else if( format == number_type::t_int32 ){    name = "int32";
-    }else if( format == number_type::t_int64 ){    name = "int64";
-
-    }else if( format == number_type::t_uint8 ){    name = "uchar8";
-    }else if( format == number_type::t_uint16 ){   name = "ushort16";
-    }else if( format == number_type::t_uint32 ){   name = "uint32";
-    }else if( format == number_type::t_uint64 ){   name = "uint64";
-
-    }else if( format == number_type::t_float32 ){  name = "float32";
-    }else if( format == number_type::t_float64 ){  name = "double64";
+    }else if( std::is_same<T, int8_t   >::value ){  name = "char8";
+    }else if( std::is_same<T, int16_t  >::value ){  name = "short16";
+    }else if( std::is_same<T, int32_t  >::value ){  name = "int32";
+    }else if( std::is_same<T, int64_t  >::value ){  name = "int64";
+                                     
+    }else if( std::is_same<T, uint8_t  >::value ){  name = "uchar8";
+    }else if( std::is_same<T, uint16_t >::value ){  name = "ushort16";
+    }else if( std::is_same<T, uint32_t >::value ){  name = "uint32";
+    }else if( std::is_same<T, uint64_t >::value ){  name = "uint64";
+                                     
+    }else if( std::is_same<T, float    >::value ){  name = "float32";
+    }else if( std::is_same<T, double   >::value ){  name = "double64";
     }else{
         throw std::logic_error("Unrecognized number_type format, cannot encode");
     }
@@ -666,11 +667,11 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
 
     // To minimize storage requirements and improve portability, we use the smallest integer possible for faces.
     //
-    // NOTE: use_uint8_t and use_uint16_t are disabled to maximize portability. They work, but Meshlab/VCGlib doesn't
+    // NOTE: use_int8_t and use_int16_t are disabled to maximize portability. They work, but Meshlab/VCGlib doesn't
     //       honour them, so we disable them until a better workaround is found.
-    const bool use_uint8_t  = false; //(N_verts < std::numeric_limits<uint8_t >::max());
-    const bool use_uint16_t = false; //(N_verts < std::numeric_limits<uint16_t>::max());
-    const bool use_uint32_t = (N_verts < std::numeric_limits<uint32_t>::max());
+    const bool use_int8_t  = false; //(N_verts < std::numeric_limits<int8_t >::max());
+    const bool use_int16_t = false; //(N_verts < std::numeric_limits<int16_t>::max());
+    const bool use_int32_t = (N_verts < std::numeric_limits<int32_t>::max());
 
     // Used to determine when text must be base64 encoded.
     const auto needs_to_be_escaped = [](const std::string &in) -> bool {
@@ -726,9 +727,13 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
            << "property float" << (sizeof(T)*8) << " nz\n";
     }
     if(N_faces != 0){
-        const size_t face_bytes = (use_uint8_t ? 1 : (use_uint16_t ? 2 : (use_uint32_t ? 4 : sizeof(I))));
+        std::string face_enc_type = encode_number_type<I>();
+        face_enc_type = (use_int32_t ? encode_number_type<int32_t>() : face_enc_type);
+        face_enc_type = (use_int16_t ? encode_number_type<int16_t>() : face_enc_type);
+        face_enc_type = (use_int8_t  ? encode_number_type<int8_t >() : face_enc_type);
+
         os << "element face " << N_faces << "\n"
-           << "property list uchar int" << (face_bytes*8) << " vertex_index\n";
+           << "property list uchar " << face_enc_type << " vertex_index\n";
     }
     os << "end_header\n";
     if(os.bad()){
@@ -773,19 +778,19 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
 
             for(const auto &i : fv){
                 if(false){
-                }else if(use_uint8_t){
-                    if( !ygor::io::write_binary<uint8_t ,write_endianness>(os, static_cast<uint8_t >(i)) ){
+                }else if(use_int8_t){
+                    if( !ygor::io::write_binary<int8_t ,write_endianness>(os, static_cast<int8_t >(i)) ){
                         FUNCWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
-                }else if(use_uint16_t){
-                    if( !ygor::io::write_binary<uint16_t,write_endianness>(os, static_cast<uint16_t>(i)) ){
+                }else if(use_int16_t){
+                    if( !ygor::io::write_binary<int16_t,write_endianness>(os, static_cast<int16_t>(i)) ){
                         FUNCWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
 
-                }else if(use_uint32_t){
-                    if( !ygor::io::write_binary<uint32_t,write_endianness>(os, static_cast<uint32_t>(i)) ){
+                }else if(use_int32_t){
+                    if( !ygor::io::write_binary<int32_t,write_endianness>(os, static_cast<int32_t>(i)) ){
                         FUNCWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
