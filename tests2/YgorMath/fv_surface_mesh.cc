@@ -2,6 +2,7 @@
 #include <limits>
 #include <utility>
 #include <iostream>
+#include <random>
 
 #include <YgorMath.h>
 
@@ -417,4 +418,113 @@ TEST_CASE( "fv_surface_mesh class" ){
         }
     }
 }
+
+TEST_CASE( "Convex_Hull" ){
+    SUBCASE("a valid seed tetrahedron can reliably be found, regardless of input orientation"){
+        long int random_seed = 123456;
+        std::mt19937 re( random_seed );
+        std::uniform_real_distribution<> rd(0.0, 1.0); //Random distribution.
+
+        std::vector<vec3<double>> all_verts {{
+            vec3<double>(rd(re), rd(re), rd(re)),
+            vec3<double>(rd(re), rd(re), rd(re)),
+            vec3<double>(rd(re), rd(re), rd(re)),
+            vec3<double>(rd(re), rd(re), rd(re)),
+            vec3<double>(rd(re), rd(re), rd(re)),
+            vec3<double>(rd(re), rd(re), rd(re)) }};
+
+        std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
+        for(auto &v : all_verts){
+            all_vert_refs.emplace_back( std::ref(v) );
+        }
+
+        // The following monstrosity iterates over the allowed permutations of 4 vertices selected.
+        // It iterates allowed combinations from 'N-pick-M' where N = 6 and M = 4.
+        //
+        // This test is done to ensure that whatever order the points are in, a positive-volume seed tetrahedron
+        // can be found.
+        const long int N_all_verts = all_vert_refs.size();
+        const long int N_to_test = 4;
+
+        std::vector<bool> v(N_all_verts);
+        std::fill(v.begin(), v.begin() + N_to_test, true);
+
+        do{
+            std::vector<long int> indices;
+            for(long int i = 0; i < N_all_verts; ++i){
+                if(v[i] == true) indices.push_back(i);
+            }
+            if(indices.size() != N_to_test) throw std::runtime_error("Insufficient data (1)");
+
+            std::sort( std::begin(indices), std::end(indices) );
+            do{
+                std::vector< std::reference_wrapper<vec3<double>> > vert_refs;
+                for(const auto &j : indices){
+                    vert_refs.emplace_back( all_vert_refs.at(j) );
+                }
+
+                if(vert_refs.size() != N_to_test) throw std::runtime_error("Insufficient data (2)");
+
+                const auto faces = Convex_Hull<double,uint32_t>(vert_refs);
+
+            }while(std::next_permutation(std::begin(indices), std::end(indices)));
+        }while(std::prev_permutation(v.begin(), v.end()));
+    }
+
+    SUBCASE("minimal hull problem correctly solved"){
+        std::vector<vec3<double>> all_verts {{
+            vec3<double>(1.0, 0.0, 0.0),     // }
+            vec3<double>(0.0, 1.0, 0.0),     // }
+            vec3<double>(0.0, 0.0, 1.0),     // }-- Seed hull
+            vec3<double>(0.0, 0.0, 0.0),     // }
+            vec3<double>(0.1, 0.1, 0.1),     // Inside the hull, should be ignored.
+            vec3<double>(1.5, 1.5, 0.5) }};  // Outside the hull, should extend the hull.
+
+        std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
+        for(auto &v : all_verts){
+            all_vert_refs.emplace_back( std::ref(v) );
+        }
+
+        auto faces = Convex_Hull<double,uint32_t>(all_vert_refs);
+        REQUIRE( faces.size() == 6 );
+
+        //// Dump the mesh for inspection.
+        //fv_surface_mesh<double, uint32_t> mesh;
+        //mesh.vertices = all_verts;
+        //mesh.faces = faces;
+        //std::ofstream of("/tmp/convex_hull.ply");
+        //WriteFVSMeshToPLY(mesh, of);
+    }
+
+    SUBCASE("a seed tetrahedron can reliably be found"){
+        long int random_seed = 123456;
+        std::mt19937 re( random_seed );
+        std::uniform_real_distribution<> rd(0.01, 0.99); //Random distribution.
+
+        std::vector<vec3<double>> all_verts {{
+            vec3<double>(0.0, 0.0, 0.0), // Outer vertices.
+            vec3<double>(0.0, 0.0, 1.0),
+            vec3<double>(0.0, 1.0, 0.0),
+            vec3<double>(0.0, 1.0, 1.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 1.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(1.0, 1.0, 1.0) }};
+        for(size_t i = 0; i < 100; ++i){ // Inner vertices, randomly distributed.
+            all_verts.emplace_back(vec3<double>(rd(re), rd(re), rd(re)));
+        }
+
+        // Shuffle order, so first vertices are unlikely to be present in the final hull.
+        std::shuffle(std::begin(all_verts), std::end(all_verts), re);
+
+        std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
+        for(auto &v : all_verts){
+            all_vert_refs.emplace_back( std::ref(v) );
+        }
+
+        auto faces = Convex_Hull<double,uint32_t>(all_vert_refs);
+        REQUIRE( faces.size() == 12 );
+    }
+}
+
 

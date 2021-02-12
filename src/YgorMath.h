@@ -620,6 +620,12 @@ template <class T, class I>   class fv_surface_mesh {
         template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
 };
 
+
+template <class T, class I>
+std::vector<std::vector<I>> // Faces.
+Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts);
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
