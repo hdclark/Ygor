@@ -6947,88 +6947,101 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
 
             if(visible_faces.empty()){
                 // The vertex is inside the hull, so ignore it.
-//FUNCINFO("Vertex " << v_i << " is inside the hull, so ignoring it");
                 continue;
             }else{
                 // The vertex in on the (current) hull, so we have to figure out which faces to prune.
-//FUNCINFO("Vertex " << v_i << " is outside the hull and visible from " << visible_faces.size() << " existing faces");
-
-
-/*
-fv_surface_mesh<T,I>::recreate_involved_face_index(void){
-    this->involved_faces.clear();
-    this->involved_faces.resize(this->vertices.size());
-    size_t face_num = 0;
-    for(const auto &fv : this->faces){
-        for(const auto &vert_num : fv){
-            this->involved_faces.at(vert_num).emplace_back(face_num);
-        }
-        ++face_num;
-    }
-    return;
-}
-*/
+                //
                 // First, identify the pairs of faces that straddle the visibility horizon. We will later extract the
                 // common edges.
-                std::map<I, std::set<I>> visibility_horizon_straddlers;
+                std::vector<std::pair<I,I>> visibility_horizon_straddlers;
                 for(const auto &vis_face : visible_faces){
                     for(const auto &adj_face : face_adjacency[vis_face]){
-                        if(visible_faces.count(adj_face) == 0){
+                        if( (visible_faces.count(adj_face) == 0) && !(faces.at(adj_face).empty()) ){
                             // Add pair: vis_fac and adj_face -- they straddle the visibility boundary.
-                            visibility_horizon_straddlers[vis_face].insert(adj_face);
+                            visibility_horizon_straddlers.emplace_back( std::make_pair(vis_face, adj_face) );
                         }
                     }
                 }
 
                 // Extract the polygon built from edges of face pairs that straddle the visibility horizon. 
-                std::map<I, I> visibility_horizon_polygon;
+                //
+                // Note: the polygon is in index space, not R3.
+                struct visibility_horizon_edge_t {
+                    I vert_low;
+                    I vert_high;
+                    I invis_face; // The invisible face that shares an edge with the horizon polygon.
+                                  // This is used to update face adjacency info.
+                };
+//                std::vector<std::pair<I,I>> visibility_horizon_polygon;
+                std::vector<visibility_horizon_edge_t> visibility_horizon_polygon;
+                visibility_horizon_polygon.reserve(visibility_horizon_straddlers.size());
                 for(const auto & vis_p : visibility_horizon_straddlers){
                     const auto vis_face = vis_p.first;
-                    for(const auto & invis_face : vis_p.second){
-                        //FUNCINFO("Faces " << vis_face << " (inside) and " << invis_face << " (outside) straddle the visibility horizon");
+                    const auto invis_face = vis_p.second;
+                    //FUNCINFO("Faces " << vis_face << " (inside) and " << invis_face << " (outside) straddle the visibility horizon");
 
-                        std::vector<I>   vis_verts;
-                        std::vector<I> invis_verts;
-                        std::vector<I> common_verts;
-                        for(const auto &f_i : faces.at(  vis_face))   vis_verts.emplace_back(f_i);
-                        for(const auto &f_i : faces.at(invis_face)) invis_verts.emplace_back(f_i);
+                    std::vector<I>   vis_verts;
+                    std::vector<I> invis_verts;
+                    std::vector<I> common_verts;
+                    for(const auto &f_i : faces.at(  vis_face))   vis_verts.emplace_back(f_i);
+                    for(const auto &f_i : faces.at(invis_face)) invis_verts.emplace_back(f_i);
 
-                        // "Easy" way, which destroys connection info but should still work.
-                        // Note that it might be overall easier to instead use longest common subsequence search with
-                        // wrap-around. Or just explicitly testing all the possible combinations.
-                        std::sort( std::begin(vis_verts), std::end(vis_verts) );
-                        std::sort( std::begin(invis_verts), std::end(invis_verts) );
-                        std::set_intersection(std::begin(vis_verts),   std::end(vis_verts),
-                                              std::begin(invis_verts), std::end(invis_verts),
-                                              std::back_inserter(common_verts));
-                        if(common_verts.size() == 0){
-                            //FUNCINFO("Face not adjacent to horizon -- ignoring");
+                    // "Easy" way, which destroys connection info but should still work.
+                    // Note that it might be overall easier to instead use longest common subsequence search with
+                    // wrap-around. Or just explicitly testing all the possible combinations.
+                    std::sort( std::begin(vis_verts), std::end(vis_verts) );
+                    std::sort( std::begin(invis_verts), std::end(invis_verts) );
+                    std::set_intersection(std::begin(vis_verts),   std::end(vis_verts),
+                                          std::begin(invis_verts), std::end(invis_verts),
+                                          std::back_inserter(common_verts));
+                    if(common_verts.size() == 0){
+                        //FUNCINFO("Face not adjacent to horizon -- ignoring");
 
-                        }else if(common_verts.size() == 1){
-                            //FUNCINFO("Single vertex on the horizon -- ignoring");
+                    }else if(common_verts.size() == 1){
+                        //FUNCINFO("Single vertex on the horizon -- ignoring");
 
-                        }else if(common_verts.size() == 2){
-                            // Figure out the real order using the invisible face.
-                            const auto pos_A = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[0]);
-                            const auto pos_B = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[1]);
-                            const auto pos_dist = std::distance(pos_A, pos_B);
-                            if( (pos_dist == 1) || (pos_dist == -2) ){
-                                visibility_horizon_polygon[ common_verts[0] ] = common_verts[1];
-                            }else{
-                                visibility_horizon_polygon[ common_verts[1] ] = common_verts[0];
-                            }
-
+                    }else if(common_verts.size() == 2){
+                        // Figure out the real order using the invisible face.
+                        const auto pos_A = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[0]);
+                        const auto pos_B = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[1]);
+                        const auto pos_dist = std::distance(pos_A, pos_B);
+                        visibility_horizon_polygon.emplace_back();
+                        if( (pos_dist == 1) || (pos_dist == -2) ){
+                            visibility_horizon_polygon.back() = { common_verts[0], common_verts[1], invis_face };
                         }else{
-                            throw std::logic_error("Degenerate case with all three vertices intersecting. Cannot continue.");
+                            visibility_horizon_polygon.back() = { common_verts[1], common_verts[0], invis_face };
                         }
+
+                    }else{
+                        throw std::logic_error("Degenerate case with all three vertices intersecting. Cannot continue.");
                     }
                 }
-                
-//std::cout << "Visibility horizon is defined by polygon:" << std::endl;
-//for(const auto &vhp_p : visibility_horizon_polygon){
-//    std::cout << "    " << vhp_p.first << " ---> " << vhp_p.second << std::endl;
-//}
-//std::cout << std::endl;
+
+/*
+                // Sort the polyline so that the polyline is contiguous.
+                // Locality will later simplify adjacency calculations.
+                //
+                // NOTE: This code doesn't seem to work, but it should work in principle... Logic error?
+                {
+                    std::vector<visibility_horizon_edge_t> sorted;
+                    sorted.emplace_back();
+                    sorted.back() = visibility_horizon_polygon.back();
+
+                    while(sorted.size() < visibility_horizon_polygon.size()){
+                        auto pos = std::find_if(std::begin(visibility_horizon_polygon),
+                                                std::end(visibility_horizon_polygon),
+                                                [&](const visibility_horizon_edge_t& x) -> bool {
+                                                    return (sorted.back().vert_low == x.vert_high);
+                                                });
+                        if(pos == std::end(visibility_horizon_polygon)){
+                            throw std::logic_error("Visibility horizon polygon is not complete. Refusing to continue.");
+                        }
+                        sorted.emplace_back();
+                        sorted.back() = *pos;
+                    }
+                    visibility_horizon_polygon = sorted;
+                }
+*/
 
                 // Remove all visible faces.
                 //
@@ -7038,22 +7051,36 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
                 }
 
                 // Add new faces using the visibility horizon.
+                const auto orig_N_faces = static_cast<I>(faces.size());
+                const auto N_new_faces = static_cast<I>(visibility_horizon_polygon.size());
+                auto new_face_number = orig_N_faces;
                 for(const auto &vhp_p : visibility_horizon_polygon){
-                    const auto v_A_i = static_cast<I>(vhp_p.first);
-                    const auto v_B_i = static_cast<I>(vhp_p.second);
+                    const auto v_A_i = static_cast<I>(vhp_p.vert_low);
+                    const auto v_B_i = static_cast<I>(vhp_p.vert_high);
+                    const auto adj_invis_face_i = static_cast<I>(vhp_p.invis_face);
+
                     faces.emplace_back( std::vector<I>{{ v_A_i, static_cast<I>(i), v_B_i }});
+
+                    // Update the face_adjacency list.
+                    //
+                    // Note that we only have to add (bi-directional) links to shared-edge adjacent faces.
+                    // Since the new vertex creates a triangle fan, face adjacency is simple to update.
+                    face_adjacency[adj_invis_face_i].insert(new_face_number);
+                    face_adjacency[new_face_number].insert(adj_invis_face_i);
+
+// Use this if you can ensure adjacent faces are also adjacent in the storage order...
+//                    face_adjacency[new_face_number].insert( orig_N_faces + ((new_face_number + 1) % N_new_faces));
+//                    face_adjacency[new_face_number].insert( orig_N_faces + ((new_face_number + N_new_faces - 1) % N_new_faces));
+
+                    // Many of these adjacencies only share a vertex, not an edge, but this is OK.
+                    // Simply including them is less of a hassle than figuring out which faces share an edge.
+                    for(auto nfi = orig_N_faces; nfi < (orig_N_faces + N_new_faces); ++nfi){
+                        if(nfi != new_face_number) face_adjacency[new_face_number].insert(nfi);
+                    }
+
+                    new_face_number += 1;
                 }
-
-                // Regenerate the face adjacency list.
-                //
-                // Note: This is slow and awkward, so it would be great to be more clever here. Especially since the
-                // edge-to-invisible face information is available when the horizon line is identified...
-                //
-                // ... TODO ...
-                regenerate_face_adjacency();
-
             }
-
         }
     
         // Invalidate the adjacency list, which is no longer needed.
