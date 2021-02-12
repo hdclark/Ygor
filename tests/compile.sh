@@ -63,8 +63,11 @@ g++ -std=c++17 Test_Math_21.cc -o test_math_21 -lygor -pthread &
 g++ -std=c++17 Test_Math_22.cc -o test_math_22 -lygor -pthread &
 g++ -std=c++17 Test_Math_23.cc -o test_math_23 -lygor -pthread &
 g++ -std=c++17 Test_Math_24.cc -o test_math_24 -lygor -pthread &
+wait
+
 g++ -std=c++17 Test_Math_25.cc -o test_math_25 -lygor -pthread &
 g++ -std=c++17 Test_Math_26.cc -o test_math_26 -lygor -pthread &
+g++ -std=c++17 Test_Math_27.cc -o test_math_27 -lygor -pthread &
 wait
 
 g++ -std=c++17 Test_Networking_A_01.cc -o test_networking_a_01 -lygor -pthread &

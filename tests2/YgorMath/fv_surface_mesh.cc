@@ -487,13 +487,6 @@ TEST_CASE( "Convex_Hull" ){
 
         auto faces = Convex_Hull<double,uint32_t>(all_vert_refs);
         REQUIRE( faces.size() == 6 );
-
-        //// Dump the mesh for inspection.
-        //fv_surface_mesh<double, uint32_t> mesh;
-        //mesh.vertices = all_verts;
-        //mesh.faces = faces;
-        //std::ofstream of("/tmp/convex_hull.ply");
-        //WriteFVSMeshToPLY(mesh, of);
     }
 
     SUBCASE("a seed tetrahedron can reliably be found"){
