@@ -489,6 +489,47 @@ TEST_CASE( "Convex_Hull" ){
         REQUIRE( faces.size() == 6 );
     }
 
+    SUBCASE("seed tetrahedron can handle degeneracy in the first few vertices"){
+        std::vector<vec3<double>> all_verts {{
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0),
+
+            vec3<double>(0.0, 0.0, 1.0),
+            vec3<double>(1.0, 0.0, 1.0),
+            vec3<double>(1.0, 1.0, 1.0),
+            vec3<double>(0.0, 1.0, 1.0) }};
+
+
+        std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
+        for(auto &v : all_verts){
+            all_vert_refs.emplace_back( std::ref(v) );
+        }
+
+        auto faces = Convex_Hull<double,uint32_t>(all_vert_refs);
+        REQUIRE( faces.size() == 12 );
+    }
+
+    SUBCASE("handles case with only degenerate data"){
+        std::vector<vec3<double>> all_verts {{
+            vec3<double>(0.0, 1.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0) }};
+
+        std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
+        for(auto &v : all_verts){
+            all_vert_refs.emplace_back( std::ref(v) );
+        }
+
+        REQUIRE_THROWS( Convex_Hull<double,uint32_t>(all_vert_refs) );
+    }
+
     SUBCASE("a seed tetrahedron can reliably be found"){
         long int random_seed = 123456;
         std::mt19937 re( random_seed );

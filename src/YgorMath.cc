@@ -6767,121 +6767,72 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
         const auto face_orientation = (v_B - v_A).Cross(v_C - v_A);
         return face_orientation;
     };
+    const auto triangle_area = [&](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C){
+        return triangle_orientation(v_A, v_B, v_C).length() / static_cast<T>(2);
+    };
     const auto tetrahedron_signed_volume = [](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C, const vec3<T> &v_D){
         const auto signed_volume = (v_B - v_A).Cross(v_C - v_A).Dot(v_D - v_A);
         return signed_volume;
     };
 
-
     if(N_verts < 4){
         FUNCERR("Not yet implemented");
     }else{
-        // Seed the hull with arbitrarily selected points.
-        //
-        // We ensure the initial tetrehedral volume is positive. This isn't strictly necessary, but it can help detect
-        // degeneracy.
-        //
-        // NOTE: If the first 4 points are degenerate, we could search for another 4.
-        //
-        //     ...TODO...
-        //
-        std::vector<I> seed_tet {{ static_cast<I>(0),
-                                   static_cast<I>(1),
-                                   static_cast<I>(2),
-                                   static_cast<I>(3) }};
+        // Seed the hull with vertices that are assured to not be degenerate. This might involve scanning all inputs,
+        // but only until we find a seed tetrahedron. If this scan fails, then the inputs are degenerate (barring slight
+        // numerical differences that might result due to changing the order).
+        std::vector<I> seed_tet;
+        seed_tet.emplace_back(static_cast<I>(0));
+        for(auto i = static_cast<I>(1); i < N_verts; ++i){
+            const auto N_seed_tet = seed_tet.size();
+            if(3 < N_seed_tet) break;
+            const auto v_i = verts[i].get();
 
-        const auto find_seed_tetrahedron = [&]() -> bool {
-            std::sort( std::begin(seed_tet), std::end(seed_tet) );
-            do{
-                const auto tet_vol = tetrahedron_signed_volume( verts.at(seed_tet.at(0)).get(),
-                                                                verts.at(seed_tet.at(1)).get(),
-                                                                verts.at(seed_tet.at(2)).get(),
-                                                                verts.at(seed_tet.at(3)).get() );
-                if(0 < tet_vol){ 
-                    return true;
-                }
-            }while( std::next_permutation(std::begin(seed_tet), std::end(seed_tet)) );
-            return false;
-        };
-        if(!find_seed_tetrahedron()){
-            throw std::runtime_error("Unable to find seed tetrahedron with positive volume. Is the point-cloud degenerate?");
-        }
-
-/*
-        const auto inf = std::numeric_limits<T>::infinity();
-        long int i_LUZ = 0;
-        long int i_LDZ = 0;
-        long int i_RZU = 0;
-        long int i_RZD = 0;
-        std::set<long int> used_indices;
-        const auto find_seed_tetrahedron = [&]( ) -> bool {
-            long int random_seed = 12345;
-            std::mt19937 re( random_seed );
-            std::uniform_real_distribution<T> rd(static_cast<T>(-1), static_cast<T>(1)); //Random distribution.
-
-            for(long int attempt = 0; attempt < 100; ++attempt){
-                i_LUZ = 0;
-                i_LDZ = 0;
-                i_RZU = 0;
-                i_RZD = 0;
-
-                const auto angle = rd(re) * 3.14;
-                const auto orien = vec3<T>(rd(re), rd(re), rd(re)).unit();
-
-                const auto LUZ_unit = vec3<T>(-1.0, -1.0,  0.0).rotate_around_unit(orien, angle).unit();
-                const auto LDZ_unit = vec3<T>(-1.0,  1.0,  0.0).rotate_around_unit(orien, angle).unit();
-                const auto RZU_unit = vec3<T>( 1.0,  0.0,  1.0).rotate_around_unit(orien, angle).unit();
-                const auto RZD_unit = vec3<T>( 1.0,  0.0, -1.0).rotate_around_unit(orien, angle).unit();
-                auto best_LUZ_offset = -inf;
-                auto best_LDZ_offset = -inf;
-                auto best_RZU_offset = -inf;
-                auto best_RZD_offset = -inf;
-                for(long int i = 0; i < N_verts; ++i){
-                    const auto v = verts[i].get();
-                    const auto LUZ_offset = LUZ_unit.Dot(v);
-                    const auto LDZ_offset = LDZ_unit.Dot(v);
-                    const auto RZU_offset = RZU_unit.Dot(v);
-                    const auto RZD_offset = RZD_unit.Dot(v);
-
-                    if(best_LUZ_offset < LUZ_offset){
-                        best_LUZ_offset = LUZ_offset;
-                        i_LUZ = i;
-                    }
-                    if(best_LDZ_offset < LDZ_offset){
-                        best_LDZ_offset = LDZ_offset;
-                        i_LDZ = i;
-                    }
-                    if(best_RZU_offset < RZU_offset){
-                        best_RZU_offset = RZU_offset;
-                        i_RZU = i;
-                    }
-                    if(best_RZD_offset < RZD_offset){
-                        best_RZD_offset = RZD_offset;
-                        i_RZD = i;
+            // Ignore the vertex if it is not finite or invalid.
+            if(!v_i.isfinite()) continue;
+            
+            // Check if the vertex is too close to any vertex previously added vertex.
+            const auto vert_is_distinct = [&](){
+                for(const auto& j : seed_tet){
+                    const auto v_j = verts[j].get();
+                    const auto dist = v_i.distance( v_j );
+                    if(dist < machine_eps){
+                        return false;
                     }
                 }
-                used_indices.insert(i_LUZ);
-                used_indices.insert(i_LDZ);
-                used_indices.insert(i_RZU);
-                used_indices.insert(i_RZD);
-                if(used_indices.size() == 4){
-                    return true;
-                }else{
-                    FUNCINFO("Unable to find seed tetrahedron (attempt " << attempt << ")");
-                    used_indices.clear();
-                }
+                return true;
+            };
+            if(!vert_is_distinct()) continue;
+
+            // If this is vertex #3, check that adds a non-zero area.
+            if(N_seed_tet == 2){
+                const auto area = triangle_area( verts[seed_tet[0]].get(),
+                                                 verts[seed_tet[1]].get(),
+                                                 v_i );
+                if(area < machine_eps) continue;
             }
-            return false;
-        };
-        find_seed_tetrahedron();
-*/
+
+            // If this is vertex #4, check that adds a non-zero volume.
+            if(N_seed_tet == 3){
+                const auto svol = tetrahedron_signed_volume( verts.at(seed_tet[0]).get(),
+                                                             verts.at(seed_tet[1]).get(),
+                                                             verts.at(seed_tet[2]).get(),
+                                                             v_i );
+                if(std::abs(svol) < machine_eps) continue;
+            }
+
+            seed_tet.emplace_back(i);
+        }
+        if(seed_tet.size() != 4){
+            throw std::runtime_error("Unable to find seed tetrahedron. Is the point-cloud degenerate?");
+        }
 
         // Next, we ensure the individual faces are oriented uniformly and correctly, since the orientation is critical for building the
         // hull below. An easy method is to use a point in the interior to confirm normals point outward.
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet.at(0)), static_cast<I>(seed_tet.at(1)), static_cast<I>(seed_tet.at(3)) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet.at(0)), static_cast<I>(seed_tet.at(3)), static_cast<I>(seed_tet.at(2)) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet.at(0)), static_cast<I>(seed_tet.at(1)), static_cast<I>(seed_tet.at(2)) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet.at(1)), static_cast<I>(seed_tet.at(3)), static_cast<I>(seed_tet.at(2)) }} );
+        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]) }} );
+        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) }} );
+        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[2]) }} );
+        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) }} );
 
         // Pre-populate the face adjacency list. At this point (with only four faces) all faces are adjacent to all
         // other faces.
@@ -6898,15 +6849,15 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
         };
         regenerate_face_adjacency();
 
-        const auto v_inside = (verts.at(seed_tet.at(0)).get() * static_cast<T>(0.25))
-                            + (verts.at(seed_tet.at(1)).get() * static_cast<T>(0.25))
-                            + (verts.at(seed_tet.at(3)).get() * static_cast<T>(0.25))
-                            + (verts.at(seed_tet.at(2)).get() * static_cast<T>(0.25));
+        const auto v_inside = (verts[seed_tet[0]].get() * static_cast<T>(0.25))
+                            + (verts[seed_tet[1]].get() * static_cast<T>(0.25))
+                            + (verts[seed_tet[3]].get() * static_cast<T>(0.25))
+                            + (verts[seed_tet[2]].get() * static_cast<T>(0.25));
 
         for(auto &f : faces){
-            const auto v_A = verts.at(f.at(0)).get();
-            const auto v_B = verts.at(f.at(1)).get();
-            const auto v_C = verts.at(f.at(2)).get();
+            const auto v_A = verts[f[0]].get();
+            const auto v_B = verts[f[1]].get();
+            const auto v_C = verts[f[2]].get();
 
             const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
             const auto offset = (v_centroid - v_inside);
@@ -6922,24 +6873,43 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
             }
             const auto orientation = offset.Dot(face_orientation);
             if(orientation < static_cast<T>(0)){
-                std::swap( f.at(0), f.at(1) ); // Reverse face orientation.
+                std::swap( f[0], f[1] ); // Reverse face orientation.
             }
         }
 
         // Now, we evaluate all other vertices, one-at-a-time, to see if they contribute to the hull or not.
         for(auto i = static_cast<I>(4); i < N_verts; ++i){
-            const auto v_i = verts.at(i).get();
+            if( (i == seed_tet[0])
+            ||  (i == seed_tet[1])
+            ||  (i == seed_tet[2])
+            ||  (i == seed_tet[3]) ) continue;
+
+            // Ignore the vertex if it is not finite or invalid.
+            const auto v_i = verts[i].get();
+            if(!v_i.isfinite()) continue;
+
             const auto N_faces = static_cast<I>(faces.size());
             std::set<I> visible_faces;
             for(auto j = static_cast<I>(0); j < N_faces; ++j){
-                if(faces.at(j).empty()) continue; // Ignore empty faces for now.
-                const auto v_A = verts.at(faces.at(j).at(0)).get();
-                const auto v_B = verts.at(faces.at(j).at(1)).get();
-                const auto v_C = verts.at(faces.at(j).at(2)).get();
+                if(faces[j].empty()) continue; // Ignore empty faces for now.
+                const auto v_A = verts[faces[j][0]].get();
+                const auto v_B = verts[faces[j][1]].get();
+                const auto v_C = verts[faces[j][2]].get();
+
+                // Ignore if the vertex is likely vertex degenerate.
+                const bool close_to_corners =    (v_A.distance(v_i) < machine_eps)
+                                              || (v_B.distance(v_i) < machine_eps)
+                                              || (v_C.distance(v_i) < machine_eps);
+                if(close_to_corners) continue;
+
+                // Ignore if the vertex is close to the existing face.
+
+                // ... TODO ... (How to do this reliably??)
 
                 const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
                 const auto face_orientation = triangle_orientation(v_A, v_B, v_C);
                 const auto is_visible = (static_cast<T>(0) < face_orientation.Dot(v_i - v_centroid));
+
                 if(is_visible) visible_faces.insert(j);
                 //const auto tet_signed_volume = tetrahedron_signed_volume(v_i, v_A, v_B, v_C);
                 //const auto is_visible = (tet_signed_volume < 0);
@@ -6956,7 +6926,7 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
                 std::vector<std::pair<I,I>> visibility_horizon_straddlers;
                 for(const auto &vis_face : visible_faces){
                     for(const auto &adj_face : face_adjacency[vis_face]){
-                        if( (visible_faces.count(adj_face) == 0) && !(faces.at(adj_face).empty()) ){
+                        if( (visible_faces.count(adj_face) == 0) && !(faces[adj_face].empty()) ){
                             // Add pair: vis_fac and adj_face -- they straddle the visibility boundary.
                             visibility_horizon_straddlers.emplace_back( std::make_pair(vis_face, adj_face) );
                         }
@@ -6972,7 +6942,6 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
                     I invis_face; // The invisible face that shares an edge with the horizon polygon.
                                   // This is used to update face adjacency info.
                 };
-//                std::vector<std::pair<I,I>> visibility_horizon_polygon;
                 std::vector<visibility_horizon_edge_t> visibility_horizon_polygon;
                 visibility_horizon_polygon.reserve(visibility_horizon_straddlers.size());
                 for(const auto & vis_p : visibility_horizon_straddlers){
@@ -6983,8 +6952,8 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
                     std::vector<I>   vis_verts;
                     std::vector<I> invis_verts;
                     std::vector<I> common_verts;
-                    for(const auto &f_i : faces.at(  vis_face))   vis_verts.emplace_back(f_i);
-                    for(const auto &f_i : faces.at(invis_face)) invis_verts.emplace_back(f_i);
+                    for(const auto &f_i : faces[  vis_face])   vis_verts.emplace_back(f_i);
+                    for(const auto &f_i : faces[invis_face]) invis_verts.emplace_back(f_i);
 
                     // "Easy" way, which destroys connection info but should still work.
                     // Note that it might be overall easier to instead use longest common subsequence search with
@@ -7002,8 +6971,8 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
 
                     }else if(common_verts.size() == 2){
                         // Figure out the real order using the invisible face.
-                        const auto pos_A = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[0]);
-                        const auto pos_B = std::find(std::begin(faces.at(invis_face)), std::end(faces.at(invis_face)), common_verts[1]);
+                        const auto pos_A = std::find(std::begin(faces[invis_face]), std::end(faces[invis_face]), common_verts[0]);
+                        const auto pos_B = std::find(std::begin(faces[invis_face]), std::end(faces[invis_face]), common_verts[1]);
                         const auto pos_dist = std::distance(pos_A, pos_B);
                         visibility_horizon_polygon.emplace_back();
                         if( (pos_dist == 1) || (pos_dist == -2) ){
@@ -7047,7 +7016,7 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
                 //
                 // Note: we will garbage-collect at the end.
                 for(const auto &f : visible_faces){
-                    faces.at(f).clear();
+                    faces[f].clear();
                 }
 
                 // Add new faces using the visibility horizon.
