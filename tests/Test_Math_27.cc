@@ -24,12 +24,8 @@ int main(int argc, char **argv){
     // Shuffle order, so first vertices are unlikely to be present in the final hull.
     std::shuffle(std::begin(all_verts), std::end(all_verts), re);
 
-    std::vector< std::reference_wrapper<vec3<double>> > all_vert_refs;
-    for(auto &v : all_verts){
-        all_vert_refs.emplace_back( std::ref(v) );
-    }
-
-    auto faces = Convex_Hull<double,uint32_t>(all_vert_refs);
+    using vert_vec_t = decltype(std::begin(all_verts));
+    auto faces = Convex_Hull_3<vert_vec_t,uint32_t>(std::begin(all_verts), std::end(all_verts));
 
     // Dump the mesh for inspection.
     fv_surface_mesh<double, uint32_t> mesh;

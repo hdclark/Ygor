@@ -621,9 +621,10 @@ template <class T, class I>   class fv_surface_mesh {
 };
 
 
-template <class T, class I>
+template <class InputIt, class I>
 std::vector<std::vector<I>> // Faces.
-Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts);
+Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
+              InputIt verts_end);
 
 
 //---------------------------------------------------------------------------------------------------------------------------

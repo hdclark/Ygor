@@ -6750,13 +6750,26 @@ fv_surface_mesh<T,I>::GetMetadataValueAs(std::string key) const {
     template std::optional<std::string> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 #endif
 
-template <class T, class I>
+template <class InputIt, class I>
 std::vector<std::vector<I>> // Faces.
-Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
+Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
+              InputIt verts_end){
+
+    using T = typename std::iterator_traits<InputIt>::value_type::value_type;
+
     std::vector<std::vector<I>> faces;
-    const auto N_verts = static_cast<I>(verts.size());
+
+    const auto vert_it_dist = std::distance(verts_begin, verts_end);
+    if(vert_it_dist < 0){
+        throw std::invalid_argument("Iterators are reversed.");
+    }
+    const auto N_verts = static_cast<I>( vert_it_dist );
     const auto machine_eps = std::sqrt( static_cast<T>(10) * std::numeric_limits<T>::epsilon() );
 
+
+    const auto get_vert = [&](I n){
+        return *(std::next(verts_begin, n));
+    };
     const auto triangle_centroid = [](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C){
         const auto v_centroid = ( v_A / static_cast<T>(3.0) )
                               + ( v_B / static_cast<T>(3.0) )
@@ -6786,7 +6799,7 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
         for(auto i = static_cast<I>(1); i < N_verts; ++i){
             const auto N_seed_tet = seed_tet.size();
             if(3 < N_seed_tet) break;
-            const auto v_i = verts[i].get();
+            const auto v_i = get_vert(i);
 
             // Ignore the vertex if it is not finite or invalid.
             if(!v_i.isfinite()) continue;
@@ -6794,7 +6807,7 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
             // Check if the vertex is too close to any vertex previously added vertex.
             const auto vert_is_distinct = [&](){
                 for(const auto& j : seed_tet){
-                    const auto v_j = verts[j].get();
+                    const auto v_j = get_vert(j);
                     const auto dist = v_i.distance( v_j );
                     if(dist < machine_eps){
                         return false;
@@ -6806,17 +6819,17 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
 
             // If this is vertex #3, check that adds a non-zero area.
             if(N_seed_tet == 2){
-                const auto area = triangle_area( verts[seed_tet[0]].get(),
-                                                 verts[seed_tet[1]].get(),
+                const auto area = triangle_area( get_vert(seed_tet[0]),
+                                                 get_vert(seed_tet[1]),
                                                  v_i );
                 if(area < machine_eps) continue;
             }
 
             // If this is vertex #4, check that adds a non-zero volume.
             if(N_seed_tet == 3){
-                const auto svol = tetrahedron_signed_volume( verts.at(seed_tet[0]).get(),
-                                                             verts.at(seed_tet[1]).get(),
-                                                             verts.at(seed_tet[2]).get(),
+                const auto svol = tetrahedron_signed_volume( get_vert(seed_tet[0]),
+                                                             get_vert(seed_tet[1]),
+                                                             get_vert(seed_tet[2]),
                                                              v_i );
                 if(std::abs(svol) < machine_eps) continue;
             }
@@ -6849,15 +6862,15 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
         };
         regenerate_face_adjacency();
 
-        const auto v_inside = (verts[seed_tet[0]].get() * static_cast<T>(0.25))
-                            + (verts[seed_tet[1]].get() * static_cast<T>(0.25))
-                            + (verts[seed_tet[3]].get() * static_cast<T>(0.25))
-                            + (verts[seed_tet[2]].get() * static_cast<T>(0.25));
+        const auto v_inside = (get_vert(seed_tet[0]) * static_cast<T>(0.25))
+                            + (get_vert(seed_tet[1]) * static_cast<T>(0.25))
+                            + (get_vert(seed_tet[3]) * static_cast<T>(0.25))
+                            + (get_vert(seed_tet[2]) * static_cast<T>(0.25));
 
         for(auto &f : faces){
-            const auto v_A = verts[f[0]].get();
-            const auto v_B = verts[f[1]].get();
-            const auto v_C = verts[f[2]].get();
+            const auto v_A = get_vert(f[0]);
+            const auto v_B = get_vert(f[1]);
+            const auto v_C = get_vert(f[2]);
 
             const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
             const auto offset = (v_centroid - v_inside);
@@ -6885,16 +6898,16 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
             ||  (i == seed_tet[3]) ) continue;
 
             // Ignore the vertex if it is not finite or invalid.
-            const auto v_i = verts[i].get();
+            const auto v_i = get_vert(i);
             if(!v_i.isfinite()) continue;
 
             const auto N_faces = static_cast<I>(faces.size());
             std::set<I> visible_faces;
             for(auto j = static_cast<I>(0); j < N_faces; ++j){
                 if(faces[j].empty()) continue; // Ignore empty faces for now.
-                const auto v_A = verts[faces[j][0]].get();
-                const auto v_B = verts[faces[j][1]].get();
-                const auto v_C = verts[faces[j][2]].get();
+                const auto v_A = get_vert(faces[j][0]);
+                const auto v_B = get_vert(faces[j][1]);
+                const auto v_C = get_vert(faces[j][2]);
 
                 // Ignore if the vertex is likely vertex degenerate.
                 const bool close_to_corners =    (v_A.distance(v_i) < machine_eps)
@@ -7064,11 +7077,29 @@ Convex_Hull(const std::vector<std::reference_wrapper<vec3<T>>> &verts){
     return faces;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template std::vector<std::vector<uint32_t>> Convex_Hull(const std::vector<std::reference_wrapper<vec3<float >>> &);
-    template std::vector<std::vector<uint32_t>> Convex_Hull(const std::vector<std::reference_wrapper<vec3<double>>> &);
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::vector<vec3<float >>::iterator, std::vector<vec3<float >>::iterator );
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::vector<vec3<double>>::iterator, std::vector<vec3<double>>::iterator );
 
-    template std::vector<std::vector<uint64_t>> Convex_Hull(const std::vector<std::reference_wrapper<vec3<float >>> &);
-    template std::vector<std::vector<uint64_t>> Convex_Hull(const std::vector<std::reference_wrapper<vec3<double>>> &);
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::vector<vec3<float >>::iterator, std::vector<vec3<float >>::iterator );
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::vector<vec3<double>>::iterator, std::vector<vec3<double>>::iterator );
+
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::list<vec3<float >>::iterator, std::list<vec3<float >>::iterator );
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::list<vec3<double>>::iterator, std::list<vec3<double>>::iterator );
+
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::list<vec3<float >>::iterator, std::list<vec3<float >>::iterator );
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::list<vec3<double>>::iterator, std::list<vec3<double>>::iterator );
+
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::vector<vec3<float >>::const_iterator, std::vector<vec3<float >>::const_iterator );
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::vector<vec3<double>>::const_iterator, std::vector<vec3<double>>::const_iterator );
+
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::vector<vec3<float >>::const_iterator, std::vector<vec3<float >>::const_iterator );
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::vector<vec3<double>>::const_iterator, std::vector<vec3<double>>::const_iterator );
+
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::list<vec3<float >>::const_iterator, std::list<vec3<float >>::const_iterator );
+    template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::list<vec3<double>>::const_iterator, std::list<vec3<double>>::const_iterator );
+
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::list<vec3<float >>::const_iterator, std::list<vec3<float >>::const_iterator );
+    template std::vector<std::vector<uint64_t>> Convex_Hull_3(std::list<vec3<double>>::const_iterator, std::list<vec3<double>>::const_iterator );
 #endif                        
 
 
