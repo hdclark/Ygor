@@ -232,3 +232,15 @@ can be invoked as:
   - Added 'standard' 32 bit RGBA packing routine for point clouds and surface
     meshes.
 
+- January 2021
+  - PLY: increase portability and prefer signed ints for face vert indices.
+  - Added common affine transformation factory functions.
+  - Added cast conversions between affine transform and num array classes.
+
+- February 2021
+  - Added 3D convex hull extractor. Used an incremental algorithm, but at the
+    moment the algorithm cannot be resumed. Scaling is reasonable; at the moment
+    vertices do not need to be fully loaded into memory, but random access is
+    needed. (Support for non-random access iterators is supported, but only
+    recommended for a small number of vertices.)
+
