@@ -11979,11 +11979,11 @@ samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
         const auto value = mp.second;
         const auto should_escape = (needs_to_be_escaped(key) || needs_to_be_escaped(value));
         if(should_escape){
-            SO << "# metadata: " << key << " = " << value << std::endl;
-        }else{
             const auto encoded_key = Base64::EncodeFromString(key);
             const auto encoded_value = Base64::EncodeFromString(value);
             SO << "# base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
+        }else{
+            SO << "# metadata: " << key << " = " << value << std::endl;
         }
     }
 
