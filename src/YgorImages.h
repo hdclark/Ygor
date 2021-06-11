@@ -632,17 +632,20 @@ struct Mutate_Voxels_Opts {
 // Note: The observer functor is always provided post-modification voxel values (if they are modified).
 //
 template <class T,class R>
+using Mutate_Voxels_Functor = std::function<void(long int row,
+                                                 long int col,
+                                                 long int channel,
+                                                 std::reference_wrapper<planar_image<T,R>> img_refw,
+                                                 T &voxel_val)>;
+template <class T,class R>
 void Mutate_Voxels(
     std::reference_wrapper<planar_image<T,R>> img_to_edit,
     std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
     std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
     Mutate_Voxels_Opts options,
-    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_bounded
-        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)>(),
-    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_unbounded 
-        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)>(),
-    std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_refw, T &voxel_val)> f_observer
-        = std::function<void(long int row, long int col, long int channel, std::reference_wrapper<planar_image<T,R>> img_Refw, T &voxel_val)>() );
+    Mutate_Voxels_Functor<T,R> f_bounded   = Mutate_Voxels_Functor<T,R>(),
+    Mutate_Voxels_Functor<T,R> f_unbounded = Mutate_Voxels_Functor<T,R>(),
+    Mutate_Voxels_Functor<T,R> f_visitor   = Mutate_Voxels_Functor<T,R>() );
 
 
 // Test whether the images collectively form a regular grid.

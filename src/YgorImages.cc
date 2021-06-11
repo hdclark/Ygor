@@ -4907,9 +4907,9 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<T,R>>> selected_imgs,
         std::list<std::reference_wrapper<contour_collection<R>>> ccsl,
         Mutate_Voxels_Opts options,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_bounded,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_unbounded,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<T,R>>, T &)> f_observer){
+        Mutate_Voxels_Functor<T,R> f_bounded,
+        Mutate_Voxels_Functor<T,R> f_unbounded,
+        Mutate_Voxels_Functor<T,R> f_observer ){
 
     //Check if the operation will be a no-op.
     if(ccsl.empty()){
@@ -5447,9 +5447,9 @@ void Mutate_Voxels(
         std::list<std::reference_wrapper<planar_image<float ,double>>>,
         std::list<std::reference_wrapper<contour_collection<double>>>,
         Mutate_Voxels_Opts,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>,
-        std::function<void(long int, long int, long int, std::reference_wrapper<planar_image<float ,double>>, float& )>);
+        Mutate_Voxels_Functor<float ,double>,
+        Mutate_Voxels_Functor<float ,double>,
+        Mutate_Voxels_Functor<float ,double> );
 #endif
 
 
