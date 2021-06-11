@@ -5415,12 +5415,12 @@ void Mutate_Voxels(
                     //Update the values and call user functions as necessary.
                     if(false){
                     }else if(bounded && f_bounded_valid){
-                        f_bounded(row, col, chan, working_img_ref, v);
+                        f_bounded(row, col, chan, working_img_ref, mask_img_ref, v);
                     }else if(!bounded && f_unbounded_valid){
-                        f_unbounded(row, col, chan, working_img_ref, v);
+                        f_unbounded(row, col, chan, working_img_ref, mask_img_ref, v);
                     }
                     if(f_observer_valid){
-                        f_observer(row, col, chan, working_img_ref, v);
+                        f_observer(row, col, chan, working_img_ref, mask_img_ref, v);
                     }
 
                 }//Loop over channels.

@@ -631,11 +631,14 @@ struct Mutate_Voxels_Opts {
 //
 // Note: The observer functor is always provided post-modification voxel values (if they are modified).
 //
+// Note: The mask image is made accessible to user functors, but should not be modified.
+//
 template <class T,class R>
 using Mutate_Voxels_Functor = std::function<void(long int row,
                                                  long int col,
                                                  long int channel,
                                                  std::reference_wrapper<planar_image<T,R>> img_refw,
+                                                 std::reference_wrapper<planar_image<T,R>> mask_img_refw,
                                                  T &voxel_val)>;
 template <class T,class R>
 void Mutate_Voxels(
