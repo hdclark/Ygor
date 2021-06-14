@@ -4911,6 +4911,9 @@ void Mutate_Voxels(
         Mutate_Voxels_Functor<T,R> f_unbounded,
         Mutate_Voxels_Functor<T,R> f_observer ){
 
+    // This is an arbitrary number that shouldn't impact the results much. It is used to deal with degenerate cases.
+    const auto machine_eps = static_cast<R>(10) * std::sqrt(std::numeric_limits<R>::epsilon());
+
     //Check if the operation will be a no-op.
     if(ccsl.empty()){
         throw std::invalid_argument("No contours provided. (Is this intentional?)");
@@ -5132,34 +5135,162 @@ void Mutate_Voxels(
                 std::map<long int, std::vector<double>> row_contour_crossings;
                 {
                     auto end = std::end(ProjectedContour.points);
-                    auto p1_it = std::prev( end );
-                    for(auto p2_it = std::begin(ProjectedContour.points); p2_it != end; ){
+                    for(auto p1_it = std::begin(ProjectedContour.points); p1_it != end; ++p1_it){
+                        const auto p2_it = (std::next(p1_it) == end) ? std::begin(ProjectedContour.points) : std::next(p1_it);
+
+                        if( p1_it->sq_dist(*p2_it) < std::pow(machine_eps, 2.0) ){
+                            continue;
+                        }
 
                         for(const auto &row : RowsToVisit){
                             // See if this line segment crosses the row line.
+                            //
+                            // NOTE: If you need a quick-fix, offset the row_line_offset by a few machine_eps here.
+                            //       This is a terrible kludge, but will help work around pathological cases.
                             const auto row_line_offset = static_cast<double>(row) * pxl_dx;
 
                             const auto p1_row_offset = ( row_unit.Dot((*p1_it) - zeroth_voxel_pos) );
                             const auto p2_row_offset = ( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
 
+                            // Check for proximity to the threshold.
                             const bool p1_lower = (p1_row_offset <= row_line_offset);
                             const bool p2_lower = (p2_row_offset <= row_line_offset);
 
-                            if(p1_lower == p2_lower) continue; // Both endpoints are on the same side, so no crossing.
+                            // Check for degenerate cases.
+                            const bool p1_coincident = (std::abs(p1_row_offset - row_line_offset) < machine_eps);
+                            const bool p2_coincident = (std::abs(p2_row_offset - row_line_offset) < machine_eps);
+                            if( p1_coincident
+                            &&  p2_coincident){
+                                // Do nothing, since we would need to iterate left and right until we found both
+                                // crossings.
+                                //
+                                //           p1     p2
+                                // -----------X=====X------------------------------ row line
+                                //
+                                // 
 
-                            // Find the point on the line segment that crosses the row line.
-                            const auto d1 = std::abs(row_line_offset - p1_row_offset);
-                            const auto d2 = std::abs(row_line_offset - p2_row_offset);
-                            const auto t = d1 / (d1 + d2);
-                            if(!isininc(0.0,t,1.0)) throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
-                            const auto crossing_pos = ((*p2_it) - (*p1_it)) * t + (*p1_it);
+                            }else if(p1_coincident){
+                                // Do nothing, since we will handle this when p1 iterates to p2.
+                                //
+                                //                           p2
+                                //                      .     o...
+                                //                       .   / 
+                                //           p1           . / 
+                                // -----------X------------X----------------------- row line
+                                //           / \          p1
+                                //          .   o...
+                                //         .   p2 
+                                //        .     
+                                // 
 
-                            const auto crossing_offset = ( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
-                            row_contour_crossings[row].emplace_back(crossing_offset);
+                            }else if(p2_coincident){
+                                // In this case we handle degenerate cases. Since we know p1 is not coincident, we know
+                                // p2 is one extreme of the degeneracies. We only have to iterate in one direction to
+                                // identify the other extreme degeneracy. If we compare how the contour diverges from
+                                // the line at both endpoints, we can decide whether to be inclusive or exclusive of
+                                // coincident crossings. This implementation is inclusive, which is helpful for
+                                // scenarios with lots of degeneracies, like marching algorithms. Whichever we choose,
+                                // we have to be consistent.
+                                //
+                                //        Weakly            Mildly                     Fully     
+                                //      Degenerate        Degenerate                 Degenerate 
+                                //         Case              Case                      Cases    
+                                //                                         
+                                //               p3                               (1)            (2)                  
+                                //               o...                                                    o...         
+                                //              /                                                       /            
+                                //           p2/              p2                 p2            p2      /              
+                                // -----------X----------------X------------------X==X----------X==X==X------ row line
+                                //           /                / \                /    \        /                      
+                                //          /                /   \              /      o..    /               
+                                //      ...o             ...o     o...      ...o           ..o                
+                                //        p1               p1     p3          p1            p1                        
+                                // 
+
+                                // Iterate until you find a vertex NOT coincident.
+                                auto p3_it = (std::next(p2_it) == end) ? std::begin(ProjectedContour.points) : std::next(p2_it);
+                                while(p3_it != p2_it){
+                                    const auto p3_row_offset = ( row_unit.Dot((*p3_it) - zeroth_voxel_pos) );
+                                    const bool p3_lower = (p3_row_offset <= row_line_offset);
+                                    const bool p3_coincident = (std::abs(p3_row_offset - row_line_offset) < machine_eps);
+                                    if(p3_coincident){
+                                        // This signifies a fully degenerate case, i.e., a chain of at least two X==X in
+                                        // the diagram above.
+                                        //
+                                        // Do nothing but keep iterating p3 until the next non-coincident vertex is located.
+
+                                    }else if(p1_lower == p3_lower){
+                                        // The extreme degeneracies have been identified. It isn't clear that there is a
+                                        // crossing here. However, we create crossings at both extremes because we treat
+                                        // fully degenerate edges inclusively.
+                                        //
+                                        //          1st            2nd
+                                        //        crossing       crossing
+                                        //       (inclusive)    (inclusive)
+                                        //            |             |
+                                        //            |             |
+                                        //                        
+                                        // -----------X===X==X...X==X----------------- row line
+                                        //           /p2            |
+                                        //          /               |
+                                        //      ...o                o...
+                                        //        p1                p3
+                                        //
+                                        {
+                                            const auto crossing_offset = ( col_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                                            row_contour_crossings[row].emplace_back(crossing_offset);
+                                        }
+                                        {
+                                            const auto p22_it = (std::prev(p3_it) == end) ? std::prev(end) : std::prev(p3_it);
+                                            const auto crossing_offset = ( col_unit.Dot((*p22_it) - zeroth_voxel_pos) );
+                                            row_contour_crossings[row].emplace_back(crossing_offset);
+                                        }
+                                        break;
+                                    }else{
+                                        // The extreme degeneracies have been identified. It is clear there is a
+                                        // crossing, but it isn't clear where it is since it could be taken anywhere
+                                        // along the fully degenerate edges. However, we assume the crossing is at the
+                                        // earliest point (p2) because we treat fully degenerate edges inclusively.
+                                        //                   
+                                        //         crossing  
+                                        //        taken here          p3
+                                        //        (inclusive)          o...
+                                        //            |               /
+                                        //            |              /
+                                        //                          /
+                                        // -----------X===X==X...X==X----------------- row line
+                                        //           /p2           
+                                        //          /              
+                                        //      ...o               
+                                        //        p1               
+                                        //
+                                        const auto crossing_offset = ( col_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                                        row_contour_crossings[row].emplace_back(crossing_offset);
+                                        break;
+                                    }
+
+                                    p3_it = (std::next(p3_it) == end) ? std::begin(ProjectedContour.points) : std::next(p3_it);
+                                }
+
+
+                            // No-intersection case.
+                            }else if(p1_lower == p2_lower){
+                                // No crossing is present. Do nothing.
+
+                            // Normal, non-degenerate intersection cases.
+                            }else{
+                                // Find the point on the line segment that crosses the row line.
+                                const auto d1 = std::abs(row_line_offset - p1_row_offset);
+                                const auto d2 = std::abs(row_line_offset - p2_row_offset);
+                                const auto t = std::clamp(d1 / (d1 + d2), static_cast<R>(0), static_cast<R>(1));
+                                if( !std::isfinite(t) ){
+                                    throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
+                                }
+                                const auto crossing_pos = ((*p2_it) - (*p1_it)) * t + (*p1_it);
+                                const auto crossing_offset = ( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
+                                row_contour_crossings[row].emplace_back(crossing_offset);
+                            }
                         }
-
-                        p1_it = p2_it;
-                        ++p2_it;
                     }
                 }
 
@@ -5167,6 +5298,20 @@ void Mutate_Voxels(
                 for(auto &rcc : row_contour_crossings){
                     std::sort( std::begin(rcc.second),
                                std::end(rcc.second) );
+
+/*
+                    // One way to handle degeneracies is to de-duplicate the crossing points and inserting logic into
+                    // the line-crossing-counting code below.
+                    // We take another approach (see above) and crossings should never be duplicated, so de-duplication
+                    // at this point should not be necessary.
+                    const auto equal_within_eps = [machine_eps]( const R &A, const R &B ) -> bool {
+                        return (std::abs(B-A) <= machine_eps);
+                    };
+                    rcc.second.erase( std::unique( std::begin(rcc.second),
+                                                   std::end(rcc.second),
+                                                   equal_within_eps ),
+                                      std::end(rcc.second) );
+*/
 
                     if(rcc.second.size() % 2 != 0){
                         throw std::runtime_error("Encountered invalid number of line crossings due to numerical instability. Unable to continue.");
