@@ -312,6 +312,12 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
 
             // Handle metadata comments anywhere in the header.
             if(false){
+            }else if( (1 <= split.size()) && (split.at(0) == "obj_info"_s)){
+                // Handle 'obj_info' metadata statements.
+                const auto p_space = line.find(" ");
+                if( p_space == std::string::npos ) continue;
+                fvsm.metadata["ObjInfo"] = line.substr(p_space + 1);
+
             }else if( (1 <= split.size()) && (split.at(0) == "comment"_s)){
                 // Note: Syntax should be:
                 // |  # metadata: key = value
@@ -392,7 +398,7 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                 break;
 
             }else{
-                throw std::runtime_error( "Unanticipated line at line "_s
+                throw std::runtime_error( "Unanticipated data on line "_s
                                           + std::to_string(lineN) + ". Refusing to continue");
             }
         }
