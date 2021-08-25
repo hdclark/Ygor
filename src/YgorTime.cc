@@ -100,7 +100,7 @@ std::string time_mark::Dump_as_postgres_string(void) const {
 //Returns true iff the string held a date/time in the afformentioned format (and nothing
 // else). 
 static bool Glean_date_time_from_string(const std::string &in, struct tm *ttm){
-    if(ttm == nullptr) FUNCERR("Passed in an invalid struct tm pointer. This is a programming error");
+    if(ttm == nullptr) throw std::logic_error("Passed in an invalid struct tm pointer. This is a programming error");
     if(in.size() != 15) return false; //Fixed-width!
     std::string shtl;
 
