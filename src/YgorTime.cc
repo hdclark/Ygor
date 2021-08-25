@@ -31,6 +31,10 @@ void time_mark::Set_current_time(void){
     std::time(&this->When);
 }
 
+void time_mark::Set_unix_epoch(void){
+    this->When = static_cast<time_t>(0);
+}
+
 std::string time_mark::Dump_as_string(void) const {
     //NOTE: Months and hours are 1-12, days are 1-31, but minutes and seconds are 0-59.
     //NOTE: In the future, update to use the std::put_time and std::get_time commands.
@@ -145,9 +149,12 @@ static bool Glean_date_time_from_string(const std::string &in, struct tm *ttm){
 }
 
 
-bool time_mark::Read_from_string(const std::string &in){
+bool time_mark::Read_from_string(const std::string &in, double *fractional_second){
     struct tm lt;
     lt.tm_year = lt.tm_mon = lt.tm_mday = lt.tm_hour = lt.tm_min = lt.tm_sec = -1;
+    if(fractional_second != nullptr){
+        *fractional_second = 0.0;
+    }
 
     //We also make sure no other struct members remain untouched. This caused an annoying
     // bug which altered read times during the call to mktime(...).
@@ -156,31 +163,77 @@ bool time_mark::Read_from_string(const std::string &in){
 
     const auto extract_numbers = [](const std::string &src, const std::string &regex_str){
         std::vector<long int> numbers;
-        auto tokens = GetAllRegex2(src, regex_str);
-        for(auto &s : tokens){
-            // Strip preceeding zero characters.
-            while(!s.empty()){
-                if(s[0] == '0'){
-                    s = std::string( std::next(std::begin(s)), std::end(s) );
-                }else{
-                    break;
+        try{
+            auto tokens = GetAllRegex2(src, regex_str);
+            for(auto &s : tokens){
+                // Strip preceeding zero characters.
+                while(!s.empty()){
+                    if(s[0] == '0'){
+                        s = std::string( std::next(std::begin(s)), std::end(s) );
+                    }else{
+                        break;
+                    }
                 }
+                // Attempt to convert to an integer.
+                try{
+                    numbers.emplace_back(std::stol(s));
+                }catch(const std::exception &){}
             }
-            // Attempt to convert to an integer.
-            try{
-                numbers.emplace_back(std::stol(s));
-            }catch(const std::exception &){}
-        }
+        }catch(const std::exception &){}
         return numbers;
     };
     const std::string dig24 = "([[:digit:]]{2,4})";
     const std::string dig12 = "([[:digit:]]{1,2})";
-    const std::string d_sep = R"***([_-/,.\ ]?)***";
-    const std::string t_sep = R"***([_-/,.\: ]?)***";
+    const std::string frac  = "[.]?([[:digit:]]*)";
+    const std::string d_sep = R"***([-_/,.\ ]?)***";
+    const std::string t_sep = R"***([-_/,.\: ]?)***";
+
+    // Regex-based parsing. Slow and awkward, but available cross-platform and support extraction of fractional seconds.
+    // YY-MM-DD HH-MM-SS{.SSSSSS}
+    if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
+          (6 <= n.size()) && isininc(0,n[1],11)    // month
+                          && isininc(1,n[2],31)    // day of month
+                          && isininc(0,n[3],23)    // hour
+                          && isininc(0,n[4],59)    // minute
+                          && isininc(0,n[5],60) ){ // second
+        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interprettation here. Should work fine for typical (i.e., modern) times.
+        lt.tm_mon  = n[1];
+        lt.tm_mday = n[2];
+        lt.tm_hour = n[3];
+        lt.tm_min  = n[4];
+        lt.tm_sec  = n[5];
+
+        //Attempt to extract fractional seconds, if present.
+        // Note: in the future, this can all get replaced by std::chrono (awaiting C++20).
+        if( (fractional_second != nullptr)
+        &&  (7 == n.size()) ){
+            try{
+                *fractional_second = std::stod( "0."_s + std::to_string(n[6]) );
+            }catch(const std::exception &){}
+        }
+
+    // HH-MM-SS{.SSSSSS}
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
+          (3 <= n.size()) && isininc(0,n[0],23)    // hour
+                          && isininc(0,n[1],59)    // minute
+                          && isininc(0,n[2],60) ){ // second
+        lt.tm_hour = n[0];
+        lt.tm_min  = n[1];
+        lt.tm_sec  = n[2];
+        lt.tm_year = lt.tm_mon = lt.tm_mday = 0;
+
+        //Attempt to extract fractional seconds, if present.
+        // Note: in the future, this can all get replaced by std::chrono (awaiting C++20).
+        if( (fractional_second != nullptr)
+        &&  (4 == n.size()) ){
+            try{
+                *fractional_second = std::stod( "0."_s + std::to_string(n[3]) );
+            }catch(const std::exception &){}
+        }
 
     //The fixed-width format, like: '20140125-012345'. 
     // date '+%Y%m%_d-%_H%_M%_S'
-    if(Glean_date_time_from_string(in,&lt)){
+    }else if(Glean_date_time_from_string(in,&lt)){
 
 #if !defined(_WIN32) && !defined(_WIN64)
     //The preferred format: `date +%Y%m%d-%H%M%S` or "YearMonthDay-HourMinuteSecond". Example: "20131105-130535"
@@ -212,39 +265,14 @@ bool time_mark::Read_from_string(const std::string &in){
 
 #endif // !defined(_WIN32) && !defined(_WIN64)
 
-    // Fallback to regex parsing, which is much slower but available cross-platform.
-    // YY-MM-DD HH-MM-SS{.SSSSSS}
-    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + "[.]?[[:digit:]]*[[:space:]]*$");
-          (n.size() == 6) && isininc(0,n[1],11)    // month
-                          && isininc(1,n[2],31)    // day of month
-                          && isininc(0,n[3],23)    // hour
-                          && isininc(0,n[4],59)    // minute
-                          && isininc(0,n[5],60) ){ // second
-        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interprettation here. Should work fine for typical (i.e., modern) times.
-        lt.tm_mon  = n[1];
-        lt.tm_mday = n[2];
-        lt.tm_hour = n[3];
-        lt.tm_min  = n[4];
-        lt.tm_sec  = n[5];
-
     // YY-MM-DD
-    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + "[[:space:]]$");
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + "[[:space:]]*$");
           (n.size() == 3) && isininc(0,n[1],11)    // month
                           && isininc(1,n[2],31) ){ // day of month
         lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); 
         lt.tm_mon  = n[1];
         lt.tm_mday = n[2];
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
-
-    // HH-MM-SS
-    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig12 + t_sep + dig12 + t_sep + dig12 + "[.]?[[:digit:]]*[[:space:]]$");
-          (n.size() == 3) && isininc(0,n[0],23)    // hour
-                          && isininc(0,n[1],59)    // minute
-                          && isininc(0,n[2],60) ){ // second
-        lt.tm_hour = n[0];
-        lt.tm_min  = n[1];
-        lt.tm_sec  = n[2];
-        lt.tm_year = lt.tm_mon = lt.tm_mday = 0;
 
     //}else if( ....        <---add more here. Consider just piping to shell to use GNU date, which handles all sorts of neat formats automagically...
     }else{
