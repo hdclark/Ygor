@@ -188,16 +188,20 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     const std::string d_sep = R"***([-_/,.\ ]?)***";
     const std::string t_sep = R"***([-_/,.\: ]?)***";
 
+    //The fixed-width format, like: '20140125-012345'. 
+    // date '+%Y%m%_d-%_H%_M%_S'
+    if(Glean_date_time_from_string(in,&lt)){
+
     // Regex-based parsing. Slow and awkward, but available cross-platform and support extraction of fractional seconds.
     // YY-MM-DD HH-MM-SS{.SSSSSS}
-    if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
           (6 <= n.size()) && isininc(0,n[1],11)    // month
                           && isininc(1,n[2],31)    // day of month
                           && isininc(0,n[3],23)    // hour
                           && isininc(0,n[4],59)    // minute
                           && isininc(0,n[5],60) ){ // second
-        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interprettation here. Should work fine for typical (i.e., modern) times.
-        lt.tm_mon  = n[1];
+        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interpretation here. Should work fine for typical (i.e., modern) times.
+        lt.tm_mon  = n[1] - 1;
         lt.tm_mday = n[2];
         lt.tm_hour = n[3];
         lt.tm_min  = n[4];
@@ -230,10 +234,6 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
                 *fractional_second = std::stod( "0."_s + std::to_string(n[3]) );
             }catch(const std::exception &){}
         }
-
-    //The fixed-width format, like: '20140125-012345'. 
-    // date '+%Y%m%_d-%_H%_M%_S'
-    }else if(Glean_date_time_from_string(in,&lt)){
 
 #if !defined(_WIN32) && !defined(_WIN64)
     //The preferred format: `date +%Y%m%d-%H%M%S` or "YearMonthDay-HourMinuteSecond". Example: "20131105-130535"
@@ -270,7 +270,7 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
           (n.size() == 3) && isininc(0,n[1],11)    // month
                           && isininc(1,n[2],31) ){ // day of month
         lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); 
-        lt.tm_mon  = n[1];
+        lt.tm_mon  = n[1] - 1;
         lt.tm_mday = n[2];
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
 
