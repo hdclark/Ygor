@@ -159,12 +159,13 @@ std::vector<std::string> GetUrls( const std::string &in );
 
 std::string GetFirstNumber(std::string &in);
 
-std::string GetFirstRegex(const std::string &source, std::regex &regex_the_query);
+std::string GetFirstRegex(const std::string &source, const std::regex &regex_the_query);
 std::string GetFirstRegex(const std::string &source, std::string query);
 //std::string GetFirstRegex(std::string source, std::string query);
 std::string GetFirstRegex(std::vector<std::string> &source, std::string query);
 
 std::vector<std::string> GetAllRegex2(const std::string &source, std::string query);
+std::vector<std::string> GetAllRegex2(const std::string &source, const std::regex &regex_the_query);
 
 std::string GetLineNBelow( std::vector<std::string> &source, std::string query, long int N);
 

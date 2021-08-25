@@ -1146,7 +1146,7 @@ std::string GetFirstNumber(std::string &in){
     return "-1";
 }
 
-std::string GetFirstRegex(const std::string &source, std::regex &regex_the_query){
+std::string GetFirstRegex(const std::string &source, const std::regex &regex_the_query){
     std::smatch match;
     
     //Returns TRUE if there was a match.
@@ -1182,8 +1182,12 @@ std::string GetFirstRegex(std::vector<std::string> &source, std::string query){
 }
 
 std::vector<std::string> GetAllRegex2(const std::string &source, std::string query){
-    std::vector<std::string> out;
     std::regex regex_the_query( query.c_str(), std::regex::icase );
+    return GetAllRegex2(source, regex_the_query);
+}
+
+std::vector<std::string> GetAllRegex2(const std::string &source, const std::regex &regex_the_query){
+    std::vector<std::string> out;
     std::sregex_iterator it(source.begin(), source.end(), regex_the_query);
     std::sregex_iterator end;
     for( ; it != end; ++it){
