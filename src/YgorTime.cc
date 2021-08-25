@@ -6,6 +6,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <regex>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -153,6 +154,30 @@ bool time_mark::Read_from_string(const std::string &in){
     lt.tm_isdst = -1; //Indicates that info about daylight saving's time should be looked up during mktime(...) call.
     lt.tm_wday = lt.tm_yday = -1; //Stores the day of the week and day of the year.
 
+    const auto extract_numbers = [](const std::string &src, const std::string &regex_str){
+        std::vector<long int> numbers;
+        auto tokens = GetAllRegex2(src, regex_str);
+        for(auto &s : tokens){
+            // Strip preceeding zero characters.
+            while(!s.empty()){
+                if(s[0] == '0'){
+                    s = std::string( std::next(std::begin(s)), std::end(s) );
+                }else{
+                    break;
+                }
+            }
+            // Attempt to convert to an integer.
+            try{
+                numbers.emplace_back(std::stol(s));
+            }catch(const std::exception &){}
+        }
+        return numbers;
+    };
+    const std::string dig24 = "([[:digit:]]{2,4})";
+    const std::string dig12 = "([[:digit:]]{1,2})";
+    const std::string d_sep = R"***([_-/,.\ ]?)***";
+    const std::string t_sep = R"***([_-/,.\: ]?)***";
+
     //The fixed-width format, like: '20140125-012345'. 
     // date '+%Y%m%_d-%_H%_M%_S'
     if(Glean_date_time_from_string(in,&lt)){
@@ -174,6 +199,8 @@ bool time_mark::Read_from_string(const std::string &in){
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
     }else if(strptime(in.c_str(), "%Y %m %d", &lt) != nullptr){
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
+    }else if(strptime(in.c_str(), "%H:%M:%S", &lt) != nullptr){ // No date info, only time.
+        lt.tm_year = lt.tm_mon = lt.tm_mday = 0;
 
     //The style of Salivary Flow measurement data. Format: '17-Mar-2009' There is no time info here.
     }else if(strptime(in.c_str(), "%d-%b-%Y", &lt) != nullptr){
@@ -184,6 +211,40 @@ bool time_mark::Read_from_string(const std::string &in){
     }else if(strptime(in.c_str(), "%d %b %Y %H:%M:%S", &lt) != nullptr){
 
 #endif // !defined(_WIN32) && !defined(_WIN64)
+
+    // Fallback to regex parsing, which is much slower but available cross-platform.
+    // YY-MM-DD HH-MM-SS{.SSSSSS}
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + "[.]?[[:digit:]]*[[:space:]]*$");
+          (n.size() == 6) && isininc(0,n[1],11)    // month
+                          && isininc(1,n[2],31)    // day of month
+                          && isininc(0,n[3],23)    // hour
+                          && isininc(0,n[4],59)    // minute
+                          && isininc(0,n[5],60) ){ // second
+        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interprettation here. Should work fine for typical (i.e., modern) times.
+        lt.tm_mon  = n[1];
+        lt.tm_mday = n[2];
+        lt.tm_hour = n[3];
+        lt.tm_min  = n[4];
+        lt.tm_sec  = n[5];
+
+    // YY-MM-DD
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + "[[:space:]]$");
+          (n.size() == 3) && isininc(0,n[1],11)    // month
+                          && isininc(1,n[2],31) ){ // day of month
+        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); 
+        lt.tm_mon  = n[1];
+        lt.tm_mday = n[2];
+        lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
+
+    // HH-MM-SS
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig12 + t_sep + dig12 + t_sep + dig12 + "[.]?[[:digit:]]*[[:space:]]$");
+          (n.size() == 3) && isininc(0,n[0],23)    // hour
+                          && isininc(0,n[1],59)    // minute
+                          && isininc(0,n[2],60) ){ // second
+        lt.tm_hour = n[0];
+        lt.tm_min  = n[1];
+        lt.tm_sec  = n[2];
+        lt.tm_year = lt.tm_mon = lt.tm_mday = 0;
 
     //}else if( ....        <---add more here. Consider just piping to shell to use GNU date, which handles all sorts of neat formats automagically...
     }else{
