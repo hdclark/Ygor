@@ -20,6 +20,7 @@ g++ \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
   YgorMathIOXYZ.cc \
+  YgorTime/*.cc \
   -o run_tests \
   -lygor
 

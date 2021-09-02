@@ -167,7 +167,7 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
             auto tokens = GetAllRegex2(src, regex_str);
             for(auto &s : tokens){
                 // Strip preceeding zero characters.
-                while(!s.empty()){
+                while(1 < s.size()){ // leave a single 0, if input has multiple.
                     if(s[0] == '0'){
                         s = std::string( std::next(std::begin(s)), std::end(s) );
                     }else{
@@ -182,11 +182,24 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
         }catch(const std::exception &){}
         return numbers;
     };
+    const auto extract_year = [](long int y){
+        if(isininc(70,y,99)){ // 2-digit shorthand for 1900's.
+            // Do nothing; already the number of years since 1900.
+        }else if(isininc(0,y,69)){ // 2-digit shorthand for 2000's.
+            y = y + 100;
+        }else if(1900 <= y){ // Assume fully specified, like '2021' or '1923'.
+            y = y - 1900;
+        }else{ // Otherwise, consider ambiguous.
+            y = -1;
+        }
+        return y;
+    };
+         
     const std::string dig24 = "([[:digit:]]{2,4})";
     const std::string dig12 = "([[:digit:]]{1,2})";
     const std::string frac  = "[.]?([[:digit:]]*)";
-    const std::string d_sep = R"***([-_/,.\ ]?)***";
-    const std::string t_sep = R"***([-_/,.\: ]?)***";
+    const std::string d_sep = R"***([-_/,.\ ]*)***";
+    const std::string t_sep = R"***([-_/,.\: ]*)***";
 
     //The fixed-width format, like: '20140125-012345'. 
     // date '+%Y%m%_d-%_H%_M%_S'
@@ -195,12 +208,13 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     // Regex-based parsing. Slow and awkward, but available cross-platform and support extraction of fractional seconds.
     // YY-MM-DD HH-MM-SS{.SSSSSS}
     }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
-          (6 <= n.size()) && isininc(0,n[1],11)    // month
-                          && isininc(1,n[2],31)    // day of month
-                          && isininc(0,n[3],23)    // hour
-                          && isininc(0,n[4],59)    // minute
-                          && isininc(0,n[5],60) ){ // second
-        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); // Arbitrarily interpretation here. Should work fine for typical (i.e., modern) times.
+          (6 <= n.size()) && (0 < extract_year(n[0])) // year
+                          && isininc(1,n[1],12)       // month
+                          && isininc(1,n[2],31)       // day of month
+                          && isininc(0,n[3],23)       // hour
+                          && isininc(0,n[4],59)       // minute
+                          && isininc(0,n[5],60) ){    // second
+        lt.tm_year = extract_year(n[0]);
         lt.tm_mon  = n[1] - 1;
         lt.tm_mday = n[2];
         lt.tm_hour = n[3];
@@ -267,9 +281,10 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
 
     // YY-MM-DD
     }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + "[[:space:]]*$");
-          (n.size() == 3) && isininc(0,n[1],11)    // month
-                          && isininc(1,n[2],31) ){ // day of month
-        lt.tm_year = (n[0] < 1900) ? n[0] : (n[0] - 1900); 
+          (3 == n.size()) && (0 < extract_year(n[0])) // year
+                          && isininc(1,n[1],12)       // month
+                          && isininc(1,n[2],31) ){    // day of month
+        lt.tm_year = extract_year(n[0]);
         lt.tm_mon  = n[1] - 1;
         lt.tm_mday = n[2];
         lt.tm_hour = lt.tm_min = lt.tm_sec = 0;
