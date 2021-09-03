@@ -265,7 +265,7 @@ template <class T>  T vec3<T>::angle(const vec3<T> &rhs, bool *OK) const {
     ||  !std::isfinite((T)(1)/(Blen))
     ||  !std::isfinite((T)(1)/(Alen*Blen)) ){
         if(useOK) return (T)(-1); //If the user is handling errors.
-        FUNCERR("Not possible to compute angle - one of the vectors is too short");
+        throw std::runtime_error("Not possible to compute angle - one of the vectors is too short");
     }
 
     const auto A = this->unit();
@@ -2026,7 +2026,7 @@ line_segment<T>::Closest_Point_To_Line(const line<T> &L, vec3<T> &P) const {
 //NOTE: Parameter 'offset' can be negative, but no check is done to 
 template <class T>    std::list<vec3<T>> line_segment<T>::Sample_With_Spacing(T spacing, T offset, T & remaining) const {
     std::list<vec3<T>> points;
-    if(this->t_1 <= this->t_0) FUNCERR("Our line segment is backward. We should reverse the normal and flip the sign on both t_0, t_1");
+    if(this->t_1 <= this->t_0) throw std::runtime_error("Our line segment is backward. We should reverse the normal and flip the sign on both t_0, t_1");
     const T L = (this->t_1 - this->t_0); //dR.length();
 //    const T L = (this->R_0 + this->U_0*this->t_0).distance(this->R_0 + this->U_0*this->t_1);
     if(offset > L){ //No points can be sampled - the points are too close together.
@@ -2641,10 +2641,10 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
 
     //If the polygon is not closed, we complain. This is the easiest way to do it...
     if(!this->closed){
-        FUNCERR("Computing the surface area of an unconnected contour is not well-defined. "
-                "If this is a mistake, just mark your (implicitly) closed contours as closed."
-                "Otherwise, to make it more well-defined, you'll need to specify a surface mesh or "
-                "something more topologically well-defined. At time of writing, this is not supported");
+        throw std::runtime_error("Computing the surface area of an unconnected contour is not well-defined. "
+                                 "If this is a mistake, just mark your (implicitly) closed contours as closed."
+                                 "Otherwise, to make it more well-defined, you'll need to specify a surface mesh or "
+                                 "something more topologically well-defined. At time of writing, this is not supported");
     } 
 
     //If the polygon does not have enough points to form a 2D surface, return a zero. (This is legitimate.)
@@ -3107,7 +3107,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     // is small near the plane, and it is understood that the points are linearlly interpolated between to form the contour,
     // then we will not actually observe any accidental loss in curvature from this routine.  I'll have to test it..
     const auto Norig = this->points.size();
-    if(Norig < 3) FUNCERR("Contour contains too few points to split");
+    if(Norig < 3) throw std::runtime_error("Contour contains too few points to split");
 
     //Search for adjacent, duplicate points. If any are found die immediately.
     {
@@ -3158,7 +3158,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
           //This if statement could be replaced with a function Intersects_With_Line_Once***_Segment***(...).
           if( theplane.Is_Point_Above_Plane(*(p1_it->first)) != theplane.Is_Point_Above_Plane(*(p2_it->first)) ){
               if(!theplane.Intersects_With_Line_Once(line<T>(*(p1_it->first),*(p2_it->first)),intersection)){
-                  FUNCERR("Unable to determine where plane intersects line (we know they cross). This is probably a floating-point booboo");
+                  throw std::runtime_error("Unable to determine where plane intersects line (we know they cross). This is probably a floating-point booboo");
               }
 
               //Increment the counter.
@@ -3181,7 +3181,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
         output.push_back(*this);
         return output;
     }else if(number_of_crossings % 2 != 0){
-        FUNCERR("Generated an odd number of plane crossings. This is impossible for a closed, non-overlapping contour");
+        throw std::runtime_error("Generated an odd number of plane crossings. This is impossible for a closed, non-overlapping contour");
     }
 
     //Rotate the list so the first intersection is the first point.
@@ -3236,7 +3236,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
         auto p_it_it = point_pointers.begin();
         while(p_it_it->second == true){ 
             ++p_it_it;
-            if(!(p_it_it != point_pointers.end())) FUNCERR("Ran out of non-intersection points before completing contour");
+            if(!(p_it_it != point_pointers.end())) throw std::runtime_error("Ran out of non-intersection points before completing contour");
         }
         const auto beginning = --p_it_it; //First intersection point beginning line segment.
         ++p_it_it;
@@ -3245,11 +3245,11 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
             //------------------------ Error Catching ---------------------------
             //Catch 1 - Run out of points.
             if(!(p_it_it != point_pointers.end())){
-                FUNCERR("Ran out of points during contour generation. This shouldn't happen");
+                throw std::runtime_error("Ran out of points during contour generation. This shouldn't happen");
             
             //Catch 2 - We have looped around and didn't properly catch it.
             }else if(p_it_it == beginning){
-                FUNCERR("We have looped around and did not properly exit contour generation loop");
+                throw std::runtime_error("We have looped around and did not properly exit contour generation loop");
             }
             //---------------------- Point Accumulation -------------------------
             //Case 1 - This is a normal point.
@@ -3273,7 +3273,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
                 while(jump_it_it->first != jump_p_it){
                     ++jump_it_it;
                     if(!(jump_it_it != point_pointers.end())){
-                        FUNCERR("Unable to find intersection point to jump to. Has it been removed?");
+                        throw std::runtime_error("Unable to find intersection point to jump to. Has it been removed?");
 //Might also be a mistake in iteration, removing points, or anything...
                     }
                 }
@@ -3333,7 +3333,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
 
                 //We should remove the first one so that we will notice if the next one is a duplicate too.
                 p1_it = c_it->points.erase(p1_it);
-                if(c_it->points.size() < 3) FUNCERR("After removing duplicate point, contour contains < 3 points. Unable to continue");
+                if(c_it->points.size() < 3) throw std::runtime_error("After removing duplicate point, contour contains < 3 points. Unable to continue");
 
             }else{
                 p1_it = p2_it;
@@ -3432,25 +3432,25 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
     if( L4.Intersects_With_Line_Once(L1, intersection) ){
         bounding_box.points.push_back( intersection + (r_1 + r_2)*margin);
     }else{
-        FUNCERR("Unable to determine the point of intersection. Unable to continue");
+        throw std::runtime_error("Unable to determine the point of intersection. Unable to continue");
     }
 
     if( L1.Intersects_With_Line_Once(L2, intersection) ){
         bounding_box.points.push_back( intersection + (r_1 - r_2)*margin);
     }else{
-        FUNCERR("Unable to determine the point of intersection. Unable to continue");
+        throw std::runtime_error("Unable to determine the point of intersection. Unable to continue");
     }
 
     if( L2.Intersects_With_Line_Once(L3, intersection) ){
         bounding_box.points.push_back( intersection - (r_1 + r_2)*margin);
     }else{
-        FUNCERR("Unable to determine the point of intersection. Unable to continue");
+        throw std::runtime_error("Unable to determine the point of intersection. Unable to continue");
     }
 
     if( L3.Intersects_With_Line_Once(L4, intersection) ){
         bounding_box.points.push_back( intersection + (r_2 - r_1)*margin);
     }else{
-        FUNCERR("Unable to determine the point of intersection. Unable to continue");
+        throw std::runtime_error("Unable to determine the point of intersection. Unable to continue");
     }
 */
 
@@ -3458,48 +3458,48 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
     if( L4.Intersects_With_Line_Once(L1, intersection) ){
         bounding_box.points.push_back( intersection + (r_1 + r_2)*margin);
     }else{
-//        FUNCERR("Unable to determine the point of intersection 1. Unable to continue");
+//        throw std::runtime_error("Unable to determine the point of intersection 1. Unable to continue");
         FUNCWARN("Could not determine exact point of intersection (1). Computing closest-point instead");
         if( L4.Closest_Point_To_Line(L1, intersection) ){
             bounding_box.points.push_back( intersection + (r_1 + r_2)*margin);
         }else{
-            FUNCERR("Unable to determine closest point on L4 to L1. Cannot proceed");
+            throw std::runtime_error("Unable to determine closest point on L4 to L1. Cannot proceed");
         }
     }
 
     if( L3.Intersects_With_Line_Once(L4, intersection) ){
         bounding_box.points.push_back( intersection + (r_2 - r_1)*margin);
     }else{
-//        FUNCERR("Unable to determine the point of intersection 2. Unable to continue");
+//        throw std::runtime_error("Unable to determine the point of intersection 2. Unable to continue");
         FUNCWARN("Could not determine exact point of intersection (2). Computing closest-point instead");
         if( L3.Closest_Point_To_Line(L4, intersection) ){
             bounding_box.points.push_back( intersection + (r_2 - r_1)*margin);
         }else{
-            FUNCERR("Unable to determine closest point on L3 to L4. Cannot proceed");
+            throw std::runtime_error("Unable to determine closest point on L3 to L4. Cannot proceed");
         }
     }
 
     if( L2.Intersects_With_Line_Once(L3, intersection) ){
         bounding_box.points.push_back( intersection - (r_1 + r_2)*margin);
     }else{
-//        FUNCERR("Unable to determine the point of intersection 3. Unable to continue");
+//        throw std::runtime_error("Unable to determine the point of intersection 3. Unable to continue");
         FUNCWARN("Could not determine exact point of intersection (3). Computing closest-point instead");
         if( L2.Closest_Point_To_Line(L3, intersection) ){
             bounding_box.points.push_back( intersection - (r_1 + r_2)*margin);
         }else{
-            FUNCERR("Unable to determine closest point on L2 to L3. Cannot proceed");
+            throw std::runtime_error("Unable to determine closest point on L2 to L3. Cannot proceed");
         }
     }
 
     if( L1.Intersects_With_Line_Once(L2, intersection) ){
         bounding_box.points.push_back( intersection + (r_1 - r_2)*margin);
     }else{
-//        FUNCERR("Unable to determine the point of intersection 4. Unable to continue");
+//        throw std::runtime_error("Unable to determine the point of intersection 4. Unable to continue");
         FUNCWARN("Could not determine exact point of intersection (4). Computing closest-point instead");
         if( L1.Closest_Point_To_Line(L2, intersection) ){
             bounding_box.points.push_back( intersection + (r_1 - r_2)*margin);
         }else{
-            FUNCERR("Unable to determine closest point on L1 to L2. Cannot proceed");
+            throw std::runtime_error("Unable to determine closest point on L1 to L2. Cannot proceed");
         }
     }
 
@@ -3607,7 +3607,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
                 continue;
             }
 
-//            FUNCERR("We have crossed an odd number of contour lines, but we should have crossed an even number.");
+//            throw std::runtime_error("We have crossed an odd number of contour lines, but we should have crossed an even number.");
 //            FUNCWARN("We have crossed an odd number of contour lines, but we should have crossed an even number. Nudging ray slightly...");
             L += 0.01*dL;
             L -= dL;  //To counter the loop's L += dL.
@@ -3619,7 +3619,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
                 FUNCWARN("We failed to find any points of intersection. Unable to nudge, so giving up!");
                 continue;
             }
-//            FUNCERR("We failed to find any points of intersection. This is likely an issue with the bounding box or the data being wonky. This could be due to multi-contour input - if so, fix me please!");
+//            throw std::runtime_error("We failed to find any points of intersection. This is likely an issue with the bounding box or the data being wonky. This could be due to multi-contour input - if so, fix me please!");
 //            FUNCWARN("We failed to find any points of intersection - was the contour oddly shaped, excessively small, or very point-sparse? Nudging ray slightly...");
             L -= 0.007*dL;
             L -= dL;  //To counter the loop's L += dL.
@@ -3658,7 +3658,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
         if(found_a_center_point == true){
             halfway_points.push_back( the_center_point );
         }else{
-            FUNCERR("Was unable to find a center-point. This is an algorithmic error.");
+            throw std::runtime_error("Was unable to find a center-point. This is an algorithmic error.");
         }
 
     }
@@ -3795,7 +3795,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_I
         return output;
     }
     if(this->closed != true){ 
-        FUNCERR("The core and peel technique is not able to reasonably handle open contours. Unable to continue");
+        throw std::runtime_error("The core and peel technique is not able to reasonably handle open contours. Unable to continue");
         //The peel is easy enough to deal with, but how do we treat the core? Should we always assume it
         // is closed, no matter what? This is quite ambiguous. It seems ill-defined to consider a core and
         // peel for contours which are open!
@@ -3894,7 +3894,7 @@ template <class T> vec3<T> contour_of_points<T>::Average_Point(void) const {
 //
 template <class T> vec3<T> contour_of_points<T>::Centroid(void) const {
     //If there are pathological cases, we can deal with them fairly easily.
-    if(this->points.size() == 0) FUNCERR("Attempted to compute Center of area for a contour with no points");
+    if(this->points.size() == 0) throw std::runtime_error("Attempted to compute Center of area for a contour with no points");
     if(this->points.size() < 3){
          vec3<T> R((T)(0), (T)(0), (T)(0));
          for(auto i = this->points.begin(); i != this->points.end(); i++){
@@ -4049,7 +4049,7 @@ template <class T>    T contour_of_points<T>::Integrate_Simple_Scalar_Kernel(std
     T out = 0.0;
 
     if(!k){
-        FUNCERR("This routine requires a scalar kernel. If no kernel is required, provide a function which always gives 1.0");
+        throw std::runtime_error("This routine requires a scalar kernel. If no kernel is required, provide a function which always gives 1.0");
     }
 
     for(auto p1_it = this->points.begin(); p1_it != this->points.end(); ++p1_it){
@@ -4110,7 +4110,7 @@ template <class T>    T contour_of_points<T>::Integrate_Simple_Scalar_Kernel(std
 template <class T>    T contour_of_points<T>::Integrate_Simple_Vector_Kernel(std::function< vec3<T> (const vec3<T> &r,  const vec3<T> &A, const vec3<T> &B, const vec3<T> &U)> k) const{
     T out = 0.0;
     if(!k){
-        FUNCERR("This routine requires a vector kernel. If no kernel is required, figure out how to provide a static kernel to do what you want.");
+        throw std::runtime_error("This routine requires a vector kernel. If no kernel is required, figure out how to provide a static kernel to do what you want.");
     }
 
     for(auto p1_it = this->points.begin(); p1_it != this->points.end(); ++p1_it){
@@ -4616,7 +4616,7 @@ bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plan
                                                                       const vec3<T> &point,
                                                                       bool AlreadyProjected,
                                                                       T boundary_eps) const {
-    if(!this->closed) FUNCERR("Cannot perform test if a point is 'inside' a polygon if the polygon is open. Cannot continue");
+    if(!this->closed) throw std::runtime_error("Cannot perform test if a point is 'inside' a polygon if the polygon is open. Cannot continue");
 
     //Project the contour data and user-provided point onto the plane if needed. The direction along the normal is ignored, making
     // this routine effectively 2D.
@@ -4646,7 +4646,7 @@ bool contour_of_points<T>::Is_Point_In_Polygon_Projected_Orthogonally(const plan
             break;
         }
     }
-    if(!found_usable_point) FUNCERR("Cannot generate coordinate units on the plane. Are the points in pathological formation? Cannot continue");
+    if(!found_usable_point) throw std::runtime_error("Cannot generate coordinate units on the plane. Are the points in pathological formation? Cannot continue");
     plane_x_unit = plane_x_unit.unit();
     plane_y_unit = plane_z_unit.Cross(plane_x_unit).unit();
 
@@ -4794,7 +4794,7 @@ template <class T> bool contour_of_points<T>::operator<(const contour_of_points<
 //This is a contour-to-plane comparison which is performed on a per-point basis.
 // The return value is -1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
 template <class T> long int contour_of_points<T>::Avoids_Plane(const plane<T> &P) const {
-    if(this->points.empty()) FUNCERR("Unable to determine if contour avoids plane or not - there are no points to compare!");
+    if(this->points.empty()) throw std::runtime_error("Unable to determine if contour avoids plane or not - there are no points to compare!");
     bool above(false), below(false);
     const vec3<T>  NN(vec3<T>((T)(0), (T)(0), (T)(0)) - P.N_0); //Sign reversed normal.
     const plane<T> PN(NN, P.R_0); //Plane with opposite orientation.
@@ -5277,7 +5277,7 @@ template <class T>  T contour_collection<T>::Slab_Volume(T thickness, bool Ignor
     //       are high-frequency and fluctuate compared with adjacent contours. There may be other failure modes.
     //       If in doubt, you will need to construct a watertight surface and try something like Marching Cubes.
     //
-    if(thickness < (T)(0)) FUNCERR("Thickness is intrinsically positive. Cannot make sense of a negative thickness. Bailing");
+    if(thickness < (T)(0)) throw std::runtime_error("Thickness is intrinsically positive. Cannot make sense of a negative thickness. Bailing");
     T signed_volume = (T)(0);
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         const auto signed_area = (IgnoreContourOrientation ? std::abs(c_it->Get_Signed_Area()) : c_it->Get_Signed_Area());
@@ -5300,7 +5300,7 @@ template <class T> std::list<contour_collection<T>> contour_collection<T>::Split
 
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         auto split_cs = c_it->Split_Along_Plane(theplane);
-        if(split_cs.empty()) FUNCERR("No contours returned from splitting. We should have one or more");
+        if(split_cs.empty()) throw std::runtime_error("No contours returned from splitting. We should have one or more");
 
         for(auto sc_it = split_cs.begin(); sc_it != split_cs.end(); ){
             const auto Rave = sc_it->Average_Point();
@@ -5330,7 +5330,7 @@ template <class T> std::list<contour_collection<T>> contour_collection<T>::Split
     out.push_back(contour_collection<T>());
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         auto split_cs = c_it->Split_Against_Ray(thenormal);
-        if(split_cs.empty()) FUNCERR("No contours returned from splitting. We should have either one or two");
+        if(split_cs.empty()) throw std::runtime_error("No contours returned from splitting. We should have either one or two");
         out.front().contours.push_back(split_cs.front());    
         split_cs.erase(split_cs.begin());      
 
@@ -5338,7 +5338,7 @@ template <class T> std::list<contour_collection<T>> contour_collection<T>::Split
         out.back().contours.push_back(split_cs.front());
         split_cs.erase(split_cs.begin());
 
-        if(!split_cs.empty()) FUNCERR("Contour was split into more than 2 parts on a plane. This is not possible");
+        if(!split_cs.empty()) throw std::runtime_error("Contour was split into more than 2 parts on a plane. This is not possible");
     }
 
     return out;
@@ -5620,7 +5620,7 @@ template <class T>    contour_collection<T> contour_collection<T>::Resample_LTE_
 //This is a contour-to-plane comparison which is performed on a per-point basis.
 // The return value is -1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
 template <class T> long int contour_collection<T>::Avoids_Plane(const plane<T> &P) const {
-    if(this->contours.empty()) FUNCERR("Unable to determine if contour collection avoids plane or not - there are no points to compare!");
+    if(this->contours.empty()) throw std::runtime_error("Unable to determine if contour collection avoids plane or not - there are no points to compare!");
 
     bool above(false), below(false);
     for(auto it = this->contours.begin(); it != this->contours.end(); ++it){
@@ -5692,7 +5692,7 @@ template <class T> void contour_collection<T>::Merge_Adjoining_Contours(std::fun
                             Altered = true;
     
                             //Rotate c2 so that p22_it is the first point in the list.
-                            if(!c2_it->closed) FUNCERR("This routine cannot merge when c2 is not closed. You'll need to figure out how to if this is needed!");
+                            if(!c2_it->closed) throw std::runtime_error("This routine cannot merge when c2 is not closed. You'll need to figure out how to if this is needed!");
                             //     NOTE: Probably the easiest way is to split the contour into two pieces and perform the merge on each separately. 
                             //     In the general case, this merging could produce some nasty resulting contours! Good luck.
                             std::rotate(c2_it->points.begin(), p22_it, c2_it->points.end());
@@ -6789,7 +6789,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
     };
 
     if(N_verts < 4){
-        FUNCERR("Not yet implemented");
+        throw std::runtime_error("Not yet implemented");
     }else{
         // Seed the hull with vertices that are assured to not be degenerate. This might involve scanning all inputs,
         // but only until we find a seed tetrahedron. If this scan fails, then the inputs are degenerate (barring slight
@@ -9154,7 +9154,7 @@ template <class T>  std::array<T,4> samples_1D<T>::Interpolate_Linearly(const T 
     //
 
     //Step 0 - Sanity checks.
-    if(this->samples.size() < 2) FUNCERR("Unable to interpolate - there are less than 2 samples");
+    if(this->samples.size() < 2) throw std::runtime_error("Unable to interpolate - there are less than 2 samples");
 
     const std::array<T,4> at_x_as_F { at_x, (T)(0), (T)(0), (T)(0) }; //For easier integration with std::algorithms.
 
@@ -9198,8 +9198,8 @@ template <class T>  std::array<T,4> samples_1D<T>::Interpolate_Linearly(const T 
     const T dx = x1 - x0;
     const T invdx = (T)(1)/dx;
     if(!std::isnormal(dx) || !std::isnormal(invdx)){ //Catches dx=0, 0=1/dx, inf=1/dx cases.
-        FUNCERR("Cannot interpolate between two (computationally-identical) points. Try removing them by "
-                "averaging f_i and adding sigma_x_i and sigma_f_i in quadrature. Cannot continue");
+        throw std::runtime_error("Cannot interpolate between two (computationally-identical) points. Try removing them by "
+                                 "averaging f_i and adding sigma_x_i and sigma_f_i in quadrature. Cannot continue");
         //In this case, trying to assume that (at_x-x0) is half that of (x1-x0) and other schemes to re-use the linear eqn
         // will fail. Why? We ultimately need a derivative, and the derivative is zero here (unless f_i are the same too).
         // The only reasonable solution is to deal with these problems PRIOR to calling this function; we cannot do anything
@@ -9769,8 +9769,8 @@ template <class Function> std::array<T,2> samples_1D<T>::Integrate_Generic(const
                              && g.uncertainties_known_to_be_independent_and_random );
 
     //Step 0 - Sanity checks.
-    if(this->size() < 2) FUNCERR("Unable to integrate f - there are less than 2 samples");
-    if(g.size() < 2) FUNCERR("Unable to integrate g - there are less than 2 samples");
+    if(this->size() < 2) throw std::runtime_error("Unable to integrate f - there are less than 2 samples");
+    if(g.size() < 2) throw std::runtime_error("Unable to integrate g - there are less than 2 samples");
 
     //Step 1 - Establish actual endpoints.
     const T f_lowest_x  = this->samples.front()[0];
@@ -9794,8 +9794,8 @@ template <class Function> std::array<T,2> samples_1D<T>::Integrate_Generic(const
         const auto f_at_mid = this->Interpolate_Linearly(x_mid);
         const auto g_at_mid = g.Interpolate_Linearly(x_mid);
         if((f_at_mid[1] != (T)(0)) || (g_at_mid[1] != (T)(0))){
-            FUNCERR("This routine assumes all sigma_x_i uncertainty has been converted to "
-                    "sigma_f_i uncertainty during interpolation. Cannot continue");
+            throw std::runtime_error("This routine assumes all sigma_x_i uncertainty has been converted to "
+                                     "sigma_f_i uncertainty during interpolation. Cannot continue");
         }
 
         //The small area element for the integral (midpoint rule).
@@ -10317,7 +10317,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
  
     //Step 0 - Sanity checks.
     if(!isininc((long int)(1),N,(long int)(this->size()))){
-         FUNCERR("Asking to aggregate data into a nonsensical number of bins");
+         throw std::runtime_error("Asking to aggregate data into a nonsensical number of bins");
     }
 
     //Get the min/max x-value and bin spacing.
@@ -10326,7 +10326,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
     const auto spanx = xmax - xmin; //Span of lowest to highest.
     const auto dx    = spanx/static_cast<T>(N);
     if(!std::isnormal(dx)){
-        FUNCERR("Aggregating could not proceed: encountered problem with bin width");
+        throw std::runtime_error("Aggregating could not proceed: encountered problem with bin width");
     }
 
     //Cycle through the data, collecting the data for each bin.
@@ -10426,7 +10426,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weigh
  
     //Step 0 - Sanity checks.
     if(N < 1){
-         FUNCERR("Asking to aggregate data with a nonsensical number of datum in each bin");
+         throw std::runtime_error("Asking to aggregate data with a nonsensical number of datum in each bin");
     }
 
     //Cycle through the data, collecting the data for each bin.
@@ -10494,7 +10494,7 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
  
     //Step 0 - Sanity checks.
     if(!isininc((long int)(1),N,(long int)(this->size()))){
-         FUNCERR("Asking to histogram data into a nonsensical number of bins");
+         throw std::runtime_error("Asking to histogram data into a nonsensical number of bins");
     }
 
     //Get the min/max x-value and bin spacing.
@@ -10503,7 +10503,7 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
     const auto spanx = xmax - xmin; //Span of lowest to highest.
     const auto dx    = spanx/static_cast<T>(N);
     if(!std::isnormal(dx)){
-        FUNCERR("Histogram generation could not proceed: encountered problem with bin width");
+        throw std::runtime_error("Histogram generation could not proceed: encountered problem with bin width");
     }
 
     //Step 1 - Cycle through the data, collecting the data for each bin.
@@ -10605,21 +10605,21 @@ template <class T> std::array<T,4> samples_1D<T>::Spearmans_Rank_Correlation_Coe
     }
     const auto rho = numer/std::sqrt(denomA*denomB);
     if(!std::isfinite(rho) || (YGORABS(rho) > (T)(1))){
-        if(OK == nullptr) FUNCERR("Found coefficient which was impossible or nan. Bailing");
+        if(OK == nullptr) throw std::runtime_error("Found coefficient which was impossible or nan. Bailing");
         FUNCWARN("Found coefficient which was impossible or nan. Bailing");
         return ret_on_err;
     }
     const auto num = static_cast<T>(ranked.samples.size());
 
     if(ranked.size() < 3){
-        if(OK == nullptr) FUNCERR("Unable to compute z-value - too little data");
+        if(OK == nullptr) throw std::runtime_error("Unable to compute z-value - too little data");
         FUNCWARN("Unable to compute z-value - too little data");
         return ret_on_err;
     }
     const T zval = std::sqrt((num - 3.0)/1.060)*std::atanh(rho);
 
     if(ranked.size() < 2){
-        if(OK == nullptr) FUNCERR("Unable to compute t-value - too little data");
+        if(OK == nullptr) throw std::runtime_error("Unable to compute t-value - too little data");
         FUNCWARN("Unable to compute t-value - too little data");
         return ret_on_err;
     }
@@ -10642,7 +10642,7 @@ template <class T> std::array<T,3> samples_1D<T>::Compute_Sxy_Sxx_Syy(bool *OK) 
 
     //Ensure the data is suitable.
     if(this->size() < 1){
-        if(OK == nullptr) FUNCERR("Unable to calculate Sxy,Sxx,Syy with no data");
+        if(OK == nullptr) throw std::runtime_error("Unable to calculate Sxy,Sxx,Syy with no data");
         FUNCWARN("Unable to calculate Sxy,Sxx,Syy with no data. Bailing");
         return ret_on_err;
     }
@@ -10723,7 +10723,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Driver(
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
 
     const auto sample_count = static_cast<long int>(this->size());
-    if(weights.empty()) FUNCERR("No weights provided. Cannot continue");
+    if(weights.empty()) throw std::runtime_error("No weights provided. Cannot continue");
     const auto weights_size = static_cast<long int>(weights.size());
 
     for(long int i = 0; i < sample_count; ++i){
@@ -10854,7 +10854,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Equal_W
     // NOTE: It is safe to apply this routine consecutively. One guy claims on his website (which made it to Wikipedia...)
     //       that applying three times might be best. 
     //
-    if(N <  0) FUNCERR("Nonsensical parameter passed in. Cannot average less than <0 points");
+    if(N <  0) throw std::runtime_error("Nonsensical parameter passed in. Cannot average less than <0 points");
     if(N == 0) return *this;
 
     std::vector<T> weights(N+1, (T)(1.0)/static_cast<T>(2*N+1)); //Fill constructor. Uniform weights for all datum in window.
@@ -10878,7 +10878,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Gaussia
     //       for each point. The choice of datum_sigma depends on how 'smooth' you want the output, and the scale of the data.
     //       Be aware that fishing until something appears/disappears is quite dangerous!
     //
-    if(datum_sigma <= (T)(0)) FUNCERR("Nonsensical datum_sigma parameter passed in. Try increasing it");
+    if(datum_sigma <= (T)(0)) throw std::runtime_error("Nonsensical datum_sigma parameter passed in. Try increasing it");
 
     const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
@@ -10944,7 +10944,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_D
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
 
     const auto sample_count = static_cast<long int>(this->size());
-    if(weights.empty()) FUNCERR("No weights provided. Cannot continue");
+    if(weights.empty()) throw std::runtime_error("No weights provided. Cannot continue");
     const auto weights_size = static_cast<long int>(weights.size());
 
     for(long int i = 0; i < sample_count; ++i){
@@ -11000,7 +11000,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_E
     //       and each point. The choice of N will depend on how 'smooth' you want the output, and the scale of the data.
     //       Be aware that fishing until something appears/disappears is quite dangerous!
     //
-    if(N <  0) FUNCERR("Nonsensical parameter passed in. Cannot average less than <0 points");
+    if(N <  0) throw std::runtime_error("Nonsensical parameter passed in. Cannot average less than <0 points");
     if(N == 0) return *this;
     std::vector<uint64_t> weights(N+1, static_cast<uint64_t>(1)); //Fill constructor. Uniform weights for all datum in window.
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
@@ -11023,7 +11023,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
     //       could be quite different from a true Gaussian if the window is small enough. There is nothing that can be done
     //       about this short of implementing a median filter capable of taking real weights instead.
     // 
-    if(datum_sigma <= (T)(0)) FUNCERR("Nonsensical datum_sigma parameter passed in. Try increasing it");
+    if(datum_sigma <= (T)(0)) throw std::runtime_error("Nonsensical datum_sigma parameter passed in. Try increasing it");
 
     const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
@@ -11070,7 +11070,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_T
     //       Points:   ... x-4   x-3   x-2   x-1   x   x+1   x+2   x+3   x+4 ...
     //       Weights:  ...  0     1     2     3    4    3     2     1     0  ...
     //
-    if(N <  0) FUNCERR("Nonsensical parameter passed in. Cannot average less than <0 points");
+    if(N <  0) throw std::runtime_error("Nonsensical parameter passed in. Cannot average less than <0 points");
     if(N == 0) return *this;
 
     std::vector<uint64_t> weights;
@@ -11102,8 +11102,8 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long i
     // NOTE: Be aware if you plan to mix moving filters with harmonic or spectral analysis: a moving average can cause an
     //       "irregular oscillation" to mysteriously appear in the data. This is called the Slutzky-Yule effect.
     //
-    if(N <  0) FUNCERR("Nonsensical parameter passed in. Cannot compute variance from less than 0 points");
-    if(N == 0) FUNCERR("Nonsensical parameter passed in. Cannot compute variance from single point");
+    if(N <  0) throw std::runtime_error("Nonsensical parameter passed in. Cannot compute variance from less than 0 points");
+    if(N == 0) throw std::runtime_error("Nonsensical parameter passed in. Cannot compute variance from single point");
 
     const bool InhibitSort = true;
     samples_1D<T> out;
@@ -11147,7 +11147,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differ
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
-    if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
+    if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -11206,7 +11206,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Backward_Finite_Diffe
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
-    if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
+    if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -11265,7 +11265,7 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Centered_Finite_Diffe
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
     const auto samps_size = static_cast<long int>(this->samples.size());
-    if(samps_size < 2) FUNCERR("Cannot compute derivative with so few points. Cannot continue");    
+    if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
     for(long int i = 0; i < samps_size; ++i){
@@ -11372,7 +11372,7 @@ samples_1D<T> samples_1D<T>::Local_Signed_Curvature_Three_Datum(void) const {
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;   
     out.metadata = this->metadata;
 
-    if(this->size() < 3) FUNCERR("Unable to compute local curvature with fewer than 3 datum. Cannot continue"); 
+    if(this->size() < 3) throw std::runtime_error("Unable to compute local curvature with fewer than 3 datum. Cannot continue"); 
     const auto InhibitSort = true;
 
     auto itL = this->samples.begin();
@@ -11547,7 +11547,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
         //If we have two points, there are as many parameters as datum. We cannot even compute the stats.
         // While it is possible to do it for 2 data points, the closed form solution in that case is 
         // easy enough to do in a couple lines, and probably should just be implemented as needed.
-        if(OK == nullptr) FUNCERR("Unable to perform meaningful linear regression with so few points");
+        if(OK == nullptr) throw std::runtime_error("Unable to perform meaningful linear regression with so few points");
         FUNCWARN("Unable to perform meaningful linear regression with so few points. Bailing");
         return ret_on_err;
     }
@@ -11586,7 +11586,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     const T common_denom = std::abs(res.N*res.sum_xx - res.sum_x*res.sum_x);
     if(!std::isnormal(common_denom)){
         //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
-        if(OK == nullptr) FUNCERR("Encountered difficulties with data. Is the data pathological?");
+        if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
         FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
         return ret_on_err;
     }
@@ -11595,7 +11595,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     res.intercept = (res.sum_xx*res.sum_f - res.sum_x*res.sum_xf)/common_denom;
     if(!std::isfinite(res.slope) || !std::isfinite(res.intercept)){
         //While we *could* proceed, something must be off. Maybe an overflow (and inf or nan) during accumulation?
-        if(OK == nullptr) FUNCERR("Encountered difficulties computing m and b. Is the data pathological?");
+        if(OK == nullptr) throw std::runtime_error("Encountered difficulties computing m and b. Is the data pathological?");
         FUNCWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
         return ret_on_err;
     }
@@ -11729,7 +11729,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         //Attempt to compute the non-weighted linear regression slope. 
         const auto nwlr = this->Linear_Least_Squares_Regression(&l_OK);
         if(!l_OK){
-            if(OK == nullptr) FUNCERR("Standard linear regression failed. Cannot properly propagate unertainties");
+            if(OK == nullptr) throw std::runtime_error("Standard linear regression failed. Cannot properly propagate unertainties");
             FUNCWARN("Standard linear regression failed. Cannot properly propagate unertainties. Bailing");
             return ret_on_err;
         }
@@ -11739,7 +11739,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
     //Ensure the data is suitable.
     if(this->size() < 3){
         //If we have two points, there are as many parameters as datum. We cannot even compute the stats...
-        if(OK == nullptr) FUNCERR("Unable to perform meaningful linear regression with so few points");
+        if(OK == nullptr) throw std::runtime_error("Unable to perform meaningful linear regression with so few points");
         FUNCWARN("Unable to perform meaningful linear regression with so few points. Bailing");
         return ret_on_err;
     }
@@ -11815,7 +11815,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         const T common_denom = res.sum_w*res.sum_wxx - res.sum_wx*res.sum_wx;
         if(!std::isnormal(common_denom)){
             //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
-            if(OK == nullptr) FUNCERR("Encountered difficulties with data. Is the data pathological?");
+            if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
             FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
             return ret_on_err;
         }
@@ -11824,7 +11824,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         res.intercept = (res.sum_wxx*res.sum_wf - res.sum_wx*res.sum_wxf)/common_denom;
         if(!std::isfinite(res.slope) || !std::isfinite(res.intercept)){
             //While we *could* proceed, something must be off. Maybe an overflow (and inf or nan) during accumulation?
-            if(OK == nullptr) FUNCERR("Encountered difficulties computing m and b. Is the data pathological?");
+            if(OK == nullptr) throw std::runtime_error("Encountered difficulties computing m and b. Is the data pathological?");
             FUNCWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
             return ret_on_err;
         }
@@ -11865,7 +11865,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
             // where a portion of the data has small uncertainty epsilon and the rest has much larger values. Expand
             // all expressions for small epsilon with something like a Taylor expansion, and see if there is a finite
             // expansion.
-            if(OK == nullptr) FUNCERR("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
+            if(OK == nullptr) throw std::runtime_error("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
             FUNCWARN("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
             return ret_on_err;
         }
@@ -11876,7 +11876,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         const T common_denom = res.N*res.sum_xx - res.sum_x*res.sum_x; //Omitting factor [1/sigma_f_i^2].
         if(!std::isnormal(common_denom)){
             //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
-            if(OK == nullptr) FUNCERR("Encountered difficulties with data. Is the data pathological?");
+            if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
             FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
             return ret_on_err;
         }
@@ -11910,7 +11910,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         return res;
     }
   
-    FUNCERR("Programming error. Should not have got to this point"); 
+    throw std::logic_error("Programming error. Should not have got to this point"); 
     return ret_on_err;
 }       
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS

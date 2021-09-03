@@ -78,7 +78,7 @@ template <class T, class R> planar_image<T,R>::~planar_image(){ }
 //Allocating space and initializing the purely-2D-image members.
 template <class T, class R> void planar_image<T,R>::init_buffer(long int rows, long int cols, long int chnls){
     if((rows <= 0) || (cols <= 0) || (chnls <= 0)){
-        FUNCERR("Requested to initialize an image with impossible dimensions");
+        throw std::runtime_error("Requested to initialize an image with impossible dimensions");
     }
     this->rows     = rows;
     this->columns  = cols;
@@ -412,7 +412,7 @@ template <class T, class R> std::tuple<long int,long int,long int> planar_image<
     const ldiv_t z = ::ldiv(y.quot,this->columns);
     const auto col = z.rem;
     const auto row = z.quot;
-    if(this->index(row,col,chnl) != userindex) FUNCERR("Programming error. Has the index scheme been changed?");
+    if(this->index(row,col,chnl) != userindex) throw std::logic_error("Programming error. Has the index scheme been changed?");
     return std::make_tuple(row,col,chnl);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -593,7 +593,7 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,channel_number,this->channels-1)){
-        FUNCERR("Selected channel does not exist");
+        throw std::runtime_error("Selected channel does not exist");
     }
 
     const auto rows = this->rows;
@@ -631,7 +631,7 @@ template <class T,class R> void planar_image<T,R>::remove_all_channels_except(lo
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,channel_number,this->channels-1)){
-        FUNCERR("Selected channel does not exist");
+        throw std::runtime_error("Selected channel does not exist");
     }
 
     const auto rows = this->rows;
@@ -754,7 +754,7 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
     if(!isininc(0,r_e_p,this->rows-1)
     || !isininc(0,c_e_p,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
 
     //Figure out which quandrant of the enclosing cell the point is. It changes which adjacent cells we will use to interpolate.
@@ -820,7 +820,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int col_m_1 = std::max(static_cast<long int>(0),col-1);
     long int col_p_1 = std::min(this->columns-1,col+1);
@@ -842,7 +842,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -898,7 +898,7 @@ template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -922,7 +922,7 @@ template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -962,7 +962,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -990,7 +990,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivativ
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1034,7 +1034,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1062,7 +1062,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1103,7 +1103,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1154,7 +1154,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1220,7 +1220,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1248,7 +1248,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1289,7 +1289,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1340,7 +1340,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1406,7 +1406,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_ce
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int col_m_1 = std::max(static_cast<long int>(0),col-1);
     long int col_p_1 = std::min(this->columns-1,col+1);
@@ -1427,7 +1427,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1448,7 +1448,7 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1580,7 +1580,7 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     if(!isininc(0,r_e_p,this->rows-1) 
     || !isininc(0,c_e_p,this->columns-1) 
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
 
     //Figure out which quandrant of the enclosing cell the point is. It changes which adjacent cells we will use to interpolate.
@@ -1651,7 +1651,7 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     } 
     return static_cast<T>( res );
 #else // YGOR_USE_EIGEN
-    FUNCERR("This routine depends on Eigen and this functionality was disabled. Cannot continue");
+    throw std::runtime_error("This routine depends on Eigen and this functionality was disabled. Cannot continue");
     //NOTE: This particular application can be easily worked out and expressed in non-matrix form.
     //      Fire up your CAS of choice iff needed.
     return static_cast<T>(0);
@@ -1763,7 +1763,7 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1804,7 +1804,7 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1861,7 +1861,7 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row,
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1902,7 +1902,7 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row,
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -1968,7 +1968,7 @@ template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, 
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -2004,7 +2004,7 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int 
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
-        FUNCERR("Attempted to access part of image which does not exist");
+        throw std::runtime_error("Attempted to access part of image which does not exist");
     }
     long int row_m_1 = std::max(static_cast<long int>(0),row-1);
     long int row_p_1 = std::min(this->rows-1,row+1);
@@ -2590,7 +2590,7 @@ template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Co
     // If you figure it out, you might want to extract the important parts into a set of volumetric boolean tools.
     // Might be better to just rely on an external library (CGAL?) for something of this sort...
 
-    FUNCERR("Not yet implemented!");
+    throw std::runtime_error("Not yet implemented!");
     return static_cast<R>(0);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -4227,7 +4227,7 @@ planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, 
 
 //Returns the R^3 center of the image. Nothing fancy.
 template <class T,class R> vec3<R> planar_image_collection<T,R>::center(void) const {
-    if(this->images.empty()) FUNCERR("Unable to compute center-point. This collection contains no images");
+    if(this->images.empty()) throw std::runtime_error("Unable to compute center-point. This collection contains no images");
     vec3<R> out;
     for(auto i_it = this->images.begin(); i_it != this->images.end(); ++i_it){
         out += i_it->center();
