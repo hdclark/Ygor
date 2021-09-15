@@ -15,9 +15,9 @@
 #include <set>
 
 #include <unistd.h>            //Needed for getopt().
-#ifdef __linux__
+#ifdef __linux__ || __MINGW32__ || __MINGW64__
 #include <getopt.h>            //Needed for getopt_long() which is a GNU extension.
-#endif //__linux__
+#endif //__linux__ || __MINGW32__ || __MINGW64__
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
@@ -221,11 +221,11 @@ class ArgumentHandler {
             // backward so that more recently-pushed directives get priority over others.
             int next_options;
             do{
-#ifdef __linux__
+#ifdef __linux__ || __MINGW32__ || __MINGW64__
                 next_options = getopt_long(local_argc, local_argv, short_opts.c_str(), &long_const_opts[0], nullptr);
 #else
                 next_options = getopt(local_argc, local_argv, short_opts.c_str());
-#endif // __linux__
+#endif // __linux__ || __MINGW32__ || __MINGW64__
                 bool matched = false;
                 for(auto d_it = directives.rbegin(); d_it != directives.rend(); ++d_it){
                     if( next_options == std::get<1>(*d_it) ){
