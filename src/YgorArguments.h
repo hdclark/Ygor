@@ -203,6 +203,7 @@ class ArgumentHandler {
                 if( std::get<3>(*d_it) == true ) short_opts += ":";
             }
 
+#ifdef __linux__ || __MINGW32__ || __MINGW64__
             std::vector<struct option> long_opts;
             for(auto d_it = directives.begin(); d_it != directives.end(); ++d_it){
                 //long_opts.push_back( { description, (int)(takes arg?), nullptr, (char)(short form) } );
@@ -216,6 +217,7 @@ class ArgumentHandler {
             }
             const std::vector<struct option> long_const_opts( long_opts );
             long_opts.clear(); //So we do not accidentally invalidate the pointer to the vector's data.
+#endif // __linux__ || __MINGW32__ || __MINGW64__
 
             //Now we loop over the arguments, calling the callbacks if necessary. We cycle through the directives 
             // backward so that more recently-pushed directives get priority over others.
