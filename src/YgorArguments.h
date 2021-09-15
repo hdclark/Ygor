@@ -15,9 +15,9 @@
 #include <set>
 
 #include <unistd.h>            //Needed for getopt().
-#ifdef __linux__ || __MINGW32__ || __MINGW64__
+#if defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
 #include <getopt.h>            //Needed for getopt_long() which is a GNU extension.
-#endif //__linux__ || __MINGW32__ || __MINGW64__
+#endif //defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
@@ -203,7 +203,7 @@ class ArgumentHandler {
                 if( std::get<3>(*d_it) == true ) short_opts += ":";
             }
 
-#ifdef __linux__ || __MINGW32__ || __MINGW64__
+#ifdef defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
             std::vector<struct option> long_opts;
             for(auto d_it = directives.begin(); d_it != directives.end(); ++d_it){
                 //long_opts.push_back( { description, (int)(takes arg?), nullptr, (char)(short form) } );
@@ -217,17 +217,17 @@ class ArgumentHandler {
             }
             const std::vector<struct option> long_const_opts( long_opts );
             long_opts.clear(); //So we do not accidentally invalidate the pointer to the vector's data.
-#endif // __linux__ || __MINGW32__ || __MINGW64__
+#endif // defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
 
             //Now we loop over the arguments, calling the callbacks if necessary. We cycle through the directives 
             // backward so that more recently-pushed directives get priority over others.
             int next_options;
             do{
-#ifdef __linux__ || __MINGW32__ || __MINGW64__
+#ifdef defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
                 next_options = getopt_long(local_argc, local_argv, short_opts.c_str(), &long_const_opts[0], nullptr);
 #else
                 next_options = getopt(local_argc, local_argv, short_opts.c_str());
-#endif // __linux__ || __MINGW32__ || __MINGW64__
+#endif // defined(__linux__) || defined(__MINGW32__) || defined(__MINGW64__)
                 bool matched = false;
                 for(auto d_it = directives.rbegin(); d_it != directives.rend(); ++d_it){
                     if( next_options == std::get<1>(*d_it) ){
