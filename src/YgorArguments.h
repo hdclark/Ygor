@@ -232,7 +232,7 @@ class ArgumentHandler {
                 //
                 auto [has_dash_1, has_dash_2, key, val] = explode(*s_it);
 
-                const auto read_ahead_for_argument = [&](){
+                const auto read_ahead_for_argument = [&,key](){
                     ++s_it;
                     if(s_it == end){
                         throw std::invalid_argument("Option '"_s + key + "' requires an argument, but none were provided");
