@@ -232,7 +232,9 @@ class ArgumentHandler {
                 //
                 auto [has_dash_1, has_dash_2, key, val] = explode(*s_it);
 
-                const auto read_ahead_for_argument = [&,key](){
+                // Capture the bound variable. Note that some (older) compilers disallowed this.
+                // See http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0588r1.html
+                const auto read_ahead_for_argument = [&,key = key](){
                     ++s_it;
                     if(s_it == end){
                         throw std::invalid_argument("Option '"_s + key + "' requires an argument, but none were provided");
