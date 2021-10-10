@@ -745,6 +745,10 @@ template <class T,class R>   class planar_image_adjacency {
         img_refw_t
         position_to_image(const vec3<R> &p) const;
 
+        // Query for the lowest- and highest-numbered images in the index.
+        // Indices are inclusive, so use like: 'for(long int i = min; i <= max; ++i){ ... }'.
+        std::pair<long int, long int> get_min_max_indices() const;
+
         // Query for whole images that overlap.
         // This is useful when working with two overlapping rectilinear grids.
         // 

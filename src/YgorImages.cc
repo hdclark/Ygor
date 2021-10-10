@@ -5965,6 +5965,24 @@ planar_image_adjacency<T,R>::position_to_image(const vec3<R> &pos) const {
         planar_image_adjacency<float   ,double>::position_to_image(const vec3<double> &) const;
 #endif
 
+
+template <class T,class R>
+std::pair<long int, long int>
+planar_image_adjacency<T,R>::get_min_max_indices() const {
+    if(this->int_to_img.empty()){
+        throw std::logic_error("Index is empty, no images are present, cannot get min/max indices.");
+    }
+    return std::make_pair<long int, long int>( 0L, static_cast<long int>(this->int_to_img.size()) - 1L );
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::pair<long int, long int> planar_image_adjacency<uint8_t ,double>:: get_min_max_indices() const;
+    template std::pair<long int, long int> planar_image_adjacency<uint16_t,double>:: get_min_max_indices() const;
+    template std::pair<long int, long int> planar_image_adjacency<uint32_t,double>:: get_min_max_indices() const;
+    template std::pair<long int, long int> planar_image_adjacency<uint64_t,double>:: get_min_max_indices() const;
+    template std::pair<long int, long int> planar_image_adjacency<float   ,double>:: get_min_max_indices() const;
+#endif
+
+
 template <class T,class R>
 std::list< std::reference_wrapper< planar_image<T,R> > >
 planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
