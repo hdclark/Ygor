@@ -8,6 +8,7 @@
 #include <sstream>
 #include <cstdlib>  //Needed for popen, pclose.
 #include <string>
+#include <array>
 //#include <ctime>    //Needed for gen_time_random().
 #include <climits>  //Needed for CHAR_BIT.
 #include <limits>
@@ -369,20 +370,19 @@ Execute_Command_In_Pipe(const std::string &cmd){
     if(pipe == nullptr) return out;
 
     ssize_t nbytes;
-    const long int buffsz = 5000;
-    char buff[buffsz];
+    std::array<char, 5000> buff;
 
 #ifdef EAGAIN
-    while( ((nbytes = read(fileno(pipe), buff, buffsz)) != -1)  || (errno == EAGAIN) ){
+    while( ((nbytes = read(fileno(pipe), buff.data(), buff.size()-1)) != -1)  || (errno == EAGAIN) ){
 #else
-    while( ((nbytes = read(fileno(pipe), buff, buffsz)) != -1) ){
+    while( ((nbytes = read(fileno(pipe), buff.data(), buff.size()-1)) != -1) ){
 #endif
         //Check if we have reached the end of the file (ie. "data has run out.")
         if( nbytes == 0 ) break;
 
         //Otherwise we fill up the buffer to the high-water mark and move on.
-        buff[nbytes] = '\0';
-        out += std::string(buff,nbytes); //This is done so that in-buffer '\0's don't confuse = operator.
+        buff.back() = '\0';
+        out += std::string(buff.data(), nbytes); //This is done so that in-buffer '\0's don't confuse = operator.
     }
     pclose(pipe);
     return out;
