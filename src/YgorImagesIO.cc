@@ -112,6 +112,7 @@ Dump_Pixels(const planar_image<T,R> &img,
     template bool Dump_Pixels(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
     template bool Dump_Pixels(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
     template bool Dump_Pixels(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
+    template bool Dump_Pixels(const planar_image<double  ,double> &, const std::string &, YgorEndianness);
 #endif
 
 
@@ -186,6 +187,8 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                                                     YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, uint8_t >(const planar_image<float   ,double> &, const std::string &, 
                                                     YgorImageIOPixelScaling, YgorEndianness);
+    template bool Dump_Casted_Scaled_Pixels<double  ,double, uint8_t >(const planar_image<double  ,double> &, const std::string &, 
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, uint16_t>(const planar_image<uint8_t ,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
@@ -196,6 +199,8 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, uint16_t>(const planar_image<uint64_t,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, uint16_t>(const planar_image<float   ,double> &, const std::string &,    
+                                                    YgorImageIOPixelScaling, YgorEndianness);
+    template bool Dump_Casted_Scaled_Pixels<double  ,double, uint16_t>(const planar_image<double  ,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, float   >(const planar_image<uint8_t ,double> &, const std::string &,    
@@ -208,6 +213,8 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                                                     YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, float   >(const planar_image<float   ,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
+    template bool Dump_Casted_Scaled_Pixels<double  ,double, float   >(const planar_image<double  ,double> &, const std::string &,    
+                                                    YgorImageIOPixelScaling, YgorEndianness);
 
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, double  >(const planar_image<uint8_t ,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
@@ -218,6 +225,8 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
     template bool Dump_Casted_Scaled_Pixels<uint64_t,double, double  >(const planar_image<uint64_t,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<float   ,double, double  >(const planar_image<float   ,double> &, const std::string &,    
+                                                    YgorImageIOPixelScaling, YgorEndianness);
+    template bool Dump_Casted_Scaled_Pixels<double  ,double, double  >(const planar_image<double  ,double> &, const std::string &,    
                                                     YgorImageIOPixelScaling, YgorEndianness);
 #endif
 
@@ -377,6 +386,7 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
     template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<double  ,double> &, const std::string &, YgorEndianness);
 #endif
 
 
@@ -709,5 +719,6 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     template planar_image<uint32_t,double> ReadFromFITS(const std::string &, YgorEndianness);
     template planar_image<uint64_t,double> ReadFromFITS(const std::string &, YgorEndianness);
     template planar_image<float   ,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<double  ,double> ReadFromFITS(const std::string &, YgorEndianness);
 #endif
 

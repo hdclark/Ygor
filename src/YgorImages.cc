@@ -51,6 +51,7 @@ template <class T, class R> planar_image<T,R>::planar_image(){
     template planar_image<uint32_t,double>::planar_image(void);
     template planar_image<uint64_t,double>::planar_image(void);
     template planar_image<float   ,double>::planar_image(void);
+    template planar_image<double  ,double>::planar_image(void);
 #endif
 
 template <class T, class R> planar_image<T,R>::planar_image(const planar_image<T,R> &in){
@@ -62,6 +63,7 @@ template <class T, class R> planar_image<T,R>::planar_image(const planar_image<T
     template planar_image<uint32_t,double>::planar_image(const planar_image<uint32_t,double> &in);
     template planar_image<uint64_t,double>::planar_image(const planar_image<uint64_t,double> &in);
     template planar_image<float   ,double>::planar_image(const planar_image<float   ,double> &in);
+    template planar_image<double  ,double>::planar_image(const planar_image<double  ,double> &in);
 #endif
 
 
@@ -72,6 +74,7 @@ template <class T, class R> planar_image<T,R>::~planar_image(){ }
     template planar_image<uint32_t,double>::~planar_image(void);
     template planar_image<uint64_t,double>::~planar_image(void);
     template planar_image<float   ,double>::~planar_image(void);
+    template planar_image<double  ,double>::~planar_image(void);
 #endif
 
 
@@ -92,6 +95,7 @@ template <class T, class R> void planar_image<T,R>::init_buffer(long int rows, l
     template void planar_image<uint32_t,double>::init_buffer(long int rows, long int cols, long int chnls);
     template void planar_image<uint64_t,double>::init_buffer(long int rows, long int cols, long int chnls);
     template void planar_image<float   ,double>::init_buffer(long int rows, long int cols, long int chnls);
+    template void planar_image<double  ,double>::init_buffer(long int rows, long int cols, long int chnls);
 #endif
 
 
@@ -110,6 +114,7 @@ template <class T, class R> void planar_image<T,R>::init_spatial(R pxldx, R pxld
     template void planar_image<uint32_t,double>::init_spatial(double pxldx, double pxldy, double pxldz, const vec3<double> &anchr, const vec3<double> &offst);
     template void planar_image<uint64_t,double>::init_spatial(double pxldx, double pxldy, double pxldz, const vec3<double> &anchr, const vec3<double> &offst);
     template void planar_image<float   ,double>::init_spatial(double pxldx, double pxldy, double pxldz, const vec3<double> &anchr, const vec3<double> &offst);
+    template void planar_image<double  ,double>::init_spatial(double pxldx, double pxldy, double pxldz, const vec3<double> &anchr, const vec3<double> &offst);
 #endif
 
 template <class T, class R> void planar_image<T,R>::init_orientation(const vec3<R> &rowunit, const vec3<R> &colunit){
@@ -123,6 +128,7 @@ template <class T, class R> void planar_image<T,R>::init_orientation(const vec3<
     template void planar_image<uint32_t,double>::init_orientation(const vec3<double> &rowunit, const vec3<double> &colunit);
     template void planar_image<uint64_t,double>::init_orientation(const vec3<double> &rowunit, const vec3<double> &colunit);
     template void planar_image<float   ,double>::init_orientation(const vec3<double> &rowunit, const vec3<double> &colunit);
+    template void planar_image<double  ,double>::init_orientation(const vec3<double> &rowunit, const vec3<double> &colunit);
 #endif
 
 
@@ -142,6 +148,7 @@ template <class T,class R> planar_image<T,R> & planar_image<T,R>::operator=(cons
     template planar_image<uint32_t,double> & planar_image<uint32_t,double>::operator=(const planar_image<uint32_t,double> &rhs);
     template planar_image<uint64_t,double> & planar_image<uint64_t,double>::operator=(const planar_image<uint64_t,double> &rhs);
     template planar_image<float   ,double> & planar_image<float   ,double>::operator=(const planar_image<float   ,double> &rhs);
+    template planar_image<double  ,double> & planar_image<double  ,double>::operator=(const planar_image<double  ,double> &rhs);
 #endif
 
 
@@ -165,26 +172,37 @@ template <class U> planar_image<T,R> & planar_image<T,R>::cast_from(const planar
     template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<uint32_t,double> &rhs);
     template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<uint64_t,double> &rhs);
     template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<float   ,double> &rhs);
+    template planar_image<uint8_t ,double> & planar_image<uint8_t ,double>::cast_from(const planar_image<double  ,double> &rhs);
 
     template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
     template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint32_t,double> &rhs);
     template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<uint64_t,double> &rhs);
     template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+    template planar_image<uint16_t,double> & planar_image<uint16_t,double>::cast_from(const planar_image<double  ,double> &rhs);
 
     template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
     template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint16_t,double> &rhs);
     template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<uint64_t,double> &rhs);
     template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+    template planar_image<uint32_t,double> & planar_image<uint32_t,double>::cast_from(const planar_image<double  ,double> &rhs);
 
     template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
     template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint16_t,double> &rhs);
     template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<uint32_t,double> &rhs);
     template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<float   ,double> &rhs);
+    template planar_image<uint64_t,double> & planar_image<uint64_t,double>::cast_from(const planar_image<double  ,double> &rhs);
 
     template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
     template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint16_t,double> &rhs);
     template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint32_t,double> &rhs);
     template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+    template planar_image<float   ,double> & planar_image<float   ,double>::cast_from(const planar_image<double  ,double> &rhs);
+
+    template planar_image<double  ,double> & planar_image<double  ,double>::cast_from(const planar_image<uint8_t ,double> &rhs);
+    template planar_image<double  ,double> & planar_image<double  ,double>::cast_from(const planar_image<uint16_t,double> &rhs);
+    template planar_image<double  ,double> & planar_image<double  ,double>::cast_from(const planar_image<uint32_t,double> &rhs);
+    template planar_image<double  ,double> & planar_image<double  ,double>::cast_from(const planar_image<uint64_t,double> &rhs);
+    template planar_image<double  ,double> & planar_image<double  ,double>::cast_from(const planar_image<float   ,double> &rhs);
 #endif
 
 template <class T,class R> bool planar_image<T,R>::operator==(const planar_image<T,R> &rhs) const {
@@ -198,6 +216,7 @@ template <class T,class R> bool planar_image<T,R>::operator==(const planar_image
     template bool planar_image<uint32_t,double>::operator==(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::operator==(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::operator==(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::operator==(const planar_image<double  ,double> &rhs) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::operator!=(const planar_image<T,R> &rhs) const {
@@ -209,6 +228,7 @@ template <class T,class R> bool planar_image<T,R>::operator!=(const planar_image
     template bool planar_image<uint32_t,double>::operator!=(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::operator!=(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::operator!=(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::operator!=(const planar_image<double  ,double> &rhs) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::operator<(const planar_image<T,R> &rhs) const {
@@ -238,6 +258,7 @@ template <class T,class R> bool planar_image<T,R>::operator<(const planar_image<
     template bool planar_image<uint32_t,double>::operator<(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::operator<(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::operator<(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::operator<(const planar_image<double  ,double> &rhs) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::Spatially_eq(const planar_image<T,R> &rhs) const {
@@ -267,6 +288,7 @@ template <class T,class R> bool planar_image<T,R>::Spatially_eq(const planar_ima
     template bool planar_image<uint32_t,double>::Spatially_eq(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::Spatially_eq(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::Spatially_eq(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::Spatially_eq(const planar_image<double  ,double> &rhs) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::Spatially_lt(const planar_image<T,R> &rhs) const {
@@ -314,6 +336,7 @@ template <class T,class R> bool planar_image<T,R>::Spatially_lt(const planar_ima
     template bool planar_image<uint32_t,double>::Spatially_lt(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::Spatially_lt(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::Spatially_lt(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::Spatially_lt(const planar_image<double  ,double> &rhs) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::Spatially_lte(const planar_image<T,R> &rhs) const {
@@ -331,6 +354,7 @@ template <class T,class R> bool planar_image<T,R>::Spatially_lte(const planar_im
     template bool planar_image<uint32_t,double>::Spatially_lte(const planar_image<uint32_t,double> &rhs) const;
     template bool planar_image<uint64_t,double>::Spatially_lte(const planar_image<uint64_t,double> &rhs) const;
     template bool planar_image<float   ,double>::Spatially_lte(const planar_image<float   ,double> &rhs) const;
+    template bool planar_image<double  ,double>::Spatially_lte(const planar_image<double  ,double> &rhs) const;
 #endif
 
 
@@ -348,6 +372,7 @@ template <class T, class R> long int planar_image<T,R>::index(long int row, long
     template long int planar_image<uint32_t,double>::index(long int r, long int c) const;
     template long int planar_image<uint64_t,double>::index(long int r, long int c) const;
     template long int planar_image<float   ,double>::index(long int r, long int c) const;
+    template long int planar_image<double  ,double>::index(long int r, long int c) const;
 #endif
 
 template <class T, class R> long int planar_image<T,R>::index(long int row, long int col, long int chnl) const {
@@ -364,6 +389,7 @@ template <class T, class R> long int planar_image<T,R>::index(long int row, long
     template long int planar_image<uint32_t,double>::index(long int row, long int col, long int chnl) const;
     template long int planar_image<uint64_t,double>::index(long int row, long int col, long int chnl) const;
     template long int planar_image<float   ,double>::index(long int row, long int col, long int chnl) const;
+    template long int planar_image<double  ,double>::index(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T, class R> long int planar_image<T,R>::index(const vec3<R> &point, long int chnl) const {
@@ -396,6 +422,7 @@ template <class T, class R> long int planar_image<T,R>::index(const vec3<R> &poi
     template long int planar_image<uint32_t,double>::index(const vec3<double> &point, long int chnl) const;
     template long int planar_image<uint64_t,double>::index(const vec3<double> &point, long int chnl) const;
     template long int planar_image<float   ,double>::index(const vec3<double> &point, long int chnl) const;
+    template long int planar_image<double  ,double>::index(const vec3<double> &point, long int chnl) const;
 #endif
 
 //Work backward from the index to get row, column, or channel.
@@ -421,6 +448,7 @@ template <class T, class R> std::tuple<long int,long int,long int> planar_image<
     template std::tuple<long int,long int,long int> planar_image<uint32_t,double>::row_column_channel_from_index(long int index) const;
     template std::tuple<long int,long int,long int> planar_image<uint64_t,double>::row_column_channel_from_index(long int index) const;
     template std::tuple<long int,long int,long int> planar_image<float   ,double>::row_column_channel_from_index(long int index) const;
+    template std::tuple<long int,long int,long int> planar_image<double  ,double>::row_column_channel_from_index(long int index) const;
 #endif
 
 //Compute fractional row and column numbers when a point in R^3 is known. Throws if out of bounds. This routine is
@@ -456,6 +484,7 @@ template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_co
     template std::pair<double,double> planar_image<uint32_t,double>::fractional_row_column(const vec3<double> &) const;
     template std::pair<double,double> planar_image<uint64_t,double>::fractional_row_column(const vec3<double> &) const;
     template std::pair<double,double> planar_image<float   ,double>::fractional_row_column(const vec3<double> &) const;
+    template std::pair<double,double> planar_image<double  ,double>::fractional_row_column(const vec3<double> &) const;
 #endif
 
 //Channel-value getters.
@@ -473,6 +502,7 @@ template <class T, class R> T planar_image<T,R>::value(long int row, long int co
     template uint32_t planar_image<uint32_t,double>::value(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::value(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::value(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::value(long int row, long int col, long int chnl) const;
 #endif
 
 //Returns the value of the voxel which contains the point. If the voxel does not exist an exception is thrown.
@@ -491,6 +521,7 @@ template <class T, class R> T planar_image<T,R>::value(const vec3<R> &point, lon
     template uint32_t planar_image<uint32_t,double>::value(const vec3<double> &point, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::value(const vec3<double> &point, long int chnl) const;
     template float    planar_image<float   ,double>::value(const vec3<double> &point, long int chnl) const;
+    template double   planar_image<double  ,double>::value(const vec3<double> &point, long int chnl) const;
 #endif
 
 //Returns the value of the voxel which contains the point. If the voxel does not exist an exception is thrown.
@@ -509,6 +540,7 @@ template <class T, class R> T planar_image<T,R>::value(long int userindex) const
     template uint32_t planar_image<uint32_t,double>::value(long int indx) const;
     template uint64_t planar_image<uint64_t,double>::value(long int indx) const;
     template float    planar_image<float   ,double>::value(long int indx) const;
+    template double   planar_image<double  ,double>::value(long int indx) const;
 #endif
 
 
@@ -528,6 +560,7 @@ template <class T,class R> T& planar_image<T,R>::reference(long int row, long in
     template uint32_t & planar_image<uint32_t,double>::reference(long int row, long int col, long int chnl);
     template uint64_t & planar_image<uint64_t,double>::reference(long int row, long int col, long int chnl);
     template float    & planar_image<float   ,double>::reference(long int row, long int col, long int chnl);
+    template double   & planar_image<double  ,double>::reference(long int row, long int col, long int chnl);
 #endif
 
 template <class T,class R> T& planar_image<T,R>::reference(const vec3<R> &point, long int chnl){
@@ -543,6 +576,7 @@ template <class T,class R> T& planar_image<T,R>::reference(const vec3<R> &point,
     template uint32_t & planar_image<uint32_t,double>::reference(const vec3<double> &point, long int chnl);
     template uint64_t & planar_image<uint64_t,double>::reference(const vec3<double> &point, long int chnl);
     template float    & planar_image<float   ,double>::reference(const vec3<double> &point, long int chnl);
+    template double   & planar_image<double  ,double>::reference(const vec3<double> &point, long int chnl);
 #endif
 
 template <class T,class R> T& planar_image<T,R>::reference(long int userindex){
@@ -558,6 +592,7 @@ template <class T,class R> T& planar_image<T,R>::reference(long int userindex){
     template uint32_t & planar_image<uint32_t,double>::reference(long int indx);
     template uint64_t & planar_image<uint64_t,double>::reference(long int indx);
     template float    & planar_image<float   ,double>::reference(long int indx);
+    template double   & planar_image<double  ,double>::reference(long int indx);
 #endif
 
 template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
@@ -587,6 +622,7 @@ template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
     template void planar_image<uint32_t,double>::add_channel(uint32_t channel_value);
     template void planar_image<uint64_t,double>::add_channel(uint64_t channel_value);
     template void planar_image<float   ,double>::add_channel(float    channel_value);
+    template void planar_image<double  ,double>::add_channel(double   channel_value);
 #endif
 
 template <class T,class R> void planar_image<T,R>::remove_channel(long int channel_number){
@@ -625,6 +661,7 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
     template void planar_image<uint32_t,double>::remove_channel(long int channel_number);
     template void planar_image<uint64_t,double>::remove_channel(long int channel_number);
     template void planar_image<float   ,double>::remove_channel(long int channel_number);
+    template void planar_image<double  ,double>::remove_channel(long int channel_number);
 #endif
 
 template <class T,class R> void planar_image<T,R>::remove_all_channels_except(long int channel_number){
@@ -661,6 +698,7 @@ template <class T,class R> void planar_image<T,R>::remove_all_channels_except(lo
     template void planar_image<uint32_t,double>::remove_all_channels_except(long int channel_number);
     template void planar_image<uint64_t,double>::remove_all_channels_except(long int channel_number);
     template void planar_image<float   ,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<double  ,double>::remove_all_channels_except(long int channel_number);
 #endif
 
 
@@ -798,6 +836,7 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
     template uint32_t planar_image<uint32_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
     template float    planar_image<float   ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
+    template double   planar_image<double  ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
 #endif
 
 
@@ -835,6 +874,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
     template double planar_image<uint32_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
@@ -857,6 +897,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
     template double planar_image<uint32_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 
 // The Roberts (centred) cross derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
@@ -915,6 +956,7 @@ template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_
     template double planar_image<uint32_t,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const {
@@ -939,6 +981,7 @@ template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_
     template double planar_image<uint32_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -983,6 +1026,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3
     template double planar_image<uint32_t,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const {
@@ -1011,6 +1055,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivativ
     template double planar_image<uint32_t,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -1055,6 +1100,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3
     template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const {
@@ -1083,6 +1129,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const {
@@ -1147,6 +1194,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5
     template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const {
@@ -1197,6 +1245,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -1241,6 +1290,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x
     template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const {
@@ -1269,6 +1319,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const {
@@ -1333,6 +1384,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x
     template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const {
@@ -1383,6 +1435,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -1421,6 +1474,7 @@ template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_ce
     template double planar_image<uint32_t,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
     // NOTE: This routine computes $\partial_{r}^{2} P(row,col)$.
@@ -1442,6 +1496,7 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
     template double planar_image<uint32_t,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
     // Note: This routine computes $\partial_{r,c} P(row,col)$.
@@ -1467,6 +1522,7 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
     template double planar_image<uint32_t,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<uint64_t,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
     template double planar_image<float   ,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<double  ,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -1663,6 +1719,7 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     template uint32_t planar_image<uint32_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
     template float    planar_image<float   ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
+    template double   planar_image<double  ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
 #endif
 
 //Average a block of pixels. Boundaries are inclusive. Out-of-bounds parts are ignored. Negatives OK (they are just ignored).
@@ -1706,6 +1763,7 @@ planar_image<T,R>::block_average(long int row_min, long int row_max, long int co
     template uint32_t planar_image<uint32_t,double>::block_average(long int, long int, long int, long int, long int) const;
     template uint64_t planar_image<uint64_t,double>::block_average(long int, long int, long int, long int, long int) const;
     template float    planar_image<float   ,double>::block_average(long int, long int, long int, long int, long int) const;
+    template double   planar_image<double  ,double>::block_average(long int, long int, long int, long int, long int) const;
 #endif
 
 template <class T,class R> 
@@ -1748,6 +1806,7 @@ planar_image<T,R>::block_median(long int row_min, long int row_max, long int col
     template uint32_t planar_image<uint32_t,double>::block_median(long int, long int, long int, long int, long int) const;
     template uint64_t planar_image<uint64_t,double>::block_median(long int, long int, long int, long int, long int) const;
     template float    planar_image<float   ,double>::block_median(long int, long int, long int, long int, long int) const;
+    template double   planar_image<double  ,double>::block_median(long int, long int, long int, long int, long int) const;
 #endif
 
 //Approximate pixel-coordinate blurs using precomputed convolution kernel estimators.
@@ -1789,6 +1848,7 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int
     template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const {
@@ -1853,6 +1913,7 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int
     template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const {
@@ -1887,6 +1948,7 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row,
     template uint32_t planar_image<uint32_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const {
@@ -1951,6 +2013,7 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row,
     template uint32_t planar_image<uint32_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -1988,6 +2051,7 @@ template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, 
     template uint32_t planar_image<uint32_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
 #endif
 
 template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const {
@@ -2053,6 +2117,7 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int 
     template uint32_t planar_image<uint32_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
     template uint64_t planar_image<uint64_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
     template float    planar_image<float   ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template double   planar_image<double  ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
 #endif
 
 
@@ -2076,6 +2141,7 @@ template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const 
     template std::pair<uint32_t,uint32_t> planar_image<uint32_t,double>::minmax(void) const;
     template std::pair<uint64_t,uint64_t> planar_image<uint64_t,double>::minmax(void) const;
     template std::pair<float   ,float   > planar_image<float   ,double>::minmax(void) const;
+    template std::pair<double  ,double  > planar_image<double  ,double>::minmax(void) const;
 #endif
 
 
@@ -2098,6 +2164,7 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(long int chnl, T 
     template void planar_image<uint32_t,double>::fill_pixels(long int chnl, uint32_t val);
     template void planar_image<uint64_t,double>::fill_pixels(long int chnl, uint64_t val);
     template void planar_image<float   ,double>::fill_pixels(long int chnl, float    val);
+    template void planar_image<double  ,double>::fill_pixels(long int chnl, double   val);
 #endif
 
 //Set all pixel data (all channels) to the given value.
@@ -2121,6 +2188,7 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
     template void planar_image<uint32_t,double>::fill_pixels(uint32_t val);
     template void planar_image<uint64_t,double>::fill_pixels(uint64_t val);
     template void planar_image<float   ,double>::fill_pixels(float    val);
+    template void planar_image<double  ,double>::fill_pixels(double   val);
 #endif
 
 //Fill pixels above a given plane. Returns the number of affected pixels.
@@ -2149,6 +2217,7 @@ planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::se
     template long int planar_image<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
     template long int planar_image<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
     template long int planar_image<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
+    template long int planar_image<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<long int>);
 #endif
 
 //Apply a functor to individual pixels.
@@ -2170,6 +2239,7 @@ planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col
     template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
     template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
     template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   &val)>);
 #endif
 
 template<class T, class R>
@@ -2190,6 +2260,7 @@ planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col
     template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
     template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
     template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   val)>) const;
 #endif
 
 
@@ -2212,6 +2283,7 @@ planar_image<T,R>::replace_nonfinite_pixels_with(long int chnl, T val){
     template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(long int chnl, uint32_t val);
     template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(long int chnl, uint64_t val);
     template void planar_image<float   ,double>::replace_nonfinite_pixels_with(long int chnl, float    val);
+    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(long int chnl, double   val);
 #endif
 
 template <class T,class R>
@@ -2232,6 +2304,7 @@ planar_image<T,R>::replace_nonfinite_pixels_with(T val){
     template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(uint32_t val);
     template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(uint64_t val);
     template void planar_image<float   ,double>::replace_nonfinite_pixels_with(float    val);
+    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(double   val);
 #endif
 
 
@@ -2252,6 +2325,7 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, lon
     template vec3<double> planar_image<uint32_t,double>::position(long int row, long int col) const;
     template vec3<double> planar_image<uint64_t,double>::position(long int row, long int col) const;
     template vec3<double> planar_image<float   ,double>::position(long int row, long int col) const;
+    template vec3<double> planar_image<double  ,double>::position(long int row, long int col) const;
 #endif
 
 template <class T,class R> vec3<R> planar_image<T,R>::position(long int index) const {
@@ -2271,6 +2345,7 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int index) c
     template vec3<double> planar_image<uint32_t,double>::position(long int index) const;
     template vec3<double> planar_image<uint64_t,double>::position(long int index) const;
     template vec3<double> planar_image<float   ,double>::position(long int index) const;
+    template vec3<double> planar_image<double  ,double>::position(long int index) const;
 #endif
 
 
@@ -2309,6 +2384,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_point(const vec3<
     template bool planar_image<uint32_t,double>::encompasses_point(const vec3<double> &in) const;
     template bool planar_image<uint64_t,double>::encompasses_point(const vec3<double> &in) const;
     template bool planar_image<float   ,double>::encompasses_point(const vec3<double> &in) const;
+    template bool planar_image<double  ,double>::encompasses_point(const vec3<double> &in) const;
 #endif
 
 template <class T,class R> bool planar_image<T,R>::sandwiches_point_within_top_bottom_planes(const vec3<R> &in) const {
@@ -2325,6 +2401,7 @@ template <class T,class R> bool planar_image<T,R>::sandwiches_point_within_top_b
     template bool planar_image<uint32_t,double>::sandwiches_point_within_top_bottom_planes(const vec3<double> &in) const;
     template bool planar_image<uint64_t,double>::sandwiches_point_within_top_bottom_planes(const vec3<double> &in) const;
     template bool planar_image<float   ,double>::sandwiches_point_within_top_bottom_planes(const vec3<double> &in) const;
+    template bool planar_image<double  ,double>::sandwiches_point_within_top_bottom_planes(const vec3<double> &in) const;
 #endif
 
 //Determine if a contour is contained within the 3D volume of the image.
@@ -2341,6 +2418,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_contour_of_points
     template bool planar_image<uint32_t,double>::encompasses_contour_of_points(const contour_of_points<double> &in) const;
     template bool planar_image<uint64_t,double>::encompasses_contour_of_points(const contour_of_points<double> &in) const;
     template bool planar_image<float   ,double>::encompasses_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<double  ,double>::encompasses_contour_of_points(const contour_of_points<double> &in) const;
 #endif
 
 //Determine if at least one contour is fully contained within the 3D volume of the image.
@@ -2357,6 +2435,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_any_contour_in_co
     template bool planar_image<uint32_t,double>::encompasses_any_contour_in_collection(const contour_collection<double> &in) const;
     template bool planar_image<uint64_t,double>::encompasses_any_contour_in_collection(const contour_collection<double> &in) const;
     template bool planar_image<float   ,double>::encompasses_any_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<double  ,double>::encompasses_any_contour_in_collection(const contour_collection<double> &in) const;
 #endif
 
 //Determine if any vertex from a contour is contained within the 3D volume of the image.
@@ -2373,6 +2452,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_any_of_contour_of
     template bool planar_image<uint32_t,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
     template bool planar_image<uint64_t,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
     template bool planar_image<float   ,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
+    template bool planar_image<double  ,double>::encompasses_any_of_contour_of_points(const contour_of_points<double> &in) const;
 #endif
 
 //Determine if at least one contour is partially contained within the 3D volume of the image.
@@ -2388,6 +2468,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_any_part_of_conto
     template bool planar_image<uint32_t,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
     template bool planar_image<uint64_t,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
     template bool planar_image<float   ,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
+    template bool planar_image<double  ,double>::encompasses_any_part_of_contour_in_collection(const contour_collection<double> &in) const;
 #endif
 
 //Clip the provided contours to the (six) image boundaries.
@@ -2466,6 +2547,8 @@ planar_image<T,R>::clip_to_volume(contour_collection<R> cs) const {
         planar_image<uint64_t,double>::clip_to_volume(contour_collection<double> in) const;
     template contour_collection<double>
         planar_image<float   ,double>::clip_to_volume(contour_collection<double> in) const;
+    template contour_collection<double>
+        planar_image<double  ,double>::clip_to_volume(contour_collection<double> in) const;
 #endif
 
 
@@ -2484,6 +2567,7 @@ template <class T,class R> vec3<R> planar_image<T,R>::center(void) const {
     template vec3<double> planar_image<uint32_t,double>::center(void) const;
     template vec3<double> planar_image<uint64_t,double>::center(void) const;
     template vec3<double> planar_image<float   ,double>::center(void) const;
+    template vec3<double> planar_image<double  ,double>::center(void) const;
 #endif
 
 //Returns the volume occupied by the image.
@@ -2501,6 +2585,7 @@ template <class T,class R> R planar_image<T,R>::volume(void) const {
     template double planar_image<uint32_t,double>::volume(void) const;
     template double planar_image<uint64_t,double>::volume(void) const;
     template double planar_image<float   ,double>::volume(void) const;
+    template double planar_image<double  ,double>::volume(void) const;
 #endif
 
 
@@ -2534,6 +2619,7 @@ template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void)
     template std::list<vec3<double>> planar_image<uint32_t,double>::corners2D(void) const;
     template std::list<vec3<double>> planar_image<uint64_t,double>::corners2D(void) const;
     template std::list<vec3<double>> planar_image<float   ,double>::corners2D(void) const;
+    template std::list<vec3<double>> planar_image<double  ,double>::corners2D(void) const;
 #endif
 
 //Returns the plane that the image resides in. Useful for is_point_in_poly routines.
@@ -2550,6 +2636,7 @@ template <class T,class R> plane<R> planar_image<T,R>::image_plane(void) const {
     template plane<double> planar_image<uint32_t,double>::image_plane(void) const;
     template plane<double> planar_image<uint64_t,double>::image_plane(void) const;
     template plane<double> planar_image<float   ,double>::image_plane(void) const;
+    template plane<double> planar_image<double  ,double>::image_plane(void) const;
 #endif
 
 
@@ -2580,6 +2667,7 @@ template <class T,class R> bool planar_image<T,R>::encloses_2D_planar_image(cons
     template bool planar_image<uint32_t,double>::encloses_2D_planar_image(const planar_image<uint32_t,double> &in) const;
     template bool planar_image<uint64_t,double>::encloses_2D_planar_image(const planar_image<uint64_t,double> &in) const;
     template bool planar_image<float   ,double>::encloses_2D_planar_image(const planar_image<float   ,double> &in) const;
+    template bool planar_image<double  ,double>::encloses_2D_planar_image(const planar_image<double  ,double> &in) const;
 #endif
 
 //Returns (R)(1.0) for perfect spatial overlap, (R)(0.0) for no spatial overlap.
@@ -2599,6 +2687,7 @@ template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Co
     template double planar_image<uint32_t,double>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<uint32_t,double> &in) const;
     template double planar_image<uint64_t,double>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<uint64_t,double> &in) const;
     template double planar_image<float   ,double>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<float   ,double> &in) const;
+    template double planar_image<double  ,double>::Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<double  ,double> &in) const;
 #endif
 
 
@@ -2695,6 +2784,7 @@ template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<
     template bool planar_image<uint32_t,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
     template bool planar_image<uint64_t,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
     template bool planar_image<float   ,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
+    template bool planar_image<double  ,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
 #endif
 
 
@@ -2708,6 +2798,7 @@ template <class T,class R> bool planar_image<T,R>::MetadataKeyPresent(std::strin
     template bool planar_image<uint32_t,double>::MetadataKeyPresent(std::string key) const;
     template bool planar_image<uint64_t,double>::MetadataKeyPresent(std::string key) const;
     template bool planar_image<float   ,double>::MetadataKeyPresent(std::string key) const;
+    template bool planar_image<double  ,double>::MetadataKeyPresent(std::string key) const;
 #endif
 
 //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
@@ -2726,30 +2817,35 @@ planar_image<T,R>::GetMetadataValueAs(std::string key) const {
     template std::optional<uint32_t> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<uint32_t> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<uint32_t> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<uint32_t> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<long int> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<long int> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<long int> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<long int> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<long int> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<long int> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<float> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<float> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<float> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<float> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<float> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<float> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<double> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<double> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<double> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<double> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<double> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<double> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<std::string> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<std::string> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<std::string> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<std::string> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<std::string> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<std::string> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 #endif
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -2762,6 +2858,7 @@ template <class T,class R> planar_image_collection<T,R>::planar_image_collection
     template planar_image_collection<uint32_t,double>::planar_image_collection();
     template planar_image_collection<uint64_t,double>::planar_image_collection();
     template planar_image_collection<float   ,double>::planar_image_collection();
+    template planar_image_collection<double  ,double>::planar_image_collection();
 #endif
 
 template <class T,class R> planar_image_collection<T,R>::planar_image_collection(const planar_image_collection<T,R> &in) : images(in.images) {}
@@ -2771,6 +2868,7 @@ template <class T,class R> planar_image_collection<T,R>::planar_image_collection
     template planar_image_collection<uint32_t,double>::planar_image_collection(const planar_image_collection<uint32_t,double> &in);
     template planar_image_collection<uint64_t,double>::planar_image_collection(const planar_image_collection<uint64_t,double> &in);
     template planar_image_collection<float   ,double>::planar_image_collection(const planar_image_collection<float   ,double> &in);
+    template planar_image_collection<double  ,double>::planar_image_collection(const planar_image_collection<double  ,double> &in);
 #endif
 
 template <class T,class R> planar_image_collection<T,R>::planar_image_collection(std::list<planar_image<T,R>> in) : images(std::move(in)) {}
@@ -2780,6 +2878,7 @@ template <class T,class R> planar_image_collection<T,R>::planar_image_collection
     template planar_image_collection<uint32_t,double>::planar_image_collection(std::list<planar_image<uint32_t,double>> in);
     template planar_image_collection<uint64_t,double>::planar_image_collection(std::list<planar_image<uint64_t,double>> in);
     template planar_image_collection<float   ,double>::planar_image_collection(std::list<planar_image<float   ,double>> in);
+    template planar_image_collection<double  ,double>::planar_image_collection(std::list<planar_image<double  ,double>> in);
 #endif
 
 //Member functions.
@@ -2794,6 +2893,7 @@ template <class T,class R> planar_image_collection<T,R> & planar_image_collectio
     template planar_image_collection<uint32_t,double> & planar_image_collection<uint32_t,double>::operator=(const planar_image_collection<uint32_t,double> &in);
     template planar_image_collection<uint64_t,double> & planar_image_collection<uint64_t,double>::operator=(const planar_image_collection<uint64_t,double> &in);
     template planar_image_collection<float   ,double> & planar_image_collection<float   ,double>::operator=(const planar_image_collection<float   ,double> &in);
+    template planar_image_collection<double  ,double> & planar_image_collection<double  ,double>::operator=(const planar_image_collection<double  ,double> &in);
 #endif
 
 template <class T,class R> bool planar_image_collection<T,R>::operator==(const planar_image_collection<T,R> &in) const {
@@ -2812,6 +2912,7 @@ template <class T,class R> bool planar_image_collection<T,R>::operator==(const p
     template bool planar_image_collection<uint32_t,double>::operator==(const planar_image_collection<uint32_t,double> &in) const;
     template bool planar_image_collection<uint64_t,double>::operator==(const planar_image_collection<uint64_t,double> &in) const;
     template bool planar_image_collection<float   ,double>::operator==(const planar_image_collection<float   ,double> &in) const;
+    template bool planar_image_collection<double  ,double>::operator==(const planar_image_collection<double  ,double> &in) const;
 #endif
 
 template <class T,class R> bool planar_image_collection<T,R>::operator!=(const planar_image_collection<T,R> &in) const {
@@ -2823,6 +2924,7 @@ template <class T,class R> bool planar_image_collection<T,R>::operator!=(const p
     template bool planar_image_collection<uint32_t,double>::operator!=(const planar_image_collection<uint32_t,double> &in) const;
     template bool planar_image_collection<uint64_t,double>::operator!=(const planar_image_collection<uint64_t,double> &in) const;
     template bool planar_image_collection<float   ,double>::operator!=(const planar_image_collection<float   ,double> &in) const;
+    template bool planar_image_collection<double  ,double>::operator!=(const planar_image_collection<double  ,double> &in) const;
 #endif
 
 template <class T,class R> bool planar_image_collection<T,R>::operator<(const planar_image_collection<T,R> &rhs) const {
@@ -2838,6 +2940,7 @@ template <class T,class R> bool planar_image_collection<T,R>::operator<(const pl
     template bool planar_image_collection<uint32_t,double>::operator<(const planar_image_collection<uint32_t,double> &in) const;
     template bool planar_image_collection<uint64_t,double>::operator<(const planar_image_collection<uint64_t,double> &in) const;
     template bool planar_image_collection<float   ,double>::operator<(const planar_image_collection<float   ,double> &in) const;
+    template bool planar_image_collection<double  ,double>::operator<(const planar_image_collection<double  ,double> &in) const;
 #endif
 
 template <class T,class R> void planar_image_collection<T,R>::Swap(planar_image_collection<T,R> &rhs){
@@ -2851,6 +2954,7 @@ template <class T,class R> void planar_image_collection<T,R>::Swap(planar_image_
     template void planar_image_collection<uint32_t,double>::Swap(planar_image_collection<uint32_t,double> &in);
     template void planar_image_collection<uint64_t,double>::Swap(planar_image_collection<uint64_t,double> &in);
     template void planar_image_collection<float   ,double>::Swap(planar_image_collection<float   ,double> &in);
+    template void planar_image_collection<double  ,double>::Swap(planar_image_collection<double  ,double> &in);
 #endif
 
 
@@ -2877,6 +2981,8 @@ template <class T,class R> void planar_image_collection<T,R>::Stable_Sort(std::f
         std::function<bool(const planar_image<uint64_t,double> &lhs, const planar_image<uint64_t,double> &rhs)>);
     template void planar_image_collection<float   ,double>::Stable_Sort(
         std::function<bool(const planar_image<float   ,double> &lhs, const planar_image<float   ,double> &rhs)>);
+    template void planar_image_collection<double  ,double>::Stable_Sort(
+        std::function<bool(const planar_image<double  ,double> &lhs, const planar_image<double  ,double> &rhs)>);
 #endif
 
 
@@ -2917,12 +3023,14 @@ void planar_image_collection<T,R>::Stable_Sort_on_Metadata_Keys_Value_Numeric(co
     template void planar_image_collection<uint32_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
     template void planar_image_collection<uint64_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
     template void planar_image_collection<float   ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
+    template void planar_image_collection<double  ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
 
     template void planar_image_collection<uint8_t ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
     template void planar_image_collection<uint16_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
     template void planar_image_collection<uint32_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
     template void planar_image_collection<uint64_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
     template void planar_image_collection<float   ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
+    template void planar_image_collection<double  ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
 #endif
 
 template <class T,class R> void planar_image_collection<T,R>::Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &thekey){
@@ -2961,6 +3069,7 @@ template <class T,class R> void planar_image_collection<T,R>::Stable_Sort_on_Met
     template void planar_image_collection<uint32_t,double>::Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &);
     template void planar_image_collection<uint64_t,double>::Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &);
     template void planar_image_collection<float   ,double>::Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &);
+    template void planar_image_collection<double  ,double>::Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &);
 #endif
 
 //Generate a stable-ordered list of iterators to images. Be careful not to invalidate the data after calling these.
@@ -2979,6 +3088,7 @@ template <class T,class R> std::list<typename std::list<planar_image<T,R>>::iter
     template std::list<typename std::list<planar_image<uint32_t,double>>::iterator>  planar_image_collection<uint32_t,double>::get_all_images(void);
     template std::list<typename std::list<planar_image<uint64_t,double>>::iterator>  planar_image_collection<uint64_t,double>::get_all_images(void);
     template std::list<typename std::list<planar_image<float   ,double>>::iterator>  planar_image_collection<float   ,double>::get_all_images(void);
+    template std::list<typename std::list<planar_image<double  ,double>>::iterator>  planar_image_collection<double  ,double>::get_all_images(void);
 #endif
 
 //Generate a stable-ordered list of iterators to images. Be careful not to invalidate the data after calling these.
@@ -3005,6 +3115,8 @@ planar_image_collection<T,R>::get_images_satisfying(std::function<bool(const pla
                                planar_image_collection<uint64_t,double>::get_images_satisfying(std::function<bool(const planar_image<uint64_t,double> &)> pred);
     template std::list<typename std::list<planar_image<float   ,double>>::iterator>  
                                planar_image_collection<float   ,double>::get_images_satisfying(std::function<bool(const planar_image<float   ,double> &)> pred);
+    template std::list<typename std::list<planar_image<double  ,double>>::iterator>  
+                               planar_image_collection<double  ,double>::get_images_satisfying(std::function<bool(const planar_image<double  ,double> &)> pred);
 #endif
 
 
@@ -3028,6 +3140,8 @@ planar_image_collection<T,R>::get_images_which_encompass_point(const vec3<R> &in
         planar_image_collection<uint64_t,double>::get_images_which_encompass_point(const vec3<double> &in);
     template std::list<typename std::list<planar_image<float   ,double>>::iterator> 
         planar_image_collection<float   ,double>::get_images_which_encompass_point(const vec3<double> &in);
+    template std::list<typename std::list<planar_image<double  ,double>>::iterator> 
+        planar_image_collection<double  ,double>::get_images_which_encompass_point(const vec3<double> &in);
 #endif
 
 //Generate a stable-ordered list of iterators to images. Be careful not to invalidate the data after calling these.
@@ -3053,6 +3167,8 @@ planar_image_collection<T,R>::get_images_which_encompass_all_points(const std::l
         planar_image_collection<uint64_t,double>::get_images_which_encompass_all_points(const std::list<vec3<double>> &in);
     template std::list<typename std::list<planar_image<float   ,double>>::iterator>
         planar_image_collection<float   ,double>::get_images_which_encompass_all_points(const std::list<vec3<double>> &in);
+    template std::list<typename std::list<planar_image<double  ,double>>::iterator>
+        planar_image_collection<double  ,double>::get_images_which_encompass_all_points(const std::list<vec3<double>> &in);
 #endif
 
 
@@ -3077,6 +3193,8 @@ planar_image_collection<T,R>::get_images_which_sandwich_point_within_top_bottom_
         planar_image_collection<uint64_t,double>::get_images_which_sandwich_point_within_top_bottom_planes(const vec3<double> &in);
     template std::list<typename std::list<planar_image<float   ,double>>::iterator> 
         planar_image_collection<float   ,double>::get_images_which_sandwich_point_within_top_bottom_planes(const vec3<double> &in);
+    template std::list<typename std::list<planar_image<double  ,double>>::iterator> 
+        planar_image_collection<double  ,double>::get_images_which_sandwich_point_within_top_bottom_planes(const vec3<double> &in);
 #endif
 
 //Returns two lists of pointers to images which are nearest and either above (pair.first) or below (pair.second) the
@@ -3144,6 +3262,10 @@ planar_image_collection<T,R>::get_nearest_images_above_below_not_encompassing_im
                         std::list<typename std::list<planar_image<float   ,double>>::iterator> >
         planar_image_collection<float   ,double>::get_nearest_images_above_below_not_encompassing_image(
             const planar_image<float   ,double> & );
+    template std::pair< std::list<typename std::list<planar_image<double  ,double>>::iterator>,
+                        std::list<typename std::list<planar_image<double  ,double>>::iterator> >
+        planar_image_collection<double  ,double>::get_nearest_images_above_below_not_encompassing_image(
+            const planar_image<double  ,double> & );
 #endif
 
 //Returns the metadata key-values that are "common" (i.e., identical among all images).
@@ -3192,6 +3314,8 @@ planar_image_collection<T,R>::get_common_metadata(const std::list<images_list_it
         planar_image_collection<uint64_t,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
     template std::map<std::string,std::string> 
         planar_image_collection<float   ,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
+    template std::map<std::string,std::string> 
+        planar_image_collection<double  ,double>::get_common_metadata(const std::list<images_list_it_t> &) const;
 #endif
 
 //Returns a copy of all values that correspond to the given key. Order is maintained.
@@ -3218,6 +3342,8 @@ planar_image_collection<T,R>::get_all_values_for_key(const std::string &akey) co
         planar_image_collection<uint64_t,double>::get_all_values_for_key(const std::string &) const;
     template std::list<std::string>
         planar_image_collection<float   ,double>::get_all_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<double  ,double>::get_all_values_for_key(const std::string &) const;
 #endif
 
 //Returns a copy of all distinct values that correspond to the given key. Original order is maintained.
@@ -3249,6 +3375,8 @@ planar_image_collection<T,R>::get_distinct_values_for_key(const std::string &ake
         planar_image_collection<uint64_t,double>::get_distinct_values_for_key(const std::string &) const;
     template std::list<std::string>
         planar_image_collection<float   ,double>::get_distinct_values_for_key(const std::string &) const;
+    template std::list<std::string>
+        planar_image_collection<double  ,double>::get_distinct_values_for_key(const std::string &) const;
 #endif
 
 //Image pruning/partitioning routine. Returns 'pruned' images; retains the rest. If pruning predicate is true, image is pruned.
@@ -3285,6 +3413,8 @@ planar_image_collection<T,R>::Prune_Images_Satisfying(std::function<bool(const p
              planar_image_collection<uint64_t,double>::Prune_Images_Satisfying(std::function<bool(const planar_image<uint64_t,double> &animg)> pred);
     template planar_image_collection<float   ,double>
              planar_image_collection<float   ,double>::Prune_Images_Satisfying(std::function<bool(const planar_image<float   ,double> &animg)> pred);
+    template planar_image_collection<double  ,double>
+             planar_image_collection<double  ,double>::Prune_Images_Satisfying(std::function<bool(const planar_image<double  ,double> &animg)> pred);
 #endif
 
 //Image pruning/partitioning routine. Returns 'retained' images; prunes the rest. If retaining predicate evaluates to true, image is retained.
@@ -3320,6 +3450,8 @@ planar_image_collection<T,R>::Retain_Images_Satisfying(std::function<bool(const 
              planar_image_collection<uint64_t,double>::Retain_Images_Satisfying(std::function<bool(const planar_image<uint64_t,double> &animg)> pred);
     template planar_image_collection<float   ,double>
              planar_image_collection<float   ,double>::Retain_Images_Satisfying(std::function<bool(const planar_image<float   ,double> &animg)> pred);
+    template planar_image_collection<double  ,double>
+             planar_image_collection<double  ,double>::Retain_Images_Satisfying(std::function<bool(const planar_image<double  ,double> &animg)> pred);
 #endif
 
 //Generic routine for processing/combining groups of images into single images. Useful for spatial averaging, blurring, etc..
@@ -3547,6 +3679,18 @@ bool planar_image_collection<T,R>::Process_Images(
                   std::list<std::reference_wrapper<contour_collection<double>>>,
                   std::any )>,
          std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::any );
+
+    template bool planar_image_collection<double  ,double>::Process_Images(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t,
+                  std::reference_wrapper<planar_image_collection<double  ,double>> )>,
+         std::function<bool (images_list_it_t,
+                  std::list<images_list_it_t>,
+                  std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>,
+                  std::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::any );
 
@@ -3800,6 +3944,18 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
          std::list<std::reference_wrapper<contour_collection<double>>>,
          std::any );
 
+    template bool planar_image_collection<double  ,double>::Process_Images_Parallel(
+         std::function<typename std::list<images_list_it_t> (images_list_it_t,
+                  std::reference_wrapper<planar_image_collection<double  ,double>> )>,
+         std::function<bool (images_list_it_t,
+                  std::list<images_list_it_t>,
+                  std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+                  std::list<std::reference_wrapper<contour_collection<double>>>,
+                  std::any )>,
+         std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+         std::list<std::reference_wrapper<contour_collection<double>>>,
+         std::any );
+
 #endif
 
 
@@ -3876,6 +4032,15 @@ bool planar_image_collection<T,R>::Transform_Images(
                      std::list<std::reference_wrapper<contour_collection<double>>>,
                      std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
+            std::any                                                                      user_data );
+
+    template bool planar_image_collection<double  ,double>::Transform_Images(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>,
+                     std::any )>                                                          op_func,
+            std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
             std::any                                                                      user_data );
 
@@ -3979,6 +4144,16 @@ bool planar_image_collection<T,R>::Transform_Images_Parallel(
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
             std::any                                                                      user_data );
 
+
+    template bool planar_image_collection<double  ,double>::Transform_Images_Parallel(
+            std::function<bool (images_list_it_t,
+                     std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>,
+                     std::any )>                                                          op_func,
+            std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
+            std::any                                                                      user_data );
+
 #endif
 
 
@@ -4055,6 +4230,15 @@ bool planar_image_collection<T,R>::Compute_Images(
                      std::list<std::reference_wrapper<contour_collection<double>>>,
                      std::any )>                                                          op_func,
             std::list<std::reference_wrapper<planar_image_collection<float   ,double>>>   external_imgs,
+            std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
+            std::any                                                                      user_data );
+
+    template bool planar_image_collection<double  ,double>::Compute_Images(
+            std::function<bool (planar_image_collection<double  ,double> &,
+                     std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>,
+                     std::list<std::reference_wrapper<contour_collection<double>>>,
+                     std::any )>                                                          op_func,
+            std::list<std::reference_wrapper<planar_image_collection<double  ,double>>>   external_imgs,
             std::list<std::reference_wrapper<contour_collection<double>>>                 contour_collections,
             std::any                                                                      user_data );
 
@@ -4150,6 +4334,9 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
 
     template bool planar_image_collection<float   ,double>::Condense_Average_Images( 
          std::function<typename std::list<images_list_it_t> (images_list_it_t, std::reference_wrapper<planar_image_collection<float   ,double>>)>);
+
+    template bool planar_image_collection<double  ,double>::Condense_Average_Images( 
+         std::function<typename std::list<images_list_it_t> (images_list_it_t, std::reference_wrapper<planar_image_collection<double  ,double>>)>);
 #endif
 
 
@@ -4172,6 +4359,7 @@ template <class T,class R> bool planar_image_collection<T,R>::Gaussian_Pixel_Blu
     template bool planar_image_collection<uint32_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
     template bool planar_image_collection<uint64_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
     template bool planar_image_collection<float   ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<double  ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
 #endif
 
 //Fill pixels above a given plane. Returns the number of affected pixels.
@@ -4190,6 +4378,7 @@ planar_image_collection<T,R>::set_voxels_above_plane(const plane<R> &aplane, T v
     template long int planar_image_collection<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
     template long int planar_image_collection<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
     template long int planar_image_collection<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
+    template long int planar_image_collection<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<long int>);
 #endif
 
 //Apply a functor to individual pixels.
@@ -4207,6 +4396,7 @@ planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, 
     template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
     template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
     template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   &val)>);
 #endif
 
 template<class T, class R>
@@ -4223,6 +4413,7 @@ planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, 
     template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
     template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
     template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   val)>) const;
 #endif
 
 //Returns the R^3 center of the image. Nothing fancy.
@@ -4241,6 +4432,7 @@ template <class T,class R> vec3<R> planar_image_collection<T,R>::center(void) co
     template vec3<double> planar_image_collection<uint32_t,double>::center(void) const;
     template vec3<double> planar_image_collection<uint64_t,double>::center(void) const;
     template vec3<double> planar_image_collection<float   ,double>::center(void) const;
+    template vec3<double> planar_image_collection<double  ,double>::center(void) const;
 #endif
 
 //Computes the volume occupied by the images.
@@ -4258,6 +4450,7 @@ template <class T,class R> R planar_image_collection<T,R>::volume(void) const {
     template double planar_image_collection<uint32_t,double>::volume(void) const;
     template double planar_image_collection<uint64_t,double>::volume(void) const;
     template double planar_image_collection<float   ,double>::volume(void) const;
+    template double planar_image_collection<double  ,double>::volume(void) const;
 #endif
 
 
@@ -4294,6 +4487,7 @@ template <class T,class R> bool planar_image_collection<T,R>::Spatially_eq(const
     template bool planar_image_collection<uint32_t,double>::Spatially_eq(const planar_image_collection<uint32_t,double> &in) const;
     template bool planar_image_collection<uint64_t,double>::Spatially_eq(const planar_image_collection<uint64_t,double> &in) const;
     template bool planar_image_collection<float   ,double>::Spatially_eq(const planar_image_collection<float   ,double> &in) const;
+    template bool planar_image_collection<double  ,double>::Spatially_eq(const planar_image_collection<double  ,double> &in) const;
 #endif
 
 //Collates images together, taking ownership of input image data on success. Behaviour can be specified.
@@ -4334,6 +4528,7 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
     template bool planar_image_collection<uint32_t,double>::Collate_Images(planar_image_collection<uint32_t,double> &in, bool GeometricalOverlapOK);
     template bool planar_image_collection<uint64_t,double>::Collate_Images(planar_image_collection<uint64_t,double> &in, bool GeometricalOverlapOK);
     template bool planar_image_collection<float   ,double>::Collate_Images(planar_image_collection<float   ,double> &in, bool GeometricalOverlapOK);
+    template bool planar_image_collection<double  ,double>::Collate_Images(planar_image_collection<double  ,double> &in, bool GeometricalOverlapOK);
 #endif
 
 
@@ -4447,6 +4642,7 @@ template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpola
     template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
     template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
     template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template double   planar_image_collection<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
 #endif
 
 
@@ -4513,6 +4709,8 @@ long int Intersection_Copy(planar_image<T,R> &in,
              const std::list<typename planar_image_collection<uint64_t,double>::images_list_it_t> &);
     template long int Intersection_Copy(planar_image<float   ,double> &, 
              const std::list<typename planar_image_collection<float   ,double>::images_list_it_t> &);
+    template long int Intersection_Copy(planar_image<double  ,double> &, 
+             const std::list<typename planar_image_collection<double  ,double>::images_list_it_t> &);
 #endif
 
 
@@ -4672,6 +4870,10 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
              const double, const double, const double, const long int, const long int, const long int, const long int,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<double  ,double> Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
 #endif
 
 
@@ -4806,6 +5008,10 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
              const double, const double, const double, const long int, const long int, const long int, const long int,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<float   ,double> Symmetrically_Contiguously_Grid_Volume(
+             const std::list<std::reference_wrapper<contour_collection<double>>> &,
+             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
+    template planar_image_collection<double  ,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
              const double, const double, const double, const long int, const long int, const long int, const long int,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
@@ -5934,6 +6140,10 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
         const std::list< std::reference_wrapper< planar_image<float   ,double> > > &,
         const std::list< std::reference_wrapper< planar_image_collection<float   ,double> > > &,
         const vec3<double> &);
+    template planar_image_adjacency<double  ,double>::planar_image_adjacency(
+        const std::list< std::reference_wrapper< planar_image<double  ,double> > > &,
+        const std::list< std::reference_wrapper< planar_image_collection<double  ,double> > > &,
+        const vec3<double> &);
 #endif
 
 template <class T,class R>
@@ -5963,6 +6173,8 @@ planar_image_adjacency<T,R>::position_to_image(const vec3<R> &pos) const {
         planar_image_adjacency<uint64_t,double>::position_to_image(const vec3<double> &) const;
     template std::reference_wrapper< planar_image<float   ,double> >
         planar_image_adjacency<float   ,double>::position_to_image(const vec3<double> &) const;
+    template std::reference_wrapper< planar_image<double  ,double> >
+        planar_image_adjacency<double  ,double>::position_to_image(const vec3<double> &) const;
 #endif
 
 
@@ -5980,6 +6192,7 @@ planar_image_adjacency<T,R>::get_min_max_indices() const {
     template std::pair<long int, long int> planar_image_adjacency<uint32_t,double>:: get_min_max_indices() const;
     template std::pair<long int, long int> planar_image_adjacency<uint64_t,double>:: get_min_max_indices() const;
     template std::pair<long int, long int> planar_image_adjacency<float   ,double>:: get_min_max_indices() const;
+    template std::pair<long int, long int> planar_image_adjacency<double  ,double>:: get_min_max_indices() const;
 #endif
 
 
@@ -6033,6 +6246,8 @@ planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_
         planar_image_adjacency<uint64_t,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<uint64_t,double> > &) const;
     template std::list< std::reference_wrapper< planar_image<float   ,double> > >
         planar_image_adjacency<float   ,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<float   ,double> > &) const;
+    template std::list< std::reference_wrapper< planar_image<double  ,double> > >
+        planar_image_adjacency<double  ,double>::get_wholly_overlapping_images(const std::reference_wrapper< planar_image<double  ,double> > &) const;
 #endif
             
 template <class T,class R>
@@ -6046,6 +6261,7 @@ planar_image_adjacency<T,R>::index_present(long int index) const {
     template bool planar_image_adjacency<uint32_t,double>::index_present(long int) const;
     template bool planar_image_adjacency<uint64_t,double>::index_present(long int) const;
     template bool planar_image_adjacency<float   ,double>::index_present(long int) const;
+    template bool planar_image_adjacency<double  ,double>::index_present(long int) const;
 #endif
 
 template <class T,class R>
@@ -6059,6 +6275,7 @@ planar_image_adjacency<T,R>::image_present(const std::reference_wrapper< planar_
     template bool planar_image_adjacency<uint32_t,double>::image_present(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
     template bool planar_image_adjacency<uint64_t,double>::image_present(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
     template bool planar_image_adjacency<float   ,double>::image_present(const std::reference_wrapper< planar_image<float   , double> > &) const;
+    template bool planar_image_adjacency<double  ,double>::image_present(const std::reference_wrapper< planar_image<double  , double> > &) const;
 #endif
 
 template <class T,class R>
@@ -6072,6 +6289,7 @@ planar_image_adjacency<T,R>::index_to_image(long int index) const {
     template std::reference_wrapper< planar_image<uint32_t, double> > planar_image_adjacency<uint32_t,double>::index_to_image(long int) const;
     template std::reference_wrapper< planar_image<uint64_t, double> > planar_image_adjacency<uint64_t,double>::index_to_image(long int) const;
     template std::reference_wrapper< planar_image<float   , double> > planar_image_adjacency<float   ,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<double  , double> > planar_image_adjacency<double  ,double>::index_to_image(long int) const;
 #endif
 
 template <class T,class R>
@@ -6085,6 +6303,7 @@ planar_image_adjacency<T,R>::image_to_index(const std::reference_wrapper< planar
     template long int planar_image_adjacency<uint32_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
     template long int planar_image_adjacency<uint64_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
     template long int planar_image_adjacency<float   ,double>::image_to_index(const std::reference_wrapper< planar_image<float   , double> > &) const;
+    template long int planar_image_adjacency<double  ,double>::image_to_index(const std::reference_wrapper< planar_image<double  , double> > &) const;
 #endif
 
 // Interpolate linearly in R^3. The nearest two images (above and below) are interpolated between. Specifically, the
@@ -6183,5 +6402,6 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
     template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
     template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template double   planar_image_adjacency<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
 #endif
 
