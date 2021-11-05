@@ -65,7 +65,7 @@ Dump_Pixels(const planar_image<T,R> &img,
 
     //Check if the file exists. If it does, we will refuse to overwrite it.
     {
-        std::ifstream FI(filename);
+        std::ifstream FI(filename, std::ios::in | std::ios::binary);
         if(FI.good()) return false;
     }
 
@@ -127,7 +127,7 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
 
     //Check if the file exists. If it does, we will refuse to overwrite it.
     {
-        std::ifstream FI(filename);
+        std::ifstream FI(filename, std::ios::in | std::ios::binary);
         if(FI.good()) return false;
     }
 
@@ -431,7 +431,7 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     typedef std::array<card_t,36> header_t; //The header has 36 cards, and thus 80*36 = 2880 bytes.
  
     //Start reading the file. It must have a length that is a multiple of 2880 bytes to be valid.
-    std::ifstream FI(filename, std::ifstream::in);
+    std::ifstream FI(filename, std::ios::in | std::ios::binary);
     if(!FI){
         throw std::runtime_error("Could not open file.");
     }
