@@ -5095,10 +5095,15 @@ Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_imag
         const std::list<std::reference_wrapper<planar_image<float ,double>>> &,
         Encircle_Images_with_Contours_Opts,
         const std::map<std::string,std::string> &,
-        vec3<double>,
-        vec3<double>,
-        vec3<double>,
-        vec3<double> ); 
+        vec3<double>, vec3<double>, vec3<double>, vec3<double> ); 
+
+    template
+    contour_collection<double>
+    Encircle_Images_with_Contours(
+        const std::list<std::reference_wrapper<planar_image<double,double>>> &,
+        Encircle_Images_with_Contours_Opts,
+        const std::map<std::string,std::string> &,
+        vec3<double>, vec3<double>, vec3<double>, vec3<double> ); 
 #endif
 
 
@@ -5801,6 +5806,15 @@ void Mutate_Voxels(
         Mutate_Voxels_Functor<float ,double>,
         Mutate_Voxels_Functor<float ,double>,
         Mutate_Voxels_Functor<float ,double> );
+
+    template void Mutate_Voxels(
+        std::reference_wrapper<planar_image<double,double>>,
+        std::list<std::reference_wrapper<planar_image<double,double>>>,
+        std::list<std::reference_wrapper<contour_collection<double>>>,
+        Mutate_Voxels_Opts,
+        Mutate_Voxels_Functor<double,double>,
+        Mutate_Voxels_Functor<double,double>,
+        Mutate_Voxels_Functor<double,double> );
 #endif
 
 
@@ -5905,6 +5919,11 @@ bool Images_Form_Regular_Grid( std::list<std::reference_wrapper<planar_image<T,R
     bool Images_Form_Regular_Grid(
         std::list<std::reference_wrapper<planar_image<float ,double>>> img_refws,
         double eps );
+
+    template
+    bool Images_Form_Regular_Grid(
+        std::list<std::reference_wrapper<planar_image<double,double>>> img_refws,
+        double eps );
 #endif
 
 
@@ -5987,6 +6006,11 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
     template
     bool Images_Form_Rectilinear_Grid(
         std::list<std::reference_wrapper<planar_image<float ,double>>> img_refws,
+        double eps );
+
+    template
+    bool Images_Form_Rectilinear_Grid(
+        std::list<std::reference_wrapper<planar_image<double,double>>> img_refws,
         double eps );
 #endif
 
