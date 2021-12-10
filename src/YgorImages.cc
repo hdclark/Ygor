@@ -4816,8 +4816,8 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
     const R xwidth = grid_x_max - grid_x_min;
     const R ywidth = grid_y_max - grid_y_min;
     const R zwidth = grid_z_max - grid_z_min;
-    const auto voxel_dx = xwidth / static_cast<R>(number_of_columns);
-    const auto voxel_dy = ywidth / static_cast<R>(number_of_rows);
+    const auto voxel_dx = xwidth / static_cast<R>(number_of_rows);
+    const auto voxel_dy = ywidth / static_cast<R>(number_of_columns);
     const auto voxel_dz = zwidth / static_cast<R>(number_of_images);
 
     //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
