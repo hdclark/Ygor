@@ -175,7 +175,7 @@ std::vector<std::vector<std::string>> GetSubVectorFromTo( std::vector<std::strin
 std::string ExpandMacros(std::string unexpanded, 
                          const std::map<std::string, std::string> &replacements,
                          std::string indicator_symbol = "$"_s, 
-                         std::string allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                         std::string allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
                          std::string allowed_brackets = "{}");
 
 //-------------------------------------------------------------------------------------------------------------------------------
