@@ -1093,7 +1093,11 @@ std::vector<std::string> SplitVector(const std::vector<std::string> &s, char del
 //This function replaces occurences of some regex in a string with some replacement text.
 std::string ReplaceAllInstances(const std::string &in, const std::string &regex, const std::string &replacement){
     const std::regex std_regex(regex.c_str(), std::regex::icase );
-    return regex_replace( in, std_regex, replacement );
+    return std::regex_replace( in, std_regex, replacement );
+}
+
+std::string ReplaceAllInstances(const std::string &in, const std::regex &regex, const std::string &replacement){
+    return std::regex_replace( in, regex, replacement );
 }
 
 //This function removes all instances of the input characters from the provided string.
@@ -1248,23 +1252,66 @@ std::vector<std::vector<std::string> > GetSubVectorFromTo( std::vector<std::stri
 // This routine performs macro expansion over a given text using a regex lookup and replacement, replacing instances of
 // the indicator symbol (e.g., '$') followed by one or more of the specified allowed characters (i.e., '$Modality' or
 // '$Variable123'). The parameter in the text is replaced with the key's corresponding value from the provided map.
+//
+// Shell-like scoping, like '${VariableName}NotVariableName', is honoured if the brackets are permitted. Allowed
+// brackets should be paired, e.g., '{}' and '[]' and '<>' and 'AB' and '{}[]()' are all acceptable, but '[' or '{}]'
+// are not.
 std::string ExpandMacros(std::string text, 
                          const std::map<std::string, std::string> &replacements,
                          std::string indicator_symbol, 
-                         std::string allowed_characters){
+                         std::string allowed_characters,
+                         std::string allowed_brackets){
 
-    // Detect all parameters that need to be replaced. For example: "Lorem ipsum $SomeKeyToReplace sit amet ..."
-    const auto param_regex = "["_s + indicator_symbol + "]([" + allowed_characters + "]+)[^" + allowed_characters + indicator_symbol + "]*";
-    auto parameters = GetAllRegex2(text, param_regex);
-    if(parameters.empty()) return text; // No parameters detected, so no expansion needed.
+    if((allowed_brackets.size() % 2) != 0){
+        throw std::runtime_error("Allowed brackets must be paired, e.g., '{}', '[]', '{}[]()'");
+    }
 
-    // Lookup the replacement. If present, replace it. Otherwise, ignore it.
-    for(const auto &p : parameters){
-        const auto p_it = replacements.find(p);
-        if(p_it != std::end(replacements)){
-            text = ReplaceAllInstances(text, "["_s + indicator_symbol + "]" + p_it->first, p_it->second);
+    // Append a null bracket pair to run at least once without brackets.
+    allowed_brackets += '\0';
+    allowed_brackets += '\0';
+
+    for(size_t i = 0; (i+1) < allowed_brackets.size(); i += 2){
+        const auto l_bracket = allowed_brackets.substr(i+0, 1);
+        const auto r_bracket = allowed_brackets.substr(i+1, 1);
+
+        // Note: escaping this way supports square brackets, like '[[]' and '[]]' and even the regex escape character
+        // like '[\]' which is then treated literally.
+        auto esc_l_b = "["_s + l_bracket + "]{1}"_s;
+        auto esc_r_b = "["_s + r_bracket + "]{1}"_s;
+        if(l_bracket.front() == '\0') esc_l_b = "";
+        if(r_bracket.front() == '\0') esc_r_b = "";
+
+        // Search for key-value keys in the source text and extract the relevant tokens,
+        // e.g., with the default the text 'A ${B} $C' will result in tokens 'B' and 'C'.
+        const auto query_regex_str = "["_s + indicator_symbol + "]{1}"_s
+                                   + esc_l_b
+                                   + "("_s
+                                   + "[" + allowed_characters + "]+"_s
+                                   + ")"_s
+                                   + esc_r_b;
+        std::regex query_regex( query_regex_str, std::regex::icase | std::regex::extended );
+
+        auto parameters = GetAllRegex2(text, query_regex);
+        for(const auto &p : parameters){
+            const auto p_it = replacements.find(p);
+            if(p_it != std::end(replacements)){
+
+                // Escape the token so it is evaluated as a regex literal.
+                //
+                // This is cumbersome, but helps protect against any special characters in the allowed_characters set.
+                std::string esc_token;
+                for(const auto& c : p) esc_token += "["_s + c + "]"_s;
+
+                const auto replace_regex_str = "["_s + indicator_symbol + "]{1}"_s
+                                             + esc_l_b
+                                             + esc_token
+                                             + esc_r_b;
+                std::regex replace_regex( replace_regex_str, std::regex::icase | std::regex::extended );
+                text = ReplaceAllInstances(text, replace_regex, p_it->second);
+            }
         }
     }
+
     return text;
 }
 

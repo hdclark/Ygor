@@ -151,6 +151,7 @@ std::vector<std::string> SplitVector(const std::vector<std::string> &s, char del
 std::vector<std::string> SplitStringToVector(const std::string &s, const std::string &delim, char BEHAVIOUR);
 
 std::string ReplaceAllInstances(const std::string &in, const std::string &regex, const std::string &replacement);
+std::string ReplaceAllInstances(const std::string &in, const std::regex &regex, const std::string &replacement);
 
 std::string PurgeCharsFromString(const std::string &in, std::string purge_chars);
 
@@ -174,7 +175,8 @@ std::vector<std::vector<std::string>> GetSubVectorFromTo( std::vector<std::strin
 std::string ExpandMacros(std::string unexpanded, 
                          const std::map<std::string, std::string> &replacements,
                          std::string indicator_symbol = "$"_s, 
-                         std::string allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+                         std::string allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                         std::string allowed_brackets = "{}");
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------- URL-handling routines ---------------------------------------------------

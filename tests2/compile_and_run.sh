@@ -21,6 +21,7 @@ g++ \
   YgorMathIOPLY.cc \
   YgorMathIOXYZ.cc \
   YgorTime/*.cc \
+  YgorString.cc \
   -o run_tests \
   -lygor
 
