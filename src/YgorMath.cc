@@ -7318,12 +7318,17 @@ num_array<T>::num_array(const num_array<T> &in) : numbers(in.numbers),
 
 template <class T>
 num_array<T>::operator affine_transform<T>() const {
+    const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
+
     if( (this->rows != static_cast<long int>(4)) 
     ||  (this->cols != static_cast<long int>(4))
-    ||  (this->read_coeff(3,0) != static_cast<T>(0))
-    ||  (this->read_coeff(3,1) != static_cast<T>(0))
-    ||  (this->read_coeff(3,2) != static_cast<T>(0))
-    ||  (this->read_coeff(3,3) != static_cast<T>(1)) ){
+
+    // Be tolerant (to machine precision) to account for 'numerical wear-and-tear.'
+    ||  (machine_eps < std::abs(this->read_coeff(3,0) - static_cast<T>(0)))
+    ||  (machine_eps < std::abs(this->read_coeff(3,1) - static_cast<T>(0)))
+    ||  (machine_eps < std::abs(this->read_coeff(3,2) - static_cast<T>(0)))
+    ||  (machine_eps < std::abs(this->read_coeff(3,3) - static_cast<T>(1))) ){
+
         throw std::invalid_argument("num_array does not contain an affine matrix. Refusing to continue.");
         // Note that other conventions *could* be handled, but this is currently not needed.
     }
@@ -7730,6 +7735,155 @@ num_array<T>::transpose() const {
 #endif
 
 template <class T>
+num_array<T>
+num_array<T>::invert() const {
+    for(const auto& n : this->numbers){
+        if( !std::isfinite(n) ){
+            // This by itself is not invalid, but it makes is much harder to ensure the inversion
+            // was successful. So to simplify the numerical (c.f., theoretical) aspects of this
+            // implementation, we'll disallow infs and nans here.
+            throw std::invalid_argument("Input has non-finite entries, refusing to proceed");
+        }
+    }
+
+    const auto a = [&](long int r, long int c) -> T {
+        return this->read_coeff(r,c);
+    };
+
+    num_array<T> out(this->rows, this->cols);
+    const auto b = [&](long int r, long int c) -> T& {
+        return out.coeff(r,c);
+    };
+
+    const auto validate_det = [](const T& det, const T& inv_det) -> void {
+        if( !std::isfinite(det)
+        ||  !std::isfinite(inv_det)
+        ||  !std::isnormal(det)
+        ||  !std::isnormal(inv_det) ){
+            throw std::invalid_argument("Determinant is not normal, refusing to proceed");
+        }
+        return;
+    };
+
+    if( this->rows != this->cols ){
+        throw std::invalid_argument("Dimensions do not match. Inverse does not exist.");
+
+    }else if( this->rows == 0 ){
+        throw std::invalid_argument("Matrix is empty. Inverse does not exist.");
+
+    }else if( this->rows == 1 ){
+        const auto det = a(0,0);
+        const auto inv_det = static_cast<T>(1.0) / det;
+        validate_det(det, inv_det);
+        b(0,0) = inv_det;
+    
+    }else if( this->rows == 2 ){
+        const auto det = (a(0,0) * a(1,1)) - (a(0,1) * a(1,0));
+        const auto inv_det = static_cast<T>(1.0) / det;
+        validate_det(det, inv_det);
+        b(0,0) =  a(1,1) * inv_det;
+        b(0,1) = -a(0,1) * inv_det;
+        b(1,0) = -a(1,0) * inv_det;
+        b(1,1) =  a(0,0) * inv_det;
+    
+    }else if( this->rows == 3 ){
+        // Implemented from description at https://en.wikipedia.org/wiki/Invertible_matrix#Analytic_solution
+        // circa 20220324.
+        //
+        //     (0,0)    (0,1)    (0,2)
+        //     (1,0)    (1,1)    (1,2)
+        //     (2,0)    (2,1)    (2,2)
+
+        const auto A = a(1,1) * a(2,2) - a(1,2) * a(2,1);
+        const auto B = a(1,0) * a(2,2) - a(1,2) * a(2,0);
+        const auto C = a(1,0) * a(2,1) - a(1,1) * a(2,0);
+        const auto D = a(0,1) * a(2,2) - a(0,2) * a(2,1); 
+        const auto E = a(0,0) * a(2,2) - a(0,2) * a(2,0);
+        const auto F = a(0,0) * a(2,1) - a(0,1) * a(2,0);
+        const auto G = a(0,1) * a(1,2) - a(0,2) * a(1,1);
+        const auto H = a(0,0) * a(1,2) - a(0,2) * a(1,0);
+        const auto I = a(0,0) * a(1,1) - a(0,1) * a(1,0);
+
+        const auto det = a(0,0) * A - a(0,1) * B + a(0,2) * C;
+        const auto inv_det = static_cast<T>(1.0) / det;
+        validate_det(det, inv_det);
+
+        b(0,0) =  A * inv_det;
+        b(0,1) = -D * inv_det;
+        b(0,2) =  G * inv_det;
+        b(1,0) = -B * inv_det;
+        b(1,1) =  E * inv_det;
+        b(1,2) = -H * inv_det;
+        b(2,0) =  C * inv_det;
+        b(2,1) = -F * inv_det;
+        b(2,2) =  I * inv_det;
+
+    }else if( this->rows == 4 ){
+        // Using the notation from David Eberly in "The Laplace Expansion Theorem: Computing the
+        // Determinants and Inverses of Matrices" Created: August 25, 2007, Last Modified: August 6, 2008.
+        //
+        //     (0,0)    (0,1)    (0,2)     (0,3)
+        //     (1,0)    (1,1)    (1,2)     (1,3)
+        //     (2,0)    (2,1)    (2,2)     (2,3)
+        //     (3,0)    (3,1)    (3,2)     (3,3)
+ 
+        const auto s0 = (a(0,0) * a(1,1)) - (a(1,0) * a(0,1));
+        const auto s1 = (a(0,0) * a(1,2)) - (a(1,0) * a(0,2));
+        const auto s2 = (a(0,0) * a(1,3)) - (a(1,0) * a(0,3));
+        const auto s3 = (a(0,1) * a(1,2)) - (a(1,1) * a(0,2));
+        const auto s4 = (a(0,1) * a(1,3)) - (a(1,1) * a(0,3));
+        const auto s5 = (a(0,2) * a(1,3)) - (a(1,2) * a(0,3));
+
+        const auto c5 = (a(2,2) * a(3,3)) - (a(3,2) * a(2,3));
+        const auto c4 = (a(2,1) * a(3,3)) - (a(3,1) * a(2,3));
+        const auto c3 = (a(2,1) * a(3,2)) - (a(3,1) * a(2,2));
+        const auto c2 = (a(2,0) * a(3,3)) - (a(3,0) * a(2,3));
+        const auto c1 = (a(2,0) * a(3,2)) - (a(3,0) * a(2,2));
+        const auto c0 = (a(2,0) * a(3,1)) - (a(3,0) * a(2,1));
+
+        const auto det = (s0 * c5) - (s1 * c4) + (s2 * c3) + (s3 * c2) - (s4 * c1) + (s5 * c0);
+        const auto inv_det = static_cast<T>(1.0) / det;
+        validate_det(det, inv_det);
+
+        b(0,0) = ( a(1,1) * c5 - a(1,2) * c4 + a(1,3) * c3) * inv_det;
+        b(0,1) = (-a(0,1) * c5 + a(0,2) * c4 - a(0,3) * c3) * inv_det;
+        b(0,2) = ( a(3,1) * s5 - a(3,2) * s4 + a(3,3) * s3) * inv_det;
+        b(0,3) = (-a(2,1) * s5 + a(2,2) * s4 - a(2,3) * s3) * inv_det;
+
+        b(1,0) = (-a(1,0) * c5 + a(1,2) * c2 - a(1,3) * c1) * inv_det;
+        b(1,1) = ( a(0,0) * c5 - a(0,2) * c2 + a(0,3) * c1) * inv_det;
+        b(1,2) = (-a(3,0) * s5 + a(3,2) * s2 - a(3,3) * s1) * inv_det;
+        b(1,3) = ( a(2,0) * s5 - a(2,2) * s2 + a(2,3) * s1) * inv_det;
+
+        b(2,0) = ( a(1,0) * c4 - a(1,1) * c2 + a(1,3) * c0) * inv_det;
+        b(2,1) = (-a(0,0) * c4 + a(0,1) * c2 - a(0,3) * c0) * inv_det;
+        b(2,2) = ( a(3,0) * s4 - a(3,1) * s2 + a(3,3) * s0) * inv_det;
+        b(2,3) = (-a(2,0) * s4 + a(2,1) * s2 - a(2,3) * s0) * inv_det;
+
+        b(3,0) = (-a(1,0) * c3 + a(1,1) * c1 - a(1,2) * c0) * inv_det;
+        b(3,1) = ( a(0,0) * c3 - a(0,1) * c1 + a(0,2) * c0) * inv_det;
+        b(3,2) = (-a(3,0) * s3 + a(3,1) * s1 - a(3,2) * s0) * inv_det;
+        b(3,3) = ( a(2,0) * s3 - a(2,1) * s1 + a(2,2) * s0) * inv_det;
+
+
+    }else{
+        throw std::runtime_error("Inversion for matrices larger than 4x4 is not yet supported");
+    }
+
+    for(const auto& n : out.numbers){
+        if( !std::isfinite(n) ){
+            throw std::invalid_argument("Inverse has non-finite entries, refusing to proceed");
+        }
+    }
+    
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::invert() const;
+    template num_array<double> num_array<double>::invert() const;
+#endif
+
+template <class T>
 vec3<T>
 num_array<T>::to_vec3() const {
     if( !( (this->rows == 3) && (this->cols == 1) )
@@ -7942,6 +8096,80 @@ affine_transform<T>::read_coeff(long int r, long int c) const {
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float  affine_transform<float >::read_coeff(long int, long int) const;
     template double affine_transform<double>::read_coeff(long int, long int) const;
+#endif
+
+template <class T>
+affine_transform<T>
+affine_transform<T>::invert() const {
+    // Using the notation and procedure outlined by David Eberly in "The Laplace Expansion Theorem: Computing the
+    // Determinants and Inverses of Matrices" Created: August 25, 2007, Last Modified: August 6, 2008.
+    // Modified to specialize for affine matrices.
+ 
+    const auto s0 = (this->t[0][0] * this->t[1][1]) - (this->t[1][0] * this->t[0][1]);
+    const auto s1 = (this->t[0][0] * this->t[1][2]) - (this->t[1][0] * this->t[0][2]);
+    const auto s2 = (this->t[0][0] * this->t[1][3]) - (this->t[1][0] * this->t[0][3]);
+    const auto s3 = (this->t[0][1] * this->t[1][2]) - (this->t[1][1] * this->t[0][2]);
+    const auto s4 = (this->t[0][1] * this->t[1][3]) - (this->t[1][1] * this->t[0][3]);
+    const auto s5 = (this->t[0][2] * this->t[1][3]) - (this->t[1][2] * this->t[0][3]);
+
+    const auto det = (s0 * this->t[2][2]) - (s1 * this->t[2][1]) + (s3 * this->t[2][0]);
+    const auto inv_det = static_cast<T>(1.0) / det;
+    if( !std::isfinite(det)
+    ||  !std::isfinite(inv_det)
+    ||  !std::isnormal(det)
+    ||  !std::isnormal(inv_det) ){
+        throw std::invalid_argument("Determinant is not normal, refusing to proceed");
+    }
+
+    affine_transform<T> out;
+    
+    out.t[0][0] = ( this->t[1][1] * this->t[2][2] - this->t[1][2] * this->t[2][1]) * inv_det;
+    out.t[0][1] = (-this->t[0][1] * this->t[2][2] + this->t[0][2] * this->t[2][1]) * inv_det;
+    out.t[0][2] = ( this->t[3][3] * s3) * inv_det;
+    out.t[0][3] = (-this->t[2][1] * s5 + this->t[2][2] * s4 - this->t[2][3] * s3) * inv_det;
+
+    out.t[1][0] = (-this->t[1][0] * this->t[2][2] + this->t[1][2] * this->t[2][0]) * inv_det;
+    out.t[1][1] = ( this->t[0][0] * this->t[2][2] - this->t[0][2] * this->t[2][0]) * inv_det;
+    out.t[1][2] = (-this->t[3][3] * s1) * inv_det;
+    out.t[1][3] = ( this->t[2][0] * s5 - this->t[2][2] * s2 + this->t[2][3] * s1) * inv_det;
+
+    out.t[2][0] = ( this->t[1][0] * this->t[2][1] - this->t[1][1] * this->t[2][0]) * inv_det;
+    out.t[2][1] = (-this->t[0][0] * this->t[2][1] + this->t[0][1] * this->t[2][0]) * inv_det;
+    out.t[2][2] = ( this->t[3][3] * s0) * inv_det;
+    out.t[2][3] = (-this->t[2][0] * s4 + this->t[2][1] * s2 - this->t[2][3] * s0) * inv_det;
+
+    out.t[3][0] = 0.0;
+    out.t[3][1] = 0.0;
+    out.t[3][2] = 0.0;
+    out.t[3][3] = 1.0;
+
+    if( !std::isfinite(out.t[0][0])
+    ||  !std::isfinite(out.t[0][1])
+    ||  !std::isfinite(out.t[0][2])
+    ||  !std::isfinite(out.t[0][3])
+
+    ||  !std::isfinite(out.t[1][0])
+    ||  !std::isfinite(out.t[1][1])
+    ||  !std::isfinite(out.t[1][2])
+    ||  !std::isfinite(out.t[1][3])
+
+    ||  !std::isfinite(out.t[2][0])
+    ||  !std::isfinite(out.t[2][1])
+    ||  !std::isfinite(out.t[2][2])
+    ||  !std::isfinite(out.t[2][3])
+
+    ||  !std::isfinite(out.t[3][0])
+    ||  !std::isfinite(out.t[3][1])
+    ||  !std::isfinite(out.t[3][2])
+    ||  !std::isfinite(out.t[3][3]) ){
+        throw std::invalid_argument("Inverse has non-finite entries, refusing to proceed");
+    }
+
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float > affine_transform<float >::invert() const;
+    template affine_transform<double> affine_transform<double>::invert() const;
 #endif
 
 template <class T>

@@ -931,3 +931,146 @@ TEST_CASE( "num_array write_to and read_from" ){
     }
 }
 
+TEST_CASE( "num_array invert" ){
+    const auto eps = 10.0 * std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    // Finds the maximum coefficient-wise deviation between two matrices.
+    const auto max_diff = [](const num_array<double>& A,
+                             const num_array<double>& B){
+        if( (A.num_rows() != B.num_rows())
+        ||  (A.num_cols() != B.num_cols() ) ){
+            throw std::logic_error("Invalid comparison between matrices of differing sizes");
+        }
+        double max_diff = 0.0;
+        for(long int r = 0; r < A.num_rows(); ++r){
+            for(long int c = 0; c < B.num_rows(); ++c){
+                const auto diff = std::abs(B.read_coeff(r,c) - A.read_coeff(r,c));
+                if(diff < max_diff) max_diff = diff;
+            }
+        }
+        return max_diff;
+    };
+
+    // The inverse should be an identity matrix too.
+    SUBCASE( "1x1 identity" ){
+        const auto A = num_array<double>().identity(1);
+        const auto B = A.invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "2x2 identity" ){
+        const auto A = num_array<double>().identity(2);
+        const auto B = A.invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "3x3 identity" ){
+        const auto A = num_array<double>().identity(3);
+        const auto B = A.invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "4x4 identity" ){
+        const auto A = num_array<double>().identity(4);
+        const auto B = A.invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    // For orthonormal rotation matrices, the transpose should be the same as the inverse.
+    SUBCASE( "3x3 inverse of rotation matrix is same as transpose" ){
+        auto X = vec3<double>( 1.0, 2.0,-3.0 ).unit();
+        auto Y = vec3<double>(-1.0, 2.0, 3.0 ).unit();
+        auto Z = vec3<double>( 1.0,-2.0, 3.0 ).unit();
+        X.GramSchmidt_orthogonalize(Y, Z);
+        X = X.unit();
+        Y = Y.unit();
+        Z = Z.unit();
+
+        auto A = num_array<double>().zero(3,3);
+        A.coeff(0,0) = X.x;
+        A.coeff(1,0) = X.y;
+        A.coeff(2,0) = X.z;
+
+        A.coeff(0,1) = Y.x;
+        A.coeff(1,1) = Y.y;
+        A.coeff(2,1) = Y.z;
+
+        A.coeff(0,2) = Z.x;
+        A.coeff(1,2) = Z.y;
+        A.coeff(2,2) = Z.z;
+
+        const auto B = A.invert();
+        const auto C = A.transpose();
+        const auto md = max_diff(B, C);
+        REQUIRE( md < eps );
+    }
+
+    // The inverse of an inverse should give the original matrix (iff the inverse exists).
+    SUBCASE( "1x1 inverse is cyclic (arbitrary)" ){
+        const auto A = num_array<double>().iota(1, 1, 1.0);
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "2x2 inverse is cyclic (arbitrary)" ){
+        const auto A = num_array<double>().iota(2, 2, 1.0);
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "3x3 inverse is cyclic (arbitrary)" ){
+        auto A = num_array<double>().iota(3, 3, 1.0); // is singular.
+        A.coeff(2,2) = 1.0; // makes A non-singular.
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+    SUBCASE( "4x4 inverse is cyclic (arbitrary)" ){
+        auto A = num_array<double>().iota(4, 4, 1.0); // is singular.
+        A.coeff(2,2) = 1.0; // makes A non-singular.
+        A.coeff(3,3) = 1.0; // makes A non-singular.
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    // Singular matrices do not have a "regular" inverse.
+    SUBCASE( "1x1 singular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().zero(1, 1);
+        REQUIRE_THROWS(A.invert());
+    }
+    SUBCASE( "2x2 singular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().zero(2, 2);
+        REQUIRE_THROWS(A.invert());
+    }
+    SUBCASE( "3x3 singular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().zero(3, 3);
+        REQUIRE_THROWS(A.invert());
+    }
+    SUBCASE( "4x4 singular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().zero(4, 4);
+        REQUIRE_THROWS(A.invert());
+    }
+
+    // Rectangular matrices do not have a "regular" inverse.
+    SUBCASE( "1x2 rectangular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().iota(1, 2, 1.0);
+        REQUIRE_THROWS(A.invert());
+    }
+    SUBCASE( "1x4 rectangular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().iota(1, 4, 1.0);
+        REQUIRE_THROWS(A.invert());
+    }
+    SUBCASE( "4x2 rectangular matrix inversion attempt throws" ){
+        const auto A = num_array<double>().iota(4, 2, 1.0);
+        REQUIRE_THROWS(A.invert());
+    }
+
+    // Empty matrices do not have an inverse.
+    SUBCASE( "empty matrix inversion attempt throws" ){
+        const num_array<double> A;
+        REQUIRE_THROWS(A.invert());
+    }
+
+}

@@ -456,8 +456,172 @@ TEST_CASE( "affine_transform factories" ){
             REQUIRE(orig_x.distance(x) < eps);
         }
     }
+}
+
+TEST_CASE( "affine_transform invert" ){
+    SUBCASE( "identity" ){
+        affine_transform<double> A;
+
+        // Ensure input is an identity matrix.
+        REQUIRE( A.read_coeff(0,0) == 1.0 );
+        REQUIRE( A.read_coeff(1,1) == 1.0 );
+        REQUIRE( A.read_coeff(2,2) == 1.0 );
+        REQUIRE( A.read_coeff(3,3) == 1.0 );
+
+        REQUIRE( A.read_coeff(1,0) == 0.0 );
+        REQUIRE( A.read_coeff(2,0) == 0.0 );
+        REQUIRE( A.read_coeff(3,0) == 0.0 );
+        REQUIRE( A.read_coeff(2,1) == 0.0 );
+        REQUIRE( A.read_coeff(3,1) == 0.0 );
+        REQUIRE( A.read_coeff(3,2) == 0.0 );
+
+        REQUIRE( A.read_coeff(0,1) == 0.0 );
+        REQUIRE( A.read_coeff(0,2) == 0.0 );
+        REQUIRE( A.read_coeff(0,3) == 0.0 );
+        REQUIRE( A.read_coeff(1,2) == 0.0 );
+        REQUIRE( A.read_coeff(1,3) == 0.0 );
+        REQUIRE( A.read_coeff(2,3) == 0.0 );
+
+        // Inverse should be an identity too.
+        const auto B = A.invert();
+        REQUIRE( B.read_coeff(0,0) == 1.0 );
+        REQUIRE( B.read_coeff(1,1) == 1.0 );
+        REQUIRE( B.read_coeff(2,2) == 1.0 );
+        REQUIRE( B.read_coeff(3,3) == 1.0 );
+
+        REQUIRE( B.read_coeff(1,0) == 0.0 );
+        REQUIRE( B.read_coeff(2,0) == 0.0 );
+        REQUIRE( B.read_coeff(3,0) == 0.0 );
+        REQUIRE( B.read_coeff(2,1) == 0.0 );
+        REQUIRE( B.read_coeff(3,1) == 0.0 );
+        REQUIRE( B.read_coeff(3,2) == 0.0 );
+
+        REQUIRE( B.read_coeff(0,1) == 0.0 );
+        REQUIRE( B.read_coeff(0,2) == 0.0 );
+        REQUIRE( B.read_coeff(0,3) == 0.0 );
+        REQUIRE( B.read_coeff(1,2) == 0.0 );
+        REQUIRE( B.read_coeff(1,3) == 0.0 );
+        REQUIRE( B.read_coeff(2,3) == 0.0 );
+    }
+
+    const auto eps = 10.0 * std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    const auto max_diff = [](const affine_transform<double>& A,
+                             const affine_transform<double>& B){
+        double max_diff = 0.0;
+        for(long int r = 0; r < 4; ++r){
+            for(long int c = 0; c < 4; ++c){
+                const auto diff = std::abs(B.read_coeff(r,c) - A.read_coeff(r,c));
+                if(diff < max_diff) max_diff = diff;
+            }
+        }
+        return max_diff;
+    };
+
+    SUBCASE( "inverse is cyclic (translation-only)" ){
+        const auto A = affine_translate<double>( vec3<double>( 1.0, 2.5, 5.5 ) );
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    SUBCASE( "inverse is cyclic (scale-only)" ){
+        const auto A = affine_scale<double>( vec3<double>( 1.0, 2.5, 5.5 ), 0.5 );
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    SUBCASE( "inverse is cyclic (mirror-only)" ){
+        const auto p = plane<double>( vec3<double>( -1.0, 2.5, -5.5 ).unit(),
+                                      vec3<double>( 1.0, 2.5, 5.5 ) );
+        const auto A = affine_mirror<double>( p );
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    SUBCASE( "inverse is cyclic (rotate-only)" ){
+        const auto A = affine_rotate<double>( vec3<double>( 1.0, 2.5, 5.5 ),
+                                              vec3<double>( -1.0, 2.5, -5.5 ).unit(),
+                                              1.23 );
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    SUBCASE( "inverse is cyclic (arbitrary)" ){
+        affine_transform<double> A;
+        A.coeff(0,0) = 1.0;
+        A.coeff(1,1) = 2.0;
+        A.coeff(2,2) = 3.0;
+
+        A.coeff(1,0) = 4.0;
+        A.coeff(2,0) = 5.0;
+        A.coeff(2,1) = 6.0;
+        A.coeff(0,1) = 7.0;
+        A.coeff(0,2) = 8.0;
+        A.coeff(0,3) = 9.0;
+        A.coeff(1,2) = 10.0;
+        A.coeff(1,3) = 11.0;
+        A.coeff(2,3) = 12.0;
+
+        const auto B = A.invert().invert();
+        const auto md = max_diff(A, B);
+        REQUIRE( md < eps );
+    }
+
+    // For orthonormal rotation matrices, the transpose should be the same as the inverse.
+    SUBCASE( "inverse of rotation-only affine matrix is same as transpose" ){
+        auto X = vec3<double>( 1.0, 2.0,-3.0 ).unit();
+        auto Y = vec3<double>(-1.0, 2.0, 3.0 ).unit();
+        auto Z = vec3<double>( 1.0,-2.0, 3.0 ).unit();
+        X.GramSchmidt_orthogonalize(Y, Z);
+        X = X.unit();
+        Y = Y.unit();
+        Z = Z.unit();
+
+        affine_transform<double> A;
+        A.coeff(0,0) = X.x;
+        A.coeff(1,0) = X.y;
+        A.coeff(2,0) = X.z;
+
+        A.coeff(0,1) = Y.x;
+        A.coeff(1,1) = Y.y;
+        A.coeff(2,1) = Y.z;
+
+        A.coeff(0,2) = Z.x;
+        A.coeff(1,2) = Z.y;
+        A.coeff(2,2) = Z.z;
+
+        const auto B = A.invert();
+        const auto C = static_cast<affine_transform<double>>( static_cast<num_array<double>>(A).transpose() );
+        const auto md = max_diff(B, C);
+        REQUIRE( md < eps );
+    }
+
+    SUBCASE( "attempted inverse of a singular matrix throws" ){
+        affine_transform<double> A;
+        A.coeff(0,0) = 0.0;
+        A.coeff(1,1) = 0.0;
+        A.coeff(2,2) = 0.0;
+
+        A.coeff(1,0) = 0.0;
+        A.coeff(2,0) = 0.0;
+        A.coeff(2,1) = 0.0;
+        A.coeff(0,1) = 0.0;
+        A.coeff(0,2) = 0.0;
+
+        A.coeff(0,3) = 0.0;
+        A.coeff(1,2) = 0.0;
+        A.coeff(1,3) = 0.0;
+        A.coeff(2,3) = 0.0;
+
+        REQUIRE_THROWS(A.invert());
+    }
 
 }
+
 
 /*
 Currently outstanding:

@@ -734,6 +734,7 @@ class num_array {
 
         T trace() const;
         num_array transpose() const;
+        num_array invert() const; // Throws if it can't be computed with normal numbers.
 
         vec3<T> to_vec3() const; // Handles both 3x1 and 1x3 matrices.
         vec3<T> hnormalize_to_vec3() const; // Handles both 4x1 and 1x4 matrices.
@@ -787,6 +788,9 @@ class affine_transform {
         // Accessors.
         T & coeff(long int r, long int c);
         T read_coeff(long int r, long int c) const;
+
+        // Inversion. Throws if it can't be computed with normal numbers.
+        affine_transform invert() const;
 
         // Apply the (full) transformation to a vec3.
         void apply_to(vec3<T> &in) const;
