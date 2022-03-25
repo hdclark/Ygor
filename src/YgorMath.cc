@@ -8236,18 +8236,18 @@ affine_transform<T>::write_to(std::ostream &os) const {
 template <class T>
 bool
 affine_transform<T>::read_from(std::istream &is){
-    for(long int c = 0; c < 4; ++c){
-        for(long int r = 0; r < 4; ++r){
+    for(long int r = 0; r < 4; ++r){
+        for(long int c = 0; c < 4; ++c){
             std::string shtl;
             is >> shtl;
             this->t[r][c] = static_cast<T>(std::stold(shtl));
         }
     }
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
-    if( (machine_eps < (std::abs(this->t[3][0] - 0.0)))
-    ||  (machine_eps < (std::abs(this->t[3][1] - 0.0)))
-    ||  (machine_eps < (std::abs(this->t[3][2] - 0.0)))
-    ||  (machine_eps < (std::abs(this->t[3][3] - 1.0))) ){
+    if( (machine_eps < (std::abs(this->t[3][0] - static_cast<T>(0))))
+    ||  (machine_eps < (std::abs(this->t[3][1] - static_cast<T>(0))))
+    ||  (machine_eps < (std::abs(this->t[3][2] - static_cast<T>(0))))
+    ||  (machine_eps < (std::abs(this->t[3][3] - static_cast<T>(1)))) ){
         FUNCWARN("Unable to read transformation; not affine");
         return false;
     }
