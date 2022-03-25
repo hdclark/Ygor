@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <optional>
 
 #include "YgorDefinitions.h"
 
@@ -127,6 +128,10 @@ bool GetValueIfKeyMatches(T *out, const std::string &key , const unsigned char k
 std::string Convert_Unprintables_to_Hex(const std::string &in);
 std::string Quote_Static_for_Bash(const std::string &in);
 std::string Quote_Expandable_for_Bash(const std::string &in);
+
+// Base64-aware key-value string pair ("metadata") encoders.
+std::optional<std::pair<std::string,std::string>> decode_metadata_kv_pair( const std::string &line );
+std::string encode_metadata_kv_pair( const std::pair<std::string,std::string> &kvp );
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------- Generic String-related Routines -----------------------------------------------

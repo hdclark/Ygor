@@ -319,28 +319,12 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                 fvsm.metadata["ObjInfo"] = line.substr(p_space + 1);
 
             }else if( (1 <= split.size()) && (split.at(0) == "comment"_s)){
-                // Note: Syntax should be:
-                // |  # metadata: key = value
-                // |  # base64 metadata: encoded_key = encoded_value
-                const auto p_assign = line.find(" = ");
-                const auto p_metadata = line.find("metadata: ");
-                const auto p_base64 = line.find("base64 metadata: ");
-                if( (p_assign == std::string::npos)
-                ||  (p_metadata == std::string::npos) ) continue; // Is a non-metadata comment.
-
-                // Determine the boundaries of the key and value.
-                const auto value = line.substr(p_assign + 3);
-                const auto key_offset = p_metadata + 10;
-                const auto key = line.substr(key_offset, (p_assign - key_offset));
-
-                // Decode using base64, if necessary.
-                if( (p_base64 == std::string::npos)
-                ||  (p_metadata < p_base64) ){ // If the base64 keyword appears in the metadata itself.
-                    fvsm.metadata[key] = value;
+                // Handle metadata packed into a comment line.
+                auto kvp_opt = decode_metadata_kv_pair(line);
+                if(kvp_opt){
+                    fvsm.metadata.insert(kvp_opt.value());
                 }else{
-                    const auto decoded_key = Base64::DecodeToString(key);
-                    const auto decoded_value = Base64::DecodeToString(value);
-                    fvsm.metadata[decoded_key] = decoded_value;
+                    continue;
                 }
 
             // Read the version statement.
@@ -679,17 +663,6 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     const bool use_int16_t = false; //(N_verts < std::numeric_limits<int16_t>::max());
     const bool use_int32_t = (N_verts < std::numeric_limits<int32_t>::max());
 
-    // Used to determine when text must be base64 encoded.
-    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
-        for(const auto &x : in){
-            // Permit words/sentences but not characters that could potentially affect file interpretation.
-            // Note that whitespace is significant and will not be altered.
-            if( !std::isprint(x) 
-                || (x == static_cast<unsigned char>('=')) ) return true;
-        }
-        return false;
-    };
-
     if(os.bad()){
         FUNCWARN("Stream initially in invalid state. Refusing to continue");
         return false;
@@ -707,20 +680,8 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     }
 
     // Emit metadata.
-    {
-        for(const auto &mp : fvsm.metadata){
-            const auto key = mp.first;
-            const auto value = mp.second;
-            const bool must_encode = needs_to_be_escaped(key) || needs_to_be_escaped(value);
-            if(must_encode){
-                const auto encoded_key   = Base64::EncodeFromString(key);
-                const auto encoded_value = Base64::EncodeFromString(value);
-                os << "comment base64 metadata: " << encoded_key << " = " << encoded_value << "\n";
-            }else{
-                // If encoding is not needed then don't. It will make the data more accessible.
-                os << "comment metadata: " << key << " = " << value << "\n";
-            }
-        }
+    for(const auto &mp : fvsm.metadata){
+        os << "comment " << encode_metadata_kv_pair(mp) << "\n";
     }
 
     os << "element vertex " << fvsm.vertices.size() << "\n"

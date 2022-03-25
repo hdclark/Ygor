@@ -12187,32 +12187,9 @@ samples_1D<T>::Write_To_Stream(std::ostream &SO) const {
     const auto defaultprecision = SO.precision();
     SO.precision(std::numeric_limits<T>::max_digits10 );
 
-    // Used to determine when text must be base64 encoded.
-    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
-        for(const auto &x : in){
-            // Permit words/sentences but not characters that could potentially affect file interpretation.
-            // Note that whitespace is significant and will not be altered.
-            if( !std::isprint(x) 
-                || (x == static_cast<unsigned char>('=')) ) return true;
-        }
-        return false;
-    };
-
+    // Encode metadata.
     for(const auto &mp : this->metadata){
-        // Note: Syntax should be:
-        // |  # metadata: key = value
-        // |  # base64 metadata: encoded_key = encoded_value
-
-        const auto key = mp.first;
-        const auto value = mp.second;
-        const auto should_escape = (needs_to_be_escaped(key) || needs_to_be_escaped(value));
-        if(should_escape){
-            const auto encoded_key = Base64::EncodeFromString(key);
-            const auto encoded_value = Base64::EncodeFromString(value);
-            SO << "# base64 metadata: " << encoded_key << " = " << encoded_value << std::endl;
-        }else{
-            SO << "# metadata: " << key << " = " << value << std::endl;
-        }
+        SO << "# " << encode_metadata_kv_pair(mp) << std::endl;
     }
 
     for(const auto &P : this->samples) SO << P[0] << " " << P[1] << " " << P[2] << " " << P[3] << std::endl;
@@ -12279,30 +12256,11 @@ samples_1D<T>::Read_From_Stream(std::istream &SI){
         std::size_t nonspace = line.find_first_not_of(" \t");
         if(nonspace == std::string::npos) continue; //Only whitespace.
         if(line[nonspace] == '#'){
-            // Note: Syntax should be:
-            // |  # metadata: key = value
-            // |  # base64 metadata: encoded_key = encoded_value
-            const auto p_assign = line.find(" = ");
-            const auto p_metadata = line.find("metadata: ");
-            const auto p_base64 = line.find("base64 metadata:");
-            if(p_assign == std::string::npos) continue; // A comment.
-            if(p_metadata == std::string::npos) continue; // A comment.
-
-            // Determine the boundaries of the key and value.
-            const auto value = line.substr(p_assign + 3);
-            const auto key_offset = p_metadata + 10;
-            const auto key = line.substr(key_offset, (p_assign - key_offset));
-
-            // Decode using base64, if necessary.
-            if( (p_base64 == std::string::npos)
-            ||  (p_metadata < p_base64) ){ // If the base64 term appears in the metadata itself.
-                indata.metadata[key] = value;
-            }else{
-                const auto decoded_key = Base64::DecodeToString(key);
-                const auto decoded_value = Base64::DecodeToString(value);
-                indata.metadata[decoded_key] = decoded_value;
+            auto kvp_opt = decode_metadata_kv_pair(line);
+            if(kvp_opt){
+                indata.metadata.insert(kvp_opt.value());
             }
-        
+
         }else{ // Line contains a datum, either 'x f' or 'x dx f df'.
             std::stringstream ss(line);
             T a, b, c, d;

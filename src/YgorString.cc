@@ -40,6 +40,7 @@
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"   //Needed for error functions (for debugging) and isininc macro.
 #include "YgorString.h" //Includes namespace constants, function decl.'s, etc..
+#include "YgorBase64.h"
 
 
 
@@ -956,6 +957,83 @@ std::string Quote_Expandable_for_Bash(const std::string &in){
     return out + '"';
 }
 
+
+// This function attempts to extract an annotated ("metadata") key-value pair from a line of text.
+std::optional<std::pair<std::string,std::string>>
+decode_metadata_kv_pair( const std::string &line ){
+    std::optional<std::pair<std::string, std::string>> out;
+
+    // Note: Syntax should be:
+    // |  # metadata: key = value
+    // |  # base64 metadata: encoded_key = encoded_value
+    const auto p_assign = line.find(" = ");
+    const auto p_metadata = line.find("metadata: ");
+    const auto p_base64 = line.find("base64 metadata: ");
+
+    // Check if contains (structured) metadata.
+    if( (p_assign == std::string::npos)
+    ||  (p_metadata == std::string::npos) ) return out;
+
+    // Determine the boundaries of the key and value.
+    const auto value = line.substr(p_assign + 3);
+    const auto key_offset = p_metadata + 10;
+    const auto key = line.substr(key_offset, (p_assign - key_offset));
+
+    // Decode using base64, if necessary.
+    //
+    // Decide whether to decode if 'base64' keyword appears in the metadata itself.
+    if( (p_base64 == std::string::npos)
+    ||  (p_metadata < p_base64) ){
+        out = { key, value };
+
+    }else{
+        const auto decoded_key = Base64::DecodeToString(key);
+        const auto decoded_value = Base64::DecodeToString(value);
+        out = { decoded_key, decoded_value };
+    }
+
+    return out;
+}
+
+std::string
+encode_metadata_kv_pair( const std::pair<std::string,std::string> &kvp ){
+    std::string out;
+
+    // Used to determine when text must be base64 encoded.
+    const auto needs_to_be_escaped = [](const std::string &in) -> bool {
+        for(const auto &x : in){
+            // Permit words/sentences but not characters that could potentially affect file interpretation.
+            // Note that whitespace is significant and will not be altered.
+            if( !std::isprint(x)
+
+                // Problematic when detecting whether quoted (and therefore possibly escaped).
+                || (x == static_cast<unsigned char>('\''))
+                || (x == static_cast<unsigned char>('"'))
+
+                // Problematic if interpretted as HTML or embedded in text that might be displayed within HTML.
+                || (x == static_cast<unsigned char>('<'))
+                || (x == static_cast<unsigned char>('>'))
+                || (x == static_cast<unsigned char>('&'))
+
+                // Problematic for detecting the boundaries of the key-value pair.
+                || (x == static_cast<unsigned char>('=')) ) return true;
+        }
+        return false;
+    };
+
+    const auto key = kvp.first;
+    const auto value = kvp.second;
+    const bool must_encode = needs_to_be_escaped(key) || needs_to_be_escaped(value);
+    if(must_encode){
+        const auto encoded_key   = Base64::EncodeFromString(key);
+        const auto encoded_value = Base64::EncodeFromString(value);
+        out = "base64 metadata: "_s + encoded_key + " = " + encoded_value;
+    }else{
+        out = "metadata: "_s + key + " = " + value;
+    }
+
+    return out;
+}
 
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------- Generic String-related Routines -----------------------------------------------
