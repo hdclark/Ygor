@@ -775,6 +775,7 @@ class affine_transform {
     public:
         //Constructors.
         affine_transform(); // Defaults to an identity transform.
+        affine_transform(std::istream &is); // Defers to read_from(), but throws on error.
         affine_transform(const affine_transform &in);
 
         explicit operator num_array<T>() const;

@@ -8002,6 +8002,17 @@ num_array<T>::read_from(std::istream &is){
 //---------------------------------------------------------------------------------------------------------------------
 
 template <class T>
+affine_transform<T>::affine_transform(std::istream &is){
+    if(!this->read_from(is)){
+        throw std::invalid_argument("Input not understood, refusing to contruct empty affine transform");
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template affine_transform<float >::affine_transform(std::istream &);
+    template affine_transform<double>::affine_transform(std::istream &);
+#endif
+
+template <class T>
 affine_transform<T>::affine_transform() : t({{ std::array<T,4>{{ 1.0, 0.0, 0.0, 0.0 }},
                                                std::array<T,4>{{ 0.0, 1.0, 0.0, 0.0 }},
                                                std::array<T,4>{{ 0.0, 0.0, 1.0, 0.0 }},
