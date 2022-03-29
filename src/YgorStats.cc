@@ -469,7 +469,7 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
 //----------------------------------------- Running Accumulators and Tallies ----------------------------------------------
 template <typename T>
 Stats::Running_MinMax<T>::Running_MinMax() : PresentMin(std::numeric_limits<T>::max()),
-                                             PresentMax(std::numeric_limits<T>::min()) { }
+                                             PresentMax(std::numeric_limits<T>::lowest()) { }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template Stats::Running_MinMax<double  >::Running_MinMax();
     template Stats::Running_MinMax<float   >::Running_MinMax();

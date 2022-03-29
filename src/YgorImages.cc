@@ -2127,7 +2127,7 @@ template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const 
         throw std::runtime_error("Cannot compute min/max of zero pixels. This is undefined!");
     }
     T min = std::numeric_limits<T>::max();
-    T max = std::numeric_limits<T>::min();
+    T max = std::numeric_limits<T>::lowest();
     for(long int i = 0; i < this->rows*this->columns*this->channels; ++i){
         if(std::isnan(this->data[i])) continue; // Exclude NaNs.
         if(min > this->data[i]) min = this->data[i];
