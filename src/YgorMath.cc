@@ -6921,7 +6921,8 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 
                 const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
                 const auto face_orientation = triangle_orientation(v_A, v_B, v_C);
-                const auto is_visible = (static_cast<T>(0) < face_orientation.Dot(v_i - v_centroid));
+                //const auto is_visible = (static_cast<T>(0) <= face_orientation.Dot(v_i - v_centroid));
+                const auto is_visible = (-machine_eps < face_orientation.Dot(v_i - v_centroid));
 
                 if(is_visible) visible_faces.insert(j);
                 //const auto tet_signed_volume = tetrahedron_signed_volume(v_i, v_A, v_B, v_C);
@@ -6932,7 +6933,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
                 // The vertex is inside the hull, so ignore it.
                 continue;
             }else{
-                // The vertex in on the (current) hull, so we have to figure out which faces to prune.
+                // The vertex is outside the (current) hull, so we have to figure out which faces to prune.
                 //
                 // First, identify the pairs of faces that straddle the visibility horizon. We will later extract the
                 // common edges.
@@ -6995,10 +6996,16 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
                         }
 
                     }else{
-                        throw std::logic_error("Degenerate case with all three vertices intersecting. Cannot continue.");
+                        //throw std::logic_error("Degenerate case with all three vertices intersecting. Cannot continue.");
+                        FUNCWARN("Encountered inconsistency likely due to numerical inaccuracy. Hull may be incomplete");
+                        visibility_horizon_straddlers.clear();
+                        break;
                     }
                 }
 
+                if(visibility_horizon_straddlers.empty()){
+                    continue;
+                }
 /*
                 // Sort the polyline so that the polyline is contiguous.
                 // Locality will later simplify adjacency calculations.
