@@ -6764,13 +6764,15 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         throw std::invalid_argument("Iterators are reversed.");
     }
     const auto N_verts = static_cast<I>( vert_it_dist );
-    const auto machine_eps = std::sqrt( static_cast<T>(10) * std::numeric_limits<T>::epsilon() );
+    const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
+    const auto machine_eps = std::sqrt( eps );
 
 
     const auto get_vert = [&](I n){
         return *(std::next(verts_begin, n));
     };
     const auto triangle_centroid = [](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C){
+// TODO: use Kahan summation to improve accuracy?
         const auto v_centroid = ( v_A / static_cast<T>(3.0) )
                               + ( v_B / static_cast<T>(3.0) )
                               + ( v_C / static_cast<T>(3.0) );
@@ -6787,6 +6789,8 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         const auto signed_volume = (v_B - v_A).Cross(v_C - v_A).Dot(v_D - v_A);
         return signed_volume;
     };
+
+    bool warned_about_possible_inaccuracy = false;
 
     if(N_verts < 4){
         throw std::runtime_error("Not yet implemented");
@@ -6891,7 +6895,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         }
 
         // Now, we evaluate all other vertices, one-at-a-time, to see if they contribute to the hull or not.
-        for(auto i = static_cast<I>(4); i < N_verts; ++i){
+        for(auto i = static_cast<I>(0); i < N_verts; ++i){
             if( (i == seed_tet[0])
             ||  (i == seed_tet[1])
             ||  (i == seed_tet[2])
@@ -6919,10 +6923,15 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 
                 // ... TODO ... (How to do this reliably??)
 
-                const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
-                const auto face_orientation = triangle_orientation(v_A, v_B, v_C);
-                //const auto is_visible = (static_cast<T>(0) <= face_orientation.Dot(v_i - v_centroid));
-                const auto is_visible = (-machine_eps < face_orientation.Dot(v_i - v_centroid));
+                //const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
+                const auto face_orientation = triangle_orientation(v_A, v_B, v_C).unit();
+                if(!face_orientation.isfinite()) continue;
+
+                const auto offset = face_orientation.Dot(v_i - v_A);
+
+                const auto is_visible = std::isfinite(offset) && (static_cast<T>(0) < offset);
+                //const auto is_visible = (-machine_eps < face_orientation.Dot(v_i - v_centroid));
+                //const auto is_visible = (-eps < face_orientation.Dot(v_i - v_centroid));
 
                 if(is_visible) visible_faces.insert(j);
                 //const auto tet_signed_volume = tetrahedron_signed_volume(v_i, v_A, v_B, v_C);
@@ -6997,7 +7006,10 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 
                     }else{
                         //throw std::logic_error("Degenerate case with all three vertices intersecting. Cannot continue.");
-                        FUNCWARN("Encountered inconsistency likely due to numerical inaccuracy. Hull may be incomplete");
+                        if(!warned_about_possible_inaccuracy){
+                            FUNCWARN("Encountered inconsistency likely due to numerical inaccuracy. Hull may be incomplete");
+                            warned_about_possible_inaccuracy = true;
+                        }
                         visibility_horizon_straddlers.clear();
                         break;
                     }
