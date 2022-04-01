@@ -621,6 +621,14 @@ template <class T, class I>   class fv_surface_mesh {
 };
 
 
+// Extract a convex hull from a set of vec3s.
+//
+// Note that due to numerical limitations, the hull may or may not include points within a small eps from the hull.
+// Likewise, the hull may be undersized if there are many points within a small eps from one another near the hull
+// boundary.
+//
+// For this reason, if the status of each point being present on the hull is needed, consider testing *all* vertices
+// (not just the ones on the hull) for surface-point distance within a given eps.
 template <class InputIt, class I>
 std::vector<std::vector<I>> // Faces.
 Convex_Hull_3(InputIt verts_begin, // vec3 vertices.

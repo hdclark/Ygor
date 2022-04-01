@@ -6928,14 +6928,10 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
                 if(!face_orientation.isfinite()) continue;
 
                 const auto offset = face_orientation.Dot(v_i - v_A);
+                if(!std::isfinite(offset)) continue;
 
-                const auto is_visible = std::isfinite(offset) && (static_cast<T>(0) < offset);
-                //const auto is_visible = (-machine_eps < face_orientation.Dot(v_i - v_centroid));
-                //const auto is_visible = (-eps < face_orientation.Dot(v_i - v_centroid));
-
+                const auto is_visible = (static_cast<T>(0) <= std::abs(offset));
                 if(is_visible) visible_faces.insert(j);
-                //const auto tet_signed_volume = tetrahedron_signed_volume(v_i, v_A, v_B, v_C);
-                //const auto is_visible = (tet_signed_volume < 0);
             }
 
             if(visible_faces.empty()){
