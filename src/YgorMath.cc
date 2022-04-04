@@ -6757,7 +6757,8 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 
     using T = typename std::iterator_traits<InputIt>::value_type::value_type;
 
-    std::vector<std::vector<I>> faces;
+    //std::vector<std::vector<I>> faces;
+    std::map<I, std::array<I, 3>> faces;
 
     const auto vert_it_dist = std::distance(verts_begin, verts_end);
     if(vert_it_dist < 0){
@@ -6790,7 +6791,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         return signed_volume;
     };
 
-    bool warned_about_possible_inaccuracy = false;
+    I face_number = 0;
 
     if(N_verts < 4){
         throw std::runtime_error("Not yet implemented");
@@ -6813,79 +6814,118 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             return true;
         };
 
+        // Scan vertices along several directions and feed unused extreme vertices into the hull routine below. This should
+        // significantly speed things up for 'dense' point clouds where the majority of vertices are in the hull interior.
+        const auto neg_inf = -(std::numeric_limits<T>::infinity());
+        struct extrema_t {
+            vec3<T> dir; // = vec3<T>( static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) );
+            I v_i; // = static_cast<I>(0);
+            T curr_best_score; // = neg_inf;
+        };
+        std::vector<extrema_t> extrema;
+
+        {
+            // Corners of the bounding rectangle.
+            //
+            // Note: first four should make a tetrahedron.
+            extrema.push_back( extrema_t{ vec3<T>( 1.0,  1.0, -1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>(-1.0, -1.0, -1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>(-1.0,  1.0,  1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 1.0, -1.0,  1.0).unit(), static_cast<I>(0), neg_inf } );
+
+            extrema.push_back( extrema_t{ vec3<T>(-1.0, -1.0,  1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 1.0,  1.0,  1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>(-1.0,  1.0, -1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 1.0, -1.0, -1.0).unit(), static_cast<I>(0), neg_inf } );
+
+            // Faces of the bounding rectangle.
+            extrema.push_back( extrema_t{ vec3<T>(-1.0,  0.0,  0.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 1.0,  0.0,  0.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 0.0, -1.0,  0.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 0.0,  1.0,  0.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 0.0,  0.0, -1.0).unit(), static_cast<I>(0), neg_inf } );
+            extrema.push_back( extrema_t{ vec3<T>( 0.0,  0.0,  1.0).unit(), static_cast<I>(0), neg_inf } );
+
+            auto i = static_cast<I>(0);
+            for(auto v_it = verts_begin; v_it != verts_end; ++v_it, ++i){
+                for(auto &e : extrema){
+                    const auto score = v_it->Dot(e.dir);
+                    if(e.curr_best_score < score){
+                        e.v_i = i;
+                        e.curr_best_score = score;
+                    }
+                }
+            }
+        }
+
         // Extrema-based tetrahedron extractor. Note that this can fail with pathological data. It should often succeed
         // for random, noisy, non-degenerate vertices.
         do{
-            const auto dir_1 = vec3<T>( 1.0,  1.0, -1.0).unit();
-            const auto dir_2 = vec3<T>(-1.0, -1.0, -1.0).unit();
-            const auto dir_3 = vec3<T>(-1.0,  1.0,  1.0).unit();
-            const auto dir_4 = vec3<T>( 1.0, -1.0,  1.0).unit();
-
             // First vertex. Ensure finite.
-            auto seed_1_it = std::max_element( verts_begin, verts_end,
-                                 [&](const vec3<T> &v_A, const vec3<T> &v_B){
-                                     return v_A.Dot(dir_1) < v_B.Dot(dir_1);
-                                 } );
-            if( !seed_1_it->isfinite() ) break;
-            seed_tet.emplace_back(static_cast<I>( std::distance(verts_begin, seed_1_it) ));
+            const auto seed_1_v_i = extrema.at(0).v_i;
+            const auto seed_1_v = get_vert(seed_1_v_i);
+            if( !seed_1_v.isfinite() ) break;
+            seed_tet.emplace_back(seed_1_v_i);
 
 
             // Second vertex. Ensure finite, and distinct.
-            auto seed_2_it = std::max_element( verts_begin, verts_end,
-                                 [&](const vec3<T> &v_A, const vec3<T> &v_B){
-                                     return v_A.Dot(dir_2) < v_B.Dot(dir_2);
-                                 } );
-            if( !seed_2_it->isfinite()
-            ||  !vert_is_distinct(*seed_2_it) ) break;
-            seed_tet.emplace_back(static_cast<I>( std::distance(verts_begin, seed_2_it) ));
+            const auto seed_2_v_i = extrema.at(1).v_i;
+            const auto seed_2_v = get_vert(seed_2_v_i);
+            if( !seed_2_v.isfinite()
+            ||  !vert_is_distinct(seed_2_v)
+            ||  (seed_1_v_i == seed_2_v_i) ) break;
+            seed_tet.emplace_back(seed_2_v_i);
 
 
-            // Third vertex. Ensure finite, distinct, and forms non-zero-area triangle.
-            auto seed_3_it = std::max_element( verts_begin, verts_end,
-                                 [&](const vec3<T> &v_A, const vec3<T> &v_B){
-                                     return v_A.Dot(dir_3) < v_B.Dot(dir_3);
-                                 } );
-            if( !seed_3_it->isfinite()
-            ||  !vert_is_distinct(*seed_3_it) ) break;
-            const auto area = triangle_area( *seed_1_it,
-                                             *seed_2_it,
-                                             *seed_3_it);
+            // Third vertex. Ensure finite, distinct, and forms non-zero-area trianglextrema.
+            const auto seed_3_v_i = extrema.at(2).v_i;
+            const auto seed_3_v = get_vert(seed_3_v_i);
+            if( !seed_3_v.isfinite()
+            ||  !vert_is_distinct(seed_3_v)
+            ||  (seed_1_v_i == seed_3_v_i)
+            ||  (seed_2_v_i == seed_3_v_i) ) break;
+
+            const auto area = triangle_area( seed_1_v, seed_2_v, seed_3_v );
             if(area < machine_eps) break;
-            seed_tet.emplace_back(static_cast<I>( std::distance(verts_begin, seed_3_it) ));
+            seed_tet.emplace_back(seed_3_v_i);
 
 
             // Fourth vertex. Ensure finite, distinct, and forms non-zero-volume tetrahedron.
-            auto seed_4_it = std::max_element( verts_begin, verts_end,
-                                 [&](const vec3<T> &v_A, const vec3<T> &v_B){
-                                     return v_A.Dot(dir_4) < v_B.Dot(dir_4);
-                                 } );
-            if( !seed_4_it->isfinite()
-            ||  !vert_is_distinct(*seed_4_it) ) break;
-            const auto svol = tetrahedron_signed_volume( *seed_1_it,
-                                                         *seed_2_it,
-                                                         *seed_3_it,
-                                                         *seed_4_it );
+            const auto seed_4_v_i = extrema.at(3).v_i;
+            const auto seed_4_v = get_vert(seed_4_v_i);
+            if( !seed_4_v.isfinite()
+            ||  !vert_is_distinct(seed_4_v)
+            ||  (seed_1_v_i == seed_4_v_i)
+            ||  (seed_2_v_i == seed_4_v_i)
+            ||  (seed_3_v_i == seed_4_v_i) ) break;
+
+            const auto svol = tetrahedron_signed_volume( seed_1_v, seed_2_v, seed_3_v, seed_4_v );
             if(std::abs(svol) < machine_eps) break;
-            seed_tet.emplace_back(static_cast<I>( std::distance(verts_begin, seed_4_it) ));
+            seed_tet.emplace_back(seed_4_v_i);
         }while(false);
 
         // Fallback linear scan using any existing seed vertices previously found.
         for(auto i = static_cast<I>(0); i < N_verts; ++i){
             const auto N_seed_tet = seed_tet.size();
             if(3 < N_seed_tet) break;
-            const auto v_i = get_vert(i);
+            const auto v = get_vert(i);
 
             // Ignore the vertex if it is not finite or invalid.
-            if(!v_i.isfinite()) continue;
+            if(!v.isfinite()) continue;
             
             // Check if the vertex is too close to any vertex previously added vertex.
-            if(!vert_is_distinct(v_i)) continue;
+            if(!vert_is_distinct(v)) continue;
+            bool is_dup = false;
+            for(const auto& s : seed_tet){
+                if(i == s) is_dup = true;
+            }
+            if(is_dup) continue;
 
             // If this is vertex #3, check that adds a non-zero area.
             if(N_seed_tet == 2){
                 const auto area = triangle_area( get_vert(seed_tet[0]),
                                                  get_vert(seed_tet[1]),
-                                                 v_i );
+                                                 v );
                 if(area < machine_eps) continue;
             }
 
@@ -6894,7 +6934,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
                 const auto svol = tetrahedron_signed_volume( get_vert(seed_tet[0]),
                                                              get_vert(seed_tet[1]),
                                                              get_vert(seed_tet[2]),
-                                                             v_i );
+                                                             v );
                 if(std::abs(svol) < machine_eps) continue;
             }
 
@@ -6905,50 +6945,45 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             throw std::runtime_error("Unable to find seed tetrahedron. Is the point-cloud degenerate?");
         }
 
+        // De-duplicate extreme verts.
+        std::sort( std::begin(extrema), std::end(extrema),
+                   [](const extrema_t &A, const extrema_t &B){
+                       return A.v_i < B.v_i;
+                   } );
+        extrema.erase( std::unique( std::begin(extrema), std::end(extrema),
+                       [](const extrema_t &A, const extrema_t &B){
+                           return (A.v_i == B.v_i);
+                       }),
+                       std::end(extrema) );
+
         // Next, we ensure the individual faces are oriented uniformly and correctly, since the orientation is critical for building the
         // hull below. An easy method is to use a point in the interior to confirm normals point outward.
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[2]) }} );
-        faces.emplace_back( std::vector<I>{{ static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) }} );
+
+        faces[face_number++] = { static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]) };
+        faces[face_number++] = { static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) };
+        faces[face_number++] = { static_cast<I>(seed_tet[0]), static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[2]) };
+        faces[face_number++] = { static_cast<I>(seed_tet[1]), static_cast<I>(seed_tet[3]), static_cast<I>(seed_tet[2]) };
 
         // Pre-populate the face adjacency list. At this point (with only four faces) all faces are adjacent to all
         // other faces.
         std::map<I, std::set<I>> face_adjacency;
-        const auto regenerate_face_adjacency = [&]() -> void {
-            face_adjacency.clear();
-            const auto N_faces = static_cast<I>(faces.size());
-            for(auto i = static_cast<I>(0); i < N_faces; ++i){
-                for(auto j = static_cast<I>(0); j < N_faces; ++j){
-                    if(i != j) face_adjacency[i].insert(j);
+        {
+            for(const auto& fpA : faces){
+                for(const auto& fpB : faces){
+                    if(fpA.first != fpB.first) face_adjacency[fpA.first].insert(fpB.first);
                 }
             }
-            return;
-        };
-        regenerate_face_adjacency();
-
-        const auto compact_faces = [&]() -> void {
-            // Invalidate the adjacency list, which is no longer needed.
-            face_adjacency.clear();
-
-            // Purge empty faces.
-            faces.erase(std::remove_if(std::begin(faces), std::end(faces),
-                                       [](const std::vector<I>& vec){ return vec.empty(); }),
-                        std::end(faces));
-
-            regenerate_face_adjacency();
-            return;
-        };
+        }
 
         const auto v_inside = (get_vert(seed_tet[0]) * static_cast<T>(0.25))
                             + (get_vert(seed_tet[1]) * static_cast<T>(0.25))
                             + (get_vert(seed_tet[3]) * static_cast<T>(0.25))
                             + (get_vert(seed_tet[2]) * static_cast<T>(0.25));
 
-        for(auto &f : faces){
-            const auto v_A = get_vert(f[0]);
-            const auto v_B = get_vert(f[1]);
-            const auto v_C = get_vert(f[2]);
+        for(auto &fp : faces){
+            const auto v_A = get_vert(fp.second[0]);
+            const auto v_B = get_vert(fp.second[1]);
+            const auto v_C = get_vert(fp.second[2]);
 
             const auto v_centroid = triangle_centroid(v_A, v_B, v_C);
             const auto offset = (v_centroid - v_inside);
@@ -6964,56 +6999,53 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             }
             const auto orientation = offset.Dot(face_orientation);
             if(orientation < static_cast<T>(0)){
-                std::swap( f[0], f[1] ); // Reverse face orientation.
+                std::swap( fp.second[0], fp.second[1] ); // Reverse face orientation.
             }
         }
 
-        // Now, we evaluate all other vertices, one-at-a-time, to see if they contribute to the hull or not.
-        for(auto i = static_cast<I>(0); i < N_verts; ++i){
-            if( (i == seed_tet[0])
-            ||  (i == seed_tet[1])
-            ||  (i == seed_tet[2])
-            ||  (i == seed_tet[3]) ) continue;
-
+ 
+        // This function processes (unprocessed) vertices one at a time. We feed it extreme vertices first, which should
+        // accelerate most hull extractions.
+        const auto process_vert = [&](I i) -> void {
             // Ignore the vertex if it is not finite or invalid.
             const auto v_i = get_vert(i);
-            if(!v_i.isfinite()) continue;
-
+            if(!v_i.isfinite()) return;
+    
 /*
-            // Periodically garbage-collect to avoid bloating face list and face adjacency.
-            if( (i % 2000) == 0 ){
-FUNCINFO("Compacting faces and adjacency list");
-                compact_faces();
-            }
-
 // Count how many non-empty faces are present.
 {
     long int nonempty_faces = 0;
-    for(const auto& f : faces) nonempty_faces += f.size();
+    for(const auto& fp : faces){
+        if(!fp.second.empty()) ++nonempty_faces;
+    }
 
     long int adj_face_count = 0;
-    for(const auto& p : face_adjacency) adj_face_count += 1 + p.second.size();
+    long int adj_face_empty_keys = 0;
+    for(const auto& p : face_adjacency){
+        adj_face_count += 1 + p.second.size();
+        if(p.second.empty()) ++adj_face_empty_keys;
+    }
 
 FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << ", non-empty faces: "
-  << nonempty_faces << ", and face_adjacency has size() = " << face_adjacency.size()
-  << " and " << adj_face_count << " entries");
+  << nonempty_faces << ", face_adjacency.size() = " << face_adjacency.size()
+  << ", has " << adj_face_count << " keys+values, and there are " << adj_face_empty_keys << " value-less keys");
 }
-
 */
-
-            const auto N_faces = static_cast<I>(faces.size());
             std::set<I> visible_faces;
-            for(auto j = static_cast<I>(0); j < N_faces; ++j){
-                if(faces[j].empty()) continue; // Ignore empty faces for now.
-                const auto v_A = get_vert(faces[j][0]);
-                const auto v_B = get_vert(faces[j][1]);
-                const auto v_C = get_vert(faces[j][2]);
+            for(const auto &fp : faces){
+                const auto v_A = get_vert(fp.second[0]);
+                const auto v_B = get_vert(fp.second[1]);
+                const auto v_C = get_vert(fp.second[2]);
 
-                // Ignore if the vertex is likely vertex degenerate.
+                // Ignore the vertex if it's vertex degenerate with one of the existing faces in the hull.
+                // Proceeding in this scenario without more precise math could result in inconsistencies.
                 const bool close_to_corners =    (v_A.distance(v_i) < machine_eps)
                                               || (v_B.distance(v_i) < machine_eps)
                                               || (v_C.distance(v_i) < machine_eps);
-                if(close_to_corners) continue;
+                if(close_to_corners){
+                    visible_faces.clear();
+                    break;
+                }
 
                 // Ignore if the vertex is close to the existing face.
 
@@ -7030,12 +7062,12 @@ FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
                 const auto is_visible =  ( std::isfinite(offset_A) && (static_cast<T>(0) <= offset_A) )
                                       && ( std::isfinite(offset_B) && (static_cast<T>(0) <= offset_B) )
                                       && ( std::isfinite(offset_C) && (static_cast<T>(0) <= offset_C) );
-                if(is_visible) visible_faces.insert(j);
+                if(is_visible) visible_faces.insert(fp.first);
             }
 
             if(visible_faces.empty()){
                 // The vertex is inside the hull, so ignore it.
-                continue;
+                return;
             }else{
                 // The vertex is outside the (current) hull, so we have to figure out which faces to prune.
                 //
@@ -7045,15 +7077,12 @@ FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
                 for(const auto &vis_face : visible_faces){
                     for(const auto &adj_face : face_adjacency[vis_face]){
                         if( (visible_faces.count(adj_face) == 0)
-                        &&  !(faces[adj_face].empty()) ){
+                        &&  !(faces.count(adj_face) == 0) ){
                             // Add pair: vis_face and adj_face -- they straddle the visibility boundary.
                             visibility_horizon_straddlers.emplace_back( std::make_pair(vis_face, adj_face) );
                         }
                     }
                 }
-
-// TODO: remove the visible face from the invisible face adjacency list.
-// This will improve scalbility.
 
                 // Extract the polygon built from edges of face pairs that straddle the visibility horizon. 
                 //
@@ -7131,7 +7160,7 @@ FUNCINFO(ss.str());
                 }
 
                 if(visibility_horizon_straddlers.empty()){
-                    continue;
+                    return;
                 }
 /*
                 // Sort the polyline so that the polyline is contiguous.
@@ -7163,66 +7192,70 @@ FUNCINFO(ss.str());
                 //
                 // Note: we will garbage-collect at the end.
                 for(const auto &f : visible_faces){
-                    faces[f].clear();
+                    faces.erase(f);
                 }
 
-                // Remove adjacency for visible faces, which should no longer be needed.
+                // Remove adjacency for visible faces, including for adjacent faces that refer back to them.
+                // The visible faces are not needed for any purpose, and it;s important to remove their keys
+                // otherwise key lookup slows down.
                 for(const auto &f : visible_faces){
+                    for(const auto &adj_f : face_adjacency[f]){
+                        if(face_adjacency.count(adj_f) != 0){
+                            face_adjacency[adj_f].erase(f);
+                            if(face_adjacency[adj_f].empty()) face_adjacency.erase(adj_f);
+                        }
+                    }
                     face_adjacency.erase(f);
                 }
 
                 // Add new faces using the visibility horizon.
-                const auto orig_N_faces = static_cast<I>(faces.size());
-                auto N_new_faces = static_cast<I>(visibility_horizon_polygon.size());
-                auto new_face_number = orig_N_faces;
+                const auto orig_face_number = face_number;
+                auto N_added_faces = static_cast<I>(0);
                 std::set< std::array<I,3> > new_faces;
                 for(const auto &vhp_p : visibility_horizon_polygon){
                     const auto v_A_i = static_cast<I>(vhp_p.vert_low);
                     const auto v_B_i = static_cast<I>(vhp_p.vert_high);
                     const auto adj_invis_face_i = static_cast<I>(vhp_p.invis_face);
 
-                    // Remove adjacency between invisible and visible faces straddling the horizon.
-                    for(const auto &f : visible_faces){
-                        face_adjacency[adj_invis_face_i].erase(f);
-                    }
-
                     // Avoid duplicate faces being added.
-                    // TODO: Is this needed?
+// TODO: Is this needed? If so, *why* is it needed?
                     std::array<I,3> new_face {{ v_A_i, static_cast<I>(i), v_B_i }};
                     std::sort( std::begin(new_face), std::end(new_face) );
                     if(new_faces.count(new_face) != 0){
-                        --N_new_faces;
                         continue;
                     }
                     new_faces.insert(new_face);
 
-                    faces.emplace_back( std::vector<I>{{ v_A_i, static_cast<I>(i), v_B_i }});
+                    faces[face_number] = { v_A_i, static_cast<I>(i), v_B_i };
 
                     // Update the face_adjacency list.
                     //
                     // Note that we only have to add (bi-directional) links to shared-edge adjacent faces.
                     // Since the new vertex creates a triangle fan, face adjacency is simple to update.
-                    face_adjacency[adj_invis_face_i].insert(new_face_number);
-                    face_adjacency[new_face_number].insert(adj_invis_face_i);
+                    face_adjacency[adj_invis_face_i].insert(face_number);
+                    face_adjacency[face_number].insert(adj_invis_face_i);
 
-                    new_face_number += 1;
+                    ++N_added_faces;
+                    ++face_number;
                 }
 
-                // Update the adjacency list for adjacent new faces.
+                // Update the adjacency list for adjacent new faces on the 'cone.'
                 //
                 // Note: many of these adjacencies only share a vertex, not an edge. The new faces should form a
                 // cone or umbrella shape. 
-                for(auto nfi = static_cast<I>(0); nfi < N_new_faces; ++nfi){
+                for(auto nfi = orig_face_number; nfi < (orig_face_number + N_added_faces); ++nfi){
                     // Use std::set<std::array> approach from above here...
                     std::set< std::array<I,2> > edges_A;
-                    auto faces_A = faces[nfi + orig_N_faces];
+
+                    const auto& faces_A = faces[nfi];
                     edges_A.emplace( std::array<I,2>{{ std::min(faces_A[0], faces_A[1]), std::max(faces_A[0], faces_A[1]) }} );
                     edges_A.emplace( std::array<I,2>{{ std::min(faces_A[1], faces_A[2]), std::max(faces_A[1], faces_A[2]) }} );
                     edges_A.emplace( std::array<I,2>{{ std::min(faces_A[2], faces_A[0]), std::max(faces_A[2], faces_A[0]) }} );
 
-                    for(auto nfj = nfi + 1; nfj < N_new_faces; ++nfj){
+                    for(auto nfj = nfi + static_cast<I>(1); nfj < (orig_face_number + N_added_faces); ++nfj){
                         std::set< std::array<I,2> > edges_B;
-                        auto faces_B = faces[nfj + orig_N_faces];
+
+                        const auto& faces_B = faces[nfj];
                         edges_B.emplace( std::array<I,2>{{ std::min(faces_B[0], faces_B[1]), std::max(faces_B[0], faces_B[1]) }} );
                         edges_B.emplace( std::array<I,2>{{ std::min(faces_B[1], faces_B[2]), std::max(faces_B[1], faces_B[2]) }} );
                         edges_B.emplace( std::array<I,2>{{ std::min(faces_B[2], faces_B[0]), std::max(faces_B[2], faces_B[0]) }} );
@@ -7236,27 +7269,63 @@ FUNCINFO(ss.str());
                         if(N_common_edges == 0){
                             // Do nothing, common scenario (the faces only share a vertex, but not an edge).
                         }else if(N_common_edges == 1){
-                            face_adjacency[nfj + orig_N_faces].insert(nfi + orig_N_faces);
-                            face_adjacency[nfi + orig_N_faces].insert(nfj + orig_N_faces);
+                            face_adjacency[nfj].insert(nfi);
+                            face_adjacency[nfi].insert(nfj);
                         }else{
                             throw std::logic_error("New faces do not form a cone.");
                         }
                     }
                 }
-
             }
+            return;
+        };
+
+        // Evaluate all unprocessed vertices, one-at-a-time, to see if they expand the hull.
+        //
+        // Note: extrema are de-duplicated above. So just only to check if they were used in the seed tet.
+        for(const auto& e : extrema){
+            const auto i = e.v_i;
+
+            // Don't re-process seed tet verts.
+            if( (i == seed_tet[0])
+            ||  (i == seed_tet[1])
+            ||  (i == seed_tet[2])
+            ||  (i == seed_tet[3]) ) continue;
+
+            process_vert(i);
         }
-    
+        for(auto i = static_cast<I>(0); i < N_verts; ++i){
+
+            // Don't re-process seed tet verts.
+            if( (i == seed_tet[0])
+            ||  (i == seed_tet[1])
+            ||  (i == seed_tet[2])
+            ||  (i == seed_tet[3]) ) continue;
+
+            // Don't re-process extrema verts.
+            if(!extrema.empty()){
+                auto e_it = std::find_if( std::begin(extrema), std::end(extrema),
+                                          [&](const extrema_t &e){ return (e.v_i == i); } );
+                if(e_it != std::end(extrema)){
+                    extrema.erase(e_it);
+                    continue;
+                }
+            }
+
+            process_vert(i);
+        }
+
         // Invalidate the adjacency list, which is no longer needed.
         face_adjacency.clear();
-
-        // Purge empty faces.
-        faces.erase(std::remove_if(std::begin(faces), std::end(faces),
-                                   [](const std::vector<I>& vec){ return vec.empty(); }),
-                    std::end(faces));
     }
 
-    return faces;
+    std::vector<std::vector<I>> packed_faces;
+    packed_faces.reserve( faces.size() );
+    for(const auto& fp : faces){
+        packed_faces.emplace_back( std::begin(fp.second), std::end(fp.second) );
+    }
+
+    return packed_faces;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template std::vector<std::vector<uint32_t>> Convex_Hull_3(std::vector<vec3<float >>::iterator, std::vector<vec3<float >>::iterator );
