@@ -7088,6 +7088,16 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                 }
             }
 
+            // Final check that exactly two faces and one vertex will be removed.
+            {
+                const auto N_patch_faces = circulator.size();
+                const auto N_new_faces = new_faces.size();
+                const bool triangulation_complete = (N_patch_faces == (N_new_faces + 2UL));
+                if(!triangulation_complete){
+                    throw std::logic_error("Insufficient number of replacement faces");
+                }
+            }
+
             // Implement the changes.
             this->faces.insert( std::end(this->faces),
                                 std::make_move_iterator( std::begin(new_faces) ),
@@ -7112,12 +7122,12 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                     l_inv_faces.erase( std::remove( std::begin(l_inv_faces), std::end(l_inv_faces), old_f ),
                                        std::end(l_inv_faces) );
                 }
-                // Vertex remains, but is no longer referenced. It will be garbage-collected later.
             }
             //this->involved_faces[i].clear();
             if(!this->involved_faces[i].empty()){
                 throw std::logic_error("Vertex remains connected");
             }
+            // Note: at this point the vertex remains present, but is no longer referenced. It will be garbage-collected later.
 
             //// Export the current mesh for inspection.
             //{
