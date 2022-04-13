@@ -6898,24 +6898,24 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                                                   circulator.front().next_vert,
                                                   i );
 
-        // Temporary location for a proposed simplification transaction.
-        // If the simplification fails, we abandon simplifying this vertex.
-        std::vector<std::vector<I>> new_faces;
-        std::map<I,std::vector<I>> new_involved_faces;
-
-        const auto add_new_face = [&](const std::vector<I> &new_face) -> void {
-            const auto orig_N_faces = static_cast<I>(this->faces.size() + new_faces.size());
-            const auto new_f = orig_N_faces;
-
-            new_faces.push_back(new_face);
-            for(const auto& l_v : new_face){
-                new_involved_faces[l_v].emplace_back(new_f);
-            }
-            return;
-        };
-
         // Begin the simplification transaction.
         try{
+            // Temporary location for a proposed simplification transaction.
+            // If the simplification fails, we abandon simplifying this vertex.
+            std::vector<std::vector<I>> new_faces;
+            std::map<I,std::vector<I>> new_involved_faces;
+
+            const auto add_new_face = [&](const std::vector<I> &new_face) -> void {
+                const auto orig_N_faces = static_cast<I>(this->faces.size() + new_faces.size());
+                const auto new_f = orig_N_faces;
+
+                new_faces.push_back(new_face);
+                for(const auto& l_v : new_face){
+                    new_involved_faces[l_v].emplace_back(new_f);
+                }
+                return;
+            };
+
             bool advance_fwd = true; // Used to switch between forward and backward vertex iteration.
 
             auto l_circulator = circulator;
@@ -7088,50 +7088,49 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                 }
             }
 
+            // Implement the changes.
+            this->faces.insert( std::end(this->faces),
+                                std::make_move_iterator( std::begin(new_faces) ),
+                                std::make_move_iterator( std::end(new_faces) ) );
+            new_faces.clear();
+            for(const auto& p : new_involved_faces){
+                auto& l_inv_faces = this->involved_faces[p.first];
+                l_inv_faces.insert( std::end(l_inv_faces),
+                                    std::begin(p.second), std::end(p.second) );
+            }
+
+            // Delete the old faces and their presence in the adjacency index.
+            // Add the new faces and their presence in the adjacency index.
+            for(const auto& c : circulator){
+                const auto old_f = c.face;
+                this->faces[old_f].clear();
+
+                for(const auto l_v : { c.curr_vert, c.next_vert, i }){
+                    auto& l_inv_faces = this->involved_faces[l_v];
+
+                    // Remove old face if present.
+                    l_inv_faces.erase( std::remove( std::begin(l_inv_faces), std::end(l_inv_faces), old_f ),
+                                       std::end(l_inv_faces) );
+                }
+                // Vertex remains, but is no longer referenced. It will be garbage-collected later.
+            }
+            //this->involved_faces[i].clear();
+            if(!this->involved_faces[i].empty()){
+                throw std::logic_error("Vertex remains connected");
+            }
+
+            //// Export the current mesh for inspection.
+            //{
+            //    const auto FN = Get_Unique_Sequential_Filename("/tmp/mesh_smpl_frame_", 6, ".obj");
+            //    FUNCINFO("Exporting '" << FN << "' now..");
+            //    std::fstream FO(FN, std::fstream::out | std::ios::binary);
+            //    if(!WriteFVSMeshToOBJ( *this, FO )){
+            //        throw std::runtime_error("Unable to write surface mesh in OBJ format. Cannot continue.");
+            //    }
+            //}
         }catch(const std::exception &e){
             FUNCWARN("Proposed simplification abandoned: " << e.what());
         }
-
-        // Implement the changes.
-        this->faces.insert( std::end(this->faces),
-                            std::make_move_iterator( std::begin(new_faces) ),
-                            std::make_move_iterator( std::end(new_faces) ) );
-        new_faces.clear();
-        for(const auto& p : new_involved_faces){
-            auto& l_inv_faces = this->involved_faces[p.first];
-            l_inv_faces.insert( std::end(l_inv_faces),
-                                std::begin(p.second), std::end(p.second) );
-        }
-
-        // Delete the old faces and their presence in the adjacency index.
-        // Add the new faces and their presence in the adjacency index.
-        for(const auto& c : circulator){
-            const auto old_f = c.face;
-            this->faces[old_f].clear();
-
-            for(const auto l_v : { c.curr_vert, c.next_vert, i }){
-                auto& l_inv_faces = this->involved_faces[l_v];
-
-                // Remove old face if present.
-                l_inv_faces.erase( std::remove( std::begin(l_inv_faces), std::end(l_inv_faces), old_f ),
-                                   std::end(l_inv_faces) );
-            }
-            // Vertex remains, but is no longer referenced. It will be garbage-collected later.
-        }
-        //this->involved_faces[i].clear();
-        if(!this->involved_faces[i].empty()){
-            throw std::logic_error("Vertex remains connected");
-        }
-
-        //// Export the current mesh for inspection.
-        //{
-        //    const auto FN = Get_Unique_Sequential_Filename("/tmp/mesh_smpl_frame_", 6, ".obj");
-        //    FUNCINFO("Exporting '" << FN << "' now..");
-        //    std::fstream FO(FN, std::fstream::out | std::ios::binary);
-        //    if(!WriteFVSMeshToOBJ( *this, FO )){
-        //        throw std::runtime_error("Unable to write surface mesh in OBJ format. Cannot continue.");
-        //    }
-        //}
     }
     
     // Remove empty faces and vertices.
