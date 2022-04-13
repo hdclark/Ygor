@@ -2,8 +2,19 @@
 
 set -eu
 
-reporoot=$(git rev-parse --show-toplevel)
-cd "${reporoot}/tests"
+# Move to the test root.
+REPOROOT="$(git rev-parse --show-toplevel || true)"
+if [ ! -d "${REPOROOT}" ] ; then
+
+    # Fall-back on the source position of this script.
+    SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}" )" )"
+    if [ ! -d "${SCRIPT_DIR}" ] ; then
+        printf "Cannot access repository root or root directory containing this script. Cannot continue.\n" 1>&2
+        exit 1
+    fi
+    REPOROOT="${SCRIPT_DIR}/../"
+fi
+cd "${REPOROOT}/tests/"
 
 g++ -std=c++17 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
 g++ -std=c++17 Test_Algorithms_01.cc -o test_algorithms_01 -lygor -pthread &
