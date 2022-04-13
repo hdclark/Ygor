@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <random>
+#include <numeric>
 //#include <ctype.h> 
 
 #include "YgorDefinitions.h"
@@ -31,6 +32,8 @@
 #include "YgorStats.h"
 #include "YgorString.h"
 #include "YgorBase64.h"   //Used for samples_1D metadata serialization.
+
+#include "YgorMathIOOBJ.h"
 
 //#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -6562,6 +6565,28 @@ fv_surface_mesh<T,I>::remove_disconnected_vertices(){
 #endif
 
 
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::remove_degenerate_faces(){
+    this->involved_faces.clear();
+
+    this->faces.erase( std::remove_if( std::begin(this->faces), std::end(this->faces),
+                                       [](const std::vector<I> &fiv){
+                                           return (fiv.size() < 3UL);
+                                       }),
+                       std::end(this->faces) );
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::remove_degenerate_faces();
+    template void fv_surface_mesh<float , uint64_t >::remove_degenerate_faces();
+
+    template void fv_surface_mesh<double, uint32_t >::remove_degenerate_faces();
+    template void fv_surface_mesh<double, uint64_t >::remove_degenerate_faces();
+#endif
+
+
 // Sample the surface using uniform random sampling.
 template <class T, class I>
 point_set<T>
@@ -6676,6 +6701,452 @@ fv_surface_mesh<T,I>::convert_to_point_set() {
 
     template point_set<double> fv_surface_mesh<double, uint32_t >::convert_to_point_set();
     template point_set<double> fv_surface_mesh<double, uint64_t >::convert_to_point_set();
+#endif
+
+
+// Simplify mesh by removing non-boundary vertices connected only to triangles in flat regions.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
+    const auto zero = static_cast<I>(0);
+    const auto one = static_cast<I>(1);
+    const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
+    const auto machine_eps = std::sqrt( eps );
+
+    const auto N_verts = static_cast<I>(this->vertices.size());
+    if(N_verts == zero) return;
+
+    // Ensure we have an up-to-date index of involved faces.
+    if(this->involved_faces.size() != this->vertices.size()){
+        this->recreate_involved_face_index();
+    }
+
+    // Process vertices backwards, starting from the last.
+    for(I d = N_verts; zero < d; --d){
+        const auto i = d - one;
+        auto *inv_faces = &(this->involved_faces[i]);
+
+        // Evaluate whether any involved faces are non-triangular. If so, skip the vertex.
+        {
+            bool inv_faces_all_triangular = true;
+            for(const auto &inv_f : *inv_faces){
+                if(this->faces[inv_f].size() != 3UL) inv_faces_all_triangular = false;
+            }
+            if(!inv_faces_all_triangular) continue;
+        }
+
+        // Evaluate whether vertex is disconnected or on a small, isolated surface patch.
+        //
+        // Note: if connected to fewer than 3 vertices, the mesh cannot be manifold.
+        if(inv_faces->size() < 3) continue;
+
+        // Create a vertex circulator to walk the outer perimeter of involved faces.
+        //
+        // Note: the circulator does not follow any specific orientation (e.g., clockwise or counter-clockwise).
+        //       Vertices are ordered according to their index, which is arbitrary.
+        struct circulator_t {
+            I curr_vert = static_cast<I>(0); // The current vertex in perimeter order.
+            I next_vert = static_cast<I>(0); // The next vertex in perimeter order.
+
+            I perimeter_vert_A = static_cast<I>(0); // The vertices in order according to face orientation.
+            I perimeter_vert_B = static_cast<I>(0);
+
+            I face = static_cast<I>(0); // The face between vertex 'i' and the outer perimeter.
+            std::vector<I> opp_faces = {}; // The face(s) opposite of the outer perimeter, if any.
+        };
+        std::list<circulator_t> circulator_wip;
+        for(const auto& f : *inv_faces){
+            auto &verts = this->faces[f];
+            if(verts.size() != 3UL){
+                throw std::logic_error("Circulator is only able to accommodate triangles");
+            }
+
+            if( (verts[0] != i)
+            &&  (verts[1] != i)
+            &&  (verts[2] != i) ){
+                throw std::logic_error("Adjacent face does not contain reference vertex. Is adjacency index out of date?");
+            }
+
+            auto perim_a = verts[ (verts[0] == i) ? 1UL : 0UL ]; // as-is order.
+            auto perim_b = verts[ (verts[2] == i) ? 1UL : 2UL ];
+            if(verts[1] == i) std::swap(perim_a, perim_b); // account for wrap-around.
+            circulator_wip.push_back({ perim_a, perim_b, perim_a, perim_b, f, {} });
+        }
+
+        // Connect the circulator around the perimeter as much as possible.
+        std::list<circulator_t> circulator;
+        circulator.splice( std::end(circulator), circulator_wip, std::begin(circulator_wip) );
+        bool circulates = true;
+        while(!circulator_wip.empty()){
+            const auto next_vert = circulator.back().next_vert;
+
+            // Find the single node matching the next vertex.
+            // 
+            // Note: Because faces can have inconsistent orientation, the vertex order can be backward.
+            //       We swap order on-the-fly when a match is detected.
+            const auto beg_wip_it = std::begin(circulator_wip);
+            const auto end_wip_it = std::end(circulator_wip);
+            const auto it = std::find_if( beg_wip_it, end_wip_it,
+                                          [&](circulator_t& c) -> bool {
+                                              const bool is_fwd_match = (c.curr_vert == next_vert);
+                                              const bool is_bwd_match = (c.next_vert == next_vert);
+                                              if(is_bwd_match) std::swap(c.curr_vert, c.next_vert);
+                                              return is_fwd_match || is_bwd_match;
+                                          } );
+            if(it != end_wip_it){
+                circulator.splice( std::end(circulator), circulator_wip, it );
+            }else{
+                circulates = false;
+
+                // At this point, the vertex is either on a boundary or the mesh is not manifold.
+                // Keep circulating as much as possible to find out which.
+                circulator.splice( std::end(circulator), circulator_wip, std::begin(circulator_wip) );
+            }
+        }
+        if(circulates){
+            // Finally, ensure the fan wraps all the way around.
+            circulates = (circulator.back().next_vert == circulator.front().curr_vert);
+        }
+        if(!circulates) continue;
+
+        // Additional circulator functionality: Determine whether this is a boundary vertex or the mesh is not manifold.
+        // 
+        // - For boundary vertex, the perimeter vertices should all appear exactly TWICE, except an even number of vertices that
+        //   appear exactly ONCE.
+        //
+        // - For non-manifold vertex (like a pinched surface), any other combination is possible.
+        //
+        // (this is not currently needed!)
+
+
+        // For each involved face, find the adjacent face(s) on the other side of the perimeter.
+        //
+        // Note: Look for any involved faces that share the two common perimeter vertices.
+        for(auto& c : circulator){
+            // Find the set of faces adjacent to this face.
+            std::set<I> adj_faces;
+            for(const auto& l_v : this->faces[c.face]){
+                // Process each face connected to the 
+                for(const auto& l_f : this->involved_faces[l_v]){
+                    if(l_f != c.face) adj_faces.insert(l_f);
+                }
+            }
+
+            // Identify adjacent faces that share perimeter vertices with this face.
+            for(const auto& l_f : adj_faces){
+                size_t in_both = 0UL;
+                for(const auto& l_v : this->faces[l_f]){
+                    in_both += (l_v == c.perimeter_vert_A) || (l_v == c.perimeter_vert_B) ? 1UL : 0UL;
+                }
+                if(in_both == 2UL){
+                    c.opp_faces.emplace_back(l_f);
+                }
+            }
+        }
+
+        // Fit a plane to the perimeter vertices and compare distance to vert "i".
+        bool should_simplify = true;
+        try{
+            std::vector<vec3<T>> perim_verts;
+            for(const auto& c : circulator){
+                perim_verts.emplace_back( this->vertices[c.curr_vert] );
+            }
+            const auto plane = Plane_Orthogonal_Regression(perim_verts);
+
+            // If not sufficiently small, skip this vertex.
+            const auto plane_dist = std::abs( plane.Get_Signed_Distance_To_Point( this->vertices[i] ) );
+            should_simplify = (plane_dist < dist);
+
+            // Be strict -- ensure all perimeter faces are near to the plane too.
+            for(const auto& c : circulator){
+                for(const auto l_v : { c.curr_vert, c.next_vert }){
+                    const auto l_plane_dist = std::abs( plane.Get_Signed_Distance_To_Point( this->vertices[l_v] ) );
+                    should_simplify = (!should_simplify) ? should_simplify : (l_plane_dist < dist);
+                }
+            }
+        }catch(const std::exception&){};
+        if(!should_simplify) continue;
+
+        // Zip up the hole.
+        const auto est_face_ortho = [&](const I &i_a, const I &i_b, const I &i_c) -> vec3<T> {
+            const auto v_A = this->vertices[i_a];
+            const auto v_B = this->vertices[i_b];
+            const auto v_C = this->vertices[i_c];
+            const auto cr = (v_B - v_A).Cross(v_C - v_A);
+            return cr;
+        };
+
+        const auto est_face_normal = [&](const I &i_a, const I &i_b, const I &i_c) -> vec3<T> {
+            return est_face_ortho(i_a, i_b, i_c).unit();
+        };
+
+        const auto est_face_sarea = [&](const I &i_a, const I &i_b, const I &i_c, const vec3<T> pos_dir) -> T {
+            const auto ortho = est_face_ortho(i_a, i_b, i_c);
+            return std::copysign(ortho.length() * static_cast<T>(0.5), ortho.Dot(pos_dir));
+        };
+
+        const auto est_full_sarea = [&](const std::vector<I> &vec, const vec3<T> pos_dir) -> T {
+            const auto N = vec.size();
+            T sarea = zero;
+            for(size_t j = 1UL; j < N; ++j){
+                sarea += est_face_sarea(vec[0UL], vec[j], vec[(j + 1) % N], pos_dir);
+            }
+            return sarea;
+        };
+
+        const auto orig_normal = est_face_normal( circulator.front().curr_vert,
+                                                  circulator.front().next_vert,
+                                                  i );
+
+        // Temporary location for a proposed simplification transaction.
+        // If the simplification fails, we abandon simplifying this vertex.
+        std::vector<std::vector<I>> new_faces;
+        std::map<I,std::vector<I>> new_involved_faces;
+
+        const auto add_new_face = [&](const std::vector<I> &new_face) -> void {
+            const auto orig_N_faces = static_cast<I>(this->faces.size() + new_faces.size());
+            const auto new_f = orig_N_faces;
+
+            new_faces.push_back(new_face);
+            for(const auto& l_v : new_face){
+                new_involved_faces[l_v].emplace_back(new_f);
+            }
+            return;
+        };
+
+        // Begin the simplification transaction.
+        try{
+            bool advance_fwd = true; // Used to switch between forward and backward vertex iteration.
+
+            auto l_circulator = circulator;
+            using circ_it_t = decltype( std::begin(l_circulator) );
+            while(2UL < l_circulator.size()){
+                bool made_progress = false;
+                advance_fwd = !advance_fwd;
+
+                // Iterate but wrap iterators around so that end is never reached.
+                const auto next_wrap = [](const circ_it_t &beg, const circ_it_t &end,
+                                          const circ_it_t &it, int64_t n = 1L) -> circ_it_t {
+                    circ_it_t out = it;
+                    if(0L <= n){
+                        // Increment.
+                        for(int64_t i = 0L; i < n; ++i){
+                            std::advance(out,1);
+                            if(out == end){
+                                out = beg;
+                            }
+                        }
+                    }else{
+                        // Decrement.
+                        for(int64_t i = n; i < 0L; --i){
+                            if(out == beg){
+                                out = end;
+                            }
+                            std::advance(out,-1);
+                        }
+                    }
+                    return out;
+                };
+
+                // This wrapper provides consistent behaviour when iterating in either direction.
+                // After cycling through all elements once, the 'end' iterator is returned.
+                //
+                // This is different than reverse iteration since the iterators remain forward iterators, which would
+                // alter the signed area orientation and make using circulators more difficult (since they are forward
+                // iterators).
+                const auto safe_bicrement = [](const circ_it_t &beg, const circ_it_t &end,
+                                               circ_it_t &it, bool forward = true){
+                    if(forward){
+                        // Increment.
+                        std::advance(it,1);
+                    }else{
+                        // Decrement.
+                        if(it == beg){
+                            it = end;
+                        }else{
+                            std::advance(it,-1);
+                        }
+                    }
+                    return;
+                };
+
+                const auto beg = std::begin(l_circulator);
+                const auto end = std::end(l_circulator);
+                const auto start = (advance_fwd) ? beg : std::prev(end);
+
+                for(auto it_0 = start; it_0 != end; safe_bicrement(beg, end, it_0, advance_fwd)){
+                    auto it_1 = next_wrap(beg, end, it_0, 1L); // Always forward iterate here to maintain orientation.
+
+                    // Disregard faces that are logically degenerate.
+                    //
+                    // Note: this is an exceptional failure that can be caused by non-manifoldness.
+                    if( (it_0->curr_vert == it_1->curr_vert)
+                    ||  (it_0->curr_vert == it_1->next_vert)
+                    ||  (it_1->curr_vert == it_1->next_vert) ){
+                        throw std::logic_error("Ear clipping collapsed; vertices are degenerate");
+                    }
+
+                    // Disregard faces that have (effectively) zero area.
+                    //
+                    // Note: this is not an exceptional failure, it is expected to happen for grid-like surfaces.
+                    const auto l_face_area = est_face_sarea( it_0->curr_vert,
+                                                             it_1->curr_vert,
+                                                             it_1->next_vert, 
+                                                             orig_normal );
+                    const bool zeroarea = (std::abs(l_face_area) < machine_eps);
+                    if(zeroarea){
+                        continue;
+                    }
+
+                    // Disregard faces that are oriented counter to the expected orientation.
+                    // (These faces are likely to self-intersect adjacent faces.)
+                    //
+                    // Note: this is not an exceptional failure, it is expected for convex patches and likely to happen
+                    //       for partially-cimplified concave patches.
+                    //
+                    const auto l_normal = est_face_normal( it_0->curr_vert,
+                                                           it_1->curr_vert,
+                                                           it_1->next_vert );
+
+                    const bool aligned = (static_cast<T>(0) < orig_normal.Dot(l_normal));
+                    const bool final_triangle = (l_circulator.size() == 3UL);
+                    if(!final_triangle
+                    && !aligned){
+                        continue;
+                    }
+
+                    // Ensure there are no other vertices within the boundary of the proposed face.
+                    //
+                    // Note: this is not an exceptional failure, it can occur for convex patches.
+                    bool includes_other_verts = false;
+                    {
+                        const auto C_A_vec = this->vertices[it_1->next_vert] - this->vertices[it_0->curr_vert];
+                        const auto B_A_vec = this->vertices[it_1->curr_vert] - this->vertices[it_0->curr_vert];
+                        for(const auto& l_c : l_circulator){
+                            if( (l_c.curr_vert == it_0->curr_vert)
+                            ||  (l_c.curr_vert == it_1->curr_vert)
+                            ||  (l_c.curr_vert == it_1->next_vert) ) continue;
+                            const auto R_A_vec = this->vertices[l_c.curr_vert] - this->vertices[it_0->curr_vert];
+
+                            const auto C_A_coord = R_A_vec.Dot(C_A_vec) / C_A_vec.Dot(C_A_vec);
+                            const auto B_A_coord = R_A_vec.Dot(B_A_vec) / B_A_vec.Dot(B_A_vec);
+                            const auto ortho_dist = std::abs(R_A_vec.Dot(l_normal));
+                            const bool within_tri =   (zero < C_A_coord)
+                                                   && (zero < B_A_coord)
+                                                   && (ortho_dist < machine_eps)
+                                                   && ((C_A_coord + B_A_coord) < one);
+                            if(within_tri){
+                                includes_other_verts = true;
+                                break;
+                            }
+                        }
+                    }
+                    if(includes_other_verts){
+                        continue;
+                    }
+
+                    // Disregard faces that would make the remaining vertices degenerate.
+                    //
+                    // Note: this is not an exceptional failure, it can occur for concave patches, especially grid-like
+                    // surface patterns where adjacent vertices are colinear.
+                    if(3UL != l_circulator.size()){
+                        std::vector<I> l_remaining_verts;
+                        for(const auto& l_c : l_circulator){
+                            if(l_c.curr_vert != it_1->curr_vert) l_remaining_verts.emplace_back(l_c.curr_vert);
+                        }
+                        const auto l_remaining_sarea = est_full_sarea(l_remaining_verts, orig_normal);
+
+                        const bool area_would_remain = (machine_eps < std::abs(l_remaining_sarea));
+                        if(!area_would_remain){
+                            continue;
+                        }
+                    }
+
+                    if( final_triangle
+                    &&  !aligned ){
+                        // If the final triangle has inconsistent orientation, flip it.
+                        add_new_face({ it_0->curr_vert, it_1->next_vert, it_1->curr_vert });
+                        l_circulator.clear();
+                        made_progress = true;
+                        break;
+
+                    }else{
+                        // Add face and face connection info.
+                        add_new_face({ it_0->curr_vert, it_1->curr_vert, it_1->next_vert });
+
+                        // Prune middle vertex.
+                        it_0->next_vert = it_1->next_vert; // Note: ignoring un-ordered verts!
+                        l_circulator.erase(it_1);
+
+                        made_progress = true;
+                        break;
+                    }
+                }
+
+                if(!made_progress){
+                    throw std::logic_error("Unable to make progress ear-clipping");
+                }
+            }
+
+        }catch(const std::exception &e){
+            FUNCWARN("Proposed simplification abandoned: " << e.what());
+        }
+
+        // Implement the changes.
+        this->faces.insert( std::end(this->faces),
+                            std::make_move_iterator( std::begin(new_faces) ),
+                            std::make_move_iterator( std::end(new_faces) ) );
+        new_faces.clear();
+        for(const auto& p : new_involved_faces){
+            auto& l_inv_faces = this->involved_faces[p.first];
+            l_inv_faces.insert( std::end(l_inv_faces),
+                                std::begin(p.second), std::end(p.second) );
+        }
+
+        // Delete the old faces and their presence in the adjacency index.
+        // Add the new faces and their presence in the adjacency index.
+        for(const auto& c : circulator){
+            const auto old_f = c.face;
+            this->faces[old_f].clear();
+
+            for(const auto l_v : { c.curr_vert, c.next_vert, i }){
+                auto& l_inv_faces = this->involved_faces[l_v];
+
+                // Remove old face if present.
+                l_inv_faces.erase( std::remove( std::begin(l_inv_faces), std::end(l_inv_faces), old_f ),
+                                   std::end(l_inv_faces) );
+            }
+            // Vertex remains, but is no longer referenced. It will be garbage-collected later.
+        }
+        //this->involved_faces[i].clear();
+        if(!this->involved_faces[i].empty()){
+            throw std::logic_error("Vertex remains connected");
+        }
+
+        //// Export the current mesh for inspection.
+        //{
+        //    const auto FN = Get_Unique_Sequential_Filename("/tmp/mesh_smpl_frame_", 6, ".obj");
+        //    FUNCINFO("Exporting '" << FN << "' now..");
+        //    std::fstream FO(FN, std::fstream::out | std::ios::binary);
+        //    if(!WriteFVSMeshToOBJ( *this, FO )){
+        //        throw std::runtime_error("Unable to write surface mesh in OBJ format. Cannot continue.");
+        //    }
+        //}
+    }
+    
+    // Remove empty faces and vertices.
+    this->involved_faces.clear();
+    this->remove_disconnected_vertices();
+    this->remove_degenerate_faces();
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::simplify_inner_triangles(float  dist);
+    template void fv_surface_mesh<float , uint64_t >::simplify_inner_triangles(float  dist);
+
+    template void fv_surface_mesh<double, uint32_t >::simplify_inner_triangles(double dist);
+    template void fv_surface_mesh<double, uint64_t >::simplify_inner_triangles(double dist);
 #endif
 
 

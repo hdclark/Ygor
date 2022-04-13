@@ -602,6 +602,9 @@ template <class T, class I>   class fv_surface_mesh {
         // but their vertices remain and must be explicitly purged if needed.
         void convert_to_triangles(void);
 
+        // Remove all sub-triangle facets (i.e. references 2 vertices or less).
+        void remove_degenerate_faces(void);
+
         // Purges all disconnected vertices (i.e., vertices not references by any facets) -- essentially a garbage
         // collection operation. Note that this is a fairly expensive operation.
         // Corresponding normals are removed.
@@ -612,6 +615,10 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Converts mesh to a point set, stealing all relevant members. Only possible if there are no faces.
         point_set<T> convert_to_point_set();
+
+        // Simplify mesh by removing non-boundary vertices connected only to triangles in flat regions.
+        // Only surface patches flatter than 'dist' are simplified.
+        void simplify_inner_triangles(T dist);
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
