@@ -6707,11 +6707,16 @@ fv_surface_mesh<T,I>::convert_to_point_set() {
 // Simplify mesh by removing non-boundary vertices connected only to triangles in flat regions.
 template <class T, class I>
 void
-fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
+fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
+                                               T min_face_alignment_angle_rad){
     const auto zero = static_cast<I>(0);
+    const auto zero_T = static_cast<T>(0);
     const auto one = static_cast<I>(1);
     const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
     const auto machine_eps = std::sqrt( eps );
+
+    // Convert the angle to the cosine so we can more cheaply compare the dot product of two normal vectors.
+    const auto min_face_alignment = static_cast<T>(std::cos(min_face_alignment_angle_rad));
 
     const auto N_verts = static_cast<I>(this->vertices.size());
     if(N_verts == zero) return;
@@ -6894,12 +6899,32 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
             return sarea;
         };
 
-        const auto orig_normal = est_face_normal( circulator.front().curr_vert,
-                                                  circulator.front().next_vert,
-                                                  i );
-
         // Begin the simplification transaction.
         try{
+            //// Assume faces are small compared to the maximum curvature, so that we can approximate the patch normal as
+            //// the first face's normal.
+            //const auto orig_normal = est_face_normal( circulator.front().curr_vert,
+            //                                          circulator.front().next_vert,
+            //                                          i );
+
+            // Estimate the average normal direction for the patch using area as a weight.
+            vec3<T> orig_normal( zero_T, zero_T, zero_T );
+            {
+                vec3<T> placeholder_normal( zero_T, zero_T, static_cast<T>(1) );
+                //T sum_weight = zero_T;
+                for(const auto& c : circulator){
+                    const auto l_norm = est_face_normal( c.curr_vert, c.next_vert, i );
+                    const auto l_w = std::abs(est_face_sarea( c.curr_vert, c.next_vert, i, placeholder_normal ));
+                    orig_normal += l_norm * l_w;
+                    //sum_weight += l_w;
+                }
+                //orig_normal /= sum_weight;
+                orig_normal = orig_normal.unit();
+            }
+            if(!orig_normal.isfinite()){
+                throw std::runtime_error("Surface patch is degenerate, with zero net normal");
+            }
+                
             // Temporary location for a proposed simplification transaction.
             // If the simplification fails, we abandon simplifying this vertex.
             std::vector<std::vector<I>> new_faces;
@@ -7002,16 +7027,16 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                     // (These faces are likely to self-intersect adjacent faces.)
                     //
                     // Note: this is not an exceptional failure, it is expected for convex patches and likely to happen
-                    //       for partially-cimplified concave patches.
+                    //       for partially-simplified concave patches.
                     //
+                    // Note: we can also be picky here, only keeping faces that ~closely align.
                     const auto l_normal = est_face_normal( it_0->curr_vert,
                                                            it_1->curr_vert,
                                                            it_1->next_vert );
 
-                    const bool aligned = (static_cast<T>(0) < orig_normal.Dot(l_normal));
-                    const bool final_triangle = (l_circulator.size() == 3UL);
-                    if(!final_triangle
-                    && !aligned){
+                    const bool aligned =  l_normal.isfinite()
+                                       && (min_face_alignment < orig_normal.Dot(l_normal));
+                    if(!aligned){
                         continue;
                     }
 
@@ -7062,15 +7087,8 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
                         }
                     }
 
-                    if( final_triangle
-                    &&  !aligned ){
-                        // If the final triangle has inconsistent orientation, flip it.
-                        add_new_face({ it_0->curr_vert, it_1->next_vert, it_1->curr_vert });
-                        l_circulator.clear();
-                        made_progress = true;
-                        break;
-
-                    }else{
+                    // Face is suitable, so add it.
+                    {
                         // Add face and face connection info.
                         add_new_face({ it_0->curr_vert, it_1->curr_vert, it_1->next_vert });
 
@@ -7151,11 +7169,11 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist){
     return;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template void fv_surface_mesh<float , uint32_t >::simplify_inner_triangles(float  dist);
-    template void fv_surface_mesh<float , uint64_t >::simplify_inner_triangles(float  dist);
+    template void fv_surface_mesh<float , uint32_t >::simplify_inner_triangles(float , float );
+    template void fv_surface_mesh<float , uint64_t >::simplify_inner_triangles(float , float );
 
-    template void fv_surface_mesh<double, uint32_t >::simplify_inner_triangles(double dist);
-    template void fv_surface_mesh<double, uint64_t >::simplify_inner_triangles(double dist);
+    template void fv_surface_mesh<double, uint32_t >::simplify_inner_triangles(double, double);
+    template void fv_surface_mesh<double, uint64_t >::simplify_inner_triangles(double, double);
 #endif
 
 

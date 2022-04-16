@@ -617,8 +617,11 @@ template <class T, class I>   class fv_surface_mesh {
         point_set<T> convert_to_point_set();
 
         // Simplify mesh by removing non-boundary vertices connected only to triangles in flat regions.
-        // Only surface patches flatter than 'dist' are simplified.
-        void simplify_inner_triangles(T dist);
+        //
+        // Only surface patches flatter than 'dist' are simplified, and only candidate replacement faces with a normal
+        // vector aligned with a minimum angle [0,pi] with the patch's average normal are accepted.
+        void simplify_inner_triangles(T dist,
+                                      T min_face_alignment_angle_rad = static_cast<T>(std::acos(0.25)));
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
