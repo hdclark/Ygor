@@ -6849,6 +6849,45 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
             }
         }
 
+        // Disregard patches that wrap around to create tubes, horns, etc, since zero-volume meshes and
+        // surface pinches are possible in these cases.
+        bool surface_patch_wraps = false;
+        bool patch_is_manifold = true;
+        {
+            std::set<I> opp_faces;
+            for(const auto& c : circulator){
+                // Check if the patch boundary edge is non-manifold. If so, leave it as-is.
+                if(1UL < c.opp_faces.size()){
+                    patch_is_manifold = false;
+                    break;
+                }
+
+                // Check if opposing face appears more than once along the border of the patch.
+                // If so, the surface wraps around.
+                for(const auto& of : c.opp_faces){
+                    auto p = opp_faces.insert(of);
+                    if(!p.second){
+                        surface_patch_wraps = true;
+                        break;
+                    }
+                }
+                if(surface_patch_wraps) break;
+            }
+
+            // Check if any of the patch's original faces appear as an opposing face. If so,
+            // the mesh pinches / is zero-volume / is non-manifold.
+            for(const auto& c : circulator){
+                auto p = opp_faces.insert(c.face);
+                if(!p.second){
+                    surface_patch_wraps = true;
+                    patch_is_manifold = false;
+                    break;
+                }
+            }
+        }
+        if(surface_patch_wraps) continue;
+        if(!patch_is_manifold) continue;
+
         // Fit a plane to the perimeter vertices and compare distance to vert "i".
         bool should_simplify = true;
         try{
@@ -6922,7 +6961,26 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                 orig_normal = orig_normal.unit();
             }
             if(!orig_normal.isfinite()){
-                throw std::runtime_error("Surface patch is degenerate, with zero net normal");
+                //throw std::runtime_error("Surface patch is degenerate, with zero net normal");
+                continue;
+            }
+
+            // Ensure all original faces are consistent with the average normal.
+            //
+            // This helps avoid patches with high curvature, e.g., thin 'wires', 'horns',
+            // oblong tetrahedra, octahedra, etc.
+            bool all_orig_faces_consistent = true;
+            for(const auto& c : circulator){
+                const auto l_norm = est_face_normal( c.curr_vert, c.next_vert, i );
+                const bool l_aligned =  l_norm.isfinite()
+                                     && (min_face_alignment < orig_normal.Dot(l_norm));
+                if(!l_aligned){
+                    all_orig_faces_consistent = false;
+                    break;
+                }
+            }
+            if(!all_orig_faces_consistent){
+                continue;
             }
                 
             // Temporary location for a proposed simplification transaction.
