@@ -417,6 +417,295 @@ TEST_CASE( "fv_surface_mesh class" ){
             REQUIRE(mesh3 == mesh4);
         }
     }
+
+    SUBCASE("simplify_inner_triangles"){
+        SUBCASE("cube with redundant middle surface vertices"){
+            // Make a cube with a single vertex in the middle of each face (i.e., 6 verts) and all 8 corners.
+            //
+            //    c1                              c5
+            //      o----------------------------o
+            //      |`.                          |`.
+            //      |  `.               m13      |  `.
+            //      |    `.              x       |    `.
+            //      |      `.                    |      `.
+            //      |        `. c7               |        `. c6
+            //      |          o----------------------------o
+            //      |          |                 |          |
+            //      |          |  m10            |          |
+            //      |          |   x             |          |
+            //      |          |                 |          |
+            //      |    m08   |                 |   m09    |
+            //      |     x    |                 |    x     |
+            //      |          |                 |          |
+            //      |          |            m11  |          |
+            //      |          |             x   |          |
+            //      |          |                 |          |
+            //   c3 o----------|-----------------o c0       |
+            //       `.        |                  `.        |
+            //         `.      |                    `.      |
+            //           `.    |         x            `.    |
+            //             `.  |        m12             `.  |
+            //               `.|                          `.|
+            //                 o----------------------------o
+            //               c2                              c4
+            // 
+            const vec3<double> c0(1.0, 0.0, 0.0);
+            const vec3<double> c1(0.0, 1.0, 0.0);
+            const vec3<double> c2(0.0, 0.0, 1.0);
+            const vec3<double> c3(0.0, 0.0, 0.0);
+            const vec3<double> c4(1.0, 0.0, 1.0);
+            const vec3<double> c5(1.0, 1.0, 0.0);
+            const vec3<double> c6(1.0, 1.0, 1.0);
+            const vec3<double> c7(0.0, 1.0, 1.0);
+
+            const vec3<double> m08 = (c1 + c2 + c3 + c7) * 0.25; // == m1237  
+            const vec3<double> m09 = (c0 + c4 + c5 + c6) * 0.25; // == m0456 
+            const vec3<double> m10 = (c0 + c1 + c3 + c5) * 0.25; // == m0135 
+            const vec3<double> m11 = (c2 + c4 + c6 + c7) * 0.25; // == m2467 
+            const vec3<double> m12 = (c0 + c2 + c3 + c4) * 0.25; // == m0234 
+            const vec3<double> m13 = (c1 + c5 + c6 + c7) * 0.25; // == m1567 
+
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ c0, c1, c2, c3, c4, c5, c6, c7,
+                                m08, m09, m10, m11, m12, m13 }};
+            mesh2.faces = {{ static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(8) },
+                           { static_cast<uint32_t>(3), static_cast<uint32_t>(2), static_cast<uint32_t>(8) },
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(7), static_cast<uint32_t>(8) },
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(1), static_cast<uint32_t>(8) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(4), static_cast<uint32_t>(9) },
+                           { static_cast<uint32_t>(4), static_cast<uint32_t>(6), static_cast<uint32_t>(9) },
+                           { static_cast<uint32_t>(6), static_cast<uint32_t>(5), static_cast<uint32_t>(9) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(0), static_cast<uint32_t>(9) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(10) },
+                           { static_cast<uint32_t>(3), static_cast<uint32_t>(1), static_cast<uint32_t>(10) },
+                           { static_cast<uint32_t>(1), static_cast<uint32_t>(5), static_cast<uint32_t>(10) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(0), static_cast<uint32_t>(10) },
+
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(4), static_cast<uint32_t>(11) },
+                           { static_cast<uint32_t>(4), static_cast<uint32_t>(6), static_cast<uint32_t>(11) },
+                           { static_cast<uint32_t>(6), static_cast<uint32_t>(7), static_cast<uint32_t>(11) },
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(2), static_cast<uint32_t>(11) },
+
+                           { static_cast<uint32_t>(3), static_cast<uint32_t>(0), static_cast<uint32_t>(12) },
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(4), static_cast<uint32_t>(12) },
+                           { static_cast<uint32_t>(4), static_cast<uint32_t>(2), static_cast<uint32_t>(12) },
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(3), static_cast<uint32_t>(12) },
+
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(6), static_cast<uint32_t>(13) },
+                           { static_cast<uint32_t>(6), static_cast<uint32_t>(5), static_cast<uint32_t>(13) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(1), static_cast<uint32_t>(13) },
+                           { static_cast<uint32_t>(1), static_cast<uint32_t>(7), static_cast<uint32_t>(13) }};
+
+            SUBCASE("with restrictive criteria, only flat, redundant faces are simplified"){
+                const double dist_tolerance = 0.0001;
+                const double min_angle = std::acos(0.95);
+
+                // Each non-boundary vertex removal also removes two faces.
+                const size_t expected_verts = mesh2.vertices.size() - 6UL;
+                const size_t expected_faces = mesh2.faces.size() - 6UL * 2UL;
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(mesh2.vertices.size() == expected_verts);
+                REQUIRE(mesh2.faces.size() == expected_faces);
+            }
+
+            SUBCASE("nonmanifoldness is protected against when underconstrained"){
+                const double dist_tolerance = 100.0;
+                const double min_angle = std::acos(-0.8);
+
+                // Should reduce down to a tetrahedron, but not become degenerate.
+                const size_t expected_verts = 4UL;
+                const size_t expected_faces = 4UL;
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(mesh2.vertices.size() == expected_verts);
+                REQUIRE(mesh2.faces.size() == expected_faces);
+            }
+        }
+
+        SUBCASE("cube with only corner vertices"){
+            // Make a cube with only 8 corner vertices.
+            //
+            //    c1                              c5
+            //      o----------------------------o
+            //      |`.                          |`.
+            //      |  `.                        |  `.
+            //      |    `.                      |    `.
+            //      |      `.                    |      `.
+            //      |        `. c7               |        `. c6
+            //      |          o----------------------------o
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //      |          |                 |          |
+            //   c3 o----------|-----------------o c0       |
+            //       `.        |                  `.        |
+            //         `.      |                    `.      |
+            //           `.    |                      `.    |
+            //             `.  |                        `.  |
+            //               `.|                          `.|
+            //                 o----------------------------o
+            //               c2                              c4
+            // 
+            const vec3<double> c0(1.0, 0.0, 0.0);
+            const vec3<double> c1(0.0, 1.0, 0.0);
+            const vec3<double> c2(0.0, 0.0, 1.0);
+            const vec3<double> c3(0.0, 0.0, 0.0);
+            const vec3<double> c4(1.0, 0.0, 1.0);
+            const vec3<double> c5(1.0, 1.0, 0.0);
+            const vec3<double> c6(1.0, 1.0, 1.0);
+            const vec3<double> c7(0.0, 1.0, 1.0);
+
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ c0, c1, c2, c3, c4, c5, c6, c7 }};
+            mesh2.faces = {{ static_cast<uint32_t>(3), static_cast<uint32_t>(2), static_cast<uint32_t>(7) },
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(1), static_cast<uint32_t>(3) },
+
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(4), static_cast<uint32_t>(6) },
+                           { static_cast<uint32_t>(6), static_cast<uint32_t>(7), static_cast<uint32_t>(2) },
+
+                           { static_cast<uint32_t>(4), static_cast<uint32_t>(0), static_cast<uint32_t>(5) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(6), static_cast<uint32_t>(4) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                           { static_cast<uint32_t>(1), static_cast<uint32_t>(5), static_cast<uint32_t>(0) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(2) },
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(4), static_cast<uint32_t>(0) },
+
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(6), static_cast<uint32_t>(5) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(1), static_cast<uint32_t>(7) }};
+
+            SUBCASE("with restrictive criteria, corner vertices are not simplified"){
+                const double dist_tolerance = 0.0001;
+                const double min_angle = std::acos(0.95);
+
+                // There should be no vertices that satisfy the simplification criteria in this case.
+                const size_t expected_verts = mesh2.vertices.size();
+                const size_t expected_faces = mesh2.faces.size();
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(mesh2.vertices.size() == expected_verts);
+                REQUIRE(mesh2.faces.size() == expected_faces);
+            }
+
+            SUBCASE("nonmanifoldness is protected against when underconstrained"){
+                const double dist_tolerance = 100.0;
+                const double min_angle = std::acos(-0.8);
+
+                // Should reduce down to a tetrahedron, but not become degenerate.
+                const size_t expected_verts = 4UL;
+                const size_t expected_faces = 4UL;
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(mesh2.vertices.size() == expected_verts);
+                REQUIRE(mesh2.faces.size() == expected_faces);
+            }
+        }
+
+        SUBCASE("cube with only corner vertices and a boundary"){
+            // Make a cube with only 8 corner vertices.
+            //
+            //    c1                              c5
+            //      o----------------------------o
+            //      |`.                          |`.
+            //      |  `.                        |  `.
+            //      |    `.                      |    `.
+            //      |      `.                    |      `.
+            //      |        `. c7               |        `. c6
+            //      |          o++++++++++++++++++++++++++++o
+            //      |          ++++++++++++++++++++++++++++++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //      |          ++                |         ++
+            //   c3 o----------++----------------o c0      ++
+            //       `.        ++                 `.       ++
+            //         `.      ++                   `.     ++
+            //           `.    ++                     `.   ++
+            //             `.  ++        (boundary)     `. ++
+            //               `.++++++++++++++++++++++++++++++
+            //                 o++++++++++++++++++++++++++++o
+            //               c2                              c4
+            // 
+            const vec3<double> c0(1.0, 0.0, 0.0);
+            const vec3<double> c1(0.0, 1.0, 0.0);
+            const vec3<double> c2(0.0, 0.0, 1.0);
+            const vec3<double> c3(0.0, 0.0, 0.0);
+            const vec3<double> c4(1.0, 0.0, 1.0);
+            const vec3<double> c5(1.0, 1.0, 0.0);
+            const vec3<double> c6(1.0, 1.0, 1.0);
+            const vec3<double> c7(0.0, 1.0, 1.0);
+
+            fv_surface_mesh<double, uint32_t> mesh2;
+            mesh2.vertices = {{ c0, c1, c2, c3, c4, c5, c6, c7 }};
+            mesh2.faces = {{ static_cast<uint32_t>(3), static_cast<uint32_t>(2), static_cast<uint32_t>(7) },
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(1), static_cast<uint32_t>(3) },
+
+                           { static_cast<uint32_t>(4), static_cast<uint32_t>(0), static_cast<uint32_t>(5) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(6), static_cast<uint32_t>(4) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                           { static_cast<uint32_t>(1), static_cast<uint32_t>(5), static_cast<uint32_t>(0) },
+
+                           { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(2) },
+                           { static_cast<uint32_t>(2), static_cast<uint32_t>(4), static_cast<uint32_t>(0) },
+
+                           { static_cast<uint32_t>(7), static_cast<uint32_t>(6), static_cast<uint32_t>(5) },
+                           { static_cast<uint32_t>(5), static_cast<uint32_t>(1), static_cast<uint32_t>(7) }};
+
+            SUBCASE("under restrictive criteria, corner vertices are not simplified"){
+                const double dist_tolerance = 0.0001;
+                const double min_angle = std::acos(0.95);
+
+                // There should be no vertices that satisfy the simplification criteria in this case.
+                const size_t expected_verts = mesh2.vertices.size();
+                const size_t expected_faces = mesh2.faces.size();
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(mesh2.vertices.size() == expected_verts);
+                REQUIRE(mesh2.faces.size() == expected_faces);
+            }
+
+            SUBCASE("boundary becomes shrink-wrapped when underconstrained"){
+                const double dist_tolerance = 100.0;
+                const double min_angle = std::acos(-0.8);
+
+                // The exact behaviour around boundaries isn't specified.
+                // However, *some* simplification should still occur in this case.
+                // Should reduce down to a flat square.
+                const size_t expected_vert_lower_limit = 4UL;
+                const size_t expected_face_lower_limit = 2UL;
+                const size_t orig_verts = mesh2.vertices.size();
+                const size_t orig_faces = mesh2.faces.size();
+
+                mesh2.simplify_inner_triangles(dist_tolerance, min_angle);
+                REQUIRE(expected_vert_lower_limit <= mesh2.vertices.size());
+                REQUIRE(expected_face_lower_limit <= mesh2.faces.size());
+
+                REQUIRE(mesh2.vertices.size() < orig_verts);
+                REQUIRE(mesh2.faces.size() < orig_faces);
+
+                // Regardless of how much simplification happens, every vert removed should remove two faces.
+                const auto diff_verts = orig_verts - mesh2.vertices.size();
+                const auto diff_faces = orig_faces - mesh2.faces.size();
+                REQUIRE(2UL * diff_verts == diff_faces);
+            }
+        }
+    }
 }
 
 TEST_CASE( "Convex_Hull" ){
