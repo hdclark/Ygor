@@ -6726,6 +6726,9 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
         this->recreate_involved_face_index();
     }
 
+    // Only display log messages once.
+    std::map<std::string,uint64_t> msgs;
+
     // Process vertices backwards, starting from the last.
     for(I d = N_verts; zero < d; --d){
         const auto i = d - one;
@@ -7215,10 +7218,16 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
             //    }
             //}
         }catch(const std::exception &e){
-            FUNCWARN("Proposed simplification abandoned: " << e.what());
+            const std::string msg = e.what();
+            msgs[msg] += one;
         }
     }
     
+    // Report stats.
+    for(const auto& p : msgs){
+        FUNCINFO("Proposed simplifications were abandoned " << p.second << " times due to '" << p.first << "'");
+    }
+
     // Remove empty faces and vertices.
     this->involved_faces.clear();
     this->remove_disconnected_vertices();
