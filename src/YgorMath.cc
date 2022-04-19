@@ -6734,6 +6734,9 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
         const auto i = d - one;
         auto *inv_faces = &(this->involved_faces[i]);
 
+// TODO: make the circulator a separate function (or class???). Parameterize vert, face, and adjacency lookup with user-provided
+// callbacks so we can use WIP surface patches and stitched-together surfaces too.
+
         // Evaluate whether any involved faces are non-triangular. If so, skip the vertex.
         {
             bool inv_faces_all_triangular = true;
@@ -6834,7 +6837,7 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
             // Find the set of faces adjacent to this face.
             std::set<I> adj_faces;
             for(const auto& l_v : this->faces[c.face]){
-                // Process each face connected to the 
+                // Process each connected face.
                 for(const auto& l_f : this->involved_faces[l_v]){
                     if(l_f != c.face) adj_faces.insert(l_f);
                 }
@@ -6858,6 +6861,7 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
         bool patch_is_manifold = true;
         {
             std::set<I> opp_faces;
+            std::set<I> opp_face_other_verts;
             for(const auto& c : circulator){
                 // Check if the patch boundary edge is non-manifold. If so, leave it as-is.
                 if(1UL < c.opp_faces.size()){
@@ -6875,6 +6879,26 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                     }
                 }
                 if(surface_patch_wraps) break;
+
+/*
+                // Check if the opposing faces' other vertex is part of more than one face.
+                // If so, the surface might wrap around or represent a 'horn'.
+                // Simplifying patches like this can lead to non-manifoldness, so disregard.
+                for(const auto& of : c.opp_faces){
+                    for(const auto& l_v : this->faces[of]){
+                        if( (l_v != c.curr_vert)
+                        &&  (l_v != c.next_vert) ){
+                            auto p = opp_face_other_verts.insert(l_v);
+                            if(!p.second){
+                                surface_patch_wraps = true;
+                                break;
+                            }
+                        }
+                    }
+                    if(surface_patch_wraps) break;
+                }
+                if(surface_patch_wraps) break;
+*/
             }
 
             // Check if any of the patch's original faces appear as an opposing face. If so,
@@ -6890,6 +6914,50 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
         }
         if(surface_patch_wraps) continue;
         if(!patch_is_manifold) continue;
+
+
+        // Precompute the list of all nearby edges, excluding the patch itself (which will be replaced).
+        // This will help detect when a proposed surface replacement patch causes a pinches along an edge.
+        std::map< std::pair<I,I>, size_t > nearby_edges;
+        {
+            std::set<I> included_faces;
+            for(const auto& c : circulator){
+                for(const auto& l_f : this->involved_faces[c.curr_vert]){
+                    included_faces.insert( l_f );
+                }
+            }
+            for(const auto& c : circulator){
+                included_faces.erase( c.face );
+            }
+
+            for(const auto& l_f : included_faces){
+                auto& l_verts = this->faces[l_f];
+                if(l_verts.size() < 2) continue;
+
+                const auto end = std::end(l_verts);
+
+                auto it_B = std::begin(l_verts);
+                auto it_A = std::prev(end);
+                while(it_B != end){
+                    const I v_A = std::min(*it_A, *it_B);
+                    const I v_B = std::max(*it_A, *it_B);
+                    nearby_edges[{ v_A, v_B }] += 1UL;
+
+                    it_A = it_B;
+                    ++it_B;
+                }
+            }
+        }
+
+        bool has_nonmanifold_edges = false;
+        for(const auto& ep : nearby_edges){
+            if(2UL < ep.second){
+                has_nonmanifold_edges = true;
+                break;
+            }
+        }
+        if(has_nonmanifold_edges) continue;
+
 
         // Fit a plane to the perimeter vertices and compare distance to vert "i".
         bool should_simplify = true;
@@ -6985,7 +7053,8 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
             if(!all_orig_faces_consistent){
                 continue;
             }
-                
+
+
             // Temporary location for a proposed simplification transaction.
             // If the simplification fails, we abandon simplifying this vertex.
             std::vector<std::vector<I>> new_faces;
@@ -7084,6 +7153,35 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                         continue;
                     }
 
+                    // Disregard faces that would cause the surface to be pinched along an edge (i.e., create a non-manifold edge).
+                    //
+                    // We have to search how many times the edge is already present amongst the adjacent faces, disregarding the original faces.
+                    // The proposed face would add another edge. An edge should never appear more than twice.
+                    //
+                    // Note that this approach will not protect against edges reappearing elsewhere in the mesh (i.e.,
+                    // distant to the patch), but the circulator check above should reject those situations.
+                    // (If it doesn't in practice, replace this local edge counter with a global edge counter.)
+                    auto l_nearby_edges = nearby_edges;
+                    bool proposed_nonmanifold_edge = false;
+                    {
+                        const std::pair<I,I> e_0 = { std::min(it_0->curr_vert, it_1->curr_vert), std::max(it_0->curr_vert, it_1->curr_vert) };
+                        const std::pair<I,I> e_1 = { std::min(it_0->curr_vert, it_1->next_vert), std::max(it_0->curr_vert, it_1->next_vert) };
+                        const std::pair<I,I> e_2 = { std::min(it_1->curr_vert, it_1->next_vert), std::max(it_1->curr_vert, it_1->next_vert) };
+
+                        for(const auto& e : { e_0, e_1, e_2 }){
+                            auto& c = l_nearby_edges[e];
+                            c += 1UL;
+                            if(2UL < c){
+                                proposed_nonmanifold_edge = true;
+                                break;
+                            }
+                        }
+                    }
+                    if(proposed_nonmanifold_edge){
+                        continue;
+                    }
+
+
                     // Disregard faces that are oriented counter to the expected orientation.
                     // (These faces are likely to self-intersect adjacent faces.)
                     //
@@ -7150,6 +7248,9 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
 
                     // Face is suitable, so add it.
                     {
+                        // Update the local edge counts.
+                        nearby_edges = l_nearby_edges;
+
                         // Add face and face connection info.
                         add_new_face({ it_0->curr_vert, it_1->curr_vert, it_1->next_vert });
 
@@ -7176,6 +7277,10 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                     throw std::logic_error("Insufficient number of replacement faces");
                 }
             }
+
+// TODO: generate new circulators for every connected vertex and confirm the replacement patch is manifold.
+//
+// Note: this will likely be extremely slow, but is the safest approach.
 
             // Implement the changes.
             this->faces.insert( std::end(this->faces),
