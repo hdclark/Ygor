@@ -6,6 +6,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <cstring> // For std::memcpy
 #include <limits>
 #include <array>
 #include <functional>
