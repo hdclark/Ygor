@@ -89,7 +89,8 @@ template <class T, class R> class planar_image {
         //  ****** routines as well!                                                      *******
 
         //------------------------------------ Member functions --------------------------------------------
-        //Zero-based indexing (the default, and used internally). These routines return -1 if out-of-bounds.
+        //Zero-based "row-major" indexing (the default, and used internally).
+        // These routines return -1 if out-of-bounds.
         long int index(long int r, long int c) const;
         long int index(long int row, long int col, long int chnl) const;
         long int index(const vec3<R> &point, long int chnl) const;

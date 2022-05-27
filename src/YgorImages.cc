@@ -358,7 +358,7 @@ template <class T,class R> bool planar_image<T,R>::Spatially_lte(const planar_im
 #endif
 
 
-//Zero-based indexing. 
+//Zero-based "row-major" indexing. 
 template <class T, class R> long int planar_image<T,R>::index(long int row, long int col) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) ){
