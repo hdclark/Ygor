@@ -13,7 +13,7 @@
 ## Introduction
 
 This supporting library was written by hal clark over the span of many years
-(2010-2021) to house bits of code that are convenient for multiple projects.
+(2010-2022) to house bits of code that are convenient for multiple projects.
 
 Most, but not all of `Ygor`'s routines are focused on scientific or mathematic
 applications (i.e., geometry, simulation, optimization, and statistics). The
@@ -33,9 +33,8 @@ some reasonable chance they will be applicable or broadly useful.
 ## License and Copying
 
 All materials herein which may be copywrited, where applicable, are. Copyright
-2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021 Hal
-Clark. See [LICENSE.txt](LICENSE.txt) for details about the license. Informally,
-`Ygor` is available under a GPLv3 license. 
+2010-2022 Hal Clark. See [LICENSE.txt](LICENSE.txt) for details about the
+license. Informally, `Ygor` is available under a GPLv3 license. 
 
 All liability is herefore disclaimed. The person(s) who use this source and/or
 software do so strictly under their own volition. They assume all associated
@@ -107,9 +106,9 @@ can be invoked as:
 ## Rough Historical Timeline
 
 - May/June 2012
-  - The routines from some of the common convenience headers were collected into
-    (this) project folder. The conversion to a set of linkable and/or
-    header-only sources was started.
+  - Routines from some ad-hoc common 'convenience' headers were amalgamated into
+    this project. The conversion to a set of linkable and/or header-only sources
+    was started.
 
 - Sept 2012
   - Some routines have gradually been modified or added as needed. The inclusion
@@ -243,4 +242,55 @@ can be invoked as:
     vertices do not need to be fully loaded into memory, but random access is
     needed. (Support for non-random access iterators is supported, but only
     recommended for a small number of vertices.)
+
+- June 2021
+  - Mutate\_Voxels: handle degenerate contour geometry better.
+  - Mutate\_Voxels: provide user access to contour overlap mask.
+  - Mutate\_Voxels: provide type alias for user-provided functors.
+
+- August 2021
+  - YgorTime: remove FUNCERR, add regex-based stringified date-time parsing,
+    and provide fractional seconds, if available.
+  - YgorString: add GetAllRegex2 variant that accepts a precompiled regex.
+  - PLY: support obj\_info statement.
+
+- September 2021
+  - YgorArguments: add extra-safe workaround and reference, and capture local
+    copy of key.
+  - Arm: avoid clobbering user-provided march, mcpu, and mtune flags.
+  - YgorArguments: rewrite argument parser, use feature-test macros specified in
+    man page.
+  - YgorTime: add minimal test cases for IO.
+
+- October 2021
+  - YgorImages: added double-double type instantiations.
+  - Planar\_adjacency: added min/max index query.
+
+- March 2022
+  - ConvexHull: add eps margin for visibility estimation.
+  - Bug fix: replace numeric\_limits::min --> lowest.
+  - affine\_transform: make read and write symmetric, and provide a stream input
+    constructor.
+  - Provide base64-aware key-value pair encoder/decoder routines.
+  - Add ::invert() to affine\_transform and up to 4x4 for num\_array.
+  - Expand\_Macros: add shell-like bracket support for controlling macro scope.
+  
+- April 2022
+  - simplify\_inner\_triangles: add local non-manifold edge check, consolidate
+    warning messages, add a few unit tests, add more stringent checks, reject
+    candidate faces with negative orientation, add extra check of face
+    reduction, and honour transaction semantics.
+  - Provide fallback for git CVE-2022-24765.
+  - fv\_surface\_mesh: add flat surface vertex removal.
+  - ConvexHull: replace face vector with map, prescan for large seed tet and
+    more precisely update face adjacency, and revert to exact visibility
+    testing.
+
+- May 2022
+  - YgorImages: added note about row-major indexing.
+  - YgorTAR: add cstring header for std::memcpy.
+
+- June 2022
+  - Added yspan<>, a non-owning span-like container that supports stride with
+    arrays of composite objects.
 
