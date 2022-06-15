@@ -331,3 +331,593 @@ template <class TA, class TB>  void bimap<TA,TB>::order_on_second(void){
     template void bimap<std::string,float>::order_on_second(void);
 #endif
 
+//---------------------------------------------------------------------------------------------------------------------
+//--------------------------- yspan: a non-owning sequence proxy object supporting stride -----------------------------
+//---------------------------------------------------------------------------------------------------------------------
+
+template <class T>
+yspan<T>::yspan() : start(nullptr), count(0), stride_bytes(0) {}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template yspan<float   >::yspan();
+    template yspan<double  >::yspan();
+
+    template yspan<int8_t  >::yspan();
+    template yspan<int16_t >::yspan();
+    template yspan<int32_t >::yspan();
+    template yspan<int64_t >::yspan();
+
+    template yspan<uint8_t >::yspan();
+    template yspan<uint16_t>::yspan();
+    template yspan<uint32_t>::yspan();
+    template yspan<uint64_t>::yspan();
+
+    template yspan<const float   >::yspan();
+    template yspan<const double  >::yspan();
+                         
+    template yspan<const int8_t  >::yspan();
+    template yspan<const int16_t >::yspan();
+    template yspan<const int32_t >::yspan();
+    template yspan<const int64_t >::yspan();
+                         
+    template yspan<const uint8_t >::yspan();
+    template yspan<const uint16_t>::yspan();
+    template yspan<const uint32_t>::yspan();
+    template yspan<const uint64_t>::yspan();
+#endif
+
+template <class T>
+yspan<T>::yspan(T* l_start, long int l_count, long int l_sb) : start(l_start), count(l_count), stride_bytes(l_sb) {
+    if(this->start == nullptr){
+        throw std::invalid_argument("Invalid span: first element is null");
+    }
+    if(this->count < 0L){
+        throw std::invalid_argument("Invalid span: count is negative");
+    }
+    if(this->stride_bytes < 0L){
+        throw std::invalid_argument("Invalid span: stride is negative");
+    }
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template yspan<float   >::yspan(float*   , long int, long int);
+    template yspan<double  >::yspan(double*  , long int, long int);
+
+    template yspan<int8_t  >::yspan(int8_t*  , long int, long int);
+    template yspan<int16_t >::yspan(int16_t* , long int, long int);
+    template yspan<int32_t >::yspan(int32_t* , long int, long int);
+    template yspan<int64_t >::yspan(int64_t* , long int, long int);
+
+    template yspan<uint8_t >::yspan(uint8_t* , long int, long int);
+    template yspan<uint16_t>::yspan(uint16_t*, long int, long int);
+    template yspan<uint32_t>::yspan(uint32_t*, long int, long int);
+    template yspan<uint64_t>::yspan(uint64_t*, long int, long int);
+
+    template yspan<const float   >::yspan(const float*   , long int, long int);
+    template yspan<const double  >::yspan(const double*  , long int, long int);
+                                                
+    template yspan<const int8_t  >::yspan(const int8_t*  , long int, long int);
+    template yspan<const int16_t >::yspan(const int16_t* , long int, long int);
+    template yspan<const int32_t >::yspan(const int32_t* , long int, long int);
+    template yspan<const int64_t >::yspan(const int64_t* , long int, long int);
+                                                
+    template yspan<const uint8_t >::yspan(const uint8_t* , long int, long int);
+    template yspan<const uint16_t>::yspan(const uint16_t*, long int, long int);
+    template yspan<const uint32_t>::yspan(const uint32_t*, long int, long int);
+    template yspan<const uint64_t>::yspan(const uint64_t*, long int, long int);
+#endif
+
+template <class T>
+yspan<T>::yspan(const yspan &rhs) : start(rhs.start),
+                                    count(rhs.count),
+                                    stride_bytes(rhs.stride_bytes) { }
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template yspan<float   >::yspan(const yspan<float   > &);
+    template yspan<double  >::yspan(const yspan<double  > &);
+
+    template yspan<int8_t  >::yspan(const yspan<int8_t  > &);
+    template yspan<int16_t >::yspan(const yspan<int16_t > &);
+    template yspan<int32_t >::yspan(const yspan<int32_t > &);
+    template yspan<int64_t >::yspan(const yspan<int64_t > &);
+
+    template yspan<uint8_t >::yspan(const yspan<uint8_t > &);
+    template yspan<uint16_t>::yspan(const yspan<uint16_t> &);
+    template yspan<uint32_t>::yspan(const yspan<uint32_t> &);
+    template yspan<uint64_t>::yspan(const yspan<uint64_t> &);
+
+    template yspan<const float   >::yspan(const yspan<const float   > &);
+    template yspan<const double  >::yspan(const yspan<const double  > &);
+
+    template yspan<const int8_t  >::yspan(const yspan<const int8_t  > &);
+    template yspan<const int16_t >::yspan(const yspan<const int16_t > &);
+    template yspan<const int32_t >::yspan(const yspan<const int32_t > &);
+    template yspan<const int64_t >::yspan(const yspan<const int64_t > &);
+
+    template yspan<const uint8_t >::yspan(const yspan<const uint8_t > &);
+    template yspan<const uint16_t>::yspan(const yspan<const uint16_t> &);
+    template yspan<const uint32_t>::yspan(const yspan<const uint32_t> &);
+    template yspan<const uint64_t>::yspan(const yspan<const uint64_t> &);
+#endif
+
+template <class T>
+yspan<T> &
+yspan<T>::operator=(const yspan &rhs){
+    if(this == &rhs) return *this;
+    this->start = rhs.start;
+    this->count = rhs.count;
+    this->stride_bytes = rhs.stride_bytes;
+    return *this;
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template yspan<float   >& yspan<float   >::operator=(const yspan<float   > &);
+    template yspan<double  >& yspan<double  >::operator=(const yspan<double  > &);
+                             
+    template yspan<int8_t  >& yspan<int8_t  >::operator=(const yspan<int8_t  > &);
+    template yspan<int16_t >& yspan<int16_t >::operator=(const yspan<int16_t > &);
+    template yspan<int32_t >& yspan<int32_t >::operator=(const yspan<int32_t > &);
+    template yspan<int64_t >& yspan<int64_t >::operator=(const yspan<int64_t > &);
+                             
+    template yspan<uint8_t >& yspan<uint8_t >::operator=(const yspan<uint8_t > &);
+    template yspan<uint16_t>& yspan<uint16_t>::operator=(const yspan<uint16_t> &);
+    template yspan<uint32_t>& yspan<uint32_t>::operator=(const yspan<uint32_t> &);
+    template yspan<uint64_t>& yspan<uint64_t>::operator=(const yspan<uint64_t> &);
+
+    template yspan<const float   >& yspan<const float   >::operator=(const yspan<const float   > &);
+    template yspan<const double  >& yspan<const double  >::operator=(const yspan<const double  > &);
+                                                                                       
+    template yspan<const int8_t  >& yspan<const int8_t  >::operator=(const yspan<const int8_t  > &);
+    template yspan<const int16_t >& yspan<const int16_t >::operator=(const yspan<const int16_t > &);
+    template yspan<const int32_t >& yspan<const int32_t >::operator=(const yspan<const int32_t > &);
+    template yspan<const int64_t >& yspan<const int64_t >::operator=(const yspan<const int64_t > &);
+                                                                                       
+    template yspan<const uint8_t >& yspan<const uint8_t >::operator=(const yspan<const uint8_t > &);
+    template yspan<const uint16_t>& yspan<const uint16_t>::operator=(const yspan<const uint16_t> &);
+    template yspan<const uint32_t>& yspan<const uint32_t>::operator=(const yspan<const uint32_t> &);
+    template yspan<const uint64_t>& yspan<const uint64_t>::operator=(const yspan<const uint64_t> &);
+#endif
+
+template <class T>
+bool
+yspan<T>::operator==(const yspan<T> &rhs) const {
+    return (this->start == rhs.start)
+        && (this->count == rhs.count)
+        && (this->stride_bytes == rhs.stride_bytes);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template bool yspan<float   >::operator==(const yspan<float   > &) const;
+    template bool yspan<double  >::operator==(const yspan<double  > &) const;
+
+    template bool yspan<int8_t  >::operator==(const yspan<int8_t  > &) const;
+    template bool yspan<int16_t >::operator==(const yspan<int16_t > &) const;
+    template bool yspan<int32_t >::operator==(const yspan<int32_t > &) const;
+    template bool yspan<int64_t >::operator==(const yspan<int64_t > &) const;
+
+    template bool yspan<uint8_t >::operator==(const yspan<uint8_t > &) const;
+    template bool yspan<uint16_t>::operator==(const yspan<uint16_t> &) const;
+    template bool yspan<uint32_t>::operator==(const yspan<uint32_t> &) const;
+    template bool yspan<uint64_t>::operator==(const yspan<uint64_t> &) const;
+
+    template bool yspan<const float   >::operator==(const yspan<const float   > &) const;
+    template bool yspan<const double  >::operator==(const yspan<const double  > &) const;
+                                                                      
+    template bool yspan<const int8_t  >::operator==(const yspan<const int8_t  > &) const;
+    template bool yspan<const int16_t >::operator==(const yspan<const int16_t > &) const;
+    template bool yspan<const int32_t >::operator==(const yspan<const int32_t > &) const;
+    template bool yspan<const int64_t >::operator==(const yspan<const int64_t > &) const;
+                                                                      
+    template bool yspan<const uint8_t >::operator==(const yspan<const uint8_t > &) const;
+    template bool yspan<const uint16_t>::operator==(const yspan<const uint16_t> &) const;
+    template bool yspan<const uint32_t>::operator==(const yspan<const uint32_t> &) const;
+    template bool yspan<const uint64_t>::operator==(const yspan<const uint64_t> &) const;
+#endif
+
+template <class T>
+bool
+yspan<T>::operator!=(const yspan<T> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template bool yspan<float   >::operator!=(const yspan<float   > &) const;
+    template bool yspan<double  >::operator!=(const yspan<double  > &) const;
+
+    template bool yspan<int8_t  >::operator!=(const yspan<int8_t  > &) const;
+    template bool yspan<int16_t >::operator!=(const yspan<int16_t > &) const;
+    template bool yspan<int32_t >::operator!=(const yspan<int32_t > &) const;
+    template bool yspan<int64_t >::operator!=(const yspan<int64_t > &) const;
+
+    template bool yspan<uint8_t >::operator!=(const yspan<uint8_t > &) const;
+    template bool yspan<uint16_t>::operator!=(const yspan<uint16_t> &) const;
+    template bool yspan<uint32_t>::operator!=(const yspan<uint32_t> &) const;
+    template bool yspan<uint64_t>::operator!=(const yspan<uint64_t> &) const;
+
+    template bool yspan<const float   >::operator!=(const yspan<const float   > &) const;
+    template bool yspan<const double  >::operator!=(const yspan<const double  > &) const;
+                                                                      
+    template bool yspan<const int8_t  >::operator!=(const yspan<const int8_t  > &) const;
+    template bool yspan<const int16_t >::operator!=(const yspan<const int16_t > &) const;
+    template bool yspan<const int32_t >::operator!=(const yspan<const int32_t > &) const;
+    template bool yspan<const int64_t >::operator!=(const yspan<const int64_t > &) const;
+                                                                      
+    template bool yspan<const uint8_t >::operator!=(const yspan<const uint8_t > &) const;
+    template bool yspan<const uint16_t>::operator!=(const yspan<const uint16_t> &) const;
+    template bool yspan<const uint32_t>::operator!=(const yspan<const uint32_t> &) const;
+    template bool yspan<const uint64_t>::operator!=(const yspan<const uint64_t> &) const;
+#endif
+
+template <class T>
+bool
+yspan<T>::operator<(const yspan<T> &rhs) const {
+    return std::make_tuple(this->start, this->count, this->stride_bytes)
+         < std::make_tuple(rhs.start,   rhs.count,   rhs.stride_bytes);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template bool yspan<float   >::operator<(const yspan<float   > &) const;
+    template bool yspan<double  >::operator<(const yspan<double  > &) const;
+
+    template bool yspan<int8_t  >::operator<(const yspan<int8_t  > &) const;
+    template bool yspan<int16_t >::operator<(const yspan<int16_t > &) const;
+    template bool yspan<int32_t >::operator<(const yspan<int32_t > &) const;
+    template bool yspan<int64_t >::operator<(const yspan<int64_t > &) const;
+
+    template bool yspan<uint8_t >::operator<(const yspan<uint8_t > &) const;
+    template bool yspan<uint16_t>::operator<(const yspan<uint16_t> &) const;
+    template bool yspan<uint32_t>::operator<(const yspan<uint32_t> &) const;
+    template bool yspan<uint64_t>::operator<(const yspan<uint64_t> &) const;
+
+    template bool yspan<const float   >::operator<(const yspan<const float   > &) const;
+    template bool yspan<const double  >::operator<(const yspan<const double  > &) const;
+                                                                     
+    template bool yspan<const int8_t  >::operator<(const yspan<const int8_t  > &) const;
+    template bool yspan<const int16_t >::operator<(const yspan<const int16_t > &) const;
+    template bool yspan<const int32_t >::operator<(const yspan<const int32_t > &) const;
+    template bool yspan<const int64_t >::operator<(const yspan<const int64_t > &) const;
+                                                                     
+    template bool yspan<const uint8_t >::operator<(const yspan<const uint8_t > &) const;
+    template bool yspan<const uint16_t>::operator<(const yspan<const uint16_t> &) const;
+    template bool yspan<const uint32_t>::operator<(const yspan<const uint32_t> &) const;
+    template bool yspan<const uint64_t>::operator<(const yspan<const uint64_t> &) const;
+#endif
+
+template <class T>
+T&
+yspan<T>::operator[](long int n){
+    using base_T = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+    return *( reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(const_cast<base_T*>(start)) + n * (sizeof(T) + this->stride_bytes)));
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template float   & yspan<float   >::operator[](long int n);
+    template double  & yspan<double  >::operator[](long int n);
+
+    template int8_t  & yspan<int8_t  >::operator[](long int n);
+    template int16_t & yspan<int16_t >::operator[](long int n);
+    template int32_t & yspan<int32_t >::operator[](long int n);
+    template int64_t & yspan<int64_t >::operator[](long int n);
+
+    template uint8_t & yspan<uint8_t >::operator[](long int n);
+    template uint16_t& yspan<uint16_t>::operator[](long int n);
+    template uint32_t& yspan<uint32_t>::operator[](long int n);
+    template uint64_t& yspan<uint64_t>::operator[](long int n);
+
+    template const float   & yspan<const float   >::operator[](long int n);
+    template const double  & yspan<const double  >::operator[](long int n);
+
+    template const int8_t  & yspan<const int8_t  >::operator[](long int n);
+    template const int16_t & yspan<const int16_t >::operator[](long int n);
+    template const int32_t & yspan<const int32_t >::operator[](long int n);
+    template const int64_t & yspan<const int64_t >::operator[](long int n);
+
+    template const uint8_t & yspan<const uint8_t >::operator[](long int n);
+    template const uint16_t& yspan<const uint16_t>::operator[](long int n);
+    template const uint32_t& yspan<const uint32_t>::operator[](long int n);
+    template const uint64_t& yspan<const uint64_t>::operator[](long int n);
+#endif
+
+template <class T>
+T&
+yspan<T>::at(long int n){
+    if(this->start == nullptr){
+        throw std::runtime_error("Invalid yspan element access; yspan is not engaged");
+    }
+    if((n < 0L) || (this->count <= n)){
+        throw std::runtime_error("Invalid yspan element access; element does not exist");
+    }
+    return (*this)[n];
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template float   & yspan<float   >::at(long int n);
+    template double  & yspan<double  >::at(long int n);
+
+    template int8_t  & yspan<int8_t  >::at(long int n);
+    template int16_t & yspan<int16_t >::at(long int n);
+    template int32_t & yspan<int32_t >::at(long int n);
+    template int64_t & yspan<int64_t >::at(long int n);
+
+    template uint8_t & yspan<uint8_t >::at(long int n);
+    template uint16_t& yspan<uint16_t>::at(long int n);
+    template uint32_t& yspan<uint32_t>::at(long int n);
+    template uint64_t& yspan<uint64_t>::at(long int n);
+
+    template const float   & yspan<const float   >::at(long int n);
+    template const double  & yspan<const double  >::at(long int n);
+
+    template const int8_t  & yspan<const int8_t  >::at(long int n);
+    template const int16_t & yspan<const int16_t >::at(long int n);
+    template const int32_t & yspan<const int32_t >::at(long int n);
+    template const int64_t & yspan<const int64_t >::at(long int n);
+
+    template const uint8_t & yspan<const uint8_t >::at(long int n);
+    template const uint16_t& yspan<const uint16_t>::at(long int n);
+    template const uint32_t& yspan<const uint32_t>::at(long int n);
+    template const uint64_t& yspan<const uint64_t>::at(long int n);
+#endif
+
+template <class T>
+long int
+yspan<T>::size() const {
+    return std::max(0L, this->count);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template long int yspan<float   >::size() const;
+    template long int yspan<double  >::size() const;
+
+    template long int yspan<int8_t  >::size() const;
+    template long int yspan<int16_t >::size() const;
+    template long int yspan<int32_t >::size() const;
+    template long int yspan<int64_t >::size() const;
+
+    template long int yspan<uint8_t >::size() const;
+    template long int yspan<uint16_t>::size() const;
+    template long int yspan<uint32_t>::size() const;
+    template long int yspan<uint64_t>::size() const;
+
+    template long int yspan<const float   >::size() const;
+    template long int yspan<const double  >::size() const;
+
+    template long int yspan<const int8_t  >::size() const;
+    template long int yspan<const int16_t >::size() const;
+    template long int yspan<const int32_t >::size() const;
+    template long int yspan<const int64_t >::size() const;
+
+    template long int yspan<const uint8_t >::size() const;
+    template long int yspan<const uint16_t>::size() const;
+    template long int yspan<const uint32_t>::size() const;
+    template long int yspan<const uint64_t>::size() const;
+#endif
+
+template <class T>
+long int
+yspan<T>::stride() const {
+    return std::max(0L, this->stride_bytes);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template long int yspan<float   >::stride() const;
+    template long int yspan<double  >::stride() const;
+
+    template long int yspan<int8_t  >::stride() const;
+    template long int yspan<int16_t >::stride() const;
+    template long int yspan<int32_t >::stride() const;
+    template long int yspan<int64_t >::stride() const;
+
+    template long int yspan<uint8_t >::stride() const;
+    template long int yspan<uint16_t>::stride() const;
+    template long int yspan<uint32_t>::stride() const;
+    template long int yspan<uint64_t>::stride() const;
+
+    template long int yspan<const float   >::stride() const;
+    template long int yspan<const double  >::stride() const;
+
+    template long int yspan<const int8_t  >::stride() const;
+    template long int yspan<const int16_t >::stride() const;
+    template long int yspan<const int32_t >::stride() const;
+    template long int yspan<const int64_t >::stride() const;
+
+    template long int yspan<const uint8_t >::stride() const;
+    template long int yspan<const uint16_t>::stride() const;
+    template long int yspan<const uint32_t>::stride() const;
+    template long int yspan<const uint64_t>::stride() const;
+#endif
+
+template <class T>
+bool
+yspan<T>::empty() const {
+    return (this->count < 1L);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template bool yspan<float   >::empty() const;
+    template bool yspan<double  >::empty() const;
+
+    template bool yspan<int8_t  >::empty() const;
+    template bool yspan<int16_t >::empty() const;
+    template bool yspan<int32_t >::empty() const;
+    template bool yspan<int64_t >::empty() const;
+
+    template bool yspan<uint8_t >::empty() const;
+    template bool yspan<uint16_t>::empty() const;
+    template bool yspan<uint32_t>::empty() const;
+    template bool yspan<uint64_t>::empty() const;
+
+    template bool yspan<const float   >::empty() const;
+    template bool yspan<const double  >::empty() const;
+
+    template bool yspan<const int8_t  >::empty() const;
+    template bool yspan<const int16_t >::empty() const;
+    template bool yspan<const int32_t >::empty() const;
+    template bool yspan<const int64_t >::empty() const;
+
+    template bool yspan<const uint8_t >::empty() const;
+    template bool yspan<const uint16_t>::empty() const;
+    template bool yspan<const uint32_t>::empty() const;
+    template bool yspan<const uint64_t>::empty() const;
+#endif
+
+template <class T>
+T&
+yspan<T>::front(){
+    return this->at(0L);
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template float   & yspan<float   >::front();
+    template double  & yspan<double  >::front();
+                      
+    template int8_t  & yspan<int8_t  >::front();
+    template int16_t & yspan<int16_t >::front();
+    template int32_t & yspan<int32_t >::front();
+    template int64_t & yspan<int64_t >::front();
+                      
+    template uint8_t & yspan<uint8_t >::front();
+    template uint16_t& yspan<uint16_t>::front();
+    template uint32_t& yspan<uint32_t>::front();
+    template uint64_t& yspan<uint64_t>::front();
+
+    template const float   & yspan<const float   >::front();
+    template const double  & yspan<const double  >::front();
+                                                                                
+    template const int8_t  & yspan<const int8_t  >::front();
+    template const int16_t & yspan<const int16_t >::front();
+    template const int32_t & yspan<const int32_t >::front();
+    template const int64_t & yspan<const int64_t >::front();
+                                                                                
+    template const uint8_t & yspan<const uint8_t >::front();
+    template const uint16_t& yspan<const uint16_t>::front();
+    template const uint32_t& yspan<const uint32_t>::front();
+    template const uint64_t& yspan<const uint64_t>::front();
+#endif
+
+template <class T>
+T&
+yspan<T>::back(){
+    return this->at( this->count - 1L );
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template float   & yspan<float   >::back();
+    template double  & yspan<double  >::back();
+                      
+    template int8_t  & yspan<int8_t  >::back();
+    template int16_t & yspan<int16_t >::back();
+    template int32_t & yspan<int32_t >::back();
+    template int64_t & yspan<int64_t >::back();
+                      
+    template uint8_t & yspan<uint8_t >::back();
+    template uint16_t& yspan<uint16_t>::back();
+    template uint32_t& yspan<uint32_t>::back();
+    template uint64_t& yspan<uint64_t>::back();
+
+    template const float   & yspan<const float   >::back();
+    template const double  & yspan<const double  >::back();
+                                                                                
+    template const int8_t  & yspan<const int8_t  >::back();
+    template const int16_t & yspan<const int16_t >::back();
+    template const int32_t & yspan<const int32_t >::back();
+    template const int64_t & yspan<const int64_t >::back();
+                                                                                
+    template const uint8_t & yspan<const uint8_t >::back();
+    template const uint16_t& yspan<const uint16_t>::back();
+    template const uint32_t& yspan<const uint32_t>::back();
+    template const uint64_t& yspan<const uint64_t>::back();
+#endif
+
+template <class T>
+void
+yspan<T>::pop_front(){
+    T* new_start = &(this->at(1L));
+    this->start = new_start;
+    this->count--;
+    return;
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template void yspan<float   >::pop_front();
+    template void yspan<double  >::pop_front();
+
+    template void yspan<int8_t  >::pop_front();
+    template void yspan<int16_t >::pop_front();
+    template void yspan<int32_t >::pop_front();
+    template void yspan<int64_t >::pop_front();
+
+    template void yspan<uint8_t >::pop_front();
+    template void yspan<uint16_t>::pop_front();
+    template void yspan<uint32_t>::pop_front();
+    template void yspan<uint64_t>::pop_front();
+
+    template void yspan<const float   >::pop_front();
+    template void yspan<const double  >::pop_front();
+
+    template void yspan<const int8_t  >::pop_front();
+    template void yspan<const int16_t >::pop_front();
+    template void yspan<const int32_t >::pop_front();
+    template void yspan<const int64_t >::pop_front();
+
+    template void yspan<const uint8_t >::pop_front();
+    template void yspan<const uint16_t>::pop_front();
+    template void yspan<const uint32_t>::pop_front();
+    template void yspan<const uint64_t>::pop_front();
+#endif
+
+template <class T>
+void
+yspan<T>::pop_back(){
+    this->count--;
+    return;
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template void yspan<float   >::pop_back();
+    template void yspan<double  >::pop_back();
+
+    template void yspan<int8_t  >::pop_back();
+    template void yspan<int16_t >::pop_back();
+    template void yspan<int32_t >::pop_back();
+    template void yspan<int64_t >::pop_back();
+
+    template void yspan<uint8_t >::pop_back();
+    template void yspan<uint16_t>::pop_back();
+    template void yspan<uint32_t>::pop_back();
+    template void yspan<uint64_t>::pop_back();
+
+    template void yspan<const float   >::pop_back();
+    template void yspan<const double  >::pop_back();
+
+    template void yspan<const int8_t  >::pop_back();
+    template void yspan<const int16_t >::pop_back();
+    template void yspan<const int32_t >::pop_back();
+    template void yspan<const int64_t >::pop_back();
+
+    template void yspan<const uint8_t >::pop_back();
+    template void yspan<const uint16_t>::pop_back();
+    template void yspan<const uint32_t>::pop_back();
+    template void yspan<const uint64_t>::pop_back();
+#endif
+
+template <class T>
+void
+yspan<T>::swap(yspan<T> &rhs){
+    std::swap(this->start, rhs.start);
+    std::swap(this->count, rhs.count);
+    std::swap(this->stride_bytes, rhs.stride_bytes);
+    return;
+}
+#ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
+    template void yspan<float   >::swap(yspan<float   >&);
+    template void yspan<double  >::swap(yspan<double  >&);
+
+    template void yspan<int8_t  >::swap(yspan<int8_t  >&);
+    template void yspan<int16_t >::swap(yspan<int16_t >&);
+    template void yspan<int32_t >::swap(yspan<int32_t >&);
+    template void yspan<int64_t >::swap(yspan<int64_t >&);
+
+    template void yspan<uint8_t >::swap(yspan<uint8_t >&);
+    template void yspan<uint16_t>::swap(yspan<uint16_t>&);
+    template void yspan<uint32_t>::swap(yspan<uint32_t>&);
+    template void yspan<uint64_t>::swap(yspan<uint64_t>&);
+
+    template void yspan<const float   >::swap(yspan<const float   >&);
+    template void yspan<const double  >::swap(yspan<const double  >&);
+
+    template void yspan<const int8_t  >::swap(yspan<const int8_t  >&);
+    template void yspan<const int16_t >::swap(yspan<const int16_t >&);
+    template void yspan<const int32_t >::swap(yspan<const int32_t >&);
+    template void yspan<const int64_t >::swap(yspan<const int64_t >&);
+
+    template void yspan<const uint8_t >::swap(yspan<const uint8_t >&);
+    template void yspan<const uint16_t>::swap(yspan<const uint16_t>&);
+    template void yspan<const uint32_t>::swap(yspan<const uint32_t>&);
+    template void yspan<const uint64_t>::swap(yspan<const uint64_t>&);
+#endif
+
+

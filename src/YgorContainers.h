@@ -1,6 +1,5 @@
 //YgorContainers.h - A collection of some custom (niche?) containers. Most likely the contents of this file exist somewhere as more
-//  mature implementations with well thought-out uses. These are handy because they do not do anything 'sneaky' behind my back
-//  and are all a simple header-only implementation (usually relying on the STL, though.)
+//  mature implementations with well thought-out uses.
 
 #ifndef YGOR_CUSTOM_CONTAINERS_HC_
 #define YGOR_CUSTOM_CONTAINERS_HC_
@@ -15,6 +14,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <cstddef>  // For std::ptrdiff_t
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
@@ -73,6 +73,109 @@ template <class TA, class TB>   class bimap {
         //  empty() ?
 };
 
+
+//---------------------------------------------------------------------------------------------------------------------
+//--------------------------- yspan: a non-owning sequence proxy object supporting stride -----------------------------
+//---------------------------------------------------------------------------------------------------------------------
+// This class is a non-owning object similar to std::span, but supporting runtime stride. The underlying sequence is
+// treated as an opaque binary array to support heterogeneous sequences (e.g., [float, double, int, long int]).
+
+template <class T>
+class yspan {
+    private:
+        T* start;
+        long int count; // the number of T present.
+        long int stride_bytes; // in bytes, to support heterogeneous embeddings.
+
+    public:
+        using value_type = T;
+
+        //Constructors.
+        yspan();
+        yspan(T* start, long int count, long int stride_bytes);
+        yspan(const yspan &);
+
+        //Operators.
+        yspan & operator=(const yspan &);
+
+        bool operator==(const yspan &) const;
+        bool operator!=(const yspan &) const;
+        bool operator< (const yspan &) const;
+
+        // Accessors.
+        T& operator[](long int);
+        T& at(long int);
+
+        long int size() const; // number of T included in yspan.
+        long int stride() const; // number of bytes in the stride.
+
+        bool empty() const;
+        T& front();
+        T& back();
+
+        // Remove elements from the span, but leave them intact in the underlying storage.
+        // NOTE: both pop_front() and pop_back() invalidate *all* iterators (begin() and end()).
+        void pop_front();
+        void pop_back();
+
+        // Other members.
+        void swap(yspan &); // Swaps the contents -- essentially a destructive operator=().
+
+        // Iterators.
+        struct iterator {
+            public:
+                using iterator_category = std::random_access_iterator_tag;
+                using difference_type   = std::ptrdiff_t;
+                using value_type        = T;
+                using pointer           = T*;
+                using reference         = T&;
+
+                iterator() : it_yspan(nullptr), it_n(-1L) {}
+                iterator(yspan<T>* ys, long int n) : it_yspan(ys), it_n(n) {}
+
+                reference operator*() const { return (*(this->it_yspan))[this->it_n]; }
+                pointer operator->(){ return &((*(this->it_yspan))[this->it_n]); }
+                bool operator<(const iterator &rhs){ 
+                    return std::make_tuple(*(this->it_yspan), this->it_n)
+                         < std::make_tuple(*(rhs.it_yspan), rhs.it_n);
+                }
+
+                // Prefix increment/decrement
+                iterator& operator++(){ this->it_n++; return *this; }
+                iterator& operator--(){ this->it_n--; return *this; }
+
+                // Postfix increment/decrement
+                iterator operator++(int){ iterator tmp = *this; ++(*this); return tmp; }
+                iterator operator--(int){ iterator tmp = *this; --(*this); return tmp; }
+
+                difference_type operator-(const iterator &rhs){ return static_cast<difference_type>(this->it_n - rhs.it_n); }
+                iterator& operator+=(difference_type n){ this->it_n += n; return *this; }
+                iterator& operator-=(difference_type n){ this->it_n -= n; return *this; }
+
+                iterator operator+(difference_type n){ iterator out = *this; out.it_n += n; return out; }
+                iterator operator-(difference_type n){ iterator out = *this; out.it_n -= n; return out; }
+
+                friend bool operator==(const iterator& A, const iterator& B){
+                    return (A.it_yspan == B.it_yspan)
+                        && (A.it_n == B.it_n);
+                };
+
+                friend bool operator!=(const iterator& A, const iterator& B){
+                    return !(A == B);
+                };
+
+            private:
+                yspan<T>* it_yspan;
+                long int it_n;
+        };
+
+        iterator begin(){
+            return iterator(&(*this), 0L);
+        }
+        iterator end(){
+            return iterator(&(*this), this->count);
+        }
+};
 
 
 //----------------------------------------------------------------------------------------------------------------------------

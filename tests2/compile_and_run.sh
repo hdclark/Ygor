@@ -24,6 +24,7 @@ g++ \
   -Wall \
   -I. \
   Main.cc \
+  YgorContainers/*.cc \
   YgorFilesDirs.cc \
   YgorIO.cc \
   YgorMath/*.cc \

@@ -3,12 +3,12 @@
 #include "YgorDefinitions.h"
 
 #ifdef YGOR_USE_GNU_GSL
-#include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
-//#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)
-#include <gsl/gsl_integration.h> //Needed to numerically compute an integral in lieu of the hypergeometric function.
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_sf_gamma.h>  //Gamma function.
-#include <gsl/gsl_sf_result.h>
+    #include <gsl/gsl_errno.h>     //Needed for GSL error reporting.
+    //#include <gsl/gsl_sf_hyperg.h> //(Gauss) Hypergeometric function. (This failed me!)
+    #include <gsl/gsl_integration.h> //Needed to numerically compute an integral in lieu of the hypergeometric function.
+    #include <gsl/gsl_math.h>
+    #include <gsl/gsl_sf_gamma.h>  //Gamma function.
+    #include <gsl/gsl_sf_result.h>
 #endif // YGOR_USE_GNU_GSL
 
 #include <algorithm>
@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions, Ygor_Container_Sort().
+#include "YgorContainers.h"
 #include "YgorStats.h"
 
 //#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
@@ -56,33 +57,43 @@ template <class C> typename C::value_type Stats::Min(C in){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Min(std::list<double>     in);
     template double   Stats::Min(std::vector<double>   in);
+    template double   Stats::Min(yspan<double>         in);
 
     template float    Stats::Min(std::list<float >     in);
     template float    Stats::Min(std::vector<float >   in);
+    template float    Stats::Min(yspan<float >         in);
     
-    template uint8_t  Stats::Min(std::list<uint8_t>   in);
-    template uint8_t  Stats::Min(std::vector<uint8_t> in);
+    template uint8_t  Stats::Min(std::list<uint8_t>    in);
+    template uint8_t  Stats::Min(std::vector<uint8_t>  in);
+    template uint8_t  Stats::Min(yspan<uint8_t>        in);
 
-    template int8_t   Stats::Min(std::list<int8_t>    in);
-    template int8_t   Stats::Min(std::vector<int8_t>  in);
+    template int8_t   Stats::Min(std::list<int8_t>     in);
+    template int8_t   Stats::Min(std::vector<int8_t>   in);
+    template int8_t   Stats::Min(yspan<int8_t>         in);
 
     template uint16_t Stats::Min(std::list<uint16_t>   in);
     template uint16_t Stats::Min(std::vector<uint16_t> in);
+    template uint16_t Stats::Min(yspan<uint16_t>       in);
 
     template int16_t  Stats::Min(std::list<int16_t>    in);
     template int16_t  Stats::Min(std::vector<int16_t>  in);
+    template int16_t  Stats::Min(yspan<int16_t>        in);
 
     template uint32_t Stats::Min(std::list<uint32_t>   in);
     template uint32_t Stats::Min(std::vector<uint32_t> in);
+    template uint32_t Stats::Min(yspan<uint32_t>       in);
 
     template int32_t  Stats::Min(std::list<int32_t>    in);
     template int32_t  Stats::Min(std::vector<int32_t>  in);
+    template int32_t  Stats::Min(yspan<int32_t>        in);
 
     template uint64_t Stats::Min(std::list<uint64_t>   in);
     template uint64_t Stats::Min(std::vector<uint64_t> in);
+    template uint64_t Stats::Min(yspan<uint64_t>       in);
 
     template int64_t  Stats::Min(std::list<int64_t>    in);
     template int64_t  Stats::Min(std::vector<int64_t>  in);
+    template int64_t  Stats::Min(yspan<int64_t>        in);
 #endif
 
 
@@ -105,33 +116,43 @@ template <class C> typename C::value_type Stats::Max(C in){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Max(std::list<double>     in);
     template double   Stats::Max(std::vector<double>   in);
+    template double   Stats::Max(yspan<double>         in);
 
     template float    Stats::Max(std::list<float >     in);
     template float    Stats::Max(std::vector<float >   in);
+    template float    Stats::Max(yspan<float>          in);
     
-    template uint8_t  Stats::Max(std::list<uint8_t>   in);
-    template uint8_t  Stats::Max(std::vector<uint8_t> in);
+    template uint8_t  Stats::Max(std::list<uint8_t>    in);
+    template uint8_t  Stats::Max(std::vector<uint8_t>  in);
+    template uint8_t  Stats::Max(yspan<uint8_t>        in);
 
-    template int8_t   Stats::Max(std::list<int8_t>    in);
-    template int8_t   Stats::Max(std::vector<int8_t>  in);
+    template int8_t   Stats::Max(std::list<int8_t>     in);
+    template int8_t   Stats::Max(std::vector<int8_t>   in);
+    template int8_t   Stats::Max(yspan<int8_t>         in);
 
     template uint16_t Stats::Max(std::list<uint16_t>   in);
     template uint16_t Stats::Max(std::vector<uint16_t> in);
+    template uint16_t Stats::Max(yspan<uint16_t>       in);
 
     template int16_t  Stats::Max(std::list<int16_t>    in);
     template int16_t  Stats::Max(std::vector<int16_t>  in);
+    template int16_t  Stats::Max(yspan<int16_t>        in);
 
     template uint32_t Stats::Max(std::list<uint32_t>   in);
     template uint32_t Stats::Max(std::vector<uint32_t> in);
+    template uint32_t Stats::Max(yspan<uint32_t>       in);
 
     template int32_t  Stats::Max(std::list<int32_t>    in);
     template int32_t  Stats::Max(std::vector<int32_t>  in);
+    template int32_t  Stats::Max(yspan<int32_t>        in);
 
     template uint64_t Stats::Max(std::list<uint64_t>   in);
     template uint64_t Stats::Max(std::vector<uint64_t> in);
+    template uint64_t Stats::Max(yspan<uint64_t>       in);
 
     template int64_t  Stats::Max(std::list<int64_t>    in);
     template int64_t  Stats::Max(std::vector<int64_t>  in);
+    template int64_t  Stats::Max(yspan<int64_t>        in);
 #endif
 
 
@@ -204,33 +225,43 @@ template <class C> typename C::value_type Stats::Sum(C in){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Sum(std::list<double>     in);
     template double   Stats::Sum(std::vector<double>   in);
+    template double   Stats::Sum(yspan<double>         in);
 
     template float    Stats::Sum(std::list<float >     in);
     template float    Stats::Sum(std::vector<float >   in);
+    template float    Stats::Sum(yspan<float>          in);
     
-    template uint8_t  Stats::Sum(std::list<uint8_t>   in);
-    template uint8_t  Stats::Sum(std::vector<uint8_t> in);
+    template uint8_t  Stats::Sum(std::list<uint8_t>    in);
+    template uint8_t  Stats::Sum(std::vector<uint8_t>  in);
+    template uint8_t  Stats::Sum(yspan<uint8_t>        in);
 
-    template int8_t   Stats::Sum(std::list<int8_t>    in);
-    template int8_t   Stats::Sum(std::vector<int8_t>  in);
+    template int8_t   Stats::Sum(std::list<int8_t>     in);
+    template int8_t   Stats::Sum(std::vector<int8_t>   in);
+    template int8_t   Stats::Sum(yspan<int8_t>         in);
 
     template uint16_t Stats::Sum(std::list<uint16_t>   in);
     template uint16_t Stats::Sum(std::vector<uint16_t> in);
+    template uint16_t Stats::Sum(yspan<uint16_t>       in);
 
     template int16_t  Stats::Sum(std::list<int16_t>    in);
     template int16_t  Stats::Sum(std::vector<int16_t>  in);
+    template int16_t  Stats::Sum(yspan<int16_t>        in);
 
     template uint32_t Stats::Sum(std::list<uint32_t>   in);
     template uint32_t Stats::Sum(std::vector<uint32_t> in);
+    template uint32_t Stats::Sum(yspan<uint32_t>       in);
 
     template int32_t  Stats::Sum(std::list<int32_t>    in);
     template int32_t  Stats::Sum(std::vector<int32_t>  in);
+    template int32_t  Stats::Sum(yspan<int32_t>        in);
 
     template uint64_t Stats::Sum(std::list<uint64_t>   in);
     template uint64_t Stats::Sum(std::vector<uint64_t> in);
+    template uint64_t Stats::Sum(yspan<uint64_t>       in);
 
     template int64_t  Stats::Sum(std::list<int64_t>    in);
     template int64_t  Stats::Sum(std::vector<int64_t>  in);
+    template int64_t  Stats::Sum(yspan<int64_t>        in);
 
 #endif
 
@@ -238,17 +269,20 @@ template <class C> typename C::value_type Stats::Sum(C in){
 template <class C> typename C::value_type Stats::Sum_Squares(C in){
     //Sums the squares of the given numbers. Overflow is not currently detected, though it could be if needed.
     for(auto &elem : in) elem = std::pow(elem,2);
-    return Stats::Sum(std::move(in));
+    return Stats::Sum(in);
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Sum_Squares(std::list<double>     in);
     template double   Stats::Sum_Squares(std::vector<double>   in);
+    template double   Stats::Sum_Squares(yspan<double>         in);
 
     template uint64_t Stats::Sum_Squares(std::list<uint64_t>   in);
     template uint64_t Stats::Sum_Squares(std::vector<uint64_t> in);
+    template uint64_t Stats::Sum_Squares(yspan<uint64_t>       in);
 
     template int64_t  Stats::Sum_Squares(std::list<int64_t>    in);
     template int64_t  Stats::Sum_Squares(std::vector<int64_t>  in);
+    template int64_t  Stats::Sum_Squares(yspan<int64_t>        in);
 #endif
 
 
@@ -300,34 +334,43 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Percentile(std::list<double>     in, double frac);
     template double   Stats::Percentile(std::vector<double>   in, double frac);
+    template double   Stats::Percentile(yspan<double>         in, double frac);
 
     template float    Stats::Percentile(std::list<float >     in, double frac);
     template float    Stats::Percentile(std::vector<float >   in, double frac);
+    template float    Stats::Percentile(yspan<float >         in, double frac);
 
     template uint8_t  Stats::Percentile(std::list<uint8_t>    in, double frac);
     template uint8_t  Stats::Percentile(std::vector<uint8_t>  in, double frac);
+    template uint8_t  Stats::Percentile(yspan<uint8_t>        in, double frac);
 
     template int8_t   Stats::Percentile(std::list<int8_t>     in, double frac);
     template int8_t   Stats::Percentile(std::vector<int8_t>   in, double frac);
+    template int8_t   Stats::Percentile(yspan<int8_t>         in, double frac);
 
     template uint16_t Stats::Percentile(std::list<uint16_t>   in, double frac);
     template uint16_t Stats::Percentile(std::vector<uint16_t> in, double frac);
+    template uint16_t Stats::Percentile(yspan<uint16_t>       in, double frac);
 
     template int16_t  Stats::Percentile(std::list<int16_t>    in, double frac);
     template int16_t  Stats::Percentile(std::vector<int16_t>  in, double frac);
+    template int16_t  Stats::Percentile(yspan<int16_t>        in, double frac);
 
     template uint32_t Stats::Percentile(std::list<uint32_t>   in, double frac);
     template uint32_t Stats::Percentile(std::vector<uint32_t> in, double frac);
+    template uint32_t Stats::Percentile(yspan<uint32_t>       in, double frac);
 
     template int32_t  Stats::Percentile(std::list<int32_t>    in, double frac);
     template int32_t  Stats::Percentile(std::vector<int32_t>  in, double frac);
+    template int32_t  Stats::Percentile(yspan<int32_t>        in, double frac);
 
     template uint64_t Stats::Percentile(std::list<uint64_t>   in, double frac);
     template uint64_t Stats::Percentile(std::vector<uint64_t> in, double frac);
+    template uint64_t Stats::Percentile(yspan<uint64_t>       in, double frac);
 
     template int64_t  Stats::Percentile(std::list<int64_t>    in, double frac);
     template int64_t  Stats::Percentile(std::vector<int64_t>  in, double frac);
-
+    template int64_t  Stats::Percentile(yspan<int64_t>        in, double frac);
 #endif
 
 
@@ -337,34 +380,43 @@ template <class C> typename C::value_type Stats::Median(C in){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Median(std::list<double>     in);
     template double   Stats::Median(std::vector<double>   in);
+    template double   Stats::Median(yspan<double>         in);
 
     template float    Stats::Median(std::list<float >     in);
     template float    Stats::Median(std::vector<float >   in);
+    template float    Stats::Median(yspan<float >         in);
 
-    template uint8_t Stats::Median(std::list<uint8_t>   in);
-    template uint8_t Stats::Median(std::vector<uint8_t> in);
+    template uint8_t  Stats::Median(std::list<uint8_t>    in);
+    template uint8_t  Stats::Median(std::vector<uint8_t>  in);
+    template uint8_t  Stats::Median(yspan<uint8_t>        in);
 
-    template int8_t  Stats::Median(std::list<int8_t>    in);
-    template int8_t  Stats::Median(std::vector<int8_t>  in);
+    template int8_t   Stats::Median(std::list<int8_t>     in);
+    template int8_t   Stats::Median(std::vector<int8_t>   in);
+    template int8_t   Stats::Median(yspan<int8_t>         in);
 
     template uint16_t Stats::Median(std::list<uint16_t>   in);
     template uint16_t Stats::Median(std::vector<uint16_t> in);
+    template uint16_t Stats::Median(yspan<uint16_t>       in);
 
     template int16_t  Stats::Median(std::list<int16_t>    in);
     template int16_t  Stats::Median(std::vector<int16_t>  in);
+    template int16_t  Stats::Median(yspan<int16_t>        in);
 
     template uint32_t Stats::Median(std::list<uint32_t>   in);
     template uint32_t Stats::Median(std::vector<uint32_t> in);
+    template uint32_t Stats::Median(yspan<uint32_t>       in);
 
     template int32_t  Stats::Median(std::list<int32_t>    in);
     template int32_t  Stats::Median(std::vector<int32_t>  in);
+    template int32_t  Stats::Median(yspan<int32_t>        in);
 
     template uint64_t Stats::Median(std::list<uint64_t>   in);
     template uint64_t Stats::Median(std::vector<uint64_t> in);
+    template uint64_t Stats::Median(yspan<uint64_t>       in);
 
     template int64_t  Stats::Median(std::list<int64_t>    in);
     template int64_t  Stats::Median(std::vector<int64_t>  in);
-
+    template int64_t  Stats::Median(yspan<int64_t>        in);
 #endif
 
 
@@ -380,39 +432,48 @@ template <class C> typename C::value_type Stats::Mean(C in){
         }
     }
     const auto N = static_cast<T>(in.size());
-    return Stats::Sum(std::move(in)) / N;
+    return Stats::Sum(in) / N;
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Mean(std::list<double>     in);
     template double   Stats::Mean(std::vector<double>   in);
+    template double   Stats::Mean(yspan<double>         in);
 
     template float    Stats::Mean(std::list<float >     in);
     template float    Stats::Mean(std::vector<float >   in);
+    template float    Stats::Mean(yspan<float >         in);
 
-    template uint8_t Stats::Mean(std::list<uint8_t>   in);
-    template uint8_t Stats::Mean(std::vector<uint8_t> in);
+    template uint8_t  Stats::Mean(std::list<uint8_t>    in);
+    template uint8_t  Stats::Mean(std::vector<uint8_t>  in);
+    template uint8_t  Stats::Mean(yspan<uint8_t>        in);
 
-    template int8_t  Stats::Mean(std::list<int8_t>    in);
-    template int8_t  Stats::Mean(std::vector<int8_t>  in);
+    template int8_t   Stats::Mean(std::list<int8_t>     in);
+    template int8_t   Stats::Mean(std::vector<int8_t>   in);
+    template int8_t   Stats::Mean(yspan<int8_t>         in);
 
     template uint16_t Stats::Mean(std::list<uint16_t>   in);
     template uint16_t Stats::Mean(std::vector<uint16_t> in);
+    template uint16_t Stats::Mean(yspan<uint16_t>       in);
 
     template int16_t  Stats::Mean(std::list<int16_t>    in);
     template int16_t  Stats::Mean(std::vector<int16_t>  in);
+    template int16_t  Stats::Mean(yspan<int16_t>        in);
 
     template uint32_t Stats::Mean(std::list<uint32_t>   in);
     template uint32_t Stats::Mean(std::vector<uint32_t> in);
+    template uint32_t Stats::Mean(yspan<uint32_t>       in);
 
     template int32_t  Stats::Mean(std::list<int32_t>    in);
     template int32_t  Stats::Mean(std::vector<int32_t>  in);
+    template int32_t  Stats::Mean(yspan<int32_t>        in);
 
     template uint64_t Stats::Mean(std::list<uint64_t>   in);
     template uint64_t Stats::Mean(std::vector<uint64_t> in);
+    template uint64_t Stats::Mean(yspan<uint64_t>       in);
 
     template int64_t  Stats::Mean(std::list<int64_t>    in);
     template int64_t  Stats::Mean(std::vector<int64_t>  in);
-
+    template int64_t  Stats::Mean(yspan<int64_t>        in);
 #endif
 
 
@@ -455,15 +516,19 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double   Stats::Unbiased_Var_Est(std::list<double>     in);
     template double   Stats::Unbiased_Var_Est(std::vector<double>   in);
+    template double   Stats::Unbiased_Var_Est(yspan<double>         in);
 
     template float    Stats::Unbiased_Var_Est(std::list<float >     in);
     template float    Stats::Unbiased_Var_Est(std::vector<float >   in);
+    template float    Stats::Unbiased_Var_Est(yspan<float >         in);
 
     template uint64_t Stats::Unbiased_Var_Est(std::list<uint64_t>   in);
     template uint64_t Stats::Unbiased_Var_Est(std::vector<uint64_t> in);
+    template uint64_t Stats::Unbiased_Var_Est(yspan<uint64_t>       in);
 
     template int64_t  Stats::Unbiased_Var_Est(std::list<int64_t>    in);
     template int64_t  Stats::Unbiased_Var_Est(std::vector<int64_t>  in);
+    template int64_t  Stats::Unbiased_Var_Est(yspan<int64_t>        in);
 #endif
 
 //----------------------------------------- Running Accumulators and Tallies ----------------------------------------------

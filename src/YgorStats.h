@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "YgorDefinitions.h"
+#include "YgorContainers.h"
 
 namespace Stats {
 
@@ -26,12 +27,6 @@ template <class C> typename C::value_type Percentile(C in, double frac);
 template <class C> typename C::value_type Median(C in);
 template <class C> typename C::value_type Mean(C in);
 template <class C> typename C::value_type Unbiased_Var_Est(C in);
-
-//double Sum(std::list<double> in);
-//double Sum_Squares(std::list<double> in);
-//double Median(std::list<double> in);
-//double Mean(std::list<double> in);
-//double Unbiased_Var_Est(std::list<double> in);
 
 //-----------------------------------------------------------------------------------------------------------
 //----------------------------------- Running Accumulators and Tallies --------------------------------------
