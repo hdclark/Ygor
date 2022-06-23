@@ -293,4 +293,6 @@ can be invoked as:
 - June 2022
   - Added yspan<>, a non-owning span-like container that supports stride with
     arrays of composite objects.
+  - FITS images: update support for FITSv4.0 spec, and imbue FITS reader and
+    writer with support for arbitrary key-value metadata.
 

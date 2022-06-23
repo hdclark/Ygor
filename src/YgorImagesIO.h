@@ -36,13 +36,12 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
                           YgorImageIOPixelScaling scaling = YgorImageIOPixelScaling::None,
                           YgorEndianness destendian = YgorEndianness::Little);
 
-//Write pixels and class members other than the metadata member to a FITS formatted file.
+// --------------
+
+//Write pixels, other image class members, and key-value metadata to a FITSv4.0 formatted file.
 //
 // NOTE: Do not alter the endianness unless you're certain what you're doing! FITS files
-//       conventionally written in big-endian.
-//
-// NOTE: The metadata member *could* be serialized and written/read as an extension HDU.
-//       This was not done because it was not needed at the time of writing.
+//       are conventionally written in big-endian.
 //
 template <class T, class R>
 bool 
@@ -50,10 +49,13 @@ WriteToFITS(const planar_image<T,R> &img,
             const std::string &filename, 
             YgorEndianness destendian = YgorEndianness::Big);
 
-//Read pixels and class members other than the metadata member from a FITS formatted file.
+//Read pixels, other class members, and key-value metadata from a FITSv4.0 formatted file.
 //
 // NOTE: Do not alter the endianness unless you're certain what you're doing! FITS files
-//       conventionally written in big-endian.
+//       are conventionally written in big-endian.
+//
+// NOTE: Non-standard keywords are required to be present to support round-trip.
+//       Compare with the output of the FITS writer above to see which keywords.
 //
 // NOTE: If types T and R do not match, pixel values and image class member metadata are 
 //       converted using static_cast after reading. Alternatively, the file could be probed
@@ -67,9 +69,6 @@ WriteToFITS(const planar_image<T,R> &img,
 //       could merely assume the largest format possible (T=long double, R=long double), read 
 //       the file, and convert after-the-fact. Regardless, this functionality was simply not 
 //       needed at the time of writing. 
-//
-// NOTE: The metadata member *could* be serialized and written/read as an extension HDU.
-//       This was not done because it was not needed at the time of writing.
 //
 template <class T, class R>
 planar_image<T,R> 

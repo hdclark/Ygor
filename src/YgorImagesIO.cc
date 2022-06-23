@@ -283,67 +283,169 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
         return; 
     };
 
+    auto left_pad = [](size_t width, char pad, const std::string &in) -> std::string {
+        if(width < in.size()){
+            throw std::runtime_error("Unable to pad string because string is already longer than desired width"); 
+        }
+        return std::string(width - in.size(), pad) + in;
+    };
+    auto fwnum = [&](const std::string &in) -> std::string {
+        // Fixed-width number, right justified in bytes 11 through 30.
+        return left_pad(20UL, ' ', in);
+    };
+    auto escape_string = [](const std::string& in) -> std::string {
+        // FITS string type requires wrapping in single quotation marks.
+        // Any single quotation marks appearing inside should be escaped by doubling.
+        // Note that the longest string we can handle is 68 chars long. Beyond this, the 'long string' convention must
+        // be used (used below for metadata).
+        std::string out;
+        for(const auto& c : in){
+            out += c;
+            if(c == '\'') out += c;
+        }
+        return "'" + out + "'";
+    };
+
     std::ofstream FO(filename, std::fstream::out);
     if(!FO.good()) return false;
 
-    //Add the primary header.
+    //Add the primary header and additional metadata headers if needed.
     try{
-        size_t i = 0;
-        header_t primary_header;
-        for(auto & card : primary_header) card.fill(' ');
+        size_t i = 0UL;
+        header_t header;
 
-        pack_into_card(primary_header.at(i++), std::string("SIMPLE  = T"));
+        auto flush_and_reset = [&]() -> void {
+            // If any data has been written, emit the header.
+            if(0UL < i){
+                for(const auto &acard : header){
+                    for(const auto &achar : acard){
+                        FO << achar;
+                    }
+                }
+            }
+
+            // Reset the header and card count.
+            for(auto & card : header) card.fill(' ');
+            i = 0UL;
+
+            return;
+        };
+        flush_and_reset();
+
+        pack_into_card(header.at(i++), std::string("SIMPLE  = ") + fwnum("T"));
         if(std::is_floating_point<T>::value){
-            pack_into_card(primary_header.at(i++), std::string("BITPIX  = -") + std::to_string(8*sizeof(T)));
+            pack_into_card(header.at(i++), std::string("BITPIX  = ") + fwnum(std::string("-") + std::to_string(8*sizeof(T))) );
         }else{
-            pack_into_card(primary_header.at(i++), std::string("BITPIX  = ") + std::to_string(8*sizeof(T)));
+            pack_into_card(header.at(i++), std::string("BITPIX  = ") + fwnum(std::to_string(8*sizeof(T))) );
         }
         if(img.channels == 1){
-            pack_into_card(primary_header.at(i++), std::string("NAXIS   = 2"));
-            pack_into_card(primary_header.at(i++), std::string("NAXIS1  = ") + std::to_string(img.columns));
-            pack_into_card(primary_header.at(i++), std::string("NAXIS2  = ") + std::to_string(img.rows));
+            pack_into_card(header.at(i++), std::string("NAXIS   = ") + fwnum("2"));
+            pack_into_card(header.at(i++), std::string("NAXIS1  = ") + fwnum(std::to_string(img.columns)));
+            pack_into_card(header.at(i++), std::string("NAXIS2  = ") + fwnum(std::to_string(img.rows)));
         }else{
-            pack_into_card(primary_header.at(i++), std::string("NAXIS   = 3"));
-            pack_into_card(primary_header.at(i++), std::string("NAXIS1  = ") + std::to_string(img.columns));
-            pack_into_card(primary_header.at(i++), std::string("NAXIS2  = ") + std::to_string(img.rows));
-            pack_into_card(primary_header.at(i++), std::string("NAXIS3  = ") + std::to_string(img.channels));
+            pack_into_card(header.at(i++), std::string("NAXIS   = ") + fwnum("3"));
+            pack_into_card(header.at(i++), std::string("NAXIS1  = ") + fwnum(std::to_string(img.columns)));
+            pack_into_card(header.at(i++), std::string("NAXIS2  = ") + fwnum(std::to_string(img.rows)));
+            pack_into_card(header.at(i++), std::string("NAXIS3  = ") + fwnum(std::to_string(img.channels)));
         }
 
         if((img.rows*img.columns*img.channels) > 0){
-            pack_into_card(primary_header.at(i++), std::string("BZERO   = 0.0"));
-            pack_into_card(primary_header.at(i++), std::string("BSCALE  = 1.0"));
+            pack_into_card(header.at(i++), std::string("BZERO   = ") + fwnum("0.0"));
+            pack_into_card(header.at(i++), std::string("BSCALE  = ") + fwnum("1.0"));
 
             auto minmax = img.minmax();
-            pack_into_card(primary_header.at(i++), std::string("DATAMIN = ") + std::to_string(static_cast<double>(minmax.first)));
-            pack_into_card(primary_header.at(i++), std::string("DATAMAX = ") + std::to_string(static_cast<double>(minmax.second)));
+            pack_into_card(header.at(i++), std::string("DATAMIN = ") + fwnum(std::to_string(static_cast<double>(minmax.first))));
+            pack_into_card(header.at(i++), std::string("DATAMAX = ") + fwnum(std::to_string(static_cast<double>(minmax.second))));
         }
+
+        // Warns the reader that the OGIP long string continuation syntax might be used for metadata.
+        pack_into_card(header.at(i++), std::string("LONGSTRN= 'OGIP 1.0'"));
+        pack_into_card(header.at(i++), std::string("COMMENT   This FITS file may contain long string keyword values that are"));
+        pack_into_card(header.at(i++), std::string("COMMENT   continued over multiple keywords. This convention uses the '&'"));
+        pack_into_card(header.at(i++), std::string("COMMENT   character at the end of a string which is then continued"));
+        pack_into_card(header.at(i++), std::string("COMMENT   on subsequent keywords whose name = 'CONTINUE'."));
 
         if(WriteLittleEndian){
-            pack_into_card(primary_header.at(i++), std::string("BYTEORDR= LITTLE_ENDIAN"));
+            pack_into_card(header.at(i++), std::string("BYTEORDR= 'LITTLE_ENDIAN'"));
         }else{
-            pack_into_card(primary_header.at(i++), std::string("BYTEORDR= BIG_ENDIAN"));
+            pack_into_card(header.at(i++), std::string("BYTEORDR= 'BIG_ENDIAN'"));
         }
 
-        pack_into_card(primary_header.at(i++), std::string("YGORPXLX= ") + std::to_string(img.pxl_dx));
-        pack_into_card(primary_header.at(i++), std::string("YGORPXLY= ") + std::to_string(img.pxl_dy));
-        pack_into_card(primary_header.at(i++), std::string("YGORPXLZ= ") + std::to_string(img.pxl_dz));
+        pack_into_card(header.at(i++), std::string("YGORPXLX= ") + escape_string(std::to_string(img.pxl_dx)));
+        pack_into_card(header.at(i++), std::string("YGORPXLY= ") + escape_string(std::to_string(img.pxl_dy)));
+        pack_into_card(header.at(i++), std::string("YGORPXLZ= ") + escape_string(std::to_string(img.pxl_dz)));
 
-        pack_into_card(primary_header.at(i++), std::string("YGORANKR= ") + img.anchor.to_string());
-        pack_into_card(primary_header.at(i++), std::string("YGOROFST= ") + img.offset.to_string());
+        pack_into_card(header.at(i++), std::string("YGORANKR= ") + escape_string(img.anchor.to_string()));
+        pack_into_card(header.at(i++), std::string("YGOROFST= ") + escape_string(img.offset.to_string()));
 
-        pack_into_card(primary_header.at(i++), std::string("YGORROWU= ") + img.row_unit.to_string());
-        pack_into_card(primary_header.at(i++), std::string("YGORCOLU= ") + img.col_unit.to_string());
+        pack_into_card(header.at(i++), std::string("YGORROWU= ") + escape_string(img.row_unit.to_string()));
+        pack_into_card(header.at(i++), std::string("YGORCOLU= ") + escape_string(img.col_unit.to_string()));
 
-        pack_into_card(primary_header.at(i++), std::string("HISTORY This file was created with libygor's YgorImages"));
-        //pack_into_card(primary_header.at(i++), std::string("COMMENT ..."));
+        pack_into_card(header.at(i++), std::string("HISTORY   Created with libygor (https://github.com/hdclark/Ygor)."));
 
-        pack_into_card(primary_header.at(i++), std::string("END"));
+        for(const auto& p : img.metadata){
+           // Serialize the key-value pair.
+           std::string s = encode_metadata_kv_pair(p);
+           bool first = true;
 
-        for(const auto &acard : primary_header){
-            for(const auto &achar : acard){
-                FO << achar;
-            }
+           // Break into 68 or 67 character chunks (68 or less does not require a CONTINUE, but >68 will require a
+           // continue with 67 characters and a trailing '&'). Add each chunk one at a time.
+           while(!s.empty()){
+               const std::string keyword = (first) ? "YGORMETA= " : "CONTINUE  ";
+
+               auto es = escape_string(s);
+               if(es.size() <= 68UL){
+                   pack_into_card(header.at(i++), keyword + es);
+                   s.clear();
+                   
+               }else{
+                   // Escaping can lengthen a string if there are enclosed single quotation marks, so iteratively
+                   // escape until the escaped string will fit in a single FITS card. It should also NOT split the
+                   // string on a double-quotation boundary to simplify un-escaping by the reader.
+                   size_t count = std::min(67UL, s.size());
+                   std::string l_es;
+                   for( ; 0UL < count; --count){
+                       l_es = escape_string(s.substr(0UL,count) + std::string("&"));
+
+                       const auto N_l_es = l_es.size();
+                       const bool valid_size = (N_l_es <= 70UL);
+
+                       bool valid_split = true;
+                       if( 4UL < N_l_es ){
+                           // The following summarizes what '' splits we're checking for here:
+                           //     '...X'&' <-- invalid because the '' was cut-off.
+                           //     '...''&' <-- valid, '' not cut-off.
+                           //     '...'X&' <-- valid, '' not cut-off.
+                           //     '...XX&' <-- valid, nothing to cut-off.
+                           const bool quote_in_ult = (l_es[N_l_es - 3UL] == '\'');
+                           const bool quote_in_penult = (l_es[N_l_es - 4UL] == '\'');
+                           if(quote_in_ult){
+                               valid_split = false;
+                           }
+                           if(quote_in_ult && quote_in_penult){
+                               valid_split = true;
+                           }
+                       }
+
+                       if(valid_size && valid_split) break;
+                   }
+                   // Note: is count == 1 then there might be a pathological string. We attempt to emit whatever is in
+                   // te escape string buffer to make forward progress.
+
+                   pack_into_card(header.at(i++), keyword + l_es);
+
+                   s = s.substr(count);
+               }
+
+               first = false;
+               if(i == 36UL) flush_and_reset();
+           }
         }
+
+        pack_into_card(header.at(i++), std::string("END"));
+
+        flush_and_reset();
+
     }catch(const std::exception &e){
         return false;
     }
@@ -365,7 +467,6 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
                         for(size_t i = 0; i <= (sizeof(T)-1); ++i) FO.put(c[sizeof(T)-1-i]);
                     }else if( (UsingLittleEndian && WriteLittleEndian) || (UsingBigEndian && WriteBigEndian) ){
                         //Keep the byte order unaltered.
-                        //for(size_t i = 0; i <= (sizeof(T)-1); ++i) FO.put(c[i]);
                         FO.write( reinterpret_cast<char *>( &c[0] ), sizeof(T) );
                     }
                 }
@@ -444,105 +545,179 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
         throw std::runtime_error("File is not a valid FITS file. The length is not a multiple of 2880 bytes.");
     }
 
-    //Read in the primary header; the first 2880 bytes.
-    header_t primary_header;
-    for(auto & acard : primary_header) acard.fill(' ');
-
-    for(auto & acard : primary_header){
-        FI.read(acard.data(),acard.size());
-        if(static_cast<long long int>(FI.gcount()) != static_cast<long long int>(acard.size())){
-            throw std::runtime_error("Not enough data to read full card.");
-        }
-    }
-
     //Decipher metadata needed to continue reading. Separate the key and parse the value and then use the value
     // for something.
     std::set<std::string> Encountered;
     std::map<std::string,double> NumericValue; // FITS requires merely 'floating point'.
     std::multimap<std::string,std::string> StringValue;
 
-    for(auto & acard : primary_header){
-        //Keys can be up to eight chars long and must be composed of only [A-Z] [0-9] [-] or [_] chars.
-        auto itA = std::begin(acard); //Will point to the character *after* the key's last character.
-        {
-            size_t di = 0;
-            for( ; itA != std::end(acard) ; ++di, ++itA){
-                if(    (di > 7)
-                   || !( isininc('A',*itA,'Z')
-                         || isininc('0',*itA,'9')
-                         || (*itA == '-') 
-                         || (*itA == '_') ) ) break;
+    std::string previous_key; // Used to support 'CONTINUE' keyword.
+    bool previous_was_string = false;
+    bool done_reading_header = false;
+    long int number_of_headers = 0;
+
+    // Read in the primary header, the first 2880 bytes, and continue reading header blocks until we encounter
+    // the END statement.
+    while(!done_reading_header){
+        header_t primary_header;
+        for(auto & acard : primary_header) acard.fill(' ');
+
+        for(auto & acard : primary_header){
+            FI.read(acard.data(),acard.size());
+            if(static_cast<long long int>(FI.gcount()) != static_cast<long long int>(acard.size())){
+                throw std::runtime_error("Not enough data to read full card.");
             }
         }
-        const std::string thekey(std::begin(acard), itA);
-        if(thekey.empty()) continue; //Either empty or not valid. Skip it either way.
+        ++number_of_headers;
 
-        //The remaining chars may be preceeded by zero or more spaces, a '=', and one more space. 
-        // Iff this pattern holds, then iterate past them.
-        auto itB = itA; //Will point to the character *after* the '= ', or will be == itA if N/A.
-        {
-            size_t di = std::distance(std::begin(acard),itB);
-            for( ; itB != std::end(acard) ; ++di, ++itB){
-                if(di > 9) break; //Made to the end OK.
-                if(di == 8){
-                    if(*itB != '='){ //Must be a '=' to conform.
-                        itB = itA;
-                        break;
-                    }
-                }else{
-                    if(*itB != ' '){ //Must be a ' ' to conform.
-                        itB = itA;
-                        break;
+        for(auto & acard : primary_header){
+            //Keys can be up to eight chars long and must be composed of only [A-Z] [0-9] [-] or [_] chars.
+            auto itA = std::begin(acard); //Will point to the character *after* the key's last character.
+            {
+                size_t di = 0;
+                for( ; itA != std::end(acard) ; ++di, ++itA){
+                    if(    (di > 7)
+                       || !( isininc('A',*itA,'Z')
+                             || isininc('0',*itA,'9')
+                             || (*itA == '-') 
+                             || (*itA == '_') ) ) break;
+                }
+            }
+            const std::string thekey(std::begin(acard), itA);
+            if(thekey.empty()) continue; //Either empty or not valid. Skip it either way.
+
+            //The remaining chars may be preceeded by zero or more spaces, a '=', and one more space. 
+            // Iff this pattern holds, then iterate past them.
+            auto itB = itA; //Will point to the character *after* the '= ', or will be == itA if N/A.
+            {
+                size_t di = std::distance(std::begin(acard),itB);
+                for( ; itB != std::end(acard) ; ++di, ++itB){
+                    if(di > 9) break; //Made to the end OK.
+                    if(di == 8){
+                        if(*itB != '='){ //Must be a '=' to conform.
+                            itB = itA;
+                            break;
+                        }
+                    }else{
+                        if(*itB != ' '){ //Must be a ' ' to conform.
+                            itB = itA;
+                            break;
+                        }
                     }
                 }
             }
-        }
 
-        //There are also possibly comments preceeded by a '/'. Disregard them if needed.
-        auto itC = itB; //Will point to the comment indicator '/' or the end if none are found.
-        {
-            bool MidQuote = false;
-            for( ; itC != std::end(acard) ; ++itC){        
-                if(*itC == '\'') MidQuote = !MidQuote;
-                if((*itC == '/') && !MidQuote) break;
+            //There are also possibly comments preceeded by a '/'. Disregard them if needed.
+            auto itC = itB; //Will point to the comment indicator '/' or the end if none are found.
+            {
+                bool MidQuote = false;
+                for( ; itC != std::end(acard) ; ++itC){        
+                    if(*itC == '\'') MidQuote = !MidQuote;
+                    if((*itC == '/') && !MidQuote) break;
+                }
             }
-        }
-        const std::string theval = Canonicalize_String2(std::string(itB, itC), CANONICALIZE::TRIM_ENDS);
-        // NOTE: the value might still contain quotation marks
+            std::string theval = Canonicalize_String2(std::string(itB, itC), CANONICALIZE::TRIM_ENDS);
+            
+            // Handle string escapes.
+            //
+            // Note that strings are necessarily wrapped in single quotation marks and any internal quotation marks are
+            // doubled.
+            const auto unescape_iff_string = [](std::string in) -> std::string {
+                if( (1UL < in.size())
+                &&  (in.front() == '\'')
+                &&  (in.back() == '\'') ){
+                    // Chop off single quotation marks iff present at both beginning and end of a string.
+                    in = in.substr(1UL, in.size() - 2UL);
 
-        if(thekey == "SIMPLE"){
-            Encountered.insert(thekey);
-            if(theval != "T") throw std::runtime_error("Not a valid FITS file.");
+                    // De-duplicate doubled quotation marks, which are how single quotation marks are escaped.
+                    size_t p = 0UL;
+                    while(true){
+                        p = in.find("''", p);
+                        if(p == std::string::npos) break;
+                        in.erase(p, 1UL); // Erase one quotation mark.
+                        ++p; // Skip past the second to avoid accidentally removing it if beside another.
+                    }
+                }
+                return in;
+            };
+            theval = unescape_iff_string(theval);
 
-        }else if( (thekey == "BITPIX")   //Floating-point valued keys.
-              ||  (thekey == "NAXIS")
-              ||  (thekey == "NAXIS1")
-              ||  (thekey == "NAXIS2")
-              ||  (thekey == "NAXIS3")
-              ||  (thekey == "BZERO")
-              ||  (thekey == "BSCALE") 
-              ||  (thekey == "YGORPXLX")
-              ||  (thekey == "YGORPXLY")
-              ||  (thekey == "YGORPXLZ") ){
-            Encountered.insert(thekey);
-            NumericValue[thekey] = std::stod(theval);  
+            if(thekey == "SIMPLE"){
+                Encountered.insert(thekey);
+                if(theval != "T") throw std::runtime_error("Not a valid FITS file.");
 
-        }else if( (thekey == "BYTEORDR") //Text valued keys, or keys to be transformed later.
-              ||  (thekey == "COMMENT")
-              ||  (thekey == "HISTORY")
-              ||  (thekey == "YGORANKR")
-              ||  (thekey == "YGOROFST")
-              ||  (thekey == "YGORROWU")
-              ||  (thekey == "YGORCOLU") ){
-            Encountered.insert(thekey);
-            StringValue.emplace(std::make_pair(thekey, theval)); //Ordering unchanged >=C++11.
+                previous_was_string = false;
+                previous_key = thekey;
 
-        }else if(thekey == "END"){  //Empty valued keys.
-            Encountered.insert(thekey);
+            }else if( (thekey == "BITPIX")   //Floating-point valued keys.
+                  ||  (thekey == "NAXIS")
+                  ||  (thekey == "NAXIS1")
+                  ||  (thekey == "NAXIS2")
+                  ||  (thekey == "NAXIS3")
+                  ||  (thekey == "BZERO")
+                  ||  (thekey == "BSCALE") 
+                  ||  (thekey == "YGORPXLX")
+                  ||  (thekey == "YGORPXLY")
+                  ||  (thekey == "YGORPXLZ") ){
+                Encountered.insert(thekey);
+                NumericValue[thekey] = std::stod(theval);  
 
-        }else{  //Unrecognized keys.
-            Encountered.insert(thekey);
-            StringValue.emplace(std::make_pair(thekey, theval)); //Ordering unchanged >=C++11.
+                previous_was_string = false;
+                previous_key = thekey;
+
+            }else if( (thekey == "LONGSTRN") //Text valued keys, or keys to be transformed later.
+                  ||  (thekey == "BYTEORDR")
+                  ||  (thekey == "COMMENT")
+                  ||  (thekey == "HISTORY")
+                  ||  (thekey == "YGORANKR")
+                  ||  (thekey == "YGOROFST")
+                  ||  (thekey == "YGORROWU")
+                  ||  (thekey == "YGORCOLU")
+                  ||  (thekey == "YGORMETA") ){
+                Encountered.insert(thekey);
+                StringValue.emplace(std::make_pair(thekey, theval)); //Ordering unchanged >=C++11.
+
+                previous_was_string = true;
+                previous_key = thekey;
+
+            }else if(thekey == "CONTINUE"){
+                // Continue the most recent keyword's value, to support oversized values.
+                if(previous_key.empty()) throw std::runtime_error("Encountered CONTINUE with no preceding keyword to continue");
+                if(!previous_was_string) throw std::runtime_error("Refusing to CONTINUE a non-string key");
+
+                // Identify the preceding keyword's content.
+                const auto end = std::end(StringValue);
+                auto next_it = StringValue.upper_bound(previous_key);
+                if(next_it == end) throw std::runtime_error("Encountered CONTINUE keyword without preceding keyword content");
+                auto s_it = std::prev(next_it);
+                if(s_it == end) throw std::logic_error("No preceding keyword content found");
+
+                // Look for the '&' character in the previous string's content.
+                // It should be present, but if it isn't, then continue with the CONTINUE concatenation.
+                auto pos_ampersand = s_it->second.rfind("&");
+                if(pos_ampersand != std::string::npos){
+                    s_it->second.resize( pos_ampersand );
+                }
+
+                // Add the CONTINUE keyword's contents to the previous contents.
+                s_it->second += theval;
+
+            }else if(thekey == "END"){  //Empty valued keys.
+                Encountered.insert(thekey);
+
+                previous_was_string = false;
+                previous_key = thekey;
+
+                done_reading_header = true;
+                break; // Stop processing any more keys after END.
+
+            }else{  //Unrecognized keys.
+                Encountered.insert(thekey);
+                StringValue.emplace(std::make_pair(thekey, theval)); //Ordering unchanged >=C++11.
+
+                previous_was_string = true;
+                previous_key = thekey;
+            }
         }
     }
 
@@ -552,9 +727,10 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
                             + Encountered.count("BITPIX")
                             + Encountered.count("NAXIS")
                             + Encountered.count("NAXIS1") //Ygor: NAXIS{1,2} required, NAXIS3 optional.
-                            + Encountered.count("NAXIS2") );
-        if(count != 5){
-            throw std::runtime_error("Primary header is missing information. Cannot read image");
+                            + Encountered.count("NAXIS2")
+                            + Encountered.count("END") );
+        if(count != 6){
+            throw std::runtime_error("Primary header is missing necessary information. Cannot read image");
         }
     }
 
@@ -674,6 +850,17 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
         throw std::runtime_error("FITS file image dimensions are suspect. Refusing to continue");
     }
 
+    //Extract image metadata key-value pairs.
+    {
+        //const auto end = std::end(StringValue);
+        auto it_range = StringValue.equal_range("YGORMETA");
+        for(auto p_it = it_range.first; p_it != it_range.second; ++p_it){
+            auto kvp = decode_metadata_kv_pair( p_it->second );
+            if(kvp){
+                img.metadata[kvp.value().first] = kvp.value().second;
+            }
+        }
+    }
 
     //Read in pixel data.
     const auto BytesToRead = sizeof(T)*img.rows*img.columns*img.channels;
@@ -707,7 +894,7 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     for(long int i = 0; i < BytesOfPad; ++i) FI.get();
 
     //Check if there is another HDU to read.
-    if(static_cast<long int>(BytesToRead + BytesOfPad + 2880) != FileLength){
+    if(static_cast<long int>(BytesToRead + BytesOfPad + number_of_headers * 2880) != FileLength){
          throw std::runtime_error("There is additional data to be read. This is not yet supported"); 
     }
 
