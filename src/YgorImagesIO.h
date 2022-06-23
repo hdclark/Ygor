@@ -5,6 +5,8 @@
 #define YGOR_IMAGES_IO_HDR_GRD_H
 
 #include <string>
+#include <istream>
+#include <ostream>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -49,6 +51,12 @@ WriteToFITS(const planar_image<T,R> &img,
             const std::string &filename, 
             YgorEndianness destendian = YgorEndianness::Big);
 
+template <class T, class R>
+bool 
+WriteToFITS(const planar_image<T,R> &img, 
+            std::ostream &os,
+            YgorEndianness destendian = YgorEndianness::Big);
+
 //Read pixels, other class members, and key-value metadata from a FITSv4.0 formatted file.
 //
 // NOTE: Do not alter the endianness unless you're certain what you're doing! FITS files
@@ -73,6 +81,11 @@ WriteToFITS(const planar_image<T,R> &img,
 template <class T, class R>
 planar_image<T,R> 
 ReadFromFITS(const std::string &filename, 
+             YgorEndianness destend = YgorEndianness::Big);
+
+template <class T, class R>
+planar_image<T,R> 
+ReadFromFITS(std::istream &is,
              YgorEndianness destend = YgorEndianness::Big);
 
 #endif

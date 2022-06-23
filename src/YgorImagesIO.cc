@@ -1,6 +1,5 @@
 //YgorImagesIO.cc - Routines for writing and reading images.
 //
-#include "YgorMath.h"
 #include <algorithm>
 #include <array>
 #include <cinttypes>
@@ -8,6 +7,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <istream>
+#include <ostream>
 #include <fstream>
 #include <iterator>
 #include <limits>
@@ -19,14 +20,11 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
-//#include "YgorMath.h"
-//#include "YgorStats.h"    //For Stats::Mean().
-//#include "YgorPlot.h"
-
+#include "YgorMath.h"
 #include "YgorImages.h"
-#include "YgorImagesIO.h"
 #include "YgorString.h"
 
+#include "YgorImagesIO.h"
 
 //#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
@@ -236,7 +234,22 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
 // NOTE: You can easily examine such files like so: `fold -w 80 theimage.fit | less`
 template <class T, class R>
 bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, YgorEndianness userE){
+    std::ofstream os(filename, std::ios::out | std::ios::binary);
+    if(!os.good()) return false;
 
+    return WriteToFITS<T,R>(img, os, userE);
+}
+#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+    template bool WriteToFITS(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<double  ,double> &, const std::string &, YgorEndianness);
+#endif
+
+template <class T, class R>
+bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness userE){
     if((img.rows*img.columns*img.channels) < 0){
         throw std::runtime_error("Attempted to store unitialized or nonsenical image data");
         //NOTE: It is valid in FITS to store zero or more pixels.
@@ -306,9 +319,6 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
         return "'" + out + "'";
     };
 
-    std::ofstream FO(filename, std::fstream::out);
-    if(!FO.good()) return false;
-
     //Add the primary header and additional metadata headers if needed.
     try{
         size_t i = 0UL;
@@ -319,7 +329,7 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
             if(0UL < i){
                 for(const auto &acard : header){
                     for(const auto &achar : acard){
-                        FO << achar;
+                        os.write( reinterpret_cast<const char *>( &achar ), sizeof(char) );
                     }
                 }
             }
@@ -464,30 +474,30 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
                     unsigned char *c = reinterpret_cast<unsigned char *>(&val); //c[0] to c[sizeof(T)-1] only!
                     if( (UsingLittleEndian && WriteBigEndian) || (UsingBigEndian && WriteLittleEndian) ){
                         //Reverse the order of the bytes written to the stream.
-                        for(size_t i = 0; i <= (sizeof(T)-1); ++i) FO.put(c[sizeof(T)-1-i]);
+                        for(size_t i = 0; i <= (sizeof(T)-1); ++i) os.put(c[sizeof(T)-1-i]);
                     }else if( (UsingLittleEndian && WriteLittleEndian) || (UsingBigEndian && WriteBigEndian) ){
                         //Keep the byte order unaltered.
-                        FO.write( reinterpret_cast<char *>( &c[0] ), sizeof(T) );
+                        os.write( reinterpret_cast<char *>( &c[0] ), sizeof(T) );
                     }
                 }
             }
         }
-        for(long int i = 0; i < BytesToPad; ++i) FO.put(static_cast<unsigned char>(0));
+        for(long int i = 0; i < BytesToPad; ++i) os.put(static_cast<unsigned char>(0));
 
     }catch(const std::exception &e){
         return false;
     }
 
-    FO.close();
+    os.flush();
     return true;
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
-    template bool WriteToFITS(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
-    template bool WriteToFITS(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
-    template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
-    template bool WriteToFITS(const planar_image<uint64_t,double> &, const std::string &, YgorEndianness);
-    template bool WriteToFITS(const planar_image<float   ,double> &, const std::string &, YgorEndianness);
-    template bool WriteToFITS(const planar_image<double  ,double> &, const std::string &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint8_t ,double> &, std::ostream &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint16_t,double> &, std::ostream &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint32_t,double> &, std::ostream &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<uint64_t,double> &, std::ostream &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<float   ,double> &, std::ostream &, YgorEndianness);
+    template bool WriteToFITS(const planar_image<double  ,double> &, std::ostream &, YgorEndianness);
 #endif
 
 
@@ -495,7 +505,24 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
 template <class T, class R>
 planar_image<T,R> 
 ReadFromFITS(const std::string &filename, YgorEndianness userE){
+    std::ifstream is(filename, std::ios::in | std::ios::binary);
+    if(!is){
+        throw std::runtime_error("Could not open file.");
+    }
+    return ReadFromFITS<T,R>(is, userE);
+}
+#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+    template planar_image<uint8_t ,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint16_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint32_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint64_t,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<float   ,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<double  ,double> ReadFromFITS(const std::string &, YgorEndianness);
+#endif
 
+template <class T, class R>
+planar_image<T,R> 
+ReadFromFITS(std::istream &is, YgorEndianness userE){
     planar_image<T,R> img;
 
     //Verify we conform to the FITS standard types.
@@ -530,20 +557,6 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
 
     typedef std::array<char,80> card_t; //Each entry in the header.
     typedef std::array<card_t,36> header_t; //The header has 36 cards, and thus 80*36 = 2880 bytes.
- 
-    //Start reading the file. It must have a length that is a multiple of 2880 bytes to be valid.
-    std::ifstream FI(filename, std::ios::in | std::ios::binary);
-    if(!FI){
-        throw std::runtime_error("Could not open file.");
-    }
-    FI.seekg(0, FI.end);
-    const auto FileLength = static_cast<intmax_t>(FI.tellg());
-    FI.seekg(0, FI.beg);
-
-    if( (FileLength < static_cast<intmax_t>(2880))
-    ||  (std::imaxdiv(FileLength, static_cast<intmax_t>(2880)).rem != 0) ){
-        throw std::runtime_error("File is not a valid FITS file. The length is not a multiple of 2880 bytes.");
-    }
 
     //Decipher metadata needed to continue reading. Separate the key and parse the value and then use the value
     // for something.
@@ -555,6 +568,7 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     bool previous_was_string = false;
     bool done_reading_header = false;
     long int number_of_headers = 0;
+    bool found_magic = false; // SIMPLE keyword is required to appear first.
 
     // Read in the primary header, the first 2880 bytes, and continue reading header blocks until we encounter
     // the END statement.
@@ -563,10 +577,15 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
         for(auto & acard : primary_header) acard.fill(' ');
 
         for(auto & acard : primary_header){
-            FI.read(acard.data(),acard.size());
-            if(static_cast<long long int>(FI.gcount()) != static_cast<long long int>(acard.size())){
+            is.read(acard.data(),acard.size());
+            if(static_cast<long long int>(is.gcount()) != static_cast<long long int>(acard.size())){
                 throw std::runtime_error("Not enough data to read full card.");
             }
+        }
+
+        // Check if we are stuck in a loop waiting for a missing END keyword.
+        if(1000UL < number_of_headers){
+            throw std::runtime_error("Encountered more than 1000 FITS headers; refusing to continue");
         }
         ++number_of_headers;
 
@@ -584,6 +603,13 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
                 }
             }
             const std::string thekey(std::begin(acard), itA);
+
+            //The first keyword is required to be 'SIMPLE', so treat it like a magic number.
+            if(!found_magic){
+                if(thekey != "SIMPLE") throw std::runtime_error("Not a valid FITS file.");
+                found_magic = true;
+            }
+
             if(thekey.empty()) continue; //Either empty or not valid. Skip it either way.
 
             //The remaining chars may be preceeded by zero or more spaces, a '=', and one more space. 
@@ -722,16 +748,13 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     }
 
     //Check that all necessary keys have been encountered.
-    {
-        const auto count = (  Encountered.count("SIMPLE")
-                            + Encountered.count("BITPIX")
-                            + Encountered.count("NAXIS")
-                            + Encountered.count("NAXIS1") //Ygor: NAXIS{1,2} required, NAXIS3 optional.
-                            + Encountered.count("NAXIS2")
-                            + Encountered.count("END") );
-        if(count != 6){
-            throw std::runtime_error("Primary header is missing necessary information. Cannot read image");
-        }
+    if( (1UL != Encountered.count("SIMPLE"))
+    ||  (1UL != Encountered.count("BITPIX"))
+    ||  (1UL != Encountered.count("NAXIS"))
+    ||  (1UL != Encountered.count("NAXIS1")) //Ygor: NAXIS{1,2} required, NAXIS3 optional.
+    ||  (1UL != Encountered.count("NAXIS2"))
+    ||  (1UL != Encountered.count("END")) ){
+        throw std::runtime_error("Primary header is missing necessary information. Cannot read image");
     }
 
     //Get necessary information from the metadata. Prune items not needing to be stored in image metadata.
@@ -876,14 +899,11 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
                 if( (UsingLittleEndian && ReadBigEndian) || (UsingBigEndian && ReadLittleEndian) ){
                     //Reverse the order of the bytes read from the stream.
                     for(size_t i = 0; i <= (sizeof(T)-1); ++i){
-                        //FI.get(c[sizeof(T)-1-i]);
-                        FI.read( reinterpret_cast<char *>( &c[sizeof(T)-1-i] ), 1);
+                        is.read( reinterpret_cast<char *>( &c[sizeof(T)-1-i] ), 1);
                     }
                 }else if( (UsingLittleEndian && ReadLittleEndian) || (UsingBigEndian && ReadBigEndian) ){
                     //Keep the byte order unaltered.
-                    FI.read( reinterpret_cast<char *>( &c[0] ), sizeof(T) );
-                    //for(size_t i = 0; i <= (sizeof(T)-1); ++i){
-                    //    FI.get(c[i]);
+                    is.read( reinterpret_cast<char *>( &c[0] ), sizeof(T) );
                 }
 
                 const auto scaled = static_cast<T>(BZero + BScale * val);
@@ -891,21 +911,21 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
             }
         }
     }
-    for(long int i = 0; i < BytesOfPad; ++i) FI.get();
+    for(long int i = 0; i < BytesOfPad; ++i) is.get();
 
-    //Check if there is another HDU to read.
-    if(static_cast<long int>(BytesToRead + BytesOfPad + number_of_headers * 2880) != FileLength){
-         throw std::runtime_error("There is additional data to be read. This is not yet supported"); 
-    }
+    // The stream might now be exhausted, which would be perfect. However, it's possible that one or more extensions follow.
+    // See the FITSv4.0 specification, section 7. The magic header for such headers is 'XTENSION'.
+    //
+    // For now, since no extensions are supported, we will ignore such extensions.
 
     return img;
 }
 #ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
-    template planar_image<uint8_t ,double> ReadFromFITS(const std::string &, YgorEndianness);
-    template planar_image<uint16_t,double> ReadFromFITS(const std::string &, YgorEndianness);
-    template planar_image<uint32_t,double> ReadFromFITS(const std::string &, YgorEndianness);
-    template planar_image<uint64_t,double> ReadFromFITS(const std::string &, YgorEndianness);
-    template planar_image<float   ,double> ReadFromFITS(const std::string &, YgorEndianness);
-    template planar_image<double  ,double> ReadFromFITS(const std::string &, YgorEndianness);
+    template planar_image<uint8_t ,double> ReadFromFITS(std::istream &, YgorEndianness);
+    template planar_image<uint16_t,double> ReadFromFITS(std::istream &, YgorEndianness);
+    template planar_image<uint32_t,double> ReadFromFITS(std::istream &, YgorEndianness);
+    template planar_image<uint64_t,double> ReadFromFITS(std::istream &, YgorEndianness);
+    template planar_image<float   ,double> ReadFromFITS(std::istream &, YgorEndianness);
+    template planar_image<double  ,double> ReadFromFITS(std::istream &, YgorEndianness);
 #endif
 
