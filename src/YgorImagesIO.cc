@@ -402,7 +402,7 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
                    // Escaping can lengthen a string if there are enclosed single quotation marks, so iteratively
                    // escape until the escaped string will fit in a single FITS card. It should also NOT split the
                    // string on a double-quotation boundary to simplify un-escaping by the reader.
-                   size_t count = std::min(67UL, s.size());
+                   auto count = std::min(static_cast<size_t>(67UL), static_cast<size_t>(s.size()));
                    std::string l_es;
                    for( ; 0UL < count; --count){
                        l_es = escape_string(s.substr(0UL,count) + std::string("&"));
