@@ -342,6 +342,7 @@ bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness 
         };
         flush_and_reset();
 
+        // NOTE: the order of the following keywords is fixed. Do not rearrange until consulting the specification.
         pack_into_card(header.at(i++), std::string("SIMPLE  = ") + fwnum("T"));
         if(std::is_floating_point<T>::value){
             pack_into_card(header.at(i++), std::string("BITPIX  = ") + fwnum(std::string("-") + std::to_string(8*sizeof(T))) );
@@ -358,6 +359,9 @@ bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness 
             pack_into_card(header.at(i++), std::string("NAXIS2  = ") + fwnum(std::to_string(img.rows)));
             pack_into_card(header.at(i++), std::string("NAXIS3  = ") + fwnum(std::to_string(img.channels)));
         }
+
+        // Emitted file will not contain any trailing headers or extensions.
+        pack_into_card(header.at(i++), std::string("EXTEND  = ") + fwnum("F"));
 
         if((img.rows*img.columns*img.channels) > 0){
             pack_into_card(header.at(i++), std::string("BZERO   = ") + fwnum("0.0"));
@@ -692,6 +696,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                 previous_key = thekey;
 
             }else if( (thekey == "LONGSTRN") //Text valued keys, or keys to be transformed later.
+                  ||  (thekey == "EXTEND")
                   ||  (thekey == "BYTEORDR")
                   ||  (thekey == "COMMENT")
                   ||  (thekey == "HISTORY")
@@ -829,6 +834,14 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
         purge_encounter("YGORCOLU");
     }
 
+    bool stream_might_contain_extensions = true;
+    if(Encountered.count("EXTEND") == 1UL){
+        // Can't say positively for sure, but can rule it out.
+        const auto extend = StringValue.lower_bound("EXTEND")->second;
+        stream_might_contain_extensions = (extend != "F");
+        purge_encounter("EXTEND");
+    }
+
     const auto BZero = NumericValue["BZERO"];
     const auto BScale = NumericValue["BSCALE"];
     purge_encounter("BZERO");
@@ -917,6 +930,10 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
     // See the FITSv4.0 specification, section 7. The magic header for such headers is 'XTENSION'.
     //
     // For now, since no extensions are supported, we will ignore such extensions.
+
+    // if(stream_might_contain_extensions){
+    //   ... peek for 'XTENSION'
+    //
 
     return img;
 }
