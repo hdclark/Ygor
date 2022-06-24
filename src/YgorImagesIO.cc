@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cinttypes>
+#include <optional>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -285,6 +286,7 @@ bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness 
         // NOTE: This routine needs to be modified to handle additional endian-types if the above throws.
     }
 
+    bool emit_extension_image = false;
 
     //Write the header for the primary HDU (header-data unit). 
     typedef std::array<char,80> card_t; //Each entry in the header.
@@ -343,7 +345,12 @@ bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness 
         flush_and_reset();
 
         // NOTE: the order of the following keywords is fixed. Do not rearrange until consulting the specification.
-        pack_into_card(header.at(i++), std::string("SIMPLE  = ") + fwnum("T"));
+        if(!emit_extension_image){
+            pack_into_card(header.at(i++), std::string("SIMPLE  = ") + fwnum("T"));
+        }else{
+            pack_into_card(header.at(i++), std::string("XTENSION= 'IMAGE   '")); // Note: whitespace is significant.
+        }
+
         if(std::is_floating_point<T>::value){
             pack_into_card(header.at(i++), std::string("BITPIX  = ") + fwnum(std::string("-") + std::to_string(8*sizeof(T))) );
         }else{
@@ -358,6 +365,12 @@ bool WriteToFITS(const planar_image<T,R> &img, std::ostream &os, YgorEndianness 
             pack_into_card(header.at(i++), std::string("NAXIS1  = ") + fwnum(std::to_string(img.columns)));
             pack_into_card(header.at(i++), std::string("NAXIS2  = ") + fwnum(std::to_string(img.rows)));
             pack_into_card(header.at(i++), std::string("NAXIS3  = ") + fwnum(std::to_string(img.channels)));
+        }
+
+        if(emit_extension_image){
+            // Keywords needed to support the IMAGE extension.
+            pack_into_card(header.at(i++), std::string("PCOUNT  = ") + fwnum("0")); // # of bytes, for binary blob extensions.
+            pack_into_card(header.at(i++), std::string("GCOUNT  = ") + fwnum("1")); // historical (random groups).
         }
 
         // Emitted file will not contain any trailing headers or extensions.
@@ -674,6 +687,8 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
 
             if(thekey == "SIMPLE"){
                 Encountered.insert(thekey);
+                StringValue.emplace(std::make_pair(thekey, theval)); //Ordering unchanged >=C++11.
+
                 if(theval != "T") throw std::runtime_error("Not a valid FITS file.");
 
                 previous_was_string = false;
@@ -686,6 +701,8 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                   ||  (thekey == "NAXIS3")
                   ||  (thekey == "BZERO")
                   ||  (thekey == "BSCALE") 
+                  ||  (thekey == "PCOUNT") 
+                  ||  (thekey == "GCOUNT") 
                   ||  (thekey == "YGORPXLX")
                   ||  (thekey == "YGORPXLY")
                   ||  (thekey == "YGORPXLZ") ){
@@ -752,44 +769,103 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
         }
     }
 
-    //Check that all necessary keys have been encountered.
-    if( (1UL != Encountered.count("SIMPLE"))
-    ||  (1UL != Encountered.count("BITPIX"))
-    ||  (1UL != Encountered.count("NAXIS"))
-    ||  (1UL != Encountered.count("NAXIS1")) //Ygor: NAXIS{1,2} required, NAXIS3 optional.
-    ||  (1UL != Encountered.count("NAXIS2"))
-    ||  (1UL != Encountered.count("END")) ){
-        throw std::runtime_error("Primary header is missing necessary information. Cannot read image");
-    }
-
     //Get necessary information from the metadata. Prune items not needing to be stored in image metadata.
     auto purge_encounter = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> void {
-                               StringValue.erase(akey);
-                               NumericValue.erase(akey);
-                               Encountered.erase(akey);
-                               return;
-                           };
+        StringValue.erase(akey);
+        NumericValue.erase(akey);
+        Encountered.erase(akey);
+        return;
+    };
 
-    purge_encounter("SIMPLE");
+    auto get_as_str = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> std::optional<std::string> {
+        std::optional<std::string> out;
 
-    const auto BitsPerPixel = static_cast<int>(std::floor( std::abs( NumericValue["BITPIX"] ) ) );
-    const auto PixelsAreFloatingPoint = (NumericValue["BITPIX"] < 0);
+        if(0UL != Encountered.count(akey)){
+            if(auto it = StringValue.lower_bound(akey); (it != std::end(StringValue))) out = it->second;
+        }
+        return out;
+    };
+
+    auto get_as_long = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> std::optional<long int> {
+        std::optional<long int> out;
+
+        if( (0UL != Encountered.count(akey))
+        &&  (0UL != NumericValue.count(akey)) ){
+            out = static_cast<long int>(std::floor(NumericValue[akey]));
+        }
+        return out;
+    };
+
+    auto get_as_double = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> std::optional<double> {
+        std::optional<double> out;
+
+        if( (0UL != Encountered.count(akey))
+        &&  (0UL != NumericValue.count(akey)) ){
+            out = static_cast<double>(NumericValue[akey]);
+        }
+        return out;
+    };
+
+    //Check that all necessary keys have been encountered.
+    const auto simple_opt = get_as_str("SIMPLE");
+    const auto xtension_opt = get_as_str("XTENSION");
+    const bool has_end = (Encountered.count("END") != 0UL);
+
+    if(simple_opt){
+        // This is a primary header.
+        if( (simple_opt.value() != "T")
+        ||  !get_as_long("BITPIX")
+        ||  !get_as_long("NAXIS")
+        ||  !get_as_long("NAXIS1")
+        ||  !get_as_long("NAXIS2")
+        ||  !has_end ){
+            throw std::runtime_error("Primary FITS header is missing necessary information");
+        }
+        purge_encounter("SIMPLE");
+
+    }else if(xtension_opt){
+        // This is an extension header.
+        if( xtension_opt.value() != "IMAGE" ){
+            throw std::runtime_error("FITS extension not supported. Currently only 'IMAGE' is supported");
+        }
+        if( !get_as_long("BITPIX")
+        ||  !get_as_long("NAXIS")
+        ||  !get_as_long("NAXIS1")
+        ||  !get_as_long("NAXIS2")
+        ||  !get_as_long("PCOUNT")
+        ||  !get_as_long("GCOUNT")
+        ||  !has_end ){
+            throw std::runtime_error("FITS IMAGE extension header is missing necessary information");
+        }
+        purge_encounter("XTENSION");
+
+    }else{
+        throw std::runtime_error("Unknown FITS header is missing necessary information");
+    }
+
+
+    const auto bitpix_opt = get_as_long("BITPIX");
+    const auto BitsPerPixel = std::abs( bitpix_opt.value() );
+    const auto PixelsAreFloatingPoint = ( bitpix_opt.value() < 0 );
     purge_encounter("BITPIX");
 
     {
-        const auto NAxes = static_cast<long int>(std::floor(NumericValue["NAXIS"]));
-        if(NAxes == 2){
+        const auto NAxes = get_as_long("NAXIS").value();
+        const auto naxis1_opt = get_as_long("NAXIS1");
+        const auto naxis2_opt = get_as_long("NAXIS2");
+        const auto naxis3_opt = get_as_long("NAXIS3");
+
+        if(NAxes == 2L){
             img.init_buffer(
-                 static_cast<long int>(std::floor(NumericValue["NAXIS2"])), //Rows.
-                 static_cast<long int>(std::floor(NumericValue["NAXIS1"])),1); //Columns, Channels..
-        }else if(NAxes == 3){
-            if(1 != Encountered.count("NAXIS3")){
-                throw std::runtime_error("Missing FITS key-value 'NAXIS3'.");
-            }
+                naxis2_opt.value(), // Rows.
+                naxis1_opt.value(), // Columns.
+                1L); // Channels.
+        }else if(NAxes == 3L){
+            if(!naxis3_opt) throw std::runtime_error("Missing expected FITS key-value 'NAXIS3'");
             img.init_buffer(
-                 static_cast<long int>(std::floor(NumericValue["NAXIS2"])), //Rows.
-                 static_cast<long int>(std::floor(NumericValue["NAXIS1"])), //Columns.
-                 static_cast<long int>(std::floor(NumericValue["NAXIS3"]))); //Channels.
+                naxis2_opt.value(),  // Rows.
+                naxis1_opt.value(),  // Columns.
+                naxis3_opt.value()); // Channels.
         }else{
             throw std::runtime_error("Cannot handle a FITS file with the number of axes specified.");
         }
@@ -800,20 +876,23 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
     }    
 
     {
-        const auto count = (  Encountered.count("YGORPXLX") 
-                            + Encountered.count("YGORPXLY")
-                            + Encountered.count("YGORPXLZ")
-                            + Encountered.count("YGORANKR")
-                            + Encountered.count("YGOROFST") );
-        if(count == 5){
-            img.init_spatial( static_cast<R>(NumericValue["YGORPXLX"]),
-                              static_cast<R>(NumericValue["YGORPXLY"]), 
-                              static_cast<R>(NumericValue["YGORPXLZ"]),
-                              vec3<R>().from_string(StringValue.lower_bound("YGORANKR")->second),
-                              vec3<R>().from_string(StringValue.lower_bound("YGOROFST")->second) );
-        }else if(count != 0){
-            throw std::runtime_error("Ygor spatial information only partially specified. Cannot reconstitute image");
+        const auto ygorpxlx_opt = get_as_double("YGORPXLX");
+        const auto ygorpxly_opt = get_as_double("YGORPXLY");
+        const auto ygorpxlz_opt = get_as_double("YGORPXLZ");
+
+        const auto ygorankr_opt = get_as_str("YGORANKR");
+        const auto ygorofst_opt = get_as_str("YGOROFST");
+
+        if( !ygorpxlx_opt || !ygorpxly_opt || !ygorpxlz_opt
+        ||  !ygorankr_opt || !ygorofst_opt ){
+            throw std::runtime_error("Custom Ygor spatial information incomplete or missing. Cannot reconstitute image");
         }
+        img.init_spatial( ygorpxlx_opt.value(),
+                          ygorpxly_opt.value(),
+                          ygorpxlz_opt.value(),
+                          vec3<R>().from_string(ygorankr_opt.value()),
+                          vec3<R>().from_string(ygorofst_opt.value()) );
+
         purge_encounter("YGORPXLX");
         purge_encounter("YGORPXLY");
         purge_encounter("YGORPXLZ");
@@ -822,46 +901,38 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
     }
 
     {
-        const auto count = (  Encountered.count("YGORROWU") 
-                            + Encountered.count("YGORCOLU") );
-        if(count == 2){
-            img.init_orientation( vec3<R>().from_string(StringValue.lower_bound("YGORROWU")->second),
-                                  vec3<R>().from_string(StringValue.lower_bound("YGORCOLU")->second) );
-        }else if(count != 0){
-            throw std::runtime_error("Ygor orientation information only partially specified. Cannot reconstitute image");
+        const auto ygorrowu_opt = get_as_str("YGORROWU");
+        const auto ygorcolu_opt = get_as_str("YGORCOLU");
+        if(!ygorrowu_opt || !ygorcolu_opt){
+            throw std::runtime_error("Custom Ygor orientation information incomplete or missing. Cannot reconstitute image");
         }
+        img.init_orientation( vec3<R>().from_string(ygorrowu_opt.value()),
+                              vec3<R>().from_string(ygorcolu_opt.value()) );
         purge_encounter("YGORROWU");
         purge_encounter("YGORCOLU");
     }
 
-    bool stream_might_contain_extensions = true;
-    if(Encountered.count("EXTEND") == 1UL){
-        // Can't say positively for sure, but can rule it out.
-        const auto extend = StringValue.lower_bound("EXTEND")->second;
-        stream_might_contain_extensions = (extend != "F");
-        purge_encounter("EXTEND");
-    }
+    const auto extend_opt = get_as_str("EXTEND");
+    const bool stream_might_contain_extensions = (extend_opt) ? (extend_opt.value() == "F") : true;
+    purge_encounter("EXTEND");
 
-    const auto BZero = NumericValue["BZERO"];
-    const auto BScale = NumericValue["BSCALE"];
+    const auto BZero = get_as_double("BZERO").value_or(0.0);
+    const auto BScale = get_as_double("BSCALE").value_or(1.0);
     purge_encounter("BZERO");
     purge_encounter("BSCALE");
 
-    if(1 == Encountered.count("BYTEORDR")){
-        const auto lkey = "BYTEORDR";
-        auto it = StringValue.lower_bound(lkey);
-        if(it == std::end(StringValue)) throw std::runtime_error("Programming error: missing string.");
-
-        if(it->second == "LITTLE_ENDIAN"){
+    const auto byteordr_opt = get_as_str("BYTEORDR");
+    if(byteordr_opt){
+        if(byteordr_opt.value() == "LITTLE_ENDIAN"){
             ReadLittleEndian = true;
             ReadBigEndian = false;
-        }else if(it->second == "BIG_ENDIAN"){
+        }else if(byteordr_opt.value() == "BIG_ENDIAN"){
             ReadLittleEndian = false;
             ReadBigEndian = true;
         }else{
             throw std::runtime_error("Endianess specified in FITS file is not recognized.");
         }
-        purge_encounter(lkey);
+        purge_encounter("BYTEORDR");
     }
 
     purge_encounter("DATAMIN");  // Could be used for scaling and windowing, but ... meh.
