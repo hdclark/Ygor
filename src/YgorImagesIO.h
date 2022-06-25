@@ -7,6 +7,8 @@
 #include <string>
 #include <istream>
 #include <ostream>
+#include <functional>
+#include <list>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -47,13 +49,19 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
 //
 template <class T, class R>
 bool 
-WriteToFITS(const planar_image<T,R> &img, 
+WriteToFITS(const planar_image<T,R> &imgcoll, 
             const std::string &filename, 
             YgorEndianness destendian = YgorEndianness::Big);
 
 template <class T, class R>
 bool 
-WriteToFITS(const planar_image<T,R> &img, 
+WriteToFITS(const planar_image_collection<T,R> &imgcoll, 
+            const std::string &filename, 
+            YgorEndianness destendian = YgorEndianness::Big);
+
+template <class T, class R>
+bool 
+WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>> &img_refws, 
             std::ostream &os,
             YgorEndianness destendian = YgorEndianness::Big);
 
@@ -79,12 +87,12 @@ WriteToFITS(const planar_image<T,R> &img,
 //       needed at the time of writing. 
 //
 template <class T, class R>
-planar_image<T,R> 
+planar_image_collection<T,R> 
 ReadFromFITS(const std::string &filename, 
              YgorEndianness destend = YgorEndianness::Big);
 
 template <class T, class R>
-planar_image<T,R> 
+planar_image_collection<T,R> 
 ReadFromFITS(std::istream &is,
              YgorEndianness destend = YgorEndianness::Big);
 

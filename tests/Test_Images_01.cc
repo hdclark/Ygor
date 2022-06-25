@@ -97,62 +97,48 @@ int main(int argc, char **argv){
   }
 
   if(true){
-    class planar_image<float,double> img;
+    class planar_image_collection<float,double> imgs;
+    imgs.images.emplace_back();
     const long int ROWS  = 512;
     const long int COLS  = 1024; //wide image.
     const long int CHNLS = 1;
 
-    img.init_buffer(ROWS, COLS, CHNLS);
+    imgs.image.back().init_buffer(ROWS, COLS, CHNLS);
 
     for(size_t row = 0; row < ROWS; ++row){
         for(size_t col = 0; col < COLS; ++col){
-            img.reference(row,col,0) = 1.1274671245*col;
+            imgs.images.back().reference(row,col,0) = 1.1274671245*col;
             //if(row == col) img.reference(row,col,0) = 1.1274671245*row;
             //else           img.reference(row,col,0) = 0.0;
         }
     }
 
-    if(!WriteToFITS(img, "/tmp/test_image_be.fits")) FUNCERR("Could not write test image to big endian FITS file");
-    if(!WriteToFITS(img, "/tmp/test_image_le.fits", YgorEndianness::Little))  FUNCERR("Could not write test image to little endian FITS file");
+    if(!WriteToFITS(imgs, "/tmp/test_image_be.fits")) FUNCERR("Could not write test image to big endian FITS file");
+    if(!WriteToFITS(imgs, "/tmp/test_image_le.fits", YgorEndianness::Little))  FUNCERR("Could not write test image to little endian FITS file");
 
   }
 
   if(true){
-    auto img = ReadFromFITS<float,double>("/tmp/test_image_be.fits");
-    Plot_Pixels(img,0);
-
-    auto img2 = ReadFromFITS<uint8_t,double>("smiley.fit");
-    img2.init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
-    Plot_Pixels(img2,0);
-    //Plot_Pixels_RGB(img2,0,0,0);
-
-    auto img3 = ReadFromFITS<uint8_t,double>("wonky_test_image.fits");
-    img3.init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
-    Plot_Pixels(img3,0);
-
-    auto img4 = ReadFromFITS<uint8_t,double>("wonky_test_image_rgb_colored.fits");
-    img4.init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
-    Plot_Pixels_RGB(img4,0,1,2);
-    Plot_Pixels(img4,0);
-    Plot_Pixels(img4,1);
-    Plot_Pixels(img4,2);
+    auto imgs = ReadFromFITS<float,double>("/tmp/test_image_be.fits");
+    for(const auto& img : imgs) Plot_Pixels(img,0);
   }
 
   if(true){
-    class planar_image<float,double> imgA;
+    class planar_image_collection<float,double> imgsA;
     const long int ROWS  = 512;
     const long int COLS  = 1024; //wide image.
     const long int CHNLS = 3;
 
-    imgA.init_buffer(ROWS, COLS, CHNLS);
-    imgA.init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
-    imgA.init_orientation( vec3<double>(1.0,0.0,0.0), vec3<double>(0.0,1.0,0.0) );
+    imgsA.images.emplace_back();
+    imgsA.images.back().init_buffer(ROWS, COLS, CHNLS);
+    imgsA.images.back().init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
+    imgsA.images.back().init_orientation( vec3<double>(1.0,0.0,0.0), vec3<double>(0.0,1.0,0.0) );
 
     for(size_t row = 0; row < ROWS; ++row){
         for(size_t col = 0; col < COLS; ++col){
-            imgA.reference(row,col,0) = 1.1274671245*col;
-            imgA.reference(row,col,1) = -2.236*row;
-            imgA.reference(row,col,2) = 0.04*row*col;
+            imgsA.images.back().reference(row,col,0) = 1.1274671245*col;
+            imgsA.images.back().reference(row,col,1) = -2.236*row;
+            imgsA.images.back().reference(row,col,2) = 0.04*row*col;
         }
     }
     //Plot_Pixels_RGB(imgA);
@@ -160,31 +146,25 @@ int main(int argc, char **argv){
     //Plot_Pixels(imgA,1);
     //Plot_Pixels(imgA,2);
 
-    if(!WriteToFITS(imgA, "/tmp/test_colour_imageA.fits")) FUNCERR("Could not write test colour image file A");
+    if(!WriteToFITS(imgsA, "/tmp/test_colour_imageA.fits")) FUNCERR("Could not write test colour image file A");
 
-    auto imgB = ReadFromFITS<float,double>("/tmp/test_colour_imageA.fits");
+    auto imgsB = ReadFromFITS<float,double>("/tmp/test_colour_imageA.fits");
     //Plot_Pixels_RGB(imgB);
     //Plot_Pixels(imgB,0);
     //Plot_Pixels(imgB,1);
     //Plot_Pixels(imgB,2);
 
-    if(!WriteToFITS(imgB, "/tmp/test_colour_imageB.fits")) FUNCERR("Could not write test colour image file B");
+    if(!WriteToFITS(imgsB, "/tmp/test_colour_imageB.fits")) FUNCERR("Could not write test colour image file B");
 
-    auto imgC = ReadFromFITS<float,double>("/tmp/test_colour_imageB.fits");
+    auto imgsC = ReadFromFITS<float,double>("/tmp/test_colour_imageB.fits");
     //Plot_Pixels_RGB(imgC);
     //Plot_Pixels(imgC,0);
     //Plot_Pixels(imgC,1);
     //Plot_Pixels(imgC,2);
 
-    if(!WriteToFITS(imgC, "/tmp/test_colour_imageC.fits")) FUNCERR("Could not write test colour image file C");
+    if(!WriteToFITS(imgsC, "/tmp/test_colour_imageC.fits")) FUNCERR("Could not write test colour image file C");
 
     //Now check files B and C. They should ideally be identical, except for maybe some floating-point loses.
-  }
-
-  if(true){
-    auto img4 = ReadFromFITS<uint8_t,double>("colour_swatch.fits");
-    img4.init_spatial( 1.0, 1.0, 1.0, vec3<double>(0.0,0.0,0.0), vec3<double>(0.0,0.0,0.0) );
-    Plot_Pixels_RGB(img4,0,1,2);
   }
 
     return 0;

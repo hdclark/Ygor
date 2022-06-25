@@ -295,4 +295,6 @@ can be invoked as:
     arrays of composite objects.
   - FITS images: update support for FITSv4.0 spec, and imbue FITS reader and
     writer with support for arbitrary key-value metadata.
+  - FITS images: replaced single-image reader and writer with multi-image
+    reader and writer using the FITSv4.0 IMAGE extension.
 

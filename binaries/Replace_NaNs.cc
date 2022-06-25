@@ -12,9 +12,11 @@ int main(int argc, char **argv){
     std::string FI(argv[1]);
     std::string FO(argv[2]);
 
-    auto theimg = ReadFromFITS<float,double>(FI);
-    theimg.replace_nonfinite_pixels_with(0.0);
-    if(!WriteToFITS(theimg,FO)){
+    auto theimgs = ReadFromFITS<float,double>(FI);
+    for(auto& img : theimgs.images){
+        img.replace_nonfinite_pixels_with(0.0);
+    }
+    if(!WriteToFITS(theimgs,FO)){
         throw std::runtime_error("Unable to write FITS file.");
     }
     std::cout << "Image successfully written. Please verify it renders as expected." << std::endl;
