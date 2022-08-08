@@ -241,7 +241,10 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
     imgs_refws.emplace_back( std::ref(img) );
 
     std::ofstream os(filename, std::ios::out | std::ios::binary);
-    if(!os.good()) return false;
+    if(!os.good()){
+        FUNCWARN("Unable to open file");
+        return false;
+    }
 
     return WriteToFITS<T,R>(imgs_refws, os, userE);
 }
@@ -262,7 +265,10 @@ bool WriteToFITS(const planar_image_collection<T,R> &imgcoll, const std::string 
     }
 
     std::ofstream os(filename, std::ios::out | std::ios::binary);
-    if(!os.good()) return false;
+    if(!os.good()){
+        FUNCWARN("Unable to open file");
+        return false;
+    }
 
     return WriteToFITS<T,R>(imgs_refws, os, userE);
 }
@@ -314,7 +320,10 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
     typedef std::array<card_t,36> header_t; //The header has 36 cards, and thus 80*36 = 2880 bytes.
 
     auto pack_into_card = [](card_t &acard, const std::string &in) -> void {
-        if(in.size() > acard.size()) throw std::runtime_error("A single card cannot accommodate this header");
+        if(in.size() > acard.size()){
+            FUNCWARN("Note: line is: '" << in << "' which has length " << in.size());
+            throw std::runtime_error("A single card cannot accommodate this header");
+        }
         std::copy(std::begin(in), std::end(in), std::begin(acard));
         return; 
     };
@@ -384,6 +393,66 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
             };
             flush_and_reset();
 
+            // Handle single-line and multi-line headers by automatically splitting into pieces when needed.
+            // This routine will also flush the card to disk when needed.
+            auto pack_multiline = [&](const std::string &key, std::string val) -> void {
+               bool first = true;
+
+               // Break into 68 or 67 character chunks (68 or less does not require a CONTINUE, but >68 will require a
+               // continue with 67 characters and a trailing '&'). Add each chunk one at a time.
+               while(!val.empty()){
+                   const std::string keyword = (first) ? key : "CONTINUE  ";
+
+                   const bool guaranteed_to_be_too_long = (68UL < val.size());
+                   std::string es = (guaranteed_to_be_too_long) ? "" : escape_string(val);
+                   if( !guaranteed_to_be_too_long
+                   && (es.size() < 70UL) ){
+                       pack_into_card(header.at(i++), keyword + es);
+                       val.clear();
+                       
+                   }else{
+                       // Escaping can lengthen a string if there are enclosed single quotation marks, so iteratively
+                       // escape until the escaped string will fit in a single FITS card. It should also NOT split the
+                       // string on a double-quotation boundary to simplify un-escaping by the reader.
+                       auto count = std::min(static_cast<size_t>(67UL), static_cast<size_t>(val.size()));
+                       std::string l_es;
+                       for( ; 0UL < count; --count){
+                           l_es = escape_string(val.substr(0UL,count) + std::string("&"));
+
+                           const auto N_l_es = l_es.size();
+                           const bool valid_size = (N_l_es <= 70UL);
+
+                           bool valid_split = true;
+                           if( 4UL < N_l_es ){
+                               // The following summarizes what '' splits we're checking for here:
+                               //     '...X'&' <-- invalid because the '' was cut-off.
+                               //     '...''&' <-- valid, '' not cut-off.
+                               //     '...'X&' <-- valid, '' not cut-off.
+                               //     '...XX&' <-- valid, nothing to cut-off.
+                               const bool quote_in_ult = (l_es[N_l_es - 3UL] == '\'');
+                               const bool quote_in_penult = (l_es[N_l_es - 4UL] == '\'');
+                               if(quote_in_ult){
+                                   valid_split = false;
+                               }
+                               if(quote_in_ult && quote_in_penult){
+                                   valid_split = true;
+                               }
+                           }
+
+                           if(valid_size && valid_split) break;
+                       }
+                       // Note: is count == 1 then there might be a pathological string. We attempt to emit whatever is in
+                       // te escape string buffer to make forward progress.
+
+                       pack_into_card(header.at(i++), keyword + l_es);
+                       val = val.substr(count);
+                   }
+
+                   first = false;
+                   if(i == 36UL) flush_and_reset();
+               }
+           };
+
             // NOTE: the order of the following keywords is fixed. Do not rearrange until consulting the specification.
             if(emit_primary_header){
                 pack_into_card(header.at(i++), std::string("SIMPLE  = ") + fwnum("T"));
@@ -441,82 +510,29 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
                 pack_into_card(header.at(i++), std::string("BYTEORDR= 'BIG_ENDIAN'"));
             }
 
-            pack_into_card(header.at(i++), std::string("YGORPXLX= ") + escape_string(std::to_string(img.pxl_dx)));
-            pack_into_card(header.at(i++), std::string("YGORPXLY= ") + escape_string(std::to_string(img.pxl_dy)));
-            pack_into_card(header.at(i++), std::string("YGORPXLZ= ") + escape_string(std::to_string(img.pxl_dz)));
+            pack_into_card(header.at(i++), "YGORPXLX= "_s + std::to_string(img.pxl_dx));
+            pack_into_card(header.at(i++), "YGORPXLY= "_s + std::to_string(img.pxl_dy));
+            pack_into_card(header.at(i++), "YGORPXLZ= "_s + std::to_string(img.pxl_dz));
 
-            pack_into_card(header.at(i++), std::string("YGORANKR= ") + escape_string(img.anchor.to_string()));
-            pack_into_card(header.at(i++), std::string("YGOROFST= ") + escape_string(img.offset.to_string()));
+            pack_multiline("YGORANKR= "_s, img.anchor.to_string());
+            pack_multiline("YGOROFST= "_s, img.offset.to_string());
 
-            pack_into_card(header.at(i++), std::string("YGORROWU= ") + escape_string(img.row_unit.to_string()));
-            pack_into_card(header.at(i++), std::string("YGORCOLU= ") + escape_string(img.col_unit.to_string()));
+            pack_multiline("YGORROWU= "_s, img.row_unit.to_string());
+            pack_multiline("YGORCOLU= "_s, img.col_unit.to_string());
 
-            pack_into_card(header.at(i++), std::string("HISTORY   Created with libygor (https://github.com/hdclark/Ygor)."));
+            pack_multiline("HISTORY   "_s, "Created with libygor (https://github.com/hdclark/Ygor).");
 
             for(const auto& p : img.metadata){
                // Serialize the key-value pair.
                std::string s = encode_metadata_kv_pair(p);
-               bool first = true;
-
-               // Break into 68 or 67 character chunks (68 or less does not require a CONTINUE, but >68 will require a
-               // continue with 67 characters and a trailing '&'). Add each chunk one at a time.
-               while(!s.empty()){
-                   const std::string keyword = (first) ? "YGORMETA= " : "CONTINUE  ";
-
-                   auto es = escape_string(s);
-                   if(es.size() <= 68UL){
-                       pack_into_card(header.at(i++), keyword + es);
-                       s.clear();
-                       
-                   }else{
-                       // Escaping can lengthen a string if there are enclosed single quotation marks, so iteratively
-                       // escape until the escaped string will fit in a single FITS card. It should also NOT split the
-                       // string on a double-quotation boundary to simplify un-escaping by the reader.
-                       auto count = std::min(static_cast<size_t>(67UL), static_cast<size_t>(s.size()));
-                       std::string l_es;
-                       for( ; 0UL < count; --count){
-                           l_es = escape_string(s.substr(0UL,count) + std::string("&"));
-
-                           const auto N_l_es = l_es.size();
-                           const bool valid_size = (N_l_es <= 70UL);
-
-                           bool valid_split = true;
-                           if( 4UL < N_l_es ){
-                               // The following summarizes what '' splits we're checking for here:
-                               //     '...X'&' <-- invalid because the '' was cut-off.
-                               //     '...''&' <-- valid, '' not cut-off.
-                               //     '...'X&' <-- valid, '' not cut-off.
-                               //     '...XX&' <-- valid, nothing to cut-off.
-                               const bool quote_in_ult = (l_es[N_l_es - 3UL] == '\'');
-                               const bool quote_in_penult = (l_es[N_l_es - 4UL] == '\'');
-                               if(quote_in_ult){
-                                   valid_split = false;
-                               }
-                               if(quote_in_ult && quote_in_penult){
-                                   valid_split = true;
-                               }
-                           }
-
-                           if(valid_size && valid_split) break;
-                       }
-                       // Note: is count == 1 then there might be a pathological string. We attempt to emit whatever is in
-                       // te escape string buffer to make forward progress.
-
-                       pack_into_card(header.at(i++), keyword + l_es);
-
-                       s = s.substr(count);
-                   }
-
-                   first = false;
-                   if(i == 36UL) flush_and_reset();
-               }
+               pack_multiline("YGORMETA= "_s, s);
             }
 
             pack_into_card(header.at(i++), std::string("END"));
-
             flush_and_reset();
 
         }catch(const std::exception &e){
+            FUNCWARN("Encountered error while writing FITS header: '" << e.what() << "'");
             return false;
         }
 
@@ -545,6 +561,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
             for(long int i = 0; i < BytesToPad; ++i) os.put(static_cast<unsigned char>(0));
 
         }catch(const std::exception &e){
+            FUNCWARN("Encountered error while writing FITS pixel data: '" << e.what() << "'");
             return false;
         }
 
@@ -769,7 +786,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                       ||  (thekey == "BZERO")
                       ||  (thekey == "BSCALE") 
                       ||  (thekey == "PCOUNT") 
-                      ||  (thekey == "GCOUNT") 
+                      ||  (thekey == "GCOUNT")
                       ||  (thekey == "YGORPXLX")
                       ||  (thekey == "YGORPXLY")
                       ||  (thekey == "YGORPXLZ") ){
