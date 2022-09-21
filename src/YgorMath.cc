@@ -6029,28 +6029,29 @@ Unique_Contour_Planes(const std::list<std::reference_wrapper<contour_collection<
 
     //Add a plane for every contour.
     const auto N_unit = N.unit();
-    std::list<plane<T>> dummy;
+    std::list<plane<T>> shtl;
     for(const auto &cc_ref : ccs){
-        for(const auto &c : cc_ref.get().contours) dummy.emplace_back(c.Least_Squares_Best_Fit_Plane(N_unit));
+        for(const auto &c : cc_ref.get().contours) shtl.emplace_back(c.Least_Squares_Best_Fit_Plane(N_unit));
     }
-    if(dummy.empty()) return dummy;
+    if(shtl.empty()) return shtl;
 
-    //Sort planes using signed distance from one of the planes (arbitrarily chosen).
-    const auto arb_plane = dummy.front();
-    dummy.sort([arb_plane](const plane<T> &L, const plane<T> &R) -> bool {
-            //Note: this sort order is REVERSE of the final sorted order.
-            return ( L.Get_Signed_Distance_To_Point(arb_plane.R_0) > R.Get_Signed_Distance_To_Point(arb_plane.R_0) );
+    //Sort planes using signed distance from an arbitrary point.
+    const vec3<T> zero( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
+    shtl.sort([zero](const plane<T> &L, const plane<T> &R) -> bool {
+            const auto sd_L = L.Get_Signed_Distance_To_Point(zero);
+            const auto sd_R = R.Get_Signed_Distance_To_Point(zero);
+            return ( sd_L < sd_R );
         });
 
     //Remove planes that are adjacent and separated by a distance less than the provided epsilon.
-    std::list<plane<T>> out; 
-    out.emplace_back(dummy.front());
-    dummy.pop_front();
-    for(const auto &dp : dummy){
-        const auto sep = std::abs(dp.Get_Signed_Distance_To_Point( out.back().R_0 ));
-        if( sep >= distance_eps ) out.emplace_back(dp);
-    }
-    return out;
+    shtl.unique( [zero, distance_eps](const plane<T> &L, const plane<T> &R) -> bool {
+            const auto sd_L = L.Get_Signed_Distance_To_Point(zero);
+            const auto sd_R = R.Get_Signed_Distance_To_Point(zero);
+            const auto sep = std::abs(sd_L < sd_R);
+            return (sep <= distance_eps);
+        });
+
+    return shtl;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template std::list<plane<float >> 
