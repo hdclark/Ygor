@@ -523,36 +523,21 @@ template <class T>    std::istream &operator>>(std::istream &in, vec3<T> &L){
     //We will discriminate here based on what 'in' is.
 
     std::string shtl;
-    char c;
-    in.get(c);
-    if(in.fail() || (c != '(')) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
-    
+
+    std::getline(in, shtl, '(');
+    if(in.fail()) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
+
     std::getline(in, shtl, ',');
     if(in.fail()) throw std::runtime_error("Unable to read first coordinate. Cannot continue.");
     L.x = static_cast<T>( std::stold( shtl ) );
-
-    //in.get(c);
-    //if(shtl.back() != ',') throw std::runtime_error("Unable to read first comma. Cannot continue.");
-    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read first comma. Cannot continue.");
 
     std::getline(in, shtl, ',');
     if(in.fail()) throw std::runtime_error("Unable to read second coordinate. Cannot continue.");
     L.y = static_cast<T>( std::stold( shtl ) );
 
-    //in.get(c);
-    //if(shtl.back() != ',') throw std::runtime_error("Unable to read second comma. Cannot continue.");
-    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read second comma. Cannot continue.");
-
     std::getline(in, shtl, ')'); // Also consumes the trailing ')'.
     if(in.fail()) throw std::runtime_error("Unable to read third coordinate. Cannot continue.");
     L.z = static_cast<T>( std::stold( shtl ) ); // stold ignores trailing ')'.
-
-    //in.get(c);
-    //if(shtl.back() != ')') throw std::runtime_error("Unable to read second bracket. Cannot continue.");
-    //if(in.fail() || (c != ')')) throw std::runtime_error("Unable to read second bracket. Cannot continue.");
-
-    in.peek();
-    if(!in.eof()) throw std::runtime_error("Input was not fully consumed. Refusing to continue.");
 
     return in;
 }
@@ -1278,28 +1263,17 @@ template <class T>  vec2<T> vec2<T>::from_string(const std::string &in){
  
 template <class T>    std::istream &operator>>( std::istream &in, vec2<T> &L ) {
     std::string shtl;
-    char c;
-    in.get(c);
-    if(in.fail() || (c != '(')) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
+
+    std::getline(in, shtl, '(');
+    if(in.fail()) throw std::runtime_error("Unable to read first bracket. Cannot continue.");
     
     std::getline(in, shtl, ',');
     if(in.fail()) throw std::runtime_error("Unable to read first coordinate. Cannot continue.");
     L.x = static_cast<T>( std::stold( shtl ) );
 
-    //in.get(c);
-    //if(shtl.back() != ',') throw std::runtime_error("Unable to read comma. Cannot continue.");
-    //if(in.fail() || (c != ',')) throw std::runtime_error("Unable to read comma. Cannot continue.");
-
     std::getline(in, shtl, ')'); // Also consumes the trailing ')'.
     if(in.fail()) throw std::runtime_error("Unable to read second coordinate. Cannot continue.");
     L.y = static_cast<T>( std::stold( shtl ) ); // stold ignores trailing ')'.
-
-    //in.get(c);
-    //if(shtl.back() != ')') throw std::runtime_error("Unable to read second bracket. Cannot continue.");
-    //if(in.fail() || (c != ')')) throw std::runtime_error("Unable to read second bracket. Cannot continue.");
-
-    in.peek();
-    if(!in.eof()) throw std::runtime_error("Input was not fully consumed. Refusing to continue.");
 
     return in;
 }

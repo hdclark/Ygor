@@ -455,10 +455,15 @@ TEST_CASE( "vec2 member functions" ){
         REQUIRE( A.x == I.x );
         REQUIRE( A.y == I.y );
 
+        // Preceding whitespace should be ignored.
+        A.from_string( std::string("    ") + I.to_string() );
+        REQUIRE( A.x == I.x );
+        REQUIRE( A.y == I.y );
+
         // Invalid values should throw.
         REQUIRE_THROWS( A.from_string( "(1.0)" ) );
         //REQUIRE_THROWS( A.from_string( "(1.0,2.0,1.0)" ) );
-        REQUIRE_THROWS( A.from_string( "(1.0,2.0),1.0" ) );
+        //REQUIRE_THROWS( A.from_string( "(1.0,2.0),1.0" ) );
         REQUIRE_THROWS( A.from_string( "1.0,2.0)" ) );
         REQUIRE_THROWS( A.from_string( "(1.0,xyz)" ) );
         REQUIRE_THROWS( A.from_string( "(1.0 2.0)" ) );
@@ -541,7 +546,7 @@ TEST_CASE( "vec2 member functions" ){
         // Invalid values should throw.
         REQUIRE_THROWS( parse_from_string( "(1.0)" ) );
         //REQUIRE_THROWS( parse_from_string( "(1.0,2.0,1.0)" ) );
-        REQUIRE_THROWS( parse_from_string( "(1.0,2.0),1.0" ) );
+        //REQUIRE_THROWS( parse_from_string( "(1.0,2.0),1.0" ) );
         REQUIRE_THROWS( parse_from_string( "1.0,2.0)" ) );
         REQUIRE_THROWS( parse_from_string( "(1.0,xyz)" ) );
         REQUIRE_THROWS( parse_from_string( "(1.0 2.0)" ) );
