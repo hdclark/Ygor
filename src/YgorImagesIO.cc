@@ -638,9 +638,11 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
     typedef std::array<char,80> card_t; //Each entry in the header.
     typedef std::array<card_t,36> header_t; //The header has 36 cards, and thus 80*36 = 2880 bytes.
 
-    bool primary_header = true;
+    long int array_number = -1;
 
     while(true){
+        ++array_number;
+
         imgcoll.images.emplace_back();
         auto& img = imgcoll.images.back();
 
@@ -653,12 +655,15 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
         std::string previous_key; // Used to support 'CONTINUE' keyword.
         bool previous_was_string = false;
         bool done_reading_header = false;
-        long int number_of_headers = 0;
+        long int header_number = -1;
         bool found_magic = false; // SIMPLE or XTENSION keyword are required to appear first.
 
         // Read in the primary header, the first 2880 bytes, and continue reading header blocks until we encounter
         // the END statement.
         while(!done_reading_header){
+            ++header_number;
+            const bool primary_header = (array_number == 0) && (header_number == 0);
+
             header_t l_header;
             for(auto & acard : l_header) acard.fill(' ');
 
@@ -669,7 +674,10 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                 }
             }
 
+            long int card_number = -1;
             for(auto & acard : l_header){
+                ++card_number;
+
                 //Keys can be up to eight chars long and must be composed of only [A-Z] [0-9] [-] or [_] chars.
                 auto itA = std::begin(acard); //Will point to the character *after* the key's last character.
                 {
@@ -719,6 +727,12 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                     }
                 }
 
+                const auto emit_fits_location = [=](void) -> std::string {
+                    return "array "_s + std::to_string(array_number)
+                           + ", header block "_s + std::to_string(header_number)
+                           + ", card "_s + std::to_string(card_number);
+                };
+
                 //There are also possibly comments preceeded by a '/'. Disregard them if needed.
                 auto itC = itB; //Will point to the comment indicator '/' or the end if none are found.
                 {
@@ -726,6 +740,9 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                     for( ; itC != std::end(acard) ; ++itC){        
                         if(*itC == '\'') MidQuote = !MidQuote;
                         if((*itC == '/') && !MidQuote) break;
+                    }
+                    if(MidQuote){
+                        throw std::runtime_error("Encountered unmatched quote at " + emit_fits_location());
                     }
                 }
                 std::string theval = Canonicalize_String2(std::string(itB, itC), CANONICALIZE::TRIM_ENDS);
@@ -814,15 +831,21 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
 
                 }else if(thekey == "CONTINUE"){
                     // Continue the most recent keyword's value, to support oversized values.
-                    if(previous_key.empty()) throw std::runtime_error("Encountered CONTINUE with no preceding keyword to continue");
-                    if(!previous_was_string) throw std::runtime_error("Refusing to CONTINUE a non-string key");
+                    if(previous_key.empty()){
+                        throw std::runtime_error("Encountered CONTINUE with no preceding keyword to continue at " + emit_fits_location());
+                    }
+                    if(!previous_was_string){
+                        throw std::runtime_error("Refusing to CONTINUE a non-string key at " + emit_fits_location());
+                    }
 
-                    // Identify the preceding keyword's content.
+                    // Identify the preceding keyword's content. We have to use this two-step procedure because
+                    // multimap::find() does not guarantee order.
                     const auto end = std::end(StringValue);
                     auto next_it = StringValue.upper_bound(previous_key);
-                    if(next_it == end) throw std::runtime_error("Encountered CONTINUE keyword without preceding keyword content");
                     auto s_it = std::prev(next_it);
-                    if(s_it == end) throw std::logic_error("No preceding keyword content found");
+                    if(s_it == end){
+                        throw std::runtime_error("Encountered CONTINUE keyword without preceding keyword content at " + emit_fits_location());
+                    }
 
                     // Look for the '&' character in the previous string's content.
                     // It should be present, but if it isn't, then continue with the CONTINUE concatenation.
@@ -852,13 +875,10 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                 }
             }
 
-            primary_header = false;
-
             // Check if we are stuck in a loop waiting for a missing END keyword.
-            if(1000L < number_of_headers){
+            if(1000L < header_number){
                 throw std::runtime_error("Encountered more than 1000 FITS headers; refusing to continue");
             }
-            ++number_of_headers;
         }
 
         //Get necessary information from the metadata. Prune items not needing to be stored in image metadata.
