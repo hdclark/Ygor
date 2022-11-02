@@ -2627,21 +2627,25 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
     //If the polygon does not have enough points to form a 2D surface, return a zero. (This is legitimate.)
     if(this->points.size() < 3) return (T)(0);
 
-    //If the polygon has only three points, we can easily and robustly compute the signed area regardless of the
-    // orientation. It is half the area of the parallelogram formed by the cross product of edge vectors.
-    if(this->points.size() == 3){
+    const auto assumed_positive_direction = vec3<T>((T)(0),(T)(0),(T)(1));   
+    const auto triangle_signed_area = [=](const vec3<T>& A, const vec3<T>& B, const vec3<T>& C){
         //The unsigned area.
-        const auto A = this->points.front(); //*std::next(this->points.begin(),0);
-        const auto B = *std::next(this->points.begin(),1);
-        const auto C = this->points.back(); //*std::next(this->points.begin(),2);
         const auto area_vec = (B - A).Cross(C - A);
         const auto unsigned_area = (T)(0.5)*(area_vec.length());
 
         //Figure out the sign. We cannot rely on this->Is_Counter_Clockwise() because it calls this routine...
-        const auto assumed_positive_direction = vec3<T>((T)(0),(T)(0),(T)(1));   
         const auto dotprod = assumed_positive_direction.Dot(area_vec);
         const auto signed_area = std::copysign(unsigned_area, dotprod);
         return signed_area;
+    };
+
+    //If the polygon has only three points, we can easily and robustly compute the signed area regardless of the
+    // orientation. It is half the area of the parallelogram formed by the cross product of edge vectors.
+    if(this->points.size() == 3){
+        const auto A = this->points.front(); //*std::next(this->points.begin(),0);
+        const auto B = *std::next(this->points.begin(),1);
+        const auto C = this->points.back(); //*std::next(this->points.begin(),2);
+        return triangle_signed_area(A, B, C);
     }
 
     //If the user has provided an override, attempt to fallback to the safest (but also slowest) way to compute area.
@@ -2650,24 +2654,21 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
     if(true){ //AssumePlanarContours){
 #pragma message "Warning - This routine assumes all contours are planar. This assumption should be enforced or validated."
 
-        //const auto C = this->Average_Point();
-        const auto C = this->Centroid();
 
-        auto itA = std::prev(this->points.end());
+        //Compute the area by treating the contour as a triangle fan and summing the contribution from each
+        // triangular patch. Since we are told the contour is planar, we can use any point on the plane as
+        // a reference point which connects to all triangle patches (i.e., the "spoke" point).
+
+        const auto itA = std::prev(this->points.end());
         auto itB = this->points.begin();
+        auto itC = std::next(itB);
+
         std::vector<T> dArea;
-        while(itB != this->points.end()){
-            //Compute the area by treating the contour as a triangle fan and summing the contribution from each
-            // triangular patch. Since we are told the contour is planar, we can use any point on the plane as
-            // a reference point which connects to all triangle patches (i.e., the "spoke" point).
-            contour_of_points<T> shtl;
-            shtl.closed = true;
-            shtl.points = { *itA, *itB, C };
-            dArea.push_back(shtl.Get_Signed_Area());
-            itA = itB;
-            std::advance(itB,1);
+        dArea.reserve(this->points.size() - 2UL);
+        while(itC != itA){
+            dArea.push_back( triangle_signed_area(*itA, *itB++, *itC++) );
         }
-        return Stats::Sum(dArea); //signed_area;
+        return Stats::Sum(dArea);
     }
 
     //Otherwise, attempt to use a fast boundary walking method. This ONLY works if the contour is planar. The current
@@ -5466,47 +5467,53 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
     //Compute the area of all planar slices.
     const auto total_area = this->Get_Signed_Area();
 
+
     size_t iter = 1;
     while(true){
 
-       //Given the current upper and lower planar bounds, compute the mid-plane.
-       const auto lower_plane = plane<T>(planar_unit_normal, lower_bound);
-       //const auto upper_plane = plane<T>(planar_unit_normal, upper_bound);
+        //Given the current upper and lower planar bounds, compute the mid-plane.
+        const auto lower_plane = plane<T>(planar_unit_normal, lower_bound);
+        //const auto upper_plane = plane<T>(planar_unit_normal, upper_bound);
 
-       const auto dist_between_planes = lower_plane.Get_Signed_Distance_To_Point( upper_bound );
-       const auto mid_plane = plane<T>(planar_unit_normal, lower_bound + planar_unit_normal * dist_between_planes * static_cast<T>(0.5));
+        const auto dist_between_planes = lower_plane.Get_Signed_Distance_To_Point( upper_bound );
+        const auto mid_plane = plane<T>(planar_unit_normal, lower_bound + planar_unit_normal * dist_between_planes * static_cast<T>(0.5));
 
 
-       //Compute the area split with the mid-plane.
-       const auto splits = this->Split_Along_Plane(mid_plane);
-       if(splits.size() != 2){
-           throw std::logic_error("Expected exactly two groups, above and below plane.");
-       }
-       const auto area_above_mid_plane = splits.back().Get_Signed_Area();
-       const auto area_frac = area_above_mid_plane / total_area;
+        //Compute the area split with the mid-plane.
+        const auto splits = this->Split_Along_Plane(mid_plane);
+        if(splits.size() != 2){
+            throw std::logic_error("Expected exactly two groups, above and below plane.");
+        }
+        const auto area_above_mid_plane = splits.back().Get_Signed_Area();
+        const auto area_frac = area_above_mid_plane / total_area;
 
-       //Check if the mid-plane is within tolerance. If it is, we can stop.
-       //
-       //Also check if the max iteration count has been reached. It is up to the user whether this is considered a
-       // success or not. (For example, if a transverse plane has been used, it may not be possible to achieve the
-       // tolerance requested. Another example: the tolerance is set very small and it cannot be reached due to
-       // truncation errors.)
-       if( isininc(lowest_acceptable,area_frac,highest_acceptable) || (iter >= max_iters) ){
-           if(final_plane != nullptr) *final_plane = mid_plane;
-           if(iters_taken != nullptr) *iters_taken = iter;
-           if(final_area_frac != nullptr) *final_area_frac = area_frac;
-           return splits;
+        if(!isininc(-1.0-offset_eps, area_frac, 1.0+offset_eps)){
+            // This could happen if the area calculation is incorrect.
+            throw std::logic_error("Computed fractional area is not physical, refusing to continue.");
+        }
 
-       //If the area above the midplane is too small, replace the upper plane bound with the midplane.
-       }else if(area_frac < desired_total_area_fraction_above_plane){
-           upper_bound = mid_plane.R_0;
+        //Check if the mid-plane is within tolerance. If it is, we can stop.
+        //
+        //Also check if the max iteration count has been reached. It is up to the user whether this is considered a
+        // success or not. (For example, if a transverse plane has been used, it may not be possible to achieve the
+        // tolerance requested. Another example: the tolerance is set very small and it cannot be reached due to
+        // truncation errors.)
+        if( isininc(lowest_acceptable,area_frac,highest_acceptable) || (iter >= max_iters) ){
+            if(final_plane != nullptr) *final_plane = mid_plane;
+            if(iters_taken != nullptr) *iters_taken = iter;
+            if(final_area_frac != nullptr) *final_area_frac = area_frac;
+            return splits;
 
-       //If it is too big, replace the lower plane bound with the midplane.
-       }else{
-           lower_bound = mid_plane.R_0;
-       }
+        //If the area above the midplane is too small, replace the upper plane bound with the midplane.
+        }else if(area_frac < desired_total_area_fraction_above_plane){
+            upper_bound = mid_plane.R_0;
 
-       ++iter;
+        //If it is too big, replace the lower plane bound with the midplane.
+        }else{
+            lower_bound = mid_plane.R_0;
+        }
+
+        ++iter;
     }
 
     throw std::logic_error("Should not ever get to this point");
