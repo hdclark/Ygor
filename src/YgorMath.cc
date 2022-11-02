@@ -5444,9 +5444,15 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
     }
 
     //Compute the area of all planar slices.
-    const auto total_area = this->Get_Signed_Area();
+    const auto total_area = this->Get_Unsigned_Area();
 
-
+    // Maintain a set of the closest-yet data in case bisection overshoots and doesn't have enough iterations to get
+    // back to the optimum. This can happen easily if the splitting plane is (nearly) co-planar with the contour
+    // normals.
+    T curr_best_area_frac = std::numeric_limits<T>::infinity();
+    plane<T> curr_best_mid_plane;
+    std::list<contour_collection<T>> curr_best_splits;
+    
     size_t iter = 1;
     while(true){
 
@@ -5457,18 +5463,34 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
         const auto dist_between_planes = lower_plane.Get_Signed_Distance_To_Point( upper_bound );
         const auto mid_plane = plane<T>(planar_unit_normal, lower_bound + planar_unit_normal * dist_between_planes * static_cast<T>(0.5));
 
-
         //Compute the area split with the mid-plane.
         const auto splits = this->Split_Along_Plane(mid_plane);
         if(splits.size() != 2){
-            throw std::logic_error("Expected exactly two groups, above and below plane.");
+            throw std::logic_error("Expected exactly two split groups, above and below the plane.");
         }
-        const auto area_above_mid_plane = splits.back().Get_Signed_Area();
+        const auto area_above_mid_plane = splits.back().Get_Unsigned_Area();
         const auto area_frac = area_above_mid_plane / total_area;
 
-        if(!isininc(-1.0-offset_eps, area_frac, 1.0+offset_eps)){
-            // This could happen if the area calculation is incorrect.
+        if(!isininc(0.0-offset_eps, area_frac, 1.0+offset_eps)){
+            // This could happen if the area calculation is incorrect, if the contours are not planar (and thus the
+            // triangle-fan area changes when splitting the contours), if there are exactly duplicated contours, if
+            // contours have self-intersections or the area is ill-defined, or any other number of reasons.
             throw std::logic_error("Computed fractional area is not physical, refusing to continue.");
+        }
+
+        // Ensure the 'current best' contains a valid arrangement.
+        if( !std::isfinite(curr_best_area_frac) ){
+            curr_best_area_frac = area_frac;
+            curr_best_mid_plane = mid_plane;
+            curr_best_splits    = splits;
+
+        // Improve the best estimates.
+        }else if( (std::abs(area_frac - desired_total_area_fraction_above_plane)
+                 < std::abs(curr_best_area_frac - desired_total_area_fraction_above_plane)) ){
+            curr_best_area_frac = area_frac;
+            curr_best_mid_plane = mid_plane;
+            curr_best_splits    = splits;
+
         }
 
         //Check if the mid-plane is within tolerance. If it is, we can stop.
@@ -5478,10 +5500,10 @@ contour_collection<T>::Total_Area_Bisection_Along_Plane(const vec3<T> &planar_un
         // tolerance requested. Another example: the tolerance is set very small and it cannot be reached due to
         // truncation errors.)
         if( isininc(lowest_acceptable,area_frac,highest_acceptable) || (iter >= max_iters) ){
-            if(final_plane != nullptr) *final_plane = mid_plane;
+            if(final_plane != nullptr) *final_plane = curr_best_mid_plane;
             if(iters_taken != nullptr) *iters_taken = iter;
-            if(final_area_frac != nullptr) *final_area_frac = area_frac;
-            return splits;
+            if(final_area_frac != nullptr) *final_area_frac = curr_best_area_frac;
+            return curr_best_splits;
 
         //If the area above the midplane is too small, replace the upper plane bound with the midplane.
         }else if(area_frac < desired_total_area_fraction_above_plane){
