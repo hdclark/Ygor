@@ -344,7 +344,7 @@ template <class T>   class contour_of_points {
 
         //Member functions.
 //        void append(const vec3<T> &point);
-        T Get_Signed_Area(bool AssumePlanarContours = false) const; //Generally use the default option! See note in source for details.
+        T Get_Signed_Area(bool AssumePlanarContours = true) const; //Generally use the default option! See note in source for details.
         bool Is_Counter_Clockwise(void) const;
         void Reorient_Counter_Clockwise(void);
 
@@ -450,7 +450,8 @@ template <class T>   class contour_collection {
         //Member functions.
         void Consume_Contours(contour_collection<T> &);
 
-        T Get_Signed_Area(bool AssumePlanarContours = false) const; //Generally use the default option! See planar_contour version for details.
+        T Get_Signed_Area(bool AssumePlanarContours = true) const; //Generally use the default option! See planar_contour version for details.
+        T Get_Unsigned_Area(bool AssumePlanarContours = true) const;
         bool Is_Counter_Clockwise(void) const;
         void Reorient_Counter_Clockwise(void);
 

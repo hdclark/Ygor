@@ -5042,6 +5042,19 @@ template <class T>  T contour_collection<T>::Get_Signed_Area(bool AssumePlanarCo
     template double contour_collection<double>::Get_Signed_Area(bool AssumePlanarContours) const;
 #endif
 
+template <class T>  T contour_collection<T>::Get_Unsigned_Area(bool AssumePlanarContours) const {
+    //NOTE: ALL contours must be closed. See the implementation in contour_of_points.
+    T Area = (T)(0);
+    for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
+        Area += std::abs(c_it->Get_Signed_Area(AssumePlanarContours));
+    }
+    return Area; //NOTE: Do NOT take the absolute value. We want to keep the sign for adding/subtracting/etc.. contour areas!
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  contour_collection<float>::Get_Unsigned_Area(bool AssumePlanarContours) const;
+    template double contour_collection<double>::Get_Unsigned_Area(bool AssumePlanarContours) const;
+#endif
+
 //This routine verifies that all contours are counter clockwise. 
 //
 //NOTE: No effort is made to ensure the ordering of points or contours is sane (how could we?)
