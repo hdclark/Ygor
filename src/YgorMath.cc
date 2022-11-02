@@ -3015,7 +3015,41 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     // is small near the plane, and it is understood that the points are linearlly interpolated between to form the contour,
     // then we will not actually observe any accidental loss in curvature from this routine.  I'll have to test it..
     const auto Norig = this->points.size();
-    if(Norig < 3) throw std::runtime_error("Contour contains too few points to split");
+    if(Norig < 3UL){
+        FUNCWARN("Contour contains too few points to split");
+    }
+
+    // Handle degenerate cases.
+    if( (Norig == 0UL)
+    ||  (Norig == 1UL) ){
+        output.push_back(*this);
+        return output;
+
+    }else if(Norig == 2UL){
+        const bool a_above = theplane.Is_Point_Above_Plane( this->points.front() );
+        const bool b_above = theplane.Is_Point_Above_Plane( this->points.back() );
+        if(a_above == b_above){
+            output.push_back(*this);
+        }else{
+            const line_segment<T> ls(this->points.front(), this->points.back());
+            vec3<T> p;
+            const bool int_OK = theplane.Intersects_With_Line_Segment_Once(ls, p);
+            if(!int_OK){
+                throw std::logic_error("Unable to split degenerate contour with two vertices");
+            }
+
+            contour_of_points<T> dup1(*this);
+            contour_of_points<T> dup2(*this);
+            dup1.points.pop_front();
+            dup2.points.pop_back();
+            dup1.points.emplace_back(p);
+            dup2.points.emplace_front(p);
+
+            output.push_back(dup1);
+            output.push_back(dup2);
+        }
+        return output;
+    }
 
     //Search for adjacent, duplicate points. If any are found die immediately.
     {
@@ -3241,7 +3275,10 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
 
                 //We should remove the first one so that we will notice if the next one is a duplicate too.
                 p1_it = c_it->points.erase(p1_it);
-                if(c_it->points.size() < 3) throw std::runtime_error("After removing duplicate point, contour contains < 3 points. Unable to continue");
+                if(c_it->points.size() < 3){
+                    FUNCWARN("After removing duplicate point, contour contains < 3 points. Retaining zero-area contour");
+                    break;
+                }
 
             }else{
                 p1_it = p2_it;
@@ -5199,16 +5236,15 @@ template <class T>  T contour_collection<T>::Slab_Volume(T thickness, bool Ignor
 #endif
 
 template <class T> std::list<contour_collection<T>> contour_collection<T>::Split_Along_Plane(const plane<T> &theplane) const {
-    //There will be two (or one) collections here. Which piece goes where is tricky to do in general.
-    // Those contours with an average point below the plane (ie. have negative signed distance) are first. 
-    // Those above (ie. have positive signed distance) are second.
+    //Space is partitioned into two here: above and below the plane.
+    // - Those contours with an average point below the plane (ie. have negative signed distance) are first. 
+    // - Those above (ie. have positive signed distance) are second.
     std::list<contour_collection<T>> out;
     out.push_back(contour_collection<T>()); //Below.
     out.push_back(contour_collection<T>()); //Above.
 
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         auto split_cs = c_it->Split_Along_Plane(theplane);
-        if(split_cs.empty()) throw std::runtime_error("No contours returned from splitting. We should have one or more");
 
         for(auto sc_it = split_cs.begin(); sc_it != split_cs.end(); ){
             const auto Rave = sc_it->Average_Point();
