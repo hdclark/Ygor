@@ -8,7 +8,7 @@
 
 #include "doctest/doctest.h"
 
-TEST_CASE( "contour_of_points area" ){
+TEST_CASE( "contour_of_points::Get_Signed_Area" ){
     contour_of_points<double> cop1;
     cop1.closed = true;
     cop1.points.emplace_back(vec3<double>(0.0, 0.0, 0.0));
