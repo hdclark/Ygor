@@ -2575,7 +2575,7 @@ template <class T>    contour_of_points<T>::contour_of_points(const contour_of_p
 #endif
 
 //Member functions.
-template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarContours*/) const {
+template <class T> T contour_of_points<T>::Get_Signed_Area(bool AssumePlanarContours) const {
     //NOTE: This routine computes the 'signed' area with respect to an implicit unit vector (in this case,
     //      (0,0,1) == the z unit). I think computing 'signedness' with respect to this unit vector actually
     //      comes from computing the signed area and observing the sign. The idea of clockwise or counter/
@@ -2608,24 +2608,17 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
     //        and fastest way.)
     //      - do NOT explicitly specify planarity, and the contour is not actually planar, then this 
     //        computation will fail.      
-    //
-    //NOTE: This method could be substantially cleaned up merging the perimeter-walking algorithm with the
-    //      "safe but slow" way. Just figure out the planar contour's normal (using points within the contour)
-    //      and then find some local coordinate system in the plane of the contour. Again, you could simply 
-    //      use the contour's points to define this. (The first three points could be used for both of these
-    //      computations ... OTOH its better to fall back and try other points if needed.)
 
 
     //If the polygon is not closed, we complain. This is the easiest way to do it...
     if(!this->closed){
         throw std::runtime_error("Computing the surface area of an unconnected contour is not well-defined. "
-                                 "If this is a mistake, just mark your (implicitly) closed contours as closed."
-                                 "Otherwise, to make it more well-defined, you'll need to specify a surface mesh or "
-                                 "something more topologically well-defined. At time of writing, this is not supported");
+                                 "If this is a mistake, just mark your (implicitly) closed contours as closed.");
     } 
 
     //If the polygon does not have enough points to form a 2D surface, return a zero. (This is legitimate.)
-    if(this->points.size() < 3) return (T)(0);
+    const auto N_points = this->points.size();
+    if(N_points < 3UL) return (T)(0);
 
     const auto assumed_positive_direction = vec3<T>((T)(0),(T)(0),(T)(1));   
     const auto triangle_signed_area = [=](const vec3<T>& A, const vec3<T>& B, const vec3<T>& C){
@@ -2641,93 +2634,30 @@ template <class T> T contour_of_points<T>::Get_Signed_Area(bool  /*AssumePlanarC
 
     //If the polygon has only three points, we can easily and robustly compute the signed area regardless of the
     // orientation. It is half the area of the parallelogram formed by the cross product of edge vectors.
-    if(this->points.size() == 3){
+    if(N_points == 3UL){
         const auto A = this->points.front(); //*std::next(this->points.begin(),0);
         const auto B = *std::next(this->points.begin(),1);
         const auto C = this->points.back(); //*std::next(this->points.begin(),2);
         return triangle_signed_area(A, B, C);
     }
 
-    //If the user has provided an override, attempt to fallback to the safest (but also slowest) way to compute area.
-    //
-    // NOTE: this special routine could be obviated in lieu of the perimeter-walking method following. TODO FIXME.
-    if(true){ //AssumePlanarContours){
-#pragma message "Warning - This routine assumes all contours are planar. This assumption should be enforced or validated."
-
-
-        //Compute the area by treating the contour as a triangle fan and summing the contribution from each
-        // triangular patch. Since we are told the contour is planar, we can use any point on the plane as
-        // a reference point which connects to all triangle patches (i.e., the "spoke" point).
-
-        const auto itA = std::prev(this->points.end());
-        auto itB = this->points.begin();
-        auto itC = std::next(itB);
-
-        std::vector<T> dArea;
-        dArea.reserve(this->points.size() - 2UL);
-        while(itC != itA){
-            dArea.push_back( triangle_signed_area(*itA, *itB++, *itC++) );
-        }
-        return Stats::Sum(dArea);
+    if(!AssumePlanarContours){
+        throw std::runtime_error("This routine currently cannot handle non-trivial non-planar contours.");
     }
 
-    //Otherwise, attempt to use a fast boundary walking method. This ONLY works if the contour is planar. The current
-    // implementation assumes the plane is normal to (0,0,1). 
-    T Area = (T)(0);
-    auto iter_1 = --(this->points.end());
-    const T specific_height = iter_1->z; //Used to abandon the computation if the contour is fully 3D.
-    for( auto iter_2 = this->points.begin(); iter_2 != this->points.end(); ++iter_2 ){
-        const vec3<T> r_a(*iter_1);
-        const vec3<T> r_b(*iter_2);
-        if( std::fabs(PERCENT_ERR(r_a.z, specific_height)) > 0.1 ){  //Our criteria for same height is a |percent error| < 0.1%.
-            FUNCERR("This routine is unable to compute generic (signed) areas for fully 3D contours: found a contour with height "
-                    << r_a.z << " when the general contour height is " << specific_height << ". "
-                    << "This routine assumes the area of interest lies in an XY plane and chokes if Z-coords are not very close. "
-                    << "Fix me if you really need this!");
-            //NOTE: A more general 3D routine could probably be accomplished by using the cross product. I've avoided it because
-            // it requires one to locate a point somewhere on the contour which will allow a linear interpolation of area between
-            // all contour points. This is probably not possible except in special cases. For instance, a spherical shell has
-            // curvature which could not be accounted for with said technique. If you need to implement this, consider the overall
-            // utility of describing your surface with a contour around the surface boundary...
-            // 
-            //NOTE: It would be better to implement your particular solution to this problem as a totally separate routine. Maybe
-            // something like "Get_Signed_Area_for_spherical_shell()".
-        }
-        const T n = r_b.y - r_a.y; //numerator.
-        const T d = r_b.x - r_a.x; //denominator.
+    //Compute the area by treating the contour as a triangle fan and summing the contribution from each
+    // triangular patch. Since we are told the contour is planar, we can use any point on the plane as
+    // a reference point which connects to all triangle patches (i.e., the "spoke" point).
+    const auto itA = std::prev(this->points.end());
+    auto itB = this->points.begin();
+    auto itC = std::next(itB);
 
-        //Determine if we consider the points to be equal (and thus have no area between them).
-        if( ((n == (T)(0)) && (d == (T)(0))) || (r_a == r_b) ){
-            //This is not an error - there is no area between overlapping points.
-            FUNCWARN("Found two equal adjacent points in a contour. Check the input and/or consider decreasing the range of equality for vec3's. This is not an error");
-
-        //If we are required to use a specific parametrization then do so.
-        }else if(!std::isfinite(d/n)){
-            const T m_1 = n/d;
-            const T b_1 = r_a.y - m_1*r_a.x;
-            Area += -0.5*b_1*(r_b.x - r_a.x); //The negative comes from Green's method!
-        }else if(!std::isfinite(n/d)){
-            const T m_2 = d/n;
-            const T b_2 = r_a.x - m_2*r_a.y;
-            Area +=  0.5*b_2*(r_b.y - r_a.y); //The negative is intentionally missing here!
-
-        //Otherwise, try to determine which is more stable. Cursory feeling: slope closest to zero seems most stable. A proper analysis should be done, though.
-        }else if(fabs(n/d) < fabs(d/n)){
-            const T m_1 = n/d;
-            const T b_1 = r_a.y - m_1*r_a.x;
-            Area += -0.5*b_1*(r_b.x - r_a.x); //The negative comes from Green's method!
-        }else{
-            const T m_2 = d/n;
-            const T b_2 = r_a.x - m_2*r_a.y;
-            Area +=  0.5*b_2*(r_b.y - r_a.y); //The negative is intentionally missing here!
-
-
-//        }else{
-//            FUNCERR("Unable to properly parametrize two contour points (x,y,z) = " << r_a << " and " << r_b << ". This is not a recoverable error");
-        }
-        iter_1 = iter_2;
+    std::vector<T> dArea;
+    dArea.reserve(this->points.size() - 2UL);
+    while(itC != itA){
+        dArea.push_back( triangle_signed_area(*itA, *itB++, *itC++) );
     }
-    return Area; //NOTE: Do NOT take the absolute value. We want to keep the sign for adding/subtracting/etc.. contour areas!
+    return Stats::Sum(dArea);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template float  contour_of_points<float>::Get_Signed_Area(bool AssumePlanarContours) const;
