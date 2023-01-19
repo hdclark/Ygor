@@ -40,8 +40,8 @@ linear_compress_numeric<T_domain, T_range>::linear_compress_numeric(){
     this->inv_slope = static_cast<intermediate_t>(1);
     this->intercept = static_cast<intermediate_t>(0);
 
-    this->domain_min = std::numeric_limits<T_domain>::max();
-    this->domain_max = std::numeric_limits<T_domain>::lowest();
+    this->domain_min = std::numeric_limits<T_domain>::lowest();
+    this->domain_max = std::numeric_limits<T_domain>::max();
 }
 #ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template linear_compress_numeric<int8_t, int8_t>::linear_compress_numeric(void);
