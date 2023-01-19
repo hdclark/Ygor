@@ -317,43 +317,6 @@ Ygor_Pack_As(FromType in){
 }
 
 
-//This routine changes the type of the input and also scales it to sit in the same place in the range of
-// the destination type as it did in the origin type. This conversion only makes sense for integral and
-// floating point types, but might also be applicable for some other.
-//
-// The relative position in the type's range is determined by taking the position between the min/max of
-// the origin type and placing the converted value at the same position between the destination min/max.
-// 
-// NOTE: At the moment, this routine just uses the highest precision floating point type it can to try
-//       ignore numerical issues. It will not work well if the input is (1) high precision and (2) near
-//       the min or max of the type.
-template<typename ToType, typename FromType>
-inline
-ToType
-Ygor_Scale_With_Type_Range(FromType in){
-
-    if(std::is_same<ToType, FromType>::value) return in;
-
-    using intermed_t = long double;
-    constexpr auto minFrom = static_cast<intermed_t>(std::numeric_limits<FromType>::min());
-    constexpr auto maxFrom = static_cast<intermed_t>(std::numeric_limits<FromType>::max());
-    constexpr auto minTo   = static_cast<intermed_t>(std::numeric_limits<ToType>::min());
-    constexpr auto maxTo   = static_cast<intermed_t>(std::numeric_limits<ToType>::max());
-
-    const auto alpha_num = (     in - minFrom);
-    const auto alpha_den = (maxFrom - minFrom);
-
-    const auto alpha = alpha_num / alpha_den; // Clamped [0,1].
-
-    intermed_t out;
-    out = minTo * (static_cast<intermed_t>(1) - alpha);
-    out += alpha * maxTo;
-
-    return static_cast<ToType>(out);
-}
-
-
-
 //------------------------------------------------------------------------------------------------------
 //-------------------------------------- Function Declarations -----------------------------------------
 //------------------------------------------------------------------------------------------------------

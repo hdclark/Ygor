@@ -32,6 +32,899 @@
 //    #define YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
 //#endif
 
+// --------------
+
+template <class T_domain, class T_range>
+linear_compress_numeric<T_domain, T_range>::linear_compress_numeric(){
+    this->slope     = static_cast<intermediate_t>(1);
+    this->inv_slope = static_cast<intermediate_t>(1);
+    this->intercept = static_cast<intermediate_t>(0);
+
+    this->domain_min = std::numeric_limits<T_domain>::max();
+    this->domain_max = std::numeric_limits<T_domain>::lowest();
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template linear_compress_numeric<int8_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int8_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<int16_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int16_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<int32_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int32_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<int64_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<int64_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<uint8_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint8_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<uint16_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint16_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<uint32_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint32_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<uint64_t, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<uint64_t, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<float, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<float, uint64_t>::linear_compress_numeric(void);
+
+    template linear_compress_numeric<double, int8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, int16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, int32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, int64_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, uint8_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, uint16_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, uint32_t>::linear_compress_numeric(void);
+    template linear_compress_numeric<double, uint64_t>::linear_compress_numeric(void);
+#endif
+
+template <class T_domain, class T_range>
+void
+linear_compress_numeric<T_domain, T_range>::optimize(T_domain domain_min,
+                                                     T_domain domain_max){
+    if(domain_max <= domain_min){
+        throw std::invalid_argument("Domain minimum and maximum are inconsistent");
+    }
+    if constexpr (std::is_floating_point<T_domain>::value){
+        if( !std::isfinite(domain_max)
+        ||  !std::isfinite(domain_min) ){
+            throw std::invalid_argument("Domain minimum and/or maximum are not finite");
+        }
+    }
+
+    // Ensure the intermediate type can accomodate the full domain and range.
+    constexpr auto domain_t_min = std::numeric_limits<T_domain>::lowest();
+    constexpr auto domain_t_max = std::numeric_limits<T_domain>::max();
+    constexpr auto range_t_min = std::numeric_limits<T_range>::lowest();
+    constexpr auto range_t_max = std::numeric_limits<T_range>::max();
+    constexpr auto intermediate_t_min = std::numeric_limits<intermediate_t>::lowest();
+    constexpr auto intermediate_t_max = std::numeric_limits<intermediate_t>::max();
+    if( (domain_t_min < intermediate_t_min)
+    ||  (range_t_min < intermediate_t_min)
+    ||  (intermediate_t_max < domain_t_max)
+    ||  (intermediate_t_max < range_t_max) ){
+        throw std::runtime_error("Intermediate type is not large enough to hold represent T_domain fully");
+    }
+
+    // Ensure the transformation will not cause overflow when computed forward or backward.
+    const auto full_domain = static_cast<intermediate_t>(domain_max)  - static_cast<intermediate_t>(domain_min);
+    const auto full_range  = static_cast<intermediate_t>(range_t_max) - static_cast<intermediate_t>(range_t_min);
+    {
+        const auto full_domain_inv_will_overflow = (std::fabs(full_domain) <= std::ldexp(1,-std::numeric_limits<intermediate_t>::max_exponent));
+        const auto full_range_inv_will_overflow  = (std::fabs(full_range)  <= std::ldexp(1,-std::numeric_limits<intermediate_t>::max_exponent));
+        if( !std::isfinite(full_domain)
+        ||  !std::isfinite(full_range)
+        ||  full_domain_inv_will_overflow
+        ||  full_range_inv_will_overflow ){
+            throw std::runtime_error("Intermediate type is not sufficient to avoid overflow");
+        }
+    }
+    const auto l_slope = full_domain / full_range;
+    {
+        const auto slope_inv_will_overflow = (std::fabs(l_slope) <= std::ldexp(1,-std::numeric_limits<intermediate_t>::max_exponent));
+        if( !std::isfinite(l_slope)
+        ||  slope_inv_will_overflow ){
+            throw std::runtime_error("Intermediate type is not sufficient to avoid overflow of slope");
+        }
+    }
+    const auto l_inv_slope = static_cast<intermediate_t>(1) / l_slope;
+
+    const auto l_intercept = static_cast<intermediate_t>(domain_max) - l_slope * static_cast<intermediate_t>(range_t_max);
+    if( !std::isfinite(l_intercept) ){
+        throw std::runtime_error("Intermediate type is not sufficient to avoid overflow of intercept");
+    }
+
+    // Ensure the slope and intercept can be safely converted to domain_t, which they very likely will be. (Ideally the
+    // full intermediate type precision will be used, but it will likely be converted to float or maybe double over
+    // network.)
+    if( (l_slope < domain_t_min)
+    ||  (domain_t_max < l_slope)
+    ||  (l_intercept < domain_t_min)
+    ||  (domain_t_max < l_intercept) ){
+        throw std::runtime_error("Slope and/or intercept cannot be converted back to the domain type");
+    }
+
+    this->slope      = l_slope;
+    this->inv_slope  = l_inv_slope;
+    this->intercept  = l_intercept;
+    this->domain_min = domain_min;
+    this->domain_max = domain_max;
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template void linear_compress_numeric<int8_t, int8_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, int16_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, int32_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, int64_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, uint8_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, uint16_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, uint32_t>::optimize(int8_t, int8_t);
+    template void linear_compress_numeric<int8_t, uint64_t>::optimize(int8_t, int8_t);
+
+    template void linear_compress_numeric<int16_t, int8_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, int16_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, int32_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, int64_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, uint8_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, uint16_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, uint32_t>::optimize(int16_t, int16_t);
+    template void linear_compress_numeric<int16_t, uint64_t>::optimize(int16_t, int16_t);
+
+    template void linear_compress_numeric<int32_t, int8_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, int16_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, int32_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, int64_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, uint8_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, uint16_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, uint32_t>::optimize(int32_t, int32_t);
+    template void linear_compress_numeric<int32_t, uint64_t>::optimize(int32_t, int32_t);
+
+    template void linear_compress_numeric<int64_t, int8_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, int16_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, int32_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, int64_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, uint8_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, uint16_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, uint32_t>::optimize(int64_t, int64_t);
+    template void linear_compress_numeric<int64_t, uint64_t>::optimize(int64_t, int64_t);
+
+    template void linear_compress_numeric<uint8_t, int8_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, int16_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, int32_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, int64_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, uint8_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, uint16_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, uint32_t>::optimize(uint8_t, uint8_t);
+    template void linear_compress_numeric<uint8_t, uint64_t>::optimize(uint8_t, uint8_t);
+
+    template void linear_compress_numeric<uint16_t, int8_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, int16_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, int32_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, int64_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, uint8_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, uint16_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, uint32_t>::optimize(uint16_t, uint16_t);
+    template void linear_compress_numeric<uint16_t, uint64_t>::optimize(uint16_t, uint16_t);
+
+    template void linear_compress_numeric<uint32_t, int8_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, int16_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, int32_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, int64_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, uint8_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, uint16_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, uint32_t>::optimize(uint32_t, uint32_t);
+    template void linear_compress_numeric<uint32_t, uint64_t>::optimize(uint32_t, uint32_t);
+
+    template void linear_compress_numeric<uint64_t, int8_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, int16_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, int32_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, int64_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, uint8_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, uint16_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, uint32_t>::optimize(uint64_t, uint64_t);
+    template void linear_compress_numeric<uint64_t, uint64_t>::optimize(uint64_t, uint64_t);
+
+    template void linear_compress_numeric<float, int8_t>::optimize(float, float);
+    template void linear_compress_numeric<float, int16_t>::optimize(float, float);
+    template void linear_compress_numeric<float, int32_t>::optimize(float, float);
+    template void linear_compress_numeric<float, int64_t>::optimize(float, float);
+    template void linear_compress_numeric<float, uint8_t>::optimize(float, float);
+    template void linear_compress_numeric<float, uint16_t>::optimize(float, float);
+    template void linear_compress_numeric<float, uint32_t>::optimize(float, float);
+    template void linear_compress_numeric<float, uint64_t>::optimize(float, float);
+
+    template void linear_compress_numeric<double, int8_t>::optimize(double, double);
+    template void linear_compress_numeric<double, int16_t>::optimize(double, double);
+    template void linear_compress_numeric<double, int32_t>::optimize(double, double);
+    template void linear_compress_numeric<double, int64_t>::optimize(double, double);
+    template void linear_compress_numeric<double, uint8_t>::optimize(double, double);
+    template void linear_compress_numeric<double, uint16_t>::optimize(double, double);
+    template void linear_compress_numeric<double, uint32_t>::optimize(double, double);
+    template void linear_compress_numeric<double, uint64_t>::optimize(double, double);
+#endif
+
+template <class T_domain, class T_range>
+T_range
+linear_compress_numeric<T_domain, T_range>::compress(T_domain in_val) const {
+    const auto range_t_min = static_cast<intermediate_t>(std::numeric_limits<T_range>::lowest());
+    const auto range_t_max = static_cast<intermediate_t>(std::numeric_limits<T_range>::max());
+
+    if constexpr (std::is_floating_point<T_domain>::value){
+        if( !std::isfinite(in_val)
+        &&  !std::numeric_limits<T_range>::has_infinity ){
+            throw std::invalid_argument("Destination type is not able to handle non-finite inputs");
+        }
+    }
+
+    const auto l_val = static_cast<intermediate_t>(in_val);
+    if( (l_val < this->domain_min) || (this->domain_max < l_val) ){
+        throw std::invalid_argument("Input exceeds T_domain, cannot convert");
+    }
+
+    auto inv_scaled = (l_val - this->intercept) * this->inv_slope;
+    if( !std::isfinite(inv_scaled) ){
+        throw std::invalid_argument("Input overflowed during compression, unable to continue");
+    }
+    if constexpr (!std::is_floating_point<T_range>::value){
+        inv_scaled = std::round(inv_scaled);
+    }
+
+    const auto out = std::clamp( inv_scaled, range_t_min, range_t_max );
+
+    return static_cast<T_range>(out);
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template int8_t   linear_compress_numeric<int8_t, int8_t>::compress(int8_t) const;
+    template int16_t  linear_compress_numeric<int8_t, int16_t>::compress(int8_t) const;
+    template int32_t  linear_compress_numeric<int8_t, int32_t>::compress(int8_t) const;
+    template int64_t  linear_compress_numeric<int8_t, int64_t>::compress(int8_t) const;
+    template uint8_t  linear_compress_numeric<int8_t, uint8_t>::compress(int8_t) const;
+    template uint16_t linear_compress_numeric<int8_t, uint16_t>::compress(int8_t) const;
+    template uint32_t linear_compress_numeric<int8_t, uint32_t>::compress(int8_t) const;
+    template uint64_t linear_compress_numeric<int8_t, uint64_t>::compress(int8_t) const;
+                     
+    template int8_t   linear_compress_numeric<int16_t, int8_t>::compress(int16_t) const;
+    template int16_t  linear_compress_numeric<int16_t, int16_t>::compress(int16_t) const;
+    template int32_t  linear_compress_numeric<int16_t, int32_t>::compress(int16_t) const;
+    template int64_t  linear_compress_numeric<int16_t, int64_t>::compress(int16_t) const;
+    template uint8_t  linear_compress_numeric<int16_t, uint8_t>::compress(int16_t) const;
+    template uint16_t linear_compress_numeric<int16_t, uint16_t>::compress(int16_t) const;
+    template uint32_t linear_compress_numeric<int16_t, uint32_t>::compress(int16_t) const;
+    template uint64_t linear_compress_numeric<int16_t, uint64_t>::compress(int16_t) const;
+                     
+    template int8_t   linear_compress_numeric<int32_t, int8_t>::compress(int32_t) const;
+    template int16_t  linear_compress_numeric<int32_t, int16_t>::compress(int32_t) const;
+    template int32_t  linear_compress_numeric<int32_t, int32_t>::compress(int32_t) const;
+    template int64_t  linear_compress_numeric<int32_t, int64_t>::compress(int32_t) const;
+    template uint8_t  linear_compress_numeric<int32_t, uint8_t>::compress(int32_t) const;
+    template uint16_t linear_compress_numeric<int32_t, uint16_t>::compress(int32_t) const;
+    template uint32_t linear_compress_numeric<int32_t, uint32_t>::compress(int32_t) const;
+    template uint64_t linear_compress_numeric<int32_t, uint64_t>::compress(int32_t) const;
+                     
+    template int8_t   linear_compress_numeric<int64_t, int8_t>::compress(int64_t) const;
+    template int16_t  linear_compress_numeric<int64_t, int16_t>::compress(int64_t) const;
+    template int32_t  linear_compress_numeric<int64_t, int32_t>::compress(int64_t) const;
+    template int64_t  linear_compress_numeric<int64_t, int64_t>::compress(int64_t) const;
+    template uint8_t  linear_compress_numeric<int64_t, uint8_t>::compress(int64_t) const;
+    template uint16_t linear_compress_numeric<int64_t, uint16_t>::compress(int64_t) const;
+    template uint32_t linear_compress_numeric<int64_t, uint32_t>::compress(int64_t) const;
+    template uint64_t linear_compress_numeric<int64_t, uint64_t>::compress(int64_t) const;
+                     
+    template int8_t   linear_compress_numeric<uint8_t, int8_t>::compress(uint8_t) const;
+    template int16_t  linear_compress_numeric<uint8_t, int16_t>::compress(uint8_t) const;
+    template int32_t  linear_compress_numeric<uint8_t, int32_t>::compress(uint8_t) const;
+    template int64_t  linear_compress_numeric<uint8_t, int64_t>::compress(uint8_t) const;
+    template uint8_t  linear_compress_numeric<uint8_t, uint8_t>::compress(uint8_t) const;
+    template uint16_t linear_compress_numeric<uint8_t, uint16_t>::compress(uint8_t) const;
+    template uint32_t linear_compress_numeric<uint8_t, uint32_t>::compress(uint8_t) const;
+    template uint64_t linear_compress_numeric<uint8_t, uint64_t>::compress(uint8_t) const;
+                     
+    template int8_t   linear_compress_numeric<uint16_t, int8_t>::compress(uint16_t) const;
+    template int16_t  linear_compress_numeric<uint16_t, int16_t>::compress(uint16_t) const;
+    template int32_t  linear_compress_numeric<uint16_t, int32_t>::compress(uint16_t) const;
+    template int64_t  linear_compress_numeric<uint16_t, int64_t>::compress(uint16_t) const;
+    template uint8_t  linear_compress_numeric<uint16_t, uint8_t>::compress(uint16_t) const;
+    template uint16_t linear_compress_numeric<uint16_t, uint16_t>::compress(uint16_t) const;
+    template uint32_t linear_compress_numeric<uint16_t, uint32_t>::compress(uint16_t) const;
+    template uint64_t linear_compress_numeric<uint16_t, uint64_t>::compress(uint16_t) const;
+                     
+    template int8_t   linear_compress_numeric<uint32_t, int8_t>::compress(uint32_t) const;
+    template int16_t  linear_compress_numeric<uint32_t, int16_t>::compress(uint32_t) const;
+    template int32_t  linear_compress_numeric<uint32_t, int32_t>::compress(uint32_t) const;
+    template int64_t  linear_compress_numeric<uint32_t, int64_t>::compress(uint32_t) const;
+    template uint8_t  linear_compress_numeric<uint32_t, uint8_t>::compress(uint32_t) const;
+    template uint16_t linear_compress_numeric<uint32_t, uint16_t>::compress(uint32_t) const;
+    template uint32_t linear_compress_numeric<uint32_t, uint32_t>::compress(uint32_t) const;
+    template uint64_t linear_compress_numeric<uint32_t, uint64_t>::compress(uint32_t) const;
+                     
+    template int8_t   linear_compress_numeric<uint64_t, int8_t>::compress(uint64_t) const;
+    template int16_t  linear_compress_numeric<uint64_t, int16_t>::compress(uint64_t) const;
+    template int32_t  linear_compress_numeric<uint64_t, int32_t>::compress(uint64_t) const;
+    template int64_t  linear_compress_numeric<uint64_t, int64_t>::compress(uint64_t) const;
+    template uint8_t  linear_compress_numeric<uint64_t, uint8_t>::compress(uint64_t) const;
+    template uint16_t linear_compress_numeric<uint64_t, uint16_t>::compress(uint64_t) const;
+    template uint32_t linear_compress_numeric<uint64_t, uint32_t>::compress(uint64_t) const;
+    template uint64_t linear_compress_numeric<uint64_t, uint64_t>::compress(uint64_t) const;
+                     
+    template int8_t   linear_compress_numeric<float, int8_t>::compress(float) const;
+    template int16_t  linear_compress_numeric<float, int16_t>::compress(float) const;
+    template int32_t  linear_compress_numeric<float, int32_t>::compress(float) const;
+    template int64_t  linear_compress_numeric<float, int64_t>::compress(float) const;
+    template uint8_t  linear_compress_numeric<float, uint8_t>::compress(float) const;
+    template uint16_t linear_compress_numeric<float, uint16_t>::compress(float) const;
+    template uint32_t linear_compress_numeric<float, uint32_t>::compress(float) const;
+    template uint64_t linear_compress_numeric<float, uint64_t>::compress(float) const;
+                     
+    template int8_t   linear_compress_numeric<double, int8_t>::compress(double) const;
+    template int16_t  linear_compress_numeric<double, int16_t>::compress(double) const;
+    template int32_t  linear_compress_numeric<double, int32_t>::compress(double) const;
+    template int64_t  linear_compress_numeric<double, int64_t>::compress(double) const;
+    template uint8_t  linear_compress_numeric<double, uint8_t>::compress(double) const;
+    template uint16_t linear_compress_numeric<double, uint16_t>::compress(double) const;
+    template uint32_t linear_compress_numeric<double, uint32_t>::compress(double) const;
+    template uint64_t linear_compress_numeric<double, uint64_t>::compress(double) const;
+#endif
+
+template <class T_domain, class T_range>
+T_domain
+linear_compress_numeric<T_domain, T_range>::decompress(T_range in_val,
+                                                       bool clamp_to_domain ) const {
+    const auto domain_t_min = static_cast<intermediate_t>(std::numeric_limits<T_domain>::lowest());
+    const auto domain_t_max = static_cast<intermediate_t>(std::numeric_limits<T_domain>::max());
+
+    const auto l_val = static_cast<intermediate_t>(in_val);
+    auto out = static_cast<T_domain>(std::clamp(l_val * this->slope + this->intercept, domain_t_min, domain_t_max));
+    if( !std::isfinite(out) ){
+        throw std::invalid_argument("Input overflowed during compression, unable to continue");
+    }
+
+    if( clamp_to_domain ){
+        out = std::clamp(out, this->domain_min, this->domain_max);
+    }else if( (out < this->domain_min)
+          ||  (this->domain_max < out) ){
+        throw std::invalid_argument("Decompressed input exceeds T_domain, cannot convert");
+    }
+
+    return out;
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template int8_t  linear_compress_numeric<int8_t, int8_t>::decompress(int8_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, int16_t>::decompress(int16_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, int32_t>::decompress(int32_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, int64_t>::decompress(int64_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, uint8_t>::decompress(uint8_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, uint16_t>::decompress(uint16_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, uint32_t>::decompress(uint32_t, bool) const;
+    template int8_t  linear_compress_numeric<int8_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template int16_t  linear_compress_numeric<int16_t, int8_t>::decompress(int8_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, int16_t>::decompress(int16_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, int32_t>::decompress(int32_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, int64_t>::decompress(int64_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, uint8_t>::decompress(uint8_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, uint16_t>::decompress(uint16_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, uint32_t>::decompress(uint32_t, bool) const;
+    template int16_t  linear_compress_numeric<int16_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template int32_t  linear_compress_numeric<int32_t, int8_t>::decompress(int8_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, int16_t>::decompress(int16_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, int32_t>::decompress(int32_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, int64_t>::decompress(int64_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, uint8_t>::decompress(uint8_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, uint16_t>::decompress(uint16_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, uint32_t>::decompress(uint32_t, bool) const;
+    template int32_t  linear_compress_numeric<int32_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template int64_t  linear_compress_numeric<int64_t, int8_t>::decompress(int8_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, int16_t>::decompress(int16_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, int32_t>::decompress(int32_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, int64_t>::decompress(int64_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, uint8_t>::decompress(uint8_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, uint16_t>::decompress(uint16_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, uint32_t>::decompress(uint32_t, bool) const;
+    template int64_t  linear_compress_numeric<int64_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template uint8_t  linear_compress_numeric<uint8_t, int8_t>::decompress(int8_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, int16_t>::decompress(int16_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, int32_t>::decompress(int32_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, int64_t>::decompress(int64_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, uint8_t>::decompress(uint8_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, uint16_t>::decompress(uint16_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, uint32_t>::decompress(uint32_t, bool) const;
+    template uint8_t  linear_compress_numeric<uint8_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template uint16_t  linear_compress_numeric<uint16_t, int8_t>::decompress(int8_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, int16_t>::decompress(int16_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, int32_t>::decompress(int32_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, int64_t>::decompress(int64_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, uint8_t>::decompress(uint8_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, uint16_t>::decompress(uint16_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, uint32_t>::decompress(uint32_t, bool) const;
+    template uint16_t  linear_compress_numeric<uint16_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template uint32_t  linear_compress_numeric<uint32_t, int8_t>::decompress(int8_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, int16_t>::decompress(int16_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, int32_t>::decompress(int32_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, int64_t>::decompress(int64_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, uint8_t>::decompress(uint8_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, uint16_t>::decompress(uint16_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, uint32_t>::decompress(uint32_t, bool) const;
+    template uint32_t  linear_compress_numeric<uint32_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template uint64_t  linear_compress_numeric<uint64_t, int8_t>::decompress(int8_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, int16_t>::decompress(int16_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, int32_t>::decompress(int32_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, int64_t>::decompress(int64_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, uint8_t>::decompress(uint8_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, uint16_t>::decompress(uint16_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, uint32_t>::decompress(uint32_t, bool) const;
+    template uint64_t  linear_compress_numeric<uint64_t, uint64_t>::decompress(uint64_t, bool) const;
+
+    template float  linear_compress_numeric<float, int8_t>::decompress(int8_t, bool) const;
+    template float  linear_compress_numeric<float, int16_t>::decompress(int16_t, bool) const;
+    template float  linear_compress_numeric<float, int32_t>::decompress(int32_t, bool) const;
+    template float  linear_compress_numeric<float, int64_t>::decompress(int64_t, bool) const;
+    template float  linear_compress_numeric<float, uint8_t>::decompress(uint8_t, bool) const;
+    template float  linear_compress_numeric<float, uint16_t>::decompress(uint16_t, bool) const;
+    template float  linear_compress_numeric<float, uint32_t>::decompress(uint32_t, bool) const;
+    template float  linear_compress_numeric<float, uint64_t>::decompress(uint64_t, bool) const;
+
+    template double linear_compress_numeric<double, int8_t>::decompress(int8_t, bool) const;
+    template double linear_compress_numeric<double, int16_t>::decompress(int16_t, bool) const;
+    template double linear_compress_numeric<double, int32_t>::decompress(int32_t, bool) const;
+    template double linear_compress_numeric<double, int64_t>::decompress(int64_t, bool) const;
+    template double linear_compress_numeric<double, uint8_t>::decompress(uint8_t, bool) const;
+    template double linear_compress_numeric<double, uint16_t>::decompress(uint16_t, bool) const;
+    template double linear_compress_numeric<double, uint32_t>::decompress(uint32_t, bool) const;
+    template double linear_compress_numeric<double, uint64_t>::decompress(uint64_t, bool) const;
+#endif
+
+
+template <class T_domain, class T_range>
+template <class Y>
+Y
+linear_compress_numeric<T_domain, T_range>::decompress_as(T_range in_val) const {
+    const auto l_val = static_cast<Y>(in_val);
+    const auto l_slope = static_cast<Y>(this->slope);
+    const auto l_intercept = static_cast<Y>(this->intercept);
+    return l_val * l_slope + l_intercept;
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template float linear_compress_numeric<int8_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<int8_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<int8_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<int8_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<int8_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<int8_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<int8_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<int8_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<int16_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<int16_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<int16_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<int16_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<int16_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<int16_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<int16_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<int16_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<int32_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<int32_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<int32_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<int32_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<int32_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<int32_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<int32_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<int32_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<int64_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<int64_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<int64_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<int64_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<int64_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<int64_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<int64_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<int64_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<uint8_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<uint8_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<uint8_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<uint8_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<uint8_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<uint8_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<uint8_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<uint8_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<uint16_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<uint16_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<uint16_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<uint16_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<uint16_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<uint16_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<uint16_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<uint16_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<uint32_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<uint32_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<uint32_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<uint32_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<uint32_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<uint32_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<uint32_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<uint32_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<uint64_t, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<uint64_t, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<uint64_t, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<uint64_t, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<uint64_t, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<uint64_t, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<uint64_t, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<uint64_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<float, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<float, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<float, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<float, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<float, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<float, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<float, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<float, uint64_t>::decompress_as(uint64_t) const;
+
+    template float linear_compress_numeric<double, int8_t>::decompress_as(int8_t) const;
+    template float linear_compress_numeric<double, int16_t>::decompress_as(int16_t) const;
+    template float linear_compress_numeric<double, int32_t>::decompress_as(int32_t) const;
+    template float linear_compress_numeric<double, int64_t>::decompress_as(int64_t) const;
+    template float linear_compress_numeric<double, uint8_t>::decompress_as(uint8_t) const;
+    template float linear_compress_numeric<double, uint16_t>::decompress_as(uint16_t) const;
+    template float linear_compress_numeric<double, uint32_t>::decompress_as(uint32_t) const;
+    template float linear_compress_numeric<double, uint64_t>::decompress_as(uint64_t) const;
+
+
+    template double linear_compress_numeric<int8_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<int8_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<int8_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<int8_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<int8_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<int8_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<int8_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<int8_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<int16_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<int16_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<int16_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<int16_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<int16_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<int16_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<int16_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<int16_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<int32_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<int32_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<int32_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<int32_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<int32_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<int32_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<int32_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<int32_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<int64_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<int64_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<int64_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<int64_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<int64_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<int64_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<int64_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<int64_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<uint8_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<uint8_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<uint8_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<uint8_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<uint8_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<uint8_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<uint8_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<uint8_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<uint16_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<uint16_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<uint16_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<uint16_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<uint16_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<uint16_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<uint16_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<uint16_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<uint32_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<uint32_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<uint32_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<uint32_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<uint32_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<uint32_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<uint32_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<uint32_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<uint64_t, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<uint64_t, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<uint64_t, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<uint64_t, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<uint64_t, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<uint64_t, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<uint64_t, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<uint64_t, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<float, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<float, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<float, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<float, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<float, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<float, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<float, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<float, uint64_t>::decompress_as(uint64_t) const;
+
+    template double linear_compress_numeric<double, int8_t>::decompress_as(int8_t) const;
+    template double linear_compress_numeric<double, int16_t>::decompress_as(int16_t) const;
+    template double linear_compress_numeric<double, int32_t>::decompress_as(int32_t) const;
+    template double linear_compress_numeric<double, int64_t>::decompress_as(int64_t) const;
+    template double linear_compress_numeric<double, uint8_t>::decompress_as(uint8_t) const;
+    template double linear_compress_numeric<double, uint16_t>::decompress_as(uint16_t) const;
+    template double linear_compress_numeric<double, uint32_t>::decompress_as(uint32_t) const;
+    template double linear_compress_numeric<double, uint64_t>::decompress_as(uint64_t) const;
+#endif
+
+
+template <class T_domain, class T_range>
+typename linear_compress_numeric<T_domain, T_range>::intermediate_t
+linear_compress_numeric<T_domain, T_range>::get_slope(void) const {
+    return this->slope;
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template typename linear_compress_numeric<int8_t, int8_t>::intermediate_t linear_compress_numeric<int8_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, int16_t>::intermediate_t linear_compress_numeric<int8_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, int32_t>::intermediate_t linear_compress_numeric<int8_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, int64_t>::intermediate_t linear_compress_numeric<int8_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, uint8_t>::intermediate_t linear_compress_numeric<int8_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, uint16_t>::intermediate_t linear_compress_numeric<int8_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, uint32_t>::intermediate_t linear_compress_numeric<int8_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int8_t, uint64_t>::intermediate_t linear_compress_numeric<int8_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<int16_t, int8_t>::intermediate_t linear_compress_numeric<int16_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, int16_t>::intermediate_t linear_compress_numeric<int16_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, int32_t>::intermediate_t linear_compress_numeric<int16_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, int64_t>::intermediate_t linear_compress_numeric<int16_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, uint8_t>::intermediate_t linear_compress_numeric<int16_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, uint16_t>::intermediate_t linear_compress_numeric<int16_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, uint32_t>::intermediate_t linear_compress_numeric<int16_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int16_t, uint64_t>::intermediate_t linear_compress_numeric<int16_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<int32_t, int8_t>::intermediate_t linear_compress_numeric<int32_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, int16_t>::intermediate_t linear_compress_numeric<int32_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, int32_t>::intermediate_t linear_compress_numeric<int32_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, int64_t>::intermediate_t linear_compress_numeric<int32_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, uint8_t>::intermediate_t linear_compress_numeric<int32_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, uint16_t>::intermediate_t linear_compress_numeric<int32_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, uint32_t>::intermediate_t linear_compress_numeric<int32_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int32_t, uint64_t>::intermediate_t linear_compress_numeric<int32_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<int64_t, int8_t>::intermediate_t linear_compress_numeric<int64_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, int16_t>::intermediate_t linear_compress_numeric<int64_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, int32_t>::intermediate_t linear_compress_numeric<int64_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, int64_t>::intermediate_t linear_compress_numeric<int64_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, uint8_t>::intermediate_t linear_compress_numeric<int64_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, uint16_t>::intermediate_t linear_compress_numeric<int64_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, uint32_t>::intermediate_t linear_compress_numeric<int64_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<int64_t, uint64_t>::intermediate_t linear_compress_numeric<int64_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<uint8_t, int8_t>::intermediate_t linear_compress_numeric<uint8_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, int16_t>::intermediate_t linear_compress_numeric<uint8_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, int32_t>::intermediate_t linear_compress_numeric<uint8_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, int64_t>::intermediate_t linear_compress_numeric<uint8_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, uint8_t>::intermediate_t linear_compress_numeric<uint8_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, uint16_t>::intermediate_t linear_compress_numeric<uint8_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, uint32_t>::intermediate_t linear_compress_numeric<uint8_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint8_t, uint64_t>::intermediate_t linear_compress_numeric<uint8_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<uint16_t, int8_t>::intermediate_t linear_compress_numeric<uint16_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, int16_t>::intermediate_t linear_compress_numeric<uint16_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, int32_t>::intermediate_t linear_compress_numeric<uint16_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, int64_t>::intermediate_t linear_compress_numeric<uint16_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, uint8_t>::intermediate_t linear_compress_numeric<uint16_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, uint16_t>::intermediate_t linear_compress_numeric<uint16_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, uint32_t>::intermediate_t linear_compress_numeric<uint16_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint16_t, uint64_t>::intermediate_t linear_compress_numeric<uint16_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<uint32_t, int8_t>::intermediate_t linear_compress_numeric<uint32_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, int16_t>::intermediate_t linear_compress_numeric<uint32_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, int32_t>::intermediate_t linear_compress_numeric<uint32_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, int64_t>::intermediate_t linear_compress_numeric<uint32_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, uint8_t>::intermediate_t linear_compress_numeric<uint32_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, uint16_t>::intermediate_t linear_compress_numeric<uint32_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, uint32_t>::intermediate_t linear_compress_numeric<uint32_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint32_t, uint64_t>::intermediate_t linear_compress_numeric<uint32_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<uint64_t, int8_t>::intermediate_t linear_compress_numeric<uint64_t, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, int16_t>::intermediate_t linear_compress_numeric<uint64_t, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, int32_t>::intermediate_t linear_compress_numeric<uint64_t, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, int64_t>::intermediate_t linear_compress_numeric<uint64_t, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, uint8_t>::intermediate_t linear_compress_numeric<uint64_t, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, uint16_t>::intermediate_t linear_compress_numeric<uint64_t, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, uint32_t>::intermediate_t linear_compress_numeric<uint64_t, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<uint64_t, uint64_t>::intermediate_t linear_compress_numeric<uint64_t, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<float, int8_t>::intermediate_t linear_compress_numeric<float, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, int16_t>::intermediate_t linear_compress_numeric<float, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, int32_t>::intermediate_t linear_compress_numeric<float, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, int64_t>::intermediate_t linear_compress_numeric<float, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, uint8_t>::intermediate_t linear_compress_numeric<float, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, uint16_t>::intermediate_t linear_compress_numeric<float, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, uint32_t>::intermediate_t linear_compress_numeric<float, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<float, uint64_t>::intermediate_t linear_compress_numeric<float, uint64_t>::get_slope(void) const;
+
+    template typename linear_compress_numeric<double, int8_t>::intermediate_t linear_compress_numeric<double, int8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, int16_t>::intermediate_t linear_compress_numeric<double, int16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, int32_t>::intermediate_t linear_compress_numeric<double, int32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, int64_t>::intermediate_t linear_compress_numeric<double, int64_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, uint8_t>::intermediate_t linear_compress_numeric<double, uint8_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, uint16_t>::intermediate_t linear_compress_numeric<double, uint16_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, uint32_t>::intermediate_t linear_compress_numeric<double, uint32_t>::get_slope(void) const;
+    template typename linear_compress_numeric<double, uint64_t>::intermediate_t linear_compress_numeric<double, uint64_t>::get_slope(void) const;
+#endif
+
+template <class T_domain, class T_range>
+typename linear_compress_numeric<T_domain, T_range>::intermediate_t
+linear_compress_numeric<T_domain, T_range>::get_intercept(void) const {
+    return this->intercept;
+}
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
+    template typename linear_compress_numeric<int8_t, int8_t>::intermediate_t linear_compress_numeric<int8_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, int16_t>::intermediate_t linear_compress_numeric<int8_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, int32_t>::intermediate_t linear_compress_numeric<int8_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, int64_t>::intermediate_t linear_compress_numeric<int8_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, uint8_t>::intermediate_t linear_compress_numeric<int8_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, uint16_t>::intermediate_t linear_compress_numeric<int8_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, uint32_t>::intermediate_t linear_compress_numeric<int8_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int8_t, uint64_t>::intermediate_t linear_compress_numeric<int8_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<int16_t, int8_t>::intermediate_t linear_compress_numeric<int16_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, int16_t>::intermediate_t linear_compress_numeric<int16_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, int32_t>::intermediate_t linear_compress_numeric<int16_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, int64_t>::intermediate_t linear_compress_numeric<int16_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, uint8_t>::intermediate_t linear_compress_numeric<int16_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, uint16_t>::intermediate_t linear_compress_numeric<int16_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, uint32_t>::intermediate_t linear_compress_numeric<int16_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int16_t, uint64_t>::intermediate_t linear_compress_numeric<int16_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<int32_t, int8_t>::intermediate_t linear_compress_numeric<int32_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, int16_t>::intermediate_t linear_compress_numeric<int32_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, int32_t>::intermediate_t linear_compress_numeric<int32_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, int64_t>::intermediate_t linear_compress_numeric<int32_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, uint8_t>::intermediate_t linear_compress_numeric<int32_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, uint16_t>::intermediate_t linear_compress_numeric<int32_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, uint32_t>::intermediate_t linear_compress_numeric<int32_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int32_t, uint64_t>::intermediate_t linear_compress_numeric<int32_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<int64_t, int8_t>::intermediate_t linear_compress_numeric<int64_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, int16_t>::intermediate_t linear_compress_numeric<int64_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, int32_t>::intermediate_t linear_compress_numeric<int64_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, int64_t>::intermediate_t linear_compress_numeric<int64_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, uint8_t>::intermediate_t linear_compress_numeric<int64_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, uint16_t>::intermediate_t linear_compress_numeric<int64_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, uint32_t>::intermediate_t linear_compress_numeric<int64_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<int64_t, uint64_t>::intermediate_t linear_compress_numeric<int64_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<uint8_t, int8_t>::intermediate_t linear_compress_numeric<uint8_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, int16_t>::intermediate_t linear_compress_numeric<uint8_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, int32_t>::intermediate_t linear_compress_numeric<uint8_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, int64_t>::intermediate_t linear_compress_numeric<uint8_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, uint8_t>::intermediate_t linear_compress_numeric<uint8_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, uint16_t>::intermediate_t linear_compress_numeric<uint8_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, uint32_t>::intermediate_t linear_compress_numeric<uint8_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint8_t, uint64_t>::intermediate_t linear_compress_numeric<uint8_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<uint16_t, int8_t>::intermediate_t linear_compress_numeric<uint16_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, int16_t>::intermediate_t linear_compress_numeric<uint16_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, int32_t>::intermediate_t linear_compress_numeric<uint16_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, int64_t>::intermediate_t linear_compress_numeric<uint16_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, uint8_t>::intermediate_t linear_compress_numeric<uint16_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, uint16_t>::intermediate_t linear_compress_numeric<uint16_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, uint32_t>::intermediate_t linear_compress_numeric<uint16_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint16_t, uint64_t>::intermediate_t linear_compress_numeric<uint16_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<uint32_t, int8_t>::intermediate_t linear_compress_numeric<uint32_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, int16_t>::intermediate_t linear_compress_numeric<uint32_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, int32_t>::intermediate_t linear_compress_numeric<uint32_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, int64_t>::intermediate_t linear_compress_numeric<uint32_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, uint8_t>::intermediate_t linear_compress_numeric<uint32_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, uint16_t>::intermediate_t linear_compress_numeric<uint32_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, uint32_t>::intermediate_t linear_compress_numeric<uint32_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint32_t, uint64_t>::intermediate_t linear_compress_numeric<uint32_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<uint64_t, int8_t>::intermediate_t linear_compress_numeric<uint64_t, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, int16_t>::intermediate_t linear_compress_numeric<uint64_t, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, int32_t>::intermediate_t linear_compress_numeric<uint64_t, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, int64_t>::intermediate_t linear_compress_numeric<uint64_t, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, uint8_t>::intermediate_t linear_compress_numeric<uint64_t, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, uint16_t>::intermediate_t linear_compress_numeric<uint64_t, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, uint32_t>::intermediate_t linear_compress_numeric<uint64_t, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<uint64_t, uint64_t>::intermediate_t linear_compress_numeric<uint64_t, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<float, int8_t>::intermediate_t linear_compress_numeric<float, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, int16_t>::intermediate_t linear_compress_numeric<float, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, int32_t>::intermediate_t linear_compress_numeric<float, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, int64_t>::intermediate_t linear_compress_numeric<float, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, uint8_t>::intermediate_t linear_compress_numeric<float, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, uint16_t>::intermediate_t linear_compress_numeric<float, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, uint32_t>::intermediate_t linear_compress_numeric<float, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<float, uint64_t>::intermediate_t linear_compress_numeric<float, uint64_t>::get_intercept(void) const;
+
+    template typename linear_compress_numeric<double, int8_t>::intermediate_t linear_compress_numeric<double, int8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, int16_t>::intermediate_t linear_compress_numeric<double, int16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, int32_t>::intermediate_t linear_compress_numeric<double, int32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, int64_t>::intermediate_t linear_compress_numeric<double, int64_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, uint8_t>::intermediate_t linear_compress_numeric<double, uint8_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, uint16_t>::intermediate_t linear_compress_numeric<double, uint16_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, uint32_t>::intermediate_t linear_compress_numeric<double, uint32_t>::get_intercept(void) const;
+    template typename linear_compress_numeric<double, uint64_t>::intermediate_t linear_compress_numeric<double, uint64_t>::get_intercept(void) const;
+#endif
+
+
+// --------------
 
 //Dump raw pixel data to file as type T.
 //
@@ -106,7 +999,7 @@ Dump_Pixels(const planar_image<T,R> &img,
     FO.close();
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template bool Dump_Pixels(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
     template bool Dump_Pixels(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
     template bool Dump_Pixels(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
@@ -146,6 +1039,12 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
     std::ofstream FO(filename, std::ios::out | std::ios::binary);
     if(!FO) return false;
 
+    linear_compress_numeric<T,Y> compressor;
+    if(scaling == YgorImageIOPixelScaling::TypeMinMax){
+        compressor.optimize( std::numeric_limits<T>::lowest(),
+                             std::numeric_limits<T>::max() );
+    }
+
     for(auto row = 0; row < img.rows; ++row){
         for(auto col = 0; col < img.columns; ++col){
             for(auto chan = 0; chan < img.channels; ++chan){
@@ -156,7 +1055,7 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
  
                 //Scale and cast the value instead, iff the user wants to.
                 if(scaling == YgorImageIOPixelScaling::TypeMinMax){
-                    valY = Ygor_Scale_With_Type_Range<Y,T>(valT);
+                    valY = compressor.compress(valT);
                 }
 
                 unsigned char *c = reinterpret_cast<unsigned char *>(&valY); //c[0] to c[sizeof(Y)-1] only!
@@ -176,7 +1075,7 @@ Dump_Casted_Scaled_Pixels(const planar_image<T,R> &img,
     FO.close();
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template bool Dump_Casted_Scaled_Pixels<uint8_t ,double, uint8_t >(const planar_image<uint8_t ,double> &, const std::string &, 
                                                     YgorImageIOPixelScaling, YgorEndianness);
     template bool Dump_Casted_Scaled_Pixels<uint16_t,double, uint8_t >(const planar_image<uint16_t,double> &, const std::string &, 
@@ -248,7 +1147,7 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
 
     return WriteToFITS<T,R>(imgs_refws, os, userE);
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteToFITS(const planar_image<uint8_t ,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image<uint16_t,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image<uint32_t,double> &, const std::string &, YgorEndianness);
@@ -272,7 +1171,7 @@ bool WriteToFITS(const planar_image_collection<T,R> &imgcoll, const std::string 
 
     return WriteToFITS<T,R>(imgs_refws, os, userE);
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteToFITS(const planar_image_collection<uint8_t ,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image_collection<uint16_t,double> &, const std::string &, YgorEndianness);
     template bool WriteToFITS(const planar_image_collection<uint32_t,double> &, const std::string &, YgorEndianness);
@@ -571,7 +1470,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
     os.flush();
     return true;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<uint8_t ,double>>> &, std::ostream &, YgorEndianness);
     template bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<uint16_t,double>>> &, std::ostream &, YgorEndianness);
     template bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<uint32_t,double>>> &, std::ostream &, YgorEndianness);
@@ -591,7 +1490,7 @@ ReadFromFITS(const std::string &filename, YgorEndianness userE){
     }
     return ReadFromFITS<T,R>(is, userE);
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template planar_image_collection<uint8_t ,double> ReadFromFITS(const std::string &, YgorEndianness);
     template planar_image_collection<uint16_t,double> ReadFromFITS(const std::string &, YgorEndianness);
     template planar_image_collection<uint32_t,double> ReadFromFITS(const std::string &, YgorEndianness);
@@ -1129,7 +2028,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
 
     return imgcoll;
 }
-#ifndef YGOR_IMAGES_IO_INCLUDE_ALL_SPECIALIZATIONS
+#ifndef YGOR_IMAGES_IO_DISABLE_ALL_SPECIALIZATIONS
     template planar_image_collection<uint8_t ,double> ReadFromFITS(std::istream &, YgorEndianness);
     template planar_image_collection<uint16_t,double> ReadFromFITS(std::istream &, YgorEndianness);
     template planar_image_collection<uint32_t,double> ReadFromFITS(std::istream &, YgorEndianness);

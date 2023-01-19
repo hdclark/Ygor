@@ -9,6 +9,7 @@
 #include <ostream>
 #include <functional>
 #include <list>
+#include <utility>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -16,11 +17,63 @@
 
 #include "YgorImages.h"
 
-//This enum is used to specify which type of pixel scaling should be used.
-enum YgorImageIOPixelScaling {
-    None,         // No scaling performed.
-    TypeMinMax    // Scaling using the min and max of the origin and destination types.
+
+// --------------
+
+// This class finds a minimally-lossy compression conversion from numbers in a floating-point type (e.g., float, double)
+// to a smaller integer type (e.g., int8_t, int16_t, uint32_t, ...) that can be (approximately) reconstituted using a
+// common, static, linear transformation.
+//
+// This class is designed to be used when writing images with floating-point pixel intensities to a file type that
+// requires integer-valued pixel intensities, but which can also embed a linear transformation to help
+// reconstitute/convert to the original type and range.
+template <class T_domain, class T_range>
+class linear_compress_numeric {
+    public:
+        using domain_t = T_domain;            // The inputs, often a floating-point type.
+        using range_t  = T_range;             // The outputs, often an integer type, i.e., the 'compressed' values.
+        using intermediate_t = long double;   // Should be floating point and wider-or-same as range and domain types.
+
+    private:
+        intermediate_t slope;
+        intermediate_t inv_slope;
+        intermediate_t intercept;
+
+        T_domain domain_min;
+        T_domain domain_max;
+
+    public:
+        linear_compress_numeric();
+
+        // Find a transformation from the domain type ("A", e.g., float) to another type ("B", e.g., int16_t) by finding
+        // a linear transformation (i.e., slope and intercept) that maps the full range of type B to the specified
+        // domain of type "A".
+        void optimize(T_domain domain_min = std::numeric_limits<T_domain>::lowest(),
+                      T_domain domain_max = std::numeric_limits<T_domain>::max() );
+
+        // Apply the inverse of the linear transformation to the domain type. If the range type "B" is less precise than
+        // type "A" then this will compress the inputs in a lossy way.
+        T_range compress(T_domain in_val) const;
+
+        // Apply the linear transformation to recover the original domain type, approximately.
+        //
+        // Either throws when decompresses outside of domain, or clamps output to the domain.
+        T_domain decompress(T_range in_val,
+                            bool clamp_to_domain = false) const;
+
+        // Apply the linear transformation to recover the original domain type, approximately, but do so by first
+        // converting the transformation to a given type. This is useful to simulate how a given input will
+        // round-trip when using a limited-precision copy of the transformation.
+        //
+        // Either throws when decompresses outside of domain, or clamps output to the domain.
+        template<class Y>
+        Y decompress_as(T_range in_val) const;
+
+        // Retrieve the transformation.
+        intermediate_t get_slope(void) const;
+        intermediate_t get_intercept(void) const;
 };
+
 
 // --------------
 
@@ -30,6 +83,12 @@ bool
 Dump_Pixels(const planar_image<T,R> &img,
             const std::string &filename,
             YgorEndianness destendian = YgorEndianness::Little);
+
+//This enum is used to specify which type of pixel scaling should be used.
+enum YgorImageIOPixelScaling {
+    None,         // No scaling performed.
+    TypeMinMax    // Scaling using the min and max of the origin and destination types.
+};
 
 //Dump raw pixel data to file, but static_cast to type Y and possibly autoscaled to fill
 // the range of type Y (scaling proportionally to the min and max of type T).
