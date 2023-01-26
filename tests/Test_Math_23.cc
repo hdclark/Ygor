@@ -13,6 +13,7 @@
 
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorStats.h"
 #include "YgorPlot.h"

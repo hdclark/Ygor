@@ -5,6 +5,7 @@
 #include <limits>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 
 int main(int, char **){
   

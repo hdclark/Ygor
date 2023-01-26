@@ -16,6 +16,7 @@
 #include "YgorMathChebyshev.h"
 #include "YgorMathChebyshevFunctions.h"
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
+#include "YgorLog.h"
 
 //#ifndef YGORMATHCHEBYSHEVFUNCTIONS_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATHCHEBYSHEVFUNCTIONS_DISABLE_ALL_SPECIALIZATIONS

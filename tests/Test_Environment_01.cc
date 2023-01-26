@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorEnvironment.h"
 
 

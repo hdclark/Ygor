@@ -7,6 +7,7 @@
 #include <cstdint>      //Needed for intmax_t
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorFilesDirs.h"
 
 #include "YgorDICOMTools.h"

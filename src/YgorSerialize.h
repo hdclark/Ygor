@@ -26,6 +26,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 
 
 //This macro function simplifies error reporting in many use-cases of the

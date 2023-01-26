@@ -32,6 +32,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorSerialize.h"
 
 //#ifndef YGORSERIALIZE_DISABLE_ALL_SPECIALIZATIONS

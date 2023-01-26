@@ -28,6 +28,7 @@
 #include "YgorFilesDirs.h"  //Used in samples_1D<T>::Write_To_File(...).
 #include "YgorMath.h"
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
+#include "YgorLog.h"
 #include "YgorPlot.h"    //A wrapper used for producing plots of contours.
 #include "YgorStats.h"
 #include "YgorString.h"

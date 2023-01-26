@@ -8,6 +8,7 @@
 #include <YgorMath.h>
 #include <YgorMathIOPLY.h>
 #include <YgorMisc.h>
+#include "YgorLog.h"
 
 
 int main(int argc, char **argv){

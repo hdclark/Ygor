@@ -9,6 +9,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorIO.h"
 
 namespace ygor {

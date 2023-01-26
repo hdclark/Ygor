@@ -6,6 +6,7 @@
 #include "md5.h"
 
 #include <YgorMisc.h>
+#include "YgorLog.h"
 #include <YgorFilesDirs.h>
 #include <YgorString.h>
 

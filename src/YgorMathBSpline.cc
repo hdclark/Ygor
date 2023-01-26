@@ -24,6 +24,7 @@
 #include "YgorMath.h"
 #include "YgorMathBSpline.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 
 
 //---------------------------------------------------------------------------------------------------------------------------

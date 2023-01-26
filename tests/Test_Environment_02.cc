@@ -5,6 +5,7 @@
 #include <utility>     //Needed for std::pair.
 
 #include "YgorMisc.h"    //Needed for Execute_Command_In_Pipe.
+#include "YgorLog.h"
 #include "YgorString.h"  //Needed for Xtostring.
 
 #include "YgorEnvironment.h"

@@ -22,6 +22,7 @@
 #include "YgorImages.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorStats.h"    //For Stats::Mean().
 //#include "YgorPlot.h"
 #include "YgorString.h"   //For Is_String_An_X<>().

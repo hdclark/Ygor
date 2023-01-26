@@ -7,6 +7,7 @@
 #include "YgorBase64.h"
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorString.h"
 

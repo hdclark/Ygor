@@ -23,6 +23,7 @@
 #include "YgorAlgorithms.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorPlot.h"
 #include "YgorStats.h"
 #include "YgorString.h"

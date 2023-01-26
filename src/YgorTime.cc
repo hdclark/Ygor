@@ -10,6 +10,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorSerialize.h"
 #include "YgorString.h"
 #include "YgorTime.h"

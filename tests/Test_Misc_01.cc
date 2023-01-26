@@ -1,6 +1,7 @@
 #include <string>
 
 #include "YgorMisc.h"   //Needed for FUNCWARN, FUNCERR, FUNCINFO macros.
+#include "YgorLog.h"
 
 int main(int argc, char **argv){
 

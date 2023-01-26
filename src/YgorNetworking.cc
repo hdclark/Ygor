@@ -129,6 +129,7 @@
 #include "YgorAlgorithms.h"        //Needed for shuffle_list_randomly(...)
 #include "YgorFilesDirs.h"         //Needed for LoadFileToString(...), Size_of_File(...)
 #include "YgorMisc.h"              //Needed for FUNCINFO, FUNCWARN, FUNCERR macro functions.
+#include "YgorLog.h"
 #include "YgorNetworking.h"
 #include "YgorString.h"            //Needed for Xtostring(), some tokenization routines.
 

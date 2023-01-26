@@ -2,6 +2,7 @@
 #include <random>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathPlottingGnuplot.h"
 #include "YgorMathPlottingVTK.h"

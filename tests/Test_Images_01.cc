@@ -3,6 +3,7 @@
 #include <list>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorImages.h"
 #include "YgorImagesIO.h"
@@ -103,7 +104,7 @@ int main(int argc, char **argv){
     const long int COLS  = 1024; //wide image.
     const long int CHNLS = 1;
 
-    imgs.image.back().init_buffer(ROWS, COLS, CHNLS);
+    imgs.images.back().init_buffer(ROWS, COLS, CHNLS);
 
     for(size_t row = 0; row < ROWS; ++row){
         for(size_t col = 0; col < COLS; ++col){
@@ -120,7 +121,7 @@ int main(int argc, char **argv){
 
   if(true){
     auto imgs = ReadFromFITS<float,double>("/tmp/test_image_be.fits");
-    for(const auto& img : imgs) Plot_Pixels(img,0);
+    for(const auto& img : imgs.images) Plot_Pixels(img,0);
   }
 
   if(true){

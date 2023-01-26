@@ -15,6 +15,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
+#include "YgorLog.h"
 #include "YgorString.h"
 #include "YgorEnvironment.h"     //Needed for Get_Terminal_Char_Dimensions();
 

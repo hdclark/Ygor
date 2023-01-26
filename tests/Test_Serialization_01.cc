@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorSerialize.h"
 
 

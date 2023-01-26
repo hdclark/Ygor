@@ -41,6 +41,7 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorPlot.h"
 
 class Plotter2;

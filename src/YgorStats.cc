@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions, Ygor_Container_Sort().
+#include "YgorLog.h"
 #include "YgorContainers.h"
 #include "YgorStats.h"
 

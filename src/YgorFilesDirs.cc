@@ -23,6 +23,7 @@
 #include "YgorDefinitions.h"
 #include "YgorFilesDirs.h"
 #include "YgorMisc.h"    //Needed for FUNCINFO,FUNCWARN,FUNCERR macros.
+#include "YgorLog.h"
 #include "YgorString.h"  //Needed for Xtostring routine.
 
 //#ifndef YGORFILESDIRS_DISABLE_ALL_SPECIALIZATIONS

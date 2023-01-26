@@ -13,6 +13,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 
 #include "YgorImages.h"

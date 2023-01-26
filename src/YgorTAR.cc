@@ -14,6 +14,7 @@
 #include "YgorDefinitions.h"
 #include "YgorString.h"
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorTAR.h"
 
 // Misc helper routines.

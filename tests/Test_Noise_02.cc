@@ -4,6 +4,7 @@
 #include <bitset>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorNoise.h"
 
 

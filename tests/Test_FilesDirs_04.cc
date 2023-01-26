@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorFilesDirs.h"
 
 

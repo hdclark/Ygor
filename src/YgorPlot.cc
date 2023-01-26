@@ -14,6 +14,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
+#include "YgorLog.h"
 #include "YgorPlot.h"
 #include "YgorString.h"
 

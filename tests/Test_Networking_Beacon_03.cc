@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorNetworking.h"
 
 bool Dialog_Simple_Send(int fd, char *host, long int port){

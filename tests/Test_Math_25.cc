@@ -10,6 +10,7 @@
 
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathIOOFF.h"
 #include "YgorMathIOOBJ.h"

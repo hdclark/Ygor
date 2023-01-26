@@ -1,5 +1,6 @@
 //YgorContainers.cc.
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include <algorithm>    //Needed for std::sort(..).
 
 #include "YgorDefinitions.h"

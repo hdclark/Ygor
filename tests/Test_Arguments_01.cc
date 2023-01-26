@@ -4,6 +4,7 @@
 #include <tuple>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorString.h"
 #include "YgorArguments.h"
 

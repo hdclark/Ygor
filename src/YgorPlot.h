@@ -20,6 +20,7 @@
 #include "YgorFilesDirs.h" //Needed for filename checking.
 #include "YgorMath.h"  //Needed for helper plotting routines.
 #include "YgorMisc.h"  //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
+#include "YgorLog.h"
 
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------

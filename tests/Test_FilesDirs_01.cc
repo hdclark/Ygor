@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorFilesDirs.h"
 
 

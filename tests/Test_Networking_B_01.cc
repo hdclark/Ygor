@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorContainers.h"
 
 

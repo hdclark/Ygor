@@ -10,6 +10,7 @@
 #include "YgorDICOMTools.h"
 #include "YgorFilesDirs.h"    //Needed for Does_File_Exist_And_Can_Be_Read(..)
 #include "YgorMisc.h"
+#include "YgorLog.h"
 
 
 //NOTE: This routine should NOT be used for actually parsing the file - this is designed to 

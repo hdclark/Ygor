@@ -4,6 +4,7 @@
 #include <array>
 
 #include <YgorMisc.h>
+#include "YgorLog.h"
 #include <YgorString.h>
 
 #include "doctest/doctest.h"

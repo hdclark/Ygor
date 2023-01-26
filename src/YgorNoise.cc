@@ -7,6 +7,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for some bitwise operations.
+#include "YgorLog.h"
 
 
 //--------------------------------------------------------------------------------------------------------

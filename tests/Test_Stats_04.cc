@@ -7,6 +7,7 @@
 #include <limits>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorStats.h"
 
 

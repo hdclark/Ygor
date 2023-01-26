@@ -6,6 +6,7 @@
 #include <list>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 
     //This routine returns a pair of planes that approximately encompass the desired interior volume. The ROIs are not

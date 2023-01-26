@@ -2,6 +2,7 @@
 #include <string>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorString.h"
 
 

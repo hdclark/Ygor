@@ -28,6 +28,7 @@
 #include <boost/archive/xml_oarchive.hpp>
 
 #include "YgorMisc.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathIOOFF.h"
 #include "YgorMathIOBoostSerialization.h"
