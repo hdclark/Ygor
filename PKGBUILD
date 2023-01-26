@@ -45,7 +45,7 @@ build() {
   # Default build with default compiler flags.
   cmake \
     -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_BUILD_TYPE=Release \
     -DWITH_LINUX_SYS=ON \
     -DWITH_EIGEN=ON \
     -DWITH_GNU_GSL=ON \
