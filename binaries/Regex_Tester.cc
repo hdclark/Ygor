@@ -5,40 +5,12 @@
 #include <string>
 #include <vector>
 #include <regex>
-#include <chrono>
-#include <thread>
 
 #include "YgorFilesDirs.h"
 #include "YgorString.h"
-#include "YgorLog.h"
 
 
 int main(int argc, char **argv){
-{
-double xyz = 123.0;
-YLOGINFO("This is a test, here is a number " << xyz);
-
-auto c = [](ygor::log_message msg) -> void {
-    std::cout << "Callback for msg '" << msg.msg << "'" << std::endl;
-    return;
-};
-
-ygor::g_logger.push_local_callback( std::move(c) );
-
-YLOGWARN("This is a test, which should also invoke the callback");
-if(!ygor::g_logger.pop_local_callback()){
-    YLOGERR("Unable to pop callback");
-}
-if(ygor::g_logger.pop_local_callback()){
-    YLOGERR("Able to pop non-existent callback");
-}
-YLOGERR("OK, testing error logging of ERRs");
-
-
-using namespace std::chrono_literals;
-std::this_thread::sleep_for(2000ms);
-}
-
     std::string Source;
 
     // Check to see if a file has been passed, containing the sample text.
@@ -54,6 +26,7 @@ std::this_thread::sleep_for(2000ms);
         std::cout << "NOTE: Source text can also be passed in as a filename argument or as an argument to this program." << std::endl;
         std::getline(std::cin, Source);
     }
+
     std::cout << Source << std::endl;
 
     while(true){
