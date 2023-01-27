@@ -46,44 +46,44 @@ int main(int argc, char **argv){
     } 
 
     {
-      FUNCINFO("---- Comparing P_From_Pearsons_Linear_Correlation_Coeff_2Tail() to table values ----");
+      YLOGINFO("---- Comparing P_From_Pearsons_Linear_Correlation_Coeff_2Tail() to table values ----");
       double pval;
       
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.3, 6.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.56");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.56");
 
       //pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.3, 100.0);
-      //FUNCINFO("P-value = " << pval << "   <--- should be close to 0.14");
+      //YLOGINFO("P-value = " << pval << "   <--- should be close to 0.14");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.8, 3.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.41");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.41");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.1, 12.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.76");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.76");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(1.0, 5.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.0");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.0");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(1.0, 35.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.0");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.0");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.0, 5.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 1.0");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 1.0");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.0, 35.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 1.0");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 1.0");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.4, 19.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.09");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.09");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.6, 25.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.002");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.002");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.5, 40.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.001");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.001");
 
       pval = Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(0.7, 12.0);
-      FUNCINFO("P-value = " << pval << "   <--- should be close to 0.011");
+      YLOGINFO("P-value = " << pval << "   <--- should be close to 0.011");
 
 
 

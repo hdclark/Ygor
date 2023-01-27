@@ -265,7 +265,7 @@ template <class T> class NMSimplex{
 //template <class T>
 //void For_Each_In_Parallel(T it, T end, std::function< void ( T )> Task){
 //    if(! Task ){
-//        FUNCWARN("Task passed in is not valid. Unable to perform any task. Continuing");
+//        YLOGWARN("Task passed in is not valid. Unable to perform any task. Continuing");
 //        return;
 //    }
 

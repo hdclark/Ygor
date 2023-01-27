@@ -41,50 +41,50 @@ int main(int argc, char **argv){
     const auto paired_t_test2 = [](const samples_1D<double> &L, const samples_1D<double> &R) -> void {
         std::vector<std::array<double,2>> paired_datum;
 
-        if(L.size() != R.size()) FUNCERR("Differing sizes. The paired t-test requires identical x_i");
+        if(L.size() != R.size()) YLOGERR("Differing sizes. The paired t-test requires identical x_i");
         for(auto i = 0; i < L.size(); ++i){
             paired_datum.push_back( { L.samples[i][2], R.samples[i][2] } );
         }
         const double dof_override = static_cast<double>(paired_datum.size() - 1 - 2);
-        FUNCINFO("2-tail P-value = " << Stats::P_From_Paired_Ttest_2Tail(paired_datum, dof_override));
+        YLOGINFO("2-tail P-value = " << Stats::P_From_Paired_Ttest_2Tail(paired_datum, dof_override));
         return;
     };
 
-    FUNCINFO("Parotid and masseter");
+    YLOGINFO("Parotid and masseter");
     paired_t_test2(parotid, masseter);
 
-    FUNCINFO("Parotid and pharynx");
+    YLOGINFO("Parotid and pharynx");
     paired_t_test2(parotid, pharynx);
 
-    FUNCINFO("Masseter and pharynx");
+    YLOGINFO("Masseter and pharynx");
     paired_t_test2(masseter, pharynx);
 
 
     const auto working_P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail = [](const samples_1D<double> &L, const samples_1D<double> &R) -> void {
         std::vector<std::array<double,2>> paired_datum;
 
-        if(L.size() != R.size()) FUNCERR("Differing sizes");
+        if(L.size() != R.size()) YLOGERR("Differing sizes");
         for(auto i = 0; i < L.size(); ++i){
             paired_datum.push_back( { L.samples[i][2], R.samples[i][2] } );
         }
-        FUNCINFO("Wilcoxon sign-rank test P-value = " << Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(paired_datum));
+        YLOGINFO("Wilcoxon sign-rank test P-value = " << Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(paired_datum));
         return;
     };
 
-    FUNCINFO("Parotid and masseter");
+    YLOGINFO("Parotid and masseter");
     working_P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(parotid, masseter);
 
-    FUNCINFO("Parotid and pharynx");
+    YLOGINFO("Parotid and pharynx");
     working_P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(parotid, pharynx);
 
-    FUNCINFO("Masseter and pharynx");
+    YLOGINFO("Masseter and pharynx");
     working_P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(masseter, pharynx);
 
 
 
     //Demonstrate a Wikipedia example for which there is not enough data to generate a z-score.
     {
-        FUNCINFO("Wikipedia sample");
+        YLOGINFO("Wikipedia sample");
         std::vector<std::array<double,2>> data = {
         {125.0, 110.0},
         {115.0, 122.0},
@@ -98,12 +98,12 @@ int main(int argc, char **argv){
         {135.0, 145.0} };
 
         const auto ret = Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(data);
-        FUNCINFO("Wilcoxon sign-rank test P-value = " << ret);
+        YLOGINFO("Wilcoxon sign-rank test P-value = " << ret);
     }
 
     //Demonstrate a Vassar stats example for which there is enough data to generate z-score and P-value.
     {
-        FUNCINFO("Vassar stats sample");
+        YLOGINFO("Vassar stats sample");
         std::vector<std::array<double,2>> data = {
         {78.0, 78.0},
         {24.0, 24.0},
@@ -123,12 +123,12 @@ int main(int argc, char **argv){
         {72.0, 32.0} };
 
         const auto ret = Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(data);
-        FUNCINFO("Wilcoxon sign-rank test P-value = " << ret);
+        YLOGINFO("Wilcoxon sign-rank test P-value = " << ret);
     }
 
     //Demonstrate a Vassar stats example for which there is enough data to generate z-score and P-value.
     {
-        FUNCINFO("Rosie Shier's Mathematics Learning Support Centre sample");
+        YLOGINFO("Rosie Shier's Mathematics Learning Support Centre sample");
         std::vector<std::array<double,2>> data = {
         { 2.0,  3.5},
         { 3.6,  5.7},
@@ -144,7 +144,7 @@ int main(int argc, char **argv){
         { 8.5, 20.9} };
 
         const auto ret = Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(data);
-        FUNCINFO("Wilcoxon sign-rank test P-value = " << ret);
+        YLOGINFO("Wilcoxon sign-rank test P-value = " << ret);
     }
 
     //Compute P-values from critical z-scores. The z-scores are critical exactly because they correspond to the
@@ -153,39 +153,39 @@ int main(int argc, char **argv){
         double z;
   
         z = 1.645;
-        FUNCINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
         z = 1.960;
-        FUNCINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
         z = 2.326;
-        FUNCINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
         z = 2.576;
-        FUNCINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
         z = 3.291;
-        FUNCINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Two-tailed P-value = " << Stats::P_From_Zscore_2Tail(z) << " when z-score = " << z);
 
         std::cout << std::endl;
         z = 1.645;
-        FUNCINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
         z = 1.960;
-        FUNCINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
         z = 2.326;
-        FUNCINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
         z = 2.576;
-        FUNCINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
         z = 3.291;
-        FUNCINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Upper-tailed P-value = " << Stats::P_From_Zscore_Upper_Tail(z) << " when z-score = " << z);
 
         std::cout << std::endl;
         z = 1.645;
-        FUNCINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
         z = 1.960;
-        FUNCINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
         z = 2.326;
-        FUNCINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
         z = 2.576;
-        FUNCINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
         z = 3.291;
-        FUNCINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
+        YLOGINFO(" Lower-tailed P-value = " << Stats::P_From_Zscore_Lower_Tail(z) << " when z-score = " << z);
     }
 
     return 0;

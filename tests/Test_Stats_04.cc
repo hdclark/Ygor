@@ -41,10 +41,10 @@ int main(int argc, char **argv){
             const auto tt = static_cast<double>(t) / std::pow(10.0,1.0 * int_scale);
 
             std::cout.precision(std::numeric_limits<double>::digits10 + 1);
-            FUNCINFO("After " << N << " double-precision samples the naive sum is:              " << n  << " (" << 100.0*(n -tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " double-precision samples the compensated sum is:        " << cs << " (" << 100.0*(cs-tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " double-precision samples the sorted compensated sum is: " << ss << " (" << 100.0*(ss-tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " double-precision samples the integer-based sum is:      " << tt);
+            YLOGINFO("After " << N << " double-precision samples the naive sum is:              " << n  << " (" << 100.0*(n -tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " double-precision samples the compensated sum is:        " << cs << " (" << 100.0*(cs-tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " double-precision samples the sorted compensated sum is: " << ss << " (" << 100.0*(ss-tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " double-precision samples the integer-based sum is:      " << tt);
             std::cout << std::endl;
         };
 
@@ -86,10 +86,10 @@ int main(int argc, char **argv){
             const auto tt = static_cast<float>(t) / std::pow(10.0,1.0 * int_scale);
 
             std::cout.precision(std::numeric_limits<float>::digits10 + 1);
-            FUNCINFO("After " << N << " single-precision samples the naive sum is:              " << n  << " (" << 100.0*(n -tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " single-precision samples the compensated sum is:        " << cs << " (" << 100.0*(cs-tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " single-precision samples the sorted compensated sum is: " << ss << " (" << 100.0*(ss-tt)/tt << "\% from the integer-summed result)");
-            FUNCINFO("After " << N << " single-precision samples the integer-based sum is:      " << tt);
+            YLOGINFO("After " << N << " single-precision samples the naive sum is:              " << n  << " (" << 100.0*(n -tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " single-precision samples the compensated sum is:        " << cs << " (" << 100.0*(cs-tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " single-precision samples the sorted compensated sum is: " << ss << " (" << 100.0*(ss-tt)/tt << "\% from the integer-summed result)");
+            YLOGINFO("After " << N << " single-precision samples the integer-based sum is:      " << tt);
             std::cout << std::endl;
         };
 

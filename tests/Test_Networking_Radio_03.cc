@@ -14,11 +14,11 @@ bool Dialog_Simple_Echo(int fd, char *host, long int port){
 
     //Wait until we timeout (or otherwise error) or we get a message from a broadcasting beacon.
     if((numbytes = recv(fd, buff, BUFFSIZE-1, 0)) == -1){
-        FUNCWARN("Beacon connection issue. Nothing was received");
+        YLOGWARN("Beacon connection issue. Nothing was received");
         return false;
     }
     buff[numbytes] = '\0';
-    FUNCINFO("Received message from beacon at " << host << ": '" << buff << "'");
+    YLOGINFO("Received message from beacon at " << host << ": '" << buff << "'");
     return true;
 }
 
@@ -28,11 +28,11 @@ int main(int argc, char **argv){
     Beacon_and_Radio test;
 
     if(!test.Radio_Init(12346, &Dialog_Simple_Echo)){
-        FUNCERR("Unable to initialize radio");
+        YLOGERR("Unable to initialize radio");
     }
 
     if(!test.Radio_Tune_In("225.0.0.37")){
-        FUNCERR("Unable to tune in the radio");
+        YLOGERR("Unable to tune in the radio");
     }
 
     return 0;

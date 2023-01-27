@@ -3523,7 +3523,7 @@ bool planar_image_collection<T,R>::Process_Images(
               }
           }
           if(!present){
-              FUNCWARN("Image grouping functor failed to select self image and thus failed basic consistency. "
+              YLOGWARN("Image grouping functor failed to select self image and thus failed basic consistency. "
                        "(Each image's group must be composed of at least the image.)");
               return false;
           }
@@ -3541,7 +3541,7 @@ bool planar_image_collection<T,R>::Process_Images(
               if( (rows     != an_img_it->rows)
               ||  (columns  != an_img_it->columns)
               ||  (channels != an_img_it->channels) ){
-                  FUNCWARN("Images have differing number of rows, columns, or channels. Are you sure you've got the correct data?");
+                  YLOGWARN("Images have differing number of rows, columns, or channels. Are you sure you've got the correct data?");
                   return false;
                   //This might not be an error if you know what you're doing. However, you will still potentially attempt to 
                   // access an image's pixels out-of-bounds without altering the following code. (Are you sure you want this?
@@ -3617,7 +3617,7 @@ bool planar_image_collection<T,R>::Process_Images(
         }   
 
         //Print a simple progress bar to the screen. Helpful for long-running processing.
-        FUNCINFO("Images still to be processed: " << to_be_avgd.size());
+        YLOGINFO("Images still to be processed: " << to_be_avgd.size());
     }
 
     return true;
@@ -3750,7 +3750,7 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
               }
           }
           if(!present){
-              FUNCWARN("Image grouping functor failed to select self image and thus failed basic consistency. "
+              YLOGWARN("Image grouping functor failed to select self image and thus failed basic consistency. "
                        "(Each image's group must be composed of at least the image.)");
               return false;
           }
@@ -3768,7 +3768,7 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
               if( (rows     != an_img_it->rows)
               ||  (columns  != an_img_it->columns)
               ||  (channels != an_img_it->channels) ){
-                  FUNCWARN("Images have differing number of rows, columns, or channels. Are you sure you've got the correct data?");
+                  YLOGWARN("Images have differing number of rows, columns, or channels. Are you sure you've got the correct data?");
                   return false;
                   //This might not be an error if you know what you're doing. However, you will still potentially attempt to 
                   // access an image's pixels out-of-bounds without altering the following code. (Are you sure you want this?
@@ -3862,7 +3862,7 @@ bool planar_image_collection<T,R>::Process_Images_Parallel(
             futures.clear();
             if(eject) return false;
         }
-        FUNCINFO("Images still to be processed: " << (total_image_count - images_processed));
+        YLOGINFO("Images still to be processed: " << (total_image_count - images_processed));
     }
     for(auto &afuture : futures){
         auto res = afuture.get();

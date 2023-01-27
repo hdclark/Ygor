@@ -43,7 +43,7 @@ int main(int argc, char **argv){
                                   std::string /* g_name */,
                                   std::string fprefix) -> void {
         const auto fullpath = fprefix.empty() ? fname : (fprefix + "/"_s + fname);
-        FUNCINFO("Encountered encapsulated file '" << fullpath << "' which comprises " << fsize << " bytes");
+        YLOGINFO("Encountered encapsulated file '" << fullpath << "' which comprises " << fsize << " bytes");
         return;
     };
 

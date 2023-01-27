@@ -63,14 +63,14 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOFF(smesh, ss)){
             throw std::runtime_error("Unable to read mesh from OFF stream: 1.");
         }else{
-            FUNCINFO("First read OK");
+            YLOGINFO("First read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         std::stringstream ss2;
         if(!WriteFVSMeshToOFF(smesh, ss2)){
             throw std::runtime_error("Unable to write mesh to OFF stream: 1.");
         }else{
-            FUNCINFO("First write OK");
+            YLOGINFO("First write OK");
         }
         const auto output_A = ss2.str();
 
@@ -78,21 +78,21 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOFF(smesh, ss2)){
             throw std::runtime_error("Unable to read mesh from OFF stream: 2.");
         }else{
-            FUNCINFO("Second read OK");
+            YLOGINFO("Second read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         std::stringstream ss3;
         if(!WriteFVSMeshToOFF(smesh, ss3)){
             throw std::runtime_error("Unable to write mesh to OFF stream: 2.");
         }else{
-            FUNCINFO("Second write OK");
+            YLOGINFO("Second write OK");
         }
         const auto output_B = ss3.str();
 
         if(output_A != output_B){
             throw std::runtime_error("Round-tripping mesh failed.");
         }
-        FUNCINFO("OFF found-trip tests passed");
+        YLOGINFO("OFF found-trip tests passed");
     }
 
     std::cout << "--------------" << std::endl;
@@ -142,14 +142,14 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOBJ(smesh, ss)){
             throw std::runtime_error("Unable to read mesh from OBJ stream: 1.");
         }else{
-            FUNCINFO("First read OK");
+            YLOGINFO("First read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         std::stringstream ss2;
         if(!WriteFVSMeshToOBJ(smesh, ss2)){
             throw std::runtime_error("Unable to write mesh to OBJ stream: 1.");
         }else{
-            FUNCINFO("First write OK");
+            YLOGINFO("First write OK");
         }
         const auto output_A = ss2.str();
 
@@ -157,29 +157,29 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOBJ(smesh, ss2)){
             throw std::runtime_error("Unable to read mesh from OBJ stream: 2.");
         }else{
-            FUNCINFO("Second read OK");
+            YLOGINFO("Second read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         std::stringstream ss3;
         const bool use_relative = true;
         if(!WriteFVSMeshToOBJ(smesh, ss3, use_relative)){
             throw std::runtime_error("Unable to write mesh to OBJ stream: 2.");
         }else{
-            FUNCINFO("Second write OK");
+            YLOGINFO("Second write OK");
         }
 
         // Round-trip #3.
         if(!ReadFVSMeshFromOBJ(smesh, ss3)){
             throw std::runtime_error("Unable to read mesh from OBJ stream: 3.");
         }else{
-            FUNCINFO("Third read OK");
+            YLOGINFO("Third read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         std::stringstream ss4;
         if(!WriteFVSMeshToOBJ(smesh, ss4)){
             throw std::runtime_error("Unable to write mesh to OBJ stream: 3.");
         }else{
-            FUNCINFO("Third write OK");
+            YLOGINFO("Third write OK");
         }
         const auto output_B = ss4.str();
 
@@ -187,7 +187,7 @@ int main(int argc, char **argv){
         if(output_A != output_B){
             throw std::runtime_error("Round-tripping mesh failed.");
         }
-        FUNCINFO("OBJ round-trip tests passed");
+        YLOGINFO("OBJ round-trip tests passed");
     }
 
     std::cout << "--------------" << std::endl;
@@ -240,15 +240,15 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOFF(smesh, ss)){
             throw std::runtime_error("Unable to read mesh from OFF stream: 1.");
         }else{
-            FUNCINFO("First read OK");
+            YLOGINFO("First read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss2;
         if(!WriteFVSMeshToASCIISTL(smesh, ss2)){
             throw std::runtime_error("Unable to write mesh to ASCII STL stream: 1.");
         }else{
-            FUNCINFO("First write OK");
+            YLOGINFO("First write OK");
         }
         const auto output_A = ss2.str();
 
@@ -256,30 +256,30 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromASCIISTL(smesh, ss2)){
             throw std::runtime_error("Unable to read mesh from ASCII STL stream: 2.");
         }else{
-            FUNCINFO("Second read OK");
+            YLOGINFO("Second read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss3;
         if(!WriteFVSMeshToASCIISTL(smesh, ss3)){
             throw std::runtime_error("Unable to write mesh to ASCII STL stream: 2.");
         }else{
-            FUNCINFO("Second write OK");
+            YLOGINFO("Second write OK");
         }
 
         // Round-trip #3.
         if(!ReadFVSMeshFromASCIISTL(smesh, ss3)){
             throw std::runtime_error("Unable to read mesh from ASCII STL stream: 3.");
         }else{
-            FUNCINFO("Third read OK");
+            YLOGINFO("Third read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss4;
         if(!WriteFVSMeshToASCIISTL(smesh, ss4)){
             throw std::runtime_error("Unable to write mesh to ASCII STL stream: 3.");
         }else{
-            FUNCINFO("Third write OK");
+            YLOGINFO("Third write OK");
         }
         const auto output_B = ss4.str();
 
@@ -287,7 +287,7 @@ int main(int argc, char **argv){
         if(output_A != output_B){
             throw std::runtime_error("Round-tripping mesh failed.");
         }
-        FUNCINFO("ASCII STL round-trip tests passed");
+        YLOGINFO("ASCII STL round-trip tests passed");
     }
 
     std::cout << "--------------" << std::endl;
@@ -340,15 +340,15 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromOFF(smesh, ss)){
             throw std::runtime_error("Unable to read mesh from OFF stream: 1.");
         }else{
-            FUNCINFO("First read OK");
+            YLOGINFO("First read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss2;
         if(!WriteFVSMeshToBinarySTL(smesh, ss2)){
             throw std::runtime_error("Unable to write mesh to Binary STL stream: 1.");
         }else{
-            FUNCINFO("First write OK");
+            YLOGINFO("First write OK");
         }
         const auto output_A = ss2.str();
 
@@ -356,30 +356,30 @@ int main(int argc, char **argv){
         if(!ReadFVSMeshFromBinarySTL(smesh, ss2)){
             throw std::runtime_error("Unable to read mesh from Binary STL stream: 2.");
         }else{
-            FUNCINFO("Second read OK");
+            YLOGINFO("Second read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss3;
         if(!WriteFVSMeshToBinarySTL(smesh, ss3)){
             throw std::runtime_error("Unable to write mesh to Binary STL stream: 2.");
         }else{
-            FUNCINFO("Second write OK");
+            YLOGINFO("Second write OK");
         }
 
         // Round-trip #3.
         if(!ReadFVSMeshFromBinarySTL(smesh, ss3)){
             throw std::runtime_error("Unable to read mesh from Binary STL stream: 3.");
         }else{
-            FUNCINFO("Third read OK");
+            YLOGINFO("Third read OK");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
-        FUNCINFO("Mesh vertex count: " << smesh.vertices.size());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh vertex count: " << smesh.vertices.size());
         std::stringstream ss4;
         if(!WriteFVSMeshToBinarySTL(smesh, ss4)){
             throw std::runtime_error("Unable to write mesh to Binary STL stream: 3.");
         }else{
-            FUNCINFO("Third write OK");
+            YLOGINFO("Third write OK");
         }
         const auto output_B = ss4.str();
 
@@ -387,7 +387,7 @@ int main(int argc, char **argv){
         if(output_A != output_B){
             throw std::runtime_error("Round-tripping mesh failed.");
         }
-        FUNCINFO("Binary STL round-trip tests passed");
+        YLOGINFO("Binary STL round-trip tests passed");
     }
 
     return 0;

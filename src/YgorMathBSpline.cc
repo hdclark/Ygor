@@ -106,11 +106,11 @@ basis_spline::basis_spline(const samples_1D<double> &samps,
         }
     }
     if(use_uncert && !sampscopy.uncertainties_known_to_be_independent_and_random){
-        FUNCWARN("Uncertainties are not known to be independent and random, so will not be used for b-spline fitting");
+        YLOGWARN("Uncertainties are not known to be independent and random, so will not be used for b-spline fitting");
         use_uncert = false;
     }
     if(use_uncert){
-        FUNCWARN("Currently, x_i uncertainties (dx_i), if present, are ignored by this routine!");
+        YLOGWARN("Currently, x_i uncertainties (dx_i), if present, are ignored by this routine!");
     }
 
     //Populate the GSL vectors with data for fitting.

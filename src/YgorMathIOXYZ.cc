@@ -98,7 +98,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
         }else if(shtl.size() == 3){
             ps.points.emplace_back( shtl[0], shtl[1], shtl[2] );
         }else{
-            FUNCWARN("Encountered line with " << shtl.size() << " numerical coordinates. Refusing to continue");
+            YLOGWARN("Encountered line with " << shtl.size() << " numerical coordinates. Refusing to continue");
             reset();
             return false;
         }
@@ -110,7 +110,7 @@ ReadPointSetFromXYZ(point_set<T> &ps,
         return false;
     }
 
-    FUNCINFO("Loaded XYZ file with " << ps.points.size() << " points");
+    YLOGINFO("Loaded XYZ file with " << ps.points.size() << " points");
     return true;
 }
 #ifndef YGORMATHIOXYZ_DISABLE_ALL_SPECIALIZATIONS
@@ -128,7 +128,7 @@ WritePointSetToXYZ(const point_set<T> &ps,
                    std::ostream &os ){
 
     if(ps.points.empty()){
-        FUNCWARN("Point set is empty. Refusing to write empty point cloud to XYZ file");
+        YLOGWARN("Point set is empty. Refusing to write empty point cloud to XYZ file");
         return false;
     }
 

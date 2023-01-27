@@ -10,7 +10,7 @@
 
 int main(int argc, char **argv){
 
-    if(argc < 3) FUNCERR("This program requires a file and a directory as input. Bailing");
+    if(argc < 3) YLOGERR("This program requires a file and a directory as input. Bailing");
     const std::string Filename(argv[1]);
     const std::string Pathname(argv[2]);
 

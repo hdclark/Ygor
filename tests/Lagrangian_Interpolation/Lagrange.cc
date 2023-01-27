@@ -78,7 +78,7 @@ int main(){
 
   
 
-    FUNCINFO("Everything seems OK. Loading gnuplots..");
+    YLOGINFO("Everything seems OK. Loading gnuplots..");
     YgorMathPlottingVTK::Plot<double>(shuttle, "Lagrange/Newton Interpolation", "time (s)", "Contrast Enhancement");
     //YgorMathPlottingGnuplot::Plot<double>(shuttle, "Lagrange/Newton Interpolation", "time (s)", "Contrast Enhancement");
     std::cout << "Waiting for input to terminate..." << std::endl;

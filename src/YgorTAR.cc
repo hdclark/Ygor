@@ -258,7 +258,7 @@ ustar_writer::~ustar_writer(){
     }
 
     if(!os){
-        FUNCWARN("File stream not in good state after emitting TAR archive");
+        YLOGWARN("File stream not in good state after emitting TAR archive");
         // Note: We cannot throw in the destructor, so the best we can do is warn about it.
         //
         // We could alternatively terminate, but that may not be unacceptable.

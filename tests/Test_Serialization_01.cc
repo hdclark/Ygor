@@ -21,7 +21,7 @@ int main(int argc, char **argv){
       while(offset < max){
           const auto aval = static_cast<uint8_t>(offset);
           mem_chars = SERIALIZE::Put<uint8_t>(&OK, std::move(mem_chars), &offset, max, aval);
-          if(OK == false) FUNCERR("Encountered an error. Test failed");
+          if(OK == false) YLOGERR("Encountered an error. Test failed");
       }
 
       //Read the numbers back.
@@ -29,7 +29,7 @@ int main(int argc, char **argv){
       while(offset < max){
           uint8_t aval;
           mem_chars = SERIALIZE::Get<uint8_t>(&OK, std::move(mem_chars), &offset, max, &aval);
-          if(OK == false) FUNCERR("Encountered an error. Test failed");
+          if(OK == false) YLOGERR("Encountered an error. Test failed");
           std::cout << "Read back integer '" << (int)(aval) << "'" << std::endl;
       }
     }
@@ -45,7 +45,7 @@ int main(int argc, char **argv){
       while(offset < max){
           const auto aval = static_cast<double>(offset);
           mem_dbls = SERIALIZE::Put<double>(&OK, std::move(mem_dbls), &offset, max, aval);
-          if(OK == false) FUNCERR("Encountered an error. Test failed");
+          if(OK == false) YLOGERR("Encountered an error. Test failed");
       }
 
       //Read the numbers back.
@@ -53,7 +53,7 @@ int main(int argc, char **argv){
       while(offset < max){
           double aval;
           mem_dbls = SERIALIZE::Get<double>(&OK, std::move(mem_dbls), &offset, max, &aval);
-          if(OK == false) FUNCERR("Encountered an error. Test failed");
+          if(OK == false) YLOGERR("Encountered an error. Test failed");
           std::cout << "Read back double '" << aval << "'" << std::endl;
       }
     }
@@ -68,7 +68,7 @@ int main(int argc, char **argv){
 
       //Write the string to the memory block.
       mem_blk = SERIALIZE::Put_String<char>(&OK, std::move(mem_blk), &offset, max, teststr);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       //Prepare for the read back.
       teststr.clear();
@@ -78,7 +78,7 @@ int main(int argc, char **argv){
 
       //Read the string back from the buffer.
       mem_blk = SERIALIZE::Get_String<char>(&OK, std::move(mem_blk), &offset, actualmax, &teststr);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       std::cout << "Read back string '" << teststr << "'" << std::endl;
     }
@@ -95,7 +95,7 @@ int main(int argc, char **argv){
 
       //Write the string to the memory block.
       mem_blk = SERIALIZE::Put_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       //Prepare for the read back.
       testlist.clear();
@@ -104,7 +104,7 @@ int main(int argc, char **argv){
 
       //Read the string back from the buffer.
       mem_blk = SERIALIZE::Get_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testlist);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       std::cout << "The list of numbers stored was: ";
       for(auto it = testlist.begin(); it != testlist.end(); ++it){
@@ -123,7 +123,7 @@ int main(int argc, char **argv){
 
       //Write the string to the memory block.
       mem_blk = SERIALIZE::Put_Sequence_Container(&OK, std::move(mem_blk), &offset, max, testlist);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       //Prepare for the read back.
       testlist.clear();
@@ -133,7 +133,7 @@ int main(int argc, char **argv){
 
       //Read the string back from the buffer.
       mem_blk = SERIALIZE::Get_Sequence_Container(&OK, std::move(mem_blk), &offset, actualmax, &testvec);
-      if(OK == false) FUNCERR("Encountered an error. Test failed");
+      if(OK == false) YLOGERR("Encountered an error. Test failed");
 
       std::cout << "The vec of numbers (converted from the list of numbers) stored was: ";
       for(auto it = testvec.begin(); it != testvec.end(); ++it){

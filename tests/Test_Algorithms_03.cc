@@ -31,23 +31,23 @@ bool Verify_MD5(const std::string &key, const std::string &expected_hash){
     //Generate a buffer of type T from the incoming key.
     auto buff = str_to_buf<uint8_t>(&l_OK,key,&str_sz);
     if(!l_OK){
-        FUNCWARN("Unable to generate buffer from incoming key string '" << key << "'");
+        YLOGWARN("Unable to generate buffer from incoming key string '" << key << "'");
         return false;
     }
 
     //Compute the hash using the buffer.
     buff = MD5_Hash(&l_OK,std::move(buff),str_sz,&computed_hash);
     if(!l_OK){
-        FUNCWARN("Unable to compute hash");
+        YLOGWARN("Unable to compute hash");
         return false;
     }
 
     //Compare the result to the expected result.
     if(computed_hash != expected_hash){
-        FUNCWARN("Computed hash '" << computed_hash << "' and expected hash '" << expected_hash << "' do not agree");
+        YLOGWARN("Computed hash '" << computed_hash << "' and expected hash '" << expected_hash << "' do not agree");
         return false;
     }else{
-        FUNCINFO("Computed hash and expected hash '" << expected_hash << "' agree");
+        YLOGINFO("Computed hash and expected hash '" << expected_hash << "' agree");
    }
     
     return true;
@@ -76,8 +76,8 @@ int main(int argc, char **argv){
     OK &= Verify_MD5("Kind of sucks...", "05c07dcbff9e889b409101710e238e56");
     OK &= Verify_MD5("...but is probably necessary!", "be164b7e20919dd5e84f79b28c0364d0");
 
-    if(!OK) FUNCERR("Failed!");
-    FUNCINFO("Passed! Hashing algorithm *appears* to be OK");
-    FUNCWARN("Note - this is *not* proof that the algorithm is OK!");
+    if(!OK) YLOGERR("Failed!");
+    YLOGINFO("Passed! Hashing algorithm *appears* to be OK");
+    YLOGWARN("Note - this is *not* proof that the algorithm is OK!");
     return 0;
 }

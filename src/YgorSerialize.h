@@ -38,9 +38,9 @@
 //   
 //   if(l_OK){
 //        if(OK == nullptr){
-//            FUNCERR(failmsg << " Cannot continue");
+//            YLOGERR(failmsg << " Cannot continue");
 //        }else{  
-//            FUNCWARN(failmsg << " Bailing"); 
+//            YLOGWARN(failmsg << " Bailing"); 
 //            return std::move(in);  
 //        }
 //    }
@@ -55,8 +55,8 @@
 //
 #ifndef SERIALIZE_WARNFAIL_OR_DIE
     #define SERIALIZE_WARNFAIL_OR_DIE(l_OK,OK,failmsg,pntr)  if((l_OK)){ \
-        if((OK) == nullptr){  FUNCERR(failmsg << " Cannot continue"); \
-        }else{  FUNCWARN(failmsg << " Bailing"); return (pntr);  } \
+        if((OK) == nullptr){  YLOGERR(failmsg << " Cannot continue"); \
+        }else{  YLOGWARN(failmsg << " Bailing"); return (pntr);  } \
     }
 #endif
 

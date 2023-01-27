@@ -7,11 +7,11 @@
 
 
 int main(int  /*argc*/, char ** /*argv*/){
-    FUNCINFO("This program takes six consequtive numbers: ");
-    FUNCINFO("  <mean A>  <var A>  <N A>   <mean B>  <var B>  <N B> ");
-    FUNCINFO(" and spits out the two-tailed, unequal-variance P value denoting whether ");
-    FUNCINFO(" they describe the same underlying distribution. ");
-    FUNCINFO("Do NOT use std.dev. instead of variance! Remember: var = sigma*sigma ");
+    YLOGINFO("This program takes six consequtive numbers: ");
+    YLOGINFO("  <mean A>  <var A>  <N A>   <mean B>  <var B>  <N B> ");
+    YLOGINFO(" and spits out the two-tailed, unequal-variance P value denoting whether ");
+    YLOGINFO(" they describe the same underlying distribution. ");
+    YLOGINFO("Do NOT use std.dev. instead of variance! Remember: var = sigma*sigma ");
 
     while(true){
         std::cout << std::endl;
@@ -31,9 +31,9 @@ int main(int  /*argc*/, char ** /*argv*/){
             ss >> numB;
 
             if(ss.fail()){
-                 FUNCWARN("Couldn't make sense of the input. Ensure it is in the format:");
-                 FUNCINFO("  <mean A>  <var A>  <N A>   <mean B>  <var B>  <N B> ");
-                 break; //FUNCERR("Failed to get column numbers. Were 2 provided on every line?");
+                 YLOGWARN("Couldn't make sense of the input. Ensure it is in the format:");
+                 YLOGINFO("  <mean A>  <var A>  <N A>   <mean B>  <var B>  <N B> ");
+                 break; //YLOGERR("Failed to get column numbers. Were 2 provided on every line?");
             }
             std::cout << "A (mean, var, #) = (" << meanA << ", " << varA << ", " << numA << ")    ";
             std::cout << "B (mean, var, #) = (" << meanB << ", " << varB << ", " << numB << ")    ";

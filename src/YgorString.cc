@@ -100,8 +100,8 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
     std::unique_ptr<T[]> out;
     if(OK != nullptr) *OK = false;
     if(size == nullptr){
-        FUNCWARN("Passed a nullptr instead of a space to store buffer size. Bailing");
-        if(OK == nullptr) FUNCERR("Cannot signal error through OK ptr. Cannot continue");
+        YLOGWARN("Passed a nullptr instead of a space to store buffer size. Bailing");
+        if(OK == nullptr) YLOGERR("Cannot signal error through OK ptr. Cannot continue");
         return out;
     }
     *size = 0U;
@@ -117,8 +117,8 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
         // this code, it is probably better to make it harder for the user to make a mistake. If this 
         // functionality is actually needed, consider either a companion function, a settable parameter, or,
         // in a pinch, try adding a few more elements until the numbers work out.
-        FUNCWARN("Data cannot be represented as the specified type. File is of size " << l_size << "b and template has size " << sizeof(T) << "b");
-        if(OK == nullptr) FUNCERR("Cannot signal error through OK ptr. Cannot continue");
+        YLOGWARN("Data cannot be represented as the specified type. File is of size " << l_size << "b and template has size " << sizeof(T) << "b");
+        if(OK == nullptr) YLOGERR("Cannot signal error through OK ptr. Cannot continue");
         return out;
     }
 
@@ -861,7 +861,7 @@ template <class T> bool Is_String_An_X(const std::string &text){
 template <class T>
 bool GetValueIfKeyMatches(T *out, const std::string &key,  const unsigned char key_mask, 
                                   const std::string &line, const unsigned char line_mask){
-    if(out == nullptr) FUNCERR("Passed a nullptr - no way return matches. Cannot continue");
+    if(out == nullptr) YLOGERR("Passed a nullptr - no way return matches. Cannot continue");
 
 //    if(line.size() <= key.size()) return false;
 //
@@ -1156,7 +1156,7 @@ std::vector<std::string> SplitStringToVector(const std::string &s, const std::st
         return out;
     }
  
-    FUNCWARN("BEHAVIOUR = " << BEHAVIOUR << " not recognized. Treating as 'd' and continuing");       
+    YLOGWARN("BEHAVIOUR = " << BEHAVIOUR << " not recognized. Treating as 'd' and continuing");       
     return out;
 }
 
@@ -1547,8 +1547,8 @@ std::string Break_Paragraphs_Into_Text(const std::vector<std::string> &in){
 // of specified spaces. If zero, nothing is indented. If negative, every line except the first is indented with the
 // abs val of the number of specified spaces.
 std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W, long int indent){
-    if(W <= 0) FUNCERR("Requested invalid reflow width (" << W << "). Cannot proceed");
-    if(YGORABS(indent) >= (W-1)) FUNCERR("Requested invalid width(" << W << ") or indentation(" << indent << ") values. Refusing to proceed");
+    if(W <= 0) YLOGERR("Requested invalid reflow width (" << W << "). Cannot proceed");
+    if(YGORABS(indent) >= (W-1)) YLOGERR("Requested invalid width(" << W << ") or indentation(" << indent << ") values. Refusing to proceed");
 
     std::vector<std::string> out;
 

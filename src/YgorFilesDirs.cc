@@ -218,7 +218,7 @@ std::string Get_Unique_Sequential_Filename(const std::string &prefix, const long
         out = prefix + thenumb + suffix;
         if(!Does_File_Exist_And_Can_Be_Read(out)) return out;
     }
-    FUNCERR("Unable to find a sequential filename");
+    YLOGERR("Unable to find a sequential filename");
     return out;
 }
 
@@ -255,7 +255,7 @@ template <class T> std::unique_ptr<T[]> Load_Binary_File(const std::string &file
     //Load the file into memory.
     std::ifstream in(filename_in.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
     if(!in.is_open()){
-         FUNCWARN("Unable to load file. Does it exist? Do you have permissions to open it?");
+         YLOGWARN("Unable to load file. Does it exist? Do you have permissions to open it?");
          return nullptr;
     }
 
@@ -273,8 +273,8 @@ template <class T> std::unique_ptr<T[]> Load_Binary_File(const std::string &file
     {
       const auto A = l_size/sizeof(T);  //Safer to test this way than with modulus!
       if( static_cast<intmax_t>(A * sizeof(T)) != static_cast<intmax_t>(l_size) ){
-          FUNCWARN("This data does not appear to be able to be represented as the requested data type.");
-          FUNCWARN(" The file is of size " << l_size << " bytes, which is not divisible by the size of the template type (size = " << sizeof(T) << " bytes.)");
+          YLOGWARN("This data does not appear to be able to be represented as the requested data type.");
+          YLOGWARN(" The file is of size " << l_size << " bytes, which is not divisible by the size of the template type (size = " << sizeof(T) << " bytes.)");
           return nullptr;
       }
     }
@@ -507,23 +507,23 @@ bool CopyFile(const std::string &source, const std::string &destination){
     {
       std::ifstream A(source, std::ios::binary);
       if(A.fail()){
-          FUNCWARN("Failed to open source file '" << source << "'");
+          YLOGWARN("Failed to open source file '" << source << "'");
           return false;
       }
 
       std::ofstream B(destination, std::ios::binary);
       if(B.fail()){
-          FUNCWARN("Failed to create/open destination file '" << destination << "'");
+          YLOGWARN("Failed to create/open destination file '" << destination << "'");
           return false;
       }
 
       B << A.rdbuf();
       if(!B.good()){
-          FUNCWARN("After copy, destination file is not std::fstream 'good'");
+          YLOGWARN("After copy, destination file is not std::fstream 'good'");
           return false;
       }
       //if(!A.eof()){
-      //    FUNCWARN("After copy, source file appears to not be at EOF");
+      //    YLOGWARN("After copy, source file appears to not be at EOF");
       //    return false;
       //}
       //return true;

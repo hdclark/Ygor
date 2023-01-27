@@ -30,7 +30,7 @@ int main(int, char **){
             ustar.add_file(ss, "test_tar_file_01.txt", fsize);
         }
 
-        FUNCINFO("File '" << tar_fname << "' should be validated for conformance"); 
+        YLOGINFO("File '" << tar_fname << "' should be validated for conformance"); 
 
         // Read the TAR file and compare the contents.
         {
@@ -47,9 +47,9 @@ int main(int, char **){
                 std::stringstream ss;
                 ss << is.rdbuf();
                 if(ss.str() == fcontents){
-                    FUNCINFO("File round-trip OK");
+                    YLOGINFO("File round-trip OK");
                 }else{
-                    FUNCERR("File contents did not round-trip");
+                    YLOGERR("File contents did not round-trip");
                 }
                 return;
             };
@@ -59,7 +59,7 @@ int main(int, char **){
         }
 
     }catch(const std::exception &e){
-        FUNCERR("Failed when provided explicit file length: " << e.what());
+        YLOGERR("Failed when provided explicit file length: " << e.what());
     }
 
     try{
@@ -75,7 +75,7 @@ int main(int, char **){
             ustar.add_file(ss, "test_tar_file_02.txt");
         }
 
-        FUNCINFO("File '" << tar_fname << "' should be validated for conformance"); 
+        YLOGINFO("File '" << tar_fname << "' should be validated for conformance"); 
 
         // Read the TAR file and compare the contents.
         {
@@ -92,9 +92,9 @@ int main(int, char **){
                 std::stringstream ss;
                 ss << is.rdbuf();
                 if(ss.str() == fcontents){
-                    FUNCINFO("File round-trip OK");
+                    YLOGINFO("File round-trip OK");
                 }else{
-                    FUNCERR("File contents did not round-trip");
+                    YLOGERR("File contents did not round-trip");
                 }
                 return;
             };
@@ -104,7 +104,7 @@ int main(int, char **){
         }
 
     }catch(const std::exception &e){
-        FUNCERR("Failed without explicit file length: " << e.what());
+        YLOGERR("Failed without explicit file length: " << e.what());
     }
 
 

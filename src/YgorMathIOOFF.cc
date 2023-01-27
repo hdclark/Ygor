@@ -193,7 +193,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
             }catch(const std::exception &){ 
                 ++header_failures;
                 if(5 < header_failures){
-                    FUNCWARN("Unable to locate header counts -- refusing to parse as surface mesh");
+                    YLOGWARN("Unable to locate header counts -- refusing to parse as surface mesh");
                     reset();
                     return false;
                 }
@@ -222,7 +222,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                     }
 
                 }catch(const std::exception &){ 
-                    FUNCWARN("File contains invalid vertex statement -- refusing to parse as surface mesh");
+                    YLOGWARN("File contains invalid vertex statement -- refusing to parse as surface mesh");
                     reset();
                     return false;
                 }
@@ -237,7 +237,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                     const auto N = static_cast<long long int>(split.size());
                     const auto n = std::stoll(split.at(0)); // Number of verts for this face.
                     if(N != (n+1)){
-                        FUNCWARN("File contains invalid face size statement -- refusing to parse as surface mesh");
+                        YLOGWARN("File contains invalid face size statement -- refusing to parse as surface mesh");
                         reset();
                         return false;
                     }
@@ -249,7 +249,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
                     fvsm.faces.emplace_back(shtl);
                 }catch(const std::exception &){ 
-                    FUNCWARN("File contains invalid face statement -- refusing to parse as surface mesh");
+                    YLOGWARN("File contains invalid face statement -- refusing to parse as surface mesh");
                     reset();
                     return false;
                 }
@@ -262,27 +262,27 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
 
         } // Filling up verts and faces.
     } // While loop over lines in the file.
-    //FUNCINFO("Read " << verts.size() << " of " << N_verts << " vertices and " << faces.size() << " of " << N_faces << " faces");
+    //YLOGINFO("Read " << verts.size() << " of " << N_verts << " vertices and " << faces.size() << " of " << N_faces << " faces");
 
     // Verify the file was consistent.
     if( !dims_known ){
-        FUNCWARN("Dimensions could not be determined");
+        YLOGWARN("Dimensions could not be determined");
         reset();
         return false;
     }
     if( (static_cast<long long int>(fvsm.vertices.size()) != N_verts) ){
-        FUNCWARN("Read " << static_cast<long long int>(fvsm.vertices.size()) << " vertices (should be " << N_verts << ")");
+        YLOGWARN("Read " << static_cast<long long int>(fvsm.vertices.size()) << " vertices (should be " << N_verts << ")");
         reset();
         return false;
     }
     if( (static_cast<long long int>(fvsm.faces.size()) != N_faces) ){
-        FUNCWARN("Read " << static_cast<long long int>(fvsm.faces.size()) << " faces (should be " << N_faces << ")");
+        YLOGWARN("Read " << static_cast<long long int>(fvsm.faces.size()) << " faces (should be " << N_faces << ")");
         reset();
         return false;
     }
     if( !fvsm.vertex_normals.empty()
     &&  (fvsm.vertex_normals.size() != fvsm.vertices.size()) ){
-        FUNCWARN("Read " << static_cast<long long int>(fvsm.vertex_normals.size()) << " vertex normals (should be 0 or " << N_verts << ")");
+        YLOGWARN("Read " << static_cast<long long int>(fvsm.vertex_normals.size()) << " vertex normals (should be 0 or " << N_verts << ")");
         reset();
         return false;
     }
@@ -291,7 +291,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     try{
         fvsm.recreate_involved_face_index();
     }catch(const std::exception &){ 
-        FUNCWARN("Failed to recreate involved_faces index");
+        YLOGWARN("Failed to recreate involved_faces index");
         return false;
     }
 
@@ -316,17 +316,17 @@ WriteFVSMeshToOFF(const fv_surface_mesh<T,I> &fvsm,
 
     const bool has_normals = !fvsm.vertex_normals.empty();
     if(has_normals && (fvsm.vertices.size() != fvsm.vertex_normals.size())){
-        FUNCWARN("Vertex normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        YLOGWARN("Vertex normals are inconsistent with vertices. Refusing to write point set in OFF format");
         return false;
     }
 
     if(fvsm.vertices.empty()){
-        FUNCWARN("No vertices detected -- refusing to write surface mesh");
+        YLOGWARN("No vertices detected -- refusing to write surface mesh");
         return false;
     }
 
     if(!( os << "OFF\n" )){
-        FUNCWARN("Unable to write to stream. Cannot continue");
+        YLOGWARN("Unable to write to stream. Cannot continue");
         return false;
     }
     os << fvsm.vertices.size() << " "
@@ -439,12 +439,12 @@ ReadPointSetFromOFF(point_set<T> &ps,
                 dims_known = true;
 
                 if(f != 0){
-                    FUNCWARN("File contains a face -- refusing to parse as point set");
+                    YLOGWARN("File contains a face -- refusing to parse as point set");
                     reset();
                     return false;
                 }
                 if(e != 0){
-                    FUNCWARN("File contains an edge -- refusing to parse as point set");
+                    YLOGWARN("File contains an edge -- refusing to parse as point set");
                     reset();
                     return false;
                 }
@@ -452,7 +452,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
 
             }catch(const std::exception &){ 
                 //continue; 
-                FUNCWARN("File contains invalid 'VFE' statement -- refusing to parse as point set");
+                YLOGWARN("File contains invalid 'VFE' statement -- refusing to parse as point set");
                 reset();
                 return false;
             }
@@ -479,7 +479,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
                     }
                 }catch(const std::exception &){ 
                     //continue;
-                    FUNCWARN("File contains invalid vertex statement -- refusing to parse as point set");
+                    YLOGWARN("File contains invalid vertex statement -- refusing to parse as point set");
                     reset();
                     return false;
                 }
@@ -495,18 +495,18 @@ ReadPointSetFromOFF(point_set<T> &ps,
 
     // Verify the file was consistent.
     if( !dims_known ){
-        FUNCWARN("Dimensions could not be determined");
+        YLOGWARN("Dimensions could not be determined");
         reset();
         return false;
     }
     if( (static_cast<long long int>(ps.points.size()) != N_verts) ){
-        FUNCWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
+        YLOGWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
         reset();
         return false;
     }
     if( !(ps.normals.empty()) 
     &&  (static_cast<long long int>(ps.normals.size()) != N_verts) ){
-        FUNCWARN("Read " << static_cast<long long int>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
+        YLOGWARN("Read " << static_cast<long long int>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
         reset();
         return false;
     }
@@ -528,12 +528,12 @@ WritePointSetToOFF(const point_set<T> &ps,
                      std::ostream &os ){
 
     if(ps.points.empty()){
-        FUNCWARN("No vertices present. Refusing to write point set in OFF format");
+        YLOGWARN("No vertices present. Refusing to write point set in OFF format");
         return false;
     }
     const bool has_normals = !ps.normals.empty();
     if(has_normals && (ps.points.size() != ps.normals.size())){
-        FUNCWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");
+        YLOGWARN("Normals are inconsistent with vertices. Refusing to write point set in OFF format");
         return false;
     }
 

@@ -1659,13 +1659,13 @@ template <class T>  bool line<T>::Intersects_With_Line_Once( const line<T> &in, 
             return true;
         }
         //The lines overlap! We have an infinite number of solutions, so we pretend it is unsolveable.
-        FUNCWARN("Attempting to determine intersection point of two identical lines. Pretending they do not intersect!");
+        YLOGWARN("Attempting to determine intersection point of two identical lines. Pretending they do not intersect!");
         return false;
     }
 
     //If the two lines are not in the same z-plane, then the following routine is insufficient!
     if( ((*this).R_0.z == in.R_0.z) || ((*this).U_0.z != (T)(0)) || (in.U_0.z != (T)(0)) ){
-        FUNCWARN("This function can not handle fully-3D lines. Lines which do not have a constant z-component are not handled. Continuing and indicating that we could not determine the point of intersection");
+        YLOGWARN("This function can not handle fully-3D lines. Lines which do not have a constant z-component are not handled. Continuing and indicating that we could not determine the point of intersection");
         return false;
     }
 
@@ -1675,7 +1675,7 @@ template <class T>  bool line<T>::Intersects_With_Line_Once( const line<T> &in, 
     //   --->  [[t1=(Cy*u2x-Cx*u2y)/(u1y*u2x-u1x*u2y) , t2=(Cy*u1x-Cx*u1y)/(u1y*u2x-u1x*u2y)]]
     const T denom = ((*this).U_0.y*in.U_0.x - (*this).U_0.x*in.U_0.y);
     if(fabs(denom) < (T)(1E-99)){
-        FUNCWARN("Unable to compute the intersection of two lines. Either the lines do not converge, or the tolerances are set too high. Continuing and indicating that we could not determine the point of intersection");
+        YLOGWARN("Unable to compute the intersection of two lines. Either the lines do not converge, or the tolerances are set too high. Continuing and indicating that we could not determine the point of intersection");
         return false;
     }
 
@@ -1724,9 +1724,9 @@ template <class T>  bool line<T>::Intersects_With_Line_Once( const line<T> &in, 
     // This will give us two planes: $\vec{N} \cdot ( \vec{R} - \vec{R}_{a,0} )$ and $\vec{N} \cdot ( \vec{R} - \vec{R}_{b,0} )$
     // where $\vec{N} = \vec{U}_{a} \otimes \vec{U}_{b}.$ Since the planes are parallel, we just compute the distance between planes. 
     const vec3<T> N( this->U_0.Cross( in.U_0 ) );
-    //FUNCINFO("The cross product of the unit vectors " << (*this).U_0 << " and " << in.U_0  << " of the lines is " << N);
+    //YLOGINFO("The cross product of the unit vectors " << (*this).U_0 << " and " << in.U_0  << " of the lines is " << N);
 
-FUNCWARN("This functions requires a code review!");
+YLOGWARN("This functions requires a code review!");
 
     if(N.length() < (T)(1E-9) ){
         //I might be wrong (very tired right now) but I think this means there are either infinite solutions or none. Either way, we cannot
@@ -1737,7 +1737,7 @@ FUNCWARN("This functions requires a code review!");
     //The distance between planes can be computed as the distance from a single point on one plane to the other plane. (We know R_0 is on the plane.)
     const plane<T> plane_b( N, in.R_0 );
     const T separation = std::fabs( plane_b.Get_Signed_Distance_To_Point( (*this).R_0 ) ); 
-    //FUNCINFO("The separation between planes is " << separation);
+    //YLOGINFO("The separation between planes is " << separation);
 
     // Explicitly, the signed distance is   dist = (u_a x u_b) dot (R_a - R_b), which removes the need to compute the plane...
 
@@ -2710,7 +2710,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
 //      auto p1_it = --(this->points.end());
 //      for(auto p2_it = this->points.begin(); (p2_it != this->points.end()) && (p1_it != this->points.end()); ){
 //          if((*p1_it == *p2_it) && (p1_it != p2_it)){
-//              FUNCERR("Found an adjacent duplicated point in input contour");
+//              YLOGERR("Found an adjacent duplicated point in input contour");
 //          }else{
 //              p1_it = p2_it;
 //              ++p2_it;
@@ -2720,7 +2720,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
 /////////////////////
 
     if(this->points.size() < 3){
-        FUNCERR("Not enough contour points to properly split contour. Pretending this contour has been split.");
+        YLOGERR("Not enough contour points to properly split contour. Pretending this contour has been split.");
     }
     long int number_of_crossings = 0;
 
@@ -2781,7 +2781,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     }
 
     if( number_of_crossings != static_cast<long int>(linesegments.size()) ){
-        FUNCERR("We somehow produced " << number_of_crossings << " crossings and " << linesegments.size() << " line segments. This is an error. Check the (input) contour data for repeating points and then check the algorithm.");
+        YLOGERR("We somehow produced " << number_of_crossings << " crossings and " << linesegments.size() << " line segments. This is an error. Check the (input) contour data for repeating points and then check the algorithm.");
     }
    
 std::cout << "'linesegments' contains: " << std::endl;
@@ -2822,14 +2822,14 @@ std::cout << std::endl;
 
 //       const auto A = endpoints[2*ii+0];
 //       const auto B = endpoints[2*ii+1];
-//FUNCINFO("OKAY");
+//YLOGINFO("OKAY");
 //       if(paired_endpoints.find(A) != paired_endpoints.end()){
-//           FUNCERR("Attempted to push back a paired endpoint A which we already have");
+//           YLOGERR("Attempted to push back a paired endpoint A which we already have");
 //       }
 //       paired_endpoints.insert(std::pair<vec3<T>,vec3<T>>(A,B));
 //
 //       if(paired_endpoints.find(B) != paired_endpoints.end()){
-//           FUNCERR("Attempted to push back a paired endpoint B which we already have");
+//           YLOGERR("Attempted to push back a paired endpoint B which we already have");
 //       }
 //       paired_endpoints.insert(std::pair<vec3<T>,vec3<T>>(B,A));
 
@@ -2837,7 +2837,7 @@ std::cout << std::endl;
     }
    
 //if(paired_endpoints.size() != endpoints.size()){
-//    FUNCERR("We pushed back too few paired endpoints " << paired_endpoints.size() << " compared with total number of endpoints " << endpoints.size() << ". Are two close enough to be floating-point-equal?");
+//    YLOGERR("We pushed back too few paired endpoints " << paired_endpoints.size() << " compared with total number of endpoints " << endpoints.size() << ". Are two close enough to be floating-point-equal?");
 //}
  
     //Now we cycle through the line segments until they are all used. 
@@ -2852,7 +2852,7 @@ std::cout << std::endl;
     bool finished_shuttling = false;
     do{
     
-//FUNCINFO("1 - Entering loop now. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() );
+//YLOGINFO("1 - Entering loop now. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() );
         {
           //Find the index of the next unused line segment if none is present.
           //
@@ -2872,7 +2872,7 @@ std::cout << std::endl;
           if(finished_shuttling) break; //Done.
         }
     
-//FUNCINFO("2 - Just past first verification. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() << ", and is_this_linesegment_used[next_linesegment] = " << (is_this_linesegment_used[next_linesegment] ? 1 : 0) );
+//YLOGINFO("2 - Just past first verification. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() << ", and is_this_linesegment_used[next_linesegment] = " << (is_this_linesegment_used[next_linesegment] ? 1 : 0) );
     
     
         //If we have a valid next_linesegment, and we have a non-empty shuttle, and next_linesegment points to a used segment, we have a complete contour in the shuttle.
@@ -2881,14 +2881,14 @@ std::cout << std::endl;
             newcontour_shuttle.clear();
             next_linesegment = -1;
 //                    continue;
-//FUNCINFO("3A - Entered stream A - pushing completed shuttle onto the stack.");
+//YLOGINFO("3A - Entered stream A - pushing completed shuttle onto the stack.");
     
         //If we have a valid next_linesegment, and it points to an unused segment, push in onto the shuttle, mark the segment as used, and set next_linesegment to the appropriate value.
         }else if((next_linesegment != -1) && (is_this_linesegment_used[next_linesegment] == false) ){
             //Mark the line segment "used."
             is_this_linesegment_used[next_linesegment] = true;
     
-//FUNCINFO("3B - Just past first verification. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() << ", and is_this_linesegment_used[next_linesegment] = " << (is_this_linesegment_used[next_linesegment] ? 1 : 0) );
+//YLOGINFO("3B - Just past first verification. next_linesegment = " << next_linesegment << ", shuttle size = " << newcontour_shuttle.size() << ", and is_this_linesegment_used[next_linesegment] = " << (is_this_linesegment_used[next_linesegment] ? 1 : 0) );
             //Append the line segment's points to the shuttle.
             newcontour_shuttle.insert(newcontour_shuttle.end(), linesegments[next_linesegment].begin(), linesegments[next_linesegment].end());
     
@@ -2897,7 +2897,7 @@ std::cout << std::endl;
 
             //Works fine on 64bit machine. Hardly ever works on 32bit (???)
             if(!(paired_endpoints.find(terminator) != paired_endpoints.end())){
-                FUNCERR("Unable to find initiating endpoint " << terminator << ". This might be due to roundoff error");
+                YLOGERR("Unable to find initiating endpoint " << terminator << ". This might be due to roundoff error");
             }
             vec3<T> theinitiator = paired_endpoints[ terminator ];
 
@@ -2914,21 +2914,21 @@ std::cout << std::endl;
 //            }
 //
 //if(minsqdist != 0.0){ 
-//    FUNCINFO("Chose theinitiator to be " << theinitiator << " whilst looking for point " << terminator << " because the minsqdist was " << std::setprecision(100) << minsqdist);
+//    YLOGINFO("Chose theinitiator to be " << theinitiator << " whilst looking for point " << terminator << " because the minsqdist was " << std::setprecision(100) << minsqdist);
 //}    
 
 
             bool could_find_it = false;
             for(long int j = 0; j < static_cast<long int>(linesegments.size()); ++j){
-//FUNCINFO("Trying vector " << linesegments[j][0]);
+//YLOGINFO("Trying vector " << linesegments[j][0]);
                 if(linesegments[j][0] == theinitiator){
                     next_linesegment = j;
                     could_find_it = true;
                     break;
                 }
             }
-            if(could_find_it == false) FUNCERR("Was unable to find the next line segment in this contour. Is it there?");
-//FUNCINFO("4B - Entered stream B - pushing line segment onto the shuttle.");
+            if(could_find_it == false) YLOGERR("Was unable to find the next line segment in this contour. Is it there?");
+//YLOGINFO("4B - Entered stream B - pushing line segment onto the shuttle.");
         }
     
     
@@ -2948,7 +2948,7 @@ std::cout << std::endl;
         }
     }while(finished_shuttling == false);
 
-//FUNCINFO("Exited contour-generation routine. Now dumping contours");
+//YLOGINFO("Exited contour-generation routine. Now dumping contours");
     
     //We check for the number of output contours versus the number of plan crossings.
     //  2 crossings -> 2 contours.
@@ -2957,7 +2957,7 @@ std::cout << std::endl;
     // so N crossings -> (N/2) + 1 contours.
 
     if( (2*(static_cast<long int>(newcontours.size()) - 1)) != number_of_crossings ){
-        FUNCERR("This contour originally had " << number_of_crossings << " plane crossings and has been exploded into " << newcontours.size() << " contours. This is not the amount we should have!");
+        YLOGERR("This contour originally had " << number_of_crossings << " plane crossings and has been exploded into " << newcontours.size() << " contours. This is not the amount we should have!");
     }else{
         //If all looks swell, we push the split contours onto the output.
         for(long int j=0; j < static_cast<long int>(newcontours.size()); ++j){
@@ -2975,21 +2975,21 @@ std::cout << std::endl;
 
 //    //Search for and remove any adjacent, duplicate points. Also look for impossibly small contours.
 //    for(auto c_it = output.begin(); c_it != output.end(); ++c_it){
-//        if(c_it->points.size() < 3) FUNCERR("Produced a contour with too few points. This should not happen");
+//        if(c_it->points.size() < 3) YLOGERR("Produced a contour with too few points. This should not happen");
 //
 //        auto p1_it = --(c_it->points.end());
 //        for(auto p2_it = c_it->points.begin(); (p2_it != c_it->points.end()) && (p1_it != c_it->points.end()); ){
 //            if((*p1_it == *p2_it) && (p1_it != p2_it)){
 //                //Walk the second iter along the chain.
 //                p2_it = c_it->points.erase(p2_it);
-//                FUNCWARN("Removed a neighbouring duplicate point. This may indicate errors in the splitting routine!");
+//                YLOGWARN("Removed a neighbouring duplicate point. This may indicate errors in the splitting routine!");
 //            }else{
 //                p1_it = p2_it;
 //                ++p2_it;
 //            }
 //        }
 //
-//        if(c_it->points.size() < 3) FUNCERR("Produced a contour with too many duplicates. Removing the dupes produced a malformed contour");
+//        if(c_it->points.size() < 3) YLOGERR("Produced a contour with too many duplicates. Removing the dupes produced a malformed contour");
 //    }
 
     return output;
@@ -3017,7 +3017,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     // then we will not actually observe any accidental loss in curvature from this routine.  I'll have to test it..
     const auto Norig = this->points.size();
     if(Norig < 3UL){
-        FUNCWARN("Contour contains too few points to split");
+        YLOGWARN("Contour contains too few points to split");
     }
 
     // Handle degenerate cases.
@@ -3057,7 +3057,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
       auto p1_it = --(this->points.end()), p2_it = this->points.begin();
       while( (p2_it != this->points.end()) && (p1_it != this->points.end()) ){
           if((*p1_it == *p2_it) && (p1_it != p2_it)){
-              FUNCWARN("Found an adjacent duplicated point in input contour - attempting removal");
+              YLOGWARN("Found an adjacent duplicated point in input contour - attempting removal");
               //Duplicate the data.
               contour_of_points<T> dup(*this);
 
@@ -3261,7 +3261,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
             if((*p1_it == *p2_it) && (p1_it != p2_it)){
                 const auto posA = std::distance(c_it->points.begin(), p1_it);
                 const auto posB = std::distance(c_it->points.begin(), p2_it);
-                FUNCWARN("Found adjacent duplicated points in split contour (points #" << posA << " and " << posB << ". Removing one and continuing");
+                YLOGWARN("Found adjacent duplicated points in split contour (points #" << posA << " and " << posB << ". Removing one and continuing");
                 //Notes: 
                 // Keep an eye on when these pop up. I'm not sure where they originate from. I have seen them
                 // pop up due to mixing coronal/sagittal and per-volume/per-contour splitting after about 5
@@ -3277,7 +3277,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
                 //We should remove the first one so that we will notice if the next one is a duplicate too.
                 p1_it = c_it->points.erase(p1_it);
                 if(c_it->points.size() < 3){
-                    FUNCWARN("After removing duplicate point, contour contains < 3 points. Retaining zero-area contour");
+                    YLOGWARN("After removing duplicate point, contour contains < 3 points. Retaining zero-area contour");
                     break;
                 }
 
@@ -3314,12 +3314,12 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
     bounding_box.metadata = this->metadata;
 
     if(r_n.z != 0.0){
-        FUNCWARN("This routine is unable to sensibly handle non-zero z-components in the direction unit vector. Please use another algorithm!");
+        YLOGWARN("This routine is unable to sensibly handle non-zero z-components in the direction unit vector. Please use another algorithm!");
         return bounding_box;
     }
 
     if( this->points.size() < 3 ){
-        FUNCWARN("Too few points in this contour to adaquetly compute a bounding box. Ignoring it and continuing..");
+        YLOGWARN("Too few points in this contour to adaquetly compute a bounding box. Ignoring it and continuing..");
         return bounding_box;
     }
 
@@ -3348,7 +3348,7 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
         if( r_2_dot_centered > r_2_dot_r_2_most  ) r_2_most  = (*it);
         if( r_2_dot_centered < r_2_dot_r_2_least ) r_2_least = (*it);
     }
-    //FUNCINFO(" Four extremity points: " << r_1_most << "  --  " << r_2_most << "  --  " << r_1_least << "  --  " << r_2_least);
+    //YLOGINFO(" Four extremity points: " << r_1_most << "  --  " << r_2_most << "  --  " << r_1_least << "  --  " << r_2_least);
 
     //We have the extremity points from the contour now. We make four lines describing the bounding box, 
     // and each line bounding box lies on top of a(t least one) point in the contour.
@@ -3405,7 +3405,7 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
         bounding_box.points.push_back( intersection + (r_1 + r_2)*margin);
     }else{
 //        throw std::runtime_error("Unable to determine the point of intersection 1. Unable to continue");
-        FUNCWARN("Could not determine exact point of intersection (1). Computing closest-point instead");
+        YLOGWARN("Could not determine exact point of intersection (1). Computing closest-point instead");
         if( L4.Closest_Point_To_Line(L1, intersection) ){
             bounding_box.points.push_back( intersection + (r_1 + r_2)*margin);
         }else{
@@ -3417,7 +3417,7 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
         bounding_box.points.push_back( intersection + (r_2 - r_1)*margin);
     }else{
 //        throw std::runtime_error("Unable to determine the point of intersection 2. Unable to continue");
-        FUNCWARN("Could not determine exact point of intersection (2). Computing closest-point instead");
+        YLOGWARN("Could not determine exact point of intersection (2). Computing closest-point instead");
         if( L3.Closest_Point_To_Line(L4, intersection) ){
             bounding_box.points.push_back( intersection + (r_2 - r_1)*margin);
         }else{
@@ -3429,7 +3429,7 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
         bounding_box.points.push_back( intersection - (r_1 + r_2)*margin);
     }else{
 //        throw std::runtime_error("Unable to determine the point of intersection 3. Unable to continue");
-        FUNCWARN("Could not determine exact point of intersection (3). Computing closest-point instead");
+        YLOGWARN("Could not determine exact point of intersection (3). Computing closest-point instead");
         if( L2.Closest_Point_To_Line(L3, intersection) ){
             bounding_box.points.push_back( intersection - (r_1 + r_2)*margin);
         }else{
@@ -3441,7 +3441,7 @@ template <class T> contour_of_points<T> contour_of_points<T>::Bounding_Box_Along
         bounding_box.points.push_back( intersection + (r_1 - r_2)*margin);
     }else{
 //        throw std::runtime_error("Unable to determine the point of intersection 4. Unable to continue");
-        FUNCWARN("Could not determine exact point of intersection (4). Computing closest-point instead");
+        YLOGWARN("Could not determine exact point of intersection (4). Computing closest-point instead");
         if( L1.Closest_Point_To_Line(L2, intersection) ){
             bounding_box.points.push_back( intersection + (r_1 - r_2)*margin);
         }else{
@@ -3470,12 +3470,12 @@ template contour_of_points<double> contour_of_points<double>::Bounding_Box_Along
 template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split_Against_Ray( const vec3<T> &r_n ) const {
     std::list<contour_of_points<T>> output;
 
-    FUNCWARN("This routine may or may not work OK.");
+    YLOGWARN("This routine may or may not work OK.");
 
     //Grab the bounding box.
     const contour_of_points<T> the_bounding_box = this->Bounding_Box_Along(r_n, 1.0);
     if(the_bounding_box.points.size() != 4){
-        FUNCWARN("Unable to compute a bounding box. Ignoring and continuing.");
+        YLOGWARN("Unable to compute a bounding box. Ignoring and continuing.");
         return output;
     }
 
@@ -3531,7 +3531,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
                     if(theplane.Intersects_With_Line_Once(line<T>(*iter_1,*iter_2), intersection)){
                         intersection_points.push_back( intersection );
                     }else{
-                        FUNCINFO("Unable to find intersection (maybe it intersects many times?). Assuming center point is intersection!");
+                        YLOGINFO("Unable to find intersection (maybe it intersects many times?). Assuming center point is intersection!");
                         intersection_points.push_back( (*iter_1 + *iter_2)*0.5 );
                     }
                 }
@@ -3549,12 +3549,12 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
         if( (intersection_points.size() % 2) != 0 ){
             ++TIMES_STUCK_IN_KEY;
             if(TIMES_STUCK_IN_KEY > 25){
-                FUNCWARN("We have crossed an odd number of contour lines, but we should have crossed an even number. Unable to nudge, so giving up!");
+                YLOGWARN("We have crossed an odd number of contour lines, but we should have crossed an even number. Unable to nudge, so giving up!");
                 continue;
             }
 
 //            throw std::runtime_error("We have crossed an odd number of contour lines, but we should have crossed an even number.");
-//            FUNCWARN("We have crossed an odd number of contour lines, but we should have crossed an even number. Nudging ray slightly...");
+//            YLOGWARN("We have crossed an odd number of contour lines, but we should have crossed an even number. Nudging ray slightly...");
             L += 0.01*dL;
             L -= dL;  //To counter the loop's L += dL.
             continue;
@@ -3562,11 +3562,11 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
         if( intersection_points.size() == 0 ){
             ++TIMES_STUCK_IN_KEY;
             if(TIMES_STUCK_IN_KEY > 25){
-                FUNCWARN("We failed to find any points of intersection. Unable to nudge, so giving up!");
+                YLOGWARN("We failed to find any points of intersection. Unable to nudge, so giving up!");
                 continue;
             }
 //            throw std::runtime_error("We failed to find any points of intersection. This is likely an issue with the bounding box or the data being wonky. This could be due to multi-contour input - if so, fix me please!");
-//            FUNCWARN("We failed to find any points of intersection - was the contour oddly shaped, excessively small, or very point-sparse? Nudging ray slightly...");
+//            YLOGWARN("We failed to find any points of intersection - was the contour oddly shaped, excessively small, or very point-sparse? Nudging ray slightly...");
             L -= 0.007*dL;
             L -= dL;  //To counter the loop's L += dL.
             continue;
@@ -3610,7 +3610,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     }
 
     if( halfway_points.size() == 0 ){
-        FUNCWARN("No mid-contour points were generated. Not exactly sure why.. Maybe insufficient number of points were requested?");
+        YLOGWARN("No mid-contour points were generated. Not exactly sure why.. Maybe insufficient number of points were requested?");
         return output;
     }
 
@@ -3730,14 +3730,14 @@ template std::list<contour_of_points<float>> contour_of_points<float>::Split_Aga
 template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_Into_Core_Peel_Spherical(const vec3<T> &point, T frac_dist) const {
     std::list<contour_of_points<T>> output;
     if(frac_dist < (T)(0.0)){
-        FUNCWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
+        YLOGWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
         return output;
     }else if(frac_dist > (T)(1.0)){
-        FUNCWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
+        YLOGWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
         return output;
     }
     if(this->points.empty()){
-        FUNCWARN("Attempted to perform core and peel splitting with no contour points! Continuing");
+        YLOGWARN("Attempted to perform core and peel splitting with no contour points! Continuing");
         return output;
     }
     if(this->closed != true){ 
@@ -3880,7 +3880,7 @@ template <class T> vec3<T> contour_of_points<T>::Centroid(void) const {
 //        const T area = std::sqrt(((A).Cross(B)).Dot( (A).Cross(B) )) * (T)(0.5);  //The area of the triangle ABC.
 //        const vec3<T> r_a( (A + B) / (T)(3.0) );               //The center of the triangle.
 
-//FUNCINFO("The current area is " << area << " and the current RA is " << r_a);
+//YLOGINFO("The current area is " << area << " and the current RA is " << r_a);
         Area += area;
         RA += r_a * area;
     }
@@ -3897,7 +3897,7 @@ template <class T> vec3<T> contour_of_points<T>::Centroid(void) const {
 // of a contour or for checking which side of a plane a spit contour lies on.
 template <class T> vec3<T> contour_of_points<T>::First_N_Point_Avg(const long int N) const {
     if((N <= 0) || (N > static_cast<long int>(this->points.size()))){
-        FUNCERR("Attempted to average N=" << N << " points. This is not possible. The contour has " << this->points.size() << " points");
+        YLOGERR("Attempted to average N=" << N << " points. This is not possible. The contour has " << this->points.size() << " points");
     }
     vec3<T> out;
     auto it = this->points.begin();
@@ -4100,7 +4100,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     // the perimeter of the original contour.
 
     //First, do some preliminary checks.
-    if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
+    if(this->points.size() <= 1) YLOGERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
     
     decltype(this->points) newpoints;
     const T perimeter = this->Perimeter();
@@ -4113,7 +4113,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     auto itA = this->points.begin(), itB = ++(this->points.begin());
     while(true){
         if(!(itA != this->points.end())){ //Wrap around will only be required if the contour is closed (not always, though.) itB will be the one to wrap!
-            FUNCERR("The first iterator wrapped around. This should not happen, and is likely due to round off. There are " << newpoints.size() << "/" << N << " points.");
+            YLOGERR("The first iterator wrapped around. This should not happen, and is likely due to round off. There are " << newpoints.size() << "/" << N << " points.");
         }
         if(!(itB != this->points.end())) itB = this->points.begin();
 
@@ -4144,12 +4144,12 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
 
 template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly_Along_Perimeter(const long int N) const {
     //First, do some preliminary checks.
-    if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
-    if(N <= 0) FUNCERR("Attempted to perform resampling into " << N << " points. Surely this was not intended!");
+    if(this->points.size() <= 1) YLOGERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
+    if(N <= 0) YLOGERR("Attempted to perform resampling into " << N << " points. Surely this was not intended!");
     
     //Issue some reasonable warnings. These could be safely removed - we are not losing any info because we are making a copy. Leave it here for testing, though!
 //    if(static_cast<float>(N) < 0.2*static_cast<float>(this->points.size())){
-//        FUNCWARN("Resampling into less than 1/5th of the original contour point density. Watch out for contour mangling!");
+//        YLOGWARN("Resampling into less than 1/5th of the original contour point density. Watch out for contour mangling!");
 //    }
 
     decltype(this->points) newpoints;
@@ -4161,13 +4161,13 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     auto itA = this->points.begin(), itB = ++(this->points.begin());
     while(true){
         if(!(itA != this->points.end())){ //Wrap around will only be required if the contour is closed (not always, though.) itB will be the one to wrap!
-            FUNCERR("The first iterator wrapped around. This should not happen, and is likely due to round off. There are " << newpoints.size() << "/" << N << " points.");
+            YLOGERR("The first iterator wrapped around. This should not happen, and is likely due to round off. There are " << newpoints.size() << "/" << N << " points.");
         }
         if(!(itB != this->points.end())) itB = this->points.begin();
 
         const line_segment<T> line(*itA, *itB);  //From A to B.
         auto somepoints = line.Sample_With_Spacing(spacing, offset, remain); //'remain' is adjusted each time.
-        //FUNCINFO("Spacing is " << spacing << ", offset is " << offset << " and remaining is now " << remain << "  . We got " << somepoints.size() << " points, and the dl between contour points was " << itA->distance(*itB));
+        //YLOGINFO("Spacing is " << spacing << ", offset is " << offset << " and remaining is now " << remain << "  . We got " << somepoints.size() << " points, and the dl between contour points was " << itA->distance(*itB));
 
         offset = (zero - remain);
         remain = zero;
@@ -4196,7 +4196,7 @@ template <class T>
 contour_of_points<T> 
 contour_of_points<T>::Subdivide_Midway(void) const {
     //First, do some preliminary checks.
-    if(this->points.size() <= 1) FUNCERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
+    if(this->points.size() <= 1) YLOGERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
    
     decltype(this->points) newpoints;
 
@@ -4385,7 +4385,7 @@ contour_of_points<T>:: Collapse_Vertices(T area_threshold) const {
 //       consider following this routine with a planar projection.
 template <class T>    contour_of_points<T> contour_of_points<T>::Scale_Dist_From_Point(const vec3<T> &point, T scale) const {
     if(scale < (T)(0.0)){
-        FUNCWARN("Passed a negative scaling factor. We cannot compute anything logical with this value. Continuing");
+        YLOGWARN("Passed a negative scaling factor. We cannot compute anything logical with this value. Continuing");
         // NOTE: If you actually need this, you can probably safely delete this check and warning. (Double check.) It 
         //       doesn't seem terribly useful to scale negatively at the moment, so I figured this would indicate a
         //       logic or programming error. If you *do* allow this, remember that the orientation will flip!
@@ -5144,7 +5144,7 @@ template <class T> vec3<T> contour_collection<T>::Centroid(bool AssumePlanarCont
 //NOTE: Uses first N contours with first M points from each. Decent defaults are: N = 1 and M = 3. 
 template <class T> vec3<T> contour_collection<T>::Generic_Avg_Boundary_Point(const long int N, const long int M) const {
     if((N <= 0) || (N > static_cast<long int>(this->contours.size()))){
-        FUNCERR("Attempted to average N=" << N << " contours. This is not possible. The collection has " << this->contours.size() << " contours");
+        YLOGERR("Attempted to average N=" << N << " contours. This is not possible. The collection has " << this->contours.size() << " contours");
     }
     vec3<T> out;
     auto it = this->contours.begin();
@@ -5316,10 +5316,10 @@ template std::list<contour_collection<float>> contour_collection<float>::Split_A
 template <class T> std::list<contour_collection<T>> contour_collection<T>::Split_Into_Core_Peel_Spherical(T frac_dist) const {
     std::list<contour_collection> output;
     if(frac_dist < (T)(0.0)){
-        FUNCWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
+        YLOGWARN("Passed a negative scale factor. This is nonsensical and nothing reasonable can be computed. Continuing");
         return output;
     }else if(frac_dist > (T)(1.0)){
-        FUNCWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
+        YLOGWARN("Passed a scale factor > 1.0. This case is not handled and would produce a core larger than peel! Continuing");
         return output;
     }
 
@@ -6591,10 +6591,10 @@ fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, long in
     }
     const auto number_of_samples = static_cast<size_t>(total_surface_area / surface_area_per_sample);
     if(number_of_samples == 0){
-        FUNCWARN("Sampling zero points on the surface. Consider more dense sampling");
+        YLOGWARN("Sampling zero points on the surface. Consider more dense sampling");
     }
     if(100'000 < number_of_samples){
-        FUNCWARN("Sampling " << number_of_samples << " points");
+        YLOGWARN("Sampling " << number_of_samples << " points");
     }
 
     // Random number generation setup.
@@ -7300,7 +7300,7 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
             //// Export the current mesh for inspection.
             //{
             //    const auto FN = Get_Unique_Sequential_Filename("/tmp/mesh_smpl_frame_", 6, ".obj");
-            //    FUNCINFO("Exporting '" << FN << "' now..");
+            //    YLOGINFO("Exporting '" << FN << "' now..");
             //    std::fstream FO(FN, std::fstream::out | std::ios::binary);
             //    if(!WriteFVSMeshToOBJ( *this, FO )){
             //        throw std::runtime_error("Unable to write surface mesh in OBJ format. Cannot continue.");
@@ -7314,7 +7314,7 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
     
     // Report stats.
     for(const auto& p : msgs){
-        FUNCINFO("Proposed simplifications were abandoned " << p.second << " times due to '" << p.first << "'");
+        YLOGINFO("Proposed simplifications were abandoned " << p.second << " times due to '" << p.first << "'");
     }
 
     // Remove empty faces and vertices.
@@ -7680,7 +7680,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         if(p.second.empty()) ++adj_face_empty_keys;
     }
 
-FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << ", non-empty faces: "
+YLOGINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << ", non-empty faces: "
   << nonempty_faces << ", face_adjacency.size() = " << face_adjacency.size()
   << ", has " << adj_face_count << " keys+values, and there are " << adj_face_empty_keys << " value-less keys");
 }
@@ -7752,7 +7752,7 @@ FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
                 for(const auto & vis_p : visibility_horizon_straddlers){
                     const auto vis_face = vis_p.first;
                     const auto invis_face = vis_p.second;
-                    //FUNCINFO("Faces " << vis_face << " (inside) and " << invis_face << " (outside) straddle the visibility horizon");
+                    //YLOGINFO("Faces " << vis_face << " (inside) and " << invis_face << " (outside) straddle the visibility horizon");
 
                     std::vector<I>   vis_verts;
                     std::vector<I> invis_verts;
@@ -7769,10 +7769,10 @@ FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
                                           std::begin(invis_verts), std::end(invis_verts),
                                           std::back_inserter(common_verts));
                     if(common_verts.size() == 0){
-                        //FUNCINFO("Face not adjacent to horizon -- ignoring");
+                        //YLOGINFO("Face not adjacent to horizon -- ignoring");
 
                     }else if(common_verts.size() == 1){
-                        //FUNCINFO("Single vertex on the horizon -- ignoring");
+                        //YLOGINFO("Single vertex on the horizon -- ignoring");
 
                     }else if(common_verts.size() == 2){
                         // Figure out the real order using the invisible face.
@@ -7791,19 +7791,19 @@ FUNCINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
 
 /*
                         if(!warned_about_possible_inaccuracy){
-                            FUNCWARN("Encountered inconsistency likely due to numerical inaccuracy. Hull may be incomplete");
-FUNCINFO("faces.size() = " << faces.size());
+                            YLOGWARN("Encountered inconsistency likely due to numerical inaccuracy. Hull may be incomplete");
+YLOGINFO("faces.size() = " << faces.size());
 {
 std::stringstream ss;
 ss << "  vis_face " << vis_face << " vert indices: ";
 for(const auto& i : vis_verts) ss << i << " ";
-FUNCINFO(ss.str());
+YLOGINFO(ss.str());
 }
 {
 std::stringstream ss;
 ss << "  invis_face " << invis_face << " vert indices: ";
 for(const auto& i : invis_verts) ss << i << " ";
-FUNCINFO(ss.str());
+YLOGINFO(ss.str());
 }
                             warned_about_possible_inaccuracy = true;
                         }
@@ -9153,7 +9153,7 @@ affine_transform<T>::read_from(std::istream &is){
     ||  (machine_eps < (std::abs(this->t[3][1] - static_cast<T>(0))))
     ||  (machine_eps < (std::abs(this->t[3][2] - static_cast<T>(0))))
     ||  (machine_eps < (std::abs(this->t[3][3] - static_cast<T>(1)))) ){
-        FUNCWARN("Unable to read transformation; not affine");
+        YLOGWARN("Unable to read transformation; not affine");
         return false;
     }
     this->t[3][0] = static_cast<T>(0);
@@ -9948,10 +9948,10 @@ template <class T> std::array<T,2> samples_1D<T>::Average_x(void) const {
     // NOTE: If there is no data, an average of zero with infinite uncertainty will be returned.
     //
     if(this->empty()){
-        //FUNCWARN("Cannot compute the average of an empty set");
+        //YLOGWARN("Cannot compute the average of an empty set");
         return { (T)(0), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Computing the average of a single element. The std dev will be infinite");
+        //YLOGWARN("Computing the average of a single element. The std dev will be infinite");
         return { this->samples.front()[0], std::numeric_limits<T>::infinity() };
     } 
     const T N = static_cast<T>(this->samples.size());
@@ -9983,10 +9983,10 @@ template <class T> std::array<T,2> samples_1D<T>::Average_x(void) const {
 template <class T> std::array<T,2> samples_1D<T>::Average_y(void) const {
     //See this->Average_x() for info.
     if(this->empty()){ 
-        //FUNCWARN("Cannot compute the average of an empty set");
+        //YLOGWARN("Cannot compute the average of an empty set");
         return { (T)(0), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Computing the average of a single element. The std dev will be infinite");
+        //YLOGWARN("Computing the average of a single element. The std dev will be infinite");
         return { this->samples.front()[2], std::numeric_limits<T>::infinity() };
     }
     const T N = static_cast<T>(this->samples.size());
@@ -10118,10 +10118,10 @@ template <class T> std::array<T,2> samples_1D<T>::Weighted_Mean_x(void) const {
     //       situation by carefully evaluating the normality of the bins before relying on this routine.
     //
     if(this->empty()){
-        //FUNCWARN("Cannot compute the weighted mean of an empty set");
+        //YLOGWARN("Cannot compute the weighted mean of an empty set");
         return { std::numeric_limits<T>::quiet_NaN(), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Computing the weighted mean of a single element. The std dev will be infinite");
+        //YLOGWARN("Computing the weighted mean of a single element. The std dev will be infinite");
         return { this->samples.front()[0], std::numeric_limits<T>::infinity() };
     }
 
@@ -10152,7 +10152,7 @@ template <class T> std::array<T,2> samples_1D<T>::Weighted_Mean_x(void) const {
 
     //Verify that at least some data was suitable.
     if((Nfinite + Ninfinite) == 0){
-        //FUNCWARN("No data was suitable for weighted mean. All datum had inf uncertainty");
+        //YLOGWARN("No data was suitable for weighted mean. All datum had inf uncertainty");
         return { std::numeric_limits<T>::quiet_NaN(), std::numeric_limits<T>::infinity() };
     }
 
@@ -11006,7 +11006,7 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit()
         //  how good our estimate is so the sigma_f_i uncertainty is infinite.
         return { (T)(0), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Unable to interpolate f - there is only a single sample.
+        //YLOGWARN("Unable to interpolate f - there is only a single sample.
 
         //Since there is a single point, with no effective width and no way to determine the true strength of an infinite
         // pulse numerically, the integral is zero. We know basically nothing about the certainty of this result so the
@@ -11042,7 +11042,7 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit()
             // integrating. We never 'encounter' the discontinuity!
             continue;
         }else if(!std::isfinite(m)){
-            FUNCWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
+            YLOGWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
 
@@ -11050,10 +11050,10 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit()
         const T F = ((T)(0.5)*YR + (T)(0.5)*YL)*dX;
 
         if(!std::isfinite(F)){
-            //Ideally we would FUNCERR() or report the issue with an exception and let the user deal with it.
+            //Ideally we would YLOGERR() or report the issue with an exception and let the user deal with it.
             // The latter would be preferred because this routine may be used in situations where INF's are 
             // acceptable, such as function fitting with unbounded parameters. For now we'll be sloppy.
-            FUNCWARN("Integral contains infinite contributions. Are the datum finite?");
+            YLOGWARN("Integral contains infinite contributions. Are the datum finite?");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
         res += F;
@@ -11116,7 +11116,7 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit(T
         //  how good our estimate is so the sigma_f_i uncertainty is infinite.
         return { (T)(0), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Unable to interpolate f - there is only a single sample.
+        //YLOGWARN("Unable to interpolate f - there is only a single sample.
 
         //Since there is a single point, with no effective width and no way to determine the true strength of an infinite
         // pulse numerically, the integral is zero. We know basically nothing about the certainty of this result so the
@@ -11194,7 +11194,7 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit(T
             // integrating. We never 'encounter' the discontinuity!
             continue;
         }else if(!std::isfinite(m)){
-            FUNCWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
+            YLOGWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
 
@@ -11202,10 +11202,10 @@ template <class T>   std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_unit(T
         const T F = ((T)(0.5)*YR + (T)(0.5)*YL)*dX;
 
         if(!std::isfinite(F)){
-            //Ideally we would FUNCERR() or report the issue with an exception and let the user deal with it.
+            //Ideally we would YLOGERR() or report the issue with an exception and let the user deal with it.
             // The latter would be preferred because this routine may be used in situations where INF's are 
             // acceptable, such as function fitting with unbounded parameters. For now we'll be sloppy.
-            FUNCWARN("Integral contains infinite contributions. Are the datum finite?");
+            YLOGWARN("Integral contains infinite contributions. Are the datum finite?");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
         res += F;
@@ -11267,7 +11267,7 @@ template <class T> std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_exp(T xm
         //  how good our estimate is so the sigma_f_i uncertainty is infinite.
         return { (T)(0), std::numeric_limits<T>::infinity() };
     }else if(this->size() == 1){
-        //FUNCWARN("Unable to interpolate f - there is only a single sample.
+        //YLOGWARN("Unable to interpolate f - there is only a single sample.
 
         //Since there is a single point, with no effective width and no way to determine the true strength of an infinite
         // pulse numerically, the integral is zero. We know basically nothing about the certainty of this result so the
@@ -11275,7 +11275,7 @@ template <class T> std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_exp(T xm
         return { (T)(0), std::numeric_limits<T>::infinity() };
         
     }
-    //if(this->size() < 2) FUNCERR("Unable to interpolate f - there are less than 2 samples");
+    //if(this->size() < 2) YLOGERR("Unable to interpolate f - there are less than 2 samples");
 
     // The user supplied the integration bounds backward.
     if((xmax - xmin) < (T)(0)){
@@ -11351,7 +11351,7 @@ template <class T> std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_exp(T xm
             // integrating. We never 'encounter' the discontinuity!
             continue;
         }else if(!std::isfinite(m)){
-            FUNCWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
+            YLOGWARN("Encountered difficulty computing slope of line segment. Integral contains infinite contributions");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
 
@@ -11359,10 +11359,10 @@ template <class T> std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_exp(T xm
         const T F = ((YR*A - m)*std::exp(A*(XR + X0)) - (YL*A - m)*std::exp(A*(XL + X0)))/(A*A); 
 
         if(!std::isfinite(F)){
-            //Ideally we would FUNCERR() or report the issue with an exception and let the user deal with it.
+            //Ideally we would YLOGERR() or report the issue with an exception and let the user deal with it.
             // The latter would be preferred because this routine may be used in situations where INF's are 
             // acceptable, such as function fitting with unbounded parameters. For now we'll be sloppy.
-            FUNCWARN("Integral contains infinite contributions. Perhaps the 'A' parameter is overflowing std::exp()?");
+            YLOGWARN("Integral contains infinite contributions. Perhaps the 'A' parameter is overflowing std::exp()?");
             return { std::numeric_limits<T>::infinity(),  std::numeric_limits<T>::infinity() };
         }
         res += F;
@@ -11750,21 +11750,21 @@ template <class T> std::array<T,4> samples_1D<T>::Spearmans_Rank_Correlation_Coe
     const auto rho = numer/std::sqrt(denomA*denomB);
     if(!std::isfinite(rho) || (YGORABS(rho) > (T)(1))){
         if(OK == nullptr) throw std::runtime_error("Found coefficient which was impossible or nan. Bailing");
-        FUNCWARN("Found coefficient which was impossible or nan. Bailing");
+        YLOGWARN("Found coefficient which was impossible or nan. Bailing");
         return ret_on_err;
     }
     const auto num = static_cast<T>(ranked.samples.size());
 
     if(ranked.size() < 3){
         if(OK == nullptr) throw std::runtime_error("Unable to compute z-value - too little data");
-        FUNCWARN("Unable to compute z-value - too little data");
+        YLOGWARN("Unable to compute z-value - too little data");
         return ret_on_err;
     }
     const T zval = std::sqrt((num - 3.0)/1.060)*std::atanh(rho);
 
     if(ranked.size() < 2){
         if(OK == nullptr) throw std::runtime_error("Unable to compute t-value - too little data");
-        FUNCWARN("Unable to compute t-value - too little data");
+        YLOGWARN("Unable to compute t-value - too little data");
         return ret_on_err;
     }
     const T tval_n = rho*std::sqrt(num - (T)(2));
@@ -11787,7 +11787,7 @@ template <class T> std::array<T,3> samples_1D<T>::Compute_Sxy_Sxx_Syy(bool *OK) 
     //Ensure the data is suitable.
     if(this->size() < 1){
         if(OK == nullptr) throw std::runtime_error("Unable to calculate Sxy,Sxx,Syy with no data");
-        FUNCWARN("Unable to calculate Sxy,Sxx,Syy with no data. Bailing");
+        YLOGWARN("Unable to calculate Sxy,Sxx,Syy with no data. Bailing");
         return ret_on_err;
     }
 
@@ -12692,7 +12692,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
         // While it is possible to do it for 2 data points, the closed form solution in that case is 
         // easy enough to do in a couple lines, and probably should just be implemented as needed.
         if(OK == nullptr) throw std::runtime_error("Unable to perform meaningful linear regression with so few points");
-        FUNCWARN("Unable to perform meaningful linear regression with so few points. Bailing");
+        YLOGWARN("Unable to perform meaningful linear regression with so few points. Bailing");
         return ret_on_err;
     }
     res.N = static_cast<T>(this->size());
@@ -12731,7 +12731,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     if(!std::isnormal(common_denom)){
         //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
         if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
-        FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
+        YLOGWARN("Encountered difficulties with data. Is the data pathological? Bailing");
         return ret_on_err;
     }
 
@@ -12740,7 +12740,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     if(!std::isfinite(res.slope) || !std::isfinite(res.intercept)){
         //While we *could* proceed, something must be off. Maybe an overflow (and inf or nan) during accumulation?
         if(OK == nullptr) throw std::runtime_error("Encountered difficulties computing m and b. Is the data pathological?");
-        FUNCWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
+        YLOGWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
         return ret_on_err;
     }
 
@@ -12874,7 +12874,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         const auto nwlr = this->Linear_Least_Squares_Regression(&l_OK);
         if(!l_OK){
             if(OK == nullptr) throw std::runtime_error("Standard linear regression failed. Cannot properly propagate unertainties");
-            FUNCWARN("Standard linear regression failed. Cannot properly propagate unertainties. Bailing");
+            YLOGWARN("Standard linear regression failed. Cannot properly propagate unertainties. Bailing");
             return ret_on_err;
         }
         approx_slope = nwlr.slope;
@@ -12884,7 +12884,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
     if(this->size() < 3){
         //If we have two points, there are as many parameters as datum. We cannot even compute the stats...
         if(OK == nullptr) throw std::runtime_error("Unable to perform meaningful linear regression with so few points");
-        FUNCWARN("Unable to perform meaningful linear regression with so few points. Bailing");
+        YLOGWARN("Unable to perform meaningful linear regression with so few points. Bailing");
         return ret_on_err;
     }
     res.N = static_cast<T>(this->size());
@@ -12960,7 +12960,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         if(!std::isnormal(common_denom)){
             //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
             if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
-            FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
+            YLOGWARN("Encountered difficulties with data. Is the data pathological? Bailing");
             return ret_on_err;
         }
 
@@ -12969,7 +12969,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         if(!std::isfinite(res.slope) || !std::isfinite(res.intercept)){
             //While we *could* proceed, something must be off. Maybe an overflow (and inf or nan) during accumulation?
             if(OK == nullptr) throw std::runtime_error("Encountered difficulties computing m and b. Is the data pathological?");
-            FUNCWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
+            YLOGWARN("Encountered difficulties computing m and b. Is the data pathological? Bailing");
             return ret_on_err;
         }
 
@@ -13010,7 +13010,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
             // all expressions for small epsilon with something like a Taylor expansion, and see if there is a finite
             // expansion.
             if(OK == nullptr) throw std::runtime_error("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
-            FUNCWARN("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
+            YLOGWARN("Data has a mix of zero (or denormal) and non-zero uncertainties. Not (yet?) supported");
             return ret_on_err;
         }
 
@@ -13021,7 +13021,7 @@ template <class T> lin_reg_results<T> samples_1D<T>::Weighted_Linear_Least_Squar
         if(!std::isnormal(common_denom)){
             //This cannot be zero, inf, or nan. Proceeding with a sub-normal is also a bad idea.
             if(OK == nullptr) throw std::runtime_error("Encountered difficulties with data. Is the data pathological?");
-            FUNCWARN("Encountered difficulties with data. Is the data pathological? Bailing");
+            YLOGWARN("Encountered difficulties with data. Is the data pathological? Bailing");
             return ret_on_err;
         }
         res.slope     = (res.N*res.sum_xf - res.sum_x*res.sum_f)/common_denom;
@@ -13296,7 +13296,7 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
     in >> U;    //'1' or '0'
     in >> shtl; //'num_samples='
     in >> N;    //'13'   ...or something...
-    //FUNCINFO("N is " << N);
+    //YLOGINFO("N is " << N);
     for(long int i=0; i<N; ++i){
         T x_i, sigma_x_i, f_i, sigma_f_i;
         in >> x_i >> sigma_x_i >> f_i >> sigma_f_i;

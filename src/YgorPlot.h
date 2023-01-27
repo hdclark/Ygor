@@ -60,13 +60,13 @@ class Plotter {
             linestyle_m = 1;
             linestyle_s = 1;
 
-            if(fp == nullptr) FUNCERR("Unable to open a pipe!");
+            if(fp == nullptr) YLOGERR("Unable to open a pipe!");
         }
 
         Plotter(const std::string &filename) : ss(std::stringstream::in | std::stringstream::out ) {
             if( Does_File_Exist_And_Can_Be_Read(filename) ){
                 const std::string safer = Get_Unique_Sequential_Filename( filename );
-                FUNCWARN("Attempting to overwrite an existing plot \"" << filename << "\". Proceeding with output filename \"" << safer << "\"");
+                YLOGWARN("Attempting to overwrite an existing plot \"" << filename << "\". Proceeding with output filename \"" << safer << "\"");
                 fp = popen( (PLOTTING_INITIATOR_FILE + PLOTTING_INITIATOR_FILL + " > " + safer    + PLOTTING_INITIATOR_BLACK_HOLE).c_str(), "w" );
             }else{
                 fp = popen( (PLOTTING_INITIATOR_FILE + PLOTTING_INITIATOR_FILL + " > " + filename + PLOTTING_INITIATOR_BLACK_HOLE).c_str(), "w" );
@@ -74,14 +74,14 @@ class Plotter {
             linestyle_m = 1;
             linestyle_s = 1;
 
-            if(fp == nullptr) FUNCERR("Unable to open a pipe!");
+            if(fp == nullptr) YLOGERR("Unable to open a pipe!");
         }
 
         ~Plotter() {
             if(fp == nullptr){
                 status = pclose(fp);
                 if(status == -1){
-                    FUNCERR("Unable to close pipe. Is the process still active? \"pclose\" reports error " << status);
+                    YLOGERR("Unable to close pipe. Is the process still active? \"pclose\" reports error " << status);
                 }
                 //else{
                 //    //Use macros described under wait() to inspect `status' in order
@@ -380,7 +380,7 @@ class Plotter3 {
         //Constructor, Destructor.
         //Add more constructors as needed. Do not break this simple plotutils-based constructor, though.
         Plotter3() : ss(std::stringstream::in | std::stringstream::out){
-            if(!(fp = popen(YGORPLOT3_H_PLOT_COMMAND.c_str(), "w"))) FUNCERR("Unable to open a pipe!");
+            if(!(fp = popen(YGORPLOT3_H_PLOT_COMMAND.c_str(), "w"))) YLOGERR("Unable to open a pipe!");
             current_line_use   = "lp";
             current_line_style = 1;
             ss << YGORPLOT3_H_PIPE_PREP;
@@ -388,7 +388,7 @@ class Plotter3 {
         }
         ~Plotter3(){
             if(fp != nullptr){
-                if(pclose(fp) == -1) FUNCERR("Unable to close pipe. Is the process still active?");
+                if(pclose(fp) == -1) YLOGERR("Unable to close pipe. Is the process still active?");
             }
         };
 

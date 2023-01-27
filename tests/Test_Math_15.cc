@@ -36,7 +36,7 @@
                                                       &lower_plane,
                                                       &iters_taken,
                                                       &final_area_frac);
-        FUNCINFO("Bisection: planar area fraction"
+        YLOGINFO("Bisection: planar area fraction"
                  << " above LOWER plane with normal: " << planar_normal
                  << " was " << final_area_frac << "."
                  << " Requested: " << SelectionLower << "."
@@ -51,7 +51,7 @@
                                                       &upper_plane,
                                                       &iters_taken,
                                                       &final_area_frac);
-        FUNCINFO("Bisection: planar area fraction"
+        YLOGINFO("Bisection: planar area fraction"
                  << " above UPPER plane with normal: " << planar_normal
                  << " was " << final_area_frac << "."
                  << " Requested: " << SelectionUpper << "."
@@ -80,7 +80,7 @@
 
         const contour_collection<double> cc_selection( split2.front() );
         if( cc_selection.contours.empty() ){
-            FUNCWARN("Selection contains no contours. Try adjusting your criteria.");
+            YLOGWARN("Selection contains no contours. Try adjusting your criteria.");
         }
         return cc_selection;
     };
@@ -215,12 +215,12 @@ int main(int argc, char **argv){
         const auto area_theo_whole = M_PI * r * r;
         const auto area_actual_whole = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
 
-        FUNCINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
+        YLOGINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
 
         const auto area_expected = area_actual_whole / 9.0;
 
 
-        FUNCINFO("Performing [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
+        YLOGINFO("Performing [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
         {
             auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
                                    (1.0/3.0), (0.0/3.0), // X-selection: lower and upper planes; fractional volume above each plane.
@@ -229,19 +229,19 @@ int main(int argc, char **argv){
             subsegs.Consume_Contours(c);
         }
 
-        FUNCINFO("Performing [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
+        YLOGINFO("Performing [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
         {
             auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
                                    (2.0/3.0), (1.0/3.0),
                                    (2.0/3.0), (1.0/3.0),
                                    area_expected);  // Expected area.
-            //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
-            //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
-            //FUNCWARN("Centroid = " << c.Centroid());
+            //YLOGWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
+            //YLOGWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
+            //YLOGWARN("Centroid = " << c.Centroid());
             subsegs.Consume_Contours(c);
         }
 
-        FUNCINFO("Performing [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-central' sub-seg).");
+        YLOGINFO("Performing [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-central' sub-seg).");
         {
             auto c = initiate_subseg_planar(ROIs, x_normal, y_normal,
                                    (2.0/3.0), (1.0/3.0),
@@ -343,12 +343,12 @@ int main(int argc, char **argv){
 
         const auto area_actual_whole = ROIs.Get_Signed_Area(/*AssumePlanarContours*/ true);
 
-        FUNCINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
+        YLOGINFO("Theoretical and actual whole ROI areas differ by " << 100.0*(area_actual_whole - area_theo_whole)/area_theo_whole << "%");
 
         const auto area_expected = area_actual_whole / 27.0;
 
 
-        FUNCINFO("Performing [1/3,0], [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
+        YLOGINFO("Performing [1/3,0], [1/3,0], [1/3,0] sub-seg. (This is a 'corner' sub-seg).");
         {
             auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
                                    (1.0/3.0), (0.0/3.0), // X-selection: lower and upper planes; fractional volume above each plane.
@@ -358,20 +358,20 @@ int main(int argc, char **argv){
             subsegs.Consume_Contours(c);
         }
 
-        FUNCINFO("Performing [2/3,1/3], [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-centre-adjacent' sub-seg).");
+        YLOGINFO("Performing [2/3,1/3], [2/3,1/3], [1/3,0] sub-seg. (This is the 'top-centre-adjacent' sub-seg).");
         {
             auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
                                    (2.0/3.0), (1.0/3.0),
                                    (2.0/3.0), (1.0/3.0),
                                    (1.0/3.0), (0.0/3.0),
                                    area_expected);  // Expected area.
-            //FUNCWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
-            //FUNCWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
-            //FUNCWARN("Centroid = " << c.Centroid());
+            //YLOGWARN("Signed area (true) = "  << c.Get_Signed_Area(/*AssumePlanarContours*/ true));
+            //YLOGWARN("Signed area (false) = " << c.Get_Signed_Area(/*AssumePlanarContours*/ false));
+            //YLOGWARN("Centroid = " << c.Centroid());
             subsegs.Consume_Contours(c);
         }
 
-        FUNCINFO("Performing [2/3,1/3], [1/3,0], [1/3,0] sub-seg. (This is the 'top-cent' sub-seg).");
+        YLOGINFO("Performing [2/3,1/3], [1/3,0], [1/3,0] sub-seg. (This is the 'top-cent' sub-seg).");
         {
             auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
                                    (2.0/3.0), (1.0/3.0),
@@ -381,7 +381,7 @@ int main(int argc, char **argv){
             subsegs.Consume_Contours(c);
         }
 
-        FUNCINFO("Performing [2/3,1/3], [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
+        YLOGINFO("Performing [2/3,1/3], [2/3,1/3], [2/3,1/3] sub-seg. (This is the 'centre' sub-seg).");
         {
             auto c = initiate_subseg_volumetric(ROIs, x_normal, y_normal, z_normal,
                                    (2.0/3.0), (1.0/3.0),

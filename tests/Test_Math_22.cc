@@ -27,7 +27,7 @@ int main(int argc, char **argv){
             ss << "Rotation (1) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (1) around " << B << " was OK");
+            YLOGINFO("Rotation (1) around " << B << " was OK");
         }
     }
 
@@ -42,7 +42,7 @@ int main(int argc, char **argv){
             ss << "Rotation (2) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (2) around " << B << " was OK");
+            YLOGINFO("Rotation (2) around " << B << " was OK");
         }
     }
 
@@ -57,7 +57,7 @@ int main(int argc, char **argv){
             ss << "Rotation (3) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (3) around " << B << " was OK");
+            YLOGINFO("Rotation (3) around " << B << " was OK");
         }
     }
 
@@ -72,7 +72,7 @@ int main(int argc, char **argv){
             ss << "Rotation (4) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (4) around " << B << " was OK");
+            YLOGINFO("Rotation (4) around " << B << " was OK");
         }
     }
 
@@ -87,7 +87,7 @@ int main(int argc, char **argv){
             ss << "Rotation (5) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (5) around " << B << " was OK");
+            YLOGINFO("Rotation (5) around " << B << " was OK");
         }
     }
 
@@ -102,7 +102,7 @@ int main(int argc, char **argv){
             ss << "Rotation (6) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (6) around " << B << " was OK");
+            YLOGINFO("Rotation (6) around " << B << " was OK");
         }
     }
 
@@ -117,7 +117,7 @@ int main(int argc, char **argv){
             ss << "Rotation (7) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (7) around " << B << " was OK");
+            YLOGINFO("Rotation (7) around " << B << " was OK");
         }
     }
 
@@ -132,7 +132,7 @@ int main(int argc, char **argv){
             ss << "Rotation (8) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (8) around " << B << " was OK");
+            YLOGINFO("Rotation (8) around " << B << " was OK");
         }
     }
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv){
             ss << "Rotation (9) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (9) around " << B << " was OK");
+            YLOGINFO("Rotation (9) around " << B << " was OK");
         }
     }
 
@@ -162,7 +162,7 @@ int main(int argc, char **argv){
             ss << "Rotation (10) around " << B << " failed";
             throw std::runtime_error(ss.str());
         }else{
-            FUNCINFO("Rotation (10) around " << B << " was OK");
+            YLOGINFO("Rotation (10) around " << B << " was OK");
         }
     }
 

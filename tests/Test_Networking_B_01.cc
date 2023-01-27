@@ -10,7 +10,7 @@
 
 
 long int Slow_Nth_Fibonacci(long int count){
-    if(count <  0) FUNCERR("Cannot compute that!");
+    if(count <  0) YLOGERR("Cannot compute that!");
     if(count == 0) return 0;
     if(count == 1) return 1;
     if(count == 2) return 1;
@@ -20,42 +20,42 @@ long int Slow_Nth_Fibonacci(long int count){
 
 int main(int argc, char **argv){
 
-//    FUNCINFO( "Main thread:  35th number is " << Slow_Nth_Fibonacci(  35) ); 
+//    YLOGINFO( "Main thread:  35th number is " << Slow_Nth_Fibonacci(  35) ); 
 
     taskqueue tasks;
-    FUNCINFO("Queuing in order: [A,C,D,E,B]");
+    YLOGINFO("Queuing in order: [A,C,D,E,B]");
 
     tasks.Queue( [](void) -> void { 
         std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 )) );
-        FUNCINFO( "Task: A");  //Should *block* until this task begins.
+        YLOGINFO( "Task: A");  //Should *block* until this task begins.
         return; 
     });
     tasks.Queue_Priority( [](void) -> void {
         std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 )) );
-        FUNCINFO( "Task: C");  //Gets placed right after A.
+        YLOGINFO( "Task: C");  //Gets placed right after A.
         return;
     });
     tasks.Queue( [](void) -> void {  
         std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 )) );
-        FUNCINFO( "Task: D"); //Gets placed after C.
+        YLOGINFO( "Task: D"); //Gets placed after C.
         return; 
     });
     tasks.Queue( [](void) -> void {  
         std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 )) );
-        FUNCINFO( "Task: E"); //Gets placed after D.
+        YLOGINFO( "Task: E"); //Gets placed after D.
         return; 
     });
     tasks.Queue_Priority( [](void) -> void {  
         std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 )) );
-        FUNCINFO( "Task: B"); //Gets placed right after A, jumping in front of C.
+        YLOGINFO( "Task: B"); //Gets placed right after A, jumping in front of C.
         return; 
     });
 
-    FUNCINFO("Should see order: [A,B,C,D,E]"); 
+    YLOGINFO("Should see order: [A,B,C,D,E]"); 
 
-    FUNCINFO("Waiting now for queue to empty");
+    YLOGINFO("Waiting now for queue to empty");
     tasks.Wait_For_Empty_Queue();
-    FUNCINFO("Queue is empty");
+    YLOGINFO("Queue is empty");
 
     return 0;
 };

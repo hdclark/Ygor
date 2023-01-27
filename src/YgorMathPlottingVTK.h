@@ -68,7 +68,7 @@ struct Waiter {
         signal(SIGPIPE, SIG_DFL);
 #endif
 
-        //FUNCINFO("Called ~Waiter(). Waiting briefly before attempting to join");
+        //YLOGINFO("Called ~Waiter(). Waiting briefly before attempting to join");
         //std::this_thread::sleep_for(std::chrono::seconds(1));
 
         //Do NOT attempt to do anything here except wait on threads. It is possible that

@@ -113,7 +113,7 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
 
         }else{
             // Note: the following warning is helpful for debugging, but can pollute stdout with arbitrary code!
-            //FUNCWARN("Unanticipated line '" << line << "' (number " << lineN << "). Refusing to continue.");
+            //YLOGWARN("Unanticipated line '" << line << "' (number " << lineN << "). Refusing to continue.");
             return false;
         }
     }
@@ -129,12 +129,12 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
         const auto N_verts = fvsm.vertices.size();
         for(const auto &fv : fvsm.faces){
             if(fv.empty()){
-                FUNCWARN("Encountered face with zero involved vertices");
+                YLOGWARN("Encountered face with zero involved vertices");
                 return false;
             }
             for(const auto &v_i : fv){
                 if((v_i < 0) || (N_verts <= v_i)){
-                    FUNCWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
+                    YLOGWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
                     return false;
                 }
             }
@@ -145,7 +145,7 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
     try{
         fvsm.recreate_involved_face_index();
     }catch(const std::exception &){ 
-        FUNCWARN("Failed to recreate involved_faces index");
+        YLOGWARN("Failed to recreate involved_faces index");
         return false;
     }
 
@@ -319,7 +319,7 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
         // can go up to 4'294'967'295, which would consume ~200 GiB. The chosen limit here is 1/20th the maximum to both
         // reduce the risk of a memory DOS, and reduce the risk of a large, non-STL file being misinterpretted as an STL
         // file.
-        FUNCWARN("File is either not an STL file, or is too large to handle. Refusing to proceed");
+        YLOGWARN("File is either not an STL file, or is too large to handle. Refusing to proceed");
         return false;
     }
     
@@ -332,11 +332,11 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
         const auto N_attr = ReadUint16();
 
         if(N_attr != static_cast<uint16_t>(0)){
-            FUNCWARN("This routine cannot handle attributes. Refusing to continue");
+            YLOGWARN("This routine cannot handle attributes. Refusing to continue");
             return false;
         }
         if(is.bad()){
-            FUNCWARN("File prematurely ended. File is either not an STL file, or is damaged");
+            YLOGWARN("File prematurely ended. File is either not an STL file, or is damaged");
             return false;
         }
 
@@ -351,7 +351,7 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
         fvsm.faces.emplace_back( faces );
     }
     if(is.peek() != std::char_traits<char>::eof()){
-        FUNCWARN("All faces have been read, but EOF has not been reached. File may be invalid. Refusing to continue");
+        YLOGWARN("All faces have been read, but EOF has not been reached. File may be invalid. Refusing to continue");
         // This could potentially indicate non-triangular faces have been encountered (and not handled correctly), the
         // file is corrupt, or there are additional file elements that this reader does not implement. It is safest to
         // assume the worst and refuse to continue.
@@ -369,12 +369,12 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
         const auto N_verts = fvsm.vertices.size();
         for(const auto &fv : fvsm.faces){
             if(fv.empty()){
-                FUNCWARN("Encountered face with zero involved vertices");
+                YLOGWARN("Encountered face with zero involved vertices");
                 return false;
             }
             for(const auto &v_i : fv){
                 if((v_i < 0) || (N_verts <= v_i)){
-                    FUNCWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
+                    YLOGWARN("Face references non-existent vertex (" << v_i << ", but N_verts = " << N_verts << ")");
                     return false;
                 }
             }
@@ -385,7 +385,7 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
     try{
         fvsm.recreate_involved_face_index();
     }catch(const std::exception &){ 
-        FUNCWARN("Failed to recreate involved_faces index");
+        YLOGWARN("Failed to recreate involved_faces index");
         return false;
     }
 

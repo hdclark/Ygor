@@ -31,9 +31,9 @@ int main(int, char **){
         const auto c = ps.Centroid();
         const auto e = vec3<double>(0.0,0.0,0.0);
         if( (c - e).length() >  eps ){
-            FUNCERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
         }
     }
 
@@ -51,9 +51,9 @@ int main(int, char **){
         const auto c = ps.Centroid();
         const auto e = vec3<double>(-1.0,0.0,0.0);
         if( (c - e).length() >  eps ){
-            FUNCERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
         }
     }
 
@@ -71,9 +71,9 @@ int main(int, char **){
         const auto c = ps.Centroid();
         const auto e = vec3<double>(5.0,-5.0,3.0);
         if( (c - e).length() >  eps ){
-            FUNCERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c << " ) differed from expected (" << e << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c << " ) within expected (" << e << ") by less than eps (" << eps << ")");
         }
     }
 

@@ -49,9 +49,9 @@ int main(int argc, char **argv){
 
     for(auto p_it = pairs.begin(); p_it != pairs.end(); ++p_it){
         if(p_it->second == Consistent_Hash_64(p_it->first)){
-            FUNCINFO("Successfully hashed '" << p_it->first << "' into " << p_it->second);
+            YLOGINFO("Successfully hashed '" << p_it->first << "' into " << p_it->second);
         }else{
-            FUNCINFO("UNSUCCESSFUL! Incorrectly hashed '" << p_it->first << "' into " << Consistent_Hash_64(p_it->first) << " when it should have been " << p_it->second);
+            YLOGINFO("UNSUCCESSFUL! Incorrectly hashed '" << p_it->first << "' into " << Consistent_Hash_64(p_it->first) << " when it should have been " << p_it->second);
         }
     }
 

@@ -33,18 +33,18 @@ int main(int, char **){
 
         std::stringstream ss;
 
-        if(!WritePointSetToOFF(ps_A, ss)) FUNCERR("Failed to write OFF to stream");
-        FUNCINFO("Generated OFF file:\n" << ss.str() << "\n");
+        if(!WritePointSetToOFF(ps_A, ss)) YLOGERR("Failed to write OFF to stream");
+        YLOGINFO("Generated OFF file:\n" << ss.str() << "\n");
 
         point_set<double> ps_B;
-        if(!ReadPointSetFromOFF(ps_B, ss)) FUNCERR("Failed to read OFF from stream");
+        if(!ReadPointSetFromOFF(ps_B, ss)) YLOGERR("Failed to read OFF from stream");
 
         const auto c_B = ps_B.Centroid();
 
         if( (c_A - c_B).length() >  eps ){
-            FUNCERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
         }
     }
 
@@ -61,18 +61,18 @@ int main(int, char **){
 
         std::stringstream ss;
 
-        if(!WritePointSetToOBJ(ps_A, ss)) FUNCERR("Failed to write OBJ to stream");
-        FUNCINFO("Generated OBJ file:\n" << ss.str() << "\n");
+        if(!WritePointSetToOBJ(ps_A, ss)) YLOGERR("Failed to write OBJ to stream");
+        YLOGINFO("Generated OBJ file:\n" << ss.str() << "\n");
 
         point_set<double> ps_B;
-        if(!ReadPointSetFromOBJ(ps_B, ss)) FUNCERR("Failed to read OBJ from stream");
+        if(!ReadPointSetFromOBJ(ps_B, ss)) YLOGERR("Failed to read OBJ from stream");
 
         const auto c_B = ps_B.Centroid();
 
         if( (c_A - c_B).length() >  eps ){
-            FUNCERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
         }
     }
 
@@ -89,18 +89,18 @@ int main(int, char **){
 
         std::stringstream ss;
 
-        if(!WritePointSetToXYZ(ps_A, ss)) FUNCERR("Failed to write XYZ to stream");
-        FUNCINFO("Generated XYZ file:\n" << ss.str() << "\n");
+        if(!WritePointSetToXYZ(ps_A, ss)) YLOGERR("Failed to write XYZ to stream");
+        YLOGINFO("Generated XYZ file:\n" << ss.str() << "\n");
 
         point_set<double> ps_B;
-        if(!ReadPointSetFromXYZ(ps_B, ss)) FUNCERR("Failed to read XYZ from stream");
+        if(!ReadPointSetFromXYZ(ps_B, ss)) YLOGERR("Failed to read XYZ from stream");
 
         const auto c_B = ps_B.Centroid();
 
         if( (c_A - c_B).length() >  eps ){
-            FUNCERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
+            YLOGERR("Centroid (" << c_B << " ) differed from expected (" << c_A << ") by more than eps (" << eps << ")");
         }else{
-            FUNCINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
+            YLOGINFO("Centroid (" << c_B << " ) within expected (" << c_A << ") by less than eps (" << eps << ")");
         }
     }
 

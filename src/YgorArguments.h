@@ -51,12 +51,12 @@ class ArgumentHandler {
         ArgumentHandler() {  
             //Register the default callbacks.
             this->default_callback = [](int opt, const std::string &optarg) -> void { 
-                FUNCINFO("Received unrecognized option '" << opt << "' with argument '" << optarg << "'. Register callback to handle it if desired. Ignoring"); 
+                YLOGINFO("Received unrecognized option '" << opt << "' with argument '" << optarg << "'. Register callback to handle it if desired. Ignoring"); 
                 return; 
             };
 
             this->optionless_callback = [](const std::string &optarg) -> void { 
-                FUNCINFO("Received an optionless argument '" << optarg << "'. Register callback to handle it if desired. Ignoring");
+                YLOGINFO("Received an optionless argument '" << optarg << "'. Register callback to handle it if desired. Ignoring");
                 return; 
             };
  

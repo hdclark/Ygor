@@ -20,31 +20,31 @@ int main(int argc, char **argv){
     data.push_back( 1.0, 2.34);
     {
         const auto thresh = data.Find_Otsu_Binarization_Threshold();
-        FUNCINFO("Otsu's threshold: " << thresh);
+        YLOGINFO("Otsu's threshold: " << thresh);
     }
 
     data.push_back( 2.0, 3.45);
     {
         const auto thresh = data.Find_Otsu_Binarization_Threshold();
-        FUNCINFO("Otsu's threshold: " << thresh);
+        YLOGINFO("Otsu's threshold: " << thresh);
     }
 
     data.push_back( 3.0, 4.56);
     {
         const auto thresh = data.Find_Otsu_Binarization_Threshold();
-        FUNCINFO("Otsu's threshold: " << thresh);
+        YLOGINFO("Otsu's threshold: " << thresh);
     }
 
     data.push_back( 4.0, 5.67);
     {
         const auto thresh = data.Find_Otsu_Binarization_Threshold();
-        FUNCINFO("Otsu's threshold: " << thresh);
+        YLOGINFO("Otsu's threshold: " << thresh);
     }
 
     data.push_back( 5.0, 6.78);
     {
         const auto thresh = data.Find_Otsu_Binarization_Threshold();
-        FUNCINFO("Otsu's threshold: " << thresh);
+        YLOGINFO("Otsu's threshold: " << thresh);
     }
 
     return 0;

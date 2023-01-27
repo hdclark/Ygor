@@ -10,28 +10,28 @@ int main(int, char**){
 
     const auto test_encode_decode = [](const std::string &orig,
                                        const std::string &ref_enc) -> void {
-        FUNCINFO("Input string: '" << orig << "'");
+        YLOGINFO("Input string: '" << orig << "'");
 
         const auto enc = Base64::EncodeFromString(orig);
-        FUNCINFO("     Encoded: '" << enc << "'");
+        YLOGINFO("     Encoded: '" << enc << "'");
 
         if(enc == ref_enc){
-            FUNCINFO("    encoded string matches reference encode correctly");
+            YLOGINFO("    encoded string matches reference encode correctly");
         }else{
-            FUNCWARN("     encode failed");
+            YLOGWARN("     encode failed");
             for(const auto &c : enc) std::cout << c << " ";
-            FUNCERR("done");
+            YLOGERR("done");
         }
 
         const auto dec = Base64::DecodeToString(enc);
-        FUNCINFO("     Decoded: '" << dec << "'");
+        YLOGINFO("     Decoded: '" << dec << "'");
 
         if(dec == orig){
-            FUNCINFO("    encode-decode matches correctly");
+            YLOGINFO("    encode-decode matches correctly");
         }else{
-            FUNCWARN("     encode-decode failed");
+            YLOGWARN("     encode-decode failed");
             for(const auto &c : dec) std::cout << c << " ";
-            FUNCERR("done");
+            YLOGERR("done");
         }
         return;
     };
@@ -58,7 +58,7 @@ int main(int, char**){
     test_encode_decode("THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG.", 
                        "VEhFIFFVSUNLIEJST1dOIEZPWCBKVU1QRUQgT1ZFUiBUSEUgTEFaWSBET0cu");
 
-    FUNCINFO("All base64 encode and decode tests passed successfully");
+    YLOGINFO("All base64 encode and decode tests passed successfully");
     return 0;
 }
 

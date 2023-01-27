@@ -42,10 +42,10 @@ std::string time_mark::Dump_as_string(void) const {
     //NOTE: If this needs to be changed, update this->Theo_Max_Serialization_Size. Consider making a new serialization version.
     struct tm lt;
 #if !defined(_WIN32) && !defined(_WIN64)
-    if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
-//    if(gmtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
+    if(localtime_r(&this->When, &lt) == nullptr) YLOGERR("localtime_r produced an error - unable to continue");
+//    if(gmtime_r(&this->When, &lt) == nullptr) YLOGERR("localtime_r produced an error - unable to continue");
 #else
-    if(localtime_s(&lt, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue");
+    if(localtime_s(&lt, &this->When) != 0) YLOGERR("localtime_s produced an error - unable to continue");
 #endif
     std::stringstream ss("");
 
@@ -74,9 +74,9 @@ std::string time_mark::Dump_as_postgres_string(void) const {
     //NOTE: If this needs to be changed, update this->Theo_Max_Serialization_Size. Consider making a new serialization version.
     struct tm lt;
 #if !defined(_WIN32) && !defined(_WIN64)
-    if(localtime_r(&this->When, &lt) == nullptr) FUNCERR("localtime_r produced an error - unable to continue");
+    if(localtime_r(&this->When, &lt) == nullptr) YLOGERR("localtime_r produced an error - unable to continue");
 #else
-    if(localtime_s(&lt, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue");
+    if(localtime_s(&lt, &this->When) != 0) YLOGERR("localtime_s produced an error - unable to continue");
 #endif
     std::stringstream ss("");
 
@@ -298,14 +298,14 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
         //
         //Do NOT issue a blanket warning because parsing something to see if it is a
         // parseable date is a valid strategy for determining if it is a date/time!
-        //FUNCWARN("Could not make sense of the stringified date/time");
+        //YLOGWARN("Could not make sense of the stringified date/time");
         return false;
     }
 
     //Verify no parameter has been left unset.   
     if((lt.tm_year == -1) || (lt.tm_mon == -1) || (lt.tm_mday == -1) || (lt.tm_hour == -1) || (lt.tm_min == -1) || (lt.tm_sec == -1)){
         //This legitimately warrants a warning. It may indicate a programming error or bug.
-        FUNCWARN("Time string reading failed for some unknown reason. Perhaps the string parsed but wasn't a valid date?");
+        YLOGWARN("Time string reading failed for some unknown reason. Perhaps the string parsed but wasn't a valid date?");
         return false;
     }
     this->When = mktime(&lt);
@@ -361,13 +361,13 @@ time_mark time_mark::Same_Day_Earliest(void) const {
     time_mark out(*this);
     struct tm A;
 #if !defined(_WIN32) && !defined(_WIN64)
-    if(localtime_r(&out.When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+    if(localtime_r(&out.When, &A) == nullptr) YLOGERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &out.When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &out.When) != 0) YLOGERR("localtime_s produced an error - unable to continue")
 #endif
     if((A.tm_year == -1) || (A.tm_mon == -1) || (A.tm_mday == -1)
           || (A.tm_hour == -1) || (A.tm_min == -1) || (A.tm_sec  == -1) ){
-        FUNCERR("Cannot determine earliest same-day time from input");
+        YLOGERR("Cannot determine earliest same-day time from input");
     }
 
     //Set the hour and minutes to their minimum value.
@@ -377,7 +377,7 @@ time_mark time_mark::Same_Day_Earliest(void) const {
 
     out.When = mktime(&A);
     if(out.When == -1){
-        FUNCERR("Could not produce the earliest same-day time for unknown reasons");
+        YLOGERR("Could not produce the earliest same-day time for unknown reasons");
     }
     return out;
 }
@@ -432,11 +432,11 @@ time_t time_mark::Diff_in_Days(const time_mark &in) const {
 bool time_mark::Have_same_day(const time_mark &in) const {  //Compares ONLY the day (the number) - not the year, month, etc..
     struct tm A,B;
 #if !defined(_WIN32) && !defined(_WIN64)
-    if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
-    if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+    if(localtime_r(&this->When, &A) == nullptr) YLOGERR("localtime_r produced an error - unable to continue")
+    if(localtime_r(&in.When, &B)    == nullptr) YLOGERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
-    if(localtime_s(&B, &in.When)    != 0) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &this->When) != 0) YLOGERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    != 0) YLOGERR("localtime_s produced an error - unable to continue")
 #endif
     if((A.tm_mday == -1) || (B.tm_mday == -1)) return false; //Error in the data.
     return A.tm_mday == B.tm_mday;
@@ -445,11 +445,11 @@ bool time_mark::Have_same_day(const time_mark &in) const {  //Compares ONLY the 
 bool time_mark::Occur_on_same_day(const time_mark &in) const { 
     struct tm A,B;
 #if !defined(_WIN32) && !defined(_WIN64)
-    if(localtime_r(&this->When, &A) == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
-    if(localtime_r(&in.When, &B)    == nullptr) FUNCERR("localtime_r produced an error - unable to continue")
+    if(localtime_r(&this->When, &A) == nullptr) YLOGERR("localtime_r produced an error - unable to continue")
+    if(localtime_r(&in.When, &B)    == nullptr) YLOGERR("localtime_r produced an error - unable to continue")
 #else
-    if(localtime_s(&A, &this->When) != 0) FUNCERR("localtime_s produced an error - unable to continue")
-    if(localtime_s(&B, &in.When)    != 0) FUNCERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&A, &this->When) != 0) YLOGERR("localtime_s produced an error - unable to continue")
+    if(localtime_s(&B, &in.When)    != 0) YLOGERR("localtime_s produced an error - unable to continue")
 #endif
 
     if((A.tm_mday == -1) || (B.tm_mday == -1) 

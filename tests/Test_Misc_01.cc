@@ -5,15 +5,15 @@
 
 int main(int argc, char **argv){
 
-    FUNCINFO("Hopefully this test will work");
-    FUNCWARN("It might not");
+    YLOGINFO("Hopefully this test will work");
+    YLOGWARN("It might not");
 
     const std::string piped = Execute_Command_In_Pipe("ls -lash /usr/bin/* /etc/* /tmp/*");
     
-    FUNCINFO("Dumping piped output now:");
+    YLOGINFO("Dumping piped output now:");
     std::cout << piped << std::endl;    
 
-    FUNCINFO("It probably worked!");
+    YLOGINFO("It probably worked!");
 
     return 0;
 }

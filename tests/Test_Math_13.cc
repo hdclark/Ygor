@@ -57,8 +57,8 @@ int main(int argc, char **argv){
                                                                 &iters_taken,
                                                                 &final_area_frac);
 
-        FUNCINFO("Using bisection, the fraction of planar area above the final plane was " << final_area_frac);
-        FUNCINFO(iters_taken << " iterations were taken");
+        YLOGINFO("Using bisection, the fraction of planar area above the final plane was " << final_area_frac);
+        YLOGINFO(iters_taken << " iterations were taken");
                                                                 
         for(auto it = splits.begin(); it != splits.end(); ++it){
             it->Plot();

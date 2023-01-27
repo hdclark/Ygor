@@ -1142,7 +1142,7 @@ bool WriteToFITS(const planar_image<T,R> &img, const std::string &filename, Ygor
 
     std::ofstream os(filename, std::ios::out | std::ios::binary);
     if(!os.good()){
-        FUNCWARN("Unable to open file");
+        YLOGWARN("Unable to open file");
         return false;
     }
 
@@ -1166,7 +1166,7 @@ bool WriteToFITS(const planar_image_collection<T,R> &imgcoll, const std::string 
 
     std::ofstream os(filename, std::ios::out | std::ios::binary);
     if(!os.good()){
-        FUNCWARN("Unable to open file");
+        YLOGWARN("Unable to open file");
         return false;
     }
 
@@ -1221,7 +1221,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
 
     auto pack_into_card = [](card_t &acard, const std::string &in) -> void {
         if(in.size() > acard.size()){
-            FUNCWARN("Note: line is: '" << in << "' which has length " << in.size());
+            YLOGWARN("Note: line is: '" << in << "' which has length " << in.size());
             throw std::runtime_error("A single card cannot accommodate this header");
         }
         std::copy(std::begin(in), std::end(in), std::begin(acard));
@@ -1432,7 +1432,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
             flush_and_reset();
 
         }catch(const std::exception &e){
-            FUNCWARN("Encountered error while writing FITS header: '" << e.what() << "'");
+            YLOGWARN("Encountered error while writing FITS header: '" << e.what() << "'");
             return false;
         }
 
@@ -1461,7 +1461,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
             for(long int i = 0; i < BytesToPad; ++i) os.put(static_cast<unsigned char>(0));
 
         }catch(const std::exception &e){
-            FUNCWARN("Encountered error while writing FITS pixel data: '" << e.what() << "'");
+            YLOGWARN("Encountered error while writing FITS pixel data: '" << e.what() << "'");
             return false;
         }
 

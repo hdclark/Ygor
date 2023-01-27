@@ -91,10 +91,10 @@ int main(int, char **){
     }
 
     // Display the serialized and stringified outputs.
-    //FUNCINFO("Serialized samples_1D: " << buffa);
-    //FUNCINFO("Stringified samples_1D: \n" << buffa.Write_To_String());
+    //YLOGINFO("Serialized samples_1D: " << buffa);
+    //YLOGINFO("Stringified samples_1D: \n" << buffa.Write_To_String());
 
-    FUNCINFO("OK");
+    YLOGINFO("OK");
 
     return 0;
 }

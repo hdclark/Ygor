@@ -49,9 +49,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized vec3 to " << A);
+            YLOGINFO("Deserialized vec3 to " << A);
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize vec3 file. It is not valid");
+            YLOGINFO("Unable to deserialize vec3 file. It is not valid");
         }
     }
 
@@ -70,9 +70,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized line to " << A.R_0 << "  " << A.U_0);
+            YLOGINFO("Deserialized line to " << A.R_0 << "  " << A.U_0);
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize line file. It is not valid");
+            YLOGINFO("Unable to deserialize line file. It is not valid");
         }
 
     }
@@ -94,9 +94,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized line_segment to " << A.R_0 << "  " << A.U_0 << "   " << A.t_0 << "   " << A.t_1);
+            YLOGINFO("Deserialized line_segment to " << A.R_0 << "  " << A.U_0 << "   " << A.t_0 << "   " << A.t_1);
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize line_segment file. It is not valid");
+            YLOGINFO("Unable to deserialize line_segment file. It is not valid");
         }
 
     }
@@ -117,9 +117,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized plane to " << A.N_0 << "  " << A.R_0);
+            YLOGINFO("Deserialized plane to " << A.N_0 << "  " << A.R_0);
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize plane file. It is not valid");
+            YLOGINFO("Unable to deserialize plane file. It is not valid");
         }
 
     }
@@ -146,9 +146,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized contour_of_points to " << A.points.size() << " points and " << A.metadata.size() << " metadata");
+            YLOGINFO("Deserialized contour_of_points to " << A.points.size() << " points and " << A.metadata.size() << " metadata");
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize contour_of_points file. It is not valid");
+            YLOGINFO("Unable to deserialize contour_of_points file. It is not valid");
         }
 
     }
@@ -174,9 +174,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized samples_1D to " << A.samples.size() << " samples and " << A.metadata.size() << " metadata");
+            YLOGINFO("Deserialized samples_1D to " << A.samples.size() << " samples and " << A.metadata.size() << " metadata");
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize samples_1D file. It is not valid");
+            YLOGINFO("Unable to deserialize samples_1D file. It is not valid");
         }
 
     }
@@ -229,7 +229,7 @@ int main(int , char** ){
         if(!ReadFVSMeshFromOFF(smesh, ss)){
             throw std::runtime_error("Unable to read mesh from OFF stream.");
         }
-        FUNCINFO("Mesh surface area: " << smesh.surface_area());
+        YLOGINFO("Mesh surface area: " << smesh.surface_area());
         smesh.metadata["keyA"] = "valueA";
         smesh.metadata["keyB"] = "valueB";
 
@@ -243,9 +243,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", smesh);
-            FUNCINFO("Deserialized fv_surface_mesh has surface area " << smesh.surface_area());
+            YLOGINFO("Deserialized fv_surface_mesh has surface area " << smesh.surface_area());
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize fv_surface_mesh file. It is not valid");
+            YLOGINFO("Unable to deserialize fv_surface_mesh file. It is not valid");
         }
 
     }

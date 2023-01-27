@@ -114,9 +114,9 @@ int main(int argc, char **argv){
         double spacing = 0.3, offset = 0.05, remain = 0.0;
         auto somepoints = line.Sample_With_Spacing(spacing, offset, remain); //'remain' is adjusted each time.
         for(auto it = somepoints.begin(); it != somepoints.end(); ++it){
-            FUNCINFO("Sampled a point at " << *it );
+            YLOGINFO("Sampled a point at " << *it );
         }
-        FUNCINFO("Spacing is " << spacing << ", offset is " << offset << " and remaining is now " << remain << "  . We got " << somepoints.size() << " points, and the dl between contour points was " << A.distance(B));
+        YLOGINFO("Spacing is " << spacing << ", offset is " << offset << " and remaining is now " << remain << "  . We got " << somepoints.size() << " points, and the dl between contour points was " << A.distance(B));
 
     }
 

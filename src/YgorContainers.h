@@ -227,7 +227,7 @@ class taskqueue {
                 return true; //Everything A-O-K.
             }
             if(!this->thread_has_launched_mutex.try_lock()){
-                FUNCWARN("The 'thread has launched' mutex is locked. It is used to block on thread creation and should not remain locked. Bailing");
+                YLOGWARN("The 'thread has launched' mutex is locked. It is used to block on thread creation and should not remain locked. Bailing");
                 this->launching_mutex.unlock();
                 return false; //Something went wrong.
             }
@@ -247,7 +247,7 @@ class taskqueue {
                 for(auto it = this->queue.begin(); it != this->queue.end();     ){  // ..and NOT: ++it){
                     //Check if the element queued still exists. If it does not, we remove it and continue on.
                     if(!(*it)){
-                        FUNCWARN("Unable to perform task - the reference appears to be invalid. Removing it and continuing");
+                        YLOGWARN("Unable to perform task - the reference appears to be invalid. Removing it and continuing");
                         it = this->queue.erase(it);
                         continue;
                     }
@@ -255,7 +255,7 @@ class taskqueue {
                     //We copy, test for a lock, and remove this task from the queue. Then we relinquish queue control to the masses. 
                     auto f = std::move(*it);
                     if( !this->single_task_mutex.try_lock() ){
-                        FUNCWARN("The single task mutex is currently locked. Is there already a thread performing these tasks? Bailing");
+                        YLOGWARN("The single task mutex is currently locked. Is there already a thread performing these tasks? Bailing");
                         this->queue_access_mutex.unlock();
                         return;
                     }
@@ -292,7 +292,7 @@ class taskqueue {
     
             //Lock the entire queue mutex. Launch the thread.
             if( !this->entire_queue_mutex.try_lock() ){
-                FUNCWARN("Unable to initiate tasks - entire_queue_mutex is locked. Is another thread already running?");
+                YLOGWARN("Unable to initiate tasks - entire_queue_mutex is locked. Is another thread already running?");
                 this->launching_mutex.unlock();
                 this->thread_has_launched_mutex.unlock();
                 return false;
@@ -422,7 +422,7 @@ class taskpool {
                 while(!this->queue.empty()){
                     auto it =  this->queue.begin();
                     if(!(*it)){
-                        FUNCWARN("Unable to perform task - the reference appears to be invalid. Removing it and continuing");
+                        YLOGWARN("Unable to perform task - the reference appears to be invalid. Removing it and continuing");
                         it = this->queue.erase(it);
                         continue;
                     }
@@ -481,10 +481,10 @@ class taskpool {
             this->pool_access_mutex.unlock();
 
             if(spawnthread){
-                //FUNCINFO("We have not spawned the max number of threads. Launching thread now");
+                //YLOGINFO("We have not spawned the max number of threads. Launching thread now");
                 return this->Launch_Thread();
             }else{
-                //FUNCINFO("We have spawned the limit number of threads. Nothing to do, so leaving");
+                //YLOGINFO("We have spawned the limit number of threads. Nothing to do, so leaving");
                 return true;
             }
         }
@@ -496,10 +496,10 @@ class taskpool {
             const auto hwn = 2*std::thread::hardware_concurrency();
             const auto n   = static_cast<long int>((hwn > 0) ? hwn : 2);  //Fall back on two threads. Seems reasonable.
             this->N.store(n);
-            //FUNCINFO("Using " << n << " threads in the pool");
+            //YLOGINFO("Using " << n << " threads in the pool");
         }
         ~taskpool(void){
-            //FUNCINFO("Waiting for queue to empty");
+            //YLOGINFO("Waiting for queue to empty");
             this->Wait_For_Empty_Queue();  //Wait for the tasks to finish to avoid memory loss.
         }
 

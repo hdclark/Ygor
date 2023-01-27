@@ -258,7 +258,7 @@ template <class TA, class TB> template <class T> T bimap<TA,TB>::get_next( const
     }else if( ARE_THESE_TYPES_EQUAL<TB,T>::value ){
         return *(reinterpret_cast<const T*>( &(it->second) ));  
     }
-    FUNCERR("Attempted to perform impossible action. Was a wrong type passed to this bimap?");
+    YLOGERR("Attempted to perform impossible action. Was a wrong type passed to this bimap?");
     return in;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
@@ -286,7 +286,7 @@ template <class TA, class TB> template <class T> T bimap<TA,TB>::get_previous( c
     }else if( ARE_THESE_TYPES_EQUAL<TB,T>::value ){
         return *(reinterpret_cast<const T*>( &((*it).second) ));
     }
-    FUNCERR("Attempted to perform impossible action. Was a wrong type passed to this bimap?");
+    YLOGERR("Attempted to perform impossible action. Was a wrong type passed to this bimap?");
     return in;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS

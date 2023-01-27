@@ -30,7 +30,7 @@ int main(int argc, char **argv){
         if(!s.Within_Pill_Volume(p, 1E-9)){
             throw std::logic_error("Closest point along line_segment is not coincident with the line_segment.");
         }
-        FUNCINFO("Closest point between line and line_segment along the line_segment = " << p);
+        YLOGINFO("Closest point between line and line_segment along the line_segment = " << p);
     }
 
     {
@@ -44,7 +44,7 @@ int main(int argc, char **argv){
         if(!s.Within_Pill_Volume(p, 1E-9)){
             throw std::logic_error("Closest point along line_segment is not coincident with the line_segment.");
         }
-        FUNCINFO("Closest point between line and line_segment along the line_segment = " << p);
+        YLOGINFO("Closest point between line and line_segment along the line_segment = " << p);
     }
 
     {
@@ -58,7 +58,7 @@ int main(int argc, char **argv){
         if(!s.Within_Pill_Volume(p, 1E-9)){
             throw std::logic_error("Closest point along line_segment is not coincident with the line_segment.");
         }
-        FUNCINFO("Closest point between line and line_segment along the line_segment = " << p);
+        YLOGINFO("Closest point between line and line_segment along the line_segment = " << p);
     }
 
     {
@@ -72,7 +72,7 @@ int main(int argc, char **argv){
         if(!s.Within_Pill_Volume(p, 1E-9)){
             throw std::logic_error("Closest point along line_segment is not coincident with the line_segment.");
         }
-        FUNCINFO("Closest point between line and line_segment along the line_segment = " << p);
+        YLOGINFO("Closest point between line and line_segment along the line_segment = " << p);
     }
 
     return 0;

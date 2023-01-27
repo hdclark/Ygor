@@ -165,7 +165,7 @@ Might be OK to fall back on the virtual_size file, because it is super convenien
         dimens = Execute_Command_In_Pipe("cat /sys/devices/virtual/graphics/fbcon/subsystem/fb0/virtual_size");
     }
     if(dimens.size() == 0){
-        FUNCWARN("Unable to determine the dimensions of the framebuffer");
+        YLOGWARN("Unable to determine the dimensions of the framebuffer");
         return std::pair<long int, long int>(-1,-1);
     }
     const std::string Ws = GetFirstRegex( dimens, R"***(^([0-9]{3,})[,])***" );
@@ -196,11 +196,11 @@ Might be OK to fall back on the virtual_size file, because it is super convenien
         const long int H = static_cast<long int>(Virtual ? vs.yres_virtual : vs.yres);
         out = std::pair<long int, long int>(W,H);
     }else{
-        FUNCWARN("Framebuffer file appears to exist, but ioctl on it failed");
+        YLOGWARN("Framebuffer file appears to exist, but ioctl on it failed");
     }
     close(fb_fd);
 #else
-    FUNCWARN("This routine is not presently available on non-Linux systems. Returning negative dimensions"); 
+    YLOGWARN("This routine is not presently available on non-Linux systems. Returning negative dimensions"); 
 #endif
 
     return out;

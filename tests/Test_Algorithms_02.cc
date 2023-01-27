@@ -84,16 +84,16 @@ int main(int argc, char **argv){
         const double h_0 = 100.0;
         const double h_scale = 5.0;
         const double h_optimal = NPRLL::Find_Optimal_H(h_0, h_scale, 1E-7, 5000, data, true, &OK);
-        if(OK == false){  FUNCWARN("Unable to determine an optimal h. Value returned was " << h_optimal);
-        }else{            FUNCINFO("Found optimal h = " << h_optimal);
+        if(OK == false){  YLOGWARN("Unable to determine an optimal h. Value returned was " << h_optimal);
+        }else{            YLOGINFO("Found optimal h = " << h_optimal);
         }
     }
 
     //Compute the 'c' value for the given h.
     if(true){
         const double c = NPRLL::Find_C(37.5, 95.0, data, &OK);
-        if(OK == false){  FUNCWARN("Unable to determine the c value");
-        }else{            FUNCINFO("Found c = " << c);
+        if(OK == false){  YLOGWARN("Unable to determine the c value");
+        }else{            YLOGINFO("Found c = " << c);
         }
     }
 
@@ -114,7 +114,7 @@ int main(int argc, char **argv){
         const double h_0       = 100.0;
         const double h_scale   = 5.0;
         const double h_optimal = NPRLL::Find_Optimal_H(h_0, h_scale, 1E-7, 5000, data, true, &OK);
-        if(OK == false) FUNCERR("Encountered error computing smoothed function");
+        if(OK == false) YLOGERR("Encountered error computing smoothed function");
 
         {
           samples_1D<double> plot;
@@ -130,12 +130,12 @@ int main(int argc, char **argv){
         //--------------------------------------
         //Compute necessary info to evaluate the confidence bands (not quite of the smooth function approximation, but close!).
         const auto log_mse_est = NPRLL::Log_of_MSE(h_optimal, data, &OK);
-        if(OK == false) FUNCERR("Encountered error computing log of MSE estimate data");
+        if(OK == false) YLOGERR("Encountered error computing log of MSE estimate data");
 
         const double conf_h_0       = 100.0;
         const double conf_h_scale   = 5.0;
         const double conf_h_optimal = NPRLL::Find_Optimal_H(conf_h_0, conf_h_scale, 1E-7, 5000, log_mse_est, true, &OK);
-        if(OK == false) FUNCERR("Encountered error computing smoothed function");
+        if(OK == false) YLOGERR("Encountered error computing smoothed function");
 
         const double c = NPRLL::Find_C(h_optimal, 95.0, data, &OK);
         {

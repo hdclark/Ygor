@@ -47,7 +47,7 @@ std::string Compute_MD5_of_File(const std::string &Filename){
 
 int main(int argc, char **argv){
 
-    FUNCINFO("MD5 of /tmp/sgf_skeleton.csv is " << Compute_MD5_of_File("/tmp/sgf_skeleton.csv")); 
+    YLOGINFO("MD5 of /tmp/sgf_skeleton.csv is " << Compute_MD5_of_File("/tmp/sgf_skeleton.csv")); 
 //    Compute_MD5_of_File("/tmp/sgf_skeleton.csv");
 
 

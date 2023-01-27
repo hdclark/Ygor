@@ -81,7 +81,7 @@ int main(int , char** ){
         if( (val_0 == val_up) || (val_0 == val_down) || (val_up == val_down) ){
             throw std::runtime_error("Adjacency calculation failed.");
         }
-        FUNCINFO("Adjacency OK");
+        YLOGINFO("Adjacency OK");
 
 
         // Interpolate between image slices.
@@ -92,13 +92,13 @@ int main(int , char** ){
         const auto eps = std::sqrt( 10.0 * std::numeric_limits<double>::epsilon() );
 
         if( eps < std::abs(interp_A - 1.5f)){
-            FUNCERR("Trilinear interpolation failed for point A (" << interp_A << ")");
+            YLOGERR("Trilinear interpolation failed for point A (" << interp_A << ")");
         }
         if( eps < std::abs(interp_B - 1.0f)){
-            FUNCERR("Trilinear interpolation failed for point B (" << interp_B << ")");
+            YLOGERR("Trilinear interpolation failed for point B (" << interp_B << ")");
         }
         if( eps < std::abs(interp_C - 2.5f)){
-            FUNCERR("Trilinear interpolation failed for point C (" << interp_C << ")");
+            YLOGERR("Trilinear interpolation failed for point C (" << interp_C << ")");
         }
 
 

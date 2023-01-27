@@ -353,13 +353,13 @@ std::string Simple_HTTP_Request(const std::string &host, const std::string &requ
 
     //Initialize the client.
     if(!oneoff.Client_Init(80, dialog)){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to initialize client");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to initialize client");
         return result;
     }
 
     //Attempt to connect to the server and interact with it.
     if(!oneoff.Client_Connect(host)){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to connect");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to connect");
         return result;
     }
     return result;
@@ -379,7 +379,7 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP4_Addresses(void)
     struct ifaddrs *ifaddr, *ifa;
     char host[NI_MAXHOST];
     if(getifaddrs(&ifaddr) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP4 addresses (err 1) - continuing");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to get local IP4 addresses (err 1) - continuing");
         return out;
     }
     for(ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next){
@@ -389,7 +389,7 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP4_Addresses(void)
             const auto size = sizeof(struct sockaddr_in);
             int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
             if(s != 0){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP4 addresses (err 2) - continuing");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to get local IP4 addresses (err 2) - continuing");
                 freeifaddrs(ifaddr);
                 return out;
             }
@@ -406,7 +406,7 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP6_Addresses(void)
     struct ifaddrs *ifaddr, *ifa;
     char host[NI_MAXHOST];
     if(getifaddrs(&ifaddr) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP6 addresses (err 1) - continuing");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to get local IP6 addresses (err 1) - continuing");
         return out;
     }
     for(ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next){
@@ -416,7 +416,7 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP6_Addresses(void)
             const auto size = sizeof(struct sockaddr_in6);
             int s = getnameinfo(ifa->ifa_addr, size, host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
             if(s != 0){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to get local IP6 addresses (err 2) - continuing");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to get local IP6 addresses (err 2) - continuing");
                 freeifaddrs(ifaddr);
                 return out;
             }
@@ -480,7 +480,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
 
         //Upon connection, we immediately send a message to the client.
         if(send(fd, "This is the default dialog response!", 39, MSG_NOSIGNAL) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server unable to send() to client");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server unable to send() to client");
             return false;
         }
 
@@ -496,11 +496,11 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
         //Upon connection, we immediately receive a message from the server.
         // Ensure the buffer can easily be null-terminated without loss of any bytes.
         if((numbytes = recv(fd, buff, BUFFSIZE-1, 0)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Client connection issue. Nothing was received");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Client connection issue. Nothing was received");
             return false;
         }
         buff[numbytes] = '\0';
-        //if(YGORNETWORKING_VERBOSE) FUNCINFO("Received message from server: '" << buff << "'");
+        //if(YGORNETWORKING_VERBOSE) YLOGINFO("Received message from server: '" << buff << "'");
 
         //We do not send an acknowledgement or response.
         return true;
@@ -540,7 +540,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
 
     const std::string PORT_STRING = Xtostring<long int>(this->SERVER_PORT);
     if((this->SERVER_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->SERVER_hints, &this->SERVER_servinfo)) != 0) {
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->SERVER_rv) << ". Unable to initialize server");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->SERVER_rv) << ". Unable to initialize server");
         freeaddrinfo(this->SERVER_servinfo);
         return false;
     }
@@ -548,14 +548,14 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     //Loop through all the results and bind to the first we can. Break on success.
     for(this->SERVER_p = this->SERVER_servinfo; this->SERVER_p != nullptr; this->SERVER_p = this->SERVER_p->ai_next){
         if((this->SERVER_sockfd = socket(this->SERVER_p->ai_family, this->SERVER_p->ai_socktype, this->SERVER_p->ai_protocol)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server socket issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server socket issue. Continuing");
             continue;
         }
 
         //Attempt to tell the kernel to reuse addresses (so we can quickly reboot the program and reuse the address 
         // if we need to.)
         if(setsockopt(this->SERVER_sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&this->SERVER_yes, sizeof(int)) == -1) {
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue (unable to force address reuse). Unable to initialize server");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue (unable to force address reuse). Unable to initialize server");
             freeaddrinfo(this->SERVER_servinfo);
             return false;
         }
@@ -567,14 +567,14 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
         timeshuttle.tv_sec  = this->SERVER_accept_timeout_sec;
         timeshuttle.tv_usec = this->SERVER_accept_timeout_usec;
         if(setsockopt(this->SERVER_sockfd, SOL_SOCKET, SO_RCVTIMEO, (void *)&timeshuttle, sizeof(struct timeval)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue (unable to specify accept timeout). Unable to initialize server");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue (unable to specify accept timeout). Unable to initialize server");
             freeaddrinfo(this->SERVER_servinfo);
             return false;
         }
 
         if(bind(this->SERVER_sockfd, this->SERVER_p->ai_addr, this->SERVER_p->ai_addrlen) == -1){
             close(this->SERVER_sockfd);
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server bind issue. Continuing"); //This will commonly occur if the port choice is illegal!
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server bind issue. Continuing"); //This will commonly occur if the port choice is illegal!
             continue;
         }
 
@@ -582,7 +582,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     }
 
     if(this->SERVER_p == nullptr){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server bind issue. Unable to initialize server");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server bind issue. Unable to initialize server");
         return false;
     }
 
@@ -591,7 +591,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
 
     //Set the close-on-exec flag so that server programs can execv and not consume/hold onto the port.
     if(fcntl(this->SERVER_sockfd, F_SETFD, FD_CLOEXEC) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
     }
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -600,7 +600,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
 #endif
 
     if(listen(this->SERVER_sockfd, this->SERVER_BACKLOG) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server listen issue. Unable to initialize server");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server listen issue. Unable to initialize server");
         return false;
     }
 
@@ -611,7 +611,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     sigemptyset(&this->SERVER_sa.sa_mask);
     this->SERVER_sa.sa_flags = SA_RESTART;
     if(sigaction(SIGCHLD, &this->SERVER_sa, nullptr) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server sigaction issue. Unable to initialize server");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server sigaction issue. Unable to initialize server");
         return false;
     }
 
@@ -624,26 +624,26 @@ bool Server_and_Client::Server_Wait_for_Connection(void){
     //This member function waits for a (single) connection from a client. It forks/clones/threads/etc.. off
     // a process to handle the connection in a separate thread.
     if(this->SERVER_INITIALIZED != true){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server initialization has not been performed. Unable to wait for connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server initialization has not been performed. Unable to wait for connection");
         return false;
     }
 
     this->SERVER_sin_size = sizeof(this->SERVER_their_addr);
     this->SERVER_new_fd = accept(this->SERVER_sockfd, (struct sockaddr *)&this->SERVER_their_addr, &this->SERVER_sin_size);
     if(this->SERVER_new_fd == -1) {
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server encountered an accept() issue. Unable to establish connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server encountered an accept() issue. Unable to establish connection");
         return false;
     }
 
     //Set the close-on-exec flag so that servers can execv and not consume/hold onto the port.
     if(fcntl(this->SERVER_new_fd, F_SETFD, FD_CLOEXEC) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set accept()'d close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Attempting to set accept()'d close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
     }
 
     inet_ntop(this->SERVER_their_addr.ss_family, this->Get_in_addr((struct sockaddr *)&this->SERVER_their_addr), this->SERVER_s, sizeof(this->SERVER_s));
     //Ensure the string is null-terminated. An extra char exists to make this safely able to hold the maximum address size and an '\0'.
     this->SERVER_s[sizeof(this->SERVER_s)-1] = '\0';
-    //if(VERBOSE) if(YGORNETWORKING_VERBOSE) FUNCINFO("Received connection from " << this->SERVER_s);
+    //if(VERBOSE) if(YGORNETWORKING_VERBOSE) YLOGINFO("Received connection from " << this->SERVER_s);
 
     //Look if the host is in the blocklist. If it is, do not proceed.
     this->Blocklist_Mutex.lock();
@@ -660,13 +660,13 @@ bool Server_and_Client::Server_Wait_for_Connection(void){
     timeshuttle.tv_sec  = this->SERVER_recv_timeout_sec;
     timeshuttle.tv_usec = this->SERVER_recv_timeout_usec;
     if(setsockopt(this->SERVER_new_fd, SOL_SOCKET, SO_RCVTIMEO, &timeshuttle, sizeof(struct timeval)) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify recv timeout");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify recv timeout");
         return false;
     }
     timeshuttle.tv_sec  = this->SERVER_send_timeout_sec;
     timeshuttle.tv_usec = this->SERVER_send_timeout_usec;
     if(setsockopt(this->SERVER_new_fd, SOL_SOCKET, SO_SNDTIMEO, &timeshuttle, sizeof(struct timeval)) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify send timeout");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify send timeout");
         return false;
     }
 
@@ -740,16 +740,16 @@ bool Server_and_Client::Server_Wait_for_Connection(void){
         //Call the user's dialog lambda if it exists. Call the default otherwise.
         if( this->USERS_SERVER_DIALOG_LAMBDA ){
             if(!this->USERS_SERVER_DIALOG_LAMBDA( this->SERVER_new_fd, this->SERVER_s, this->SERVER_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server dialog provided by user failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else if( this->DEFAULT_SERVER_DIALOG_LAMBDA ){
             if(!this->DEFAULT_SERVER_DIALOG_LAMBDA( this->SERVER_new_fd, this->SERVER_s, this->SERVER_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server default dialog failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server could not dialog because no valid dialog routine is known");
         }
 
         //Now we close up the connection to the client and terminate execution of the child.
@@ -813,15 +813,15 @@ bool Server_and_Client::Server_Wait_for_Connection(void){
     //  not an issue. Nonetheless, maybe I should finish it so I can both refer to it and maybe gain some
     //  traction providing a middle-ground between fork() and thread().
 
-if(YGORNETWORKING_VERBOSE) FUNCINFO("Mapping the stack now");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("Mapping the stack now");
 
     void *Stack = mmap(nullptr, YGORNETWORKING_CLONE_STACK_SIZE, PROT_READ | PROT_WRITE, \
                                 MAP_PRIVATE | MAP_ANON | MAP_GROWSDOWN, -1, 0);
-if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...mapping done");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...mapping done");
 
     auto Childs_Lambda = [](void *arg) -> int {
 
-if(YGORNETWORKING_VERBOSE) FUNCINFO("Executing the child's lambda now");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("Executing the child's lambda now");
 
         //----------------------------- Child Process Fence ---------------------------------
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -831,7 +831,7 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("Executing the child's lambda now");
 
         //Cast the input (void *) to a struct so we can pull out all the parts we need.
         if(arg == nullptr){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Child lambda was passed a nullptr. Unable to cast to struct. Aborting");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Child lambda was passed a nullptr. Unable to cast to struct. Aborting");
             exit(-1);
         }
         struct YgorNetworking_Server_and_Client_Clone_Shuttle *in = reinterpret_cast<struct YgorNetworking_Server_and_Client_Clone_Shuttle *>( arg );
@@ -842,16 +842,16 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("Executing the child's lambda now");
         //Call the user's dialog lambda if it exists. Call the default otherwise.
         if( in->USERS_SERVER_DIALOG_LAMBDA ){
             if(!in->USERS_SERVER_DIALOG_LAMBDA( in->SERVER_new_fd, in->SERVER_s, in->SERVER_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server dialog provided by user failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else if( in->DEFAULT_SERVER_DIALOG_LAMBDA ){
             if(!in->DEFAULT_SERVER_DIALOG_LAMBDA( in->SERVER_new_fd, in->SERVER_s, in->SERVER_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server default dialog failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server could not dialog because no valid dialog routine is known");
         }
 
         //Now we close up the connection to the client and terminate execution of the child.
@@ -861,7 +861,7 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("Executing the child's lambda now");
         munmap(in->Stack, YGORNETWORKING_CLONE_STACK_SIZE);
         delete in;  //delete arg; ??
 
-if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...lambda done");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...lambda done");
 
 
         //Finally, terminate execution of this process.
@@ -870,7 +870,7 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...lambda done");
         //-----------------------------------------------------------------------------------
     };
 
-if(YGORNETWORKING_VERBOSE) FUNCINFO("Shuttling the object's data now");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("Shuttling the object's data now");
 
     struct YgorNetworking_Server_and_Client_Clone_Shuttle *out = new YgorNetworking_Server_and_Client_Clone_Shuttle;
     out->SERVER_sockfd                 = this->SERVER_sockfd;
@@ -880,16 +880,16 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("Shuttling the object's data now");
     out->SERVER_s[INET6_ADDRSTRLEN]    = this->SERVER_s[INET6_ADDRSTRLEN];
     out->SERVER_PORT                   = this->SERVER_PORT;
     out->Stack                         = Stack;
-if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...shuttling done");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...shuttling done");
 
     if(Stack != nullptr){
 
-if(YGORNETWORKING_VERBOSE) FUNCINFO("Attempting to clone now");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("Attempting to clone now");
         pid_t pid = clone(Childs_Lambda, Stack, CLONE_VM | SIGCHLD , (void *)(out));
-if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
+if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...cloning done");
 
     }else{
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to clone process. Cleaning up and ignoring connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to clone process. Cleaning up and ignoring connection");
         munmap(Stack, YGORNETWORKING_CLONE_STACK_SIZE);
     }
 
@@ -901,7 +901,7 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
 /*
     void *stack = malloc( YGORNETWORKING_CLONE_STACK_SIZE );
     if(stack == nullptr){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to allocate stack space for the child process to handle connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to allocate stack space for the child process to handle connection");
         return false;
     }
 
@@ -939,16 +939,16 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
         // far of a departure from the 'use threads' mentality?    FIXME.
         if( this->USERS_SERVER_DIALOG_LAMBDA ){
             if(!this->USERS_SERVER_DIALOG_LAMBDA( thefd, thehostcopy, theport )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server dialog provided by user failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else if( this->DEFAULT_SERVER_DIALOG_LAMBDA ){
             if(!this->DEFAULT_SERVER_DIALOG_LAMBDA( thefd, thehostcopy, theport )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server default dialog failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server could not dialog because no valid dialog routine is known");
         }
 
         //Now we close up the connection to the client and terminate execution of the child.
@@ -994,16 +994,16 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
         // far of a departure from the 'use threads' mentality?    FIXME.
         if( this->USERS_SERVER_DIALOG_LAMBDA ){
             if(!this->USERS_SERVER_DIALOG_LAMBDA( fdcopy, thehostcopy, portcopy )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server dialog provided by user failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else if( this->DEFAULT_SERVER_DIALOG_LAMBDA ){
             if(!this->DEFAULT_SERVER_DIALOG_LAMBDA( fdcopy, thehostcopy, portcopy )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Server default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Server default dialog failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server could not dialog because no valid dialog routine is known");
         }
 
         //Now we close up the connection to the client and terminate execution of the child.
@@ -1024,16 +1024,16 @@ if(YGORNETWORKING_VERBOSE) FUNCINFO("   ...cloning done");
     //Call the user's dialog lambda if it exists. Call the default otherwise.
     if( this->USERS_SERVER_DIALOG_LAMBDA ){
         if(!this->USERS_SERVER_DIALOG_LAMBDA( this->SERVER_new_fd, this->SERVER_s, this->SERVER_PORT )){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server dialog provided by user failed");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server dialog provided by user failed");
             //This child SHOULD NOT return here. Let it continue to the exit(0);
         }
     }else if( this->DEFAULT_SERVER_DIALOG_LAMBDA ){
         if(!this->DEFAULT_SERVER_DIALOG_LAMBDA( this->SERVER_new_fd, this->SERVER_s, this->SERVER_PORT )){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server default dialog failed");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server default dialog failed");
             //This child SHOULD NOT return here. Let it continue to the exit(0);
         }
     }else{
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Server could not dialog because no valid dialog routine is known");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Server could not dialog because no valid dialog routine is known");
     }
 
     //Now we close up the connection to the client.
@@ -1097,20 +1097,20 @@ bool Server_and_Client::Client_Connect(const std::string &address){
     this->CLIENT_ADDRESS = address;
 
     if(this->CLIENT_INITIALIZED != true){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Client initialization has not been performed. Unable to establish connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Client initialization has not been performed. Unable to establish connection");
         return false;
     }
 
     const std::string PORT_STRING = Xtostring<long int>(this->CLIENT_PORT);
     if((this->CLIENT_rv = getaddrinfo(this->CLIENT_ADDRESS.c_str(), PORT_STRING.c_str(), &this->CLIENT_hints, &this->CLIENT_servinfo)) != 0) {
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->CLIENT_rv) << ". Unable to initialize client");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->CLIENT_rv) << ". Unable to initialize client");
         return false;
     }
 
     //Loop through all the results and connect to the first we can.
     for(this->CLIENT_p = this->CLIENT_servinfo; this->CLIENT_p != nullptr; this->CLIENT_p = this->CLIENT_p->ai_next){
         if((this->CLIENT_sockfd = socket(this->CLIENT_p->ai_family, this->CLIENT_p->ai_socktype, this->CLIENT_p->ai_protocol)) == -1) {
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Server socket issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Server socket issue. Continuing");
             continue;
         }
 
@@ -1120,20 +1120,20 @@ bool Server_and_Client::Client_Connect(const std::string &address){
         timeshuttle.tv_sec  = this->CLIENT_recv_timeout_sec;
         timeshuttle.tv_usec = this->CLIENT_recv_timeout_usec;
         if (setsockopt(this->CLIENT_sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeshuttle, sizeof(struct timeval)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify recv timeout");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify recv timeout");
             return false;
         }
         timeshuttle.tv_sec  = this->CLIENT_send_timeout_sec;
         timeshuttle.tv_usec = this->CLIENT_send_timeout_usec;
         if (setsockopt(this->CLIENT_sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeshuttle, sizeof(struct timeval)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify recv timeout");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify recv timeout");
             return false;
         }
 
 //------------
         //Set the close-on-exec flag so that clients can execv and not consume/hold onto the port.
         if(fcntl(this->CLIENT_sockfd, F_SETFD, FD_CLOEXEC) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set client close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Attempting to set client close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
             return false;
         }
 //fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC); ???
@@ -1141,19 +1141,19 @@ bool Server_and_Client::Client_Connect(const std::string &address){
 
         if(connect(this->CLIENT_sockfd, this->CLIENT_p->ai_addr, this->CLIENT_p->ai_addrlen) == -1){
             close(this->CLIENT_sockfd);
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Client connection issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Client connection issue. Continuing");
             continue;
         }
         break;
     }
 
     if(this->CLIENT_p == nullptr){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Client is unable to connect");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Client is unable to connect");
         return false;
     }  
 
     inet_ntop(this->CLIENT_p->ai_family, this->Get_in_addr((struct sockaddr *)this->CLIENT_p->ai_addr), this->CLIENT_s, sizeof(this->CLIENT_s));
-    //if(YGORNETWORKING_VERBOSE) FUNCINFO("Connected to " << this->CLIENT_s);
+    //if(YGORNETWORKING_VERBOSE) YLOGINFO("Connected to " << this->CLIENT_s);
 
     //Cleanup stuff we no longer need before talking with the server.
     freeaddrinfo(this->CLIENT_servinfo); 
@@ -1161,16 +1161,16 @@ bool Server_and_Client::Client_Connect(const std::string &address){
     //Call the user's dialog lambda if it exists. Call the default otherwise.
     if( this->USERS_CLIENT_DIALOG_LAMBDA ){
         if(!this->USERS_CLIENT_DIALOG_LAMBDA( this->CLIENT_sockfd, this->CLIENT_s, this->CLIENT_PORT )){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Client dialog provided by user failed");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Client dialog provided by user failed");
             //This child SHOULD NOT return here. Let it continue to the exit(0);
         }
     }else if( this->DEFAULT_CLIENT_DIALOG_LAMBDA ){
         if(!this->DEFAULT_CLIENT_DIALOG_LAMBDA( this->CLIENT_sockfd, this->CLIENT_s, this->CLIENT_PORT )){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Client default dialog failed");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Client default dialog failed");
             //This child SHOULD NOT return here. Let it continue to the exit(0);
         }
     }else{
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Client could not dialog because no valid dialog routine is known");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Client could not dialog because no valid dialog routine is known");
     }
 
     //End dialog with server by closing the connection.
@@ -1185,7 +1185,7 @@ bool Server_and_Client::Set_No_Timeouts(void){
     //
     //NOTE: This function will return 'false' if it is too late to set all of the timeouts, 'true' else.
     if(this->SERVER_INITIALIZED || this->CLIENT_INITIALIZED){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Too late to set all timeouts - must be done prior to initialization");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Too late to set all timeouts - must be done prior to initialization");
         return false;
     }
 
@@ -1264,10 +1264,10 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
     this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char * /*host*/, long int /*port*/) -> bool {
         //Send a simple message to all radios. This entire lambda will be looped over forever.
         if(send(fd, "This is the default beacon message!", 38, MSG_NOSIGNAL) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon unable to send()");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon unable to send()");
             return false;
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCINFO("Sent a message over multicast");
+            if(YGORNETWORKING_VERBOSE) YLOGINFO("Sent a message over multicast");
         }
 
         std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
@@ -1281,12 +1281,12 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
 
         //Wait until we timeout (or otherwise error) or we get a message from a broadcasting beacon.
         if((numbytes = recv(fd, buff, BUFFSIZE-1, 0)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon connection issue. Nothing was received");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon connection issue. Nothing was received");
             return false;
         }
         buff[numbytes] = '\0';
 
-        if(YGORNETWORKING_VERBOSE) FUNCINFO("Received multicast message from beacon: '" << buff << "'");
+        if(YGORNETWORKING_VERBOSE) YLOGINFO("Received multicast message from beacon: '" << buff << "'");
         return true;
     };
 
@@ -1324,7 +1324,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
 
     const std::string PORT_STRING = Xtostring<long int>(this->RADIO_PORT);
     if((this->RADIO_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->RADIO_hints, &this->RADIO_servinfo)) != 0) {
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to initialize radio");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to initialize radio");
         freeaddrinfo(this->RADIO_servinfo);
         return false;
     }
@@ -1332,14 +1332,14 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     //Loop through all the results and bind to the first we can. Break on success.
     for(this->RADIO_p = this->RADIO_servinfo; this->RADIO_p != nullptr; this->RADIO_p = this->RADIO_p->ai_next){
         if((this->RADIO_sockfd = socket(this->RADIO_p->ai_family, this->RADIO_p->ai_socktype, this->RADIO_p->ai_protocol)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio socket issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio socket issue. Continuing");
             continue;
         }
 
         //Attempt to tell the kernel to reuse addresses (so we can quickly reboot the program and reuse the address 
         // if we need to.)
         if(setsockopt(this->RADIO_sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&this->RADIO_yes, sizeof(int)) == -1) {
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue (unable to force address reuse). Unable to initialize radio");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue (unable to force address reuse). Unable to initialize radio");
             freeaddrinfo(this->RADIO_servinfo);
             return false;
         }
@@ -1347,14 +1347,14 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
         //Try to bind the socket to the suggested address/port. 
         if(bind(this->RADIO_sockfd, this->RADIO_p->ai_addr, this->RADIO_p->ai_addrlen) == -1){
             close(this->RADIO_sockfd);
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio bind issue. Continuing");            
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio bind issue. Continuing");            
             continue;
         }
         break;
     }
 
     if(this->RADIO_p == nullptr){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio bind issue. Unable to initialize radio");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio bind issue. Unable to initialize radio");
         return false;
     }
 
@@ -1363,7 +1363,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
 
     //Set the close-on-exec flag so that radio programs can execv and not consume/hold onto the port.
     if(fcntl(this->RADIO_sockfd, F_SETFD, FD_CLOEXEC) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Attempting to set close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
     }
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -1378,7 +1378,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     sigemptyset(&this->RADIO_sa.sa_mask);
     this->RADIO_sa.sa_flags = SA_RESTART;
     if(sigaction(SIGCHLD, &this->RADIO_sa, nullptr) == -1){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio sigaction issue. Unable to initialize radio");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio sigaction issue. Unable to initialize radio");
         return false;
     }
 
@@ -1391,13 +1391,13 @@ bool Beacon_and_Radio::Radio_Tune_In(const std::string &address){
     //
     //When something is received, it is packed into a fork()/exec()/thread and we continue.
     if(this->RADIO_INITIALIZED != true){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio initialization has not been performed. Unable to wait for broadcasts");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio initialization has not been performed. Unable to wait for broadcasts");
         return false;
     }
 
     //Try to resolve the multicast IP address into something more machine-readable.
     if((this->RADIO_rv = getaddrinfo(address.c_str(), nullptr, &this->RADIO_hints, &this->RADIO_servinfo)) != 0){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to resolve multicast address");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to resolve multicast address");
         return false;
     }
 
@@ -1416,7 +1416,7 @@ bool Beacon_and_Radio::Radio_Tune_In(const std::string &address){
 
         //Join it.
         if(setsockopt(this->RADIO_sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicastRequest, sizeof(multicastRequest)) != 0){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio initialization has not been performed. Unable to join multicast group");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio initialization has not been performed. Unable to join multicast group");
             return false;
         }
 
@@ -1434,11 +1434,11 @@ bool Beacon_and_Radio::Radio_Tune_In(const std::string &address){
 
         //Join it.
         if(setsockopt(this->RADIO_sockfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &multicastRequest, sizeof(multicastRequest)) != 0){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio initialization has not been performed. Unable to join multicast group");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio initialization has not been performed. Unable to join multicast group");
             return false;
         }
     }else{
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio initialization has not been performed. Multicast info is not understandable");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio initialization has not been performed. Multicast info is not understandable");
         return false;
     }
 
@@ -1458,26 +1458,26 @@ bool Beacon_and_Radio::Radio_Tune_In(const std::string &address){
         if(peekret < 0){
             const int errsv = errno;
             if(errsv == ETIMEDOUT){
-                //if(VERBOSE) if(YGORNETWORKING_VERBOSE) FUNCINFO("Timed out while waiting to receive multicast message. Consider increasing timeout threshold");
+                //if(VERBOSE) if(YGORNETWORKING_VERBOSE) YLOGINFO("Timed out while waiting to receive multicast message. Consider increasing timeout threshold");
                 return false;
             }else{ 
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Failed to receive multicast message. Encountered error: " << strerror(errsv));
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Failed to receive multicast message. Encountered error: " << strerror(errsv));
                 return false;
             }
     
         }else if(peekret == 0){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("recv() returned a message of length 0. Not sure what this means!");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("recv() returned a message of length 0. Not sure what this means!");
             return false;
         }
         smallbuff[peekret] = '\0';
 
         if(inet_ntop(beacon_addr.sa_family, this->Get_in_addr(&beacon_addr), this->RADIO_s, sizeof(this->RADIO_s)) == nullptr){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Unable to determine beacon's address. Sending a nullptr hostname instead");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Unable to determine beacon's address. Sending a nullptr hostname instead");
         }
     
 #if defined YGORNETWORKING_RADIO_USE_FORK
 
-FUNCINFO("Note: This routine has not been tested. After testing, remove this notice");
+YLOGINFO("Note: This routine has not been tested. After testing, remove this notice");
         //Just fork and execute the lambda!
         if(!fork()){
             //----------------------------- Child Process Fence ---------------------------------
@@ -1489,16 +1489,16 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
             //Call the user's dialog lambda if it exists. Call the default otherwise.
             if( this->USERS_RADIO_DIALOG_LAMBDA ){
                 if(!this->USERS_RADIO_DIALOG_LAMBDA( this->RADIO_sockfd, this->RADIO_s, this->RADIO_PORT )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio dialog provided by user failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio dialog provided by user failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else if( this->DEFAULT_RADIO_DIALOG_LAMBDA ){
                 if(!this->DEFAULT_RADIO_DIALOG_LAMBDA( this->RADIO_sockfd, this->RADIO_s, this->RADIO_PORT )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio default dialog failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio default dialog failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else{
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio could not dialog because no valid dialog routine is known");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio could not dialog because no valid dialog routine is known");
             }
     
             //Now we close up the socket and terminate execution of the child.
@@ -1514,7 +1514,7 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
             const long int smallbuff_size = 10;
             char smallbuff[smallbuff_size+1];
             if(recv(this->RADIO_sockfd, smallbuff, smallbuff_size, 0) == -1){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Encountered an error while clearing data out of UDP stack. This data is not used for anything");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Encountered an error while clearing data out of UDP stack. This data is not used for anything");
             }
         }
 
@@ -1551,16 +1551,16 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
             // far of a departure from the 'use threads' mentality?    FIXME.
             if( this->USERS_RADIO_DIALOG_LAMBDA ){
                 if(!this->USERS_RADIO_DIALOG_LAMBDA( fdcopy, thehostcopy, portcopy )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio dialog provided by user failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio dialog provided by user failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else if( this->DEFAULT_RADIO_DIALOG_LAMBDA ){
                 if(!this->DEFAULT_RADIO_DIALOG_LAMBDA( fdcopy, thehostcopy, portcopy )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio default dialog failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio default dialog failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else{
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio could not dialog because no valid dialog routine is known");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio could not dialog because no valid dialog routine is known");
             }
 
             //Now we close up the connection to the beacon and terminate execution of the child.
@@ -1576,7 +1576,7 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
         child_stack = (void **)malloc(16384);   //How to free this? FIXME FIXME FIXME!
        
         if(clone(Childs_Lambda, child_stack, CLONE_VM /*|CLONE_FILES*/, NULL) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Failed to clone - unable to recv message. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Failed to clone - unable to recv message. Continuing");
         }
    
         //Now we close up the connection to the beacon.
@@ -1608,16 +1608,16 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
             // far of a departure from the 'use threads' mentality?    FIXME.
             if( this->USERS_RADIO_DIALOG_LAMBDA ){
                 if(!this->USERS_RADIO_DIALOG_LAMBDA( thefd, thehostcopy, theport )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio dialog provided by user failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio dialog provided by user failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else if( this->DEFAULT_RADIO_DIALOG_LAMBDA ){
                 if(!this->DEFAULT_RADIO_DIALOG_LAMBDA( thefd, thehostcopy, theport )){
-                    if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio default dialog failed");
+                    if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio default dialog failed");
                     //This child SHOULD NOT return here. Let it continue to the exit(0);
                 }
             }else{
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio could not dialog because no valid dialog routine is known");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio could not dialog because no valid dialog routine is known");
             }
     
             //Now we close up the connection to the beacon and terminate execution of the child.
@@ -1641,14 +1641,14 @@ FUNCINFO("Note: This routine has not been tested. After testing, remove this not
         //Call the user's dialog lambda if it exists. Call the default otherwise.
         if( this->USERS_RADIO_DIALOG_LAMBDA ){
             if(!this->USERS_RADIO_DIALOG_LAMBDA( this->RADIO_sockfd, this->RADIO_s, this->RADIO_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio dialog provided by user failed");
             }
         }else if( this->DEFAULT_RADIO_DIALOG_LAMBDA ){
             if(!this->DEFAULT_RADIO_DIALOG_LAMBDA( this->RADIO_sockfd, this->RADIO_s, this->RADIO_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio default dialog failed");
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio could not dialog because no valid dialog routine is known");
         }
     
         //Now we close up the connection to the beacon.
@@ -1713,20 +1713,20 @@ bool Beacon_and_Radio::Beacon_Transmit(const std::string &address){
     this->BEACON_ADDRESS = address; //Holds the multicast address.
 
     if(this->BEACON_INITIALIZED != true){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon initialization has not been performed. Unable to establish connection");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon initialization has not been performed. Unable to establish connection");
         return false;
     }
 
     const std::string PORT_STRING = Xtostring<long int>(this->BEACON_PORT);
     if((this->BEACON_rv = getaddrinfo(this->BEACON_ADDRESS.c_str(), PORT_STRING.c_str(), &this->BEACON_hints, &this->BEACON_servinfo)) != 0){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("getaddrinfo returned error " << gai_strerror(this->BEACON_rv) << ". Unable to initialize beacon");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->BEACON_rv) << ". Unable to initialize beacon");
         return false;
     }
 
     //Loop through all the results and connect to the first we can.
     for(this->BEACON_p = this->BEACON_servinfo; this->BEACON_p != nullptr; this->BEACON_p = this->BEACON_p->ai_next){
         if((this->BEACON_sockfd = socket(this->BEACON_p->ai_family, this->BEACON_p->ai_socktype, this->BEACON_p->ai_protocol)) == -1) {
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Radio socket issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Radio socket issue. Continuing");
             continue;
         }
 
@@ -1736,37 +1736,37 @@ bool Beacon_and_Radio::Beacon_Transmit(const std::string &address){
         timeshuttle.tv_sec  = this->BEACON_send_timeout_sec;
         timeshuttle.tv_usec = this->BEACON_send_timeout_usec;
         if(setsockopt(this->BEACON_sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeshuttle, sizeof(struct timeval)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify recv timeout");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify recv timeout");
             return false;
         }
 
         //Attempt to set the TTL of the messages.
         if(setsockopt(this->BEACON_sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &this->BEACON_TTL_HOPS, sizeof(this->BEACON_TTL_HOPS)) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("setsockopt issue. Unable to specify max TTL (aka number of hops)");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("setsockopt issue. Unable to specify max TTL (aka number of hops)");
             return false;
         }
 
         //Set the close-on-exec flag so that beacons can execv and not consume/hold onto the port.
         if(fcntl(this->BEACON_sockfd, F_SETFD, FD_CLOEXEC) == -1){
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Attempting to set beacon close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Attempting to set beacon close-on-exec flag failed. This shouldn't happen, so the file descriptor is likely invalid");
             return false;
         }
 
         if(connect(this->BEACON_sockfd, this->BEACON_p->ai_addr, this->BEACON_p->ai_addrlen) == -1){
             close(this->BEACON_sockfd);
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon connection issue. Continuing");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon connection issue. Continuing");
             continue;
         }
         break;
     }
 
     if(this->BEACON_p == nullptr){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon is unable to connect");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon is unable to connect");
         return false;
     }  
 
     inet_ntop(this->BEACON_p->ai_family, this->Get_in_addr((struct sockaddr *)this->BEACON_p->ai_addr), this->BEACON_s, sizeof(this->BEACON_s));
-    //if(YGORNETWORKING_VERBOSE) FUNCINFO("Connected to " << this->BEACON_s);
+    //if(YGORNETWORKING_VERBOSE) YLOGINFO("Connected to " << this->BEACON_s);
 
     //Cleanup stuff we no longer need before talking with the radio.
     freeaddrinfo(this->BEACON_servinfo); 
@@ -1777,16 +1777,16 @@ bool Beacon_and_Radio::Beacon_Transmit(const std::string &address){
         //Call the user's dialog lambda if it exists. Call the default otherwise.
         if( this->USERS_BEACON_DIALOG_LAMBDA ){
             if(!this->USERS_BEACON_DIALOG_LAMBDA( this->BEACON_sockfd, this->BEACON_s, this->BEACON_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon dialog provided by user failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon dialog provided by user failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else if( this->DEFAULT_BEACON_DIALOG_LAMBDA ){
             if(!this->DEFAULT_BEACON_DIALOG_LAMBDA( this->BEACON_sockfd, this->BEACON_s, this->BEACON_PORT )){
-                if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon default dialog failed");
+                if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon default dialog failed");
                 //This child SHOULD NOT return here. Let it continue to the exit(0);
             }
         }else{
-            if(YGORNETWORKING_VERBOSE) FUNCWARN("Beacon could not dialog because no valid dialog routine is known");
+            if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon could not dialog because no valid dialog routine is known");
         }
 
     }while(this->BEACON_LOOP);
@@ -1803,7 +1803,7 @@ bool Beacon_and_Radio::Set_No_Timeouts(void){
     //
     //NOTE: This function will return 'false' if it is too late to set all of the timeouts, 'true' else.
     if(this->RADIO_INITIALIZED || this->BEACON_INITIALIZED){
-        if(YGORNETWORKING_VERBOSE) FUNCWARN("Too late to set all timeouts - must be done prior to initialization");
+        if(YGORNETWORKING_VERBOSE) YLOGWARN("Too late to set all timeouts - must be done prior to initialization");
         return false;
     }
 

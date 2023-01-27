@@ -160,7 +160,7 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
                                        T B,
                                        T C ){
 
-//    FUNCERR("Do not use. Under construction");
+//    YLOGERR("Do not use. Under construction");
 
     //Analytical approach, using the Clenshaw method and the ODE recurrence relation directly.
     // This routine should be fairly fast, but will propagate numerical losses from coefficient
@@ -388,7 +388,7 @@ Chebyshev_Basis_Approx_Exp_Analytic2( size_t numb_of_c_in,
                                       T B,
                                       T C ){
 
-    FUNCERR("This routine is under construction. Do not use");
+    YLOGERR("This routine is under construction. Do not use");
     // Outstanding issue:
     //    This routine seems to work if the domain is [-1,+1] but doesn't work for 
     //   arbitrary {A,B,C} for some reason. I'm guessing there is an issue with my

@@ -71,7 +71,7 @@ PlotTimeCourses(std::string title,
             const auto lFileName = Get_Unique_Sequential_Filename("/tmp/samples1D_time_course_",6,".txt");
             lTimeCourse.Write_To_File(lFileName);
             AppendStringToFile("# Time course for ROI '"_s + lROIname + "'.\n", lFileName);
-            FUNCINFO("Time course for ROI '" << lROIname << "' written to '" << lFileName << "'");
+            YLOGINFO("Time course for ROI '" << lROIname << "' written to '" << lFileName << "'");
         }
         for(auto & tcs : cheby_time_courses){
             const auto lROIname = tcs.first;
@@ -90,7 +90,7 @@ PlotTimeCourses(std::string title,
             const auto lFileName = Get_Unique_Sequential_Filename("/tmp/cheby_approx_time_course_",6,".txt");
             lTimeCourseSamples1D.Write_To_File(lFileName);
             AppendStringToFile("# Time course for ROI '"_s + lROIname + "'.\n", lFileName);
-            FUNCINFO("Time course for ROI '" << lROIname << "' written to '" << lFileName << "'");
+            YLOGINFO("Time course for ROI '" << lROIname << "' written to '" << lFileName << "'");
         }
 
         //Plot the data.
@@ -100,7 +100,7 @@ PlotTimeCourses(std::string title,
                 YgorMathPlottingGnuplot::Plot<double>(shuttle, title, xlabel, ylabel);
                 break;
             }catch(const std::exception &e){
-                FUNCWARN("Unable to plot time courses: '" << e.what() 
+                YLOGWARN("Unable to plot time courses: '" << e.what() 
                          << "'. Attempt " << attempt << " of " << max_attempts << " ...");
             }
         }

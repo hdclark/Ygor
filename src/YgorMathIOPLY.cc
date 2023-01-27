@@ -266,7 +266,7 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             throw std::runtime_error("Missing 'ply' magic number");
         }
     }catch(const std::exception& e){
-        FUNCWARN(e.what());
+        YLOGWARN(e.what());
         reset();
         return false;
     }
@@ -388,7 +388,7 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             }
         }
     }catch(const std::exception& e){
-        FUNCWARN(e.what());
+        YLOGWARN(e.what());
         reset();
         return false;
     }
@@ -612,7 +612,7 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
         fvsm.recreate_involved_face_index();
 
     }catch(const std::exception &e){ 
-        FUNCWARN(e.what());
+        YLOGWARN(e.what());
         reset();
         return false;
     }
@@ -645,7 +645,7 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     }
 
     if(fvsm.vertices.empty()){
-        FUNCWARN("No vertices to write. Refusing to continue");
+        YLOGWARN("No vertices to write. Refusing to continue");
         return false;
     }
     const size_t N_verts = fvsm.vertices.size();
@@ -665,7 +665,7 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     const bool use_int32_t = (N_verts < std::numeric_limits<int32_t>::max());
 
     if(os.bad()){
-        FUNCWARN("Stream initially in invalid state. Refusing to continue");
+        YLOGWARN("Stream initially in invalid state. Refusing to continue");
         return false;
     }
 
@@ -705,7 +705,7 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
     }
     os << "end_header\n";
     if(os.bad()){
-        FUNCWARN("Unable to write header. Refusing to continue");
+        YLOGWARN("Unable to write header. Refusing to continue");
         return false;
     }
 
@@ -723,14 +723,14 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
             if( !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].x)
             ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].y)
             ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertices[i].z) ){
-                FUNCWARN("Unable to write vertex to stream. Cannot continue");
+                YLOGWARN("Unable to write vertex to stream. Cannot continue");
                 return false;
             }
             if( has_normals ){
                 if( !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].x)
                 ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].y)
                 ||  !ygor::io::write_binary<T,write_endianness>(os, fvsm.vertex_normals[i].z) ){
-                    FUNCWARN("Unable to write vertex normals to stream. Cannot continue");
+                    YLOGWARN("Unable to write vertex normals to stream. Cannot continue");
                     return false;
                 }
             }
@@ -740,7 +740,7 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
 
             const auto N = static_cast<uint8_t>(fv.size());
             if( !ygor::io::write_binary<uint8_t,write_endianness>(os, N) ){
-                FUNCWARN("Unable to write facet list length to stream. Cannot continue");
+                YLOGWARN("Unable to write facet list length to stream. Cannot continue");
                 return false;
             }
 
@@ -748,23 +748,23 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
                 if(false){
                 }else if(use_int8_t){
                     if( !ygor::io::write_binary<int8_t ,write_endianness>(os, static_cast<int8_t >(i)) ){
-                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        YLOGWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
                 }else if(use_int16_t){
                     if( !ygor::io::write_binary<int16_t,write_endianness>(os, static_cast<int16_t>(i)) ){
-                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        YLOGWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
 
                 }else if(use_int32_t){
                     if( !ygor::io::write_binary<int32_t,write_endianness>(os, static_cast<int32_t>(i)) ){
-                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        YLOGWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
                 }else{
                     if( !ygor::io::write_binary<I,write_endianness>(os, i) ){
-                        FUNCWARN("Unable to write facet list number. Cannot continue");
+                        YLOGWARN("Unable to write facet list number. Cannot continue");
                         return false;
                     }
                 }
@@ -776,14 +776,14 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
             if(!(os << fvsm.vertices[i].x << " "
                     << fvsm.vertices[i].y << " "
                     << fvsm.vertices[i].z << "\n")){
-                FUNCWARN("Unable to write vertex to stream. Cannot continue");
+                YLOGWARN("Unable to write vertex to stream. Cannot continue");
                 return false;
             }
             if( has_normals ){
                 if(!(os << fvsm.vertex_normals[i].x << " "
                         << fvsm.vertex_normals[i].y << " "
                         << fvsm.vertex_normals[i].z << "\n")){
-                    FUNCWARN("Unable to write vertex normals to stream. Cannot continue");
+                    YLOGWARN("Unable to write vertex normals to stream. Cannot continue");
                     return false;
                 }
             }
@@ -792,18 +792,18 @@ WriteFVSMeshToPLY(const fv_surface_mesh<T,I> &fvsm,
             if(fv.empty()) continue;
 
             if(!( os << fv.size() )){
-                FUNCWARN("Unable to write facet list length to stream. Cannot continue");
+                YLOGWARN("Unable to write facet list length to stream. Cannot continue");
                 return false;
             }
             for(const auto &i : fv){
                 // Cast to avoid a uint8_t face being treated as a char by the stream.
                 if(!( os << " " << static_cast<uint64_t>(i) )){
-                    FUNCWARN("Unable to write facet list number. Cannot continue");
+                    YLOGWARN("Unable to write facet list number. Cannot continue");
                     return false;
                 }
             }
             if(!( os << "\n" )){
-                FUNCWARN("Unable to write facet newline. Cannot continue");
+                YLOGWARN("Unable to write facet newline. Cannot continue");
                 return false;
             }
         }

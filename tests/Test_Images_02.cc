@@ -55,9 +55,9 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized planar_image to " << A.rows << "x" << A.columns << " image with first pixel = " << A.value(0,0,0));
+            YLOGINFO("Deserialized planar_image to " << A.rows << "x" << A.columns << " image with first pixel = " << A.value(0,0,0));
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize planar_image file. It is not valid");
+            YLOGINFO("Unable to deserialize planar_image file. It is not valid");
         }
 
     }
@@ -88,11 +88,11 @@ int main(int , char** ){
         try{
             boost::archive::xml_iarchive ar(ifs);
             ar & boost::serialization::make_nvp("not used", A);
-            FUNCINFO("Deserialized planar_image_collection to " << A.images.size() << " images, the first of which"
+            YLOGINFO("Deserialized planar_image_collection to " << A.images.size() << " images, the first of which"
                    << " has " << A.images.front().rows << "x" << A.images.front().columns << " RxC with first pixel = "
                    << A.images.front().value(0,0,0));
         }catch(const std::exception &){
-            FUNCINFO("Unable to deserialize planar_image_collection file. It is not valid");
+            YLOGINFO("Unable to deserialize planar_image_collection file. It is not valid");
         }
 
     }

@@ -103,7 +103,7 @@ int main(int argc, char **argv){
         std::cout << "Sphere fitted to degenerate data has C = " << thesphere.C_0
                   << " and R = " << thesphere.r_0 << std::endl;
 
-        FUNCWARN("Possible to get here due to numerical instabilities -- routine will ideally throw due to ambiguously degenerate data!");
+        YLOGWARN("Possible to get here due to numerical instabilities -- routine will ideally throw due to ambiguously degenerate data!");
     }catch(const std::exception &e){
         std::cout << "Successfully failed to continue in presence of ambiguously degenerate data:"
                   << std::endl

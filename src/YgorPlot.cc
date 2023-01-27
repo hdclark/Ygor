@@ -133,12 +133,12 @@ void Plotter2::Apply_Basic_Footer_Customizations(void){
     return;
 }
 void Plotter2::Append_Header(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     for(const auto & s_it : this->header) *ss << s_it << std::endl;
     return;
 }
 void Plotter2::Append_StrDat(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
 
     //To avoid writing everything twice, we copy everything at runtime. Ouch! This is the cost of 
     // a minor decrease in maintenance burden...
@@ -167,7 +167,7 @@ void Plotter2::Append_StrDat(std::stringstream *ss) const {
     return;
 }
 void Plotter2::Append_Footer(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     for(const auto & s_it : this->footer) *ss << s_it << std::endl;
 
     //Also dump stringified samples_1D data so we can more easily read/manipulate the data, if needed.
@@ -239,7 +239,7 @@ bool Plotter2::Plot(void) const {
     if(!(fp = popen("gnuplot -persist &>/dev/null", "w"))) return false;
     if(!ss.good()) return false;
     fprintf(fp, "%s", ss.str().c_str());
-    if(pclose(fp) == -1) return false; //FUNCERR("Unable to close pipe. Is the process still active?");
+    if(pclose(fp) == -1) return false; //YLOGERR("Unable to close pipe. Is the process still active?");
     return true;
 }
 bool Plotter2::Plot_as_PDF(const std::string &Filename) const { //May overwrite existing files!
@@ -258,7 +258,7 @@ bool Plotter2::Plot_as_PDF(const std::string &Filename) const { //May overwrite 
     if(!(fp = popen("gnuplot -persist &>/dev/null", "w"))) return false;
     if(!ss.good()) return false;
     fprintf(fp, "%s", ss.str().c_str());
-    if(pclose(fp) == -1) return false; //FUNCERR("Unable to close pipe. Is the process still active?");
+    if(pclose(fp) == -1) return false; //YLOGERR("Unable to close pipe. Is the process still active?");
     return true;
 }
 std::string Plotter2::Dump_as_String(void) const {  //aka 'plot to string'
@@ -298,12 +298,12 @@ void MultiPlotter2::Apply_Basic_Footer_Customizations(void){
     return;
 }
 void MultiPlotter2::Append_Header(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     for(const auto & s_it : this->header) *ss << s_it << std::endl;
     return;
 }
 void MultiPlotter2::Append_SubPlots(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     for(const auto & subplot : this->subplots){
         *ss << subplot.Dump_as_String() << std::endl;
         *ss << "#" << std::endl; //Easier for poor human to read...
@@ -311,12 +311,12 @@ void MultiPlotter2::Append_SubPlots(std::stringstream *ss) const {
     return;
 }
 void MultiPlotter2::Append_Footer(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     for(const auto & s_it : this->footer) *ss << s_it << std::endl;
     return;
 }
 void MultiPlotter2::Open_Multiplot_Environ(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     //Do to some little quirks in GNUplot, we have to choose both the layout
     // and commit the global title when we open up the multiplot environment.
     //
@@ -345,7 +345,7 @@ void MultiPlotter2::Open_Multiplot_Environ(std::stringstream *ss) const {
     return;
 }
 void MultiPlotter2::Close_Multiplot_Environ(std::stringstream *ss) const {
-    if(ss == nullptr) FUNCERR("Passed an invalid reference");
+    if(ss == nullptr) YLOGERR("Passed an invalid reference");
     *ss << "unset multiplot" << std::endl;
     return;
 }
@@ -380,7 +380,7 @@ bool MultiPlotter2::Plot(void) const {
     if(!(fp = popen("gnuplot -persist &>/dev/null", "w"))) return false;
     if(!ss.good()) return false;
     fprintf(fp, "%s", ss.str().c_str());
-    if(pclose(fp) == -1) return false; //FUNCERR("Unable to close pipe. Is the process still active?");
+    if(pclose(fp) == -1) return false; //YLOGERR("Unable to close pipe. Is the process still active?");
     return true;
 }
 bool MultiPlotter2::Plot_as_PDF(const std::string &Filename) const { //May overwrite existing files!
@@ -408,7 +408,7 @@ bool MultiPlotter2::Plot_as_PDF(const std::string &Filename) const { //May overw
     if(!(fp = popen("gnuplot -persist &>/dev/null", "w"))) return false;
     if(!ss.good()) return false;
     fprintf(fp, "%s", ss.str().c_str());
-    if(pclose(fp) == -1) return false; //FUNCERR("Unable to close pipe. Is the process still active?");
+    if(pclose(fp) == -1) return false; //YLOGERR("Unable to close pipe. Is the process still active?");
     return true;
 }
 std::string MultiPlotter2::Dump_as_String(void) const {  //aka 'plot to string'

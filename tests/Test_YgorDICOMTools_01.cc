@@ -37,29 +37,29 @@ int main(int argc, char **argv){
     //Variables which are used later.
     intmax_t size = 0;
 
-FUNCINFO("___________________________________________________________ Performing basic loading routines ____________________________________________________");
+YLOGINFO("___________________________________________________________ Performing basic loading routines ____________________________________________________");
 
-    FUNCINFO("About to load file " << filename_in );
+    YLOGINFO("About to load file " << filename_in );
 
     //Load the file.
     std::unique_ptr<unsigned char[]> file_in_memory = Load_Binary_File<unsigned char>(filename_in, &size);
 
-    if(file_in_memory == nullptr) FUNCERR("Unable to load binary file");
+    if(file_in_memory == nullptr) YLOGERR("Unable to load binary file");
     const unsigned char *begin = file_in_memory.get();
     const unsigned char *end = begin + size;
 
-    FUNCINFO("The size of the file in flat memory is " << size );
+    YLOGINFO("The size of the file in flat memory is " << size );
 
     //Check the file for the existence of the 'DICM' signature. 
     const unsigned char *it = Validate_DICOM_Format(begin, end);
-    if(it == nullptr) FUNCERR("Unexpected error - unable to validate file");
-    if(it == end    ) FUNCERR("The file does not appear to be a valid DICOM file. Please double check it");
+    if(it == nullptr) YLOGERR("Unexpected error - unable to validate file");
+    if(it == end    ) YLOGERR("The file does not appear to be a valid DICOM file. Please double check it");
 
-FUNCINFO("___________________________________________________________ Performing parsing routines __________________________________________________________");
+YLOGINFO("___________________________________________________________ Performing parsing routines __________________________________________________________");
 
     //De-lineate the data within the file. Note that the nodes output are NOT traversed and expanded.
     std::vector<piece> data = Parse_Binary_File(it, end);
-    if(data.size() == 0) FUNCERR("No data was output: the file is either empty or there was an issue processing data");
+    if(data.size() == 0) YLOGERR("No data was output: the file is either empty or there was an issue processing data");
 
     //Dump the non-fully-expanded data. Note that none of the children nodes have been expanded (if there are any..)
     std::ofstream out(filename_parsed.c_str(), std::ios::out );
@@ -78,7 +78,7 @@ FUNCINFO("___________________________________________________________ Performing
     Dump_Children(fully_parsed, data);
     fully_parsed.close();
 
-FUNCINFO("___________________________________________________________ Performing modification routines _____________________________________________________");
+YLOGINFO("___________________________________________________________ Performing modification routines _____________________________________________________");
 
     //Select an element (or a nested element) to get the data from. Elements are returned as pointer to the in-place data. We can ask for references to however
     // high up the tree we wish.
@@ -105,12 +105,12 @@ FUNCINFO("___________________________________________________________ Performing
 
 
     //Print out the data again to show the (possible) change which we have enacted.
-    FUNCINFO("After attempting to modify the data, we now have..");
+    YLOGINFO("After attempting to modify the data, we now have..");
     Dump_Children(std::cout, selection);
 */
     //Do not use the vector filled by Get_Elements after this point - the data may get shuffled and reorganized!
 
-FUNCINFO("___________________________________________________________ Performing writing routines __________________________________________________________");
+YLOGINFO("___________________________________________________________ Performing writing routines __________________________________________________________");
 
     //Write the data to file. We make sure to re-compute the 'size' of objects, since any of them may have been altered in some way (or their children, or their
     // children's children, etc..)
@@ -123,7 +123,7 @@ FUNCINFO("___________________________________________________________ Performing
     //Append a (token) DICOM header so that the file will be recognized elsewhere.
     repacked = Simple_DICOM_Header() + repacked;
    
-    FUNCINFO("The size of the repacked flat file is " << repacked.size());
+    YLOGINFO("The size of the repacked flat file is " << repacked.size());
 
     std::ofstream bin_out( filename_repacked.c_str(), std::ios::out | std::ios::binary );
     bin_out << repacked;

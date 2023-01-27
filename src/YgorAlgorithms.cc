@@ -82,7 +82,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     }
     
     static std::vector<double> l_vector(const double h, const samples_1D<double> &data , double x, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         if(!std::isnormal(h) || (h <= 0.0)){ *OK = false; return std::vector<double>(); }
@@ -98,7 +98,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
     double Get_Smoothed_at_X(double h, double x, const samples_1D<double> &in, bool *OK){
         //Returns the estimated (smoothed) function value at the given x and smoothing parameter h.
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //Generate the linear combination of 'l's to combine the Y values.
@@ -122,7 +122,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     //This is almost exactly the same as the generic function evaluation routine (called herein), but also performs an
     // inverse transformation on the data, bringing it back from log space.
     static double Get_MSE_at_X(double h_conf, double x, const samples_1D<double> &log_mse_data_in, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         const double log_of_mse = Get_Smoothed_at_X(h_conf,x,log_mse_data_in,OK);
@@ -132,7 +132,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     }
     
     double Get_Conf_at_X(double h, double conf_h, double c, double x, const samples_1D<double> &log_mse_data_in, const samples_1D<double> &data, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //Get the l-vector at this x.
@@ -246,7 +246,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         // we try a minimization scheme to search for an optimal smoothing parameter h.
         // 
         //This routine is not impervious to local minima or poorly chosen scale. 
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //This is the function we will minimize. We can use the generalized cross validation score, or leave-one-out, or whatever.
@@ -273,7 +273,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         while(minimizer.iter() == 0){
             if(show_info){
                 minimizer.get_params(params);
-                FUNCINFO("Smallest func val is: " << minimizer.func_vals[minimizer.curr_min] << " at h = " << params[0] << " on iteration #" << minimizer.iteration);
+                YLOGINFO("Smallest func val is: " << minimizer.func_vals[minimizer.curr_min] << " at h = " << params[0] << " on iteration #" << minimizer.iteration);
 //                std::cout << "Smallest func val is: " << minimizer.func_vals[minimizer.curr_min];
 //                std::cout << " at h = " << params[0];
 //                std::cout << " on iteration #" << minimizer.iteration << std::endl; 
@@ -299,7 +299,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     // also determines an approximate estimate of k_0 - the leading order 'geometrical manifold volume' which is used to
     // compute 'c'. It is not a terribly precide computation of k_o, and may be altered in the future.
     double Find_C(double h, double confidence, const samples_1D<double> &in, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //Note:  95% = 100%*(1-\alpha). Therefore,  alpha = 0.05 -> 95% confidence, similarly
@@ -370,7 +370,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     
     //This function takes the data's optimal h and returns log(MSE) data which is itself suitable for regression.
     samples_1D<double> Log_of_MSE(double h, const samples_1D<double> &in, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //Get a (smoothed) estimate of the input data on the input data x_i's.
@@ -392,7 +392,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     //Breaks up the input data into (xmax-xmin)/dx equal-length parts. Samples the smoothed function at each. 
     samples_1D<double> Get_Smoothed_Evenly_Spaced(double h, double dx, const samples_1D<double> &in, bool *OK){
         //Return constant-separation (dx) smoothed function data.
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         samples_1D<double> out;
@@ -410,7 +410,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     //For the given input (x_i,y_i), generate smoothed output (x_i,s_y_i) at the (exact) same x_i. This is used internally
     // and might be of interest to the user as a convenience function.
     samples_1D<double> Get_Smoothed_at_Xi(double h, const samples_1D<double> &in, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
     
         //Generate a (smoothed) estimate of the input data on the input data x_i's.
@@ -429,7 +429,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     //
     //Only use this if you are satisfied with the output and/or have previously investigated the effect of h on the data.
     samples_1D<double> Attempt_Auto_Smooth(const samples_1D<double> &in, bool *OK){
-        if(OK == nullptr) FUNCERR("Provided a nullptr when it was not expected");
+        if(OK == nullptr) YLOGERR("Provided a nullptr when it was not expected");
         *OK = false;
 
         const double xmin      = in.samples.front()[0];
@@ -506,11 +506,11 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
             const bool verbose_optimal_h = false;
             const double h_optimal = NPRLL::Find_Optimal_H(h_0, h_scale, 1E-7, 5000, data, verbose_optimal_h, &l_OK);
             if(l_OK == false){  
-                if(OK == nullptr) FUNCERR("Unable to determine an optimal h. Value returned was " << h_optimal);
-                FUNCWARN("Unable to determine an optimal h. Value returned was " << h_optimal);
+                if(OK == nullptr) YLOGERR("Unable to determine an optimal h. Value returned was " << h_optimal);
+                YLOGWARN("Unable to determine an optimal h. Value returned was " << h_optimal);
                 return;
             }else{
-                FUNCINFO("Found optimal h = " << h_optimal);
+                YLOGINFO("Found optimal h = " << h_optimal);
             }
     
             {
@@ -522,16 +522,16 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
             //Compute necessary info to evaluate the confidence bands (not quite of the smooth function approximation, but close!).
             const auto log_mse_est = NPRLL::Log_of_MSE(h_optimal, data, &l_OK);
             if(l_OK == false){
-                if(OK == nullptr) FUNCERR("Encountered error computing log of MSE estimate data");
-                FUNCWARN("Unable to compute log of MSE estimate data");
+                if(OK == nullptr) YLOGERR("Encountered error computing log of MSE estimate data");
+                YLOGWARN("Unable to compute log of MSE estimate data");
                 return;
             }    
             const double conf_h_0       = 100.0;
             const double conf_h_scale   = 5.0;
             const double conf_h_optimal = NPRLL::Find_Optimal_H(conf_h_0, conf_h_scale, 1E-7, 5000, log_mse_est, verbose_optimal_h, &l_OK);
             if(l_OK == false){
-                if(OK == nullptr) FUNCERR("Encountered error computing smoothed function");
-                FUNCWARN("Unable to compute smoothed function");
+                if(OK == nullptr) YLOGERR("Encountered error computing smoothed function");
+                YLOGWARN("Unable to compute smoothed function");
                 return;
             }
 
@@ -582,12 +582,12 @@ uint64_t Consistent_Hash_64(const std::string &in){
 std::unique_ptr<uint8_t[]> MD5_Hash(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t bytecnt, std::string *hash){
     if(OK != nullptr) *OK = false;
     if(hash == nullptr){
-        if(OK == nullptr) FUNCERR("Passed a nullptr instead of a space to store resulting hash. Cannot continue");
-        FUNCWARN("Passed a nullptr instead of a space to store resulting hash. Bailing");
+        if(OK == nullptr) YLOGERR("Passed a nullptr instead of a space to store resulting hash. Cannot continue");
+        YLOGWARN("Passed a nullptr instead of a space to store resulting hash. Bailing");
         return in;
     }
     if(!hash->empty()){
-        FUNCWARN("Passed a non-empty hash store. Assuming appending hashes is desired");
+        YLOGWARN("Passed a non-empty hash store. Assuming appending hashes is desired");
     }
 
     MD5::Context working;
@@ -627,25 +627,25 @@ Ygor_Fit_Driver(bool *wasOK,
              double ftol ){
 
 
-    if(wasOK == nullptr) FUNCERR("Passed a nullptr bool. Unable to signal whether evaluation worked or not");
+    if(wasOK == nullptr) YLOGERR("Passed a nullptr bool. Unable to signal whether evaluation worked or not");
     *wasOK = false;
     std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>> out;
 
     // ----------------- Sanity checking -------------------
     if(!f || data.empty() || vars.empty()){
-        FUNCWARN("Given insufficient or incomplete information to perform fit. Bailing");
+        YLOGWARN("Given insufficient or incomplete information to perform fit. Bailing");
         return out;
 
     }else if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM2) && !isininc(2,data.front().size(),3)){
-        FUNCWARN("Given too much or too little data for 2D fit. Bailing");
+        YLOGWARN("Given too much or too little data for 2D fit. Bailing");
         return out;
 
     }else if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::DIM3) && !isininc(3,data.front().size(),4)){
-        FUNCWARN("Given too much or too little data for 3D fit. Bailing");
+        YLOGWARN("Given too much or too little data for 3D fit. Bailing");
         return out;
 
     }else if(!BITMASK_BITS_ARE_SET(fitflags,YGORFIT::LSS) && !BITMASK_BITS_ARE_SET(fitflags,YGORFIT::LMS)){
-        FUNCWARN("Need to specify least-sum of squares or least-median of squares. Bailing");
+        YLOGWARN("Need to specify least-sum of squares or least-median of squares. Bailing");
         return out;
 
     }else{
@@ -654,7 +654,7 @@ Ygor_Fit_Driver(bool *wasOK,
         size_t numcols = it->size();
         do{
             if(numcols != it->size()){
-                FUNCWARN("Found two rows which differ in number of columns. Please pad to identical sizes. Bailing");
+                YLOGWARN("Found two rows which differ in number of columns. Please pad to identical sizes. Bailing");
                 return out;
             }
             numcols = it->size();
@@ -721,7 +721,7 @@ Ygor_Fit_Driver(bool *wasOK,
                 W = r_it.back();
 
             }else{
-                FUNCWARN("Currently cannot understand what type of analysis you are asking for. Implement it here");
+                YLOGWARN("Currently cannot understand what type of analysis you are asking for. Implement it here");
                 failure_inside_func_to_min = true;
                 return -1.0;
 
@@ -738,7 +738,7 @@ Ygor_Fit_Driver(bool *wasOK,
 
             //Sanity checking.
             if(W == 0.0){
-                FUNCWARN("Somehow ended up with zero uncertainty. This routine cannot handle zero uncertainty");
+                YLOGWARN("Somehow ended up with zero uncertainty. This routine cannot handle zero uncertainty");
                 failure_inside_func_to_min = true;
                 return -1.0;
             }
@@ -774,7 +774,7 @@ Ygor_Fit_Driver(bool *wasOK,
         }
 
         //------ We should never get here. -----
-        FUNCERR("Objective function not properly specified. Cannot continue");
+        YLOGERR("Objective function not properly specified. Cannot continue");
         return -1.0 - DOF;
     };
 
@@ -797,24 +797,24 @@ Ygor_Fit_Driver(bool *wasOK,
     //-------------- Minimization computation ----------------
     while(minimizer.iter() == 0){
         if(failure_inside_func_to_min == true){
-            FUNCWARN("Encountered failure whilst trying to evaluate function to be minimized. Cannot continue");
+            YLOGWARN("Encountered failure whilst trying to evaluate function to be minimized. Cannot continue");
             return out;
         }
         if(Verbose){
             std::cout.precision(10);
-            FUNCINFO("Minimization: At iteration " << minimizer.iteration << " the lowest value is " << minimizer.func_vals[minimizer.curr_min]);
+            YLOGINFO("Minimization: At iteration " << minimizer.iteration << " the lowest value is " << minimizer.func_vals[minimizer.curr_min]);
         }
     }
 
     if(minimizer.iter() == -1){
-        FUNCERR("Min scheme exited due to error. Maybe the initial params were not set?");
+        YLOGERR("Min scheme exited due to error. Maybe the initial params were not set?");
     }else if(minimizer.iter() ==  1){
-        FUNCWARN("Min scheme finished due to max num of iters being exceeded.");
+        YLOGWARN("Min scheme finished due to max num of iters being exceeded.");
         if(BITMASK_BITS_ARE_SET(fitflags,YGORFIT::NON_CONVERG_IS_ERR)){
             *wasOK = false;
             return out;
         }
-    }else if((minimizer.iter() ==  2) && Verbose) FUNCINFO("Min scheme completed due to ftol < ftol_min.");
+    }else if((minimizer.iter() ==  2) && Verbose) YLOGINFO("Min scheme completed due to ftol < ftol_min.");
 
     std::list<double> best_params;
     minimizer.get_params(min_params.get());
@@ -843,7 +843,7 @@ Ygor_Fit_Driver(bool *wasOK,
         out = std::make_tuple(best_params, chi_sq, Qvalue, DOF, red_chi_sq, raw_coeff_deter, mod_coeff_deter, best_SRs);
 
     }else{
-        FUNCERR("Unspecified fitting method. Unable to compute any stats or continue");
+        YLOGERR("Unspecified fitting method. Unable to compute any stats or continue");
     }
     *wasOK = true;
     return out;
@@ -861,7 +861,7 @@ Ygor_Fit_LSS(bool *wasOK,
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
     }else if(dim == 3){  fitflags |= YGORFIT::DIM3;
     }else{
-        FUNCERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
+        YLOGERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
     }
     fitflags |= YGORFIT::LSS;
 
@@ -885,7 +885,7 @@ Ygor_Fit_LMS(bool *wasOK,
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
     }else if(dim == 3){  fitflags |= YGORFIT::DIM3;
     }else{
-        FUNCERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
+        YLOGERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
     }
     fitflags |= YGORFIT::LMS;
 
@@ -921,8 +921,8 @@ std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
         sub_data.push_back( *std::next(data.begin(),nth) );
     }
 
-FUNCWARN("++++++++ USING RANDOMIZED BEST GUESSES. MIGHT WANT TO DISABLE THIS +++++++++");
-FUNCWARN("+++++++ IN EITHER CASE, PLUMB IT IN PROPERLY. IT IS JUST BOLTED ON. ++++++++");
+YLOGWARN("++++++++ USING RANDOMIZED BEST GUESSES. MIGHT WANT TO DISABLE THIS +++++++++");
+YLOGWARN("+++++++ IN EITHER CASE, PLUMB IT IN PROPERLY. IT IS JUST BOLTED ON. ++++++++");
 
     //Perform fits with randomly-selected data until we have N samples of the parameters.
     time_mark Began;
@@ -959,7 +959,7 @@ std::list<double> randomized_vars;
             const auto dbl_n  = static_cast<double>(out.front().size()) + 0.001;
             const auto dbl_N  = static_cast<double>(N);
             
-            FUNCINFO("Estimated remaining time: " << ((dbl_N/dbl_n)-1.0)*dt);
+            YLOGINFO("Estimated remaining time: " << ((dbl_N/dbl_n)-1.0)*dt);
         }
         if(N_ERRS >= MAX_N_ERRS){
             *wasOK = false;
@@ -985,7 +985,7 @@ std::list<double> randomized_vars;
       size_t numcols = it->size();
       do{
           if(numcols != it->size()){
-              FUNCWARN("Failed to produce N samples of fitting parameters due to programming error");
+              YLOGWARN("Failed to produce N samples of fitting parameters due to programming error");
               return out;
           }
           numcols = it->size();
@@ -1008,7 +1008,7 @@ Ygor_Fit_Bootstrap_LSS(bool *wasOK,
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
     }else if(dim == 3){  fitflags |= YGORFIT::DIM3;
     }else{
-        FUNCERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
+        YLOGERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
     }
     fitflags |= YGORFIT::LSS;
     fitflags |= YGORFIT::NON_CONVERG_IS_ERR;  //We want to ensure our stats aren't messed up by default params.
@@ -1026,7 +1026,7 @@ Ygor_Fit_Bootstrap_LMS(bool *wasOK,
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
     }else if(dim == 3){  fitflags |= YGORFIT::DIM3;
     }else{
-        FUNCERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
+        YLOGERR("Cannot handle dimensions other than 2 [f(x)] or 3 [f(x,y)]. Cannot proceed");
     }
     fitflags |= YGORFIT::LMS;
     fitflags |= YGORFIT::NON_CONVERG_IS_ERR;  //We want to ensure our stats aren't messed up by default params.

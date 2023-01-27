@@ -392,12 +392,12 @@ cheby_approx<T>::Sample_Uniformly( size_t numb_of_samples,
         const T x = ((i+1) == numb_of_samples) ? xmax    // Try avoid loss of precision on positive-most extrema.
                                                : xmin + dx * static_cast<T>(i);
 //if(!std::isfinite(x)){
-//     FUNCERR("Bad x! x = " << x << " at i = " << i << " and xmin / xmax = " << xmin << " / " << xmax);
+//     YLOGERR("Bad x! x = " << x << " at i = " << i << " and xmin / xmax = " << xmin << " / " << xmax);
 //}else{
-//     FUNCWARN("Good x! x = " << x << " at i = " << i << " and xmin / xmax = " << xmin << " / " << xmax);
+//     YLOGWARN("Good x! x = " << x << " at i = " << i << " and xmin / xmax = " << xmin << " / " << xmax);
 //}
         const T f = this->Sample(x,numb_of_c_to_use);
-//if(!std::isfinite(f)) FUNCERR("Bad f! f = " << f);
+//if(!std::isfinite(f)) YLOGERR("Bad f! f = " << f);
         out.push_back( x, static_cast<T>(0), f, static_cast<T>(0), InhibitSort );
     }
     return out;       

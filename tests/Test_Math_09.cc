@@ -37,46 +37,46 @@ int main(int, char **){
     const vec3<double>  yz_norm(0.0, 1.0, 1.0);
     const vec3<double> xyz_norm(1.0, 1.0, 1.0);
 
-    FUNCINFO("Least-squares best-fit plane along " <<   x_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  x_norm).R_0);
-    FUNCINFO("Least-squares best-fit plane along " <<   y_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  y_norm).R_0);
-    FUNCINFO("Least-squares best-fit plane along " <<   z_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  z_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " <<   x_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  x_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " <<   y_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  y_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " <<   z_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(  z_norm).R_0);
 
-    FUNCINFO("Least-squares best-fit plane along " <<  xy_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane( xy_norm).R_0);
-    FUNCINFO("Least-squares best-fit plane along " <<  yz_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane( yz_norm).R_0);
-    FUNCINFO("Least-squares best-fit plane along " << xyz_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(xyz_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " <<  xy_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane( xy_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " <<  yz_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane( yz_norm).R_0);
+    YLOGINFO("Least-squares best-fit plane along " << xyz_norm << " has R_0 = " << cont.Least_Squares_Best_Fit_Plane(xyz_norm).R_0);
 
 
-    FUNCINFO("Proceeding with least-squares best-fit plane along " << z_norm);
+    YLOGINFO("Proceeding with least-squares best-fit plane along " << z_norm);
     const auto ls_plane = cont.Least_Squares_Best_Fit_Plane(z_norm);
 
     vec3<double> p;
 
     p = vec3<double>(0.0, 0.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(1.0, 0.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(1.0, 1.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(0.0, 1.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
 
 
     p = vec3<double>(0.0, 0.5, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(0.5, 1.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(0.5, 0.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(1.0, 0.5, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
 
 
     p = vec3<double>(0.5, 0.5, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(0.5, 1.5, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
     p = vec3<double>(0.5, 1.0, -99.0);
-    FUNCINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
+    YLOGINFO("Is point " << p << " in the contour?  " << !!cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,p));
 
 
     //Generate an image using the Is_Point_In_Polygon_Projected_Orthogonally() routine.
@@ -116,9 +116,9 @@ int main(int, char **){
 
         const bool AutoScalePixels = false;
         if(!Dump_Casted_Scaled_Pixels<uint32_t,double,uint16_t>(img, "/tmp/outline.gray", YgorImageIOPixelScaling::TypeMinMax)){
-             FUNCERR("Couldn't dump pixels to file");
+             YLOGERR("Couldn't dump pixels to file");
         }else{
-             FUNCINFO("Image written to '/tmp/outline.gray'. Convert like: \n  "
+             YLOGINFO("Image written to '/tmp/outline.gray'. Convert like: \n  "
                       "convert -size 2000x1000 -depth 16 -define quantum:format=unsigned -type grayscale outline.gray -depth 16  out.png\n");
         }
     }

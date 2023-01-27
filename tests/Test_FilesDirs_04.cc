@@ -15,12 +15,12 @@
 int main(int argc, char **argv){
     const std::string Info("This program periodically checks a file and a directory for changes. Pass in both.");
 
-    if(argc < 3) FUNCERR(Info + " Bailing");
+    if(argc < 3) YLOGERR(Info + " Bailing");
     const std::string filename(argv[1]);
     const std::string dirname(argv[2]);
 
-    if(!Does_File_Exist_And_Can_Be_Read(filename)) FUNCERR(Info + " Bailing");
-    if(!Does_Dir_Exist_And_Can_Be_Read(dirname)) FUNCERR(Info + " Bailing");
+    if(!Does_File_Exist_And_Can_Be_Read(filename)) YLOGERR(Info + " Bailing");
+    if(!Does_Dir_Exist_And_Can_Be_Read(dirname)) YLOGERR(Info + " Bailing");
 
     std::cout << " ------ File Times -------       ------ Dir Times -------" << std::endl;
     std::cout << "  Access    Modification          Access    Modification" << std::endl;

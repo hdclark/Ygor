@@ -30,7 +30,7 @@ int main(int argc, char **argv){
     cc.Plot();
 
     const auto centroid = cc.Average_Point();
-    FUNCINFO("The center of the contour collection is at " << centroid);
+    YLOGINFO("The center of the contour collection is at " << centroid);
     const auto splits = cc.Split_Along_Plane(plane<double>(vec3<double>(1.0,1.0,0.0).unit(), centroid));
 
     for(auto it = splits.begin(); it != splits.end(); ++it){

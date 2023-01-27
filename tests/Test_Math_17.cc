@@ -71,7 +71,7 @@ int main(int argc, char **argv){
                      vec3<double>( 2.0, 2.0, 2.0 ) };
 
         Plane_Orthogonal_Regression(thepoints);
-        FUNCERR("Should not get here -- routine should throw due to co-linear data!");
+        YLOGERR("Should not get here -- routine should throw due to co-linear data!");
     }catch(const std::exception &e){
         std::cout << "Successfully failed to continue in presence of co-linear data:"
                   << std::endl
@@ -97,7 +97,7 @@ int main(int argc, char **argv){
         std::cout << "Plane fitted to ambiguously non-planar data has R = " << theplane.R_0
                   << " and N = " << theplane.N_0 << std::endl;
 
-        FUNCWARN("Possible to get here due to numerical instabilities -- routine will ideally throw due to ambiguously non-planar data!");
+        YLOGWARN("Possible to get here due to numerical instabilities -- routine will ideally throw due to ambiguously non-planar data!");
     }catch(const std::exception &e){
         std::cout << "Successfully failed to continue in presence of ambiguously non-planar data:"
                   << std::endl

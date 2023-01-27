@@ -65,10 +65,10 @@ int main(int, char **){
                                vec3<double>(0.0, 0.0, 0.0) );
         std::ofstream os("/tmp/cc.svg");
         if(!WriteCCToSVG(cc, P, os, 5.0, 1.0, "ROI Name: $ROIName.")){
-            FUNCERR("Unable to write contour collection to SVG file. Refusing to continue.");
+            YLOGERR("Unable to write contour collection to SVG file. Refusing to continue.");
         }
     }
-    FUNCINFO("OK");
+    YLOGINFO("OK");
 
     return 0;
 }

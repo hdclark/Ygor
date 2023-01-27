@@ -44,11 +44,11 @@
 static std::unique_ptr<uint8_t[]> 
 FailWarn_or_Die(bool *OK, std::unique_ptr<uint8_t[]> in, const std::string &fail, const std::string &die){
     //If the user has not provided any extra channel or means of indicating an error, kill everything.
-    if(OK == nullptr) FUNCERR(die);
+    if(OK == nullptr) YLOGERR(die);
 
     //Otherwise, issue a warning message, ensure the fail bit is set, and return.
     *OK = false;
-    FUNCWARN(fail);
+    YLOGWARN(fail);
     return in;
 }
 
@@ -538,7 +538,7 @@ SERIALIZE::Matches_At(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset,
                                                   "Not enough data for meaningful comparison. Unable to continue");
     }
 
-FUNCWARN("*********** This function has not been tested yet. Please verify it ********************");
+YLOGWARN("*********** This function has not been tested yet. Please verify it ********************");
 
     const std::string test(reinterpret_cast<char *>(in.get() + *offset), seq.size());
 
@@ -666,7 +666,7 @@ SERIALIZE::Get_Sequence_Container(bool *OK, std::unique_ptr<uint8_t[]> in, uint6
         return FailWarn_or_Die(OK, std::move(in), "Passed a nullptr instead of a location for storing the variable. Indicating failure and continuing",
                                                   "Passed a nullptr instead of a location for storing the variable. Unable to continue");
     }else if(!val->empty()){
-        FUNCWARN("Passed a non-empty container. Assuming this is intentional. Appending data");
+        YLOGWARN("Passed a non-empty container. Assuming this is intentional. Appending data");
     }
 
     bool l_OK;

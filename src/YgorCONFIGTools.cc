@@ -119,17 +119,17 @@ std::vector<std::vector<std::string>> Deserialize_Simple_Config_File(const std::
 //
 //NOTE: This routine cannot handle content which contains newlines!
 std::vector<std::vector<std::string>> Double_Deserialize_Simple_Config_File(const std::string &serialized, std::string separator, std::string linetoken){
-    if(separator == linetoken) FUNCERR("This function requires a different separator than the linetoken");
+    if(separator == linetoken) YLOGERR("This function requires a different separator than the linetoken");
     //const auto serial = ReplaceAllInstances(serialized, linetoken, R"***(\n)***");
     const auto serial = ReplaceAllInstances(serialized, linetoken, "\n");
     return Deserialize_Simple_Config_File(serial, separator);
 }
 
 std::string Double_Serialize_Simple_Config_File(const std::vector<std::vector<std::string>> &deserialized, std::string separator, std::string linetoken){
-    if(separator == linetoken) FUNCERR("This function requires a different separator than the linetoken");
+    if(separator == linetoken) YLOGERR("This function requires a different separator than the linetoken");
     for(const auto & r_it : deserialized){
         for(auto c_it = r_it.begin(); c_it != r_it.end(); ++c_it){
-            if(c_it->find('\n') != std::string::npos) FUNCERR("This routine cannot handle content which contains newlines. Please encode or remove them before calling this function");
+            if(c_it->find('\n') != std::string::npos) YLOGERR("This routine cannot handle content which contains newlines. Please encode or remove them before calling this function");
         }
     }
     const auto serial = Serialize_Simple_Config_File(deserialized, separator); //Still contains newlines.

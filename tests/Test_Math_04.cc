@@ -53,32 +53,32 @@ int main(int argc, char **argv){
     }
 
     //Spit out some info about the contour_collection.
-    FUNCINFO("Contour collection has signed area:         " << cc.Get_Signed_Area());
-    FUNCINFO("Contour collection is counter-clockwise:    " << !!cc.Is_Counter_Clockwise());
-    FUNCINFO("Contour collection has average point:       " << cc.Average_Point());
-    FUNCINFO("Contour collection has centroid:            " << cc.Centroid());
-    FUNCINFO("Contour collection has perimeter:           " << cc.Perimeter());
-    FUNCINFO("Contour collection has average perimeter:   " << cc.Average_Perimeter());
+    YLOGINFO("Contour collection has signed area:         " << cc.Get_Signed_Area());
+    YLOGINFO("Contour collection is counter-clockwise:    " << !!cc.Is_Counter_Clockwise());
+    YLOGINFO("Contour collection has average point:       " << cc.Average_Point());
+    YLOGINFO("Contour collection has centroid:            " << cc.Centroid());
+    YLOGINFO("Contour collection has perimeter:           " << cc.Perimeter());
+    YLOGINFO("Contour collection has average perimeter:   " << cc.Average_Perimeter());
     const std::string crystalizedcc = cc.write_to_string();
     if(!cc.load_from_string(crystalizedcc)){
-        FUNCERR("Failed to load contour collection from stringified contour collection");
+        YLOGERR("Failed to load contour collection from stringified contour collection");
     }else{
-        FUNCINFO("Contour collection was successfully loaded from stringified contour collection");
+        YLOGINFO("Contour collection was successfully loaded from stringified contour collection");
     }
 
     //Spit out some info about one of the contours.
     auto c = *cc.contours.begin();
 
-    FUNCINFO("Contour has signed area:         " << c.Get_Signed_Area());
-    FUNCINFO("Contour is counter-clockwise:    " << !!c.Is_Counter_Clockwise());
-    FUNCINFO("Contour has average point:       " << c.Average_Point());
-    FUNCINFO("Contour has centroid:            " << c.Centroid());
-    FUNCINFO("Contour has perimeter:           " << c.Perimeter());
+    YLOGINFO("Contour has signed area:         " << c.Get_Signed_Area());
+    YLOGINFO("Contour is counter-clockwise:    " << !!c.Is_Counter_Clockwise());
+    YLOGINFO("Contour has average point:       " << c.Average_Point());
+    YLOGINFO("Contour has centroid:            " << c.Centroid());
+    YLOGINFO("Contour has perimeter:           " << c.Perimeter());
     const std::string crystalizedc = c.write_to_string();
     if(!c.load_from_string(crystalizedc)){
-        FUNCERR("Failed to load contour from stringified contour");
+        YLOGERR("Failed to load contour from stringified contour");
     }else{
-        FUNCINFO("Contour was successfully loaded from stringified contour");
+        YLOGINFO("Contour was successfully loaded from stringified contour");
     }
 
 

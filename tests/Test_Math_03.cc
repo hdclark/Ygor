@@ -17,44 +17,44 @@
 int main(int argc, char **argv){
    
     {
-      FUNCINFO("---- Testing interpolation: lowest-x first orientation ----"); 
+      YLOGINFO("---- Testing interpolation: lowest-x first orientation ----"); 
       class samples_1D<double> testarray( { vec2<double>(0.0, 0.0), 
                                             vec2<double>(1.0, 1.0),
                                             vec2<double>(2.0, 0.0),
                                             vec2<double>(3.0, 2.0) } );
 
-      FUNCINFO("At x = -1E9, F = " << testarray.Interpolate_Linearly(-1E9 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 0.0,  F = " << testarray.Interpolate_Linearly( 0.0 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 0.5,  F = " << testarray.Interpolate_Linearly( 0.5 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 1.0,  F = " << testarray.Interpolate_Linearly( 1.0 )[2] << "  should be 1.0");
-      FUNCINFO("At x = 1.5,  F = " << testarray.Interpolate_Linearly( 1.5 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 2.0,  F = " << testarray.Interpolate_Linearly( 2.0 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 2.25, F = " << testarray.Interpolate_Linearly( 2.25 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 3.0,  F = " << testarray.Interpolate_Linearly( 3.0 )[2] << "  should be 2.0");
-      FUNCINFO("At x = 1E9,  F = " << testarray.Interpolate_Linearly( 1E9 )[2] << "  should be 0.0");
+      YLOGINFO("At x = -1E9, F = " << testarray.Interpolate_Linearly(-1E9 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 0.0,  F = " << testarray.Interpolate_Linearly( 0.0 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 0.5,  F = " << testarray.Interpolate_Linearly( 0.5 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 1.0,  F = " << testarray.Interpolate_Linearly( 1.0 )[2] << "  should be 1.0");
+      YLOGINFO("At x = 1.5,  F = " << testarray.Interpolate_Linearly( 1.5 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 2.0,  F = " << testarray.Interpolate_Linearly( 2.0 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 2.25, F = " << testarray.Interpolate_Linearly( 2.25 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 3.0,  F = " << testarray.Interpolate_Linearly( 3.0 )[2] << "  should be 2.0");
+      YLOGINFO("At x = 1E9,  F = " << testarray.Interpolate_Linearly( 1E9 )[2] << "  should be 0.0");
     }
 
     {
-      FUNCINFO("---- Testing interpolation: lowest-x last orientation ----");
+      YLOGINFO("---- Testing interpolation: lowest-x last orientation ----");
       //Note: the data should be sorted into lowest-x first order.
       class samples_1D<double> testarray( { vec2<double>(3.0, 2.0), 
                                             vec2<double>(2.0, 0.0),
                                             vec2<double>(1.0, 1.0),
                                             vec2<double>(0.0, 0.0) } );
 
-      FUNCINFO("At x = -1E9, F = " << testarray.Interpolate_Linearly(-1E9 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 0.0,  F = " << testarray.Interpolate_Linearly( 0.0 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 0.5,  F = " << testarray.Interpolate_Linearly( 0.5 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 1.0,  F = " << testarray.Interpolate_Linearly( 1.0 )[2] << "  should be 1.0");
-      FUNCINFO("At x = 1.5,  F = " << testarray.Interpolate_Linearly( 1.5 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 2.0,  F = " << testarray.Interpolate_Linearly( 2.0 )[2] << "  should be 0.0");
-      FUNCINFO("At x = 2.25, F = " << testarray.Interpolate_Linearly( 2.25 )[2] << "  should be 0.5");
-      FUNCINFO("At x = 3.0,  F = " << testarray.Interpolate_Linearly( 3.0 )[2] << "  should be 2.0");
-      FUNCINFO("At x = 1E9,  F = " << testarray.Interpolate_Linearly( 1E9 )[2] << "  should be 0.0");
+      YLOGINFO("At x = -1E9, F = " << testarray.Interpolate_Linearly(-1E9 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 0.0,  F = " << testarray.Interpolate_Linearly( 0.0 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 0.5,  F = " << testarray.Interpolate_Linearly( 0.5 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 1.0,  F = " << testarray.Interpolate_Linearly( 1.0 )[2] << "  should be 1.0");
+      YLOGINFO("At x = 1.5,  F = " << testarray.Interpolate_Linearly( 1.5 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 2.0,  F = " << testarray.Interpolate_Linearly( 2.0 )[2] << "  should be 0.0");
+      YLOGINFO("At x = 2.25, F = " << testarray.Interpolate_Linearly( 2.25 )[2] << "  should be 0.5");
+      YLOGINFO("At x = 3.0,  F = " << testarray.Interpolate_Linearly( 3.0 )[2] << "  should be 2.0");
+      YLOGINFO("At x = 1E9,  F = " << testarray.Interpolate_Linearly( 1E9 )[2] << "  should be 0.0");
     }
 
     {
-      FUNCINFO("---- Testing how interpolation handles uncertainties ----");
+      YLOGINFO("---- Testing how interpolation handles uncertainties ----");
       //One assumes normal errs. Two makes no assumption.
       samples_1D<double> in1( { { 0.0,   0.1,   1.0,  0.1 },
                                 { 0.3,   0.1,   1.2,  0.1 },    
@@ -89,32 +89,32 @@ int main(int argc, char **argv){
 
 
     {
-    FUNCINFO("---- Integrating some rectangles. ----");
+    YLOGINFO("---- Integrating some rectangles. ----");
     class samples_1D<double> f( { vec2<double>(0.0, 1.0),
                                   vec2<double>(1.0, 1.0) } );
 
     class samples_1D<double> g( { vec2<double>(0.0, 1.0),
                                   vec2<double>(1.0, 1.0) } );
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
     }
 
 
     {
-    FUNCINFO("---- Integrating some rectangles - g defined backwards. ----");
+    YLOGINFO("---- Integrating some rectangles - g defined backwards. ----");
     class samples_1D<double> f( { vec2<double>(0.0, 1.0),
                                   vec2<double>(1.0, 1.0) } );
 
     class samples_1D<double> g( { vec2<double>(1.0, 1.0),
                                   vec2<double>(0.0, 1.0) } );
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
     }
 
     {
-    FUNCINFO("---- Integrating some more exotic structures. ----");
+    YLOGINFO("---- Integrating some more exotic structures. ----");
     class samples_1D<double> f( { vec2<double>(0.0, 1.0),
                                   vec2<double>(1.0, 1.0),
                                   vec2<double>(2.0, 1.0),
@@ -123,13 +123,13 @@ int main(int argc, char **argv){
     class samples_1D<double> g( { vec2<double>(0.0, 1.0),
                                   vec2<double>(1.0, 1.0) } );
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 1.0");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 1.0");
     }
 
 
     {
-    FUNCINFO("---- Integrating some more exotic structures. ----");
+    YLOGINFO("---- Integrating some more exotic structures. ----");
     class samples_1D<double> f( { vec2<double>(0.0, 0.0),
                                   vec2<double>(1.0, 2.0),
                                   vec2<double>(2.0, 2.0),
@@ -140,37 +140,37 @@ int main(int argc, char **argv){
                                   vec2<double>(2.0, 0.3),
                                   vec2<double>(3.0, 9.0) } );
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << " ");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << " ");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << " ");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << " ");
     }
 
 
     {
-    FUNCINFO("---- Integrating some sampled trig functions ----");
+    YLOGINFO("---- Integrating some sampled trig functions ----");
     class samples_1D<double> f, g;
     for(auto x = 0.0; x < 2.0*M_PI; x += 0.005){
         f.push_back( vec2<double>( x, sin(x) ) );
         g.push_back( vec2<double>( x, cos(x) ) );
     }
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 0.0");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 0.0");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 0.0");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 0.0");
     }
 
     {
-    FUNCINFO("---- Integrating some sampled trig functions ----");
+    YLOGINFO("---- Integrating some sampled trig functions ----");
     class samples_1D<double> f, g;
     for(auto x = 0.0; x < 2.0*M_PI; x += 0.005){
         f.push_back( vec2<double>( x, sin(x)*sin(x) + cos(x)*sin(x+0.1) ) );
         g.push_back( vec2<double>( x, sin(x+0.3) + cos(x/10.0) ) );
     }
 
-    FUNCINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 3.286585981855955");
-    FUNCINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 3.286585981855955");
+    YLOGINFO("Integrating the overlap of f with g gives: " << f.Integrate_Overlap(g)[0] << "  should be 3.286585981855955");
+    YLOGINFO("Integrating the overlap of g with f gives: " << g.Integrate_Overlap(f)[0] << "  should be 3.286585981855955");
     }
 
     {
-      FUNCINFO("---- Integrating some sampled trig functions with normal uncertainties ----");
+      YLOGINFO("---- Integrating some sampled trig functions with normal uncertainties ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f, g;
       double dx = 0.005;
@@ -192,12 +192,12 @@ int main(int argc, char **argv){
       const auto F = f.Integrate_Overlap(g);
       const auto G = g.Integrate_Overlap(f);
 
-      FUNCINFO("Integrating the overlap of f with g gives: " << F[0] << " +- " << F[1] << "  should be 3.286585981855955");
-      FUNCINFO("Integrating the overlap of g with f gives: " << G[0] << " +- " << G[1] << "  should be 3.286585981855955");
+      YLOGINFO("Integrating the overlap of f with g gives: " << F[0] << " +- " << F[1] << "  should be 3.286585981855955");
+      YLOGINFO("Integrating the overlap of g with f gives: " << G[0] << " +- " << G[1] << "  should be 3.286585981855955");
     }
 
     {
-      FUNCINFO("---- Integrating some sampled trig functions with noassumptions uncertainties ----");
+      YLOGINFO("---- Integrating some sampled trig functions with noassumptions uncertainties ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f, g;
       double dx = 0.005;
@@ -219,52 +219,52 @@ int main(int argc, char **argv){
       const auto F = f.Integrate_Overlap(g);
       const auto G = g.Integrate_Overlap(f);
 
-      FUNCINFO("Integrating the overlap of f with g gives: " << F[0] << " +- " << F[1] << "  should be 3.286585981855955");
-      FUNCINFO("Integrating the overlap of g with f gives: " << G[0] << " +- " << G[1] << "  should be 3.286585981855955");
+      YLOGINFO("Integrating the overlap of f with g gives: " << F[0] << " +- " << F[1] << "  should be 3.286585981855955");
+      YLOGINFO("Integrating the overlap of g with f gives: " << G[0] << " +- " << G[1] << "  should be 3.286585981855955");
     }
  
 
     {
-      FUNCINFO("---- Testing the normalization routine. ----");
+      YLOGINFO("---- Testing the normalization routine. ----");
       class samples_1D<double> f( { vec2<double>(0.0, 1.0),
                                     vec2<double>(1.0, 1.0),
                                     vec2<double>(2.0, 1.0),
                                     vec2<double>(3.0, 1.0) } );
 
-      FUNCINFO("Initial samples: ");
+      YLOGINFO("Initial samples: ");
       for(const auto &P : f.samples) std::cout << P[0] << " " << P[2] << ", ";
       std::cout << std::endl;
-      FUNCINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
+      YLOGINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
 
       f.Normalize_wrt_Self_Overlap();
 
-      FUNCINFO("Normalized: ");
+      YLOGINFO("Normalized: ");
       for(const auto &P : f.samples) std::cout << P[0] << " " << P[2] << ", ";
       std::cout << std::endl;
-      FUNCINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
+      YLOGINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
     }
     { 
-      FUNCINFO("---- Testing the normalization routine. ----");
+      YLOGINFO("---- Testing the normalization routine. ----");
       class samples_1D<double> f( { { -1.0, 1.0, 0.0, 1.0 },
                                     {  0.0, 0.5, 1.0, 0.3 },
                                     {  1.0, 2.5, 2.0, 1.3 },
                                     {  2.0, 0.1, 4.0, 0.1 } } );
       
-      FUNCINFO("Initial samples: "); 
+      YLOGINFO("Initial samples: "); 
       for(const auto &P : f.samples) std::cout << P[0] << " " << P[2] << ", ";
       std::cout << std::endl;
-      FUNCINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
-      FUNCINFO(" (should be 12.0)"); 
+      YLOGINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
+      YLOGINFO(" (should be 12.0)"); 
       f.Normalize_wrt_Self_Overlap();
       
-      FUNCINFO("Normalized: ");
+      YLOGINFO("Normalized: ");
       for(const auto &P : f.samples) std::cout << P[0] << " " << P[2] << ", ";
       std::cout << std::endl;
-      FUNCINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
+      YLOGINFO(" ..and the self overlap is: " << f.Integrate_Overlap(f)[0] );
     }
 
     {
-      FUNCINFO("---- Testing the summation routine. ----");
+      YLOGINFO("---- Testing the summation routine. ----");
       samples_1D<double> f( { vec2<double>(0.0, 1.0),
                               vec2<double>(1.0, 1.0),
                               vec2<double>(2.0, 1.0),
@@ -275,7 +275,7 @@ int main(int argc, char **argv){
                               vec2<double>(2.0, 1.0),
                               vec2<double>(3.0, 1.0) } );
 
-      FUNCINFO("Summing two sampled functions. Should have four terms which are all 2.0");
+      YLOGINFO("Summing two sampled functions. Should have four terms which are all 2.0");
       f = f.Sum_With(g);
       for(auto it = f.samples.begin(); it != f.samples.end(); ++it){
           std::cout << (*it)[0] << "," << (*it)[2] << "  ";
@@ -283,7 +283,7 @@ int main(int argc, char **argv){
       std::cout << std::endl;
     }
     {
-      FUNCINFO("---- Testing the summation routine. ----");
+      YLOGINFO("---- Testing the summation routine. ----");
       samples_1D<double> f( { vec2<double>(0.00, 0.00),
                               vec2<double>(0.25, 0.25),
                               vec2<double>(0.50, 0.50),
@@ -294,7 +294,7 @@ int main(int argc, char **argv){
                               vec2<double>(2.0, 1.0),
                               vec2<double>(3.0, 1.0) } );
 
-      FUNCINFO("Summing two sampled functions. Should have seven terms ");
+      YLOGINFO("Summing two sampled functions. Should have seven terms ");
       f = f.Sum_With(g);
       for(auto it = f.samples.begin(); it != f.samples.end(); ++it){
           std::cout << (*it)[0] << "," << (*it)[2] << "  ";
@@ -303,7 +303,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the summation routine's uncertainty handling. ----");
+      YLOGINFO("---- Testing the summation routine's uncertainty handling. ----");
       samples_1D<double> f( { { 0.0, 0.1, 1.0, 0.1 },
                               { 1.0, 0.2, 1.0, 0.2 },
                               { 2.0, 0.4, 1.0, 0.3 },
@@ -335,7 +335,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
+      YLOGINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
       samples_1D<double> f( { { 0.0, 0.1, 1.0, 0.1 },
                               { 1.0, 0.2, 1.0, 0.2 },
                               { 2.0, 0.4, 1.0, 0.3 },
@@ -369,7 +369,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
+      YLOGINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
       samples_1D<double> f( { { 0.5, 0.0, 1.0, 0.0 },
                               { 1.5, 0.0, 1.0, 0.0 },
                               { 2.5, 0.0, 1.0, 0.0 },
@@ -403,7 +403,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
+      YLOGINFO("---- Testing the summation routine's uncertainty handling (normality assumption). ----");
       samples_1D<double> f( { { 0.5, 0.0, 1.0, 0.0 },
                               { 1.5, 0.0, 1.0, 0.0 },
                               { 2.5, 0.0, 1.0, 0.0 },
@@ -438,7 +438,7 @@ int main(int argc, char **argv){
 
 
     {
-      FUNCINFO("---- Testing the mean and average routines. ----");
+      YLOGINFO("---- Testing the mean and average routines. ----");
       samples_1D<double> f( { { 0.5, 0.0, 1.1, 0.0 },
                               { 1.0, 0.0, 1.5, 0.0 },
                               { 1.1, 0.0, 1.2, 0.0 },
@@ -458,7 +458,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the Integrate_Over_Kernel_exp() routine. ----");
+      YLOGINFO("---- Testing the Integrate_Over_Kernel_exp() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f, g;
       double dx = 0.01;
@@ -478,13 +478,13 @@ int main(int argc, char **argv){
       //std::cout << toplot.Dump_as_String() << std::endl;
 
       const auto F = f.Integrate_Over_Kernel_exp(0.0, 2.0*M_PI, { -0.5, 0.1 }, { 0.0, 0.01 });
-      FUNCINFO("Integrating over an exp kernel gives: " << F[0] << " +- " << F[1] << " should be 3.935600016899443");
+      YLOGINFO("Integrating over an exp kernel gives: " << F[0] << " +- " << F[1] << " should be 3.935600016899443");
       const auto G = g.Integrate_Over_Kernel_exp(0.0, 2.0*M_PI, { -0.5, 0.1 }, { 0.0, 0.01 });
-      FUNCINFO("Integrating over an exp kernel gives: " << G[0] << " +- " << G[1] << " should be 3.935600016899443");
+      YLOGINFO("Integrating over an exp kernel gives: " << G[0] << " +- " << G[1] << " should be 3.935600016899443");
     }
 
     { 
-      FUNCINFO("---- Testing the Integrate_Over_Kernel_exp() routine. ----");
+      YLOGINFO("---- Testing the Integrate_Over_Kernel_exp() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f,g;
       double dx = 0.01; 
@@ -504,14 +504,14 @@ int main(int argc, char **argv){
       //std::cout << toplot.Dump_as_String() << std::endl;
       
       const auto F = f.Integrate_Over_Kernel_exp(0.0, 2.0*M_PI, { 2.3, 0.1 }, { 1.0, 0.01 });
-      FUNCINFO("Integrating over an exp kernel gives: " << F[0] << " +- " << F[1] << " should be 6383992.946870714");
+      YLOGINFO("Integrating over an exp kernel gives: " << F[0] << " +- " << F[1] << " should be 6383992.946870714");
       const auto G = g.Integrate_Over_Kernel_exp(0.0, 2.0*M_PI, { 2.3, 0.1 }, { 1.0, 0.01 });
-      FUNCINFO("Integrating over an exp kernel gives: " << G[0] << " +- " << G[1] << " should be 6383992.946870714");
+      YLOGINFO("Integrating over an exp kernel gives: " << G[0] << " +- " << G[1] << " should be 6383992.946870714");
     }
 
 
     {
-      FUNCINFO("---- Testing the Weighted_Mean_x routine. ----");
+      YLOGINFO("---- Testing the Weighted_Mean_x routine. ----");
       class samples_1D<double> dat({ { 11.0, 1.0, 10.0, 3.0 },
                                      { 12.0, 1.0, 11.0, 1.0 },
                                      { 10.0, 3.0, 12.0, 1.0 } });
@@ -519,12 +519,12 @@ int main(int argc, char **argv){
 
       const auto wmx = dat.Weighted_Mean_x();
       const auto wmy = dat.Weighted_Mean_y();
-      FUNCINFO("Weighted mean on x = " << wmx[0] << " +- " << wmx[1] << " should be 11.4211 +- 0.688247");
-      FUNCINFO("Weighted mean on y = " << wmy[0] << " +- " << wmy[1] << " should be 11.4211 +- 0.688247");
+      YLOGINFO("Weighted mean on x = " << wmx[0] << " +- " << wmx[1] << " should be 11.4211 +- 0.688247");
+      YLOGINFO("Weighted mean on y = " << wmy[0] << " +- " << wmy[1] << " should be 11.4211 +- 0.688247");
     }
 
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -548,7 +548,7 @@ int main(int argc, char **argv){
       //std::cout << toplot.Dump_as_String() << std::endl;
     }
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -573,7 +573,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -598,7 +598,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Sized_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -623,7 +623,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Datum_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Datum_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -645,7 +645,7 @@ int main(int argc, char **argv){
     }
 
     {
-      FUNCINFO("---- Testing the Aggregate_Equal_Datum_Bins_Weighted_Mean() routine. ----");
+      YLOGINFO("---- Testing the Aggregate_Equal_Datum_Bins_Weighted_Mean() routine. ----");
       const bool inhibit_sort = true;
       class samples_1D<double> f;
       double dx = 0.1;
@@ -669,7 +669,7 @@ int main(int argc, char **argv){
 
     //Test the spearman rank correlation.
     {
-      FUNCINFO("---- Testing the Spearmans_Rank_Correlation_Coefficient(). ----");
+      YLOGINFO("---- Testing the Spearmans_Rank_Correlation_Coefficient(). ----");
       class samples_1D<double> dat({ vec2<double>( 0.8,  1.0),
                                      vec2<double>( 1.2,  2.0),
                                      vec2<double>( 1.2,  3.0),
@@ -677,15 +677,15 @@ int main(int argc, char **argv){
                                      vec2<double>(18.0,  5.0) });
 
       const auto stats = dat.Spearmans_Rank_Correlation_Coefficient();
-      FUNCINFO("Spearman's rank correlation coefficient for this data is " << std::get<0>(stats)
+      YLOGINFO("Spearman's rank correlation coefficient for this data is " << std::get<0>(stats)
             << ", The number of samples = " << std::get<1>(stats) 
             << ", z-value = " << std::get<2>(stats) 
             << ", and t-value = " << std::get<3>(stats));
-      FUNCINFO(" Should be 0.9747, 5, ???, ???");
+      YLOGINFO(" Should be 0.9747, 5, ???, ???");
     }
 
     {
-      FUNCINFO("---- Testing the Spearmans_Rank_Correlation_Coefficient(). ----");
+      YLOGINFO("---- Testing the Spearmans_Rank_Correlation_Coefficient(). ----");
       class samples_1D<double> dat({ vec2<double>(106.0,  7.0),
                                      vec2<double>( 86.0,  0.0),
                                      vec2<double>(100.0, 27.0),
@@ -698,15 +698,15 @@ int main(int argc, char **argv){
                                      vec2<double>(110.0, 17.0) });
 
       const auto stats = dat.Spearmans_Rank_Correlation_Coefficient();
-      FUNCINFO("Spearman's rank correlation coefficient for this data is " << std::get<0>(stats)
+      YLOGINFO("Spearman's rank correlation coefficient for this data is " << std::get<0>(stats)
             << ", The number of samples = " << std::get<1>(stats) 
             << ", z-value = " << std::get<2>(stats)  
             << ", and t-value = " << std::get<3>(stats));
-      FUNCINFO(" Should be -0.1758, 10, ???, -0.5");
+      YLOGINFO(" Should be -0.1758, 10, ???, -0.5");
     }
 
     {
-      FUNCINFO("---- Testing the Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing the Linear_Least_Squares_Regression(). ----");
       samples_1D<double> dat({ vec2<double>( 1.00, 2.0000),
                                vec2<double>( 1.05, 3.0500),
                                vec2<double>( 1.10, 10.600),
@@ -729,7 +729,7 @@ int main(int argc, char **argv){
       std::cout << res.comparison_table(actual);
     }
     {
-      FUNCINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
       std::cout << "Case 1. Zero uncertainties, Zero sigma_x_i." << std::endl;
       samples_1D<double> dat({ { 1.00, 0.00, 2.0000, 0.00 },
                                { 1.05, 0.00, 3.0500, 0.00 },
@@ -752,7 +752,7 @@ int main(int argc, char **argv){
       std::cout << res.comparison_table(actual);
     }
     {
-      FUNCINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
       std::cout << "Case 2. Equal, non-zero sigma_f_i, Zero sigma_x_i." << std::endl;
       samples_1D<double> dat({ { 1.00, 0.00, 2.0000, 1.00 },
                                { 1.05, 0.00, 3.0500, 1.00 },
@@ -775,7 +775,7 @@ int main(int argc, char **argv){
       std::cout << res.comparison_table(actual);
     }
     {
-      FUNCINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
       std::cout << "Case 3. Equal, non-zero sigma_f_i, equal to the computed (average) sigma_f, Zero sigma_x_i." << std::endl;
       samples_1D<double> dat({ { 1.00, 0.00, 2.0000, 134.221 },
                                { 1.05, 0.00, 3.0500, 134.221 },
@@ -798,7 +798,7 @@ int main(int argc, char **argv){
       std::cout << res.comparison_table(actual);
     }
     {
-      FUNCINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing the Weighted Linear_Least_Squares_Regression(). ----");
       std::cout << "Case 4. Equal, non-zero sigma_f_i, equal to the computed (average) sigma_f, Non-equal, non-zero sigma_x_i." << std::endl;
       samples_1D<double> dat({ { 1.00, 0.10, 2.0000, 134.221 },
                                { 1.05, 0.20, 3.0500, 134.221 },
@@ -821,7 +821,7 @@ int main(int argc, char **argv){
       std::cout << res.comparison_table(actual);
     }
     {
-      FUNCINFO("---- Testing iterated Weighted Linear_Least_Squares_Regression(). ----");
+      YLOGINFO("---- Testing iterated Weighted Linear_Least_Squares_Regression(). ----");
       samples_1D<double> dat({ { 1.00, 0.10, 2.0000, 134.221 },
                                { 1.05, 0.20, 3.0500, 134.221 },
                                { 1.10, 0.20, 10.600, 134.221 },
@@ -830,14 +830,14 @@ int main(int argc, char **argv){
       bool wasOK;
       for(int i = 0; i < 10; ++i){
           auto res = dat.Weighted_Linear_Least_Squares_Regression(&wasOK, &slope_guess);
-          if(!wasOK) FUNCERR("Failed to compute weighted linear regression");
+          if(!wasOK) YLOGERR("Failed to compute weighted linear regression");
           decltype(res) actual;
           std::cout << res.display_table() << std::endl;
           slope_guess = res.slope; //Use the last computed slope as the next guess.
       }
     }
     {
-      FUNCINFO("---- Testing the histogramming routines. ----");
+      YLOGINFO("---- Testing the histogramming routines. ----");
       
       //Create a list of numbers sampled from some distribution.
       std::list<double> nums;
@@ -866,7 +866,7 @@ int main(int argc, char **argv){
 
 
     {
-      FUNCINFO("---- Testing the histogramming routines. ----");
+      YLOGINFO("---- Testing the histogramming routines. ----");
 
       //std::random_device rd;
       std::default_random_engine gen; //(rd());

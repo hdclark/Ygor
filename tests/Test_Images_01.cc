@@ -114,8 +114,8 @@ int main(int argc, char **argv){
         }
     }
 
-    if(!WriteToFITS(imgs, "/tmp/test_image_be.fits")) FUNCERR("Could not write test image to big endian FITS file");
-    if(!WriteToFITS(imgs, "/tmp/test_image_le.fits", YgorEndianness::Little))  FUNCERR("Could not write test image to little endian FITS file");
+    if(!WriteToFITS(imgs, "/tmp/test_image_be.fits")) YLOGERR("Could not write test image to big endian FITS file");
+    if(!WriteToFITS(imgs, "/tmp/test_image_le.fits", YgorEndianness::Little))  YLOGERR("Could not write test image to little endian FITS file");
 
   }
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv){
     //Plot_Pixels(imgA,1);
     //Plot_Pixels(imgA,2);
 
-    if(!WriteToFITS(imgsA, "/tmp/test_colour_imageA.fits")) FUNCERR("Could not write test colour image file A");
+    if(!WriteToFITS(imgsA, "/tmp/test_colour_imageA.fits")) YLOGERR("Could not write test colour image file A");
 
     auto imgsB = ReadFromFITS<float,double>("/tmp/test_colour_imageA.fits");
     //Plot_Pixels_RGB(imgB);
@@ -155,7 +155,7 @@ int main(int argc, char **argv){
     //Plot_Pixels(imgB,1);
     //Plot_Pixels(imgB,2);
 
-    if(!WriteToFITS(imgsB, "/tmp/test_colour_imageB.fits")) FUNCERR("Could not write test colour image file B");
+    if(!WriteToFITS(imgsB, "/tmp/test_colour_imageB.fits")) YLOGERR("Could not write test colour image file B");
 
     auto imgsC = ReadFromFITS<float,double>("/tmp/test_colour_imageB.fits");
     //Plot_Pixels_RGB(imgC);
@@ -163,7 +163,7 @@ int main(int argc, char **argv){
     //Plot_Pixels(imgC,1);
     //Plot_Pixels(imgC,2);
 
-    if(!WriteToFITS(imgsC, "/tmp/test_colour_imageC.fits")) FUNCERR("Could not write test colour image file C");
+    if(!WriteToFITS(imgsC, "/tmp/test_colour_imageC.fits")) YLOGERR("Could not write test colour image file C");
 
     //Now check files B and C. They should ideally be identical, except for maybe some floating-point loses.
   }

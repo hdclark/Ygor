@@ -100,9 +100,9 @@ int main(int, char **){
                                        std::string("y-axis title"));
     }
 
-    FUNCINFO("Main thread waiting now for 10 seconds");
+    YLOGINFO("Main thread waiting now for 10 seconds");
     std::this_thread::sleep_for(std::chrono::seconds(10));
-    FUNCINFO("Main thread exiting now");
+    YLOGINFO("Main thread exiting now");
 
 return 0;
 

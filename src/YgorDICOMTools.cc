@@ -261,7 +261,7 @@ unsigned char * Validate_DICOM_Format(const unsigned char *begin, const unsigned
             }else{
                 //Reaching this point may not be considered a failure - there may be 'noise' prior to reaching the 'DICM', but this
                 // assumes that there is nothing in the file (other that \0's) prior to the 'DICM'.
-                FUNCWARN("Unable to find 'DICM' in the memory region supplied");
+                YLOGWARN("Unable to find 'DICM' in the memory region supplied");
                 return (unsigned char *)(end);
             }
         }
@@ -324,13 +324,13 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
 
             // The OTHER possibility - we encounter an element which may need to be whitelisted as either of the THREE above possibilities!
             }else{
-                FUNCWARN("Encountered an item which we have not previously encountered: A = " << outgoing.A << " and B = " << outgoing.B << ".");
-                FUNCWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
-                FUNCWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW1 ] for more info.");
+                YLOGWARN("Encountered an item which we have not previously encountered: A = " << outgoing.A << " and B = " << outgoing.B << ".");
+                YLOGWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
+                YLOGWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW1 ] for more info.");
 
                 //NOTE: The below code is a poor attempt at GUESSING how the item works. Expect errors. It is not necessarily (likely) how the item should be treated.
                 //Attempt to "guess" the second probability, because it seems like a more common channel.. The appropriate whitelist in this case is Do_Last_Two_Bytes_of_B_Denote_A_Size(...)
-                FUNCWARN("  If no additional warnings/errors are encountered, consider adding this item to the appropriate whitelist (and then test it!)");
+                YLOGWARN("  If no additional warnings/errors are encountered, consider adding this item to the appropriate whitelist (and then test it!)");
                 amount = static_cast<long int>(outgoing.B.s[1].i);
             }
 
@@ -344,9 +344,9 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
         // If there is not, it is *not* safe to continue processing data. We *have* to return (with a warning.)
         const long int total_remaining_space = static_cast<long int>( std::distance(i,end) );
         if( total_remaining_space < amount ){
-            FUNCWARN("We have interpreted an instruction to read memory of capacity beyond what we have loaded into memory during parsing. This _may_ or _may not_ be an error");
-            FUNCWARN("  NOTE: The heuristic we use to 'guess' the proper size to load in can get snagged on elements with a large size. Try whitelisting the A value in the various whitelists");
-            FUNCWARN("  NOTE: This element had A = " << outgoing.A << " and B = " << outgoing.B << ". We have attempted to read " << amount << " bytes when there was  " << total_remaining_space << " space remaining");
+            YLOGWARN("We have interpreted an instruction to read memory of capacity beyond what we have loaded into memory during parsing. This _may_ or _may not_ be an error");
+            YLOGWARN("  NOTE: The heuristic we use to 'guess' the proper size to load in can get snagged on elements with a large size. Try whitelisting the A value in the various whitelists");
+            YLOGWARN("  NOTE: This element had A = " << outgoing.A << " and B = " << outgoing.B << ". We have attempted to read " << amount << " bytes when there was  " << total_remaining_space << " space remaining");
             return out;
         }
 
@@ -507,12 +507,12 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
 
             //This is the case where we do not know enough about the tags to tell either way (safely.) Issue a warning and pick a method to try it.
             }else{
-                FUNCWARN("Attempting to determine the size of the memory layout of an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
-                FUNCWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
-                FUNCWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW2 ] for more info.");
+                YLOGWARN("Attempting to determine the size of the memory layout of an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
+                YLOGWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
+                YLOGWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW2 ] for more info.");
 
                 //GUESSING that the last two bytes of B denote the size! See ~10 lines above. The appropriate whitelist is Do_Last_Two_Bytes_of_B_Denote_A_Size(...).
-                FUNCWARN("  Guessing a default layout. If this works, please add it to the appropriate whitelist (and test it!)");
+                YLOGWARN("  Guessing a default layout. If this works, please add it to the appropriate whitelist (and test it!)");
                 upward += i.data_size + (long int)(2*sizeof(uint32_t));
             }
 
@@ -575,12 +575,12 @@ void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char
 
             //This is the case where we do not know enough about the tags to tell either way (safely.) Issue a warning and pick a method to try it.
             }else{
-                FUNCWARN("Attempting to flatten an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
-                FUNCWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
-                FUNCWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW3 ] for more info.");
+                YLOGWARN("Attempting to flatten an element A = " << i.A << " and B = " << i.B << " which is unfamiliar (not on a whitelist.)");
+                YLOGWARN("  Please determine how to read the element and add it to the appropriate whitelist function.");
+                YLOGWARN("  Guessing how the item should be treated. Search the source for tag [ WWWW3 ] for more info.");
 
                 //GUESSING that the last two bytes of B denote the size! See ~10 lines above. The appropriate whitelist is Do_Last_Two_Bytes_of_B_Denote_A_Size(...).
-                FUNCWARN("  Guessing a default behaviour. If this works, please add it to the appropriate whitelist.");
+                YLOGWARN("  Guessing a default behaviour. If this works, please add it to the appropriate whitelist.");
 
                 out.push_back( i.B.c[0] );
                 out.push_back( i.B.c[1] );

@@ -46,7 +46,7 @@ template <class C> typename C::value_type Stats::Min(C in){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot find minimum of zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot find minimum of zero elements and cannot emit NaN. Cannot continue");
         }
     }
     if(in.size() == 1) return in.front();
@@ -105,7 +105,7 @@ template <class C> typename C::value_type Stats::Max(C in){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot find maximum of zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot find maximum of zero elements and cannot emit NaN. Cannot continue");
         }
     }
     if(in.size() == 1) return in.front();
@@ -173,7 +173,7 @@ template <class C> typename C::value_type Stats::Sum(C in){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot sum zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot sum zero elements and cannot emit NaN. Cannot continue");
         }
     }
     if(in.size() == 1) return in.front();
@@ -305,12 +305,12 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot find percentile of zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot find percentile of zero elements and cannot emit NaN. Cannot continue");
         }
     }else if(in.size() == 1){
         return in.front();
     }else if(!isininc(static_cast<T>(0),frac,static_cast<T>(1))){
-        FUNCERR("Invalid argument provided: frac must be [0,1]");
+        YLOGERR("Invalid argument provided: frac must be [0,1]");
     }
 
     auto sort_low_to_high = [](T l, T r) -> bool {
@@ -429,7 +429,7 @@ template <class C> typename C::value_type Stats::Mean(C in){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot find mean of zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot find mean of zero elements and cannot emit NaN. Cannot continue");
         }
     }
     const auto N = static_cast<T>(in.size());
@@ -500,16 +500,16 @@ template <class C> typename C::value_type Stats::Unbiased_Var_Est(C in){
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
         }else{
-            FUNCERR("Cannot compute variance of zero elements and cannot emit NaN. Cannot continue");
+            YLOGERR("Cannot compute variance of zero elements and cannot emit NaN. Cannot continue");
         }
     }else if(in.size() == 1){
         if(std::numeric_limits<T>::has_infinity){
             return std::numeric_limits<T>::infinity();
         }else{
-            FUNCERR("Cannot compute variance of single element and cannot emit inf. Cannot continue");
+            YLOGERR("Cannot compute variance of single element and cannot emit inf. Cannot continue");
         }
     }
-    //if(in.size() <= 5) FUNCWARN("Very few points were used to estimate variance. Be weary of result");
+    //if(in.size() <= 5) YLOGWARN("Very few points were used to estimate variance. Be weary of result");
 
     const T N = static_cast<T>(in.size());
     return (Stats::Sum_Squares(in) - std::pow(Stats::Sum(in),2)/N) / (N - (T)(1));
@@ -684,7 +684,7 @@ double Stats::P_From_StudT_1Tail(double tval, double dof){
     const double b = dof/2.0;
 
     if(!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(x)){
-        FUNCWARN("Passed parameters for which the p-value cannot be computed. Returning a quiet NaN");
+        YLOGWARN("Passed parameters for which the p-value cannot be computed. Returning a quiet NaN");
         return std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -701,7 +701,7 @@ double Stats::P_From_StudT_1Tail(double tval, double dof){
     gsl_set_error_handler(nullptr);  //reinstate the default assert()-like error handler.
     if(status){ //Issue encountered.
 //        const std::string errmsg( gsl_strerror(status) );
-//        FUNCWARN("GNU GSL beta function 'gsl_sf_beta_inc_e' encountered an error: '" << errmsg << "'."
+//        YLOGWARN("GNU GSL beta function 'gsl_sf_beta_inc_e' encountered an error: '" << errmsg << "'."
 //              << "a, b, x = " << a << ", " << b << ", " << x << " . Reporting quiet NaN p-value");
         return std::numeric_limits<double>::quiet_NaN();
     }
@@ -771,7 +771,7 @@ double Stats::P_From_Paired_Ttest_2Tail(const std::vector<std::array<double,2>> 
     const auto N = paired_datum.size();
     const auto N_f = static_cast<double>(N);
     if(N < 4){
-        FUNCWARN("Too few datum to provide meaningful statistics");
+        YLOGWARN("Too few datum to provide meaningful statistics");
         return std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -821,7 +821,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     //Verify there is still enough data to perform a meaningful comparison.
     const auto N_red = static_cast<long int>(working.size());
     if(N_red < 6){  // <--- equiv to (N_red*(N_red + 1))/2 <= 20.
-        FUNCWARN("Too few datum remaining after pruning identically-valued pairs to provide meaningful statistics");
+        YLOGWARN("Too few datum remaining after pruning identically-valued pairs to provide meaningful statistics");
         return std::numeric_limits<double>::quiet_NaN();
         //In this case, there is no arrangement of the data such that a significant finding could result. The test
         // is simply not fed enough data if there are less than 5 remaining datum!
@@ -863,7 +863,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     } 
 
     //Ensure the computation was OK.
-    //if((W_pos_shtl + W_neg_shtl) != 0.5*N_red*(N_red + 1)) FUNCERR("Programming error");
+    //if((W_pos_shtl + W_neg_shtl) != 0.5*N_red*(N_red + 1)) YLOGERR("Programming error");
 
     //Now finish computing the statistic.
     const auto W = std::min(W_pos_shtl,W_neg_shtl); //Should this be ::min or ::max? (Doesn't seem to matter.)
@@ -947,15 +947,15 @@ double Stats::P_From_StudT_Diff_Means_From_Uneq_Vars(double M1, double V1, doubl
     //          t-test or Mann–Whitney U test."
     //      Conclusion: prefer this test to Mann-Whitney or Student's t, but be weary of non-normal data.
     // 
-    if((N1 < 2.0) || (N2 < 2.0)) FUNCERR("Not enough points available for computation");
+    if((N1 < 2.0) || (N2 < 2.0)) YLOGERR("Not enough points available for computation");
 
     const double t_num = M1 - M2;
     const double t_den = std::sqrt((V1/N1)+(V2/N2));
-    if(!std::isnormal(t_den)) FUNCERR("Encountered difficulty computing Student's t-value. Cannot continue");
+    if(!std::isnormal(t_den)) YLOGERR("Encountered difficulty computing Student's t-value. Cannot continue");
  
     const double dof_num = std::pow((V1/N1)+(V2/N2),2.0);
     const double dof_den = ((V1*V1)/(N1*N1*(N1-1.0))) + ((V2*V2)/(N2*N2*(N2-1.0)));
-    if(!std::isnormal(dof_den)) FUNCERR("Encountered difficulty computing dof. Cannot continue");
+    if(!std::isnormal(dof_den)) YLOGERR("Encountered difficulty computing dof. Cannot continue");
 
     return Stats::P_From_StudT_2Tail(t_num/t_den, dof_num/dof_den);
 }
@@ -1009,7 +1009,7 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
     {
       auto integrand = [](double x, void *params){
           const auto N = reinterpret_cast<double*>(params);
-          if(N == nullptr) FUNCERR("Unexpected behaviour. This is probably a programming error and should never happen");
+          if(N == nullptr) YLOGERR("Unexpected behaviour. This is probably a programming error and should never happen");
           return std::pow(1.0 - x*x, 0.5*(*N) - 2.0);
       };
 
@@ -1023,7 +1023,7 @@ double Stats::P_From_Pearsons_Linear_Correlation_Coeff_2Tail(double corr_coeff, 
       //const int status = gsl_integration_qags(&F, r, 1.0, 0.0, 1e-4, 5000, w, &result, &error); 
       gsl_integration_qags(&F, r, 1.0, 0.0, 1e-4, 5000, w, &result, &error); 
       if(w->size >= 5000){
-          FUNCERR("GNU GSL failed to numerically integrate. Cannot continue");
+          YLOGERR("GNU GSL failed to numerically integrate. Cannot continue");
       }
       pval_factorc = result;
       gsl_integration_workspace_free(w);
