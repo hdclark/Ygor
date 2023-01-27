@@ -51,6 +51,8 @@ log_message::log_message(std::ostringstream &os,
 
 
 logger::logger(){
+    std::lock_guard<std::mutex> lock(this->m);
+
     // Determine logging preferences from environment variables.
     // ...
     //std::string address;
@@ -64,6 +66,23 @@ logger::logger(){
     //
     // ...
 
+    // Override the message sinks.
+    if(const char *c_method  = std::getenv("YLOG_METHODS"); nullptr != c_method){
+        std::string x(c_method);
+        this->emit_terminal =  (x.find("terminal") != std::string::npos)
+                            || (x.find("console") != std::string::npos);
+    }
+
+    // Override the default terminal emission format.
+    if(const char *c_term  = std::getenv("YLOG_TERMINAL"); nullptr != c_term){
+        std::string x(c_term);
+        this->terminal_emit_t   = (x.find("time")     != std::string::npos);
+        this->terminal_emit_tid = (x.find("thread")   != std::string::npos);
+        this->terminal_emit_fn  = (x.find("function") != std::string::npos);
+        this->terminal_emit_sl  = (x.find("source")   != std::string::npos);
+        this->terminal_emit_fl  = (x.find("filename") != std::string::npos);
+    }
+
     // Cache info about the host, process, etc.
     //
     // ...
@@ -73,42 +92,87 @@ logger::logger(){
 }
 
 logger::~logger(){
-    const std::lock_guard<std::recursive_mutex> lock(this->m);
     this->emit();
 }
 
 
 void
 logger::emit(){
-    // Use a recursive lock here because this routine can cause program to exit, and thus the destructor to be called,
-    // but the destructor calls this routine to flush messages.
-    const std::lock_guard<std::recursive_mutex> lock(this->m);
+    // Move or make copies of all relevant shared state.
+    //
+    // Copying here is painful, but copying and locking only during the copy helps avoid logging delays and deadlock
+    // inside callbacks.
+    //
+    // Alternatively we could probably use shared_ptr and some sort of immutability handshake. In practice, I don't
+    // ever want any of these logging facilities to cause or contribute to memory issues.
+    decltype(this->msgs) l_msgs;
+    decltype(this->callbacks) l_callbacks;
+    bool l_emit_terminal     = false;
+    bool l_terminal_emit_t   = false;
+    bool l_terminal_emit_tid = false;
+    bool l_terminal_emit_fn  = false;
+    bool l_terminal_emit_fl  = false;
+    bool l_terminal_emit_sl  = false;
+    {
+        // Use a recursive lock here because this routine can cause program to exit, and thus the destructor to be called,
+        // but the destructor calls this routine to flush messages.
+        std::lock_guard<std::mutex> lock(this->m);
+        std::swap(this->msgs, l_msgs);
+        l_callbacks = this->callbacks;
+        l_emit_terminal     = this->emit_terminal;
+        l_terminal_emit_t   = this->terminal_emit_t;
+        l_terminal_emit_tid = this->terminal_emit_tid;
+        l_terminal_emit_fn  = this->terminal_emit_fn;
+        l_terminal_emit_fl  = this->terminal_emit_fl;
+        l_terminal_emit_sl  = this->terminal_emit_sl;
+    }
 
     // Write messages over network.
     // ...
 
     // Flush to the console.
-    for(const auto& msg : this->msgs){
-        const std::time_t t_conv = std::chrono::system_clock::to_time_t(msg.t);
+    if(l_emit_terminal){
+        for(const auto& msg : l_msgs){
+            const std::time_t t_conv = std::chrono::system_clock::to_time_t(msg.t);
 
-        std::ostream *os = &(std::cout);
-        if(msg.ll == log_level::err) os = &(std::cerr);
+            std::ostream *os = &(std::cout);
+            if(msg.ll == log_level::err) os = &(std::cerr);
 
-        *os << "--(" << log_level_to_string(msg.ll) << ")";
-        *os << " " << std::put_time(std::localtime(&t_conv), "%Y%m%d-%H%M%S");
-        if( msg.tid != std::thread::id() ) *os << " thread " << std::hex << msg.tid << std::dec;
-        if( !msg.fn.empty() ) *os << " function '" << msg.fn << "'";
-        if( !msg.fl.empty() ) *os << " file '" << msg.fl << "'";
-        if( !msg.sl.empty() ) *os << " line " << msg.sl;
-        *os << ": " << msg.msg << ".";
+            *os << "--(" << log_level_to_string(msg.ll) << ")";
 
-        if(msg.ll == log_level::err) *os << " Terminating program.";
-        *os << std::endl;
-        os->flush();
+            if( l_terminal_emit_t ){
+                *os << " " << std::put_time(std::localtime(&t_conv), "%Y%m%d-%H%M%S");
+            }
+            if( l_terminal_emit_tid
+            &&  (msg.tid != std::thread::id()) ){
+                *os << " thread " << std::hex << msg.tid << std::dec;
+            }
+            if( l_terminal_emit_fn
+            &&  !msg.fn.empty() ){
+                *os << " function '" << msg.fn << "'";
+            }
+            if( l_terminal_emit_fl
+            &&  !msg.fl.empty() ){
+                *os << " file '" << msg.fl << "'";
+            }
+            if( l_terminal_emit_sl
+            &&  !msg.sl.empty() ){
+                *os << " line " << msg.sl;
+            }
 
-        if(msg.ll == log_level::err){
-            msgs.clear();
-            std::exit(-1);
+            *os << ": " << msg.msg << ".";
+
+            if(msg.ll == log_level::err){
+                *os << " Terminating program.";
+            }
+
+            *os << std::endl;
+            os->flush();
+
+            if(msg.ll == log_level::err){
+                msgs.clear();
+                std::exit(-1);
+            }
         }
     }
 
@@ -116,43 +180,42 @@ logger::emit(){
     //
     // Note: this should always be executed last since they can do anything, e.g., terminate the process.
     // Emitting messages to other log sinks first helps ensure messages are not lost.
-    for(const auto& msg : this->msgs){
-        for(const auto &c_p : this->callbacks){
+    for(const auto& msg : l_msgs){
+        for(const auto &c_p : l_callbacks){
             if(c_p.second) std::invoke(c_p.second, msg);
         }
     }
-
-    msgs.clear();
 }
 
 void
 logger::operator()(log_message lm){
-    const std::lock_guard<std::recursive_mutex> lock(this->m);
-    msgs.emplace_back(lm);
-
-    // If the error is critical, call the destructor to forward messages, flush, and terminate ASAP.
-    if(msgs.back().ll == log_level::err){
-        this->emit();
+    {
+        const std::lock_guard<std::mutex> lock(this->m);
+        msgs.emplace_back(lm);
     }
 
-    // Emit eagerly.
-    //
-    // NOTE: this behaviour is subject to change!! TODO
-    this->emit();
+    // If the error is critical, call the destructor to forward messages, flush, and terminate ASAP.
+    if(lm.ll == log_level::err){
+        this->emit();
+
+    // Otherwise either defer or emit eagerly, depending on queue size and priorities.
+    }else{
+        // Note: uniformly emitting eagerly for now. This behaviour is subject to change!! TODO
+        this->emit();
+    }
 }
 
 
 void
 logger::push_local_callback( ygor::logger::callback_t &&f,
                              std::thread::id id ){
-    const std::lock_guard<std::recursive_mutex> lock(this->m);
-    callbacks.emplace_back(std::make_pair(id, std::move(f))); //<std::thread::id,
-                                          //ygor::logger::callback_t>(id, f));
+    const std::lock_guard<std::mutex> lock(this->m);
+    callbacks.emplace_back(std::make_pair(id, std::move(f)));
 }
 
 bool
 logger::pop_local_callback( std::thread::id id ){
-    const std::lock_guard<std::recursive_mutex> lock(this->m);
+    const std::lock_guard<std::mutex> lock(this->m);
 
     // Remove only the most recently pushed callback for the given thread.
     bool found = false;

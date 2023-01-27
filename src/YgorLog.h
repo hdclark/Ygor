@@ -47,11 +47,19 @@ class logger {
     public:
         using callback_t = std::function<void(log_message)>;
     private:
-        std::recursive_mutex m;
+        std::mutex m;
         std::vector<log_message> msgs;
         std::vector<std::pair<std::thread::id, callback_t>> callbacks;
 
         void emit();
+
+        bool emit_terminal     = true;
+
+        bool terminal_emit_t   = true;
+        bool terminal_emit_tid = true;
+        bool terminal_emit_fn  = true;
+        bool terminal_emit_sl  = false;
+        bool terminal_emit_fl  = false;
 
     public:
         logger();
