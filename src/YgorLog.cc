@@ -52,6 +52,7 @@ log_message::log_message(std::ostringstream &os,
 
 logger::logger(){
     std::lock_guard<std::mutex> lock(this->m);
+    this->callback_id_nidus = static_cast<callback_id_t>(0);
 
     // Determine logging preferences from environment variables.
     // ...
@@ -92,7 +93,7 @@ logger::logger(){
     // std::cout << "*** Initialized logger ***" << std::endl;
 }
 
-logger::~logger(){
+logger::~logger() noexcept {
     this->emit();
 }
 
@@ -146,7 +147,7 @@ logger::emit(){
             }
             if( l_terminal_emit_tid
             &&  (msg.tid != std::thread::id()) ){
-                *os << " thread " << std::hex << msg.tid << std::dec;
+                *os << " thread 0x" << std::hex << msg.tid << std::dec;
             }
             if( l_terminal_emit_fn
             &&  !msg.fn.empty() ){
@@ -207,31 +208,39 @@ logger::operator()(log_message lm){
 }
 
 
-void
-logger::push_local_callback( ygor::logger::callback_t &&f,
-                             std::thread::id id ){
+logger::callback_id_t
+logger::push_callback( ygor::logger::callback_t &&f ){
     const std::lock_guard<std::mutex> lock(this->m);
-    callbacks.emplace_back(std::make_pair(id, std::move(f)));
+    auto l_id = this->callback_id_nidus++;
+    callbacks.emplace_back(std::make_pair(l_id, std::move(f)));
+    return l_id;
 }
 
 bool
-logger::pop_local_callback( std::thread::id id ){
+logger::pop_callback( logger::callback_id_t id ){
     const std::lock_guard<std::mutex> lock(this->m);
 
-    // Remove only the most recently pushed callback for the given thread.
-    bool found = false;
-    const auto N = this->callbacks.size();
-    for(size_t i = 0U; i < N; ++i){
-        const size_t j = (N - 1U) - i;
-        if(this->callbacks[j].first == id){
-            found = true;
-            const auto it = std::next( std::begin(this->callbacks), j );
-            this->callbacks.erase(it);
-            break;
-        }
-    }
-    return found;
+    const auto N_before = this->callbacks.size();
+    this->callbacks.erase(
+        std::remove_if(this->callbacks.begin(),
+                       this->callbacks.end(),
+                       [id](const std::pair<logger::callback_id_t, ygor::logger::callback_t> &c){
+                           return (c.first == id);
+                       }),
+                       this->callbacks.end() );
+
+    const auto N_after = this->callbacks.size();
+    return (N_before != N_after);
 }
+
+scoped_callback::scoped_callback( logger::callback_t &&f ){
+    this->callback_id = g_logger.push_callback(std::move(f));
+}
+
+scoped_callback::~scoped_callback() noexcept {
+    g_logger.pop_callback(this->callback_id);
+}
+
 
 } // namespace ygor.
 

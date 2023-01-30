@@ -20,12 +20,17 @@
 
 namespace ygor {
 
+// Log severity or level.
 enum class log_level {
     info,
     warn,
     err
 };
 
+// Helper to convert the above enum into a string.
+std::string log_level_to_string(log_level);
+
+// Class representing an individual log message with optional metadata.
 struct log_message {
     log_level ll;
     std::chrono::time_point<std::chrono::system_clock> t;
@@ -43,13 +48,16 @@ struct log_message {
             std::string file_name = "" );
 };
 
+// Main logging class. Received log messages and distributes them accordingly.
 class logger {
     public:
         using callback_t = std::function<void(log_message)>;
+        using callback_id_t = int64_t;
     private:
         std::mutex m;
         std::vector<log_message> msgs;
-        std::vector<std::pair<std::thread::id, callback_t>> callbacks;
+        std::vector<std::pair<callback_id_t, callback_t>> callbacks;
+        callback_id_t callback_id_nidus;
 
         void emit();
 
@@ -68,12 +76,22 @@ class logger {
         // Create and log a message.
         void operator()( log_message );
 
-        // Subscribe when log messages are emitted.
-        void push_local_callback( callback_t &&,
-                                  std::thread::id = std::this_thread::get_id() );
+        // Provide a callback for emitted log messages.
+        callback_id_t push_callback( callback_t && );
 
-        // Remove thread's latest callback. Returns true iff a callback was removed.
-        bool pop_local_callback( std::thread::id = std::this_thread::get_id() );
+        // Remove callback with the given ID. Returns true iff a callback was removed.
+        bool pop_callback( callback_id_t );
+};
+
+// Class to tie the lifetime of a callback to a given scope.
+// Will add the callback on instantiation, and remove it upon destruction.
+class scoped_callback {
+    private:
+        logger::callback_id_t callback_id;
+
+    public:
+        scoped_callback( logger::callback_t && );
+        ~scoped_callback() noexcept;
 };
 
 // Global, shared logger object.
