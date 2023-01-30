@@ -32,14 +32,14 @@ struct log_message {
     std::string msg;
     std::string fn; // function name.
     std::thread::id tid;
-    std::string sl; // source location.
+    int64_t sl; // source location.
     std::string fl; // filename.
 
     log_message(std::ostringstream &,
             log_level = log_level::info,
             std::thread::id = std::thread::id(),
             std::string func_name = "",
-            std::string src_loc   = "",
+            int64_t src_loc       = -1,
             std::string file_name = "" );
 };
 
@@ -83,11 +83,29 @@ extern logger g_logger;
 
 
 // Helpers.
-#ifndef __PRETTY_FUNCTION__
-    #ifdef __GNUC__ //If using gcc..
-        #define __PRETTY_FUNCTION__ __func__
+#ifndef YLOG_PRETTY_FUNCTION
+    #if defined( __PRETTY_FUNCTION__ )
+        #define YLOG_PRETTY_FUNCTION __PRETTY_FUNCTION__
+    #elif defined( __FUNCSIG__ )
+        #define YLOG_PRETTY_FUNCTION __FUNCSIG__
     #else
-        #define __PRETTY_FUNCTION__ '(function name not available)'
+        #define YLOG_PRETTY_FUNCTION __func__ // Note: not a macro, but should be available in all modern compilers.
+    #endif
+#endif
+
+#ifndef YLOG_PRETTY_SRC_LOC
+    #if defined( __LINE__ )
+        #define YLOG_PRETTY_SRC_LOC __LINE__
+    #else
+        #define YLOG_PRETTY_SRC_LOC -1
+    #endif
+#endif
+
+#ifndef YLOG_PRETTY_FILENAME
+    #if defined( __FILE__ )
+        #define YLOG_PRETTY_FILENAME __FILE__
+    #else
+        #define YLOG_PRETTY_FILENAME '(filename not available)'
     #endif
 #endif
 
@@ -95,29 +113,36 @@ extern logger g_logger;
 #ifndef YLOGINFO
     #define YLOGINFO( x )  { std::ostringstream os; \
                              os << x; \
-                             ygor::g_logger( { os, \
+                             ygor::g_logger({ os, \
                                   ygor::log_level::info, \
                                   std::this_thread::get_id(), \
-                                  __PRETTY_FUNCTION__ }); }
+                                  YLOG_PRETTY_FUNCTION, \
+                                  YLOG_PRETTY_SRC_LOC, \
+                                  YLOG_PRETTY_FILENAME }); }
 #endif
+
 
 #ifndef YLOGWARN
     #define YLOGWARN( x )  { std::ostringstream os; \
                              os << x; \
-                             ygor::g_logger( { os, \
+                             ygor::g_logger({ os, \
                                   ygor::log_level::warn, \
                                   std::this_thread::get_id(), \
-                                  __PRETTY_FUNCTION__ }); }
+                                  YLOG_PRETTY_FUNCTION, \
+                                  YLOG_PRETTY_SRC_LOC, \
+                                  YLOG_PRETTY_FILENAME }); }
 #endif
 
 
 #ifndef YLOGERR
     #define YLOGERR( x )   { std::ostringstream os; \
                              os << x; \
-                             ygor::g_logger( { os, \
+                             ygor::g_logger({ os, \
                                   ygor::log_level::err, \
                                   std::this_thread::get_id(), \
-                                  __PRETTY_FUNCTION__ }); }
+                                  YLOG_PRETTY_FUNCTION, \
+                                  YLOG_PRETTY_SRC_LOC, \
+                                  YLOG_PRETTY_FILENAME }); }
 
 #endif
 

@@ -40,7 +40,7 @@ log_message::log_message(std::ostringstream &os,
                          log_level log_level,
                          std::thread::id id,
                          std::string func_name,
-                         std::string src_loc,
+                         int64_t src_loc,
                          std::string file_name) : ll(log_level),
                                                   t( std::chrono::system_clock::now() ),
                                                   msg( os.str() ),
@@ -70,7 +70,8 @@ logger::logger(){
     if(const char *c_method  = std::getenv("YLOG_METHODS"); nullptr != c_method){
         std::string x(c_method);
         this->emit_terminal =  (x.find("terminal") != std::string::npos)
-                            || (x.find("console") != std::string::npos);
+                            || (x.find("console")  != std::string::npos)
+                            || (x.find("stdout")   != std::string::npos);
     }
 
     // Override the default terminal emission format.
@@ -156,7 +157,7 @@ logger::emit(){
                 *os << " file '" << msg.fl << "'";
             }
             if( l_terminal_emit_sl
-            &&  !msg.sl.empty() ){
+            &&  (0 <= msg.sl) ){
                 *os << " line " << msg.sl;
             }
 
