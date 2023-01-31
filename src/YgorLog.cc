@@ -184,7 +184,11 @@ logger::emit(){
     // Emitting messages to other log sinks first helps ensure messages are not lost.
     for(const auto& msg : l_msgs){
         for(const auto &c_p : l_callbacks){
-            if(c_p.second) std::invoke(c_p.second, msg);
+            if(c_p.second){
+                try{
+                    std::invoke(c_p.second, msg);
+                }catch(const std::exception &){ }
+            }
         }
     }
 }
