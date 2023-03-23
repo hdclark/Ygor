@@ -12,7 +12,7 @@ project(Ygor LANGUAGES CXX)
 option(WITH_IWYU                "Compile using clang include-what-you-use."     OFF)
 
 option(WITH_ASAN                "Compile using ASan, LSan, & UBSan."            OFF)
-option(WITH_TSAN                "Compile using ThreadSanitizer."                ON)
+option(WITH_TSAN                "Compile using ThreadSanitizer."                OFF)
 option(WITH_MSAN                "Compile using MemorySanitizer."                OFF)
 
 option(WITH_LINUX_SYS "Compile assuming Linux-specific sys interfaces are available." ON)
