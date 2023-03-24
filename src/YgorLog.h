@@ -97,6 +97,9 @@ class scoped_callback {
 // Global, shared logger object.
 extern logger g_logger;
 
+// Global mutex for cout/cerr terminal message synchronization.
+extern std::mutex g_term_sync;
+
 } // namespace ygor.
 
 

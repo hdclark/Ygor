@@ -21,6 +21,9 @@ namespace ygor {
 // Global, shared logger object.
 logger g_logger;
 
+// Global mutex for cout/cerr terminal message synchronization.
+std::mutex g_term_sync;
+
 
 std::string log_level_to_string(log_level ll){
     std::string out;
@@ -140,6 +143,7 @@ logger::emit(){
             std::ostream *os = &(std::cout);
             if(msg.ll == log_level::err) os = &(std::cerr);
 
+            std::lock_guard<std::mutex> lock(g_term_sync);
             *os << "--(" << log_level_to_string(msg.ll) << ")";
 
             if( l_terminal_emit_t ){
