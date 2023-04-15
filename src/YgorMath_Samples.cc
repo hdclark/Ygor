@@ -4,6 +4,7 @@
 #include <array>
 #include <list>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
@@ -426,7 +427,7 @@ samples_1D<double> samples_1D_sample_CMB(void){
 samples_1D<double> samples_1D_sample_CMB_first_half(void){
     samples_1D<double> out;
     const auto in = samples_1D_sample_CMB();
-    long int cnt(0);
+    int32_t cnt(0);
     for(auto it = in.samples.begin(); (it != in.samples.end()) && (cnt < 400); ++it, ++cnt){
         out.samples.push_back(*it);
     }

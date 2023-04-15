@@ -18,6 +18,7 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <list>
@@ -89,11 +90,11 @@ std::list<std::pair<std::string, std::string>> Get_All_Local_IP_Addresses(void);
 // requires a (void *)-able function argument.
 struct YgorNetworking_Server_and_Client_Clone_Shuttle {
     int SERVER_sockfd; 
-    std::function<bool (int, char *, long int)> USERS_SERVER_DIALOG_LAMBDA;
-    std::function<bool (int, char *, long int)> DEFAULT_SERVER_DIALOG_LAMBDA;
+    std::function<bool (int, char *, int64_t)> USERS_SERVER_DIALOG_LAMBDA;
+    std::function<bool (int, char *, int64_t)> DEFAULT_SERVER_DIALOG_LAMBDA;
     int SERVER_new_fd;
     char SERVER_s[INET6_ADDRSTRLEN];
-    long int SERVER_PORT; 
+    int64_t SERVER_PORT; 
     void *Stack; 
 };
 
@@ -122,15 +123,15 @@ class Server_and_Client {
         //--------------------------------------------------------------------------------------
         //Server-specific things.
         bool SERVER_INITIALIZED;              //Denotes whether or not the server has been Init()'d.
-        long int SERVER_PORT;                 //Which port to listen on.
-        long int SERVER_BACKLOG;              //The number of pending connections in the queue.
+        int64_t SERVER_PORT;                  //Which port to listen on.
+        int64_t SERVER_BACKLOG;               //The number of pending connections in the queue.
 
         //This is a user-provided dialog function. It handles how the server sends and receives.
         // The argument is a file descriptor, which is needed to send or receive.
         // The second is the host (destination) address.
         // The third is the host (destination) port.
-        std::function<bool (int, char *, long int)> USERS_SERVER_DIALOG_LAMBDA;
-        std::function<bool (int, char *, long int)> DEFAULT_SERVER_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> USERS_SERVER_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> DEFAULT_SERVER_DIALOG_LAMBDA;
    
         //------ The following server-specific things are probably not of interest to the outside.
         int SERVER_sockfd, SERVER_new_fd;     //We listen on sock_fd and get new connections on new_fd.
@@ -151,15 +152,15 @@ class Server_and_Client {
         //--------------------------------------------------------------------------------------
         //Client-specific things.
         bool CLIENT_INITIALIZED;              //Denotes whether or not the server has been Init()'d.
-        long int CLIENT_PORT;                 //Which port to connect to.
+        int64_t CLIENT_PORT;                  //Which port to connect to.
         std::string CLIENT_ADDRESS;           //The address the client should attempt to contact.
 
         //This is a user-provided dialog function. It handles how the client sends and receives.
         // The argument is a file descriptor, which is needed to send or receive.
         // The second is the host (destination) address.
         // The third is the host (destination) port.
-        std::function<bool (int, char *, long int)> USERS_CLIENT_DIALOG_LAMBDA; 
-        std::function<bool (int, char *, long int)> DEFAULT_CLIENT_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> USERS_CLIENT_DIALOG_LAMBDA; 
+        std::function<bool (int, char *, int64_t)> DEFAULT_CLIENT_DIALOG_LAMBDA;
 
         //------ The following client-specific things are probably not of interest to the outside.
         int  CLIENT_sockfd, CLIENT_rv;
@@ -180,16 +181,16 @@ class Server_and_Client {
 
         //--------------------------------------------------------------------------------------
         //Server-specific member functions.
-        bool Server_Init(long int port, std::function<bool (int, char *, long int)> server_dialog);
-        bool Server_Init(std::function<bool (int, char *, long int)> server_dialog);
+        bool Server_Init(int64_t port, std::function<bool (int, char *, int64_t)> server_dialog);
+        bool Server_Init(std::function<bool (int, char *, int64_t)> server_dialog);
         bool Server_Init(void);
 
         bool Server_Wait_for_Connection(void);
 
         //--------------------------------------------------------------------------------------
         //Client-specific member functions.
-        bool Client_Init(long int port, std::function<bool (int, char *, long int)> client_dialog);
-        bool Client_Init(std::function<bool (int, char *, long int)> client_dialog);
+        bool Client_Init(int64_t port, std::function<bool (int, char *, int64_t)> client_dialog);
+        bool Client_Init(std::function<bool (int, char *, int64_t)> client_dialog);
         bool Client_Init(void);
 
         bool Client_Connect(const std::string &address);
@@ -222,16 +223,16 @@ class Beacon_and_Radio {
         //--------------------------------------------------------------------------------------
         //Radio-specific things.
         bool RADIO_INITIALIZED;              //Denotes whether or not the radio has been Init()'d.
-        long int RADIO_PORT;                 //Which port to listen on.
-//        long int RADIO_BACKLOG;              //The number of pending connections in the queue.
+        int64_t RADIO_PORT;                  //Which port to listen on.
+//        int64_t RADIO_BACKLOG;               //The number of pending connections in the queue.
         bool RADIO_LOOP;                     //Instead of closing socket, loop forever.
 
         //This is a user-provided dialog function. It handles how the radio sends messages.
         // The first argument is a file descriptor, which is needed to send.
         // The second is the host (destination) address. *In this case: the multicast address.*
         // The third is the host (destination) port.
-        std::function<bool (int, char *, long int)> USERS_RADIO_DIALOG_LAMBDA;
-        std::function<bool (int, char *, long int)> DEFAULT_RADIO_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> USERS_RADIO_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> DEFAULT_RADIO_DIALOG_LAMBDA;
    
         //------ The following radio-specific things are probably not of interest to the outside.
         int RADIO_sockfd;                    //We listen on sock_fd. UDP is connectionless, so no beacon fd.
@@ -246,7 +247,7 @@ class Beacon_and_Radio {
         //--------------------------------------------------------------------------------------
         //Beacon-specific things.
         bool BEACON_INITIALIZED;              //Denotes whether or not the radio has been Init()'d.
-        long int BEACON_PORT;                 //Which port to connect to.
+        int64_t BEACON_PORT;                  //Which port to connect to.
         std::string BEACON_ADDRESS;           //The multicast address the beacon should tune in to.
         bool BEACON_LOOP;                     //Instead of closing socket, loop forever. User should sleep().
         unsigned char BEACON_TTL_HOPS;        //The number of hops before message expires. Chosing 1 
@@ -256,8 +257,8 @@ class Beacon_and_Radio {
         // The first argument is a file descriptor, which is needed to receive.
         // The second is the host (destination) address. *In this case: the multicast address.*
         // The third is the host (destination) port.
-        std::function<bool (int, char *, long int)> USERS_BEACON_DIALOG_LAMBDA; 
-        std::function<bool (int, char *, long int)> DEFAULT_BEACON_DIALOG_LAMBDA;
+        std::function<bool (int, char *, int64_t)> USERS_BEACON_DIALOG_LAMBDA; 
+        std::function<bool (int, char *, int64_t)> DEFAULT_BEACON_DIALOG_LAMBDA;
 
         //------ The following beacon-specific things are probably not of interest to the outside.
         int  BEACON_sockfd, BEACON_rv;
@@ -276,16 +277,16 @@ class Beacon_and_Radio {
 
         //--------------------------------------------------------------------------------------
         //Radio-specific member functions.
-        bool Radio_Init(long int port, std::function<bool (int, char *, long int)> radio_dialog);
-        bool Radio_Init(std::function<bool (int, char *, long int)> radio_dialog);
+        bool Radio_Init(int64_t port, std::function<bool (int, char *, int64_t)> radio_dialog);
+        bool Radio_Init(std::function<bool (int, char *, int64_t)> radio_dialog);
         bool Radio_Init(void);
 
         bool Radio_Tune_In(const std::string &address); //Valid multicast IP's: [224.0.0.0, 239.255.255.255].
 
         //--------------------------------------------------------------------------------------
         //Beacon-specific member functions.
-        bool Beacon_Init(long int port, std::function<bool (int, char *, long int)> beacon_dialog);
-        bool Beacon_Init(std::function<bool (int, char *, long int)> beacon_dialog);
+        bool Beacon_Init(int64_t port, std::function<bool (int, char *, int64_t)> beacon_dialog);
+        bool Beacon_Init(std::function<bool (int, char *, int64_t)> beacon_dialog);
         bool Beacon_Init(void);
 
         bool Beacon_Transmit(const std::string &address); //Valid multicast IP's: [224.0.0.0, 239.255.255.255].

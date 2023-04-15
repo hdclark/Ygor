@@ -13,6 +13,7 @@
 #include <climits>  //Needed for CHAR_BIT.
 #include <limits>
 #include <type_traits>
+#include <cstdint>
 
 #include <list>
 //#include <set>
@@ -144,9 +145,9 @@ template <class T, class R>  inline T PER_BYTE_BITWISE_ROT_R(const T N, const R 
 template <class T, class R>
 inline T PER_BYTE_BITWISE_ROT_L(const T N, const R S){
     //This routine will not handle 'negative'-leftward rotations. Pass them to sister function.
-//    if(static_cast<long int>(S) < 0L) return PER_BYTE_BITWISE_ROT_R(N,-S);
+//    if(static_cast<int64_t>(S) < 0L) return PER_BYTE_BITWISE_ROT_R(N,-S);
     if(S < static_cast<R>(0)) return PER_BYTE_BITWISE_ROT_R(N,-S);
-    const long int SS(static_cast<long int>(S % 8));
+    const int64_t SS(static_cast<int64_t>(S % 8));
 
     union a_byte_array {
         T num; //The number (N).
@@ -154,9 +155,9 @@ inline T PER_BYTE_BITWISE_ROT_L(const T N, const R S){
     } C;
     C.num = N;
 
-    for(long int i=0; i<static_cast<long int>(sizeof(T)); ++i){
+    for(int64_t i=0; i<static_cast<int64_t>(sizeof(T)); ++i){
         unsigned char out(C.dat[i]);
-        for(long int j=0; j<SS; ++j){
+        for(int64_t j=0; j<SS; ++j){
             const unsigned char initially(out);
             out = static_cast<unsigned char>(out << 1);
             if((out >> 1) != initially) out |= 1; //Insert a low-bit.
@@ -168,10 +169,10 @@ inline T PER_BYTE_BITWISE_ROT_L(const T N, const R S){
 template <class T, class R>
 inline T PER_BYTE_BITWISE_ROT_R(const T N, const R S){
     //This routine will not handle 'negative'-rightward rotations. Pass them to sister function.
-//    if(static_cast<long int>(S) < 0L) return PER_BYTE_BITWISE_ROT_L(N,-S);
+//    if(static_cast<int64_t>(S) < 0L) return PER_BYTE_BITWISE_ROT_L(N,-S);
     if(S < static_cast<R>(0)) return PER_BYTE_BITWISE_ROT_L(N,-S);
 
-    const long int SS(static_cast<long int>(S % 8));
+    const int64_t SS(static_cast<int64_t>(S % 8));
 
     union a_byte_array {
         T num; //The number (N).
@@ -179,9 +180,9 @@ inline T PER_BYTE_BITWISE_ROT_R(const T N, const R S){
     } C;
     C.num = N;
 
-    for(long int i=0; i<static_cast<long int>(sizeof(T)); ++i){
+    for(int64_t i=0; i<static_cast<int64_t>(sizeof(T)); ++i){
         unsigned char out(C.dat[i]);
-        for(long int j=0; j<SS; ++j){
+        for(int64_t j=0; j<SS; ++j){
             const unsigned char initially(out);
             out = static_cast<unsigned char>(out >> 1);
             if((out << 1) != initially) out |= (1 << 7); //128; //Insert a high-bit.

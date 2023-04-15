@@ -15,20 +15,6 @@
 //----------------------------------------------------------------------------------------------------------------------------
 //These are helper templates used for type deduction for use *within this file.*
 //
-//How they work: we define a base struct for each data type we want to use. We make the default template contain a false bool.
-// Then, we define a template specialization *specifically* for that type that has a true bool. Therefore, inspection of the 
-// bool value will tell use whether or not the type is what we asked for. 
-//template<class T> struct IS_THIS_OF_TYPE_LONG_INT {     static const bool value = false;   };
-//template<>        struct IS_THIS_OF_TYPE_LONG_INT<long int> {  static const bool value = true; };
-//
-//template<class T> struct IS_THIS_OF_TYPE_STD_STRING {     static const bool value = false;   };
-//template<>        struct IS_THIS_OF_TYPE_STD_STRING<std::string> {  static const bool value = true; };
-//THESE ARE NOT USED - They are here for reference!
-// Use like:
-// if( IS_THIS_OF_TYPE_LONG_INT<T>::value ) 
-// or
-// if( IS_THIS_OF_TYPE_LONG_INT< decltype(rhs) >::value )
-
 //---- Are two types equal? ----   (ala boost::is_same(..)  and adapted from
 //  http://stackoverflow.com/questions/1708867/check-type-of-element-in-stl-container-c .
 template<class UA, class UB> struct ARE_THESE_TYPES_EQUAL      { static const bool value = false; };
@@ -47,8 +33,8 @@ template<class U>            struct ARE_THESE_TYPES_EQUAL<U,U> { static const bo
 template <class TA, class TB>  bimap<TA,TB>::bimap() { }
 
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template bimap<long int, std::string>::bimap();
-    template bimap<std::string, long int>::bimap();
+    template bimap<int64_t, std::string>::bimap();
+    template bimap<std::string, int64_t>::bimap();
 
     template bimap<float, std::string>::bimap();
     template bimap<std::string, float>::bimap();
@@ -66,8 +52,8 @@ template <class TA, class TB>  TA & bimap<TA,TB>::operator[](const TB &in){
     return ((*(--((*this).the_pairs.end()))).first); //Return a reference to the last element.
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template long int &  bimap<long int, std::string>::operator[](const std::string &in);
-    template std::string &  bimap<std::string, long int>::operator[](const long int &in);
+    template int64_t &  bimap<int64_t, std::string>::operator[](const std::string &in);
+    template std::string &  bimap<std::string, int64_t>::operator[](const int64_t &in);
 
     template float &  bimap<float, std::string>::operator[](const std::string &in);
     template std::string &  bimap<std::string, float>::operator[](const float &in);
@@ -86,8 +72,8 @@ template <class TA, class TB>  TB & bimap<TA,TB>::operator[](const TA &in){
     return ((*(--((*this).the_pairs.end()))).second); //Return a reference to the last element.
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template std::string &  bimap<long int, std::string>::operator[](const long int &in);
-    template long int &  bimap<std::string, long int>::operator[](const std::string &in);
+    template std::string &  bimap<int64_t, std::string>::operator[](const int64_t &in);
+    template int64_t &  bimap<std::string, int64_t>::operator[](const std::string &in);
 
     template std::string &  bimap<float, std::string>::operator[](const float &in);
     template float &  bimap<std::string, float>::operator[](const std::string &in);
@@ -102,8 +88,8 @@ template <class TA, class TB>    bimap<TA,TB> & bimap<TA,TB>::operator=(const st
     return *this;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template bimap<long int, std::string> &  bimap<long int, std::string>::operator=(const std::map<long int, std::string> &);
-    template bimap<std::string, long int> &  bimap<std::string, long int>::operator=(const std::map<std::string, long int> &);
+    template bimap<int64_t, std::string> &  bimap<int64_t, std::string>::operator=(const std::map<int64_t, std::string> &);
+    template bimap<std::string, int64_t> &  bimap<std::string, int64_t>::operator=(const std::map<std::string, int64_t> &);
 
     template bimap<float, std::string> &  bimap<float, std::string>::operator=(const std::map<float, std::string> &);
     template bimap<std::string, float> &  bimap<std::string, float>::operator=(const std::map<std::string, float> &);
@@ -117,8 +103,8 @@ template <class TA, class TB>    bimap<TA,TB> & bimap<TA,TB>::operator=(const st
     return *this;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template bimap<long int, std::string> &  bimap<long int, std::string>::operator=(const std::map<std::string, long int> &);
-    template bimap<std::string, long int> &  bimap<std::string, long int>::operator=(const std::map<long int, std::string> &);
+    template bimap<int64_t, std::string> &  bimap<int64_t, std::string>::operator=(const std::map<std::string, int64_t> &);
+    template bimap<std::string, int64_t> &  bimap<std::string, int64_t>::operator=(const std::map<int64_t, std::string> &);
 
     template bimap<float, std::string> &  bimap<float, std::string>::operator=(const std::map<std::string, float> &);
     template bimap<std::string, float> &  bimap<std::string, float>::operator=(const std::map<float, std::string> &);
@@ -129,8 +115,8 @@ template <class TA, class TB>   typename std::vector<std::pair<TA,TB> >::const_i
     return (*this).the_pairs.begin();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_iterator   bimap<long int,std::string>::begin(void) const;
-    template  std::vector<std::pair<std::string,long int> >::const_iterator   bimap<std::string,long int>::begin(void) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_iterator   bimap<int64_t,std::string>::begin(void) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_iterator   bimap<std::string,int64_t>::begin(void) const;
 
     template  std::vector<std::pair<float,std::string> >::const_iterator   bimap<float,std::string>::begin(void) const;
     template  std::vector<std::pair<std::string,float> >::const_iterator   bimap<std::string,float>::begin(void) const;
@@ -140,8 +126,8 @@ template <class TA, class TB>   typename std::vector<std::pair<TA,TB> >::const_r
     return (*this).the_pairs.rbegin();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_reverse_iterator   bimap<long int,std::string>::rbegin(void) const;
-    template  std::vector<std::pair<std::string,long int> >::const_reverse_iterator   bimap<std::string,long int>::rbegin(void) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_reverse_iterator   bimap<int64_t,std::string>::rbegin(void) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_reverse_iterator   bimap<std::string,int64_t>::rbegin(void) const;
 
     template  std::vector<std::pair<float,std::string> >::const_reverse_iterator   bimap<float,std::string>::rbegin(void) const;
     template  std::vector<std::pair<std::string,float> >::const_reverse_iterator   bimap<std::string,float>::rbegin(void) const;
@@ -152,8 +138,8 @@ template <class TA, class TB>   typename std::vector<std::pair<TA,TB> >::const_i
     return (*this).the_pairs.end();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_iterator   bimap<long int,std::string>::end(void) const;
-    template  std::vector<std::pair<std::string,long int> >::const_iterator   bimap<std::string,long int>::end(void) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_iterator   bimap<int64_t,std::string>::end(void) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_iterator   bimap<std::string,int64_t>::end(void) const;
 
     template  std::vector<std::pair<float,std::string> >::const_iterator   bimap<float,std::string>::end(void) const;
     template  std::vector<std::pair<std::string,float> >::const_iterator   bimap<std::string,float>::end(void) const;
@@ -163,8 +149,8 @@ template <class TA, class TB>   typename std::vector<std::pair<TA,TB> >::const_r
     return (*this).the_pairs.rend();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_reverse_iterator   bimap<long int,std::string>::rend(void) const;
-    template  std::vector<std::pair<std::string,long int> >::const_reverse_iterator   bimap<std::string,long int>::rend(void) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_reverse_iterator   bimap<int64_t,std::string>::rend(void) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_reverse_iterator   bimap<std::string,int64_t>::rend(void) const;
 
     template  std::vector<std::pair<float,std::string> >::const_reverse_iterator   bimap<float,std::string>::rend(void) const;
     template  std::vector<std::pair<std::string,float> >::const_reverse_iterator   bimap<std::string,float>::rend(void) const;
@@ -178,8 +164,8 @@ template <class TA, class TB>   typename std::vector< std::pair<TA,TB> >::const_
     return (*this).the_pairs.end();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::find( const long int & ) const;
-    template  std::vector<std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::find( const std::string & ) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::find( const int64_t & ) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::find( const std::string & ) const;
 
     template  std::vector<std::pair<float,std::string> >::const_iterator bimap<float,std::string>::find( const float & ) const;
     template  std::vector<std::pair<std::string,float> >::const_iterator bimap<std::string,float>::find( const std::string & ) const;
@@ -194,8 +180,8 @@ template <class TA, class TB>   typename std::vector< std::pair<TA,TB> >::const_
     return (*this).the_pairs.end();
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template  std::vector<std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::find( const std::string & ) const;
-    template  std::vector<std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::find( const long int & ) const;
+    template  std::vector<std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::find( const std::string & ) const;
+    template  std::vector<std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::find( const int64_t & ) const;
 
     template  std::vector<std::pair<float,std::string> >::const_iterator bimap<float,std::string>::find( const std::string & ) const;
     template  std::vector<std::pair<std::string,float> >::const_iterator bimap<std::string,float>::find( const float & ) const;
@@ -212,10 +198,10 @@ template <class TA, class TB> template <class T>  typename std::vector< std::pai
     return it;
 } 
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template std::vector< std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::after( const std::string & ) const;
-    template std::vector< std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::after( const long int & ) const;
-    template std::vector< std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::after( const std::string & ) const;
-    template std::vector< std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::after( const long int & ) const;
+    template std::vector< std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::after( const std::string & ) const;
+    template std::vector< std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::after( const int64_t & ) const;
+    template std::vector< std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::after( const std::string & ) const;
+    template std::vector< std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::after( const int64_t & ) const;
 
     template std::vector< std::pair<float,std::string> >::const_iterator bimap<float,std::string>::after( const std::string & ) const;
     template std::vector< std::pair<float,std::string> >::const_iterator bimap<float,std::string>::after( const float & ) const;
@@ -234,10 +220,10 @@ template <class TA, class TB> template <class T>  typename std::vector< std::pai
     return (--it);
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template std::vector< std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::before( const std::string & ) const;
-    template std::vector< std::pair<long int,std::string> >::const_iterator bimap<long int,std::string>::before( const long int & ) const;
-    template std::vector< std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::before( const std::string & ) const;
-    template std::vector< std::pair<std::string,long int> >::const_iterator bimap<std::string,long int>::before( const long int & ) const;
+    template std::vector< std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::before( const std::string & ) const;
+    template std::vector< std::pair<int64_t,std::string> >::const_iterator bimap<int64_t,std::string>::before( const int64_t & ) const;
+    template std::vector< std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::before( const std::string & ) const;
+    template std::vector< std::pair<std::string,int64_t> >::const_iterator bimap<std::string,int64_t>::before( const int64_t & ) const;
 
     template std::vector< std::pair<float,std::string> >::const_iterator bimap<float,std::string>::before( const std::string & ) const;
     template std::vector< std::pair<float,std::string> >::const_iterator bimap<float,std::string>::before( const float & ) const;
@@ -262,10 +248,10 @@ template <class TA, class TB> template <class T> T bimap<TA,TB>::get_next( const
     return in;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template std::string bimap<long int,std::string>::get_next( const std::string & ) const;
-    template long int    bimap<long int,std::string>::get_next( const long int & ) const;
-    template std::string bimap<std::string,long int>::get_next( const std::string & ) const;
-    template long int    bimap<std::string,long int>::get_next( const long int & ) const;
+    template std::string bimap<int64_t,std::string>::get_next( const std::string & ) const;
+    template int64_t    bimap<int64_t,std::string>::get_next( const int64_t & ) const;
+    template std::string bimap<std::string,int64_t>::get_next( const std::string & ) const;
+    template int64_t    bimap<std::string,int64_t>::get_next( const int64_t & ) const;
 
     template std::string bimap<float,std::string>::get_next( const std::string & ) const;
     template float       bimap<float,std::string>::get_next( const float & ) const;
@@ -290,10 +276,10 @@ template <class TA, class TB> template <class T> T bimap<TA,TB>::get_previous( c
     return in;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template std::string bimap<long int,std::string>::get_previous( const std::string & ) const;
-    template long int bimap<long int,std::string>::get_previous( const long int & ) const;
-    template std::string bimap<std::string,long int>::get_previous( const std::string & ) const;
-    template long int bimap<std::string,long int>::get_previous( const long int & ) const;
+    template std::string bimap<int64_t,std::string>::get_previous( const std::string & ) const;
+    template int64_t bimap<int64_t,std::string>::get_previous( const int64_t & ) const;
+    template std::string bimap<std::string,int64_t>::get_previous( const std::string & ) const;
+    template int64_t bimap<std::string,int64_t>::get_previous( const int64_t & ) const;
 
     template std::string bimap<float,std::string>::get_previous( const std::string & ) const;
     template float bimap<float,std::string>::get_previous( const float & ) const;
@@ -310,8 +296,8 @@ template <class TA, class TB>  void bimap<TA,TB>::order_on_first(void){
     return;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template void bimap<long int,std::string>::order_on_first(void);
-    template void bimap<std::string,long int>::order_on_first(void);
+    template void bimap<int64_t,std::string>::order_on_first(void);
+    template void bimap<std::string,int64_t>::order_on_first(void);
 
     template void bimap<float,std::string>::order_on_first(void);
     template void bimap<std::string,float>::order_on_first(void);
@@ -325,8 +311,8 @@ template <class TA, class TB>  void bimap<TA,TB>::order_on_second(void){
     return;
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template void bimap<long int,std::string>::order_on_second(void);
-    template void bimap<std::string,long int>::order_on_second(void);
+    template void bimap<int64_t,std::string>::order_on_second(void);
+    template void bimap<std::string,int64_t>::order_on_second(void);
 
     template void bimap<float,std::string>::order_on_second(void);
     template void bimap<std::string,float>::order_on_second(void);
@@ -367,7 +353,7 @@ yspan<T>::yspan() : start(nullptr), count(0), stride_bytes(0) {}
 #endif
 
 template <class T>
-yspan<T>::yspan(T* l_start, long int l_count, long int l_sb) : start(l_start), count(l_count), stride_bytes(l_sb) {
+yspan<T>::yspan(T* l_start, int64_t l_count, int64_t l_sb) : start(l_start), count(l_count), stride_bytes(l_sb) {
     if(this->start == nullptr){
         throw std::invalid_argument("Invalid span: first element is null");
     }
@@ -379,31 +365,31 @@ yspan<T>::yspan(T* l_start, long int l_count, long int l_sb) : start(l_start), c
     }
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template yspan<float   >::yspan(float*   , long int, long int);
-    template yspan<double  >::yspan(double*  , long int, long int);
+    template yspan<float   >::yspan(float*   , int64_t, int64_t);
+    template yspan<double  >::yspan(double*  , int64_t, int64_t);
 
-    template yspan<int8_t  >::yspan(int8_t*  , long int, long int);
-    template yspan<int16_t >::yspan(int16_t* , long int, long int);
-    template yspan<int32_t >::yspan(int32_t* , long int, long int);
-    template yspan<int64_t >::yspan(int64_t* , long int, long int);
+    template yspan<int8_t  >::yspan(int8_t*  , int64_t, int64_t);
+    template yspan<int16_t >::yspan(int16_t* , int64_t, int64_t);
+    template yspan<int32_t >::yspan(int32_t* , int64_t, int64_t);
+    template yspan<int64_t >::yspan(int64_t* , int64_t, int64_t);
 
-    template yspan<uint8_t >::yspan(uint8_t* , long int, long int);
-    template yspan<uint16_t>::yspan(uint16_t*, long int, long int);
-    template yspan<uint32_t>::yspan(uint32_t*, long int, long int);
-    template yspan<uint64_t>::yspan(uint64_t*, long int, long int);
+    template yspan<uint8_t >::yspan(uint8_t* , int64_t, int64_t);
+    template yspan<uint16_t>::yspan(uint16_t*, int64_t, int64_t);
+    template yspan<uint32_t>::yspan(uint32_t*, int64_t, int64_t);
+    template yspan<uint64_t>::yspan(uint64_t*, int64_t, int64_t);
 
-    template yspan<const float   >::yspan(const float*   , long int, long int);
-    template yspan<const double  >::yspan(const double*  , long int, long int);
+    template yspan<const float   >::yspan(const float*   , int64_t, int64_t);
+    template yspan<const double  >::yspan(const double*  , int64_t, int64_t);
                                                 
-    template yspan<const int8_t  >::yspan(const int8_t*  , long int, long int);
-    template yspan<const int16_t >::yspan(const int16_t* , long int, long int);
-    template yspan<const int32_t >::yspan(const int32_t* , long int, long int);
-    template yspan<const int64_t >::yspan(const int64_t* , long int, long int);
+    template yspan<const int8_t  >::yspan(const int8_t*  , int64_t, int64_t);
+    template yspan<const int16_t >::yspan(const int16_t* , int64_t, int64_t);
+    template yspan<const int32_t >::yspan(const int32_t* , int64_t, int64_t);
+    template yspan<const int64_t >::yspan(const int64_t* , int64_t, int64_t);
                                                 
-    template yspan<const uint8_t >::yspan(const uint8_t* , long int, long int);
-    template yspan<const uint16_t>::yspan(const uint16_t*, long int, long int);
-    template yspan<const uint32_t>::yspan(const uint32_t*, long int, long int);
-    template yspan<const uint64_t>::yspan(const uint64_t*, long int, long int);
+    template yspan<const uint8_t >::yspan(const uint8_t* , int64_t, int64_t);
+    template yspan<const uint16_t>::yspan(const uint16_t*, int64_t, int64_t);
+    template yspan<const uint32_t>::yspan(const uint32_t*, int64_t, int64_t);
+    template yspan<const uint64_t>::yspan(const uint64_t*, int64_t, int64_t);
 #endif
 
 template <class T>
@@ -579,41 +565,41 @@ yspan<T>::operator<(const yspan<T> &rhs) const {
 
 template <class T>
 T&
-yspan<T>::operator[](long int n){
+yspan<T>::operator[](int64_t n){
     using base_T = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
     return *( reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(const_cast<base_T*>(start)) + n * (sizeof(T) + this->stride_bytes)));
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template float   & yspan<float   >::operator[](long int n);
-    template double  & yspan<double  >::operator[](long int n);
+    template float   & yspan<float   >::operator[](int64_t n);
+    template double  & yspan<double  >::operator[](int64_t n);
 
-    template int8_t  & yspan<int8_t  >::operator[](long int n);
-    template int16_t & yspan<int16_t >::operator[](long int n);
-    template int32_t & yspan<int32_t >::operator[](long int n);
-    template int64_t & yspan<int64_t >::operator[](long int n);
+    template int8_t  & yspan<int8_t  >::operator[](int64_t n);
+    template int16_t & yspan<int16_t >::operator[](int64_t n);
+    template int32_t & yspan<int32_t >::operator[](int64_t n);
+    template int64_t & yspan<int64_t >::operator[](int64_t n);
 
-    template uint8_t & yspan<uint8_t >::operator[](long int n);
-    template uint16_t& yspan<uint16_t>::operator[](long int n);
-    template uint32_t& yspan<uint32_t>::operator[](long int n);
-    template uint64_t& yspan<uint64_t>::operator[](long int n);
+    template uint8_t & yspan<uint8_t >::operator[](int64_t n);
+    template uint16_t& yspan<uint16_t>::operator[](int64_t n);
+    template uint32_t& yspan<uint32_t>::operator[](int64_t n);
+    template uint64_t& yspan<uint64_t>::operator[](int64_t n);
 
-    template const float   & yspan<const float   >::operator[](long int n);
-    template const double  & yspan<const double  >::operator[](long int n);
+    template const float   & yspan<const float   >::operator[](int64_t n);
+    template const double  & yspan<const double  >::operator[](int64_t n);
 
-    template const int8_t  & yspan<const int8_t  >::operator[](long int n);
-    template const int16_t & yspan<const int16_t >::operator[](long int n);
-    template const int32_t & yspan<const int32_t >::operator[](long int n);
-    template const int64_t & yspan<const int64_t >::operator[](long int n);
+    template const int8_t  & yspan<const int8_t  >::operator[](int64_t n);
+    template const int16_t & yspan<const int16_t >::operator[](int64_t n);
+    template const int32_t & yspan<const int32_t >::operator[](int64_t n);
+    template const int64_t & yspan<const int64_t >::operator[](int64_t n);
 
-    template const uint8_t & yspan<const uint8_t >::operator[](long int n);
-    template const uint16_t& yspan<const uint16_t>::operator[](long int n);
-    template const uint32_t& yspan<const uint32_t>::operator[](long int n);
-    template const uint64_t& yspan<const uint64_t>::operator[](long int n);
+    template const uint8_t & yspan<const uint8_t >::operator[](int64_t n);
+    template const uint16_t& yspan<const uint16_t>::operator[](int64_t n);
+    template const uint32_t& yspan<const uint32_t>::operator[](int64_t n);
+    template const uint64_t& yspan<const uint64_t>::operator[](int64_t n);
 #endif
 
 template <class T>
 T&
-yspan<T>::at(long int n){
+yspan<T>::at(int64_t n){
     if(this->start == nullptr){
         throw std::runtime_error("Invalid yspan element access; yspan is not engaged");
     }
@@ -623,97 +609,97 @@ yspan<T>::at(long int n){
     return (*this)[n];
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template float   & yspan<float   >::at(long int n);
-    template double  & yspan<double  >::at(long int n);
+    template float   & yspan<float   >::at(int64_t n);
+    template double  & yspan<double  >::at(int64_t n);
 
-    template int8_t  & yspan<int8_t  >::at(long int n);
-    template int16_t & yspan<int16_t >::at(long int n);
-    template int32_t & yspan<int32_t >::at(long int n);
-    template int64_t & yspan<int64_t >::at(long int n);
+    template int8_t  & yspan<int8_t  >::at(int64_t n);
+    template int16_t & yspan<int16_t >::at(int64_t n);
+    template int32_t & yspan<int32_t >::at(int64_t n);
+    template int64_t & yspan<int64_t >::at(int64_t n);
 
-    template uint8_t & yspan<uint8_t >::at(long int n);
-    template uint16_t& yspan<uint16_t>::at(long int n);
-    template uint32_t& yspan<uint32_t>::at(long int n);
-    template uint64_t& yspan<uint64_t>::at(long int n);
+    template uint8_t & yspan<uint8_t >::at(int64_t n);
+    template uint16_t& yspan<uint16_t>::at(int64_t n);
+    template uint32_t& yspan<uint32_t>::at(int64_t n);
+    template uint64_t& yspan<uint64_t>::at(int64_t n);
 
-    template const float   & yspan<const float   >::at(long int n);
-    template const double  & yspan<const double  >::at(long int n);
+    template const float   & yspan<const float   >::at(int64_t n);
+    template const double  & yspan<const double  >::at(int64_t n);
 
-    template const int8_t  & yspan<const int8_t  >::at(long int n);
-    template const int16_t & yspan<const int16_t >::at(long int n);
-    template const int32_t & yspan<const int32_t >::at(long int n);
-    template const int64_t & yspan<const int64_t >::at(long int n);
+    template const int8_t  & yspan<const int8_t  >::at(int64_t n);
+    template const int16_t & yspan<const int16_t >::at(int64_t n);
+    template const int32_t & yspan<const int32_t >::at(int64_t n);
+    template const int64_t & yspan<const int64_t >::at(int64_t n);
 
-    template const uint8_t & yspan<const uint8_t >::at(long int n);
-    template const uint16_t& yspan<const uint16_t>::at(long int n);
-    template const uint32_t& yspan<const uint32_t>::at(long int n);
-    template const uint64_t& yspan<const uint64_t>::at(long int n);
+    template const uint8_t & yspan<const uint8_t >::at(int64_t n);
+    template const uint16_t& yspan<const uint16_t>::at(int64_t n);
+    template const uint32_t& yspan<const uint32_t>::at(int64_t n);
+    template const uint64_t& yspan<const uint64_t>::at(int64_t n);
 #endif
 
 template <class T>
-long int
+int64_t
 yspan<T>::size() const {
     return std::max(0L, this->count);
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template long int yspan<float   >::size() const;
-    template long int yspan<double  >::size() const;
+    template int64_t yspan<float   >::size() const;
+    template int64_t yspan<double  >::size() const;
 
-    template long int yspan<int8_t  >::size() const;
-    template long int yspan<int16_t >::size() const;
-    template long int yspan<int32_t >::size() const;
-    template long int yspan<int64_t >::size() const;
+    template int64_t yspan<int8_t  >::size() const;
+    template int64_t yspan<int16_t >::size() const;
+    template int64_t yspan<int32_t >::size() const;
+    template int64_t yspan<int64_t >::size() const;
 
-    template long int yspan<uint8_t >::size() const;
-    template long int yspan<uint16_t>::size() const;
-    template long int yspan<uint32_t>::size() const;
-    template long int yspan<uint64_t>::size() const;
+    template int64_t yspan<uint8_t >::size() const;
+    template int64_t yspan<uint16_t>::size() const;
+    template int64_t yspan<uint32_t>::size() const;
+    template int64_t yspan<uint64_t>::size() const;
 
-    template long int yspan<const float   >::size() const;
-    template long int yspan<const double  >::size() const;
+    template int64_t yspan<const float   >::size() const;
+    template int64_t yspan<const double  >::size() const;
 
-    template long int yspan<const int8_t  >::size() const;
-    template long int yspan<const int16_t >::size() const;
-    template long int yspan<const int32_t >::size() const;
-    template long int yspan<const int64_t >::size() const;
+    template int64_t yspan<const int8_t  >::size() const;
+    template int64_t yspan<const int16_t >::size() const;
+    template int64_t yspan<const int32_t >::size() const;
+    template int64_t yspan<const int64_t >::size() const;
 
-    template long int yspan<const uint8_t >::size() const;
-    template long int yspan<const uint16_t>::size() const;
-    template long int yspan<const uint32_t>::size() const;
-    template long int yspan<const uint64_t>::size() const;
+    template int64_t yspan<const uint8_t >::size() const;
+    template int64_t yspan<const uint16_t>::size() const;
+    template int64_t yspan<const uint32_t>::size() const;
+    template int64_t yspan<const uint64_t>::size() const;
 #endif
 
 template <class T>
-long int
+int64_t
 yspan<T>::stride() const {
     return std::max(0L, this->stride_bytes);
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
-    template long int yspan<float   >::stride() const;
-    template long int yspan<double  >::stride() const;
+    template int64_t yspan<float   >::stride() const;
+    template int64_t yspan<double  >::stride() const;
 
-    template long int yspan<int8_t  >::stride() const;
-    template long int yspan<int16_t >::stride() const;
-    template long int yspan<int32_t >::stride() const;
-    template long int yspan<int64_t >::stride() const;
+    template int64_t yspan<int8_t  >::stride() const;
+    template int64_t yspan<int16_t >::stride() const;
+    template int64_t yspan<int32_t >::stride() const;
+    template int64_t yspan<int64_t >::stride() const;
 
-    template long int yspan<uint8_t >::stride() const;
-    template long int yspan<uint16_t>::stride() const;
-    template long int yspan<uint32_t>::stride() const;
-    template long int yspan<uint64_t>::stride() const;
+    template int64_t yspan<uint8_t >::stride() const;
+    template int64_t yspan<uint16_t>::stride() const;
+    template int64_t yspan<uint32_t>::stride() const;
+    template int64_t yspan<uint64_t>::stride() const;
 
-    template long int yspan<const float   >::stride() const;
-    template long int yspan<const double  >::stride() const;
+    template int64_t yspan<const float   >::stride() const;
+    template int64_t yspan<const double  >::stride() const;
 
-    template long int yspan<const int8_t  >::stride() const;
-    template long int yspan<const int16_t >::stride() const;
-    template long int yspan<const int32_t >::stride() const;
-    template long int yspan<const int64_t >::stride() const;
+    template int64_t yspan<const int8_t  >::stride() const;
+    template int64_t yspan<const int16_t >::stride() const;
+    template int64_t yspan<const int32_t >::stride() const;
+    template int64_t yspan<const int64_t >::stride() const;
 
-    template long int yspan<const uint8_t >::stride() const;
-    template long int yspan<const uint16_t>::stride() const;
-    template long int yspan<const uint32_t>::stride() const;
-    template long int yspan<const uint64_t>::stride() const;
+    template int64_t yspan<const uint8_t >::stride() const;
+    template int64_t yspan<const uint16_t>::stride() const;
+    template int64_t yspan<const uint32_t>::stride() const;
+    template int64_t yspan<const uint64_t>::stride() const;
 #endif
 
 template <class T>

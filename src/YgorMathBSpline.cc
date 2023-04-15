@@ -80,7 +80,7 @@ basis_spline::basis_spline(const samples_1D<double> &samps,
     }
 
     //Determine how many breaks (between buckets) will be needed.
-    if(static_cast<long int>(ncoeffs) - static_cast<long int>(k) + 2 <= 0){
+    if(static_cast<intmax_t>(ncoeffs) - static_cast<intmax_t>(k) + 2 <= 0){
         throw std::runtime_error("chosen number of coefficients cannot be supported by choice of order (k).");
     }
     const size_t nbreaks = ncoeffs + 2 - k;

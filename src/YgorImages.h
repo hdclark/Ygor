@@ -15,6 +15,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
@@ -36,10 +37,10 @@ template <class T, class R> class planar_image {
 //        std::unique_ptr<T []> data;
         std::vector<T> data;
 
-        long int rows;      //This is the number of rows in the 2D image.
-        long int columns; 
+        int64_t rows;       //This is the number of rows in the 2D image.
+        int64_t columns; 
 
-        long int channels;  //The number of colour channels.
+        int64_t channels;   //The number of colour channels.
 
         R pxl_dx;//(row)    //This is the R^3 spacing of nearest-neighbour pixels, which is assumed to 
         R pxl_dy;//(col)    // also be the in-plane dimensions of each pixel (i.e., image pixels are 
@@ -91,11 +92,11 @@ template <class T, class R> class planar_image {
         //------------------------------------ Member functions --------------------------------------------
         //Zero-based "row-major" indexing (the default, and used internally).
         // These routines return -1 if out-of-bounds.
-        long int index(long int r, long int c) const;
-        long int index(long int row, long int col, long int chnl) const;
-        long int index(const vec3<R> &point, long int chnl) const;
+        int64_t index(int64_t r, int64_t c) const;
+        int64_t index(int64_t row, int64_t col, int64_t chnl) const;
+        int64_t index(const vec3<R> &point, int64_t chnl) const;
 
-        std::tuple<long int,long int,long int> row_column_channel_from_index(long int index) const;
+        std::tuple<int64_t,int64_t,int64_t> row_column_channel_from_index(int64_t index) const;
         std::pair<R, R> fractional_row_column(const vec3<R> &point) const; //throws if out-of-bounds.
 
     //public:
@@ -107,7 +108,7 @@ template <class T, class R> class planar_image {
         ~planar_image();
 
         //Allocating space and initializing the purely-2D-image members.
-        void init_buffer(long int rows, long int columns, long int channels);
+        void init_buffer(int64_t rows, int64_t columns, int64_t channels);
 
         //Initializing the R^3 members. These are less important because they won't cause a segfault.
         // If one wants to simply deal with R^2 image data, they could probably skip these.
@@ -127,94 +128,94 @@ template <class T, class R> class planar_image {
         bool Spatially_lte(const planar_image &) const;
 
         //Get the value of a channel. These throw if out-of-bounds.
-        T value(long int row, long int col, long int chnl) const;
-        T value(const vec3<R> &point, long int chnl) const;
-        T value(long int index) const;
+        T value(int64_t row, int64_t col, int64_t chnl) const;
+        T value(const vec3<R> &point, int64_t chnl) const;
+        T value(int64_t index) const;
 
         //Get a reference to the value of a channel. These throw if out-of-bounds.
-        T& reference(long int row, long int col, long int chnl);
-        T& reference(const vec3<R> &point, long int chnl);
-        T& reference(long int index);
+        T& reference(int64_t row, int64_t col, int64_t chnl);
+        T& reference(const vec3<R> &point, int64_t chnl);
+        T& reference(int64_t index);
 
         //Add and remove channels.
         void add_channel(T channel_value);
-        void remove_channel(long int channel_number); // Zero-based.
-        void remove_all_channels_except(long int channel_number); // Zero-based.
+        void remove_channel(int64_t channel_number); // Zero-based.
+        void remove_all_channels_except(int64_t channel_number); // Zero-based.
 
         //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).
         // Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
-        T bilinearly_interpolate_in_pixel_number_space(R row, R col, long int chnl) const; //Fails on out-of-bounds input.
+        T bilinearly_interpolate_in_pixel_number_space(R row, R col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Compute centered finite-difference approximations of derivatives (in pixel coordinate space) along the row and column axes.
         // First derivatives. Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
-        R row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        R row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Compute centered finite-difference approximations of derivatives (in pixel coordinate space) along the row and column axes.
         // Second derivatives. Only nearest neighbour pixels are used, and mirror boundary conditions are assumed. Pixel shape is ignored.
-        R row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        R cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        R row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        R cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Interpolate within the plane of the image, in pixel number coordinates (e.g, permitting fractional pixel row and numbers).
         // Only nearest neighbour pixels are used, but derivatives use NN-NN pixels. Mirror boundary conditions are assumed. Pixel shape is ignored.
-        T bicubically_interpolate_in_pixel_number_space(R row, R col, long int chnl) const; //Fails on out-of-bounds input.
+        T bicubically_interpolate_in_pixel_number_space(R row, R col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Average a block of pixels. Boundaries are inclusive. Out-of-bounds parts are ignored. Negatives OK (they are just ignored).
-        T block_average(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const; 
-        T block_median(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const;
+        T block_average(int64_t row_min, int64_t row_max, int64_t col_min, int64_t col_max, int64_t chnl) const; 
+        T block_median(int64_t row_min, int64_t row_max, int64_t col_min, int64_t col_max, int64_t chnl) const;
 
         //Approximate pixel-coordinate blurs using precomputed convolution kernel estimators.
-        T fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        T fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        T fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        T fixed_box_blur_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
-        T fixed_box_blur_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
+        T fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Approximate pixel-coordinate sharpening using precomputed convolution kernel estimators.
-        T fixed_sharpen_3x3(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
-        T fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const; //Fails on out-of-bounds input.
+        T fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Minimum and maximum pixel values.
         std::pair<T,T> minmax(void) const; //The min/maximum pixel values of all channels.
 
         //Set all pixel data to the given value.
-        void fill_pixels(long int chnl, T val);
+        void fill_pixels(int64_t chnl, T val);
         void fill_pixels(T val); //All channels.
 
         //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
-        long int set_voxels_above_plane(const plane<R> &, T val, std::set<long int> chnls);
+        int64_t set_voxels_above_plane(const plane<R> &, T val, std::set<int64_t> chnls);
 
         //Apply a functor to individual pixels.
-        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
-        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func);
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const;
 
         //Replace non-finite numbers.
-        void replace_nonfinite_pixels_with(long int chnl, T val);
+        void replace_nonfinite_pixels_with(int64_t chnl, T val);
         void replace_nonfinite_pixels_with(T val); //All channels.
 
         //Get an R^3 position of the *center* of the pixel/voxel.
-        vec3<R> position(long int row, long int col) const;
-        vec3<R> position(long int index) const;
+        vec3<R> position(int64_t row, int64_t col) const;
+        vec3<R> position(int64_t index) const;
 
         //Determine if a given point in R^3 is encompassed by the 3D volume of the image (using 'thickness' pxl_dz).
         bool encompasses_point(const vec3<R> &in) const; //Note: does not consider points on the outermost surface encompassed.
@@ -256,7 +257,7 @@ template <class T, class R> class planar_image {
         R Spatial_Overlap_Dice_Sorensen_Coefficient(const planar_image<T,R> &in) const;
 
         //Blur pixels isotropically, completely ignoring pixel shape and real-space coordinates. Leave chnls empty for all channels.
-        bool Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+        bool Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
@@ -318,7 +319,7 @@ template <class T,class R>   class planar_image_collection {
         //Stable ordering operations. Useful for sorting on several keys (one at a time -- stable!).
         void Stable_Sort(std::function<bool(const planar_image<T,R> &lhs, const planar_image<T,R> &rhs)> lt_func);
 
-        template <class P> void Stable_Sort_on_Metadata_Keys_Value_Numeric(const std::string &key); //Specialized for long int and double.
+        template <class P> void Stable_Sort_on_Metadata_Keys_Value_Numeric(const std::string &key); //Specialized for int64_t and double.
         void Stable_Sort_on_Metadata_Keys_Value_Lexicographic(const std::string &key);
 
         //Generate a stable-ordered list of iterators to images. Be careful not to invalidate the data after calling these!
@@ -416,14 +417,14 @@ template <class T,class R>   class planar_image_collection {
 
         //Blur pixels isotropically, independently in their image plane, completely ignoring pixel shape and real-space coordinates.
         // Leave chnls empty for all channels. For more selectivity, run on each image separately.
-        bool Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+        bool Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
 
         //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
-        long int set_voxels_above_plane(const plane<R> &, T val, std::set<long int> chnls);
+        int64_t set_voxels_above_plane(const plane<R> &, T val, std::set<int64_t> chnls);
 
         //Apply a functor to individual pixels.
-        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func);
-        void apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func);
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const;
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;
@@ -441,14 +442,14 @@ template <class T,class R>   class planar_image_collection {
         bool Collate_Images(planar_image_collection<T,R> &in, bool GeometricalOverlapOK = true);
 
         //Interpolate in R^3.
-        T trilinearly_interpolate(const vec3<R> &position, long int chnl, R out_of_bounds = std::numeric_limits<T>::quiet_NaN());
+        T trilinearly_interpolate(const vec3<R> &position, int64_t chnl, R out_of_bounds = std::numeric_limits<T>::quiet_NaN());
 
 };
 
 
 //Produce an image by cutting through the image collection and copying intersecting pixels.
 template <class T,class R>
-long int Intersection_Copy(planar_image<T,R> &in, 
+int64_t Intersection_Copy(planar_image<T,R> &in, 
                            const std::list<typename planar_image_collection<T,R>::images_list_it_t> &imgs);
 
 
@@ -459,10 +460,10 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
                          const R x_margin = static_cast<R>(1.0),
                          const R y_margin = static_cast<R>(1.0),
                          const R z_margin = static_cast<R>(1.0),
-                         const long int number_of_rows = 256,
-                         const long int number_of_columns = 256,
-                         const long int number_of_channels = 1,
-                         const long int number_of_images = 25,
+                         const int64_t number_of_rows = 256,
+                         const int64_t number_of_columns = 256,
+                         const int64_t number_of_channels = 1,
+                         const int64_t number_of_images = 25,
                          const vec3<R> &x_orientation = vec3<R>(static_cast<R>(1), static_cast<R>(0), static_cast<R>(0)),
                          const vec3<R> &y_orientation = vec3<R>(static_cast<R>(0), static_cast<R>(1), static_cast<R>(0)),
                          const vec3<R> &z_orientation = vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(1)),
@@ -478,10 +479,10 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                                        const R x_margin = static_cast<R>(1.0),
                                        const R y_margin = static_cast<R>(1.0),
                                        const R z_margin = static_cast<R>(1.0),
-                                       const long int number_of_rows = 256,
-                                       const long int number_of_columns = 256,
-                                       const long int number_of_channels = 1,
-                                       const long int number_of_images = 25,
+                                       const int64_t number_of_rows = 256,
+                                       const int64_t number_of_columns = 256,
+                                       const int64_t number_of_channels = 1,
+                                       const int64_t number_of_images = 25,
                                        const line<R> &symm_line = line<double>( vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(0)),
                                                                                 vec3<R>(static_cast<R>(0), static_cast<R>(0), static_cast<R>(1)) ),
                                        const vec3<R> &x_orientation = vec3<R>(static_cast<R>(1), static_cast<R>(0), static_cast<R>(0)),
@@ -635,9 +636,9 @@ struct Mutate_Voxels_Opts {
 // Note: The mask image is made accessible to user functors, but should not be modified.
 //
 template <class T,class R>
-using Mutate_Voxels_Functor = std::function<void(long int row,
-                                                 long int col,
-                                                 long int channel,
+using Mutate_Voxels_Functor = std::function<void(int64_t row,
+                                                 int64_t col,
+                                                 int64_t channel,
                                                  std::reference_wrapper<planar_image<T,R>> img_refw,
                                                  std::reference_wrapper<planar_image<T,R>> mask_img_refw,
                                                  T &voxel_val)>;
@@ -724,7 +725,7 @@ template <class T,class R>   class planar_image_adjacency {
 
         // Index-to-image and vice versa.
         std::vector<img_ptr_t> int_to_img;
-        std::map<img_ptr_t, long int> img_to_int;
+        std::map<img_ptr_t, int64_t> img_to_int;
 
         // Planes that define a bounding volume for faster interpolation outside the useful volume.
         //
@@ -747,8 +748,8 @@ template <class T,class R>   class planar_image_adjacency {
         position_to_image(const vec3<R> &p) const;
 
         // Query for the lowest- and highest-numbered images in the index.
-        // Indices are inclusive, so use like: 'for(long int i = min; i <= max; ++i){ ... }'.
-        std::pair<long int, long int> get_min_max_indices() const;
+        // Indices are inclusive, so use like: 'for(int64_t i = min; i <= max; ++i){ ... }'.
+        std::pair<int64_t, int64_t> get_min_max_indices() const;
 
         // Query for whole images that overlap.
         // This is useful when working with two overlapping rectilinear grids.
@@ -759,16 +760,16 @@ template <class T,class R>   class planar_image_adjacency {
         get_wholly_overlapping_images(const img_refw_t &) const;
             
         // Query whether the index or image are known by this class.
-        bool index_present(long int) const;
+        bool index_present(int64_t) const;
         bool image_present(const img_refw_t &) const;
 
         // Convert an index to an image reference, and vice versa.
-        img_refw_t index_to_image(long int) const;
-        long int image_to_index(const img_refw_t &) const;
+        img_refw_t index_to_image(int64_t) const;
+        int64_t image_to_index(const img_refw_t &) const;
         
         // Interpolate the image at the given point, if it is possible.
         T trilinearly_interpolate(const vec3<R> &pos,
-                                  long int chnl, 
+                                  int64_t chnl, 
                                   R out_of_bounds = std::numeric_limits<T>::quiet_NaN()) const;
 };
 

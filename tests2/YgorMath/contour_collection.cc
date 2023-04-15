@@ -3,6 +3,7 @@
 #include <list>
 #include <utility>
 #include <iostream>
+#include <cstdint>
 
 #include <YgorMath.h>
 
@@ -30,7 +31,7 @@ TEST_CASE( "contour_collection metadata operations" ){
     cc.contours.back().metadata["test3"] = "A";
 
     const auto count_occurrences = [](const std::list<std::string> &l, const std::string &s){
-        long int N = 0;
+        int64_t N = 0;
         for(const auto& o : l) N += (o == s) ? 1 : 0;
         return N;
     };

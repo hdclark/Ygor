@@ -51,10 +51,10 @@ namespace NGRAMS {
     const unsigned char CHARS  = 0x1;
     const unsigned char WORDS  = 0x2;
 }
-std::map<std::string,float> NGrams_With_Occurence(const std::string &thestring, long int numb_of_ngrams, long int length_of_ngrams, const unsigned char &type);
-std::set<std::string> NGrams(const std::string &thestring, long int numb_of_ngrams, long int length_of_ngrams, const unsigned char &type);
+std::map<std::string,float> NGrams_With_Occurence(const std::string &thestring, int64_t numb_of_ngrams, int64_t length_of_ngrams, const unsigned char &type);
+std::set<std::string> NGrams(const std::string &thestring, int64_t numb_of_ngrams, int64_t length_of_ngrams, const unsigned char &type);
 std::set<std::string> NGram_Matches(const std::set<std::string> &A, const std::set<std::string> &B);
-long int NGram_Match_Count(const std::set<std::string> &A, const std::set<std::string> &B);
+int64_t NGram_Match_Count(const std::set<std::string> &A, const std::set<std::string> &B);
 
 
 //-------------------------------------------------------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ std::string Remove_Trailing_Chars(const std::string &in, const std::string &char
 //-------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------- Common text conversions --------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
-std::string inttostring(long int number);
+std::string inttostring(int64_t number);
 std::string floattostring(float number);
 
 template <class T>   std::string Xtostring(T numb);
@@ -136,7 +136,7 @@ std::string encode_metadata_kv_pair( const std::pair<std::string,std::string> &k
 //-------------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------- Generic String-related Routines -----------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
-std::string Generate_Random_String_of_Length(long int len);
+std::string Generate_Random_String_of_Length(int64_t len);
 
 std::string Lineate_Vector(const std::vector<std::string> &in, const std::string &separator);
 
@@ -173,7 +173,7 @@ std::string GetFirstRegex(std::vector<std::string> &source, std::string query);
 std::vector<std::string> GetAllRegex2(const std::string &source, std::string query);
 std::vector<std::string> GetAllRegex2(const std::string &source, const std::regex &regex_the_query);
 
-std::string GetLineNBelow( std::vector<std::string> &source, std::string query, long int N);
+std::string GetLineNBelow( std::vector<std::string> &source, std::string query, int64_t N);
 
 std::vector<std::vector<std::string>> GetSubVectorFromTo( std::vector<std::string> &in, std::string from, std::string to);
 
@@ -203,18 +203,18 @@ std::string Break_Paragraphs_Into_Text(const std::vector<std::string> &in);
 
 //Returns a broken vector which fits within the given max width.
 //NOTE: Takes a single line. Knows nothing about paragraphs.
-std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W = 120, long int indent = 0);
+std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, int64_t W = 120, int64_t indent = 0);
 
 //Returns a broken vector of possibly multiple paragraphs which fits within the given max width and is indented.
 //NOTE: Takes a linear collection of paragraphs. Assumes paragraphs are separated by "\n\n".
-std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, long int W = 120, long int indent = 0);
+std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, int64_t W = 120, int64_t indent = 0);
 
 //Returns a broken vector composed of (possibly multiple) paragraphs which are laid side-by-side. 
-std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std::string &inL, long int WL, long int indentL, 
+std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std::string &inL, int64_t WL, int64_t indentL, 
                                                                       const std::string &sep,
-                                                                      const std::string &inR, long int WR, long int indentR);
+                                                                      const std::string &inR, int64_t WR, int64_t indentR);
 
 //Centers a given line to a specified width by padding the left side with ' 's.
-std::string Reflow_Line_Align_Center(const std::string &in, long int W = 120);
+std::string Reflow_Line_Align_Center(const std::string &in, int64_t W = 120);
 
 #endif

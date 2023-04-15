@@ -1,6 +1,7 @@
 #include <memory>
 #include <iostream>
 #include <list>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -15,9 +16,9 @@ int main(int argc, char **argv){
 
   if(true){
     class planar_image<unsigned int,double> animg;
-    const long int ROWS  = 10;
-    const long int COLS  = 50;
-    const long int CHNLS = 4;
+    const int64_t ROWS  = 10;
+    const int64_t COLS  = 50;
+    const int64_t CHNLS = 4;
     animg.init_buffer(ROWS, COLS, CHNLS);
     animg.reference(8,49,3) = 4200;
     std::cout << "After setting the value to 4200, we get the value: " << animg.value(8,49,3) << std::endl;
@@ -25,9 +26,9 @@ int main(int argc, char **argv){
 
   if(true){
     class planar_image<unsigned int,double> another;
-    const long int ROWS  = 10;
-    const long int COLS  = 50;
-    const long int CHNLS = 4;
+    const int64_t ROWS  = 10;
+    const int64_t COLS  = 50;
+    const int64_t CHNLS = 4;
     another.init_buffer(ROWS, COLS, CHNLS);
     another.reference(8,49,3) = 4200;
     std::cout << "After setting the value to 4200, we get the value: " << another.value(8,49,3) << std::endl;
@@ -35,9 +36,9 @@ int main(int argc, char **argv){
 
   if(true){
     class planar_image<unsigned int,double> another;
-    const long int ROWS  = 50;
-    const long int COLS  = 50;
-    const long int CHNLS = 100; //Lots of channels!
+    const int64_t ROWS  = 50;
+    const int64_t COLS  = 50;
+    const int64_t CHNLS = 100; //Lots of channels!
     double pxl_dx = 2.0;
     double pxl_dy = 2.0;
     double pxl_dz = 5000.0; //"Thickness" - arbitrary!
@@ -64,9 +65,9 @@ int main(int argc, char **argv){
 
   if(true){
     class planar_image<unsigned int,double> another;
-    const long int ROWS  = 50;
-    const long int COLS  = 50;
-    const long int CHNLS = 100; //Lots of channels!
+    const int64_t ROWS  = 50;
+    const int64_t COLS  = 50;
+    const int64_t CHNLS = 100; //Lots of channels!
     double pxl_dx = 2.0;
     double pxl_dy = 3.0;
     double pxl_dz = 5000.0; //"Thickness" - arbitrary!
@@ -100,9 +101,9 @@ int main(int argc, char **argv){
   if(true){
     class planar_image_collection<float,double> imgs;
     imgs.images.emplace_back();
-    const long int ROWS  = 512;
-    const long int COLS  = 1024; //wide image.
-    const long int CHNLS = 1;
+    const int64_t ROWS  = 512;
+    const int64_t COLS  = 1024; //wide image.
+    const int64_t CHNLS = 1;
 
     imgs.images.back().init_buffer(ROWS, COLS, CHNLS);
 
@@ -126,9 +127,9 @@ int main(int argc, char **argv){
 
   if(true){
     class planar_image_collection<float,double> imgsA;
-    const long int ROWS  = 512;
-    const long int COLS  = 1024; //wide image.
-    const long int CHNLS = 3;
+    const int64_t ROWS  = 512;
+    const int64_t COLS  = 1024; //wide image.
+    const int64_t CHNLS = 3;
 
     imgsA.images.emplace_back();
     imgsA.images.back().init_buffer(ROWS, COLS, CHNLS);

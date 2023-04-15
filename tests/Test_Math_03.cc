@@ -7,6 +7,7 @@
 #include <tuple>
 #include <vector>
 #include <random>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -845,12 +846,12 @@ int main(int argc, char **argv){
       std::random_device rd;
       std::default_random_engine generator(rd());
       std::normal_distribution<double> distribution(5.0,2.0); //Gaussian/normal.
-      for(long int i=0; i<10000; ++i){
+      for(int64_t i=0; i<10000; ++i){
           double anumber = distribution(generator);
           nums.push_back(anumber);
       }
 
-      const long int bins = 50;
+      const int64_t bins = 50;
       const bool withbins = true;
       const auto hista = Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(nums, bins,  withbins);
       const auto histb = Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(nums, bins, !withbins);
@@ -877,12 +878,12 @@ int main(int argc, char **argv){
 
       const bool inhibit_sort = true;
       samples_1D<double> adist;
-      for(long int i=0; i<20000; ++i){
+      for(int64_t i=0; i<20000; ++i){
           adist.push_back({ xdist(gen), sxdist(gen), ydist(gen), sydist(gen) }, inhibit_sort);
       }
       adist.stable_sort();
 
-      const long int bins = 50;
+      const int64_t bins = 50;
       const bool withbins = true;
       const auto hista = adist.Histogram_Equal_Sized_Bins(bins,  withbins);
       const auto histb = adist.Histogram_Equal_Sized_Bins(bins, !withbins);

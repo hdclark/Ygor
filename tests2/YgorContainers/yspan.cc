@@ -5,6 +5,7 @@
 #include <limits>
 #include <utility>
 #include <iostream>
+#include <cstdint>
 
 #include <YgorMath.h>
 #include <YgorContainers.h>
@@ -85,7 +86,7 @@ TEST_CASE( "yspan accessors" ){
 
     SUBCASE("at() with composite array"){
         // "a" element using stride from only sizeof().
-        const long int a_stride_1 = sizeof(comp_t) - sizeof(decltype(comp[0].a));
+        const int64_t a_stride_1 = sizeof(comp_t) - sizeof(decltype(comp[0].a));
         yspan<int32_t> sa1(&comp[0].a, comp.size(), a_stride_1);
 
         REQUIRE_THROWS(sa1.at(-1));
@@ -95,7 +96,7 @@ TEST_CASE( "yspan accessors" ){
         REQUIRE_THROWS(sa1.at(50));
 
         // "a" element using stride computed from difference of pointers.
-        const long int a_stride_2 = static_cast<long int>(
+        const int64_t a_stride_2 = static_cast<int64_t>(
                                       reinterpret_cast<std::uintptr_t>(std::addressof(comp[1].a))
                                       - reinterpret_cast<std::uintptr_t>(std::addressof(comp[0].a)) )
                                   - sizeof(decltype(comp[0].a));
@@ -108,7 +109,7 @@ TEST_CASE( "yspan accessors" ){
         REQUIRE_THROWS(sa2.at(50));
 
         // "b" element using stride from only sizeof().
-        const long int b_stride_1 = sizeof(comp_t) - sizeof(decltype(comp[0].b));
+        const int64_t b_stride_1 = sizeof(comp_t) - sizeof(decltype(comp[0].b));
         yspan<float> sb1(&comp[0].b, comp.size(), b_stride_1);
 
         REQUIRE_THROWS(sb1.at(-1));
@@ -118,7 +119,7 @@ TEST_CASE( "yspan accessors" ){
         REQUIRE_THROWS(sb1.at(50));
 
         // "c" element using stride computed from difference of pointers and skipping every other element.
-        const long int c_stride_1 = static_cast<long int>(
+        const int64_t c_stride_1 = static_cast<int64_t>(
                                       reinterpret_cast<std::uintptr_t>(std::addressof(comp[2].c))
                                       - reinterpret_cast<std::uintptr_t>(std::addressof(comp[0].c)) )
                                   - sizeof(decltype(comp[0].c));
@@ -131,7 +132,7 @@ TEST_CASE( "yspan accessors" ){
         REQUIRE_THROWS(sc1.at(25));
 
         // "d" element using stride from only sizeof() and skipping to every fifth element.
-        const long int d_stride_1 = sizeof(comp_t) * 5L - sizeof(decltype(comp[0].d));
+        const int64_t d_stride_1 = sizeof(comp_t) * 5L - sizeof(decltype(comp[0].d));
         yspan<int64_t> sd1(&comp[0].d, comp.size()/5, d_stride_1);
 
         REQUIRE_THROWS(sd1.at(-1));
@@ -192,10 +193,10 @@ TEST_CASE( "yspan iterators" ){
 
     SUBCASE("iterator begin() and end() span all elements"){
         auto it1 = s1.begin();
-        for(long int i = 0; i < 50; ++i) ++it1;
+        for(int64_t i = 0; i < 50; ++i) ++it1;
         REQUIRE(it1 == s1.end());
 
-        for(long int i = 0; i < 50; ++i) --it1;
+        for(int64_t i = 0; i < 50; ++i) --it1;
         REQUIRE(it1 == s1.begin());
     }
 
@@ -263,7 +264,7 @@ TEST_CASE( "yspan iterators" ){
         comp.back().c = 10'000.0 + i;
         comp.back().d = 100'000L + i;
     }
-    const long int a_stride = sizeof(comp_t) - sizeof(decltype(comp[0].a));
+    const int64_t a_stride = sizeof(comp_t) - sizeof(decltype(comp[0].a));
     yspan<int32_t> s3(&comp[0].a, comp.size(), a_stride);
 
     SUBCASE("iterator with heterogeneous array and with stride"){
@@ -328,8 +329,8 @@ TEST_CASE( "yspan comparison operators" ){
             REQUIRE( L1 == L1 );
             REQUIRE( L1 == L2 );
 
-            for(long int row = 0; row < 10; ++row){
-                for(long int col = 0; col < 10; ++col){
+            for(int64_t row = 0; row < 10; ++row){
+                for(int64_t col = 0; col < 10; ++col){
                     yspan<double> L3(L1);
                     REQUIRE( L1 == L3 );
                     L3.coeff(row,col) = 2.0;
@@ -369,7 +370,7 @@ TEST_CASE( "yspan comparison operators" ){
         L1.coeff(0,0) = 2.0;
         yspan<double> L2;
         yspan<double> L3 = L1;
-        long int i;
+        int64_t i;
 
         i = 0;
         i += (L1 < L1) ? 1 : 0;
@@ -396,8 +397,8 @@ TEST_CASE( "yspan scalar operators" ){
         REQUIRE(L1 != L2);
         REQUIRE(L1 == L3);
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == 1.0 );
                 REQUIRE( L2.coeff(row,col) == -6.0 );
                 REQUIRE( L3.coeff(row,col) == 1.0 );
@@ -414,8 +415,8 @@ TEST_CASE( "yspan scalar operators" ){
         REQUIRE(L1 != L2);
         REQUIRE(L1 == L3);
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == 1.0 );
                 REQUIRE( L2.coeff(row,col) == -6.0 );
                 REQUIRE( L3.coeff(row,col) == 1.0 );
@@ -441,8 +442,8 @@ TEST_CASE( "yspan matrix operators" ){
         auto L3 = L1 + L1 + L2;
         auto L4 = L1 + L1 + L2 + L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( 3.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( 4.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -473,8 +474,8 @@ TEST_CASE( "yspan matrix operators" ){
         auto L3 = L1 - L1 - L2;
         auto L4 = L1 - L1 - L2 - L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( -1.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( -2.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -596,8 +597,8 @@ TEST_CASE( "yspan matrix operators" ){
         L3 += L2;
         auto L4 = ((L1 + L1) += L2) += L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( 3.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( 4.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -630,8 +631,8 @@ TEST_CASE( "yspan matrix operators" ){
         L3 -= L2;
         auto L4 = ((L1 - L1) -= L2) -= L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( -1.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( -2.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -835,15 +836,15 @@ TEST_CASE( "yspan other member functions" ){
 
     SUBCASE("yspan factory members" ){
         const auto L1 = yspan<double>().zero(3,3);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.read_coeff(row,col) == 0.0 );
             }
         }
 
         const auto L2 = yspan<double>().identity(3);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 if(row == col){
                     REQUIRE( L2.read_coeff(row,col) == 1.0 );
                 }else{
@@ -853,8 +854,8 @@ TEST_CASE( "yspan other member functions" ){
         }
 
         const auto L3 = yspan<double>().iota(3,3,0.0);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 const auto expected_val = static_cast<double>( L3.index(row,col) );
                 REQUIRE( L3.read_coeff(row,col) == expected_val );
             }
@@ -1138,8 +1139,8 @@ TEST_CASE( "yspan invert" ){
             throw std::logic_error("Invalid comparison between matrices of differing sizes");
         }
         double max_diff = 0.0;
-        for(long int r = 0; r < A.num_rows(); ++r){
-            for(long int c = 0; c < B.num_rows(); ++c){
+        for(int64_t r = 0; r < A.num_rows(); ++r){
+            for(int64_t c = 0; c < B.num_rows(); ++c){
                 const auto diff = std::abs(B.read_coeff(r,c) - A.read_coeff(r,c));
                 if(diff < max_diff) max_diff = diff;
             }

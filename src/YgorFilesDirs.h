@@ -49,8 +49,8 @@ bool Does_Fifo_Exist(const std::string &filename);
 //Generates random filenames, given a prefix filename. This replaces mkstemp, tmpfile, etc.. from unistd
 // and other non-portable (non-reliable?) methods (just need to wrap the guts of these functions for other
 // systems...)   NOTE: This routine does *not* reserve the name for you!
-std::string Get_Unique_Filename(const std::string &prefix, const long int len, const std::string &suffix = "");
-std::string Get_Unique_Sequential_Filename(const std::string &prefix, const long int n_of_zero_pads = 6, const std::string &suffix = "");
+std::string Get_Unique_Filename(const std::string &prefix, const int64_t len, const std::string &suffix = "");
+std::string Get_Unique_Sequential_Filename(const std::string &prefix, const int64_t n_of_zero_pads = 6, const std::string &suffix = "");
 
 //Expand a filename/partial path/full path/symbolic link/./.. into a full path. Empty string is returned on fail.
 std::string Fully_Expand_Filename(const std::string &filename);

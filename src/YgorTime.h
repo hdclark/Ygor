@@ -65,7 +65,7 @@ class time_mark {
 
 
         //Distance-based comparisons.
-        bool Is_within_X_seconds(const time_mark &T, long int X) const; //Can be + or - from the event. Absolute distance from event in seconds.
+        bool Is_within_X_seconds(const time_mark &T, int64_t X) const; //Can be + or - from the event. Absolute distance from event in seconds.
 
         //These will return:  (T_in - T_this).
         time_t Diff_in_Seconds(const time_mark &T) const; //Can be either positive or negative. Resolution: 1sec.

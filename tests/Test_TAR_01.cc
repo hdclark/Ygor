@@ -5,6 +5,7 @@
 #include <cmath>
 #include <string>
 #include <list>
+#include <cstdint>
 
 #include "YgorMath.h"
 #include "YgorMisc.h"         //Needed for FUNCINFO, FUNCWARN, FUNCERR macros.
@@ -26,7 +27,7 @@ int main(int, char **){
             ustar_writer ustar(ofs);
 
             std::stringstream ss(fcontents);
-            const auto fsize = static_cast<long int>(ss.str().size());
+            const auto fsize = static_cast<int64_t>(ss.str().size());
             ustar.add_file(ss, "test_tar_file_01.txt", fsize);
         }
 
@@ -36,11 +37,11 @@ int main(int, char **){
         {
             const auto file_handler = [fcontents]( std::istream &is,
                                                    std::string fname,
-                                                   long int fsize,
+                                                   int64_t fsize,
                                                    std::string fmode,
                                                    std::string fuser,
                                                    std::string fgroup,
-                                                   long int ftime,
+                                                   int64_t ftime,
                                                    std::string o_name,
                                                    std::string g_name,
                                                    std::string fprefix) -> void {
@@ -81,11 +82,11 @@ int main(int, char **){
         {
             const auto file_handler = [fcontents]( std::istream &is,
                                                    std::string fname,
-                                                   long int fsize,
+                                                   int64_t fsize,
                                                    std::string fmode,
                                                    std::string fuser,
                                                    std::string fgroup,
-                                                   long int ftime,
+                                                   int64_t ftime,
                                                    std::string o_name,
                                                    std::string g_name,
                                                    std::string fprefix) -> void {

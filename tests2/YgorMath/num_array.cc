@@ -43,8 +43,8 @@ TEST_CASE( "num_array constructors" ){
     }
 
     SUBCASE("sized constructor sizes are honoured"){
-        for(long int rows = 1; rows < 11; rows += 3){
-            for(long int cols = 1; cols < 11; cols += 3){
+        for(int64_t rows = 1; rows < 11; rows += 3){
+            for(int64_t cols = 1; cols < 11; cols += 3){
                 num_array<double> A(rows, cols);
                 REQUIRE(A.size() == A.num_rows() * A.num_cols());
                 REQUIRE(A.size() == rows * cols);
@@ -53,8 +53,8 @@ TEST_CASE( "num_array constructors" ){
     }
 
     SUBCASE("copy constructor copies correctly"){
-        for(long int rows = 2; rows < 12; rows += 3){
-            for(long int cols = 3; cols < 13; cols += 3){
+        for(int64_t rows = 2; rows < 12; rows += 3){
+            for(int64_t cols = 3; cols < 13; cols += 3){
                 num_array<double> A(rows, cols);
                 A.coeff(0, 0) = 1.0;
                 A.coeff(rows-1, 0) = 2.0;
@@ -132,8 +132,8 @@ TEST_CASE( "num_array comparison operators" ){
             REQUIRE( L1 == L1 );
             REQUIRE( L1 == L2 );
 
-            for(long int row = 0; row < 10; ++row){
-                for(long int col = 0; col < 10; ++col){
+            for(int64_t row = 0; row < 10; ++row){
+                for(int64_t col = 0; col < 10; ++col){
                     num_array<double> L3(L1);
                     REQUIRE( L1 == L3 );
                     L3.coeff(row,col) = 2.0;
@@ -173,7 +173,7 @@ TEST_CASE( "num_array comparison operators" ){
         L1.coeff(0,0) = 2.0;
         num_array<double> L2;
         num_array<double> L3 = L1;
-        long int i;
+        int64_t i;
 
         i = 0;
         i += (L1 < L1) ? 1 : 0;
@@ -200,8 +200,8 @@ TEST_CASE( "num_array scalar operators" ){
         REQUIRE(L1 != L2);
         REQUIRE(L1 == L3);
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == 1.0 );
                 REQUIRE( L2.coeff(row,col) == -6.0 );
                 REQUIRE( L3.coeff(row,col) == 1.0 );
@@ -218,8 +218,8 @@ TEST_CASE( "num_array scalar operators" ){
         REQUIRE(L1 != L2);
         REQUIRE(L1 == L3);
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == 1.0 );
                 REQUIRE( L2.coeff(row,col) == -6.0 );
                 REQUIRE( L3.coeff(row,col) == 1.0 );
@@ -245,8 +245,8 @@ TEST_CASE( "num_array matrix operators" ){
         auto L3 = L1 + L1 + L2;
         auto L4 = L1 + L1 + L2 + L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( 3.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( 4.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -277,8 +277,8 @@ TEST_CASE( "num_array matrix operators" ){
         auto L3 = L1 - L1 - L2;
         auto L4 = L1 - L1 - L2 - L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( -1.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( -2.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -400,8 +400,8 @@ TEST_CASE( "num_array matrix operators" ){
         L3 += L2;
         auto L4 = ((L1 + L1) += L2) += L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( 3.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( 4.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -434,8 +434,8 @@ TEST_CASE( "num_array matrix operators" ){
         L3 -= L2;
         auto L4 = ((L1 - L1) -= L2) -= L1;
 
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.coeff(row,col) == L2.coeff(row,col) );
                 REQUIRE( -1.0 * L1.coeff(row,col) == L3.coeff(row,col) );
                 REQUIRE( -2.0 * L1.coeff(row,col) == L4.coeff(row,col) );
@@ -639,15 +639,15 @@ TEST_CASE( "num_array other member functions" ){
 
     SUBCASE("num_array factory members" ){
         const auto L1 = num_array<double>().zero(3,3);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 REQUIRE( L1.read_coeff(row,col) == 0.0 );
             }
         }
 
         const auto L2 = num_array<double>().identity(3);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 if(row == col){
                     REQUIRE( L2.read_coeff(row,col) == 1.0 );
                 }else{
@@ -657,8 +657,8 @@ TEST_CASE( "num_array other member functions" ){
         }
 
         const auto L3 = num_array<double>().iota(3,3,0.0);
-        for(long int row = 0; row < L1.num_rows(); ++row){
-            for(long int col = 0; col < L1.num_cols(); ++col){
+        for(int64_t row = 0; row < L1.num_rows(); ++row){
+            for(int64_t col = 0; col < L1.num_cols(); ++col){
                 const auto expected_val = static_cast<double>( L3.index(row,col) );
                 REQUIRE( L3.read_coeff(row,col) == expected_val );
             }
@@ -942,8 +942,8 @@ TEST_CASE( "num_array invert" ){
             throw std::logic_error("Invalid comparison between matrices of differing sizes");
         }
         double max_diff = 0.0;
-        for(long int r = 0; r < A.num_rows(); ++r){
-            for(long int c = 0; c < B.num_rows(); ++c){
+        for(int64_t r = 0; r < A.num_rows(); ++r){
+            for(int64_t c = 0; c < B.num_rows(); ++c){
                 const auto diff = std::abs(B.read_coeff(r,c) - A.read_coeff(r,c));
                 if(diff < max_diff) max_diff = diff;
             }

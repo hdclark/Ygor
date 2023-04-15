@@ -154,7 +154,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
     reset();
 
     std::string line;
-    long int header_failures = 0;
+    int32_t header_failures = 0;
     while(std::getline(is, line)){
         if(line.empty()) continue;
 
@@ -243,7 +243,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                         return false;
                     }
                     std::vector<I> shtl;
-                    for(long int i = 1; i < N; ++i){
+                    for(intmax_t i = 1; i < N; ++i){
                         const auto x = std::stoll(split.at(i));
                         shtl.emplace_back( static_cast<I>(x) );
                     }

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <functional>
 #include <list>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -32,9 +33,9 @@ struct spacings ComputeSpacing(double angle_rad){
     std::vector<double> distances;
     const double dx = 1.0;
     const double dy = 1.0;
-    const long int boxradius = 5;
-    for(long int i = -boxradius; i <= boxradius; ++i){
-        for(long int j = -boxradius; j <= boxradius; ++j){
+    const int64_t boxradius = 5;
+    for(int64_t i = -boxradius; i <= boxradius; ++i){
+        for(int64_t j = -boxradius; j <= boxradius; ++j){
             //if( (i==0) && (j==0) ) continue; // Disregard centre point.
             //if( (std::abs(i) == boxradius) && (std::abs(j) == boxradius) ) continue; //Disregard points on the corners.
             const vec3<double> p(dx*i, dy*j, 0.0);
@@ -68,8 +69,8 @@ struct spacings ComputeSpacing(double angle_rad){
 
 int main(int argc, char **argv){
 
-    const long int N = 5000; // ~Number of angles to consider.
-    for(long int i=0; i <= N; ++i){
+    const int64_t N = 5000; // ~Number of angles to consider.
+    for(int64_t i=0; i <= N; ++i){
         const double t = 0.0 + (M_PI/4.0)*(1.0*i/N);
     //for(double t = 18.4348; t <= 18.4350; t += 0.000001){
         const double theta_rad = t; //*M_PI/180.0;

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <list>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -204,9 +205,9 @@ int main(int argc, char **argv){
 
         contour_of_points<double> cop;
         const double r = 100.0;
-        const long int Npoints = 5000;
+        const int64_t Npoints = 5000;
         cop.closed = true;
-        for(long int i = 0; i < Npoints; ++i){
+        for(int64_t i = 0; i < Npoints; ++i){
             const double theta = 0.0 + (2.0*M_PI/Npoints)*i;
             cop.points.emplace_back( r * std::cos(theta), r * std::sin(theta), 0.0 );
         }
@@ -292,14 +293,14 @@ int main(int argc, char **argv){
         //ROIs.Plot();
 
         //Print the vertices for post-processing.
-        const auto dump_vert = [](long int coll_num, long int contour_num, const vec3<double> &p) -> void {
+        const auto dump_vert = [](int64_t coll_num, int64_t contour_num, const vec3<double> &p) -> void {
             std::cout << "Vertex: "
                       << "family " << coll_num << " " 
                       << "contour " << contour_num << " "
                       << p.x << " " << p.y << " " << p.z 
                       << std::endl;
         };
-        long int i = 0; //This records which contour each vertex belongs to.
+        int64_t i = 0; //This records which contour each vertex belongs to.
         for(const auto &c : subsegs.contours){
             for(const auto &p : c.points) dump_vert(0, i, p);
             if(!c.points.empty() && c.closed) dump_vert(0, i, c.points.front());
@@ -314,12 +315,12 @@ int main(int argc, char **argv){
         contour_collection<double> ROIs;
         contour_collection<double> subsegs;
 
-        const long int Ncontours = 200;
-        const long int Npoints = 700; // The number of vertices for the contour on the equator.
+        const int64_t Ncontours = 200;
+        const int64_t Npoints = 700; // The number of vertices for the contour on the equator.
         const double r = 10.0;
         double area_theo_whole = 0.0;
 
-        for(long int i = 1; i <= Ncontours; ++i){
+        for(int64_t i = 1; i <= Ncontours; ++i){
             const double z = (-r) + 2.0*r*i/(Ncontours+1); //We want equidistant contours, so sample z evenly.
             const double phi = std::acos(z/r);             //Phi will NOT be sampled evenly.
             const double r_eff = r * std::sin(phi);        //Radius of this circle is r*sin(phi) (== r_effective).
@@ -329,10 +330,10 @@ int main(int argc, char **argv){
 
             //Try to maintain the same vertex spacing for all contours. This lets us crank up Npoints and get the best
             // 'bang for our buck' withou needlessly oversampling small contours.  
-            long int NpointsThisContour = static_cast<long int>( std::ceil(std::sin(phi)*Npoints) );
+            int64_t NpointsThisContour = static_cast<int64_t>( std::ceil(std::sin(phi)*Npoints) );
             if(NpointsThisContour < 10) NpointsThisContour = 10;
 
-            for(long int j = 0; j < NpointsThisContour; ++j){
+            for(int64_t j = 0; j < NpointsThisContour; ++j){
                 const double theta = 0.0 + (2.0*M_PI/NpointsThisContour)*j;
                 cop.points.emplace_back( r * std::cos(theta) * std::sin(phi), 
                                          r * std::sin(theta) * std::sin(phi),

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <cstdint>
 
 #include <sys/socket.h>
 
@@ -7,7 +8,7 @@
 #include "YgorLog.h"
 #include "YgorNetworking.h"
 
-bool Dialog_Simple_Echo(int fd, char *host, long int port){
+bool Dialog_Simple_Echo(int fd, char *host, int64_t port){
     int numbytes;
     const int BUFFSIZE = 100;
     char buff[BUFFSIZE];

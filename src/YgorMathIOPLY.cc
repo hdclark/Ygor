@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -285,11 +286,11 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
     };
     struct element_t {
         std::string name = "";
-        long int count = 0;
+        int64_t count = 0;
         std::vector<property_t> properties;
     };
 
-    long int lineN = 1;
+    int64_t lineN = 1;
     std::list<element_t> elements;
     std::string line;
     try{
@@ -416,15 +417,15 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             if(false){
             }else if( (element.name == "vertex")
                   ||  (element.name == "vertices") ){
-                long int index_x = -1; // vertices
-                long int index_y = -1;
-                long int index_z = -1;
-                long int index_nx = -1; // vertex normals
-                long int index_ny = -1;
-                long int index_nz = -1;
-                const auto N_props = static_cast<long int>(element.properties.size());
+                int64_t index_x = -1; // vertices
+                int64_t index_y = -1;
+                int64_t index_z = -1;
+                int64_t index_nx = -1; // vertex normals
+                int64_t index_ny = -1;
+                int64_t index_nz = -1;
+                const auto N_props = static_cast<int64_t>(element.properties.size());
 
-                for(long int i = 0; i < N_props; ++i){
+                for(int64_t i = 0; i < N_props; ++i){
                     if(false){
                     }else if( (index_x == -1)
                           &&  !element.properties[i].is_list
@@ -477,8 +478,8 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                 fvsm.vertices.reserve(element.count);
                 vec3<T> v_shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
                 vec3<T> n_shtl( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
-                for(long int n = 0; n < element.count; ++n){
-                    for(long int i = 0; i < N_props; ++i){
+                for(int64_t n = 0; n < element.count; ++n){
+                    for(int64_t i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_x){
                             v_shtl.x = read_as<T>(is, element.properties[i].type, is_binary_opt.value(), stream_endianness);
@@ -512,9 +513,9 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
                   ||  (element.name == "faces")
                   ||  (element.name == "facet")
                   ||  (element.name == "facets") ){
-                long int index_vs = -1;
-                const auto N_props = static_cast<long int>(element.properties.size());
-                for(long int i = 0; i < N_props; ++i){
+                int64_t index_vs = -1;
+                const auto N_props = static_cast<int64_t>(element.properties.size());
+                for(int64_t i = 0; i < N_props; ++i){
 
                     if(false){
                     }else if( (index_vs == -1)
@@ -534,8 +535,8 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
 
                 // Read in all properties, disregarding those other than the face's connected vertices list.
                 fvsm.vertices.reserve(element.count);
-                for(long int n = 0; n < element.count; ++n){
-                    for(long int i = 0; i < N_props; ++i){
+                for(int64_t n = 0; n < element.count; ++n){
+                    for(int64_t i = 0; i < N_props; ++i){
                         if(false){
                         }else if(i == index_vs){
                             // Note: list should already be zero-indexed.
@@ -563,9 +564,9 @@ ReadFVSMeshFromPLY(fv_surface_mesh<T,I> &fvsm,
             // PLY files can contain many types of alternate geometry elements, so it is important to skip over them to
             // improve interoperability, even if it makes it harder to verify file contents were parsed correctly.
             }else{
-                for(long int n = 0; n < element.count; ++n){
-                    const auto N_props = static_cast<long int>(element.properties.size());
-                    for(long int i = 0; i < N_props; ++i){
+                for(int64_t n = 0; n < element.count; ++n){
+                    const auto N_props = static_cast<int64_t>(element.properties.size());
+                    for(int64_t i = 0; i < N_props; ++i){
                         if(false){
                         }else if(element.properties[i].is_list){
                             read_list_as<I>(is, element.properties[i].list_type,

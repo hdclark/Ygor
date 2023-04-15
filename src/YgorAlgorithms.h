@@ -392,7 +392,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
     double Get_Cross_Validation_Generalized_CV(double h, const samples_1D<double> &in);
     
     //------- Routines to find or estimate parameters --------
-    double Find_Optimal_H(double h_0, double h_scale, double cv_tol, long int N_iters, const samples_1D<double> &in, bool show_info, bool *OK);
+    double Find_Optimal_H(double h_0, double h_scale, double cv_tol, int64_t N_iters, const samples_1D<double> &in, bool show_info, bool *OK);
     
     //This function computes an estimate of 'c' - the 'confidence' scale which is used in computing the confidence bands.
     double Find_C(double h, double confidence, const samples_1D<double> &in, bool *OK);
@@ -467,7 +467,7 @@ namespace YGORFIT {
 
 //This is an internal function and should only be used if you know what you're doing (and how it will affect the reported
 // stats and convergence).
-std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>>
+std::tuple<std::list<double>,double,double,int64_t,double,double,double,std::list<double>>
 Ygor_Fit_Driver(bool *wasOK,
     const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
     const std::list<std::list<double>> &data,   const std::list<double> &vars,   uint32_t fitflags,
@@ -475,10 +475,10 @@ Ygor_Fit_Driver(bool *wasOK,
 
 
 //Run-of-the-mill numerical "Least-squares" or "Method of least-squares" or "Least sum of squares".
-std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>>
+std::tuple<std::list<double>,double,double,int64_t,double,double,double,std::list<double>>
 Ygor_Fit_LSS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-         const std::list<std::list<double>> &data,  const std::list<double> &vars,     long int dim,
+         const std::list<std::list<double>> &data,  const std::list<double> &vars,     int64_t dim,
          bool Verbose = false,
          double char_len = 0.6,
          int max_iters = 1500,
@@ -488,7 +488,7 @@ Ygor_Fit_LSS(bool *wasOK,
 std::tuple<std::list<double>,std::list<double>>
 Ygor_Fit_LMS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-         const std::list<std::list<double>> &data,  const std::list<double> &vars,     long int dim,
+         const std::list<std::list<double>> &data,  const std::list<double> &vars,     int64_t dim,
          bool Verbose = false,
          double char_len = 0.6,
          int max_iters = 2500,
@@ -500,20 +500,20 @@ Ygor_Fit_LMS(bool *wasOK,
 std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
          const std::list<std::list<double>> &data,  const std::list<double> &vars,  uint32_t fitflags,
-         long int N,  double char_len,  int max_iters,  double ftol);
+         int64_t N,  double char_len,  int max_iters,  double ftol);
 
 std::list<std::list<double>> Ygor_Fit_Bootstrap_LSS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-         const std::list<std::list<double>> &data,  const std::list<double> &vars,  long int dim,
-         long int N = 5000,
+         const std::list<std::list<double>> &data,  const std::list<double> &vars,  int64_t dim,
+         int64_t N = 5000,
          double char_len = 0.6,
          int max_iters = 1500,
          double ftol = 1E-6);
 
 std::list<std::list<double>> Ygor_Fit_Bootstrap_LMS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-         const std::list<std::list<double>> &data,  const std::list<double> &vars,  long int dim,
-         long int N = 5000,
+         const std::list<std::list<double>> &data,  const std::list<double> &vars,  int64_t dim,
+         int64_t N = 5000,
          double char_len = 0.6,
          int max_iters = 2500,
          double ftol = 1E-6);

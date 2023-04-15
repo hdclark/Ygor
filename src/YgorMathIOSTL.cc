@@ -34,7 +34,7 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
 
     std::vector< vec3<T> > vectors; // Buffer for unit vector and vertices.
 
-    long int lineN = 1;
+    intmax_t lineN = 1;
     std::string line;
     while(std::getline(is, line)){
         ++lineN;

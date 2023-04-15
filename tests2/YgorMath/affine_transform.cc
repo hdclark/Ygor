@@ -95,8 +95,8 @@ TEST_CASE( "affine_transform operators" ){
         REQUIRE( L1 == L1 );
         REQUIRE( L1 == L2 );
 
-        for(long int i = 0; i < 3; ++i){
-            for(long int j = 0; j < 3; ++j){
+        for(int64_t i = 0; i < 3; ++i){
+            for(int64_t j = 0; j < 3; ++j){
                 affine_transform<double> L3(L1);
                 L3.coeff(i,j) = 2.0;
                 REQUIRE( L1 != L3 );
@@ -118,7 +118,7 @@ TEST_CASE( "affine_transform operators" ){
         L1.coeff(0,0) = 2.0;
         affine_transform<double> L2;
         affine_transform<double> L3 = L1;
-        long int i;
+        int64_t i;
 
         i = 0;
         i += (L1 < L1) ? 1 : 0;
@@ -509,8 +509,8 @@ TEST_CASE( "affine_transform invert" ){
     const auto max_diff = [](const affine_transform<double>& A,
                              const affine_transform<double>& B){
         double max_diff = 0.0;
-        for(long int r = 0; r < 4; ++r){
-            for(long int c = 0; c < 4; ++c){
+        for(int64_t r = 0; r < 4; ++r){
+            for(int64_t c = 0; c < 4; ++c){
                 const auto diff = std::abs(B.read_coeff(r,c) - A.read_coeff(r,c));
                 if(diff < max_diff) max_diff = diff;
             }

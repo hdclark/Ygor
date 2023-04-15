@@ -80,7 +80,7 @@ template <class T, class R> planar_image<T,R>::~planar_image(){ }
 
 
 //Allocating space and initializing the purely-2D-image members.
-template <class T, class R> void planar_image<T,R>::init_buffer(long int rows, long int cols, long int chnls){
+template <class T, class R> void planar_image<T,R>::init_buffer(int64_t rows, int64_t cols, int64_t chnls){
     if((rows <= 0) || (cols <= 0) || (chnls <= 0)){
         throw std::runtime_error("Requested to initialize an image with impossible dimensions");
     }
@@ -91,12 +91,12 @@ template <class T, class R> void planar_image<T,R>::init_buffer(long int rows, l
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::init_buffer(long int rows, long int cols, long int chnls);
-    template void planar_image<uint16_t,double>::init_buffer(long int rows, long int cols, long int chnls);
-    template void planar_image<uint32_t,double>::init_buffer(long int rows, long int cols, long int chnls);
-    template void planar_image<uint64_t,double>::init_buffer(long int rows, long int cols, long int chnls);
-    template void planar_image<float   ,double>::init_buffer(long int rows, long int cols, long int chnls);
-    template void planar_image<double  ,double>::init_buffer(long int rows, long int cols, long int chnls);
+    template void planar_image<uint8_t ,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
+    template void planar_image<uint16_t,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
+    template void planar_image<uint32_t,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
+    template void planar_image<uint64_t,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
+    template void planar_image<float   ,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
+    template void planar_image<double  ,double>::init_buffer(int64_t rows, int64_t cols, int64_t chnls);
 #endif
 
 
@@ -360,7 +360,7 @@ template <class T,class R> bool planar_image<T,R>::Spatially_lte(const planar_im
 
 
 //Zero-based "row-major" indexing. 
-template <class T, class R> long int planar_image<T,R>::index(long int row, long int col) const {
+template <class T, class R> int64_t planar_image<T,R>::index(int64_t row, int64_t col) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) ){
         return -1;
@@ -368,15 +368,15 @@ template <class T, class R> long int planar_image<T,R>::index(long int row, long
     return this->channels*( this->columns * row + col );
 } 
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image<uint8_t ,double>::index(long int r, long int c) const;
-    template long int planar_image<uint16_t,double>::index(long int r, long int c) const;
-    template long int planar_image<uint32_t,double>::index(long int r, long int c) const;
-    template long int planar_image<uint64_t,double>::index(long int r, long int c) const;
-    template long int planar_image<float   ,double>::index(long int r, long int c) const;
-    template long int planar_image<double  ,double>::index(long int r, long int c) const;
+    template int64_t planar_image<uint8_t ,double>::index(int64_t r, int64_t c) const;
+    template int64_t planar_image<uint16_t,double>::index(int64_t r, int64_t c) const;
+    template int64_t planar_image<uint32_t,double>::index(int64_t r, int64_t c) const;
+    template int64_t planar_image<uint64_t,double>::index(int64_t r, int64_t c) const;
+    template int64_t planar_image<float   ,double>::index(int64_t r, int64_t c) const;
+    template int64_t planar_image<double  ,double>::index(int64_t r, int64_t c) const;
 #endif
 
-template <class T, class R> long int planar_image<T,R>::index(long int row, long int col, long int chnl) const {
+template <class T, class R> int64_t planar_image<T,R>::index(int64_t row, int64_t col, int64_t chnl) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1)
     ||  !isininc(0,chnl,this->channels-1)){
@@ -385,15 +385,15 @@ template <class T, class R> long int planar_image<T,R>::index(long int row, long
     return this->channels*( this->columns * row + col ) + chnl;
 } 
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image<uint8_t ,double>::index(long int row, long int col, long int chnl) const;
-    template long int planar_image<uint16_t,double>::index(long int row, long int col, long int chnl) const;
-    template long int planar_image<uint32_t,double>::index(long int row, long int col, long int chnl) const;
-    template long int planar_image<uint64_t,double>::index(long int row, long int col, long int chnl) const;
-    template long int planar_image<float   ,double>::index(long int row, long int col, long int chnl) const;
-    template long int planar_image<double  ,double>::index(long int row, long int col, long int chnl) const;
+    template int64_t planar_image<uint8_t ,double>::index(int64_t row, int64_t col, int64_t chnl) const;
+    template int64_t planar_image<uint16_t,double>::index(int64_t row, int64_t col, int64_t chnl) const;
+    template int64_t planar_image<uint32_t,double>::index(int64_t row, int64_t col, int64_t chnl) const;
+    template int64_t planar_image<uint64_t,double>::index(int64_t row, int64_t col, int64_t chnl) const;
+    template int64_t planar_image<float   ,double>::index(int64_t row, int64_t col, int64_t chnl) const;
+    template int64_t planar_image<double  ,double>::index(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T, class R> long int planar_image<T,R>::index(const vec3<R> &point, long int chnl) const {
+template <class T, class R> int64_t planar_image<T,R>::index(const vec3<R> &point, int64_t chnl) const {
     const vec3<R> P(point - this->anchor - this->offset); // Get a vector in the image's plane.
     const auto Nr = this->row_unit.Dot(P)/this->pxl_dx;   // Appriximate row number.
     const auto Nc = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate col number.
@@ -407,8 +407,8 @@ template <class T, class R> long int planar_image<T,R>::index(const vec3<R> &poi
     // for floating point errors which may have blurred them slightly above or below the actual value.
     // Because we do not expect the blur to be significant, we will just round them to the nearest int.
     // If the blur is more than this, we have larger issues to deal with! 
-    const auto row = static_cast<long int>( std::round(Nr) ); 
-    const auto col = static_cast<long int>( std::round(Nc) );
+    const auto row = static_cast<int64_t>( std::round(Nr) ); 
+    const auto col = static_cast<int64_t>( std::round(Nc) );
 
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) 
@@ -418,17 +418,17 @@ template <class T, class R> long int planar_image<T,R>::index(const vec3<R> &poi
     return this->index(row,col,chnl);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image<uint8_t ,double>::index(const vec3<double> &point, long int chnl) const;
-    template long int planar_image<uint16_t,double>::index(const vec3<double> &point, long int chnl) const;
-    template long int planar_image<uint32_t,double>::index(const vec3<double> &point, long int chnl) const;
-    template long int planar_image<uint64_t,double>::index(const vec3<double> &point, long int chnl) const;
-    template long int planar_image<float   ,double>::index(const vec3<double> &point, long int chnl) const;
-    template long int planar_image<double  ,double>::index(const vec3<double> &point, long int chnl) const;
+    template int64_t planar_image<uint8_t ,double>::index(const vec3<double> &point, int64_t chnl) const;
+    template int64_t planar_image<uint16_t,double>::index(const vec3<double> &point, int64_t chnl) const;
+    template int64_t planar_image<uint32_t,double>::index(const vec3<double> &point, int64_t chnl) const;
+    template int64_t planar_image<uint64_t,double>::index(const vec3<double> &point, int64_t chnl) const;
+    template int64_t planar_image<float   ,double>::index(const vec3<double> &point, int64_t chnl) const;
+    template int64_t planar_image<double  ,double>::index(const vec3<double> &point, int64_t chnl) const;
 #endif
 
 //Work backward from the index to get row, column, or channel.
-template <class T, class R> std::tuple<long int,long int,long int> planar_image<T,R>::row_column_channel_from_index(long int userindex) const {
-    const auto fail_res = std::make_tuple<long int,long int,long int>(-1,-1,-1);
+template <class T, class R> std::tuple<int64_t,int64_t,int64_t> planar_image<T,R>::row_column_channel_from_index(int64_t userindex) const {
+    const auto fail_res = std::make_tuple<int64_t,int64_t,int64_t>(-1,-1,-1);
     if(userindex < 0) return fail_res;
     if(userindex > this->index(this->rows-1,this->columns-1,this->channels-1)) return fail_res;
 
@@ -444,12 +444,12 @@ template <class T, class R> std::tuple<long int,long int,long int> planar_image<
     return std::make_tuple(row,col,chnl);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template std::tuple<long int,long int,long int> planar_image<uint8_t ,double>::row_column_channel_from_index(long int index) const;
-    template std::tuple<long int,long int,long int> planar_image<uint16_t,double>::row_column_channel_from_index(long int index) const;
-    template std::tuple<long int,long int,long int> planar_image<uint32_t,double>::row_column_channel_from_index(long int index) const;
-    template std::tuple<long int,long int,long int> planar_image<uint64_t,double>::row_column_channel_from_index(long int index) const;
-    template std::tuple<long int,long int,long int> planar_image<float   ,double>::row_column_channel_from_index(long int index) const;
-    template std::tuple<long int,long int,long int> planar_image<double  ,double>::row_column_channel_from_index(long int index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<uint8_t ,double>::row_column_channel_from_index(int64_t index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<uint16_t,double>::row_column_channel_from_index(int64_t index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<uint32_t,double>::row_column_channel_from_index(int64_t index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<uint64_t,double>::row_column_channel_from_index(int64_t index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<float   ,double>::row_column_channel_from_index(int64_t index) const;
+    template std::tuple<int64_t,int64_t,int64_t> planar_image<double  ,double>::row_column_channel_from_index(int64_t index) const;
 #endif
 
 //Compute fractional row and column numbers when a point in R^3 is known. Throws if out of bounds. This routine is
@@ -471,8 +471,8 @@ template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_co
     }
 
     //Check if the (integer) coordinates are within the bounds of the image.
-    const auto row = static_cast<long int>( std::round(Nr) ); 
-    const auto col = static_cast<long int>( std::round(Nc) );
+    const auto row = static_cast<int64_t>( std::round(Nr) ); 
+    const auto col = static_cast<int64_t>( std::round(Nc) );
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) ){
         throw std::invalid_argument("Point was out-of-bounds (within the image thickness, but outside row/col bounds.");
@@ -489,7 +489,7 @@ template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_co
 #endif
 
 //Channel-value getters.
-template <class T, class R> T planar_image<T,R>::value(long int row, long int col, long int chnl) const {
+template <class T, class R> T planar_image<T,R>::value(int64_t row, int64_t col, int64_t chnl) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1) 
     ||  !isininc(0,chnl,this->channels-1) ){
@@ -498,18 +498,18 @@ template <class T, class R> T planar_image<T,R>::value(long int row, long int co
     return this->data[this->index(row,col,chnl)];
 } 
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::value(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::value(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::value(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::value(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::value(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::value(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::value(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::value(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::value(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::value(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::value(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::value(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 //Returns the value of the voxel which contains the point. If the voxel does not exist an exception is thrown.
 //
 //NOTE: This function is very slow and not always very safe! Use it sparingly!
-template <class T, class R> T planar_image<T,R>::value(const vec3<R> &point, long int chnl) const {
+template <class T, class R> T planar_image<T,R>::value(const vec3<R> &point, int64_t chnl) const {
     const auto indx = this->index(point,chnl); 
     if(indx == -1){
         throw std::domain_error("Attempted to access part of image which does not exist");
@@ -517,18 +517,18 @@ template <class T, class R> T planar_image<T,R>::value(const vec3<R> &point, lon
     return this->data[indx];
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::value(const vec3<double> &point, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::value(const vec3<double> &point, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::value(const vec3<double> &point, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::value(const vec3<double> &point, long int chnl) const;
-    template float    planar_image<float   ,double>::value(const vec3<double> &point, long int chnl) const;
-    template double   planar_image<double  ,double>::value(const vec3<double> &point, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::value(const vec3<double> &point, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::value(const vec3<double> &point, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::value(const vec3<double> &point, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::value(const vec3<double> &point, int64_t chnl) const;
+    template float    planar_image<float   ,double>::value(const vec3<double> &point, int64_t chnl) const;
+    template double   planar_image<double  ,double>::value(const vec3<double> &point, int64_t chnl) const;
 #endif
 
 //Returns the value of the voxel which contains the point. If the voxel does not exist an exception is thrown.
 //
 //NOTE: This function is very slow and not always very safe! Use it sparingly!
-template <class T, class R> T planar_image<T,R>::value(long int userindex) const {
+template <class T, class R> T planar_image<T,R>::value(int64_t userindex) const {
     if( (userindex < 0)
     ||  (userindex > this->index(this->rows-1,this->columns-1,this->channels-1)) ){
         throw std::domain_error("Attempted to access part of image which does not exist");
@@ -536,18 +536,18 @@ template <class T, class R> T planar_image<T,R>::value(long int userindex) const
     return this->data[userindex];
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::value(long int indx) const;
-    template uint16_t planar_image<uint16_t,double>::value(long int indx) const;
-    template uint32_t planar_image<uint32_t,double>::value(long int indx) const;
-    template uint64_t planar_image<uint64_t,double>::value(long int indx) const;
-    template float    planar_image<float   ,double>::value(long int indx) const;
-    template double   planar_image<double  ,double>::value(long int indx) const;
+    template uint8_t  planar_image<uint8_t ,double>::value(int64_t indx) const;
+    template uint16_t planar_image<uint16_t,double>::value(int64_t indx) const;
+    template uint32_t planar_image<uint32_t,double>::value(int64_t indx) const;
+    template uint64_t planar_image<uint64_t,double>::value(int64_t indx) const;
+    template float    planar_image<float   ,double>::value(int64_t indx) const;
+    template double   planar_image<double  ,double>::value(int64_t indx) const;
 #endif
 
 
 
 //Channel-value references. This can be used to set the values.
-template <class T,class R> T& planar_image<T,R>::reference(long int row, long int col, long int chnl){
+template <class T,class R> T& planar_image<T,R>::reference(int64_t row, int64_t col, int64_t chnl){
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1)
     ||  !isininc(0,chnl,this->channels-1) ){
@@ -556,15 +556,15 @@ template <class T,class R> T& planar_image<T,R>::reference(long int row, long in
     return this->data[this->index(row,col,chnl)];
 } 
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  & planar_image<uint8_t ,double>::reference(long int row, long int col, long int chnl);
-    template uint16_t & planar_image<uint16_t,double>::reference(long int row, long int col, long int chnl);
-    template uint32_t & planar_image<uint32_t,double>::reference(long int row, long int col, long int chnl);
-    template uint64_t & planar_image<uint64_t,double>::reference(long int row, long int col, long int chnl);
-    template float    & planar_image<float   ,double>::reference(long int row, long int col, long int chnl);
-    template double   & planar_image<double  ,double>::reference(long int row, long int col, long int chnl);
+    template uint8_t  & planar_image<uint8_t ,double>::reference(int64_t row, int64_t col, int64_t chnl);
+    template uint16_t & planar_image<uint16_t,double>::reference(int64_t row, int64_t col, int64_t chnl);
+    template uint32_t & planar_image<uint32_t,double>::reference(int64_t row, int64_t col, int64_t chnl);
+    template uint64_t & planar_image<uint64_t,double>::reference(int64_t row, int64_t col, int64_t chnl);
+    template float    & planar_image<float   ,double>::reference(int64_t row, int64_t col, int64_t chnl);
+    template double   & planar_image<double  ,double>::reference(int64_t row, int64_t col, int64_t chnl);
 #endif
 
-template <class T,class R> T& planar_image<T,R>::reference(const vec3<R> &point, long int chnl){
+template <class T,class R> T& planar_image<T,R>::reference(const vec3<R> &point, int64_t chnl){
     const auto indx = this->index(point,chnl);
     if(indx == -1){
         throw std::domain_error("Attempted to access part of image which does not exist");
@@ -572,15 +572,15 @@ template <class T,class R> T& planar_image<T,R>::reference(const vec3<R> &point,
     return this->data[indx];
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  & planar_image<uint8_t ,double>::reference(const vec3<double> &point, long int chnl);
-    template uint16_t & planar_image<uint16_t,double>::reference(const vec3<double> &point, long int chnl);
-    template uint32_t & planar_image<uint32_t,double>::reference(const vec3<double> &point, long int chnl);
-    template uint64_t & planar_image<uint64_t,double>::reference(const vec3<double> &point, long int chnl);
-    template float    & planar_image<float   ,double>::reference(const vec3<double> &point, long int chnl);
-    template double   & planar_image<double  ,double>::reference(const vec3<double> &point, long int chnl);
+    template uint8_t  & planar_image<uint8_t ,double>::reference(const vec3<double> &point, int64_t chnl);
+    template uint16_t & planar_image<uint16_t,double>::reference(const vec3<double> &point, int64_t chnl);
+    template uint32_t & planar_image<uint32_t,double>::reference(const vec3<double> &point, int64_t chnl);
+    template uint64_t & planar_image<uint64_t,double>::reference(const vec3<double> &point, int64_t chnl);
+    template float    & planar_image<float   ,double>::reference(const vec3<double> &point, int64_t chnl);
+    template double   & planar_image<double  ,double>::reference(const vec3<double> &point, int64_t chnl);
 #endif
 
-template <class T,class R> T& planar_image<T,R>::reference(long int userindex){
+template <class T,class R> T& planar_image<T,R>::reference(int64_t userindex){
     if( (userindex < 0)
     ||  (userindex > this->index(this->rows-1,this->columns-1,this->channels-1)) ){
         throw std::domain_error("Attempted to access part of image which does not exist");
@@ -588,12 +588,12 @@ template <class T,class R> T& planar_image<T,R>::reference(long int userindex){
     return this->data[userindex];
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  & planar_image<uint8_t ,double>::reference(long int indx);
-    template uint16_t & planar_image<uint16_t,double>::reference(long int indx);
-    template uint32_t & planar_image<uint32_t,double>::reference(long int indx);
-    template uint64_t & planar_image<uint64_t,double>::reference(long int indx);
-    template float    & planar_image<float   ,double>::reference(long int indx);
-    template double   & planar_image<double  ,double>::reference(long int indx);
+    template uint8_t  & planar_image<uint8_t ,double>::reference(int64_t indx);
+    template uint16_t & planar_image<uint16_t,double>::reference(int64_t indx);
+    template uint32_t & planar_image<uint32_t,double>::reference(int64_t indx);
+    template uint64_t & planar_image<uint64_t,double>::reference(int64_t indx);
+    template float    & planar_image<float   ,double>::reference(int64_t indx);
+    template double   & planar_image<double  ,double>::reference(int64_t indx);
 #endif
 
 template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
@@ -604,9 +604,9 @@ template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
     planar_image<T,R> d = *this;
     d.init_buffer(rows, cols, chnls);
 
-    for(long int row = 0; row < this->rows; ++row){
-        for(long int col = 0; col < this->columns; ++col){
-            for(long int chn = 0; chn < this->channels; ++chn){
+    for(int64_t row = 0; row < this->rows; ++row){
+        for(int64_t col = 0; col < this->columns; ++col){
+            for(int64_t chn = 0; chn < this->channels; ++chn){
                 d.reference(row, col, chn) = this->value(row, col, chn);
             }
             d.reference(row, col, chnls - 1) = channel_value;
@@ -626,7 +626,7 @@ template <class T,class R> void planar_image<T,R>::add_channel(T channel_value){
     template void planar_image<double  ,double>::add_channel(double   channel_value);
 #endif
 
-template <class T,class R> void planar_image<T,R>::remove_channel(long int channel_number){
+template <class T,class R> void planar_image<T,R>::remove_channel(int64_t channel_number){
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,channel_number,this->channels-1)){
@@ -640,9 +640,9 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
     planar_image<T,R> d = *this;
     d.init_buffer(rows, cols, chnls);
 
-    for(long int row = 0; row < this->rows; ++row){
-        for(long int col = 0; col < this->columns; ++col){
-            for(long int chnl = 0; chnl < this->channels; ++chnl){
+    for(int64_t row = 0; row < this->rows; ++row){
+        for(int64_t col = 0; col < this->columns; ++col){
+            for(int64_t chnl = 0; chnl < this->channels; ++chnl){
                 if(chnl < channel_number){
                     d.reference(row, col, chnl) = this->value(row, col, chnl);
                 }else if(chnl > channel_number){
@@ -657,15 +657,15 @@ template <class T,class R> void planar_image<T,R>::remove_channel(long int chann
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::remove_channel(long int channel_number);
-    template void planar_image<uint16_t,double>::remove_channel(long int channel_number);
-    template void planar_image<uint32_t,double>::remove_channel(long int channel_number);
-    template void planar_image<uint64_t,double>::remove_channel(long int channel_number);
-    template void planar_image<float   ,double>::remove_channel(long int channel_number);
-    template void planar_image<double  ,double>::remove_channel(long int channel_number);
+    template void planar_image<uint8_t ,double>::remove_channel(int64_t channel_number);
+    template void planar_image<uint16_t,double>::remove_channel(int64_t channel_number);
+    template void planar_image<uint32_t,double>::remove_channel(int64_t channel_number);
+    template void planar_image<uint64_t,double>::remove_channel(int64_t channel_number);
+    template void planar_image<float   ,double>::remove_channel(int64_t channel_number);
+    template void planar_image<double  ,double>::remove_channel(int64_t channel_number);
 #endif
 
-template <class T,class R> void planar_image<T,R>::remove_all_channels_except(long int channel_number){
+template <class T,class R> void planar_image<T,R>::remove_all_channels_except(int64_t channel_number){
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,channel_number,this->channels-1)){
@@ -679,9 +679,9 @@ template <class T,class R> void planar_image<T,R>::remove_all_channels_except(lo
     planar_image<T,R> d = *this;
     d.init_buffer(rows, cols, chnls);
 
-    for(long int row = 0; row < this->rows; ++row){
-        for(long int col = 0; col < this->columns; ++col){
-            for(long int chnl = 0; chnl < this->channels; ++chnl){
+    for(int64_t row = 0; row < this->rows; ++row){
+        for(int64_t col = 0; col < this->columns; ++col){
+            for(int64_t chnl = 0; chnl < this->channels; ++chnl){
                 if(chnl == channel_number){
                     d.reference(row, col, 0) = this->value(row, col, chnl);
                 }
@@ -694,12 +694,12 @@ template <class T,class R> void planar_image<T,R>::remove_all_channels_except(lo
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::remove_all_channels_except(long int channel_number);
-    template void planar_image<uint16_t,double>::remove_all_channels_except(long int channel_number);
-    template void planar_image<uint32_t,double>::remove_all_channels_except(long int channel_number);
-    template void planar_image<uint64_t,double>::remove_all_channels_except(long int channel_number);
-    template void planar_image<float   ,double>::remove_all_channels_except(long int channel_number);
-    template void planar_image<double  ,double>::remove_all_channels_except(long int channel_number);
+    template void planar_image<uint8_t ,double>::remove_all_channels_except(int64_t channel_number);
+    template void planar_image<uint16_t,double>::remove_all_channels_except(int64_t channel_number);
+    template void planar_image<uint32_t,double>::remove_all_channels_except(int64_t channel_number);
+    template void planar_image<uint64_t,double>::remove_all_channels_except(int64_t channel_number);
+    template void planar_image<float   ,double>::remove_all_channels_except(int64_t channel_number);
+    template void planar_image<double  ,double>::remove_all_channels_except(int64_t channel_number);
 #endif
 
 
@@ -784,10 +784,10 @@ template <class T,class R> void planar_image<T,R>::remove_all_channels_except(lo
 //       would need to first replace pixels with the pixel value's (Nth) derivative, and then you can run this interpolation
 //       scheme to interpolate (Nth) derivatives smoothly. The (N+1)th derivative will, however, not be smooth!
 //
-template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_number_space(R row, R col, long int chnl) const { 
+template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_number_space(R row, R col, int64_t chnl) const { 
     //Get pixel space coordinates for the pixel that the user's input specifies.
-    const auto r_e_p = static_cast<long int>(std::floor(row + static_cast<R>(0.5))); //"Enclosing pixel row"
-    const auto c_e_p = static_cast<long int>(std::floor(col + static_cast<R>(0.5))); //"Enclosing pixel column"
+    const auto r_e_p = static_cast<int64_t>(std::floor(row + static_cast<R>(0.5))); //"Enclosing pixel row"
+    const auto c_e_p = static_cast<int64_t>(std::floor(col + static_cast<R>(0.5))); //"Enclosing pixel column"
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,r_e_p,this->rows-1)
@@ -808,9 +808,9 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
 
     //Figure out the 'real' minimum and maximum row and column numbers of the four nearest (surrounding) pixel centres.
     // (This is where our mirror boundary conditions first come into play.
-    const auto r_min = std::max(static_cast<long int>(0),r_min_virt);
+    const auto r_min = std::max(static_cast<int64_t>(0),r_min_virt);
     const auto r_max = std::min(this->rows-1, r_max_virt);
-    const auto c_min = std::max(static_cast<long int>(0),c_min_virt);
+    const auto c_min = std::max(static_cast<int64_t>(0),c_min_virt);
     const auto c_max = std::min(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
@@ -832,12 +832,12 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
     return static_cast<T>( y_r_interp_c_interp );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template float    planar_image<float   ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template double   planar_image<double  ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::bilinearly_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
 #endif
 
 
@@ -855,55 +855,55 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
 //
 // NOTE: Coordinate system: "row-aligned" ("column-aligned") means the direction along a given row (column).
 //
-template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes $\partial_{r} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
     
     return (  static_cast<R>(this->data[this->index(row,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row,col_m_1,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes $\partial_{c} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 // The Roberts (centred) cross derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
 // conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
-template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes the Roberts cross, which estimates the partial derivative (i.e., gradient) along an
     //       image axis-aligned direction. This operation effectively convolves the pixel (and its neighbours) using the
     //       (modified*) kernels:
@@ -942,53 +942,53 @@ template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::prow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::prow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // See prow_pcol_aligned_Roberts_cross() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::nrow_pcol_aligned_Roberts_cross_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::nrow_pcol_aligned_Roberts_cross_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
 // The Prewitt centred derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
 // conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
-template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes the Prewitt derivative estimator, which estimates the partial derivative (i.e.,
     //       gradient) along an image axis-aligned direction. This operation effectively convolves the pixel (and its
     //       neighbours) using the (modified*) kernels:
@@ -1008,10 +1008,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1022,25 +1022,25 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3
            / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // See row_aligned_Prewitt_derivative_3x3() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1051,18 +1051,18 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivativ
            / static_cast<R>(6); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_Prewitt_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Prewitt_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
 // The Sobel centred derivative estimator. Only nearest neighbour pixels are used, and mirror boundary
 // conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
-template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes the Sobel derivative estimator, which estimates the partial derivative (i.e.,
     //       gradient) along an image axis-aligned direction. This operation effectively convolves the pixel (and its
     //       neighbours) using the (modified*) kernels:
@@ -1082,10 +1082,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 2.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1096,25 +1096,25 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3
            / static_cast<R>(8); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // See row_aligned_Sobel_derivative_3x3() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 2.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1125,15 +1125,15 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
            / static_cast<R>(8); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 5x5 convolution-based Sobel operator estimator using the kernel:
     //
     //        o-----> row-alignment direction. 
@@ -1153,15 +1153,15 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -5.0/240.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1190,30 +1190,30 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5
             + (  5.0/240.0) * static_cast<R>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // See row_aligned_Sobel_derivative_5x5() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -5.0/240.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1241,18 +1241,18 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
             + (  5.0/240.0) * static_cast<R>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Sobel_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
 // The Scharr 3x3 approximately rotationally-symmetric centred derivative estimator. Only nearest neighbour pixels are
 // used, and mirror boundary conditions are assumed. Pixel shape is ignored. The following routines fail with out-of-bounds input. 
-template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes the 3x3 approximately rotationally-symmetric variation of the Sobel derivative
     //       estimator, which estimates the partial derivative (i.e., gradient) along an image axis-aligned direction.
     //       This operation effectively convolves the pixel (and its neighbours) using the (modified*) kernels:
@@ -1272,10 +1272,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 10.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1286,25 +1286,25 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x
            / static_cast<R>(32); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // See row_aligned_Scharr_derivative() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 10.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1315,15 +1315,15 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
            / static_cast<R>(32); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_3x3(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 5x5 convolution-based Scharr operator estimator using the kernel:
     //
     //        o-----> row-alignment direction. 
@@ -1343,15 +1343,15 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -1.0/60.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1380,30 +1380,30 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x
             + (  1.0/60.0) * static_cast<R>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // See row_aligned_Scharr_derivative_5x5() notes.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -1.0/60.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1431,12 +1431,12 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
             + (  1.0/60.0) * static_cast<R>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_5x5(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_Scharr_derivative_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
@@ -1455,61 +1455,61 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
 //
 // NOTE: Coordinate system: "row-aligned" ("column-aligned") means the direction along a given row (column).
 //
-template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes $\partial_{c}^{2} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  this->row_aligned_derivative_centered_finite_difference(row, col_p_1, chnl)
             - this->row_aligned_derivative_centered_finite_difference(row, col_m_1, chnl) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::row_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::row_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
 #endif
-template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes $\partial_{r}^{2} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
 
     return (  this->column_aligned_derivative_centered_finite_difference(row_p_1, col, chnl)
             - this->column_aligned_derivative_centered_finite_difference(row_m_1, col, chnl) )
            / static_cast<R>(2); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::column_aligned_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::column_aligned_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
 #endif
-template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const {
+template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const {
     // Note: This routine computes $\partial_{r,c} P(row,col)$.
     if(!isininc(0,row,this->rows-1)
     || !isininc(0,col,this->columns-1)
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
@@ -1518,12 +1518,12 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
            / ( static_cast<R>(2) * static_cast<R>(2) ); // <--- All NN pixels are separated by 1.0 in pixel coords!
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template double planar_image<uint8_t ,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint16_t,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint32_t,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<uint64_t,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<float   ,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
-    template double planar_image<double  ,double>::cross_second_derivative_centered_finite_difference(long int row, long int col, long int chnl) const;
+    template double planar_image<uint8_t ,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint16_t,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint32_t,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<uint64_t,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<float   ,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
+    template double planar_image<double  ,double>::cross_second_derivative_centered_finite_difference(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
@@ -1628,10 +1628,10 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
 //       derivatives are not known, and you are going to approximate them using finite differences anyways, then this routine is 
 //       probably a good match for you.
 //
-template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel_number_space(R row, R col, long int chnl) const { 
+template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel_number_space(R row, R col, int64_t chnl) const { 
     //Get pixel space coordinates for the pixel that the user's input specifies.
-    const auto r_e_p = static_cast<long int>(std::floor(row + static_cast<R>(0.5))); //"Enclosing pixel row"
-    const auto c_e_p = static_cast<long int>(std::floor(col + static_cast<R>(0.5))); //"Enclosing pixel column"
+    const auto r_e_p = static_cast<int64_t>(std::floor(row + static_cast<R>(0.5))); //"Enclosing pixel row"
+    const auto c_e_p = static_cast<int64_t>(std::floor(col + static_cast<R>(0.5))); //"Enclosing pixel column"
 
     //Note: fails on out-of-bounds input.
     if(!isininc(0,r_e_p,this->rows-1) 
@@ -1652,9 +1652,9 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
 
     //Figure out the 'real' minimum and maximum row and column numbers of the four nearest (surrounding) pixel centres.
     // (This is where our mirror boundary conditions first come into play.
-    const auto r_min = std::max(static_cast<long int>(0),r_min_virt);
+    const auto r_min = std::max(static_cast<int64_t>(0),r_min_virt);
     const auto r_max = std::min(this->rows-1, r_max_virt);
-    const auto c_min = std::max(static_cast<long int>(0),c_min_virt);
+    const auto c_min = std::max(static_cast<int64_t>(0),c_min_virt);
     const auto c_max = std::min(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
@@ -1715,18 +1715,18 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
 #endif // YGOR_USE_EIGEN
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template float    planar_image<float   ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
-    template double   planar_image<double  ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::bicubically_interpolate_in_pixel_number_space(double row, double col, int64_t chnl) const;
 #endif
 
 //Average a block of pixels. Boundaries are inclusive. Out-of-bounds parts are ignored. Negatives OK (they are just ignored).
 template <class T,class R> 
 T
-planar_image<T,R>::block_average(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const {
+planar_image<T,R>::block_average(int64_t row_min, int64_t row_max, int64_t col_min, int64_t col_max, int64_t chnl) const {
     //On every failure, we return NaN.
     const auto failval = std::numeric_limits<T>::quiet_NaN();
 
@@ -1744,32 +1744,32 @@ planar_image<T,R>::block_average(long int row_min, long int row_max, long int co
     if((row_max < 0) || (col_max < 0) || (row_min > (this->rows-1)) || (col_min > (this->columns-1))) return failval;
 
     //Ignore invalid portions of the coordinates.
-    const long int r_min = (row_min < 0) ? 0 : row_min;
-    const long int c_min = (col_min < 0) ? 0 : col_min;
-    const long int r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
-    const long int c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
+    const int64_t r_min = (row_min < 0) ? 0 : row_min;
+    const int64_t c_min = (col_min < 0) ? 0 : col_min;
+    const int64_t r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
+    const int64_t c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
 
     std::vector<T> vals;
     vals.reserve((r_max - r_min + 1) * (c_max - c_min + 1));
-    for(long int r = r_min; r <= r_max; ++r){
-        for(long int c = c_min; c <= c_max; ++c){
+    for(int64_t r = r_min; r <= r_max; ++r){
+        for(int64_t c = c_min; c <= c_max; ++c){
             vals.push_back(this->value(r,c,chnl));
         }
     }
     return Stats::Mean(vals);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::block_average(long int, long int, long int, long int, long int) const;
-    template uint16_t planar_image<uint16_t,double>::block_average(long int, long int, long int, long int, long int) const;
-    template uint32_t planar_image<uint32_t,double>::block_average(long int, long int, long int, long int, long int) const;
-    template uint64_t planar_image<uint64_t,double>::block_average(long int, long int, long int, long int, long int) const;
-    template float    planar_image<float   ,double>::block_average(long int, long int, long int, long int, long int) const;
-    template double   planar_image<double  ,double>::block_average(long int, long int, long int, long int, long int) const;
+    template uint8_t  planar_image<uint8_t ,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint16_t planar_image<uint16_t,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint32_t planar_image<uint32_t,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint64_t planar_image<uint64_t,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template float    planar_image<float   ,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template double   planar_image<double  ,double>::block_average(int64_t, int64_t, int64_t, int64_t, int64_t) const;
 #endif
 
 template <class T,class R> 
 T
-planar_image<T,R>::block_median(long int row_min, long int row_max, long int col_min, long int col_max, long int chnl) const {
+planar_image<T,R>::block_median(int64_t row_min, int64_t row_max, int64_t col_min, int64_t col_max, int64_t chnl) const {
     //On every failure, we return NaN.
     const auto failval = std::numeric_limits<T>::quiet_NaN();
 
@@ -1787,31 +1787,31 @@ planar_image<T,R>::block_median(long int row_min, long int row_max, long int col
     if((row_max < 0) || (col_max < 0) || (row_min > (this->rows-1)) || (col_min > (this->columns-1))) return failval;
 
     //Ignore invalid portions of the coordinates.
-    const long int r_min = (row_min < 0) ? 0 : row_min;
-    const long int c_min = (col_min < 0) ? 0 : col_min;
-    const long int r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
-    const long int c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
+    const int64_t r_min = (row_min < 0) ? 0 : row_min;
+    const int64_t c_min = (col_min < 0) ? 0 : col_min;
+    const int64_t r_max = (row_max > (this->rows-1))    ? (this->rows-1)    : row_max;
+    const int64_t c_max = (col_max > (this->columns-1)) ? (this->columns-1) : col_max;
 
     std::vector<T> vals;
     vals.reserve((r_max - r_min + 1) * (c_max - c_min + 1));
-    for(long int r = r_min; r <= r_max; ++r){
-        for(long int c = c_min; c <= c_max; ++c){
+    for(int64_t r = r_min; r <= r_max; ++r){
+        for(int64_t c = c_min; c <= c_max; ++c){
             vals.push_back(this->value(r,c,chnl));
         }
     }
     return Stats::Median(vals);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::block_median(long int, long int, long int, long int, long int) const;
-    template uint16_t planar_image<uint16_t,double>::block_median(long int, long int, long int, long int, long int) const;
-    template uint32_t planar_image<uint32_t,double>::block_median(long int, long int, long int, long int, long int) const;
-    template uint64_t planar_image<uint64_t,double>::block_median(long int, long int, long int, long int, long int) const;
-    template float    planar_image<float   ,double>::block_median(long int, long int, long int, long int, long int) const;
-    template double   planar_image<double  ,double>::block_median(long int, long int, long int, long int, long int) const;
+    template uint8_t  planar_image<uint8_t ,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint16_t planar_image<uint16_t,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint32_t planar_image<uint32_t,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template uint64_t planar_image<uint64_t,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template float    planar_image<float   ,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
+    template double   planar_image<double  ,double>::block_median(int64_t, int64_t, int64_t, int64_t, int64_t) const;
 #endif
 
 //Approximate pixel-coordinate blurs using precomputed convolution kernel estimators.
-template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 3x3 convolution-based approximation of Gaussian blur using the kernel:
     //
     //        o-----> +row direction. 
@@ -1825,10 +1825,10 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return static_cast<T>(  
               ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
@@ -1844,15 +1844,15 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(long int
             + ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_gaussian_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_gaussian_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 5x5 convolution-based approximation of Gaussian blur using the kernel:
     //
     //        o-----> +row direction. 
@@ -1867,15 +1867,15 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<T>(  
               (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1909,15 +1909,15 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(long int
             + (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_gaussian_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_gaussian_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 3x3 convolution-based box blur (i.e., nearest-neighbour +
     //       next-nearest-neighbour blur).
     if(!isininc(0,row,this->rows-1)
@@ -1925,10 +1925,10 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row,
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return static_cast<T>(  
               ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
@@ -1944,15 +1944,15 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(long int row,
             + ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_p_1,col_p_1,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_box_blur_3x3(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_box_blur_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 5x5 convolution-based box blur using the kernel:
     //
     //        o-----> +row direction. 
@@ -1967,15 +1967,15 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row,
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<T>(  
               (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -2009,17 +2009,17 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(long int row,
             + (1.0/25.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_box_blur_5x5(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_box_blur_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
 //Approximate pixel-coordinate sharpening using precomputed convolution kernel estimators.
-template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 3x3 convolution-based box sharpen using nearest-neighbours and
     //       next-nearest-neighbours via the (normalized) kernel:
     //
@@ -2034,10 +2034,10 @@ template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
     return static_cast<T>(  
             - 1.0 * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
@@ -2047,15 +2047,15 @@ template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(long int row, 
             - 1.0 * static_cast<double>( this->data[this->index(row_p_1,col    ,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_sharpen_3x3(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_sharpen_3x3(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
-template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const {
+template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const {
     // NOTE: This routine computes a fixed 5x5 convolution-based unsharpen mask using the kernel (modified from a 5x5
     //       Gaussian kernel):
     //
@@ -2071,15 +2071,15 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    long int row_m_1 = std::max(static_cast<long int>(0),row-1);
-    long int row_p_1 = std::min(this->rows-1,row+1);
-    long int col_m_1 = std::max(static_cast<long int>(0),col-1);
-    long int col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min(this->columns-1,col+1);
 
-    long int row_m_2 = std::max(static_cast<long int>(0),row-2);
-    long int row_p_2 = std::min(this->rows-1,row+2);
-    long int col_m_2 = std::max(static_cast<long int>(0),col-2);
-    long int col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min(this->rows-1,row+2);
+    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min(this->columns-1,col+2);
 
     return static_cast<T>(  
             - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -2113,12 +2113,12 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(long int 
             - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_p_2,col_p_2,chnl)] ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image<uint8_t ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
-    template uint16_t planar_image<uint16_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
-    template uint32_t planar_image<uint32_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
-    template uint64_t planar_image<uint64_t,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
-    template float    planar_image<float   ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
-    template double   planar_image<double  ,double>::fixed_unsharp_mask_5x5(long int row, long int col, long int chnl) const;
+    template uint8_t  planar_image<uint8_t ,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint16_t planar_image<uint16_t,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint32_t planar_image<uint32_t,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template uint64_t planar_image<uint64_t,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template float    planar_image<float   ,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
+    template double   planar_image<double  ,double>::fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const;
 #endif
 
 
@@ -2129,7 +2129,7 @@ template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const 
     }
     T min = std::numeric_limits<T>::max();
     T max = std::numeric_limits<T>::lowest();
-    for(long int i = 0; i < this->rows*this->columns*this->channels; ++i){
+    for(int64_t i = 0; i < this->rows*this->columns*this->channels; ++i){
         if(std::isnan(this->data[i])) continue; // Exclude NaNs.
         if(min > this->data[i]) min = this->data[i];
         if(max < this->data[i]) max = this->data[i];
@@ -2147,7 +2147,7 @@ template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const 
 
 
 //Set all pixel data of specific channel to the given value. No-op if channel is non-existent.
-template <class T,class R> void planar_image<T,R>::fill_pixels(long int chnl, T val){
+template <class T,class R> void planar_image<T,R>::fill_pixels(int64_t chnl, T val){
     if(!isininc(0,chnl,this->channels-1)) return;
 
     //Feel free to speed this up using knowledge of the layout or contiguity or whatever. I needed it yesterday
@@ -2160,12 +2160,12 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(long int chnl, T 
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::fill_pixels(long int chnl, uint8_t  val);
-    template void planar_image<uint16_t,double>::fill_pixels(long int chnl, uint16_t val);
-    template void planar_image<uint32_t,double>::fill_pixels(long int chnl, uint32_t val);
-    template void planar_image<uint64_t,double>::fill_pixels(long int chnl, uint64_t val);
-    template void planar_image<float   ,double>::fill_pixels(long int chnl, float    val);
-    template void planar_image<double  ,double>::fill_pixels(long int chnl, double   val);
+    template void planar_image<uint8_t ,double>::fill_pixels(int64_t chnl, uint8_t  val);
+    template void planar_image<uint16_t,double>::fill_pixels(int64_t chnl, uint16_t val);
+    template void planar_image<uint32_t,double>::fill_pixels(int64_t chnl, uint32_t val);
+    template void planar_image<uint64_t,double>::fill_pixels(int64_t chnl, uint64_t val);
+    template void planar_image<float   ,double>::fill_pixels(int64_t chnl, float    val);
+    template void planar_image<double  ,double>::fill_pixels(int64_t chnl, double   val);
 #endif
 
 //Set all pixel data (all channels) to the given value.
@@ -2194,9 +2194,9 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
 
 //Fill pixels above a given plane. Returns the number of affected pixels.
 template<class T, class R>
-long int
-planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<long int> chnls){
-    long int N = 0;
+int64_t
+planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<int64_t> chnls){
+    int64_t N = 0;
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){ 
             const auto p = this->position(row, col);
@@ -2213,18 +2213,18 @@ planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::se
     return N;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
-    template long int planar_image<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
-    template long int planar_image<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
-    template long int planar_image<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
-    template long int planar_image<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
-    template long int planar_image<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<long int>);
+    template int64_t planar_image<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<int64_t>);
+    template int64_t planar_image<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<int64_t>);
+    template int64_t planar_image<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<int64_t>);
+    template int64_t planar_image<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<int64_t>);
+    template int64_t planar_image<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<int64_t>);
+    template int64_t planar_image<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<int64_t>);
 #endif
 
 //Apply a functor to individual pixels.
 template<class T, class R>
 void
-planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T &val)> func){
+planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func){
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){
             for(auto chn = 0; chn < this->channels; ++chn){
@@ -2235,17 +2235,17 @@ planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  &val)>);
-    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t &val)>);
-    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
-    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
-    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
-    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   &val)>);
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>);
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t &val)>);
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t &val)>);
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t &val)>);
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    &val)>);
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   &val)>);
 #endif
 
 template<class T, class R>
 void
-planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, T val)> func) const {
+planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const {
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){
             for(auto chn = 0; chn < this->channels; ++chn){
@@ -2256,19 +2256,19 @@ planar_image<T,R>::apply_to_pixels(std::function<void(long int row, long int col
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  val)>) const;
-    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t val)>) const;
-    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
-    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
-    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
-    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   val)>) const;
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>) const;
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t val)>) const;
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t val)>) const;
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t val)>) const;
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    val)>) const;
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   val)>) const;
 #endif
 
 
 //Replace non-finite numbers.
 template <class T,class R>
 void 
-planar_image<T,R>::replace_nonfinite_pixels_with(long int chnl, T val){
+planar_image<T,R>::replace_nonfinite_pixels_with(int64_t chnl, T val){
     if(!isininc(0,chnl,this->channels-1)) return;
 
     for(auto row = 0; row < this->rows; ++row){
@@ -2279,12 +2279,12 @@ planar_image<T,R>::replace_nonfinite_pixels_with(long int chnl, T val){
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(long int chnl, uint8_t  val);
-    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(long int chnl, uint16_t val);
-    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(long int chnl, uint32_t val);
-    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(long int chnl, uint64_t val);
-    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(long int chnl, float    val);
-    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(long int chnl, double   val);
+    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(int64_t chnl, uint8_t  val);
+    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(int64_t chnl, uint16_t val);
+    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(int64_t chnl, uint32_t val);
+    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(int64_t chnl, uint64_t val);
+    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(int64_t chnl, float    val);
+    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(int64_t chnl, double   val);
 #endif
 
 template <class T,class R>
@@ -2310,7 +2310,7 @@ planar_image<T,R>::replace_nonfinite_pixels_with(T val){
 
 
 //Get an R^3 position of the *center* of the pixel/voxel.
-template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, long int col) const {
+template <class T,class R> vec3<R> planar_image<T,R>::position(int64_t row, int64_t col) const {
     if( !isininc(0,row,this->rows-1) 
     ||  !isininc(0,col,this->columns-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
@@ -2321,15 +2321,15 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int row, lon
             + this->col_unit*(this->pxl_dy*static_cast<R>(col)) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<double> planar_image<uint8_t ,double>::position(long int row, long int col) const;
-    template vec3<double> planar_image<uint16_t,double>::position(long int row, long int col) const;
-    template vec3<double> planar_image<uint32_t,double>::position(long int row, long int col) const;
-    template vec3<double> planar_image<uint64_t,double>::position(long int row, long int col) const;
-    template vec3<double> planar_image<float   ,double>::position(long int row, long int col) const;
-    template vec3<double> planar_image<double  ,double>::position(long int row, long int col) const;
+    template vec3<double> planar_image<uint8_t ,double>::position(int64_t row, int64_t col) const;
+    template vec3<double> planar_image<uint16_t,double>::position(int64_t row, int64_t col) const;
+    template vec3<double> planar_image<uint32_t,double>::position(int64_t row, int64_t col) const;
+    template vec3<double> planar_image<uint64_t,double>::position(int64_t row, int64_t col) const;
+    template vec3<double> planar_image<float   ,double>::position(int64_t row, int64_t col) const;
+    template vec3<double> planar_image<double  ,double>::position(int64_t row, int64_t col) const;
 #endif
 
-template <class T,class R> vec3<R> planar_image<T,R>::position(long int index) const {
+template <class T,class R> vec3<R> planar_image<T,R>::position(int64_t index) const {
     if( (index < 0)
     ||  (index > this->index(this->rows-1,this->columns-1,this->channels-1)) ){
         throw std::runtime_error("Attempted to access part of image which does not exist");
@@ -2341,12 +2341,12 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(long int index) c
     return this->position(row, col); // Will throw if out-of-bounds.
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<double> planar_image<uint8_t ,double>::position(long int index) const;
-    template vec3<double> planar_image<uint16_t,double>::position(long int index) const;
-    template vec3<double> planar_image<uint32_t,double>::position(long int index) const;
-    template vec3<double> planar_image<uint64_t,double>::position(long int index) const;
-    template vec3<double> planar_image<float   ,double>::position(long int index) const;
-    template vec3<double> planar_image<double  ,double>::position(long int index) const;
+    template vec3<double> planar_image<uint8_t ,double>::position(int64_t index) const;
+    template vec3<double> planar_image<uint16_t,double>::position(int64_t index) const;
+    template vec3<double> planar_image<uint32_t,double>::position(int64_t index) const;
+    template vec3<double> planar_image<uint64_t,double>::position(int64_t index) const;
+    template vec3<double> planar_image<float   ,double>::position(int64_t index) const;
+    template vec3<double> planar_image<double  ,double>::position(int64_t index) const;
 #endif
 
 
@@ -2719,13 +2719,13 @@ template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Co
 //       Additionally, the Gaussian kernel can be split and applied separately in X and Y directions. This could
 //       speed it up because the implementation could become highly parallelized, if you are so inclined.
 //
-template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels){
+template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels){
     //Verify that all indicated channels are actually present in the image. If not, fail before doing anything.
     for(const auto &achnl : chnls) if(!isininc(0,achnl,this->channels-1)) return false;
 
     //If chnls is empty, blur on all channels.
     if(chnls.empty()){
-        for(long int chnl = 0; chnl < this->channels; ++chnl) chnls.insert(chnl);
+        for(int64_t chnl = 0; chnl < this->channels; ++chnl) chnls.insert(chnl);
     }
 
     //Make a copy of the image so we can modify the pixels without destroying the computation.
@@ -2735,19 +2735,19 @@ template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<
     const double pi               = 3.14159265358979323846264338328;
     const double pixel_sigma      = sigma_in_units_of_pixels;  //Width of Gaussian (for pixel intensity weighting).
     const double pixel_box_radius = 3.0*pixel_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
-    const long int pixel_R        = std::ceil(pixel_box_radius);
+    const int64_t pixel_R        = std::ceil(pixel_box_radius);
     const double w_denom          = 2.0*pi*pixel_sigma*pixel_sigma; //Helps prevent overflow.
 
     //Loop over the rows, columns, and channels.
-    for(long int row = 0; row < this->rows; ++row){
-        for(long int col = 0; col < this->columns; ++col){
+    for(int64_t row = 0; row < this->rows; ++row){
+        for(int64_t col = 0; col < this->columns; ++col){
             for(const auto &achnl : chnls){
                 double sum_weights = 0.0;
                 double sum_weighted_vals = 0.0;
 
                 //Walk over the 'box' of nearby pixels and matrix elements (composed of the weighting kernel).
-                for(long int l_row = (row-pixel_R); l_row < (row+pixel_R); ++l_row){
-                    for(long int l_col = (col-pixel_R); l_col < (col+pixel_R); ++l_col){
+                for(int64_t l_row = (row-pixel_R); l_row < (row+pixel_R); ++l_row){
+                    for(int64_t l_col = (col-pixel_R); l_col < (col+pixel_R); ++l_col){
                         if(isininc(0,l_row,this->rows-1) && isininc(0,l_col,this->columns-1)){
                             //Get the original (box) pixel's value.
                             const auto pixel_val = ref_img.value(l_row, l_col, achnl);
@@ -2780,12 +2780,12 @@ template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<
     return true;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template bool planar_image<uint8_t ,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
-    template bool planar_image<uint16_t,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
-    template bool planar_image<uint32_t,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
-    template bool planar_image<uint64_t,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
-    template bool planar_image<float   ,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
-    template bool planar_image<double  ,double>::Gaussian_Pixel_Blur(std::set<long int>, double);
+    template bool planar_image<uint8_t ,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
+    template bool planar_image<uint16_t,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
+    template bool planar_image<uint32_t,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
+    template bool planar_image<uint64_t,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
+    template bool planar_image<float   ,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
+    template bool planar_image<double  ,double>::Gaussian_Pixel_Blur(std::set<int64_t>, double);
 #endif
 
 
@@ -2820,12 +2820,12 @@ planar_image<T,R>::GetMetadataValueAs(std::string key) const {
     template std::optional<uint32_t> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<uint32_t> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
-    template std::optional<long int> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<uint32_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<uint64_t,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<float   ,double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> planar_image<double  ,double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<float> planar_image<uint8_t ,double>::GetMetadataValueAs(std::string key) const;
     template std::optional<float> planar_image<uint16_t,double>::GetMetadataValueAs(std::string key) const;
@@ -3019,12 +3019,12 @@ void planar_image_collection<T,R>::Stable_Sort_on_Metadata_Keys_Value_Numeric(co
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image_collection<uint8_t ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
-    template void planar_image_collection<uint16_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
-    template void planar_image_collection<uint32_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
-    template void planar_image_collection<uint64_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
-    template void planar_image_collection<float   ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
-    template void planar_image_collection<double  ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<long int>(const std::string &);
+    template void planar_image_collection<uint8_t ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
+    template void planar_image_collection<uint16_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
+    template void planar_image_collection<uint32_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
+    template void planar_image_collection<uint64_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
+    template void planar_image_collection<float   ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
+    template void planar_image_collection<double  ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<int64_t>(const std::string &);
 
     template void planar_image_collection<uint8_t ,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
     template void planar_image_collection<uint16_t,double>::Stable_Sort_on_Metadata_Keys_Value_Numeric<double>(const std::string &);
@@ -4348,73 +4348,73 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
 //       to report which at the moment. If this happens, you should consider running the planar_image blur function directly
 //       on images.
 //
-template <class T,class R> bool planar_image_collection<T,R>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels){
+template <class T,class R> bool planar_image_collection<T,R>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels){
     for(auto &animg : this->images){
         if(!animg.Gaussian_Pixel_Blur(chnls,sigma_in_units_of_pixels)) return false;
     }
     return true;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template bool planar_image_collection<uint8_t ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
-    template bool planar_image_collection<uint16_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
-    template bool planar_image_collection<uint32_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
-    template bool planar_image_collection<uint64_t,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
-    template bool planar_image_collection<float   ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
-    template bool planar_image_collection<double  ,double>::Gaussian_Pixel_Blur(std::set<long int> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<uint8_t ,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<uint16_t,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<uint32_t,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<uint64_t,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<float   ,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
+    template bool planar_image_collection<double  ,double>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels);
 #endif
 
 //Fill pixels above a given plane. Returns the number of affected pixels.
 template <class T,class R> 
-long int
-planar_image_collection<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<long int> chnls){
-    long int N = 0;
+int64_t
+planar_image_collection<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<int64_t> chnls){
+    int64_t N = 0;
     for(auto &animg : this->images){
         N += animg.set_voxels_above_plane(aplane, val, chnls);
     }
     return N;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image_collection<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<long int>);
-    template long int planar_image_collection<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<long int>);
-    template long int planar_image_collection<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<long int>);
-    template long int planar_image_collection<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<long int>);
-    template long int planar_image_collection<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<long int>);
-    template long int planar_image_collection<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<long int>);
+    template int64_t planar_image_collection<uint8_t ,double>::set_voxels_above_plane(const plane<double> &aplane, uint8_t  val, std::set<int64_t>);
+    template int64_t planar_image_collection<uint16_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint16_t val, std::set<int64_t>);
+    template int64_t planar_image_collection<uint32_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint32_t val, std::set<int64_t>);
+    template int64_t planar_image_collection<uint64_t,double>::set_voxels_above_plane(const plane<double> &aplane, uint64_t val, std::set<int64_t>);
+    template int64_t planar_image_collection<float   ,double>::set_voxels_above_plane(const plane<double> &aplane, float    val, std::set<int64_t>);
+    template int64_t planar_image_collection<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<int64_t>);
 #endif
 
 //Apply a functor to individual pixels.
 template<class T, class R>
 void
-planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, long int col, long int chnl, T &val)> func){
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func){
     for(auto &animg : this->images){
         animg.apply_to_pixels(func);
     }
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  &val)>);
-    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t &val)>);
-    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t &val)>);
-    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t &val)>);
-    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    &val)>);
-    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   &val)>);
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>);
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t &val)>);
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t &val)>);
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t &val)>);
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    &val)>);
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   &val)>);
 #endif
 
 template<class T, class R>
 void
-planar_image_collection<T,R>::apply_to_pixels( std::function<void(long int row, long int col, long int chnl, T val)> func) const {
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const {
     for(auto &animg : this->images){
         animg.apply_to_pixels(func);
     }
     return;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint8_t  val)>) const;
-    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint16_t val)>) const;
-    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint32_t val)>) const;
-    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, uint64_t val)>) const;
-    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, float    val)>) const;
-    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(long int row, long int col, long int chnl, double   val)>) const;
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>) const;
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t val)>) const;
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t val)>) const;
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t val)>) const;
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    val)>) const;
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   val)>) const;
 #endif
 
 //Returns the R^3 center of the image. Nothing fancy.
@@ -4557,7 +4557,7 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
 // that the loss of precision is irrelevant. (If you cannot deal with this, spatial interpolation is probably not what
 // you want!)
 //
-template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpolate(const vec3<R> &pos, long int chnl, R out_of_bounds){
+template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpolate(const vec3<R> &pos, int64_t chnl, R out_of_bounds){
     if(this->images.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
 
     //First, identify the nearest planes above and below the point.
@@ -4638,12 +4638,12 @@ template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpola
     return out; 
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image_collection<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint16_t planar_image_collection<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
-    template double   planar_image_collection<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob);
+    template uint8_t  planar_image_collection<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template uint16_t planar_image_collection<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template double   planar_image_collection<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
 #endif
 
 
@@ -4672,9 +4672,9 @@ template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpola
 //       of channels than all images in the collection.
 //
 template <class T,class R> 
-long int Intersection_Copy(planar_image<T,R> &in, 
+int64_t Intersection_Copy(planar_image<T,R> &in, 
                            const std::list<typename planar_image_collection<T,R>::images_list_it_t> &imgs){
-    long int count = 0;
+    int64_t count = 0;
     for(auto row = 0; row < in.rows; ++row){
         for(auto col = 0; col < in.columns; ++col){
             //Find the first image that coincides with this pixel (if any exists).
@@ -4700,17 +4700,17 @@ long int Intersection_Copy(planar_image<T,R> &in,
     return count;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int Intersection_Copy(planar_image<uint8_t ,double> &,
+    template int64_t Intersection_Copy(planar_image<uint8_t ,double> &,
              const std::list<typename planar_image_collection<uint8_t ,double>::images_list_it_t> &);
-    template long int Intersection_Copy(planar_image<uint16_t,double> &, 
+    template int64_t Intersection_Copy(planar_image<uint16_t,double> &, 
              const std::list<typename planar_image_collection<uint16_t,double>::images_list_it_t> &);
-    template long int Intersection_Copy(planar_image<uint32_t,double> &, 
+    template int64_t Intersection_Copy(planar_image<uint32_t,double> &, 
              const std::list<typename planar_image_collection<uint32_t,double>::images_list_it_t> &);
-    template long int Intersection_Copy(planar_image<uint64_t,double> &, 
+    template int64_t Intersection_Copy(planar_image<uint64_t,double> &, 
              const std::list<typename planar_image_collection<uint64_t,double>::images_list_it_t> &);
-    template long int Intersection_Copy(planar_image<float   ,double> &, 
+    template int64_t Intersection_Copy(planar_image<float   ,double> &, 
              const std::list<typename planar_image_collection<float   ,double>::images_list_it_t> &);
-    template long int Intersection_Copy(planar_image<double  ,double> &, 
+    template int64_t Intersection_Copy(planar_image<double  ,double> &, 
              const std::list<typename planar_image_collection<double  ,double>::images_list_it_t> &);
 #endif
 
@@ -4745,10 +4745,10 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
                          const R x_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
                          const R y_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
                          const R z_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
-                         const long int number_of_rows,
-                         const long int number_of_columns,
-                         const long int number_of_channels,
-                         const long int number_of_images,
+                         const int64_t number_of_rows,
+                         const int64_t number_of_columns,
+                         const int64_t number_of_channels,
+                         const int64_t number_of_images,
                          const vec3<R> &x_orientation,
                          const vec3<R> &y_orientation,
                          const vec3<R> &z_orientation,
@@ -4829,7 +4829,7 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
 
     //Generate the images.
     planar_image_collection<T,R> out;
-    for(long int i = 0; i < number_of_images; ++i){
+    for(int64_t i = 0; i < number_of_images; ++i){
         if(only_top_and_bottom && (i > 0) && (i < (number_of_images-1))) continue;
 
         //Construct a plane where the image will sit.
@@ -4853,27 +4853,27 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template planar_image_collection<uint8_t ,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint16_t,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint32_t,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint64_t,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<float   ,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<double  ,double> Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const vec3<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
 #endif
 
@@ -4892,10 +4892,10 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
                          const R x_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
                          const R y_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
                          const R z_margin,    // Extra space (gap) length to leave on the perhiphery of the contours.
-                         const long int number_of_rows,
-                         const long int number_of_columns,
-                         const long int number_of_channels,
-                         const long int number_of_images,
+                         const int64_t number_of_rows,
+                         const int64_t number_of_columns,
+                         const int64_t number_of_channels,
+                         const int64_t number_of_images,
                          const line<R> &symm_line, // Note: ~ the z_orientation with a pinning intersection somewhere.
                          const vec3<R> &x_orientation,
                          const vec3<R> &y_orientation,
@@ -4970,7 +4970,7 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
 
     //Generate the images.
     planar_image_collection<T,R> out;
-    for(long int i = 0; i < number_of_images; ++i){
+    for(int64_t i = 0; i < number_of_images; ++i){
         if(only_top_and_bottom && (i > 0) && (i < (number_of_images-1))) continue;
 
         //Construct a plane where the image will sit.
@@ -4994,27 +4994,27 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template planar_image_collection<uint8_t ,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint16_t,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint32_t,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<uint64_t,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<float   ,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
     template planar_image_collection<double  ,double> Symmetrically_Contiguously_Grid_Volume(
              const std::list<std::reference_wrapper<contour_collection<double>>> &,
-             const double, const double, const double, const long int, const long int, const long int, const long int,
+             const double, const double, const double, const int64_t, const int64_t, const int64_t, const int64_t,
              const line<double> &, const vec3<double> &, const vec3<double> &, const double, bool);
 #endif
 
@@ -5188,7 +5188,7 @@ void Mutate_Voxels(
     if(working_img_ref.get().columns < 1){
         throw std::invalid_argument("No columns to operate on. Cannot continue.");
     }
-    std::set<long int> channels_to_visit;
+    std::set<int64_t> channels_to_visit;
     for(auto chan = 0; chan < working_img_ref.get().channels; ++chan) channels_to_visit.insert(chan);
 
     //Prepare a contour mask image.
@@ -5196,7 +5196,7 @@ void Mutate_Voxels(
     //   !0 means the voxel is bounded by at least one contour (and possibly zero or more holes).
     planar_image<T,R> mask_img;
     std::reference_wrapper<planar_image<T,R>> mask_img_ref(mask_img);
-    long int mask_chan = 0;
+    int64_t mask_chan = 0;
 
     if(false){
     }else if(options.maskstyle == Mutate_Voxels_Opts::MaskStyle::Surrogate){
@@ -5262,15 +5262,15 @@ void Mutate_Voxels(
     */
 
             //Filter out rows and columns that do not contain any voxels bounded by the contour.
-            std::set<long int> RowsToVisit;
-            std::set<long int> ColumnsToVisit;
+            std::set<int64_t> RowsToVisit;
+            std::set<int64_t> ColumnsToVisit;
             {
                 const auto row_plane_intersects_roi = [&](vec3<double> point) -> bool {
                     const plane<double> p(row_unit, point);
                     return (roi_it->Avoids_Plane(p) == 0);
                 };
                 for(auto row = 0; row < working_img_ref.get().rows; ++row){
-                    const long int col = 0;
+                    const int64_t col = 0;
                     const auto centre  = working_img_ref.get().position(row,col);
                     const auto left    = centre - (row_unit * 0.5 * pxl_dx);
                     const auto right   = centre + (row_unit * 0.5 * pxl_dx);
@@ -5292,7 +5292,7 @@ void Mutate_Voxels(
                     return (roi_it->Avoids_Plane(p) == 0);
                 };
                 for(auto col = 0; col < working_img_ref.get().columns; ++col){
-                    const long int row = 0;
+                    const int64_t row = 0;
                     const auto centre  = working_img_ref.get().position(row,col);
                     const auto top     = centre - (col_unit * 0.5 * pxl_dy);
                     const auto bottom  = centre + (col_unit * 0.5 * pxl_dy);
@@ -5344,7 +5344,7 @@ void Mutate_Voxels(
                 //Use a more efficient method that require some additional upfront computation.
 
                 //Precompute which line segments cross over each row line (or column line).
-                std::map<long int, std::vector<double>> row_contour_crossings;
+                std::map<int64_t, std::vector<double>> row_contour_crossings;
                 {
                     auto end = std::end(ProjectedContour.points);
                     for(auto p1_it = std::begin(ProjectedContour.points); p1_it != end; ++p1_it){
@@ -5541,7 +5541,7 @@ void Mutate_Voxels(
 
                     // Determine the corresponding row number.
                     const auto row_num = ( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dx;
-                    const auto row = static_cast<long int>( std::round(row_num) );
+                    const auto row = static_cast<int64_t>( std::round(row_num) );
 
                     if(row_contour_crossings.count(row) == 0){
                         return false; // Not interior, because no bounds were found earlier.
@@ -5576,7 +5576,7 @@ void Mutate_Voxels(
 
 
             //Lambda for indicating the boundedness on the contour mask.
-            const auto mark_boundedness = [&mask_img_ref,options,OrientationPositive](long int r, long int c, long int ch) -> void {
+            const auto mark_boundedness = [&mask_img_ref,options,OrientationPositive](int64_t r, int64_t c, int64_t ch) -> void {
                 if(false){
                 }else if(options.contouroverlap == Mutate_Voxels_Opts::ContourOverlap::Ignore){
                     mask_img_ref.get().reference(r, c, ch) += static_cast<T>(1);
@@ -5698,10 +5698,10 @@ void Mutate_Voxels(
 
                             if(false){
                             }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                                const auto row_l = std::max( static_cast<long int>(row - 1), static_cast<long int>(0) );
-                                const auto row_h = std::min( static_cast<long int>(row + 1), static_cast<long int>(working_img_ref.get().rows - 1) );
-                                const auto col_l = std::max( static_cast<long int>(col - 1), static_cast<long int>(0) );
-                                const auto col_h = std::min( static_cast<long int>(col + 1), static_cast<long int>(working_img_ref.get().columns - 1) );
+                                const auto row_l = std::max( static_cast<int64_t>(row - 1), static_cast<int64_t>(0) );
+                                const auto row_h = std::min( static_cast<int64_t>(row + 1), static_cast<int64_t>(working_img_ref.get().rows - 1) );
+                                const auto col_l = std::max( static_cast<int64_t>(col - 1), static_cast<int64_t>(0) );
+                                const auto col_h = std::min( static_cast<int64_t>(col + 1), static_cast<int64_t>(working_img_ref.get().columns - 1) );
                                 if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
                                 if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
                                 if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
@@ -5733,10 +5733,10 @@ void Mutate_Voxels(
 
                             if(false){
                             }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                                const auto row_l = std::max( static_cast<long int>(proj_row - 1), static_cast<long int>(0) );
-                                const auto row_h = std::min( static_cast<long int>(proj_row + 1), static_cast<long int>(img_ref.get().rows - 1) );
-                                const auto col_l = std::max( static_cast<long int>(proj_col - 1), static_cast<long int>(0) );
-                                const auto col_h = std::min( static_cast<long int>(proj_col + 1), static_cast<long int>(img_ref.get().columns - 1) );
+                                const auto row_l = std::max( static_cast<int64_t>(proj_row - 1), static_cast<int64_t>(0) );
+                                const auto row_h = std::min( static_cast<int64_t>(proj_row + 1), static_cast<int64_t>(img_ref.get().rows - 1) );
+                                const auto col_l = std::max( static_cast<int64_t>(proj_col - 1), static_cast<int64_t>(0) );
+                                const auto col_h = std::min( static_cast<int64_t>(proj_col + 1), static_cast<int64_t>(img_ref.get().columns - 1) );
                                 if( proj_row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, proj_col, chan) );
                                 if( proj_row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, proj_col, chan) );
                                 if( proj_col != col_l ) shtl.emplace_back( img_ref.get().value(proj_row, col_l, chan) );
@@ -6057,7 +6057,7 @@ planar_image_adjacency<T,R>::planar_image_adjacency(
 
     // Give each image an index. The number is arbitrary, but for convenience the first is given 0 so we can more
     // consistently traverse the entire set.
-    long int dummy = 0;
+    int64_t dummy = 0;
     this->int_to_img.reserve(this->img_plane_to_img.size());
     for(auto &p : this->img_plane_to_img){
         const auto img_ptr = std::get<1>(p);
@@ -6204,20 +6204,20 @@ planar_image_adjacency<T,R>::position_to_image(const vec3<R> &pos) const {
 
 
 template <class T,class R>
-std::pair<long int, long int>
+std::pair<int64_t, int64_t>
 planar_image_adjacency<T,R>::get_min_max_indices() const {
     if(this->int_to_img.empty()){
         throw std::logic_error("Index is empty, no images are present, cannot get min/max indices.");
     }
-    return std::make_pair<long int, long int>( 0L, static_cast<long int>(this->int_to_img.size()) - 1L );
+    return std::make_pair<int64_t, int64_t>( static_cast<int64_t>(0), static_cast<int64_t>(this->int_to_img.size()) - 1L );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template std::pair<long int, long int> planar_image_adjacency<uint8_t ,double>:: get_min_max_indices() const;
-    template std::pair<long int, long int> planar_image_adjacency<uint16_t,double>:: get_min_max_indices() const;
-    template std::pair<long int, long int> planar_image_adjacency<uint32_t,double>:: get_min_max_indices() const;
-    template std::pair<long int, long int> planar_image_adjacency<uint64_t,double>:: get_min_max_indices() const;
-    template std::pair<long int, long int> planar_image_adjacency<float   ,double>:: get_min_max_indices() const;
-    template std::pair<long int, long int> planar_image_adjacency<double  ,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<uint8_t ,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<uint16_t,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<uint32_t,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<uint64_t,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<float   ,double>:: get_min_max_indices() const;
+    template std::pair<int64_t, int64_t> planar_image_adjacency<double  ,double>:: get_min_max_indices() const;
 #endif
 
 
@@ -6277,16 +6277,16 @@ planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_
             
 template <class T,class R>
 bool
-planar_image_adjacency<T,R>::index_present(long int index) const {
-    return (0L <= index) && (index < static_cast<long int>(this->int_to_img.size()));
+planar_image_adjacency<T,R>::index_present(int64_t index) const {
+    return (0L <= index) && (index < static_cast<int64_t>(this->int_to_img.size()));
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template bool planar_image_adjacency<uint8_t ,double>::index_present(long int) const;
-    template bool planar_image_adjacency<uint16_t,double>::index_present(long int) const;
-    template bool planar_image_adjacency<uint32_t,double>::index_present(long int) const;
-    template bool planar_image_adjacency<uint64_t,double>::index_present(long int) const;
-    template bool planar_image_adjacency<float   ,double>::index_present(long int) const;
-    template bool planar_image_adjacency<double  ,double>::index_present(long int) const;
+    template bool planar_image_adjacency<uint8_t ,double>::index_present(int64_t) const;
+    template bool planar_image_adjacency<uint16_t,double>::index_present(int64_t) const;
+    template bool planar_image_adjacency<uint32_t,double>::index_present(int64_t) const;
+    template bool planar_image_adjacency<uint64_t,double>::index_present(int64_t) const;
+    template bool planar_image_adjacency<float   ,double>::index_present(int64_t) const;
+    template bool planar_image_adjacency<double  ,double>::index_present(int64_t) const;
 #endif
 
 template <class T,class R>
@@ -6305,30 +6305,30 @@ planar_image_adjacency<T,R>::image_present(const std::reference_wrapper< planar_
 
 template <class T,class R>
 std::reference_wrapper< planar_image<T,R> >
-planar_image_adjacency<T,R>::index_to_image(long int index) const {
+planar_image_adjacency<T,R>::index_to_image(int64_t index) const {
     return std::ref( *(this->int_to_img.at(index) ) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template std::reference_wrapper< planar_image<uint8_t , double> > planar_image_adjacency<uint8_t ,double>::index_to_image(long int) const;
-    template std::reference_wrapper< planar_image<uint16_t, double> > planar_image_adjacency<uint16_t,double>::index_to_image(long int) const;
-    template std::reference_wrapper< planar_image<uint32_t, double> > planar_image_adjacency<uint32_t,double>::index_to_image(long int) const;
-    template std::reference_wrapper< planar_image<uint64_t, double> > planar_image_adjacency<uint64_t,double>::index_to_image(long int) const;
-    template std::reference_wrapper< planar_image<float   , double> > planar_image_adjacency<float   ,double>::index_to_image(long int) const;
-    template std::reference_wrapper< planar_image<double  , double> > planar_image_adjacency<double  ,double>::index_to_image(long int) const;
+    template std::reference_wrapper< planar_image<uint8_t , double> > planar_image_adjacency<uint8_t ,double>::index_to_image(int64_t) const;
+    template std::reference_wrapper< planar_image<uint16_t, double> > planar_image_adjacency<uint16_t,double>::index_to_image(int64_t) const;
+    template std::reference_wrapper< planar_image<uint32_t, double> > planar_image_adjacency<uint32_t,double>::index_to_image(int64_t) const;
+    template std::reference_wrapper< planar_image<uint64_t, double> > planar_image_adjacency<uint64_t,double>::index_to_image(int64_t) const;
+    template std::reference_wrapper< planar_image<float   , double> > planar_image_adjacency<float   ,double>::index_to_image(int64_t) const;
+    template std::reference_wrapper< planar_image<double  , double> > planar_image_adjacency<double  ,double>::index_to_image(int64_t) const;
 #endif
 
 template <class T,class R>
-long int
+int64_t
 planar_image_adjacency<T,R>::image_to_index(const std::reference_wrapper< planar_image<T,R> > &img_refw) const {
     return this->img_to_int.at( std::addressof( img_refw.get() ));
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template long int planar_image_adjacency<uint8_t ,double>::image_to_index(const std::reference_wrapper< planar_image<uint8_t , double> > &) const;
-    template long int planar_image_adjacency<uint16_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint16_t, double> > &) const;
-    template long int planar_image_adjacency<uint32_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
-    template long int planar_image_adjacency<uint64_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
-    template long int planar_image_adjacency<float   ,double>::image_to_index(const std::reference_wrapper< planar_image<float   , double> > &) const;
-    template long int planar_image_adjacency<double  ,double>::image_to_index(const std::reference_wrapper< planar_image<double  , double> > &) const;
+    template int64_t planar_image_adjacency<uint8_t ,double>::image_to_index(const std::reference_wrapper< planar_image<uint8_t , double> > &) const;
+    template int64_t planar_image_adjacency<uint16_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint16_t, double> > &) const;
+    template int64_t planar_image_adjacency<uint32_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint32_t, double> > &) const;
+    template int64_t planar_image_adjacency<uint64_t,double>::image_to_index(const std::reference_wrapper< planar_image<uint64_t, double> > &) const;
+    template int64_t planar_image_adjacency<float   ,double>::image_to_index(const std::reference_wrapper< planar_image<float   , double> > &) const;
+    template int64_t planar_image_adjacency<double  ,double>::image_to_index(const std::reference_wrapper< planar_image<double  , double> > &) const;
 #endif
 
 // Interpolate linearly in R^3. The nearest two images (above and below) are interpolated between. Specifically, the
@@ -6353,7 +6353,7 @@ planar_image_adjacency<T,R>::image_to_index(const std::reference_wrapper< planar
 template <class T,class R>
 T
 planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
-                                                      long int chnl, 
+                                                      int64_t chnl, 
                                                       R out_of_bounds ) const {
     if(this->int_to_img.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
     
@@ -6371,7 +6371,7 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     const bool nearest_is_above = (nearest_dR >= 0.0);
 
     // If the opposing image does not exist, continue with the nearest image in its place.
-    long int other_img_index = nearest_img_index + (nearest_is_above ? -1 : 1);
+    int64_t other_img_index = nearest_img_index + (nearest_is_above ? -1 : 1);
     const bool other_present = this->index_present(other_img_index);
     other_img_index = (other_present ? other_img_index : nearest_img_index);
     const auto other_img_refw = (other_present ? this->index_to_image(other_img_index) : nearest_img_refw);
@@ -6422,11 +6422,11 @@ planar_image_adjacency<T,R>::trilinearly_interpolate( const vec3<R> &pos,
     return out; 
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image_adjacency<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
-    template uint16_t planar_image_adjacency<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
-    template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
-    template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
-    template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
-    template double   planar_image_adjacency<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, long int chnl, double oob) const;
+    template uint8_t  planar_image_adjacency<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint16_t planar_image_adjacency<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint32_t planar_image_adjacency<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint64_t planar_image_adjacency<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template float    planar_image_adjacency<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template double   planar_image_adjacency<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
 #endif
 

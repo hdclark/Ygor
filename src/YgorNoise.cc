@@ -32,7 +32,7 @@
 // around ~0.1.
 //
 
-static long int PERLIN_HAS_NOT_BEEN_INITIALIZED = 1;
+static int64_t PERLIN_HAS_NOT_BEEN_INITIALIZED = 1;
 
 #define PERLIN_DOT(a,b)       (a[0] * b[0] + a[1] * b[1] + a[2] * b[2])
 #define PERLIN_B              256
@@ -40,7 +40,7 @@ static long int PERLIN_HAS_NOT_BEEN_INITIALIZED = 1;
 #define PERLIN_S_CURVE(t)     ( t * t * (3.0f - 2.0f * t) )
 #define PERLIN_LERP(t, a, b)  ( a + t * (b - a) )
 
-static long int  PERLIN_P[PERLIN_B + PERLIN_B + 2];
+static int64_t  PERLIN_P[PERLIN_B + PERLIN_B + 2];
 static float PERLIN_G[PERLIN_B + PERLIN_B + 2][3];
 
 #define PERLIN_SETUP(i,b0,b1,r0,r1) \
@@ -89,7 +89,7 @@ static void PERLIN_INIT(){
 float Perlin_Noise_3D(float vec[3]){
     int bx0, bx1, by0, by1, bz0, bz1, b00, b10, b01, b11;
     float rx0, rx1, ry0, ry1, rz0, rz1, *q, sx, sy, sz, a, b, c, d, t, u, v;
-    long int i, j;
+    int64_t i, j;
     if(PERLIN_HAS_NOT_BEEN_INITIALIZED){
         PERLIN_HAS_NOT_BEEN_INITIALIZED = 0;
         PERLIN_INIT();

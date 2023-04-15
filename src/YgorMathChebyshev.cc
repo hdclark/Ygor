@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <utility>     //Needed for std::pair.
 #include <vector>
+#include <cstdint>
 //#include <optional>
 
 #include "YgorDefinitions.h"
@@ -117,9 +118,9 @@ cheby_approx<T>::operator*(const cheby_approx<T> &rhs) const {
     //
     //       This implementation effectively computes matrix elements for an $N-1$ by $M-1$ 
     //       matrix and takes the sums of diagonals as coefficients. 
-    for(long int i = 0; i < static_cast<long int>(N); ++i){
+    for(int64_t i = 0; i < static_cast<int64_t>(N); ++i){
         ifac = (i==0) ? half : one ;
-        for(long int j = 0; j < static_cast<long int>(M); ++j){
+        for(int64_t j = 0; j < static_cast<int64_t>(M); ++j){
             jfac = (j==0) ? half : one;
             c[i+j] += half * ifac * jfac * this->c[i] * rhs.c[j];
             const size_t diff = (i > j) ? (i-j) : (j-i);
@@ -555,9 +556,9 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
         throw std::invalid_argument("Cannot perform multiplication; domains are not exactly equal");
     }
 
-    const auto N = static_cast<long int>(this->c.size()); 
-    const auto M = static_cast<long int>(rhs.c.size()); 
-    const auto P = static_cast<long int>( (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use );
+    const auto N = static_cast<int64_t>(this->c.size()); 
+    const auto M = static_cast<int64_t>(rhs.c.size()); 
+    const auto P = static_cast<int64_t>( (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use );
 
     //If too many coefficients are being requested, use the non-truncated version to compute the
     // full multiplication.
@@ -576,12 +577,12 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
     T ifac, jfac;
 
     //First, the 'sum' part.
-    for(long int k = 0; k < static_cast<long int>(P); ++k){
-        long int i_start = (k > (N-1)) ? (N-1)     : k;
-        long int i_end   = (k > (M-1)) ? (k-(M-1)) : 0;
-        long int j_start = (k > (N-1)) ? (k-(N-1)) : 0;
-        long int i = i_start;
-        for(long int j = j_start ; i >= i_end ; --i, ++j){
+    for(int64_t k = 0; k < static_cast<int64_t>(P); ++k){
+        int64_t i_start = (k > (N-1)) ? (N-1)     : k;
+        int64_t i_end   = (k > (M-1)) ? (k-(M-1)) : 0;
+        int64_t j_start = (k > (N-1)) ? (k-(N-1)) : 0;
+        int64_t i = i_start;
+        for(int64_t j = j_start ; i >= i_end ; --i, ++j){
             ifac = (i==0) ? half : one;
             jfac = (j==0) ? half : one;
             c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];
@@ -590,34 +591,34 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
 
     //Second, the main diagonal of the 'difference' part.
     c[0] += half * half * half * this->c[0] * rhs.c[0];
-    long int diag_max_k = std::min(N,M);
-    for(long int k = 1; k < diag_max_k; ++k){
+    int64_t diag_max_k = std::min(N,M);
+    for(int64_t k = 1; k < diag_max_k; ++k){
         c[0] += half * this->c[k] * rhs.c[k];
     }
 
     //Third, the upper diagonal 'difference' part.
-    long int diag_max_P_M = std::min(P,M);
-    for(long int k = 1; k < diag_max_P_M; ++k){
-        long int i_start = 0;
-        long int i_end   = std::min(N,M-k)-1;
-        long int j_start = k;
+    int64_t diag_max_P_M = std::min(P,M);
+    for(int64_t k = 1; k < diag_max_P_M; ++k){
+        int64_t i_start = 0;
+        int64_t i_end   = std::min(N,M-k)-1;
+        int64_t j_start = k;
 
-        long int j = j_start;
-        for(long int i = i_start ; i <= i_end; ++i, ++j){
+        int64_t j = j_start;
+        for(int64_t i = i_start ; i <= i_end; ++i, ++j){
             ifac = (i==0) ? half : one;
             jfac = (j==0) ? half : one;
             c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];
         }
     }
     //Third, the lower diagonal 'difference' part.
-    long int diag_max_P_N = std::min(P,N);
-    for(long int k = 1; k < diag_max_P_N; ++k){
-        long int i_start = k;
-        long int j_end   = std::min(M,N-k)-1;
-        long int j_start = 0;
+    int64_t diag_max_P_N = std::min(P,N);
+    for(int64_t k = 1; k < diag_max_P_N; ++k){
+        int64_t i_start = k;
+        int64_t j_end   = std::min(M,N-k)-1;
+        int64_t j_start = 0;
 
-        long int i = i_start;
-        for(long int j = j_start ; j <= j_end; ++i, ++j){
+        int64_t i = i_start;
+        for(int64_t j = j_start ; j <= j_end; ++i, ++j){
             ifac = (i==0) ? half : one;
             jfac = (j==0) ? half : one;
             c[k] += half * ifac * jfac * this->c[i] * rhs.c[j];

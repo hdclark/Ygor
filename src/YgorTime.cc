@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <regex>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -163,7 +164,7 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     lt.tm_wday = lt.tm_yday = -1; //Stores the day of the week and day of the year.
 
     const auto extract_numbers = [](const std::string &src, const std::string &regex_str){
-        std::vector<long int> numbers;
+        std::vector<int64_t> numbers;
         try{
             auto tokens = GetAllRegex2(src, regex_str);
             for(auto &s : tokens){
@@ -183,7 +184,7 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
         }catch(const std::exception &){}
         return numbers;
     };
-    const auto extract_year = [](long int y){
+    const auto extract_year = [](int64_t y){
         if(isininc(70,y,99)){ // 2-digit shorthand for 1900's.
             // Do nothing; already the number of years since 1900.
         }else if(isininc(0,y,69)){ // 2-digit shorthand for 2000's.
@@ -410,9 +411,9 @@ void time_mark::Advance_By_Seconds(int64_t dt){
 }
 
 
-bool time_mark::Is_within_X_seconds(const time_mark &in, long int X) const {
-    const auto A = static_cast<long int>(this->When);
-    const auto B = static_cast<long int>(in.When);
+bool time_mark::Is_within_X_seconds(const time_mark &in, int64_t X) const {
+    const auto A = static_cast<int64_t>(this->When);
+    const auto B = static_cast<int64_t>(in.When);
     return (YGORABS(A - B) <= X);
 }
 

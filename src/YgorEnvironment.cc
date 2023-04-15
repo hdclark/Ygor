@@ -23,6 +23,7 @@
 #include <sys/wait.h>  //Needed for system_bash().
 #include <cerrno>     //Needed for system_bash().
 #include <csignal>    //Needed for system_bash().
+#include <cstdint>
 
 #include "YgorEnvironment.h"
 #include "YgorMisc.h"    //Needed for Execute_Command_In_Pipe.
@@ -133,7 +134,7 @@ void Wait_For_Enter_Press(void){
 //--------------------------------------------------------------------------------------------------------
 //---------------------------------------------- Framebuffer ---------------------------------------------
 //--------------------------------------------------------------------------------------------------------
-std::pair<long int, long int> Get_Framebuffer_Pixel_Dimensions(int fbN, bool Virtual /* = false*/){
+std::pair<int64_t, int64_t> Get_Framebuffer_Pixel_Dimensions(int fbN, bool Virtual /* = false*/){
     //NOTE: 'Virtual' refers to the entire buffer, which may include both visible buffers in
     // a double-buffer arrangement. The default is the visible buffer, which corresponds to
     // what is visible on the screen.
@@ -166,15 +167,15 @@ Might be OK to fall back on the virtual_size file, because it is super convenien
     }
     if(dimens.size() == 0){
         YLOGWARN("Unable to determine the dimensions of the framebuffer");
-        return std::pair<long int, long int>(-1,-1);
+        return std::pair<int64_t, int64_t>(-1,-1);
     }
     const std::string Ws = GetFirstRegex( dimens, R"***(^([0-9]{3,})[,])***" );
     const std::string Hs = GetFirstRegex( dimens, R"***([,]([0-9]{3,}))***"  );
-    const long int W = Is_String_An_X<long int>(Ws) ? stringtoX<long int>(Ws) : -1;
-    const long int H = Is_String_An_X<long int>(Hs) ? stringtoX<long int>(Hs) : -1;
-    return std::pair<long int, long int>( W, H );
+    const int64_t W = Is_String_An_X<int64_t>(Ws) ? stringtoX<int64_t>(Ws) : -1;
+    const int64_t H = Is_String_An_X<int64_t>(Hs) ? stringtoX<int64_t>(Hs) : -1;
+    return std::pair<int64_t, int64_t>( W, H );
 */
-    std::pair<long int, long int> out(-1, -1);
+    std::pair<int64_t, int64_t> out(-1, -1);
 
 #ifdef __linux__
     //This is specific to Linux. It requires /usr/include/linux/fb.h struct/macro defs.
@@ -192,9 +193,9 @@ Might be OK to fall back on the virtual_size file, because it is super convenien
     if(ioctl(fb_fd, FBIOGET_VSCREENINFO, &vs) != -1){
         //Note: we use the visible framebuffer dimensions, in contrast to the virtual.
         // The difference is that the visible will fit in the screen
-        const long int W = static_cast<long int>(Virtual ? vs.xres_virtual : vs.xres);
-        const long int H = static_cast<long int>(Virtual ? vs.yres_virtual : vs.yres);
-        out = std::pair<long int, long int>(W,H);
+        const int64_t W = static_cast<int64_t>(Virtual ? vs.xres_virtual : vs.xres);
+        const int64_t H = static_cast<int64_t>(Virtual ? vs.yres_virtual : vs.yres);
+        out = std::pair<int64_t, int64_t>(W,H);
     }else{
         YLOGWARN("Framebuffer file appears to exist, but ioctl on it failed");
     }
@@ -210,19 +211,19 @@ Might be OK to fall back on the virtual_size file, because it is super convenien
 //--------------------------------------------------------------------------------------------------------
 //------------------------------------------- Terminal Dimensions ----------------------------------------
 //--------------------------------------------------------------------------------------------------------
-std::pair<long int, long int> Get_Terminal_Char_Dimensions(void){
+std::pair<int64_t, int64_t> Get_Terminal_Char_Dimensions(void){
     //Note: *Always* handle the case of getting -1's. It is VALID for this function to always return them!
     //Note: If porting this function and having problems, it is valid to always just return -1's!
     //
     //See http://stackoverflow.com/questions/1022957/getting-terminal-width-in-c for the basis of this
     // function, and a few alternatives if this doesn't work.
     struct winsize w;
-    long int W(-1), H(-1);
+    int64_t W(-1), H(-1);
     if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1){
-        W = static_cast<long int>(w.ws_col);
-        H = static_cast<long int>(w.ws_row);
+        W = static_cast<int64_t>(w.ws_col);
+        H = static_cast<int64_t>(w.ws_row);
     }
-    return std::pair<long int, long int>(W,H); //Width and Height in terms of # of chars.
+    return std::pair<int64_t, int64_t>(W,H); //Width and Height in terms of # of chars.
 }
 
 //--------------------------------------------------------------------------------------------------------

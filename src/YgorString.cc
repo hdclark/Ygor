@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <cstdint>
 //#include <locale>      //Needed for std::toupper() along with following line.
 //const std::locale loc; // The current locale. 
 //#include <boost/algorithm/string.hpp> //A faster way to get a toupper() function (boost::to_upper).
@@ -209,18 +210,18 @@ template void Destroy_C_Style_Duplicate(wchar_t** strs);
 // To have N-grams which WOULD cross whitespace (but still ignore it,) one will need to move the internal
 // while loop outside of the outer loop for these routines (but it shouldn't be too difficult to adjust!) 
 //
-std::map<std::string,float> NGrams_With_Occurence(const std::string &thestring, long int numb_of_ngrams, long int length_of_ngrams, const unsigned char &type){
+std::map<std::string,float> NGrams_With_Occurence(const std::string &thestring, int64_t numb_of_ngrams, int64_t length_of_ngrams, const unsigned char &type){
     //Pass in numb_of_ngrams = -1 to generate ALL ngrams.
     //Note that the computation is truncated when numb_of_ngrams has been reached - there is *no* selectivity in the output upon truncation.
     std::map<std::string,float> output;
-    long int ngrams_generated = 0;
+    int64_t ngrams_generated = 0;
     std::stringstream inss(thestring);
     std::string theword;
     while( inss.good() ){
         inss >> theword;
 
         if( (type & NGRAMS::CHARS) == NGRAMS::CHARS){   //Character N-grams. These are of a (user) specified length.
-            while( static_cast<long int>(theword.size()) >= length_of_ngrams ){
+            while( static_cast<int64_t>(theword.size()) >= length_of_ngrams ){
                 if( (ngrams_generated >= numb_of_ngrams) && (numb_of_ngrams != -1) ) return output;
 
                 //Push back the current Ngram. Remove the first character for the next cycle. 
@@ -245,17 +246,17 @@ std::map<std::string,float> NGrams_With_Occurence(const std::string &thestring, 
 
 //TODO:  fix the numb_of_ngrams ignoring in the NGRAMS::WORDS case. (and for the above function.)
 
-std::set<std::string> NGrams(const std::string &thestring, long int numb_of_ngrams, long int length_of_ngrams, const unsigned char &type){
+std::set<std::string> NGrams(const std::string &thestring, int64_t numb_of_ngrams, int64_t length_of_ngrams, const unsigned char &type){
     //Pass in numb_of_ngrams = -1 to generate ALL ngrams.
     //Note that the computation is truncated when numb_of_ngrams has been reached - there is *no* selectivity in the output upon truncation.
     std::set<std::string> output;
-    long int ngrams_generated = 0;
+    int64_t ngrams_generated = 0;
     std::stringstream inss(thestring);
     std::string theword;
     while( inss.good() ){
         inss >> theword;
         if( (type & NGRAMS::CHARS) == NGRAMS::CHARS){   //Character N-grams. These are of a (user) specified length.
-            while( static_cast<long int>(theword.size()) >= length_of_ngrams ){
+            while( static_cast<int64_t>(theword.size()) >= length_of_ngrams ){
                 if( (ngrams_generated >= numb_of_ngrams) && (numb_of_ngrams != -1) ) return output;
 
                 //Push back the current Ngram. Remove the first character for the next cycle. 
@@ -284,8 +285,8 @@ std::set<std::string> NGram_Matches(const std::set<std::string> &A, const std::s
     return output;
 }
 
-long int NGram_Match_Count(const std::set<std::string> &A, const std::set<std::string> &B){
-    return static_cast<long int>( (NGram_Matches(A,B)).size() );
+int64_t NGram_Match_Count(const std::set<std::string> &A, const std::set<std::string> &B){
+    return static_cast<int64_t>( (NGram_Matches(A,B)).size() );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------
@@ -654,7 +655,7 @@ std::string Remove_Unneeded_Surrounding_Parenthesis(const std::string &in, char 
         // If the level goes below 0, we cannot chop off outer parenthesis.
         //
         //Note: level == openparens-1.
-        long int level(0);
+        int64_t level(0);
         for(auto it = ++(out.begin()); (it != --(out.end())) && (level >= 0); ++it){
             if(*it == L) ++level;
             if(*it == R) --level;
@@ -679,7 +680,7 @@ std::string Wrap_Comma_Separated_Stuff_At_Same_Depth(const std::string &in, char
     std::string out;
     const std::string inn(Remove_Unneeded_Surrounding_Parenthesis(in, L, R));
 
-    long int parendepth(0);
+    int64_t parendepth(0);
     bool foundcommas = false;
     for(char it : inn){
         if(it == L)  ++parendepth;
@@ -705,7 +706,7 @@ std::string Wrap_Comma_Separated_Stuff_At_Same_Depth(const std::string &in, char
 // eg.    ((x+y)   ---> true
 //Note: Will not find unpaired/balanced chars like '([x)]'!
 bool Contains_Unmatched_Char_Pairs(const std::string &in, char L, char R){
-  long int parens(0);
+  int64_t parens(0);
   for(char it : in){
       if( it == L ) ++parens;
       if( it == R ) --parens;
@@ -746,7 +747,7 @@ std::string Remove_Trailing_Chars(const std::string &in, const std::string &char
 //-------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------- Common text conversions --------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
-std::string inttostring(long int number){
+std::string inttostring(int64_t number){
     std::stringstream ss;
     ss << number;
     return ss.str();
@@ -891,17 +892,17 @@ bool GetValueIfKeyMatches(T *out, const std::string &key,  const unsigned char k
     return true;
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
-    template bool GetValueIfKeyMatches(int8_t                 *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(int16_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(int32_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(int64_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(uint8_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(uint16_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(uint32_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(uint64_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(float                  *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(double                 *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(std::string            *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int8_t      *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int16_t     *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int32_t     *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int64_t     *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint8_t     *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint16_t    *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint32_t    *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint64_t    *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(float       *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(double      *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(std::string *, const std::string &, const unsigned char, const std::string &, const unsigned char);
 #endif
 
 
@@ -1051,7 +1052,7 @@ encode_metadata_kv_pair( const std::pair<std::string,std::string> &kvp ){
 //-------------------------------------------------------------------------------------------------------------------------------
 
 //This function looks very similar to one in YgorMisc.h/cc. It should replace it eventually.
-std::string Generate_Random_String_of_Length(long int len){
+std::string Generate_Random_String_of_Length(int64_t len){
     std::string out;
     static const std::string alphanum(R"***(0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)***");
     std::default_random_engine gen;
@@ -1249,7 +1250,7 @@ std::string GetFirstRegex(const std::string &source, const std::regex &regex_the
         //For now, we will do something silly and only return the last sub-match, instead of a list of all submatches.
         // This is a handicap, but in principle one could just redo the regex and iterate over the sub-match part, 
         // eventually picking them all up. This is costly, but easy to think about.
-        for(long int i = match.size()-1; i>=0; --i){
+        for(int64_t i = match.size()-1; i>=0; --i){
             std::string submatch(match[i].first, match[i].second);
             return submatch;
         }
@@ -1292,10 +1293,10 @@ std::vector<std::string> GetAllRegex2(const std::string &source, const std::rege
 }
 
 //This function goes through a vector of strings, finds a matching line, and returns the Nth line below the match.
-std::string GetLineNBelow( std::vector<std::string> &source, std::string query, long int N){
-    for(long int i=0; i<static_cast<long int>(source.size()); ++i){
+std::string GetLineNBelow( std::vector<std::string> &source, std::string query, int64_t N){
+    for(int64_t i=0; i<static_cast<int64_t>(source.size()); ++i){
         if( std::string::npos != (source[i]).find(query) ){
-            if(((i+N) >= 0) && ((i+N) < static_cast<long int>(source.size()))){
+            if(((i+N) >= 0) && ((i+N) < static_cast<int64_t>(source.size()))){
                 return source[i+N];
             }
         }
@@ -1556,7 +1557,7 @@ std::string Break_Paragraphs_Into_Text(const std::vector<std::string> &in){
 //NOTE: Parameter 'indent' can be positive, zero, or negative. If positive, the first line is indented with the number
 // of specified spaces. If zero, nothing is indented. If negative, every line except the first is indented with the
 // abs val of the number of specified spaces.
-std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, long int W, long int indent){
+std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &in, int64_t W, int64_t indent){
     if(W <= 0) YLOGERR("Requested invalid reflow width (" << W << "). Cannot proceed");
     if(YGORABS(indent) >= (W-1)) YLOGERR("Requested invalid width(" << W << ") or indentation(" << indent << ") values. Refusing to proceed");
 
@@ -1580,7 +1581,7 @@ std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &i
         if(firstrun && shtl.empty()){
             shtl += theword;
  
-        }else if(static_cast<long int>(shtl.size() + theword.size() + 1) > W){
+        }else if(static_cast<int64_t>(shtl.size() + theword.size() + 1) > W){
             out.push_back(shtl);
             shtl.clear();
             shtl += negindent + theword;
@@ -1602,7 +1603,7 @@ std::vector<std::string> Reflow_Line_to_Fit_Width_Left_Just(const std::string &i
 //NOTE: Takes a linear collection of paragraphs. Assumes paragraphs are separated by "\n\n".
 //NOTE: If a single word is longer than the line length, it will NOT be broken into two parts - it will be 
 // longer than the maximum line length!
-std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, long int W, long int indent){
+std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &in, int64_t W, int64_t indent){
     std::vector<std::string> out;
 
     //Break each paragraph into its own single line.
@@ -1629,9 +1630,9 @@ std::vector<std::string> Reflow_Text_to_Fit_Width_Left_Just(const std::string &i
 //NOTE: If a single word is longer than the line length, it will NOT be broken into two parts - it will be 
 // longer than the maximum line length!
 //NOTE: The width of the separator is NOT accounted for. This is the user's job.
-std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std::string &inL, long int WL, long int indentL,
+std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std::string &inL, int64_t WL, int64_t indentL,
                                                                       const std::string &sep,
-                                                                      const std::string &inR, long int WR, long int indentR){
+                                                                      const std::string &inR, int64_t WR, int64_t indentR){
     std::vector<std::string> outL, outR, out;
 
     //Break each paragraph into its own single line.
@@ -1665,7 +1666,7 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
 
     for(auto & it : outL){
         //Pad the left with spaces.
-        while(static_cast<long int>(it.size()) < WL) it += ' ';
+        while(static_cast<int64_t>(it.size()) < WL) it += ' ';
     }
     for(auto itL = outL.begin(), itR = outR.begin(); (itL != outL.end()) && (itR != outR.end()); ++itL, ++itR){
         out.push_back( *itL + sep + *itR );
@@ -1675,11 +1676,11 @@ std::vector<std::string> Reflow_Adjacent_Texts_to_Fit_Width_Left_Just(const std:
 
 
 //Centers a given line to a specified width by padding the left side with ' 's.
-std::string Reflow_Line_Align_Center(const std::string &in, long int W){
+std::string Reflow_Line_Align_Center(const std::string &in, int64_t W){
     //Check if the string is larger than the specified width. If so, we cannot possibly center it any better :/.
-    if(static_cast<long int>(in.size()) > W) return in;
+    if(static_cast<int64_t>(in.size()) > W) return in;
 
-    long int space = (W - static_cast<long int>(in.size()))/2; //+-1 !  :)
+    int64_t space = (W - static_cast<int64_t>(in.size()))/2; //+-1 !  :)
     return std::string(space, ' ') + in;
 }
 

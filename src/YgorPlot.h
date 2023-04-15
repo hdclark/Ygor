@@ -374,7 +374,7 @@ class Plotter3 {
         //Per-series (i.e. per-line) settings. These get flushed after a call to Next_Line. Call them prior to inserting data.
         std::string current_line_title;  // 'Ygor Data - #6'
         std::string current_line_use;    // 'lines', 'points', or 'linespoints'.
-        long int current_line_style;     // Used with Gnuplot's "lt" specifier.
+        int64_t current_line_style;      // Used with Gnuplot's "lt" specifier.
  
     public:
         //Constructor, Destructor.

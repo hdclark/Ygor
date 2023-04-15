@@ -1255,7 +1255,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
 
     // ----
 
-    const auto N_imgs = static_cast<long int>(imgs_refws.size());
+    const auto N_imgs = static_cast<int64_t>(imgs_refws.size());
     if(N_imgs < 1L){
         // It's valid to create a header-only file, but I'm not sure why it would be needed.
         // It might require a special-case and code duplication below, so I'll disallow it for now.
@@ -1459,7 +1459,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
                     }
                 }
             }
-            for(long int i = 0; i < BytesToPad; ++i) os.put(static_cast<unsigned char>(0));
+            for(int64_t i = 0; i < BytesToPad; ++i) os.put(static_cast<unsigned char>(0));
 
         }catch(const std::exception &e){
             YLOGWARN("Encountered error while writing FITS pixel data: '" << e.what() << "'");
@@ -1539,7 +1539,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
     typedef std::array<char,80> card_t; //Each entry in the header.
     typedef std::array<card_t,36> header_t; //The header has 36 cards, and thus 80*36 = 2880 bytes.
 
-    long int array_number = -1;
+    int64_t array_number = -1;
 
     while(true){
         ++array_number;
@@ -1556,7 +1556,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
         std::string previous_key; // Used to support 'CONTINUE' keyword.
         bool previous_was_string = false;
         bool done_reading_header = false;
-        long int header_number = -1;
+        int64_t header_number = -1;
         bool found_magic = false; // SIMPLE or XTENSION keyword are required to appear first.
 
         // Read in the primary header, the first 2880 bytes, and continue reading header blocks until we encounter
@@ -1575,7 +1575,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                 }
             }
 
-            long int card_number = -1;
+            int64_t card_number = -1;
             for(auto & acard : l_header){
                 ++card_number;
 
@@ -1799,12 +1799,12 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
             return out;
         };
 
-        auto get_as_long = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> std::optional<long int> {
-            std::optional<long int> out;
+        auto get_as_long = [&Encountered, &StringValue, &NumericValue](const std::string &akey) -> std::optional<int64_t> {
+            std::optional<int64_t> out;
 
             if( (0UL != Encountered.count(akey))
             &&  (0UL != NumericValue.count(akey)) ){
-                out = static_cast<long int>(std::floor(NumericValue[akey]));
+                out = static_cast<int64_t>(std::floor(NumericValue[akey]));
             }
             return out;
         };
@@ -2013,7 +2013,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
                 }
             }
         }
-        for(long int i = 0; i < BytesOfPad; ++i) is.get();
+        for(int64_t i = 0; i < BytesOfPad; ++i) is.get();
 
 
         // The stream might now be exhausted, which would be perfect. However, it's possible that one or more extensions follow.

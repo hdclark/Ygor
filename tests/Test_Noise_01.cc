@@ -9,6 +9,7 @@
 //#include <sys/ioctl.h> //Needed for ioctl()
 #include <cmath>
 #include <signal.h>
+#include <cstdint>
 
 #include "YgorNoise.h"
 #include "YgorEnvironment.h"
@@ -61,8 +62,8 @@ int main(int argc, char **argv){
     signal(SIGCHLD, SignalHandler);
 
     const auto term_dims = Get_Terminal_Char_Dimensions();
-    const long int cols = term_dims.first;
-    const long int rows = term_dims.second;
+    const int64_t cols = term_dims.first;
+    const int64_t rows = term_dims.second;
     //std::cout << "There are " << cols << " columns." << std::endl;
     //std::cout << "There are " << rows << " rows." << std::endl;
 
@@ -80,8 +81,8 @@ int main(int argc, char **argv){
 
         const double theta = M_PI*(t - cos(t));
 
-        for(long int i = 0; i < rows; ++i){
-            for(long int j = 0; j < cols; ++j){
+        for(int64_t i = 0; i < rows; ++i){
+            for(int64_t j = 0; j < cols; ++j){
                 const float xx = static_cast<float>(2*i - rows)/static_cast<float>(2*rows);  //A number in [0,rows)
                 const float yy = static_cast<float>(2*j - cols)/static_cast<float>(2*cols);  //A number in [0,cols)
 

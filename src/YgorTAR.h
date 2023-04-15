@@ -42,7 +42,7 @@ void compute_checksum(ustar_header &);
 // RAII manager class that simplifies constructing TAR format for the user.
 class ustar_writer {
     private:
-        long int blocks_written; // The total number of 512-byte blocks written.
+        int64_t blocks_written;  // The total number of 512-byte blocks written.
                                  // Customarily, the final number of blocks will be a multiple of 20.
 
         std::ostream &os;
@@ -52,11 +52,11 @@ class ustar_writer {
 
         void add_file(std::istream &is,            // Contents of the file. If no file size provided, this stream must be seekable!
                       std::string fname,           // e.g., 'afile.txt'.
-                      long int fsize      = -1UL,  // File size in bytes. If negative, attempt to seek. If positive then write and confirm the size.
+                      int64_t fsize      = -1UL,   // File size in bytes. If negative, attempt to seek. If positive then write and confirm the size.
                       std::string fmode   = "644", // Specifying "" results in annoying files when unpacked.
                       std::string fuser   = "",    // ID, e.g., "1000".
                       std::string fgroup  = "",    // ID, e.g., "1000".
-                      long int ftime      = -1UL,  // UNIX time, in seconds. If negative, time is omitted.
+                      int64_t ftime      = -1UL,   // UNIX time, in seconds. If negative, time is omitted.
                       std::string o_name  = "",    // Owner name, e.g., "user".
                       std::string g_name  = "",    // Owner name, e.g., "users".
                       std::string fprefix = "" );  // Prefix directory, e.g., "/path/to/a/directory".
@@ -68,11 +68,11 @@ class ustar_writer {
 void read_ustar(std::istream &is,
                 std::function<void(std::istream &is,
                                    std::string fname,
-                                   long int fsize,
+                                   int64_t fsize,
                                    std::string fmode,
                                    std::string fuser,
                                    std::string fgroup,
-                                   long int ftime,
+                                   int64_t ftime,
                                    std::string o_name,
                                    std::string g_name,
                                    std::string fprefix)> file_handler );

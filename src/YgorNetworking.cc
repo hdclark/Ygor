@@ -315,7 +315,7 @@ std::string Simple_HTTP_Request(const std::string &host, const std::string &requ
     //   ... = Simple_HTTP_Request("icanhazip.com/", "");
 
     std::string result;
-    auto dialog = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
+    auto dialog = [&](int fd, char * /*host*/, int64_t /*port*/) -> bool {
         int nbytes;
         const int buffsz = 5000;
         char buff[buffsz];
@@ -477,7 +477,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
 
     //Provide some sane default dialog routines. These do not have to be fancy, they just
     // need to work and do something basic but non-trivial.
-    this->DEFAULT_SERVER_DIALOG_LAMBDA = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
+    this->DEFAULT_SERVER_DIALOG_LAMBDA = [&](int fd, char * /*host*/, int64_t /*port*/) -> bool {
 
         //Upon connection, we immediately send a message to the client.
         if(send(fd, "This is the default dialog response!", 39, MSG_NOSIGNAL) == -1){
@@ -489,7 +489,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
         return true;
     };
 
-    this->DEFAULT_CLIENT_DIALOG_LAMBDA = [&](int fd, char * /*host*/, long int /*port*/) -> bool {
+    this->DEFAULT_CLIENT_DIALOG_LAMBDA = [&](int fd, char * /*host*/, int64_t /*port*/) -> bool {
         int numbytes;
         const int BUFFSIZE = 100;
         char buff[BUFFSIZE];
@@ -515,11 +515,11 @@ bool Server_and_Client::Server_Init(void){
     return this->Server_Init( this->SERVER_PORT, this->USERS_SERVER_DIALOG_LAMBDA );
 }
 
-bool Server_and_Client::Server_Init(std::function<bool (int, char *, long int)> server_dialog){
+bool Server_and_Client::Server_Init(std::function<bool (int, char *, int64_t)> server_dialog){
     return this->Server_Init( this->SERVER_PORT, server_dialog );
 }
 
-bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char *, long int)> server_dialog){
+bool Server_and_Client::Server_Init(int64_t port, std::function<bool (int, char *, int64_t)> server_dialog){
     this->SERVER_PORT = port;
     this->USERS_SERVER_DIALOG_LAMBDA = server_dialog;
 
@@ -539,7 +539,7 @@ bool Server_and_Client::Server_Init(long int port, std::function<bool (int, char
     this->SERVER_hints.ai_socktype   = SOCK_STREAM;
     this->SERVER_hints.ai_flags      = AI_PASSIVE;     //Use my IP
 
-    const std::string PORT_STRING = Xtostring<long int>(this->SERVER_PORT);
+    const std::string PORT_STRING = Xtostring<int64_t>(this->SERVER_PORT);
     if((this->SERVER_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->SERVER_hints, &this->SERVER_servinfo)) != 0) {
         if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->SERVER_rv) << ". Unable to initialize server");
         freeaddrinfo(this->SERVER_servinfo);
@@ -920,9 +920,9 @@ if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...cloning done");
     // These are copies which are passed in by value to the child's lambda. Seems to work fairly well.
     const std::string hostcopy(this->SERVER_s);
     const int fdcopy(this->SERVER_new_fd);
-    const long int portcopy(this->SERVER_PORT);
+    const int64_t portcopy(this->SERVER_PORT);
 
-    auto Childs_Lambda = [&](std::string thehost, int thefd, long int theport) -> void {
+    auto Childs_Lambda = [&](std::string thehost, int thefd, int64_t theport) -> void {
         //----------------------------- Child Process Fence ---------------------------------
 #if !defined(_WIN32) && !defined(_WIN64)
         //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
@@ -974,10 +974,10 @@ if(YGORNETWORKING_VERBOSE) YLOGINFO("   ...cloning done");
     // These are copies which are passed in by value to the child's lambda. Seems to work fairly well.
     const std::string hostcopy(this->SERVER_s);
     const int fdcopy(this->SERVER_new_fd);
-    const long int portcopy(this->SERVER_PORT);
+    const int64_t portcopy(this->SERVER_PORT);
 
     auto Childs_Lambda = [&,hostcopy,fdcopy,portcopy](void) -> void {
-//std::string thehost, int thefd, long int theport
+//std::string thehost, int thefd, int64_t theport
         //----------------------------- Child Process Fence ---------------------------------
 #if !defined(_WIN32) && !defined(_WIN64)
         //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
@@ -1062,11 +1062,11 @@ bool Server_and_Client::Client_Init(void){
     return this->Client_Init( this->CLIENT_PORT, this->USERS_CLIENT_DIALOG_LAMBDA );
 }
 
-bool Server_and_Client::Client_Init(std::function<bool (int, char *, long int)> client_dialog){
+bool Server_and_Client::Client_Init(std::function<bool (int, char *, int64_t)> client_dialog){
     return this->Client_Init( this->CLIENT_PORT, client_dialog );
 }
 
-bool Server_and_Client::Client_Init(long int port, std::function<bool (int, char *, long int)> client_dialog){
+bool Server_and_Client::Client_Init(int64_t port, std::function<bool (int, char *, int64_t)> client_dialog){
     this->CLIENT_PORT    = port;
     this->USERS_CLIENT_DIALOG_LAMBDA = client_dialog;
 
@@ -1102,7 +1102,7 @@ bool Server_and_Client::Client_Connect(const std::string &address){
         return false;
     }
 
-    const std::string PORT_STRING = Xtostring<long int>(this->CLIENT_PORT);
+    const std::string PORT_STRING = Xtostring<int64_t>(this->CLIENT_PORT);
     if((this->CLIENT_rv = getaddrinfo(this->CLIENT_ADDRESS.c_str(), PORT_STRING.c_str(), &this->CLIENT_hints, &this->CLIENT_servinfo)) != 0) {
         if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->CLIENT_rv) << ". Unable to initialize client");
         return false;
@@ -1262,7 +1262,7 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
 
     //Provide some sane default dialog routines. These do not have to be fancy, they just
     // need to work and do something basic but non-trivial.
-    this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char * /*host*/, long int /*port*/) -> bool {
+    this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char * /*host*/, int64_t /*port*/) -> bool {
         //Send a simple message to all radios. This entire lambda will be looped over forever.
         if(send(fd, "This is the default beacon message!", 38, MSG_NOSIGNAL) == -1){
             if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon unable to send()");
@@ -1275,7 +1275,7 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
         return true;
     };
 
-    this->DEFAULT_RADIO_DIALOG_LAMBDA = [](int fd, char * /*host*/, long int /*port*/) -> bool {
+    this->DEFAULT_RADIO_DIALOG_LAMBDA = [](int fd, char * /*host*/, int64_t /*port*/) -> bool {
         int numbytes;
         const int BUFFSIZE = 100;
         char buff[BUFFSIZE];
@@ -1299,11 +1299,11 @@ bool Beacon_and_Radio::Radio_Init(void){
     return this->Radio_Init( this->RADIO_PORT, this->USERS_RADIO_DIALOG_LAMBDA );
 }
 
-bool Beacon_and_Radio::Radio_Init(std::function<bool (int, char *, long int)> radio_dialog){
+bool Beacon_and_Radio::Radio_Init(std::function<bool (int, char *, int64_t)> radio_dialog){
     return this->Radio_Init( this->RADIO_PORT, radio_dialog );
 }
 
-bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *, long int)> radio_dialog){
+bool Beacon_and_Radio::Radio_Init(int64_t port, std::function<bool (int, char *, int64_t)> radio_dialog){
     this->RADIO_PORT = port;
     this->USERS_RADIO_DIALOG_LAMBDA = radio_dialog;
 
@@ -1323,7 +1323,7 @@ bool Beacon_and_Radio::Radio_Init(long int port, std::function<bool (int, char *
     this->RADIO_hints.ai_socktype   = SOCK_DGRAM;
     this->RADIO_hints.ai_flags      = AI_PASSIVE;
 
-    const std::string PORT_STRING = Xtostring<long int>(this->RADIO_PORT);
+    const std::string PORT_STRING = Xtostring<int64_t>(this->RADIO_PORT);
     if((this->RADIO_rv = getaddrinfo(nullptr, PORT_STRING.c_str(), &this->RADIO_hints, &this->RADIO_servinfo)) != 0) {
         if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->RADIO_rv) << ". Unable to initialize radio");
         freeaddrinfo(this->RADIO_servinfo);
@@ -1449,7 +1449,7 @@ bool Beacon_and_Radio::Radio_Tune_In(const std::string &address){
     //Now, loop over messages. If looping is turned off, we will perform one such recv() and then terminate.
     do{
         //Now fish until we get something. To ensure nothing is lost, we only peek at the message.
-        const long int smallbuff_size = 10;
+        const int64_t smallbuff_size = 10;
         char smallbuff[smallbuff_size+1];
         struct sockaddr beacon_addr;
         socklen_t beacon_addr_sz = sizeof(beacon_addr);
@@ -1512,7 +1512,7 @@ YLOGINFO("Note: This routine has not been tested. After testing, remove this not
 
         //Read in the data to clear it off the stack.
         {
-            const long int smallbuff_size = 10;
+            const int64_t smallbuff_size = 10;
             char smallbuff[smallbuff_size+1];
             if(recv(this->RADIO_sockfd, smallbuff, smallbuff_size, 0) == -1){
                 if(YGORNETWORKING_VERBOSE) YLOGWARN("Encountered an error while clearing data out of UDP stack. This data is not used for anything");
@@ -1532,7 +1532,7 @@ YLOGINFO("Note: This routine has not been tested. After testing, remove this not
         // These are copies which are passed in by value to the child's lambda. Seems to work fairly well.
         const std::string hostcopy(this->RADIO_s);
         const int fdcopy(this->RADIO_sockfd);
-        const long int portcopy(this->RADIO_PORT);
+        const int64_t portcopy(this->RADIO_PORT);
 
         auto Childs_Lambda = [=]/*,hostcopy,fdcopy,portcopy]*/(void) -> int {
             //----------------------------- Child Process Fence ---------------------------------
@@ -1589,9 +1589,9 @@ YLOGINFO("Note: This routine has not been tested. After testing, remove this not
         // These are copies which are passed in by value to the child's lambda. Seems to work fairly well.
         const std::string hostcopy(this->RADIO_s);
         const int fdcopy(this->RADIO_sockfd);
-        const long int portcopy(this->RADIO_PORT);
+        const int64_t portcopy(this->RADIO_PORT);
 
-        auto Childs_Lambda = [&](std::string thehost, int thefd, long int theport, bool closethefd) -> void {
+        auto Childs_Lambda = [&](std::string thehost, int thefd, int64_t theport, bool closethefd) -> void {
             //----------------------------- Child Process Fence ---------------------------------
 #if !defined(_WIN32) && !defined(_WIN64)
             //Ensure the SIGPIPE signal is ignored. Is this necessary? Should the parent call it?   FIXME.
@@ -1679,11 +1679,11 @@ bool Beacon_and_Radio::Beacon_Init(void){
     return this->Beacon_Init( this->BEACON_PORT, this->USERS_BEACON_DIALOG_LAMBDA );
 }
 
-bool Beacon_and_Radio::Beacon_Init(std::function<bool (int, char *, long int)> beacon_dialog){
+bool Beacon_and_Radio::Beacon_Init(std::function<bool (int, char *, int64_t)> beacon_dialog){
     return this->Beacon_Init( this->BEACON_PORT, beacon_dialog );
 }
 
-bool Beacon_and_Radio::Beacon_Init(long int port, std::function<bool (int, char *, long int)> beacon_dialog){
+bool Beacon_and_Radio::Beacon_Init(int64_t port, std::function<bool (int, char *, int64_t)> beacon_dialog){
     this->BEACON_PORT    = port;
     this->USERS_BEACON_DIALOG_LAMBDA = beacon_dialog;
 
@@ -1718,7 +1718,7 @@ bool Beacon_and_Radio::Beacon_Transmit(const std::string &address){
         return false;
     }
 
-    const std::string PORT_STRING = Xtostring<long int>(this->BEACON_PORT);
+    const std::string PORT_STRING = Xtostring<int64_t>(this->BEACON_PORT);
     if((this->BEACON_rv = getaddrinfo(this->BEACON_ADDRESS.c_str(), PORT_STRING.c_str(), &this->BEACON_hints, &this->BEACON_servinfo)) != 0){
         if(YGORNETWORKING_VERBOSE) YLOGWARN("getaddrinfo returned error " << gai_strerror(this->BEACON_rv) << ". Unable to initialize beacon");
         return false;

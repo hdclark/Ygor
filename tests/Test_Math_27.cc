@@ -4,6 +4,7 @@
 #include <utility>
 #include <iostream>
 #include <random>
+#include <cstdint>
 
 #include <YgorMath.h>
 #include <YgorMathIOPLY.h>
@@ -13,7 +14,7 @@
 
 int main(int argc, char **argv){
 
-    long int random_seed = 123456;
+    int64_t random_seed = 123456;
     std::mt19937 re( random_seed );
     std::uniform_real_distribution<> rd(0.0, 1.0); //Random distribution.
 

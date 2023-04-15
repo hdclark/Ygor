@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"    //Used for the macros FUNCINFO, FUNCWARN, FUNCERR.
@@ -91,27 +92,27 @@ void Plotter2::Apply_Basic_Header_Customizations(void){
 
     const std::string linewidth("1.1"), pointsize("0.4");
     const std::string pt_circ_solid("5"), pt_box_solid("9"), pt_tri_solid("13"), pt_dimnd_solid("11"), pt_invtri_solid("7");
-    long int N(0);
+    int64_t N(0);
     //These are tweakable. Try to favour dark colours (why in the fuck does GNUplot use light teal and light yellow?!)
     this->header.push_back("set pointsize "_s + pointsize);
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#1D4599' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#11AD34' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#E62B17' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#E69F17' lw "_s + linewidth + " pt "_s + pt_box_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#2F3F60' lw "_s + linewidth + " pt "_s + pt_box_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#2F6C3D' lw "_s + linewidth + " pt "_s + pt_box_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#8F463F' lw "_s + linewidth + " pt "_s + pt_box_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#8F743F' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#031A49' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#025214' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#6D0D03' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#6D4903' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#224499' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#00FF00' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#00BBBB' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
-    this->header.push_back("set style line "_s + Xtostring<long int>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#1D4599' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#11AD34' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#E62B17' lw "_s + linewidth + " pt "_s + pt_circ_solid  );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#E69F17' lw "_s + linewidth + " pt "_s + pt_box_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#2F3F60' lw "_s + linewidth + " pt "_s + pt_box_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#2F6C3D' lw "_s + linewidth + " pt "_s + pt_box_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#8F463F' lw "_s + linewidth + " pt "_s + pt_box_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#8F743F' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#031A49' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#025214' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#6D0D03' lw "_s + linewidth + " pt "_s + pt_dimnd_solid );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#6D4903' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#224499' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#00FF00' lw "_s + linewidth + " pt "_s + pt_tri_solid   );
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#00BBBB' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
+    this->header.push_back("set style line "_s + Xtostring<int64_t>(++N) + " lc rgb '#000000' lw "_s + linewidth + " pt "_s + pt_invtri_solid);
     this->header.push_back("set style increment user"_s);
     this->header.push_back("set grid lc rgb '#000000'"_s);
 
@@ -322,7 +323,7 @@ void MultiPlotter2::Open_Multiplot_Environ(std::stringstream *ss) const {
     //
     //Therefore, this routine should apply some 'smart' heuristics to layout
     // plots in a sane way. Feel free to add/tweak as needed.
-    const auto N = static_cast<long int>(this->subplots.size());
+    const auto N = static_cast<int64_t>(this->subplots.size());
 
     //One-row layout.
     //*ss << "set multiplot layout 1, " << N << " title \"" << this->global_title << "\"" << std::endl;
@@ -337,7 +338,7 @@ void MultiPlotter2::Open_Multiplot_Environ(std::stringstream *ss) const {
     }else if(N <= 4){
         *ss << "set multiplot layout 2, " << 2 << " title \"" << this->global_title << "\"" << std::endl;
     }else{
-        long int M = 0;
+        int64_t M = 0;
         while(2*M < N) ++M; 
         *ss << "set multiplot layout 2, " << M << " title \"" << this->global_title << "\"" << std::endl;
     }

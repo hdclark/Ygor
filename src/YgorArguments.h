@@ -12,6 +12,7 @@
 #include <utility>
 #include <functional>
 #include <set>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"            //Needed for function macros FUNCINFO, FUNCWARN, FUNCERR.
@@ -21,7 +22,7 @@
 
 
 typedef std::function<void(const std::string &optarg)> ygor_arg_functor_t;
-typedef std::tuple<long int,char,std::string,bool,std::string,std::string,ygor_arg_functor_t> ygor_arg_handlr_t;
+typedef std::tuple<int64_t,char,std::string,bool,std::string,std::string,ygor_arg_functor_t> ygor_arg_handlr_t;
 
 class ArgumentHandler {
     private:
@@ -39,7 +40,7 @@ class ArgumentHandler {
         //
         // Key:  family, short form, long form, takes argument?, sample argument, description, callback function.
         //         0         1           2             3               4               5               6
-        std::list< std::tuple< long int, char, std::string, bool, std::string, std::string, ygor_arg_functor_t > > directives;
+        std::list< std::tuple< int64_t, char, std::string, bool, std::string, std::string, ygor_arg_functor_t > > directives;
 
         std::function< void (int, const std::string &optarg) > default_callback; //Gets called by default, when no others matches are found. 
         std::function< void (const std::string &optarg) > optionless_callback;   //Gets called for each optionless argument passed into main.
@@ -66,14 +67,14 @@ class ArgumentHandler {
                 //Environmental information and common things.
 #ifdef YGOR_USE_LINUX_SYS
                 const auto terminal_dims = Get_Terminal_Char_Dimensions();
-                const auto termWL = static_cast<long int>(terminal_dims.first);
-                const long int termW = ((termWL < 80L) || (300L < termWL)) ? 120L : termWL;
+                const auto termWL = static_cast<int64_t>(terminal_dims.first);
+                const int64_t termW = ((termWL < 80L) || (300L < termWL)) ? 120L : termWL;
 #else
-                const long int termW = 120L;
+                const int64_t termW = 120L;
 #endif // YGOR_USE_LINUX_SYS
                 std::string DoubleLine, SingleLine(" ");
-                for(long int i=0; i<termW; ++i) DoubleLine += '=';
-                for(long int i=2; i<termW; ++i) SingleLine += '-';
+                for(int64_t i=0; i<termW; ++i) DoubleLine += '=';
+                for(int64_t i=2; i<termW; ++i) SingleLine += '-';
                 SingleLine += ' ';
 
                 //Program's name.
@@ -86,7 +87,7 @@ class ArgumentHandler {
                 std::cout << std::endl;
 
                 //Determine which families are out there, the maximum arg length, etc.. so we can group them together in the help usage.
-                std::set<long int> uniq_families;
+                std::set<int64_t> uniq_families;
                 size_t max_shrt(0), max_long(0), max_desc(0);
                 for(auto d_it = directives.begin(); d_it != directives.end(); ++d_it){
                     uniq_families.insert( std::get<0>(*d_it) );
@@ -101,10 +102,10 @@ class ArgumentHandler {
                 }
 
                 //The width of the text blocks for short options, long options, and descriptions. We will attempt to word-wrap the descriptions.
-                const long int shrtW  = static_cast<long int>(max_shrt + 2); //And an extra space after.
-                const long int longW  = static_cast<long int>(max_long + 2); //And an extra space after.
-                const long int remain = termW - (longW + shrtW + 1);
-                const long int descW  = (remain > 20) ? remain : 20; 
+                const int64_t shrtW  = static_cast<int64_t>(max_shrt + 2); //And an extra space after.
+                const int64_t longW  = static_cast<int64_t>(max_long + 2); //And an extra space after.
+                const int64_t remain = termW - (longW + shrtW + 1);
+                const int64_t descW  = (remain > 20) ? remain : 20; 
 
                 //Now we cycle over the arguments, displaying them in a tabular fashion on the screen.
                 std::cout << DoubleLine << std::endl << " Usage." << std::endl << SingleLine << std::endl;
@@ -161,7 +162,7 @@ class ArgumentHandler {
 
 
         //Member functions.
-        void push_back( const std::tuple< long int, char, std::string, bool, std::string, std::string, ygor_arg_functor_t > &directive){
+        void push_back( const std::tuple< int64_t, char, std::string, bool, std::string, std::string, ygor_arg_functor_t > &directive){
             //Check for conflicting options??
 
             // ...
@@ -206,7 +207,7 @@ class ArgumentHandler {
                 return std::make_tuple(has_dash_1, has_dash_2, key, val);
             };
 
-            long int processed_tokens = 0;
+            int64_t processed_tokens = 0;
             const auto end = std::end(tokens);
             for(auto s_it = std::begin(tokens); s_it != end; ){
                 // Valid cases to handle:

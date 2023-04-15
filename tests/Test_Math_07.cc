@@ -7,6 +7,7 @@
 #include <list>
 #include <random>
 #include <string>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -45,7 +46,7 @@ int main(int argc, char **argv){
     std::uniform_real_distribution<double> rd_y(0.0, 10.0);
 
     //Fill the samples.
-    for(long int i = 0; i < 25; ++i){
+    for(int64_t i = 0; i < 25; ++i){
         const auto x = rd_x(re);
         const auto y = rd_y(re);
         data.push_back(x,y);

@@ -25,6 +25,7 @@
 //#include <fstream>
 //#include <algorithm>   //Needed for std::reverse.
 #include <vector>
+#include <cstdint>
 
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions, Ygor_Container_Sort().
 #include "YgorLog.h"
@@ -318,12 +319,12 @@ template <class C> typename C::value_type Stats::Percentile(C in, double frac){
     };
     Ygor_Container_Sort(in, sort_low_to_high);
 
-    const auto N = static_cast<long int>(in.size()) - 1;
+    const auto N = static_cast<int64_t>(in.size()) - 1;
     const auto M = frac * N;
     const auto MP = std::floor(M); // The integer part of M.
     const auto R = M - MP; // The extra bit (remainder).
    
-    const auto MP_int = static_cast<long int>(MP);
+    const auto MP_int = static_cast<int64_t>(MP);
 
     if(MP_int == N) return in.back();
 
@@ -819,7 +820,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     }
  
     //Verify there is still enough data to perform a meaningful comparison.
-    const auto N_red = static_cast<long int>(working.size());
+    const auto N_red = static_cast<int64_t>(working.size());
     if(N_red < 6){  // <--- equiv to (N_red*(N_red + 1))/2 <= 20.
         YLOGWARN("Too few datum remaining after pruning identically-valued pairs to provide meaningful statistics");
         return std::numeric_limits<double>::quiet_NaN();
@@ -839,8 +840,8 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     //Rank the data on absdiff starting from one. Identically-valued data share an average rank.
     double W_pos_shtl = 0.0;   //Sum of ranks for positive-signed elements.
     double W_neg_shtl = 0.0;   //Sum of ranks for negitive-signed elements.
-    long int N_tied_ranks = 0; //Number of tied ranks (+1 for each element, so +2 if rank is shared by two elements).
-    for(long int i = 0; i < N_red;  ){
+    int64_t N_tied_ranks = 0; //Number of tied ranks (+1 for each element, so +2 if rank is shared by two elements).
+    for(int64_t i = 0; i < N_red;  ){
         auto j = i+1;
         for(  ; j < N_red; ++j){
             if(working[i][0] != working[j][0]) break;
@@ -851,7 +852,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
         const double start_rank = static_cast<double>(i+1); //One-based rank.
         const double end_rank   = static_cast<double>(dup_elems - 1) + start_rank;
         const double avg_rank   = 0.5*start_rank + 0.5*end_rank;
-        for(long int k = 0; k < dup_elems; ++k){
+        for(int64_t k = 0; k < dup_elems; ++k){
             const auto elems_sign = working[k+i][1];
             if(elems_sign > 0){
                 W_pos_shtl += avg_rank;

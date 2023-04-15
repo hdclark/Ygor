@@ -6,6 +6,7 @@
 #include <functional>
 #include <thread>
 #include <chrono>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -20,49 +21,49 @@ int main(int argc, char **argv){
 
     tasks.Queue( [](void) -> void { 
         YLOGINFO("Beginning task: A");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 + 23 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 * 1E3 + 23 )) );
         YLOGINFO("Completed task: A");
         return; 
     });
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: B");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 2 * 1E3  + 10 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 2 * 1E3  + 10 )) );
         YLOGINFO("Completed task: B");
         return;
     });
     tasks.Queue( [](void) -> void {  
         YLOGINFO("Beginning task: C");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 0 * 1E3 + 56 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 0 * 1E3 + 56 )) );
         YLOGINFO("Completed task: C");
         return; 
     });
     tasks.Queue( [](void) -> void {  
         YLOGINFO("Beginning task: D");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 2 * 1E3 + 10 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 2 * 1E3 + 10 )) );
         YLOGINFO("Completed task: D");
         return; 
     });
     tasks.Queue( [](void) -> void {  
         YLOGINFO("Beginning task: E");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 0 * 1E3 + 56 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 0 * 1E3 + 56 )) );
         YLOGINFO("Completed task: E");
         return; 
     });
     tasks.Queue( [](void) -> void {         
         YLOGINFO("Beginning task: F");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 3 * 1E3 + 89 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 3 * 1E3 + 89 )) );
         YLOGINFO("Completed task: F");
         return; 
     });
     tasks.Queue( [](void) -> void {         
         YLOGINFO("Beginning task: G");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 2 * 1E3 + 5 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 2 * 1E3 + 5 )) );
         YLOGINFO("Completed task: G");
         return; 
     });
     tasks.Queue( [](void) -> void {         
         YLOGINFO("Beginning task: H");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 + 1 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 * 1E3 + 1 )) );
         YLOGINFO("Completed task: H");
         return; 
     });
@@ -75,7 +76,7 @@ int main(int argc, char **argv){
 
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: I");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 + 23 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 * 1E3 + 23 )) );
         YLOGINFO("Completed task: I");
         return;
     });
@@ -86,25 +87,25 @@ int main(int argc, char **argv){
 
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: J");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 1 * 1E3 + 23 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 1 * 1E3 + 23 )) );
         YLOGINFO("Completed task: J");
         return;
     });
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: K");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 2 * 1E3  + 10 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 2 * 1E3  + 10 )) );
         YLOGINFO("Completed task: K");
         return;
     });
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: L");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 0 * 1E3 + 56 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 0 * 1E3 + 56 )) );
         YLOGINFO("Completed task: L");
         return;
     });
     tasks.Queue( [](void) -> void {
         YLOGINFO("Beginning task: M");
-        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<long int>( 2 * 1E3 + 10 )) );
+        std::this_thread::sleep_for( std::chrono::milliseconds( static_cast<int64_t>( 2 * 1E3 + 10 )) );
         YLOGINFO("Completed task: M");
         return;
     });

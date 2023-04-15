@@ -186,7 +186,7 @@ bool Does_Fifo_Exist(const std::string &filename){
     return true;
 }
 
-std::string Get_Unique_Filename(const std::string &prefix, const long int len, const std::string &suffix /* = "" */){
+std::string Get_Unique_Filename(const std::string &prefix, const int64_t len, const std::string &suffix /* = "" */){
     std::string out; //, temp;
     do{
         const std::string random_chars = Generate_Random_String_of_Length(len);
@@ -197,7 +197,7 @@ std::string Get_Unique_Filename(const std::string &prefix, const long int len, c
 }
 
 //std::string Get_Unique_Sequential_Filename(const std::string &prefix){
-std::string Get_Unique_Sequential_Filename(const std::string &prefix, const long int n_of_digit_pads /* = */, const std::string &suffix /* = "" */){
+std::string Get_Unique_Sequential_Filename(const std::string &prefix, const int64_t n_of_digit_pads /* = */, const std::string &suffix /* = "" */){
     std::string out, temp;
     //This function appends numbers to the back of a filename until a unique one is found (or we exceed max.)
     // The first output in a sequence will NOT have a number at all. In the future, the appended characters may
@@ -209,10 +209,10 @@ std::string Get_Unique_Sequential_Filename(const std::string &prefix, const long
     }
 
     //General case.
-    for(long int i = 0; i < 1E7; i++){
-        std::string thenumb = Xtostring<long int>(i);
-        if(static_cast<long int>(thenumb.size()) < n_of_digit_pads){
-            thenumb = std::string(n_of_digit_pads - static_cast<long int>(thenumb.size()), '0') + thenumb;
+    for(int64_t i = 0; i < 1E7; i++){
+        std::string thenumb = Xtostring<int64_t>(i);
+        if(static_cast<int64_t>(thenumb.size()) < n_of_digit_pads){
+            thenumb = std::string(n_of_digit_pads - static_cast<int64_t>(thenumb.size()), '0') + thenumb;
         }
 
         out = prefix + thenumb + suffix;

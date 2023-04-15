@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <sstream>
+#include <cstdint>
 
 #include <cstdio>  //For popen, class FILE.
 
@@ -54,7 +55,7 @@ void Plot_Outline(const planar_image<T,R> &img){
 //Plot the pixels, disregarding spatial information.
 template <class T, class R> 
 inline 
-void Plot_Pixels(const planar_image<T,R> &img, long int chnl){
+void Plot_Pixels(const planar_image<T,R> &img, int64_t chnl){
     if(!isininc(0,chnl,img.channels-1)){
         throw std::runtime_error("Invalid channel specified.");
     }
@@ -91,13 +92,13 @@ void Plot_Pixels(const planar_image<T,R> &img, long int chnl){
 //Plot the pixels, disregarding spatial information.
 template <class T, class R> 
 inline
-void Plot_Pixels_RGB(const planar_image<T,R> &img, long int Rchnl = 0, long int Gchnl = 1, long int Bchnl = 2){
+void Plot_Pixels_RGB(const planar_image<T,R> &img, int64_t Rchnl = 0, int64_t Gchnl = 1, int64_t Bchnl = 2){
     if(!isininc(0,Rchnl,img.channels-1)
     || !isininc(0,Bchnl,img.channels-1)
     || !isininc(0,Bchnl,img.channels-1) ){
         throw std::runtime_error("Invalid channel(s) specified.");
     }
-    const std::vector<long int> channels = {Rchnl,Gchnl,Bchnl};
+    const std::vector<int64_t> channels = {Rchnl,Gchnl,Bchnl};
 
     FILE *fp = popen("gnuplot --persist ", "w");
     if(fp == nullptr) throw std::runtime_error("Unable to open a pipe to gnuplot");

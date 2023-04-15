@@ -79,21 +79,21 @@ template <class TA, class TB>   class bimap {
 //--------------------------- yspan: a non-owning sequence proxy object supporting stride -----------------------------
 //---------------------------------------------------------------------------------------------------------------------
 // This class is a non-owning object similar to std::span, but supporting runtime stride. The underlying sequence is
-// treated as an opaque binary array to support heterogeneous sequences (e.g., [float, double, int, long int]).
+// treated as an opaque binary array to support heterogeneous sequences (e.g., [float, double, int, int64_t]).
 
 template <class T>
 class yspan {
     private:
         T* start;
-        long int count; // the number of T present.
-        long int stride_bytes; // in bytes, to support heterogeneous embeddings.
+        int64_t count; // the number of T present.
+        int64_t stride_bytes; // in bytes, to support heterogeneous embeddings.
 
     public:
         using value_type = T;
 
         //Constructors.
         yspan();
-        yspan(T* start, long int count, long int stride_bytes);
+        yspan(T* start, int64_t count, int64_t stride_bytes);
         yspan(const yspan &);
 
         //Operators.
@@ -104,11 +104,11 @@ class yspan {
         bool operator< (const yspan &) const;
 
         // Accessors.
-        T& operator[](long int);
-        T& at(long int);
+        T& operator[](int64_t);
+        T& at(int64_t);
 
-        long int size() const; // number of T included in yspan.
-        long int stride() const; // number of bytes in the stride.
+        int64_t size() const; // number of T included in yspan.
+        int64_t stride() const; // number of bytes in the stride.
 
         bool empty() const;
         T& front();
@@ -132,7 +132,7 @@ class yspan {
                 using reference         = T&;
 
                 iterator() : it_yspan(nullptr), it_n(-1L) {}
-                iterator(yspan<T>* ys, long int n) : it_yspan(ys), it_n(n) {}
+                iterator(yspan<T>* ys, int64_t n) : it_yspan(ys), it_n(n) {}
 
                 reference operator*() const { return (*(this->it_yspan))[this->it_n]; }
                 pointer operator->(){ return &((*(this->it_yspan))[this->it_n]); }
@@ -167,7 +167,7 @@ class yspan {
 
             private:
                 yspan<T>* it_yspan;
-                long int it_n;
+                int64_t it_n;
         };
 
         iterator begin(){
@@ -338,10 +338,10 @@ class taskqueue {
             return out;
         }
 
-        long int QueueSize(void){  //Returns the current size of the queue.
-            long int l_size = 0;
+        int64_t QueueSize(void){  //Returns the current size of the queue.
+            int64_t l_size = 0;
             this->queue_access_mutex.lock();
-            l_size = static_cast<long int>(this->queue.size());
+            l_size = static_cast<int64_t>(this->queue.size());
             this->queue_access_mutex.unlock();
             return l_size;
         }
@@ -384,7 +384,7 @@ class taskqueue {
 //
 class taskpool {
     private:
-        std::atomic<long int> N; //The maximum number of threads in the pool. This can be adjusted by the user at runtime!
+        std::atomic<int64_t> N; //The maximum number of threads in the pool. This can be adjusted by the user at runtime!
 
         //This is the basic queue, where tasks are pushed. There is probably no reason why it could not be templated.
         std::list<std::function<void (void)>> queue;
@@ -445,7 +445,7 @@ class taskpool {
                 this->pool_access_mutex.lock();
                 underground_railroad.push_back(std::move(*self));
                 this->pool.erase(self);
-                const auto alive_threads = static_cast<long int>(this->pool.size());
+                const auto alive_threads = static_cast<int64_t>(this->pool.size());
                 this->pool_access_mutex.unlock();
                 
                 //Check if there are any more items in the queue (which may have been queued since earlier).
@@ -477,7 +477,7 @@ class taskpool {
             //Check if there are <N threads running. If so, spawn a new one.
             const auto n = this->N.load();
             this->pool_access_mutex.lock();
-            const bool spawnthread = (static_cast<long int>(pool.size()) < n);
+            const bool spawnthread = (static_cast<int64_t>(pool.size()) < n);
             this->pool_access_mutex.unlock();
 
             if(spawnthread){
@@ -494,7 +494,7 @@ class taskpool {
         taskpool(void){   
             this->queue.clear();
             const auto hwn = 2*std::thread::hardware_concurrency();
-            const auto n   = static_cast<long int>((hwn > 0) ? hwn : 2);  //Fall back on two threads. Seems reasonable.
+            const auto n   = static_cast<int64_t>((hwn > 0) ? hwn : 2);  //Fall back on two threads. Seems reasonable.
             this->N.store(n);
             //YLOGINFO("Using " << n << " threads in the pool");
         }
@@ -532,9 +532,9 @@ class taskpool {
             return out;
         }
 
-        long int QueueSize(void){  //Returns the current size of the queue.
+        int64_t QueueSize(void){  //Returns the current size of the queue.
             this->queue_access_mutex.lock();
-            const auto l_size = static_cast<long int>(this->queue.size());
+            const auto l_size = static_cast<int64_t>(this->queue.size());
             this->queue_access_mutex.unlock();
             return l_size;
         }

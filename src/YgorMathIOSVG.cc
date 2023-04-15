@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -120,7 +121,7 @@ WriteCCToSVG(const contour_collection<T> &cc,
     // Emit a non-displayed path that we can later attach text to.
     if(!perimeter_text.empty()){
         os << R"***(<defs>)***" << std::endl;
-        long int contour_number = 0;
+        int64_t contour_number = 0;
         for(const auto &cop : cc.contours){
             const auto proj = cop.Project_Onto_Plane_Orthogonally(P);
             contour_of_points<T> reoriented;
@@ -173,7 +174,7 @@ WriteCCToSVG(const contour_collection<T> &cc,
     // Place text along the paths.
     if(!perimeter_text.empty()){
         os << R"***(<text>)***" << std::endl;
-        long int contour_number = 0;
+        int64_t contour_number = 0;
         for(const auto &cop : cc.contours){
             os << R"***(<textPath href="#contour)***" << contour_number++ << R"***(")***" << std::endl;
             os << R"***( style="font-size: )***" << font_size << R"***(mm; ">)***" << std::endl;

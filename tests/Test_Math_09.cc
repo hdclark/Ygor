@@ -8,6 +8,7 @@
 #include <random>
 #include <sstream>
 #include <limits>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -81,9 +82,9 @@ int main(int, char **){
 
     //Generate an image using the Is_Point_In_Polygon_Projected_Orthogonally() routine.
     {
-        const long int rows = 1000; //ymax, height
-        const long int cols = 2000; //xmax, width
-        const long int cnls = 1;
+        const int64_t rows = 1000; //ymax, height
+        const int64_t cols = 2000; //xmax, width
+        const int64_t cnls = 1;
         planar_image<uint32_t,double> img;
     
         img.init_buffer(rows,cols,cnls);
@@ -101,9 +102,9 @@ int main(int, char **){
         //const auto ls_plane = cont.Least_Squares_Best_Fit_Plane(z_norm);
         const auto ls_plane = cont.Least_Squares_Best_Fit_Plane(yz_norm);
 
-        for(long int row = 0; row < rows; ++row){
-            for(long int col = 0; col < cols; ++col){
-                for(long int chn = 0; chn < cnls; ++chn){
+        for(int64_t row = 0; row < rows; ++row){
+            for(int64_t col = 0; col < cols; ++col){
+                for(int64_t chn = 0; chn < cnls; ++chn){
                     const auto pos = img.position(row,col);
                     if(cont.Is_Point_In_Polygon_Projected_Orthogonally(ls_plane,pos)){
                         img.reference(row,col,chn) = (uint32_t)(1000*row*col);

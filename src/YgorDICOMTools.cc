@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorDICOMTools.h"
@@ -26,11 +27,11 @@ bool Is_File_A_DICOM_File(const std::string &filename_in){
     std::ifstream in(filename_in.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
     if(!in.is_open()) return false;
 
-    const long int check_size = 128+4;            //The amount of bytes we want to read in.
+    const int64_t check_size = 128+4;            //The amount of bytes we want to read in.
     std::ifstream::pos_type l_size = in.tellg();  //Grab the size of the binary file.
 
     //If the file is smaller than the header, we know immediately it is not DICOM.
-    if( check_size > static_cast<long int>(l_size) ) return false;
+    if( check_size > static_cast<int64_t>(l_size) ) return false;
 
     std::unique_ptr<char[]> mem ( new char [check_size] );
 //    mem.reset( new char [check_size] );
@@ -39,7 +40,7 @@ bool Is_File_A_DICOM_File(const std::string &filename_in){
     in.close();
 
     //Now check the contents of the data we've read in.
-    long int i = 0;
+    int64_t i = 0;
     for( ; i < 128; i++) if(mem[i] != '\0') return false;
     if(mem[i++] != 'D') return false;
     if(mem[i++] != 'I') return false;
@@ -299,7 +300,7 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
 
         //We now determine whether there is any data associated with this item or not. Some items *appear* to have data associated
         // with them, but in fact do not. Such an item is the 'UL' item (File Meta Information Group Length.)
-        long int amount = 0; 
+        int64_t amount = 0; 
 
         //This criteria is a very brittle part of this program. It tries to guess which data needs to be delineated and
         // broken into children. It uses heuristics which are built by patching previously encountered warnings and failures!
@@ -314,13 +315,13 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
             // 2) the last two bytes of B denote the size.
             if( Do_Last_Two_Bytes_of_B_Denote_A_Size( outgoing.A, outgoing.B ) ){
                 //Grab the size from the last two bytes.
-                amount = static_cast<long int>(outgoing.B.s[1].i);
+                amount = static_cast<int64_t>(outgoing.B.s[1].i);
 
             // 3) the next 4 bytes (not yet read) must contain the size.
             }else if( Do_Next_Four_Bytes_Denote_A_Size( outgoing.A, outgoing.B ) ){
                 //Read ahead 4 more bytes to get the size.
                 shuttle.c[0] = *(i++);  shuttle.c[1] = *(i++); shuttle.c[2] = *(i++);  shuttle.c[3] = *(i++);
-                amount = static_cast<long int>(shuttle.i);
+                amount = static_cast<int64_t>(shuttle.i);
 
             // The OTHER possibility - we encounter an element which may need to be whitelisted as either of the THREE above possibilities!
             }else{
@@ -331,18 +332,18 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
                 //NOTE: The below code is a poor attempt at GUESSING how the item works. Expect errors. It is not necessarily (likely) how the item should be treated.
                 //Attempt to "guess" the second probability, because it seems like a more common channel.. The appropriate whitelist in this case is Do_Last_Two_Bytes_of_B_Denote_A_Size(...)
                 YLOGWARN("  If no additional warnings/errors are encountered, consider adding this item to the appropriate whitelist (and then test it!)");
-                amount = static_cast<long int>(outgoing.B.s[1].i);
+                amount = static_cast<int64_t>(outgoing.B.s[1].i);
             }
 
         //Otherwise the entire 4 bytes denote the number of bytes to read in.
         // This is case 1).
         }else{
-            amount = static_cast<long int>(shuttle.i);
+            amount = static_cast<int64_t>(shuttle.i);
         }
 
         //Perform a sanity check - is there enough data left to make this data sane?
         // If there is not, it is *not* safe to continue processing data. We *have* to return (with a warning.)
-        const long int total_remaining_space = static_cast<long int>( std::distance(i,end) );
+        const int64_t total_remaining_space = static_cast<int64_t>( std::distance(i,end) );
         if( total_remaining_space < amount ){
             YLOGWARN("We have interpreted an instruction to read memory of capacity beyond what we have loaded into memory during parsing. This _may_ or _may not_ be an error");
             YLOGWARN("  NOTE: The heuristic we use to 'guess' the proper size to load in can get snagged on elements with a large size. Try whitelisting the A value in the various whitelists");
@@ -353,7 +354,7 @@ std::vector<piece> Parse_Binary_File(const unsigned char *begin, const unsigned 
         outgoing.data_size = amount;
 
         //If there is data to be read in, do so.
-        for(long int j=0; j<amount; ++j){
+        for(int64_t j=0; j<amount; ++j){
             buff.push_back( *(i++) );
         }
 
@@ -478,8 +479,8 @@ void Prep_Children_For_Recompute_Children_Data_Size( std::vector<piece> &in ){
 //NOTE: The unit of "size" is bytes.
 //NOTE: This size includes the "A" and "B" parts of the children nodes.
 //NOTE: The return value of this function will be the total length of the 
-long int Recompute_Children_Data_Size( std::vector<piece> &in ){
-    long int upward = 0;
+int64_t Recompute_Children_Data_Size( std::vector<piece> &in ){
+    int64_t upward = 0;
 
     //Cycle through the vector.
     for(auto & i : in){
@@ -490,7 +491,7 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
 
         //If it does not, we update the local "data_size" element and add it to "upward" along with the additional 8 bytes for this nodes "A" and "B".
         }else{
-            i.data_size = (long int)(i.data.size());
+            i.data_size = (int64_t)(i.data.size());
         }
 
         //Check if B includes the size of the element. If it does not, then we have to take into account the extra 4 bytes required to append the
@@ -499,11 +500,11 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
 
             //If the last two bytes of B denote the size, we have only 8 bytes of data (no extra size 4 bytes.)
             if( Do_Last_Two_Bytes_of_B_Denote_A_Size( i.A, i.B ) ){
-                upward += i.data_size + (long int)(2*sizeof(uint32_t));
+                upward += i.data_size + (int64_t)(2*sizeof(uint32_t));
 
             //Otherwise, if we require an extra four bytes then we have to add this to the size of this elements memory footprint. 
             }else if( Do_Next_Four_Bytes_Denote_A_Size( i.A, i.B ) ){
-                upward += i.data_size + (long int)(2*sizeof(uint32_t)) + (long int)(1*sizeof(uint32_t));
+                upward += i.data_size + (int64_t)(2*sizeof(uint32_t)) + (int64_t)(1*sizeof(uint32_t));
 
             //This is the case where we do not know enough about the tags to tell either way (safely.) Issue a warning and pick a method to try it.
             }else{
@@ -513,12 +514,12 @@ long int Recompute_Children_Data_Size( std::vector<piece> &in ){
 
                 //GUESSING that the last two bytes of B denote the size! See ~10 lines above. The appropriate whitelist is Do_Last_Two_Bytes_of_B_Denote_A_Size(...).
                 YLOGWARN("  Guessing a default layout. If this works, please add it to the appropriate whitelist (and test it!)");
-                upward += i.data_size + (long int)(2*sizeof(uint32_t));
+                upward += i.data_size + (int64_t)(2*sizeof(uint32_t));
             }
 
         //Otherwise, B denotes the size. We have a simple layout.
         }else{
-            upward += i.data_size + (long int)(2*sizeof(uint32_t));
+            upward += i.data_size + (int64_t)(2*sizeof(uint32_t));
         }
 
     }

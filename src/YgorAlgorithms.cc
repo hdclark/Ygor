@@ -14,6 +14,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <cstdint>
 
 //#include "External/SpookyHash/SpookyV2.cpp"
 #include "External/MD5/md5.h"
@@ -241,7 +242,7 @@ namespace NPRLL { //NPRLL - Non-Parametric Regression: Local Linear Smoothing.
         return out/N;
     }
     
-    double Find_Optimal_H(double h_0, double h_scale, double cv_tol, long int N_iters, const samples_1D<double> &in, bool show_info, bool *OK){
+    double Find_Optimal_H(double h_0, double h_scale, double cv_tol, int64_t N_iters, const samples_1D<double> &in, bool show_info, bool *OK){
         //Given a starting point (h_0) and a suspected 'scale' of the problem (ie. how much we need to move h to see a difference)
         // we try a minimization scheme to search for an optimal smoothing parameter h.
         // 
@@ -615,7 +616,7 @@ std::unique_ptr<uint8_t[]> MD5_Hash(bool *OK, std::unique_ptr<uint8_t[]> in, uin
 
 
 //This driver is wrapped by the other routines. Preferentially use them.
-std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>>
+std::tuple<std::list<double>,double,double,int64_t,double,double,double,std::list<double>>
 Ygor_Fit_Driver(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
              const std::list<std::list<double>> &data,
@@ -629,7 +630,7 @@ Ygor_Fit_Driver(bool *wasOK,
 
     if(wasOK == nullptr) YLOGERR("Passed a nullptr bool. Unable to signal whether evaluation worked or not");
     *wasOK = false;
-    std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>> out;
+    std::tuple<std::list<double>,double,double,int64_t,double,double,double,std::list<double>> out;
 
     // ----------------- Sanity checking -------------------
     if(!f || data.empty() || vars.empty()){
@@ -663,7 +664,7 @@ Ygor_Fit_Driver(bool *wasOK,
 
 
     // ---------------- Setup -----------------
-    const auto DOF = static_cast<long int>(data.size()) - static_cast<long int>(vars.size()); 
+    const auto DOF = static_cast<int64_t>(data.size()) - static_cast<int64_t>(vars.size()); 
     const size_t numb_of_fit_parameters = vars.size();
     const auto N_COLS = data.front().size();
 
@@ -850,11 +851,11 @@ Ygor_Fit_Driver(bool *wasOK,
 }
 
 
-std::tuple<std::list<double>,double,double,long int,double,double,double,std::list<double>>
+std::tuple<std::list<double>,double,double,int64_t,double,double,double,std::list<double>>
 Ygor_Fit_LSS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
              const std::list<std::list<double>> &data,        const std::list<double> &vars,
-             long int dim,  bool Verbose/*=false*/,  double char_len/*=0.6*/,  int max_iters/*=1500*/,
+             int64_t dim,  bool Verbose/*=false*/,  double char_len/*=0.6*/,  int max_iters/*=1500*/,
              double ftol/*=1E-6*/ ){
 
     uint32_t fitflags(0);
@@ -872,7 +873,7 @@ std::tuple<std::list<double>,std::list<double>>
 Ygor_Fit_LMS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
              const std::list<std::list<double>> &data,        const std::list<double> &vars,
-             long int dim,  bool Verbose/*=false*/,  double char_len/*=0.6*/,  int max_iters/*=1500*/,
+             int64_t dim,  bool Verbose/*=false*/,  double char_len/*=0.6*/,  int max_iters/*=1500*/,
              double ftol/*=1E-6*/ ){
 
     //NOTE: This is *NOT* the least-median:  min[median( (F_i - f(x,y,..;A,B,..))   )]  but rather
@@ -901,14 +902,14 @@ Ygor_Fit_LMS(bool *wasOK,
 std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
          const std::list<std::list<double>> &data,  const std::list<double> &vars, uint32_t fitflags,
-         long int N,   double char_len,   int max_iters,    double ftol){
+         int64_t N,   double char_len,   int max_iters,    double ftol){
 
     *wasOK = false;
     std::list<std::list<double>> out;
     for(size_t i = 0; i < vars.size(); ++i) out.emplace_back();
 
-    long int MAX_N_ERRS = 100*N;  //Will happen if single row is picked or some other unreasonable scenario.
-    long int N_ERRS = 0;
+    int64_t MAX_N_ERRS = 100*N;  //Will happen if single row is picked or some other unreasonable scenario.
+    int64_t N_ERRS = 0;
 
     std::random_device rdev;
     std::mt19937 re( rdev() ); //Random engine.
@@ -976,7 +977,7 @@ std::list<double> randomized_vars;
               ++oit;
           }
         }
-        if(static_cast<long int>(out.front().size()) >= N) break;
+        if(static_cast<int64_t>(out.front().size()) >= N) break;
     }
 
     //All rows have same number of cols.
@@ -1001,8 +1002,8 @@ std::list<double> randomized_vars;
 std::list<std::list<double>>
 Ygor_Fit_Bootstrap_LSS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-             const std::list<std::list<double>> &data,  const std::list<double> &vars, long int dim, 
-             long int N,  double char_len,  int max_iters, double ftol){
+             const std::list<std::list<double>> &data,  const std::list<double> &vars, int64_t dim, 
+             int64_t N,  double char_len,  int max_iters, double ftol){
 
     uint32_t fitflags(0);
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
@@ -1019,8 +1020,8 @@ Ygor_Fit_Bootstrap_LSS(bool *wasOK,
 std::list<std::list<double>>
 Ygor_Fit_Bootstrap_LMS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
-             const std::list<std::list<double>> &data,  const std::list<double> &vars, long int dim, 
-             long int N,  double char_len,  int max_iters, double ftol){
+             const std::list<std::list<double>> &data,  const std::list<double> &vars, int64_t dim, 
+             int64_t N,  double char_len,  int max_iters, double ftol){
 
     uint32_t fitflags(0);
     if(dim == 2){        fitflags |= YGORFIT::DIM2;

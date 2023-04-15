@@ -2,6 +2,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <cstdint>
 
 #include <sys/socket.h>
 
@@ -9,7 +10,7 @@
 #include "YgorLog.h"
 #include "YgorNetworking.h"
 
-bool Dialog_Simple_Send(int fd, char *host, long int port){
+bool Dialog_Simple_Send(int fd, char *host, int64_t port){
     //Send a simple message to the radios.
     if(send(fd, "This is the default beacon message!", 38, MSG_NOSIGNAL) == -1){
         YLOGWARN("Beacon unable to send()");

@@ -964,7 +964,7 @@ vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &th
 // number of iterations is chosen sufficiently high so as to produce negligible errors.
 std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<vec3<double>,vec3<double>> &x_and_v, 
                                                               std::function<vec3<double>(vec3<double> x, double T)> F,  
-                                                              double T, long int steps){
+                                                              double T, int64_t steps){
     std::tuple<vec3<double>,vec3<double>> out(x_and_v), last(x_and_v);
     const double m = 1.0;
 
@@ -974,7 +974,7 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
 
     const double dt = T/static_cast<double>(steps);
 
-    for(long int i=0; i<steps; ++i){
+    for(int64_t i=0; i<steps; ++i){
         const auto curr_t = static_cast<double>(i)*dt;
         const auto F_at_last_x_curr_t = F( std::get<0>(last), curr_t );
 
@@ -2185,7 +2185,7 @@ sphere<T>::Line_Intersections( const line<T> &L ) const {
 template <class C> 
 sphere<typename C::value_type::value_type>
 Sphere_Orthogonal_Regression( C in,
-                              long int max_iterations,
+                              int64_t max_iterations,
                               typename C::value_type::value_type centre_stopping_tol,
                               typename C::value_type::value_type radius_stopping_tol ){
     using T = typename C::value_type; // e.g., vec3<double>.
@@ -2228,7 +2228,7 @@ Sphere_Orthogonal_Regression( C in,
     Lb.resize(N, zero);
     Lc.resize(N, zero);
 
-    long int iteration = 0;
+    int64_t iteration = 0;
     while(true){
         ++iteration;
         if( iteration > max_iterations ){
@@ -2266,11 +2266,11 @@ Sphere_Orthogonal_Regression( C in,
                       static_cast<R>(radius) );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template sphere<double> Sphere_Orthogonal_Regression(std::list<vec3<double>>, long int, double, double);
-    template sphere<float > Sphere_Orthogonal_Regression(std::list<vec3<float >>, long int, float , float );
+    template sphere<double> Sphere_Orthogonal_Regression(std::list<vec3<double>>, int64_t, double, double);
+    template sphere<float > Sphere_Orthogonal_Regression(std::list<vec3<float >>, int64_t, float , float );
 
-    template sphere<double> Sphere_Orthogonal_Regression(std::vector<vec3<double>>, long int, double, double);
-    template sphere<float > Sphere_Orthogonal_Regression(std::vector<vec3<float >>, long int, float , float );
+    template sphere<double> Sphere_Orthogonal_Regression(std::vector<vec3<double>>, int64_t, double, double);
+    template sphere<float > Sphere_Orthogonal_Regression(std::vector<vec3<float >>, int64_t, float , float );
 #endif 
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -2723,7 +2723,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     if(this->points.size() < 3){
         YLOGERR("Not enough contour points to properly split contour. Pretending this contour has been split.");
     }
-    long int number_of_crossings = 0;
+    int64_t number_of_crossings = 0;
 
     auto copy_of_points = this->points; //This is super inefficient, but it lets us shift the data around later...
     auto offset = copy_of_points.end();
@@ -2781,7 +2781,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
       }
     }
 
-    if( number_of_crossings != static_cast<long int>(linesegments.size()) ){
+    if( number_of_crossings != static_cast<int64_t>(linesegments.size()) ){
         YLOGERR("We somehow produced " << number_of_crossings << " crossings and " << linesegments.size() << " line segments. This is an error. Check the (input) contour data for repeating points and then check the algorithm.");
     }
    
@@ -2816,7 +2816,7 @@ std::cout << std::endl;
     auto lambda_distance_to_furthest_point = [furthest_point](const vec3<T> &a, const vec3<T> &b) -> bool { return (furthest_point.distance(a) < furthest_point.distance(b)); };
     std::sort(endpoints.begin(), endpoints.end(), lambda_distance_to_furthest_point); 
     std::map<vec3<T>,vec3<T>> paired_endpoints;
-    for(long int ii = 0; (2*ii) < static_cast<long int>(endpoints.size()); ++ii){
+    for(int64_t ii = 0; (2*ii) < static_cast<int64_t>(endpoints.size()); ++ii){
 //Commented because this doesn't seem to work...
        paired_endpoints[ endpoints[2*ii+0] ] = endpoints[2*ii+1];
        paired_endpoints[ endpoints[2*ii+1] ] = endpoints[2*ii+0];  //Is this needed if we are always traversing the (original and linesegmented) contour data in the same direction? (apparently yes!)
@@ -2843,13 +2843,13 @@ std::cout << std::endl;
  
     //Now we cycle through the line segments until they are all used. 
     std::vector<bool> is_this_linesegment_used;
-    for(long int ii=0; ii < static_cast<long int>(linesegments.size()); ++ii){
+    for(int64_t ii=0; ii < static_cast<int64_t>(linesegments.size()); ++ii){
         is_this_linesegment_used.push_back(false);
     }
 
     std::vector<std::vector<vec3<T>>> newcontours;
     std::vector<vec3<T>> newcontour_shuttle;
-    long int next_linesegment = -1;
+    int64_t next_linesegment = -1;
     bool finished_shuttling = false;
     do{
     
@@ -2860,7 +2860,7 @@ std::cout << std::endl;
           //At no extra cost, check the exiting condition.
           // (If all segments are used AND the shuttle is empty, then we can exit the loop.)
           bool all_used = true;
-          for(long int j = 0; j < static_cast<long int>(linesegments.size()); ++j){
+          for(int64_t j = 0; j < static_cast<int64_t>(linesegments.size()); ++j){
               if(is_this_linesegment_used[j] == false){
                   all_used = false;
                   if(next_linesegment == -1) next_linesegment = j;
@@ -2920,7 +2920,7 @@ std::cout << std::endl;
 
 
             bool could_find_it = false;
-            for(long int j = 0; j < static_cast<long int>(linesegments.size()); ++j){
+            for(int64_t j = 0; j < static_cast<int64_t>(linesegments.size()); ++j){
 //YLOGINFO("Trying vector " << linesegments[j][0]);
                 if(linesegments[j][0] == theinitiator){
                     next_linesegment = j;
@@ -2936,7 +2936,7 @@ std::cout << std::endl;
         {
           //If all segments are used AND the shuttle is empty, then we can exit the loop.
           bool all_used = true;
-          for(long int j = 0; j < static_cast<long int>(linesegments.size()); ++j){
+          for(int64_t j = 0; j < static_cast<int64_t>(linesegments.size()); ++j){
               if(is_this_linesegment_used[j] == false){
                   all_used = false;
                   break;
@@ -2957,15 +2957,15 @@ std::cout << std::endl;
     //  6 crossings -> 4 contours.
     // so N crossings -> (N/2) + 1 contours.
 
-    if( (2*(static_cast<long int>(newcontours.size()) - 1)) != number_of_crossings ){
+    if( (2*(static_cast<int64_t>(newcontours.size()) - 1)) != number_of_crossings ){
         YLOGERR("This contour originally had " << number_of_crossings << " plane crossings and has been exploded into " << newcontours.size() << " contours. This is not the amount we should have!");
     }else{
         //If all looks swell, we push the split contours onto the output.
-        for(long int j=0; j < static_cast<long int>(newcontours.size()); ++j){
+        for(int64_t j=0; j < static_cast<int64_t>(newcontours.size()); ++j){
             contour_of_points<T> new_contour;
             new_contour.closed = true;
 
-            for(long int jj=0; jj < static_cast<long int>(newcontours[j].size()); ++jj){
+            for(int64_t jj=0; jj < static_cast<int64_t>(newcontours[j].size()); ++jj){
                 new_contour.points.push_back( newcontours[j][jj] );
             }
 
@@ -3092,7 +3092,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
     // 1) determine the total number of plane crossings,
     // 2) identify the (arbitrary) first intersection point, and
     // 3) insert intersection points as needed. These are the only newly generated points!
-    long int number_of_crossings(0);
+    int64_t number_of_crossings(0);
     auto first_intersection = point_pointers.end();
     std::list<vec3<T>> intersections;
     {
@@ -3481,10 +3481,10 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     }
 
     //Given the bounding box and the contour data, we now crawl along the edge and ray cast through the contour. 
-    const auto number_of_contour_points = static_cast<long int>(this->points.size());
-    //const long int number_of_new_points = number_of_contour_points;  //Too many!
-    long int number_of_new_points = number_of_contour_points / 3;
-    const long int min_number_of_new_points = 10;    //NOTE: We are NOT guaranteed to get this many. This is an upper bound!
+    const auto number_of_contour_points = static_cast<int64_t>(this->points.size());
+    //const int64_t number_of_new_points = number_of_contour_points;  //Too many!
+    int64_t number_of_new_points = number_of_contour_points / 3;
+    const int64_t min_number_of_new_points = 10;    //NOTE: We are NOT guaranteed to get this many. This is an upper bound!
                                                      // The bounding box may cover a large area which is void of contour!
     if( number_of_new_points < min_number_of_new_points ) number_of_new_points = min_number_of_new_points;
 
@@ -3510,7 +3510,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     u_ray.z = 0.0;
     u_ray = u_ray.unit();
 
-    long int TIMES_STUCK_IN_KEY = 0; //Hack to ensure we don't loop endlessly...
+    int64_t TIMES_STUCK_IN_KEY = 0; //Hack to ensure we don't loop endlessly...
     for(T L = 0.05*dL; L < width_of_bb; L += dL){
         //First, we precisely specify the ray cast line. u_ray is the unit vector and p_ray is the point defining the line of the ray. It is NOT constrained to the bounding box!
         const vec3<T> p_ray = r_2 + r_n*L;
@@ -3623,8 +3623,8 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     vec3<T> halfway_first = halfway_points.front();
     vec3<T> halfway_last  = halfway_points.back();
 
-    long int offset_first = 0;
-    long int offset_last  = 0;
+    int64_t offset_first = 0;
+    int64_t offset_last  = 0;
     for(auto it = (*this).points.begin(); it != (*this).points.end(); ++it ){
         if( halfway_first.distance( (*it) ) < halfway_first.distance( nearest_first ) ){
             nearest_first = (*it);
@@ -3640,7 +3640,7 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     std::vector< vec3<T> > contour_A;  //Goes in direction from first to last along the halfway points.
     std::vector< vec3<T> > contour_B;  //Goes in direction from last to first along the halfway points.
 
-    for(long int i=0; i < static_cast<long int>(halfway_points.size()); ++i){
+    for(int64_t i=0; i < static_cast<int64_t>(halfway_points.size()); ++i){
         contour_A.push_back( halfway_points[i] );
         contour_B.push_back( halfway_points[(halfway_points.size() - 1) - i] );
     }
@@ -3648,9 +3648,9 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     { //Contour A.
       bool passed_first = false;
       bool passed_last  = false;
-      long int i=0;
+      int64_t i=0;
       while(!(passed_first && passed_last)){
-          const long int ii = i%(*this).points.size();
+          const int64_t ii = i%(*this).points.size();
           if( ii == offset_last ){
               passed_last = true;  //Start pushing points and watching for the first point during this iteration.
           }
@@ -3669,9 +3669,9 @@ template <class T> std::list< contour_of_points<T> > contour_of_points<T>::Split
     { //Contour B.
       bool passed_first = false;
       bool passed_last  = false;
-      long int i=0;
+      int64_t i=0;
       while(!(passed_first && passed_last)){
-          const long int ii = i%(*this).points.size();
+          const int64_t ii = i%(*this).points.size();
           if( (ii == offset_last) && (passed_first == true) ){
               passed_last = true;  //Exit the loop after this iteration (we need both first and last endpoints on the contours.)
           }
@@ -3896,13 +3896,13 @@ template <class T> vec3<T> contour_of_points<T>::Centroid(void) const {
 //This routine will produce a point which lies somewhere within the region of a contour. It may be outside of the contour
 // for U-shaped contours, and may not lie in the local plane of the contour. It is best used for quick and dirty location
 // of a contour or for checking which side of a plane a spit contour lies on.
-template <class T> vec3<T> contour_of_points<T>::First_N_Point_Avg(const long int N) const {
-    if((N <= 0) || (N > static_cast<long int>(this->points.size()))){
+template <class T> vec3<T> contour_of_points<T>::First_N_Point_Avg(const int64_t N) const {
+    if((N <= 0) || (N > static_cast<int64_t>(this->points.size()))){
         YLOGERR("Attempted to average N=" << N << " points. This is not possible. The contour has " << this->points.size() << " points");
     }
     vec3<T> out;
     auto it = this->points.begin();
-    long int i = 0;
+    int64_t i = 0;
     while(i < N){
         out += *it;
         ++it;
@@ -3911,8 +3911,8 @@ template <class T> vec3<T> contour_of_points<T>::First_N_Point_Avg(const long in
     return out/static_cast<T>(N);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float> contour_of_points<float>::First_N_Point_Avg(const long int N) const;
-    template vec3<double> contour_of_points<double>::First_N_Point_Avg(const long int N) const;
+    template vec3<float> contour_of_points<float>::First_N_Point_Avg(const int64_t N) const;
+    template vec3<double> contour_of_points<double>::First_N_Point_Avg(const int64_t N) const;
 #endif
 
 //This routine returns the (positive-or-zero) perimeter of a contour. No attempt it made to ensure the points are in any
@@ -3951,7 +3951,7 @@ template <class T>  vec3<T> contour_of_points<T>::Get_Point_Within_Contour(void)
     const bool AlreadyProjected = true;
 
     //A simplistic, incomprehensive approach.
-    for(unsigned long int i = 3; i < N; ++i){
+    for(uint64_t i = 3; i < N; ++i){
         const auto P = proj_cont.First_N_Point_Avg(i);    
         if(proj_cont.Is_Point_In_Polygon_Projected_Orthogonally(theplane, P, AlreadyProjected)){
             return P;
@@ -4105,7 +4105,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     
     decltype(this->points) newpoints;
     const T perimeter = this->Perimeter();
-    const long int N = static_cast<long int>( std::floor(perimeter/dl) );
+    const int64_t N = static_cast<int64_t>( std::floor(perimeter/dl) );
     const T spacing = dl;
     const T zero = (T)(0);
     T offset = (T)(0);
@@ -4123,12 +4123,12 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
 
         offset = (zero - remain);
         remain = zero;
-        while(!somepoints.empty() && (static_cast<long int>(newpoints.size()) < N)){
+        while(!somepoints.empty() && (static_cast<int64_t>(newpoints.size()) < N)){
             auto it = somepoints.begin();
             newpoints.push_back(*it);
             somepoints.erase(it);
         }
-        if(static_cast<long int>(newpoints.size()) == N) break;
+        if(static_cast<int64_t>(newpoints.size()) == N) break;
         ++itA; 
         ++itB;
     }
@@ -4143,7 +4143,7 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     template contour_of_points<double> contour_of_points<double>::Resample_Evenly_Along_Perimeter(const double dl) const;
 #endif
 
-template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly_Along_Perimeter(const long int N) const {
+template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly_Along_Perimeter(const int64_t N) const {
     //First, do some preliminary checks.
     if(this->points.size() <= 1) YLOGERR("Attempted to perform resampling on a contour with " << this->points.size() << " points. Surely this was not intended!");
     if(N <= 0) YLOGERR("Attempted to perform resampling into " << N << " points. Surely this was not intended!");
@@ -4173,12 +4173,12 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
         offset = (zero - remain);
         remain = zero;
 //        newpoints.splice(newpoints.end(), somepoints);
-        while(!somepoints.empty() && (static_cast<long int>(newpoints.size()) < N)){
+        while(!somepoints.empty() && (static_cast<int64_t>(newpoints.size()) < N)){
             auto it = somepoints.begin();
             newpoints.push_back(*it);
             somepoints.erase(it);
         }
-        if(static_cast<long int>(newpoints.size()) == N) break;
+        if(static_cast<int64_t>(newpoints.size()) == N) break;
         ++itA; 
         ++itB;
     }
@@ -4189,8 +4189,8 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Resample_Evenly
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const long int N) const;
-    template contour_of_points<double> contour_of_points<double>::Resample_Evenly_Along_Perimeter(const long int N) const;
+    template contour_of_points<float > contour_of_points<float >::Resample_Evenly_Along_Perimeter(const int64_t N) const;
+    template contour_of_points<double> contour_of_points<double>::Resample_Evenly_Along_Perimeter(const int64_t N) const;
 #endif
 
 template <class T>
@@ -4410,16 +4410,16 @@ template <class T>    contour_of_points<T> contour_of_points<T>::Scale_Dist_From
 
 
 //Performs a resampling only if the contour is longer than the resample size.
-template <class T>    contour_of_points<T> contour_of_points<T>::Resample_LTE_Evenly_Along_Perimeter(const long int N) const {
-    if(static_cast<long int>(this->points.size()) > N){
+template <class T>    contour_of_points<T> contour_of_points<T>::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const {
+    if(static_cast<int64_t>(this->points.size()) > N){
         return this->Resample_Evenly_Along_Perimeter(N);
     }else{
         return (*this);
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_of_points<float > contour_of_points<float >::Resample_LTE_Evenly_Along_Perimeter(const long int N) const;
-    template contour_of_points<double> contour_of_points<double>::Resample_LTE_Evenly_Along_Perimeter(const long int N) const;
+    template contour_of_points<float > contour_of_points<float >::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const;
+    template contour_of_points<double> contour_of_points<double>::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const;
 #endif
 
 template <class T> 
@@ -4740,7 +4740,7 @@ template <class T> bool contour_of_points<T>::operator<(const contour_of_points<
 
 //This is a contour-to-plane comparison which is performed on a per-point basis.
 // The return value is -1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
-template <class T> long int contour_of_points<T>::Avoids_Plane(const plane<T> &P) const {
+template <class T> int64_t contour_of_points<T>::Avoids_Plane(const plane<T> &P) const {
     if(this->points.empty()) throw std::runtime_error("Unable to determine if contour avoids plane or not - there are no points to compare!");
     bool above(false), below(false);
     const vec3<T>  NN(vec3<T>((T)(0), (T)(0), (T)(0)) - P.N_0); //Sign reversed normal.
@@ -4766,8 +4766,8 @@ template <class T> long int contour_of_points<T>::Avoids_Plane(const plane<T> &P
     return 0;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int contour_of_points<float >::Avoids_Plane(const plane<float > &P) const;
-    template long int contour_of_points<double>::Avoids_Plane(const plane<double> &P) const;
+    template int64_t contour_of_points<float >::Avoids_Plane(const plane<float > &P) const;
+    template int64_t contour_of_points<double>::Avoids_Plane(const plane<double> &P) const;
 #endif
 
 
@@ -4907,8 +4907,8 @@ contour_of_points<T>::GetMetadataValueAs(std::string key) const {
     template std::optional<uint32_t> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
     template std::optional<uint32_t> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::optional<long int> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<double> contour_of_points<float >::GetMetadataValueAs(std::string key) const;
     template std::optional<double> contour_of_points<double>::GetMetadataValueAs(std::string key) const;
@@ -4977,12 +4977,12 @@ template <class T> bool contour_of_points<T>::load_from_string(const std::string
     //Here we can be reasonably certain it (looks) like a contour.
     this->points.clear();
     this->closed = (grbg == "closed");
-    long int N;
+    int64_t N;
     ins >> N;
     if(N < 0) return false;
 
     vec3<T> p;
-    for(long int i = 0; i < N; ++i){
+    for(int64_t i = 0; i < N; ++i){
         ins >> p;
         this->points.push_back(p);
     }
@@ -5094,7 +5094,7 @@ template <class T> void contour_collection<T>::Reorient_Counter_Clockwise(void){
 // for this reason.
 template <class T> vec3<T> contour_collection<T>::Average_Point(void) const {
     vec3<T> out((T)(0), (T)(0), (T)(0));
-    long int N = 0;
+    int64_t N = 0;
     for(const auto &c : this->contours){
         for(const auto &p : c.points){
             out += p;
@@ -5143,13 +5143,13 @@ template <class T> vec3<T> contour_collection<T>::Centroid(bool AssumePlanarCont
 // a U-shape on the edge of the boundary.
 //
 //NOTE: Uses first N contours with first M points from each. Decent defaults are: N = 1 and M = 3. 
-template <class T> vec3<T> contour_collection<T>::Generic_Avg_Boundary_Point(const long int N, const long int M) const {
-    if((N <= 0) || (N > static_cast<long int>(this->contours.size()))){
+template <class T> vec3<T> contour_collection<T>::Generic_Avg_Boundary_Point(const int64_t N, const int64_t M) const {
+    if((N <= 0) || (N > static_cast<int64_t>(this->contours.size()))){
         YLOGERR("Attempted to average N=" << N << " contours. This is not possible. The collection has " << this->contours.size() << " contours");
     }
     vec3<T> out;
     auto it = this->contours.begin();
-    long int i = 0;
+    int64_t i = 0;
     while(i < N){
         out += it->First_N_Point_Avg(M);
         ++it;
@@ -5158,8 +5158,8 @@ template <class T> vec3<T> contour_collection<T>::Generic_Avg_Boundary_Point(con
     return out/static_cast<T>(N);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template vec3<float> contour_collection<float>::Generic_Avg_Boundary_Point(const long int N, const long int M) const;
-    template vec3<double> contour_collection<double>::Generic_Avg_Boundary_Point(const long int N, const long int M) const;
+    template vec3<float> contour_collection<float>::Generic_Avg_Boundary_Point(const int64_t N, const int64_t M) const;
+    template vec3<double> contour_collection<double>::Generic_Avg_Boundary_Point(const int64_t N, const int64_t M) const;
 #endif
 
 //This routine returns the (positive-or-zero) total perimeter of the contours. No attempt it made to ensure the 
@@ -5578,7 +5578,7 @@ template <class T> bool contour_collection<T>::operator<(const contour_collectio
 #endif
 
 
-template <class T>    contour_collection<T> contour_collection<T>::Resample_Evenly_Along_Perimeter(const long int N) const {
+template <class T>    contour_collection<T> contour_collection<T>::Resample_Evenly_Along_Perimeter(const int64_t N) const {
     contour_collection<T> out;
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         out.contours.push_back( c_it->Resample_Evenly_Along_Perimeter(N) );
@@ -5586,12 +5586,12 @@ template <class T>    contour_collection<T> contour_collection<T>::Resample_Even
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_collection<float > contour_collection<float >::Resample_Evenly_Along_Perimeter(const long int N) const;
-    template contour_collection<double> contour_collection<double>::Resample_Evenly_Along_Perimeter(const long int N) const;
+    template contour_collection<float > contour_collection<float >::Resample_Evenly_Along_Perimeter(const int64_t N) const;
+    template contour_collection<double> contour_collection<double>::Resample_Evenly_Along_Perimeter(const int64_t N) const;
 #endif
 
 //Performs a resampling only if the contour is longer than the resample size.
-template <class T>    contour_collection<T> contour_collection<T>::Resample_LTE_Evenly_Along_Perimeter(const long int N) const {
+template <class T>    contour_collection<T> contour_collection<T>::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const {
     contour_collection<T> out;
     for(auto c_it = this->contours.begin(); c_it != this->contours.end(); ++c_it){
         out.contours.push_back( c_it->Resample_LTE_Evenly_Along_Perimeter(N) );
@@ -5599,14 +5599,14 @@ template <class T>    contour_collection<T> contour_collection<T>::Resample_LTE_
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template contour_collection<float > contour_collection<float >::Resample_LTE_Evenly_Along_Perimeter(const long int N) const;
-    template contour_collection<double> contour_collection<double>::Resample_LTE_Evenly_Along_Perimeter(const long int N) const;
+    template contour_collection<float > contour_collection<float >::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const;
+    template contour_collection<double> contour_collection<double>::Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const;
 #endif
 
 
 //This is a contour-to-plane comparison which is performed on a per-point basis.
 // The return value is -1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
-template <class T> long int contour_collection<T>::Avoids_Plane(const plane<T> &P) const {
+template <class T> int64_t contour_collection<T>::Avoids_Plane(const plane<T> &P) const {
     if(this->contours.empty()) throw std::runtime_error("Unable to determine if contour collection avoids plane or not - there are no points to compare!");
 
     bool above(false), below(false);
@@ -5624,8 +5624,8 @@ template <class T> long int contour_collection<T>::Avoids_Plane(const plane<T> &
     return 0;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int contour_collection<float >::Avoids_Plane(const plane<float > &P) const;
-    template long int contour_collection<double>::Avoids_Plane(const plane<double> &P) const;
+    template int64_t contour_collection<float >::Avoids_Plane(const plane<float > &P) const;
+    template int64_t contour_collection<double>::Avoids_Plane(const plane<double> &P) const;
 #endif
 
 
@@ -5853,12 +5853,12 @@ contour_collection<T>::get_dominant_value_for_key(const std::string &akey) const
     std::optional<std::string> out;
 
     auto all_values = this->get_all_values_for_key(akey);
-    std::map<std::string, long int> occurrences;
+    std::map<std::string, int64_t> occurrences;
     for(const auto &avalue : all_values){
         occurrences[avalue] += 1;
     }
 
-    long int n = 0;
+    int64_t n = 0;
     for(const auto &o : occurrences){
         if(n < o.second){
             n = o.second;
@@ -5944,11 +5944,11 @@ template <class T> bool contour_collection<T>::load_from_string(const std::strin
 
     //Here we can be reasonably certain it (looks) like a contour collection.
     this->contours.clear();
-    long int N;
+    int64_t N;
     ins >> N;
     if(N < 0) return false;
 
-    for(long int i = 0; i < N; ++i){
+    for(int64_t i = 0; i < N; ++i){
         //Loop until the next end of the contour is found.
         std::string raw, contour_string;
         do{
@@ -5978,7 +5978,7 @@ Average_Contour_Normals(const std::list<std::reference_wrapper<contour_collectio
     // This routine estimates contour normals by averaging the normal estimated for each individual contour.
 
     vec3<T> N_sum( static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) );
-    long int count = 0;
+    int64_t count = 0;
 
     for(auto &cc : ccs){
         for(auto &cop : cc.get().contours){
@@ -6575,13 +6575,13 @@ fv_surface_mesh<T,I>::remove_degenerate_faces(){
 // Sample the surface using uniform random sampling.
 template <class T, class I>
 point_set<T>
-fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, long int random_seed) const {
+fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, int64_t random_seed) const {
     if(this->faces.empty()) throw std::runtime_error("No faces to sample. Cannot continue");
 
     // Compute the surface area of each face and create a cumulative tally for each face in order.
     Stats::Running_Sum<T> rs_sarea;
     std::vector<T> cumulative_sarea;
-    for(long int i = 0; i < static_cast<long int>(this->faces.size()); ++i){
+    for(int64_t i = 0; i < static_cast<int64_t>(this->faces.size()); ++i){
         const auto sarea = this->surface_area(i);
         rs_sarea.Digest(sarea);
         cumulative_sarea.push_back( rs_sarea.Current_Sum() );
@@ -6657,11 +6657,11 @@ fv_surface_mesh<T,I>::sample_surface_randomly(T surface_area_per_sample, long in
     return points;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template point_set<float > fv_surface_mesh<float , uint32_t >::sample_surface_randomly(float , long int) const;
-    template point_set<float > fv_surface_mesh<float , uint64_t >::sample_surface_randomly(float , long int) const;
+    template point_set<float > fv_surface_mesh<float , uint32_t >::sample_surface_randomly(float , int64_t) const;
+    template point_set<float > fv_surface_mesh<float , uint64_t >::sample_surface_randomly(float , int64_t) const;
 
-    template point_set<double> fv_surface_mesh<double, uint32_t >::sample_surface_randomly(double, long int) const;
-    template point_set<double> fv_surface_mesh<double, uint64_t >::sample_surface_randomly(double, long int) const;
+    template point_set<double> fv_surface_mesh<double, uint32_t >::sample_surface_randomly(double, int64_t) const;
+    template point_set<double> fv_surface_mesh<double, uint64_t >::sample_surface_randomly(double, int64_t) const;
 #endif
 
 
@@ -7669,13 +7669,13 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 /*
 // Count how many non-empty faces are present.
 {
-    long int nonempty_faces = 0;
+    int64_t nonempty_faces = 0;
     for(const auto& fp : faces){
         if(!fp.second.empty()) ++nonempty_faces;
     }
 
-    long int adj_face_count = 0;
-    long int adj_face_empty_keys = 0;
+    int64_t adj_face_count = 0;
+    int64_t adj_face_empty_keys = 0;
     for(const auto& p : face_adjacency){
         adj_face_count += 1 + p.second.size();
         if(p.second.empty()) ++adj_face_empty_keys;
@@ -8196,7 +8196,7 @@ num_array<T>::num_array() : rows(0), cols(0) {}
 #endif
 
 template <class T>
-num_array<T>::num_array(long int r, long int c, T val) : rows(r),
+num_array<T>::num_array(int64_t r, int64_t c, T val) : rows(r),
                                                          cols(c) {
     if( !isininc(1,this->rows,1'000'000'000)
     ||  !isininc(1,this->cols,1'000'000'000) ){
@@ -8205,15 +8205,15 @@ num_array<T>::num_array(long int r, long int c, T val) : rows(r),
     this->numbers = std::vector<T>(this->rows*this->cols, val);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float >::num_array(long int, long int, float );
-    template num_array<double>::num_array(long int, long int, double);
+    template num_array<float >::num_array(int64_t, int64_t, float );
+    template num_array<double>::num_array(int64_t, int64_t, double);
 #endif
 
 template <class T>
 num_array<T>::num_array(const num_array<T> &in) : numbers(in.numbers),
                                                   rows(in.rows),
                                                   cols(in.cols) {
-    if( static_cast<long int>(this->numbers.size()) != (this->rows * this->cols) ){
+    if( static_cast<int64_t>(this->numbers.size()) != (this->rows * this->cols) ){
         throw std::invalid_argument("Dimensions are inconsistent with data. Refusing to continue.");
     }
 }
@@ -8226,8 +8226,8 @@ template <class T>
 num_array<T>::operator affine_transform<T>() const {
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
 
-    if( (this->rows != static_cast<long int>(4)) 
-    ||  (this->cols != static_cast<long int>(4))
+    if( (this->rows != static_cast<int64_t>(4)) 
+    ||  (this->cols != static_cast<int64_t>(4))
 
     // Be tolerant (to machine precision) to account for 'numerical wear-and-tear.'
     ||  (machine_eps < std::abs(this->read_coeff(3,0) - static_cast<T>(0)))
@@ -8390,11 +8390,11 @@ num_array<T>::operator*(const num_array &rhs) const {
     num_array<T> out(this->rows, rhs.cols, static_cast<T>(0));
 
     // Note: this routine assumes column-major storage.
-    for(long int r = 0; r < out.rows; ++r){
-        for(long int c = 0; c < out.cols; ++c){
+    for(int64_t r = 0; r < out.rows; ++r){
+        for(int64_t c = 0; c < out.cols; ++c){
             const auto out_index = out.index(r,c);
 
-            for(long int i = 0; i < this->cols; ++i){
+            for(int64_t i = 0; i < this->cols; ++i){
                 const auto LHS_index = this->index(r,i);
                 const auto RHS_index = rhs.index(i,c);
                 out.numbers[out_index] += this->numbers[LHS_index] * rhs.numbers[RHS_index];
@@ -8458,45 +8458,45 @@ num_array<T>::operator*=(const num_array &rhs){
 #endif
 
 template <class T>
-long int
-num_array<T>::index(long int r, long int c) const {
+int64_t
+num_array<T>::index(int64_t r, int64_t c) const {
     // Using column-major ordering for consistency with default Eigen settings.
     const auto index = (this->rows * c + r);
     return index;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int num_array<float >::index(long int, long int) const;
-    template long int num_array<double>::index(long int, long int) const;
+    template int64_t num_array<float >::index(int64_t, int64_t) const;
+    template int64_t num_array<double>::index(int64_t, int64_t) const;
 #endif
 
 template <class T>
-long int
+int64_t
 num_array<T>::num_rows() const {
     return this->rows;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int num_array<float >::num_rows() const;
-    template long int num_array<double>::num_rows() const;
+    template int64_t num_array<float >::num_rows() const;
+    template int64_t num_array<double>::num_rows() const;
 #endif
 
 template <class T>
-long int
+int64_t
 num_array<T>::num_cols() const {
     return this->cols;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int num_array<float >::num_cols() const;
-    template long int num_array<double>::num_cols() const;
+    template int64_t num_array<float >::num_cols() const;
+    template int64_t num_array<double>::num_cols() const;
 #endif
 
 template <class T>
-long int
+int64_t
 num_array<T>::size() const {
-    return static_cast<long int>( this->numbers.size() );
+    return static_cast<int64_t>( this->numbers.size() );
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template long int num_array<float >::size() const;
-    template long int num_array<double>::size() const;
+    template int64_t num_array<float >::size() const;
+    template int64_t num_array<double>::size() const;
 #endif
 
 template <class T>
@@ -8541,31 +8541,31 @@ num_array<T>::cend() const {
 
 template <class T>
 num_array<T>
-num_array<T>::zero(long int rows, long int cols) const {
+num_array<T>::zero(int64_t rows, int64_t cols) const {
     return num_array<T>(rows, cols, static_cast<T>(0));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float > num_array<float >::zero(long int, long int) const;
-    template num_array<double> num_array<double>::zero(long int, long int) const;
+    template num_array<float > num_array<float >::zero(int64_t, int64_t) const;
+    template num_array<double> num_array<double>::zero(int64_t, int64_t) const;
 #endif
 
 template <class T>
 num_array<T>
-num_array<T>::identity(long int rank) const {
+num_array<T>::identity(int64_t rank) const {
     num_array<T> I(rank, rank, static_cast<T>(0));
-    for(long int i = 0; i < rank; ++i){
+    for(int64_t i = 0; i < rank; ++i){
         I.coeff(i,i) = static_cast<T>(1);
     }
     return I;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float > num_array<float >::identity(long int) const;
-    template num_array<double> num_array<double>::identity(long int) const;
+    template num_array<float > num_array<float >::identity(int64_t) const;
+    template num_array<double> num_array<double>::identity(int64_t) const;
 #endif
 
 template <class T>
 num_array<T>
-num_array<T>::iota(long int rows, long int cols, T initial_val) const {
+num_array<T>::iota(int64_t rows, int64_t cols, T initial_val) const {
     auto out = num_array<T>(rows, cols);
     std::iota( std::begin(out.numbers),
                std::end(out.numbers),
@@ -8573,8 +8573,8 @@ num_array<T>::iota(long int rows, long int cols, T initial_val) const {
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template num_array<float > num_array<float >::iota(long int, long int, float ) const;
-    template num_array<double> num_array<double>::iota(long int, long int, double) const;
+    template num_array<float > num_array<float >::iota(int64_t, int64_t, float ) const;
+    template num_array<double> num_array<double>::iota(int64_t, int64_t, double) const;
 #endif
 
 template <class T>
@@ -8614,7 +8614,7 @@ num_array<T>::trace() const {
         throw std::invalid_argument("Matrix has invalid shape. Refusing to compute trace.");
     }
     T sum = static_cast<T>(0);
-    for(long int i = 0; (i < this->rows) && (i < this->cols); ++i){
+    for(int64_t i = 0; (i < this->rows) && (i < this->cols); ++i){
         sum += this->read_coeff(i,i);
     }
     return sum;
@@ -8628,8 +8628,8 @@ template <class T>
 num_array<T>
 num_array<T>::transpose() const {
     num_array<T> out(this->cols, this->rows);
-    for(long int r = 0; r < this->rows; ++r){
-        for(long int c = 0; c < this->cols; ++c){
+    for(int64_t r = 0; r < this->rows; ++r){
+        for(int64_t c = 0; c < this->cols; ++c){
             out.numbers[out.index(c,r)] = this->numbers[this->index(r,c)];
         }
     }
@@ -8652,12 +8652,12 @@ num_array<T>::invert() const {
         }
     }
 
-    const auto a = [&](long int r, long int c) -> T {
+    const auto a = [&](int64_t r, int64_t c) -> T {
         return this->read_coeff(r,c);
     };
 
     num_array<T> out(this->rows, this->cols);
-    const auto b = [&](long int r, long int c) -> T& {
+    const auto b = [&](int64_t r, int64_t c) -> T& {
         return out.coeff(r,c);
     };
 
@@ -8820,22 +8820,22 @@ num_array<T>::hnormalize_to_vec3() const {
 
 template <class T>
 T &
-num_array<T>::coeff(long int r, long int c){
+num_array<T>::coeff(int64_t r, int64_t c){
     return this->numbers.at(this->index(r,c));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  & num_array<float >::coeff(long int, long int);
-    template double & num_array<double>::coeff(long int, long int);
+    template float  & num_array<float >::coeff(int64_t, int64_t);
+    template double & num_array<double>::coeff(int64_t, int64_t);
 #endif
 
 template <class T>
 T
-num_array<T>::read_coeff(long int r, long int c) const {
+num_array<T>::read_coeff(int64_t r, int64_t c) const {
     return this->numbers.at(this->index(r,c));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  num_array<float >::read_coeff(long int, long int) const;
-    template double num_array<double>::read_coeff(long int, long int) const;
+    template float  num_array<float >::read_coeff(int64_t, int64_t) const;
+    template double num_array<double>::read_coeff(int64_t, int64_t) const;
 #endif
 
 template <class T>
@@ -8858,8 +8858,8 @@ num_array<T>::write_to(std::ostream &os) const {
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
     os << this->rows << " " << this->cols << std::endl;
-    for(long int r = 0; r < this->rows; ++r){
-        for(long int c = 0; c < this->cols; ++c){
+    for(int64_t r = 0; r < this->rows; ++r){
+        for(int64_t c = 0; c < this->cols; ++c){
             os << this->numbers.at(this->index(r,c));
             if((c+1) == this->cols){
                 os << std::endl;
@@ -8888,8 +8888,8 @@ num_array<T>::read_from(std::istream &is){
     }
     this->numbers = std::vector<T>(this->rows * this->cols, static_cast<T>(0));
 
-    for(long int r = 0; r < this->rows; ++r){
-        for(long int c = 0; c < this->cols; ++c){
+    for(int64_t r = 0; r < this->rows; ++r){
+        for(int64_t c = 0; c < this->cols; ++c){
             std::string shtl;
             is >> shtl;
             this->numbers.at(this->index(r,c)) = static_cast<T>(std::stold(shtl));
@@ -8994,25 +8994,25 @@ affine_transform<T>::operator<(const affine_transform<T> &rhs) const {
 
 template <class T>
 T &
-affine_transform<T>::coeff(long int r, long int c){
+affine_transform<T>::coeff(int64_t r, int64_t c){
     if(!isininc(0L,r,2L) || !isininc(0L,c,3L)){
         throw std::invalid_argument("Tried to access fixed coefficients. Refusing to continue.");
     }
     return this->t[r][c];
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  & affine_transform<float >::coeff(long int, long int);
-    template double & affine_transform<double>::coeff(long int, long int);
+    template float  & affine_transform<float >::coeff(int64_t, int64_t);
+    template double & affine_transform<double>::coeff(int64_t, int64_t);
 #endif
 
 template <class T>
 T
-affine_transform<T>::read_coeff(long int r, long int c) const {
+affine_transform<T>::read_coeff(int64_t r, int64_t c) const {
     return this->t.at(r).at(c);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  affine_transform<float >::read_coeff(long int, long int) const;
-    template double affine_transform<double>::read_coeff(long int, long int) const;
+    template float  affine_transform<float >::read_coeff(int64_t, int64_t) const;
+    template double affine_transform<double>::read_coeff(int64_t, int64_t) const;
 #endif
 
 template <class T>
@@ -9142,8 +9142,8 @@ affine_transform<T>::write_to(std::ostream &os) const {
 template <class T>
 bool
 affine_transform<T>::read_from(std::istream &is){
-    for(long int r = 0; r < 4; ++r){
-        for(long int c = 0; c < 4; ++c){
+    for(int64_t r = 0; r < 4; ++r){
+        for(int64_t c = 0; c < 4; ++c){
             std::string shtl;
             is >> shtl;
             this->t[r][c] = static_cast<T>(std::stold(shtl));
@@ -10128,8 +10128,8 @@ template <class T> std::array<T,2> samples_1D<T>::Weighted_Mean_x(void) const {
 
     //Characterize the data. If there are any very low uncertainty datum (~zero) then can later ignore the others.
     // We will also proactively compute some things so that only a single loop is required.
-    long int Nfinite = 0; //The number of datum with finite weights.
-    long int Ninfinite = 0; //The number of datum with infinite weights.
+    int64_t Nfinite = 0; //The number of datum with finite weights.
+    int64_t Ninfinite = 0; //The number of datum with infinite weights.
     T sum_w_fin = (T)(0); //Only finite-weights summed.
     T sum_w_x_fin = (T)(0); //Only finite-weighted datum: sum of w_i*x_i.
     T sum_x_inf = (T)(0); //The sum of x_i for all infinite-weighted datum.
@@ -11425,7 +11425,7 @@ template <class T> std::array<T,2> samples_1D<T>::Integrate_Over_Kernel_exp(T xm
     template std::array<double,2> samples_1D<double>::Integrate_Over_Kernel_exp(double xmin, double xmax, std::array<double,2> inA, std::array<double,2> inx0) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weighted_Mean(long int N, bool explicitbins) const {
+template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weighted_Mean(int64_t N, bool explicitbins) const {
     //This routine groups a samples_1D into equal sized bins, finding the WEIGHTED MEAN of their f_i to produce a single 
     // datum with: x_i at the bin's mid-x-point, sigma_x_i=0, f_i= WEIGHTED MEAN of bin data, and sigma_f_i= std dev of
     // the weighted mean. This routine might be useful as a preparatory step for linear regressing noisy data, but this is
@@ -11461,7 +11461,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
     //       
  
     //Step 0 - Sanity checks.
-    if(!isininc((long int)(1),N,(long int)(this->size()))){
+    if(!isininc((int64_t)(1),N,(int64_t)(this->size()))){
          throw std::runtime_error("Asking to aggregate data into a nonsensical number of bins");
     }
 
@@ -11498,7 +11498,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
     out.metadata = this->metadata;
     const bool inhibit_sort = true;
-    for(long int i = 0; i < N; ++i){
+    for(int64_t i = 0; i < N; ++i){
         const T binhw  = dx*(T)(0.48); //Bin half-width -- used to keep bins ordered upon sorting.
         const T basedx = dx*(T)(0.01); //dx from true bin L and R -- used to keep bins ordered upon sorting.
         const T xmid   = xmin + dx*(static_cast<T>(i) + (T)(0.5)); //Middle of the bin.
@@ -11530,11 +11530,11 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Sized_Bins_Weigh
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Aggregate_Equal_Sized_Bins_Weighted_Mean(long int N, bool showbins) const;
-    template samples_1D<double> samples_1D<double>::Aggregate_Equal_Sized_Bins_Weighted_Mean(long int N, bool showbins) const;
+    template samples_1D<float > samples_1D<float >::Aggregate_Equal_Sized_Bins_Weighted_Mean(int64_t N, bool showbins) const;
+    template samples_1D<double> samples_1D<double>::Aggregate_Equal_Sized_Bins_Weighted_Mean(int64_t N, bool showbins) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weighted_Mean(long int N) const {
+template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weighted_Mean(int64_t N) const {
     //This routine groups a samples_1D into bins of an equal number (N) of datum. The bin x_i and f_i are generated from 
     // the WEIGHTED MEANS of the bin data. This routine propagates sigma_x_i and sigma_f_i. They are propagated separately,
     // meaning that sigma_x_i and sigma_f_i have no influence on one another (just as x_i and f_i have no influence on each
@@ -11582,7 +11582,7 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weigh
         shtl.push_back(P);
 
         //Check if the requisite number of datum has been collected for a complete bin.
-        if(N == (long int)(shtl.size())){
+        if(N == (int64_t)(shtl.size())){
             //If so, then a bin has been harvested. Dump the shuttle into the raw data bins and prep for next iteration.
             binnedraw.push_back(std::move(shtl));
             shtl = std::vector<std::array<T,4>>();
@@ -11612,11 +11612,11 @@ template <class T> samples_1D<T> samples_1D<T>::Aggregate_Equal_Datum_Bins_Weigh
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Aggregate_Equal_Datum_Bins_Weighted_Mean(long int N) const;
-    template samples_1D<double> samples_1D<double>::Aggregate_Equal_Datum_Bins_Weighted_Mean(long int N) const;
+    template samples_1D<float > samples_1D<float >::Aggregate_Equal_Datum_Bins_Weighted_Mean(int64_t N) const;
+    template samples_1D<double> samples_1D<double>::Aggregate_Equal_Datum_Bins_Weighted_Mean(int64_t N) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long int N, bool explicitbins) const {
+template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(int64_t N, bool explicitbins) const {
     //This routine groups a samples_1D into equal sized bins, finding the SUM of their f_i to produce a single datum with
     // x_i at the bin's mid-x-point, sigma_x_i=0, f_i= SUM of bin data, and sigma_f_i= proper propagated uncertainty for 
     // the data sigma_f_i. This routine is useful for plotting a distribution of numbers, possibly with a sigma_f_i
@@ -11638,7 +11638,7 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
     //       
  
     //Step 0 - Sanity checks.
-    if(!isininc((long int)(1),N,(long int)(this->size()))){
+    if(!isininc((int64_t)(1),N,(int64_t)(this->size()))){
          throw std::runtime_error("Asking to histogram data into a nonsensical number of bins");
     }
 
@@ -11675,7 +11675,7 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
     out.metadata = this->metadata;
     const bool inhibit_sort = true;
-    for(long int i = 0; i < N; ++i){
+    for(int64_t i = 0; i < N; ++i){
         const T binhw  = dx*(T)(0.48); //Bin half-width -- used to keep bins ordered upon sorting.
         const T basedx = dx*(T)(0.01); //dx from true bin L and R -- used to keep bins ordered upon sorting.
         const T xmid   = xmin + dx*(static_cast<T>(i) + (T)(0.5)); //Middle of the bin.
@@ -11707,8 +11707,8 @@ template <class T> samples_1D<T> samples_1D<T>::Histogram_Equal_Sized_Bins(long 
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Histogram_Equal_Sized_Bins(long int N, bool showbins) const;
-    template samples_1D<double> samples_1D<double>::Histogram_Equal_Sized_Bins(long int N, bool showbins) const;
+    template samples_1D<float > samples_1D<float >::Histogram_Equal_Sized_Bins(int64_t N, bool showbins) const;
+    template samples_1D<double> samples_1D<double>::Histogram_Equal_Sized_Bins(int64_t N, bool showbins) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> std::array<T,4> samples_1D<T>::Spearmans_Rank_Correlation_Coefficient(bool *OK) const {
@@ -11867,18 +11867,18 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Driver(
     // unmodified. If you're cautious then do not assume independent + random errors to begin with!
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
 
-    const auto sample_count = static_cast<long int>(this->size());
+    const auto sample_count = static_cast<int64_t>(this->size());
     if(weights.empty()) throw std::runtime_error("No weights provided. Cannot continue");
-    const auto weights_size = static_cast<long int>(weights.size());
+    const auto weights_size = static_cast<int64_t>(weights.size());
 
-    for(long int i = 0; i < sample_count; ++i){
+    for(int64_t i = 0; i < sample_count; ++i){
         std::array<T,4> newdatum(this->samples[i]);
         newdatum[2] = newdatum[3] = (T)(0);
         T Luncert = (T)(0); //Used to catch faux uncertainties do to the "virtual" extension of the endpoints 
         T Runcert = (T)(0); // outward as needed. If normality is present, points near the ends will have 
                             // underestimated uncertainties unless we catch it!
 
-        for(long int j = (1-weights_size); j < weights_size; ++j){
+        for(int64_t j = (1-weights_size); j < weights_size; ++j){
             const auto weight = weights[ YGORABS(j) ];
             const auto pm_indx = i + j;
             const auto indx = YGORABS(pm_indx);
@@ -11887,7 +11887,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Driver(
             const auto Lendpoint = (pm_indx <= 0);                    //inclusive to the L endpoint.
             const auto Rendpoint = (pm_indx >= (sample_count-1));     //inclusive to the R endpoint.
 
-            long int bnd_index = 0;
+            int64_t bnd_index = 0;
             if(realpoint){
                 bnd_index = indx;
             }else if(Lendpoint){
@@ -11985,7 +11985,7 @@ From http://www.abs.gov.au/websitedbs/d3310114.nsf/51c9a3d36edfd0dfca256acb00118
     template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Hendersons_23_point(void) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Equal_Weighting(long int N) const {
+template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Equal_Weighting(int64_t N) const {
     //Computes a (2N+1)-point, all-points-in-window-are-equally-weighted, two-sided moving average or mean of the f_i. Ignores
     // x_i spacing. This is a convolution that effectively acts like a low-pass filter and is generally used to find a the 
     // 'trend' of data.
@@ -12006,8 +12006,8 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Equal_W
     return this->Moving_Average_Two_Sided_Driver(weights);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Equal_Weighting(long int N) const;
-    template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Equal_Weighting(long int N) const;
+    template samples_1D<float > samples_1D<float >::Moving_Average_Two_Sided_Equal_Weighting(int64_t N) const;
+    template samples_1D<double> samples_1D<double>::Moving_Average_Two_Sided_Equal_Weighting(int64_t N) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Gaussian_Weighting(T datum_sigma) const {
@@ -12027,11 +12027,11 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Average_Two_Sided_Gaussia
 
     const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
-    const long int window_size = static_cast<long int>(std::ceil(window_size_f));
+    const int64_t window_size = static_cast<int64_t>(std::ceil(window_size_f));
     const T w_denom            = static_cast<T>(std::sqrt(2.0*pi)*datum_sigma);
 
     std::vector<T> weights;
-    for(long int i = 0; i < window_size; ++i){
+    for(int64_t i = 0; i < window_size; ++i){
         weights.push_back(std::exp(-(T)(0.5)*std::pow(i,2)/(datum_sigma*datum_sigma)) / w_denom);
     }
 
@@ -12088,17 +12088,17 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_D
     // unmodified. If you're cautious then do not assume independent + random errors to begin with!
     out.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
 
-    const auto sample_count = static_cast<long int>(this->size());
+    const auto sample_count = static_cast<int64_t>(this->size());
     if(weights.empty()) throw std::runtime_error("No weights provided. Cannot continue");
-    const auto weights_size = static_cast<long int>(weights.size());
+    const auto weights_size = static_cast<int64_t>(weights.size());
 
-    for(long int i = 0; i < sample_count; ++i){
+    for(int64_t i = 0; i < sample_count; ++i){
         std::array<T,4> newdatum(this->samples[i]);
 
         //Push back all the weighted points (real or virtual) needed for a median calculation.
         samples_1D<T> shtl;
         shtl.uncertainties_known_to_be_independent_and_random = this->uncertainties_known_to_be_independent_and_random;
-        for(long int j = (1-weights_size); j < weights_size; ++j){
+        for(int64_t j = (1-weights_size); j < weights_size; ++j){
             const auto weight = weights[ YGORABS(j) ];
             const auto pm_indx = i + j;
             const auto indx = YGORABS(pm_indx);
@@ -12107,7 +12107,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_D
             const auto Lendpoint = (pm_indx <= 0);                    //inclusive to the L endpoint.
             const auto Rendpoint = (pm_indx >= (sample_count-1));     //inclusive to the R endpoint.
 
-            long int bnd_index = 0;
+            int64_t bnd_index = 0;
             if(realpoint){
                 bnd_index = indx;
             }else if(Lendpoint){
@@ -12135,7 +12135,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_D
     template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Driver(const std::vector<uint64_t> &weights) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const {
+template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_Equal_Weighting(int64_t N) const {
     //Computes a (2N+1)-point, all-points-in-window-are-equally-weighted, two-sided median filter of the f_i. Ignores
     // x_i, sigma_x_i. This is a robust low-pass filter and is generally used to find a the 'trend' of data.
     //
@@ -12151,8 +12151,8 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_E
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const;
-    template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const;
+    template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Equal_Weighting(int64_t N) const;
+    template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Equal_Weighting(int64_t N) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_Gaussian_Weighting(T datum_sigma) const {
@@ -12172,7 +12172,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
 
     const auto pi              = static_cast<T>(3.14159265358979323846264338328);
     const T window_size_f      = (T)(3.0)*datum_sigma; //How far away to stop computing. 3sigma ~> 0.01. 5sigma ~> 1E-5 or so.
-    const long int window_size = static_cast<long int>(std::ceil(window_size_f));
+    const int64_t window_size = static_cast<int64_t>(std::ceil(window_size_f));
     const T w_denom            = static_cast<T>(std::sqrt(2.0*pi)*datum_sigma);
 
     //Number of discrete, distinct weightings to use. Higher means more precise, but also dramatically more expensive 
@@ -12182,7 +12182,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
     const uint64_t resolution  = 20;
 
     std::vector<uint64_t> weights;
-    for(long int i = 0; i < window_size; ++i){
+    for(int64_t i = 0; i < window_size; ++i){
         const T gaussian_weight = std::exp(-(T)(0.5)*std::pow(i,2)/(datum_sigma*datum_sigma)) / w_denom;
         const uint64_t discrete_weight = static_cast<uint64_t>(gaussian_weight * resolution);
         weights.push_back(discrete_weight);
@@ -12196,7 +12196,7 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_G
     template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Gaussian_Weighting(double datum_sigma) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const {
+template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_Triangular_Weighting(int64_t N) const {
     //Computes a (2N+1)-point, triangular-weighted, two-sided median filter of the f_i. Ignores x_i, sigma_x_i. This is 
     // a robust low-pass filter and is generally used to find a the 'trend' of data.
     //
@@ -12224,11 +12224,11 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Median_Filter_Two_Sided_T
     return this->Moving_Median_Filter_Two_Sided_Driver(weights);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const;
-    template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const;
+    template samples_1D<float > samples_1D<float >::Moving_Median_Filter_Two_Sided_Triangular_Weighting(int64_t N) const;
+    template samples_1D<double> samples_1D<double>::Moving_Median_Filter_Two_Sided_Triangular_Weighting(int64_t N) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
-template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long int N) const {
+template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(int64_t N) const {
     //Calculates an unbiased estimate of a population's variance over a window of (2N+1) points. Endpoints use fewer points 
     // (min = N) and have higher variance.
     //
@@ -12254,10 +12254,10 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long i
     samples_1D<T> out;
     out.metadata = this->metadata;
 
-    const auto samps_size = static_cast<long int>(this->samples.size());
-    for(long int i = 0; i < samps_size; ++i){
+    const auto samps_size = static_cast<int64_t>(this->samples.size());
+    for(int64_t i = 0; i < samps_size; ++i){
         std::list<double> shtl;
-        for(long int j = (i-N); j <= (i+N); ++j){
+        for(int64_t j = (i-N); j <= (i+N); ++j){
             if(isininc(0,j,samps_size-1)) shtl.push_back(this->samples[j][2]);
         }
         const auto var = static_cast<T>(Stats::Unbiased_Var_Est(shtl));        
@@ -12266,8 +12266,8 @@ template <class T> samples_1D<T> samples_1D<T>::Moving_Variance_Two_Sided(long i
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > samples_1D<float >::Moving_Variance_Two_Sided(long int N) const;
-    template samples_1D<double> samples_1D<double>::Moving_Variance_Two_Sided(long int N) const;
+    template samples_1D<float > samples_1D<float >::Moving_Variance_Two_Sided(int64_t N) const;
+    template samples_1D<double> samples_1D<double>::Moving_Variance_Two_Sided(int64_t N) const;
 #endif
 //---------------------------------------------------------------------------------------------------------------------------
 template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differences(void) const {
@@ -12291,11 +12291,11 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Forward_Finite_Differ
 
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
-    const auto samps_size = static_cast<long int>(this->samples.size());
+    const auto samps_size = static_cast<int64_t>(this->samples.size());
     if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
-    for(long int i = 0; i < samps_size; ++i){
+    for(int64_t i = 0; i < samps_size; ++i){
         //Use backward finite differences at the far boundary.
         if(i == (samps_size - 1)){
             const auto L = this->samples[i-1];
@@ -12350,11 +12350,11 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Backward_Finite_Diffe
 
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
-    const auto samps_size = static_cast<long int>(this->samples.size());
+    const auto samps_size = static_cast<int64_t>(this->samples.size());
     if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
-    for(long int i = 0; i < samps_size; ++i){
+    for(int64_t i = 0; i < samps_size; ++i){
         //Handle left boundary: use forward finite differences.
         if(i == 0){
             //const auto L = this->samples[i-1];
@@ -12409,11 +12409,11 @@ template <class T> samples_1D<T> samples_1D<T>::Derivative_Centered_Finite_Diffe
 
     #pragma message "Warning - This finite difference routine lacks uncertainty propagation."
 
-    const auto samps_size = static_cast<long int>(this->samples.size());
+    const auto samps_size = static_cast<int64_t>(this->samples.size());
     if(samps_size < 2) throw std::runtime_error("Cannot compute derivative with so few points. Cannot continue");    
     samples_1D<T> out = *this;
 
-    for(long int i = 0; i < samps_size; ++i){
+    for(int64_t i = 0; i < samps_size; ++i){
         //Handle left boundary: use forward finite differences.
         if(i == 0){
             //const auto L = this->samples[i-1];
@@ -13086,8 +13086,8 @@ samples_1D<T>::GetMetadataValueAs(std::string key) const {
     template std::optional<uint32_t> samples_1D<float >::GetMetadataValueAs(std::string key) const;
     template std::optional<uint32_t> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 
-    template std::optional<long int> samples_1D<float >::GetMetadataValueAs(std::string key) const;
-    template std::optional<long int> samples_1D<double>::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> samples_1D<float >::GetMetadataValueAs(std::string key) const;
+    template std::optional<int64_t> samples_1D<double>::GetMetadataValueAs(std::string key) const;
 
     template std::optional<double> samples_1D<float >::GetMetadataValueAs(std::string key) const;
     template std::optional<double> samples_1D<double>::GetMetadataValueAs(std::string key) const;
@@ -13290,15 +13290,15 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
     const bool skip_sort = true;
     L.samples.clear(); 
     std::string shtl;
-    long int N;
-    long int U;
+    int64_t N;
+    int64_t U;
     in >> shtl; //'(samples_1D.'
     in >> shtl; //'normalityassumed='
     in >> U;    //'1' or '0'
     in >> shtl; //'num_samples='
     in >> N;    //'13'   ...or something...
     //YLOGINFO("N is " << N);
-    for(long int i=0; i<N; ++i){
+    for(int64_t i=0; i<N; ++i){
         T x_i, sigma_x_i, f_i, sigma_f_i;
         in >> x_i >> sigma_x_i >> f_i >> sigma_f_i;
         L.push_back({x_i, sigma_x_i, f_i, sigma_f_i}, skip_sort);
@@ -13307,7 +13307,7 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
     //Metadata/
     in >> shtl; //'num_metadata='
     in >> N;    //'13'   ...or something...
-    for(long int i=0; i<N; ++i){
+    for(int64_t i=0; i<N; ++i){
         in >> shtl;
         const auto key = Base64::DecodeToString(shtl);
         in >> shtl;
@@ -13333,7 +13333,7 @@ template <class T>    std::istream &operator>>( std::istream &in, samples_1D<T> 
 
 template <class C> 
 samples_1D<typename C::value_type> 
-Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, long int N, bool explicitbins){
+Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, int64_t N, bool explicitbins){
     //This function takes a list of (possibly unordered) numbers and returns a histogram with N bars of equal width
     // suitable for plotting or further computation. The histogram will be normalized such that each bar will be 
     // (number_of_points_represented_by_bar/total_number_of_points). In other words, the occurence rate.
@@ -13361,11 +13361,11 @@ Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, long int N, bo
     return out;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template samples_1D<float > Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::list<float > &nums, long int N, bool explicitbins);
-    template samples_1D<double> Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::list<double> &nums, long int N, bool explicitbins);
+    template samples_1D<float > Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::list<float > &nums, int64_t N, bool explicitbins);
+    template samples_1D<double> Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::list<double> &nums, int64_t N, bool explicitbins);
 
-    template samples_1D<float > Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::vector<float > &nums, long int N, bool explicitbins);
-    template samples_1D<double> Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::vector<double> &nums, long int N, bool explicitbins);
+    template samples_1D<float > Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::vector<float > &nums, int64_t N, bool explicitbins);
+    template samples_1D<double> Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const std::vector<double> &nums, int64_t N, bool explicitbins);
 #endif
 
 

@@ -114,7 +114,7 @@ vec3<double> rotate_unit_vector_in_plane(const vec3<double> &A, const double &th
 // number of iterations is chosen sufficiently high so as to produce negligible errors.
 std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<vec3<double>,vec3<double>> &x_and_v, 
                                                               std::function<vec3<double>(vec3<double> x, double T)> F, 
-                                                              double T, long int steps);
+                                                              double T, int64_t steps);
 
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -271,7 +271,7 @@ template <class T>   class sphere {
 template <class C> 
 sphere<typename C::value_type::value_type>
 Sphere_Orthogonal_Regression( C in,
-                              long int max_iterations = 100,
+                              int64_t max_iterations = 100,
                               typename C::value_type::value_type centre_stopping_tol = static_cast<typename C::value_type::value_type>(1E-5),
                               typename C::value_type::value_type radius_stopping_tol = static_cast<typename C::value_type::value_type>(1E-5));
 
@@ -351,7 +351,7 @@ template <class T>   class contour_of_points {
 
         vec3<T> Average_Point(void) const;   //This is the average of all the 3D points of the contour. It has little value except simplicity.
         vec3<T> Centroid(void) const;        //This is the centroid of the contour. This is a more mathematically well-define concept. See the source.
-        vec3<T> First_N_Point_Avg(const long int N) const; //Useful when dealing with planes for determining if above or below.
+        vec3<T> First_N_Point_Avg(const int64_t N) const; //Useful when dealing with planes for determining if above or below.
         T Perimeter(void) const;             //This is the perimeter (length) of the contour edges. It is computed from vertex to vertex (positive-definite.)
 
         vec3<T> Get_Point_Within_Contour(void) const; //Get an arbitrary but deterministic point within the contour.
@@ -366,8 +366,8 @@ template <class T>   class contour_of_points {
         T Integrate_Simple_Vector_Kernel(std::function< vec3<T> (const vec3<T> &r, const vec3<T> &A, const vec3<T> &B, const vec3<T> &U)> k) const;
 
         contour_of_points<T> Resample_Evenly_Along_Perimeter(const T dl) const; //Walks perimeter creating new points (via interpolation) every [dl].
-        contour_of_points<T> Resample_Evenly_Along_Perimeter(const long int N) const; //Walks perimeter creating new points (via interpolation) every [perimeter]/N .
-                                                                                      // Points will be homogeneously distributed iff the shape is circular.
+        contour_of_points<T> Resample_Evenly_Along_Perimeter(const int64_t N) const; //Walks perimeter creating new points (via interpolation) every [perimeter]/N .
+                                                                                     // Points will be homogeneously distributed iff the shape is circular.
 
         contour_of_points<T> Subdivide_Midway(void) const; //Inserts an extra vertex at the midway point between all vertices.
 
@@ -376,7 +376,7 @@ template <class T>   class contour_of_points {
 
         contour_of_points<T> Scale_Dist_From_Point(const vec3<T> &, T scale) const;   //Scales distance from each point to given point by factor (scale).
 
-        contour_of_points<T> Resample_LTE_Evenly_Along_Perimeter(const long int N) const; //Performs Resample_Evenly_Along_Perimeter only on contours with more than N.
+        contour_of_points<T> Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const; //Performs Resample_Evenly_Along_Perimeter only on contours with more than N.
 
         //Compute the least-squares best-fit plane through the contour points with the provided normal. Helpful for later projection.
         plane<T> Least_Squares_Best_Fit_Plane(const vec3<T> &plane_normal) const;
@@ -396,7 +396,7 @@ template <class T>   class contour_of_points {
 
 
 
-        long int Avoids_Plane(const plane<T> &P) const; //-1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
+        int64_t Avoids_Plane(const plane<T> &P) const; //-1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
 
         //These routines remove points unless/until there are <= 3 of them!
         void Remove_Sequential_Duplicate_Points(std::function<bool(const vec3<T> &,const vec3<T> &)> Feq);
@@ -461,7 +461,7 @@ template <class T>   class contour_collection {
                                              // concept, but slightly unintuitive for stacked, planar contours. Uses SIGNED area, so mind
                                              // your orientations.
 
-        vec3<T> Generic_Avg_Boundary_Point(const long int N, const long int M) const; //Useful when dealing with planes for determining if above or below.
+        vec3<T> Generic_Avg_Boundary_Point(const int64_t N, const int64_t M) const; //Useful when dealing with planes for determining if above or below.
         T Perimeter(void) const;             //This is the total perimeter (length) of all contour edges. It is computed from vertex to vertex (positive-definite.)
         T Average_Perimeter(void) const;     //This is the total perimeter (length) of all contour edges / number of contours.
         T Longest_Perimeter(void) const;     //This is the perimeter of the largest contour. It is a positive-definite quantity.
@@ -493,10 +493,10 @@ template <class T>   class contour_collection {
         bool operator!=(const contour_collection &) const; 
         bool operator< (const contour_collection &) const; //Relies on the contour_of_points operator< . See caveats there. Only used when sorting.
 
-        contour_collection Resample_Evenly_Along_Perimeter(const long int N) const;     //Per-contour resampling. See contour_of_points implementation.
-        contour_collection Resample_LTE_Evenly_Along_Perimeter(const long int N) const; //Per-contour resampling. See contour_of_points implementation.
+        contour_collection Resample_Evenly_Along_Perimeter(const int64_t N) const;     //Per-contour resampling. See contour_of_points implementation.
+        contour_collection Resample_LTE_Evenly_Along_Perimeter(const int64_t N) const; //Per-contour resampling. See contour_of_points implementation.
 
-        long int Avoids_Plane(const plane<T> &P) const; //-1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
+        int64_t Avoids_Plane(const plane<T> &P) const; //-1 if contour is below P, 0 if it intersects/crosses it, 1 if it is above.
 
         void Merge_Adjoining_Contours(std::function<bool(const vec3<T> &,const vec3<T> &)> Feq);
 
@@ -613,7 +613,7 @@ template <class T, class I>   class fv_surface_mesh {
         void remove_disconnected_vertices(void);
 
         // Sample the surface using uniform random sampling.
-        point_set<T> sample_surface_randomly(T surface_area_per_sample, long int random_seed) const;
+        point_set<T> sample_surface_randomly(T surface_area_per_sample, int64_t random_seed) const;
 
         // Converts mesh to a point set, stealing all relevant members. Only possible if there are no faces.
         point_set<T> convert_to_point_set();
@@ -695,13 +695,13 @@ template <class T>
 class num_array {
     private:
         std::vector<T> numbers;
-        long int rows;
-        long int cols;
+        int64_t rows;
+        int64_t cols;
 
     public:
         //Constructors.
         num_array();
-        num_array(long int rows, long int cols, T val = static_cast<T>(0));
+        num_array(int64_t rows, int64_t cols, T val = static_cast<T>(0));
         num_array(const num_array &in);
 
         explicit operator affine_transform<T>() const;
@@ -728,26 +728,26 @@ class num_array {
         num_array & operator*=(const num_array &);
 
         // Accessors.
-        long int index(long int r, long int c) const; // Note: column-major, for consistency with Eigen defaults.
-        long int num_rows() const;
-        long int num_cols() const;
-        long int size() const;  // Number of coefficients that would fit in the allocated buffer.
+        int64_t index(int64_t r, int64_t c) const; // Note: column-major, for consistency with Eigen defaults.
+        int64_t num_rows() const;
+        int64_t num_cols() const;
+        int64_t size() const;  // Number of coefficients that would fit in the allocated buffer.
 
         typename std::vector<T>::iterator begin(); // Used to facilitate mapping to other library types (e.g., Eigen).
         typename std::vector<T>::iterator end();
         typename std::vector<T>::const_iterator cbegin() const; // For mapping to other library types (e.g., Eigen).
         typename std::vector<T>::const_iterator cend() const;
 
-        T & coeff(long int r, long int c);
-        T read_coeff(long int r, long int c) const;
+        T & coeff(int64_t r, int64_t c);
+        T read_coeff(int64_t r, int64_t c) const;
 
         // Other members.
         void swap(num_array &); // Swaps the contents -- essentially a destructive operator=().
 
-        num_array zero(long int rows, long int cols) const;
-        num_array identity(long int rank) const;
-        num_array iota(long int rows, long int cols, T initial_val) const; // Fill matrix by incrementing each coeff.
-                                                                           // Note: column-major -- fills columns first.
+        num_array zero(int64_t rows, int64_t cols) const;
+        num_array identity(int64_t rank) const;
+        num_array iota(int64_t rows, int64_t cols, T initial_val) const; // Fill matrix by incrementing each coeff.
+                                                                         // Note: column-major -- fills columns first.
 
         bool isnan() const; // True iff any coefficient is NaN.
         bool isfinite() const; // True iff all coefficients are NaN.
@@ -807,8 +807,8 @@ class affine_transform {
         bool operator< (const affine_transform &) const;
 
         // Accessors.
-        T & coeff(long int r, long int c);
-        T read_coeff(long int r, long int c) const;
+        T & coeff(int64_t r, int64_t c);
+        T read_coeff(int64_t r, int64_t c) const;
 
         // Inversion. Throws if it can't be computed with normal numbers.
         affine_transform invert() const;
@@ -1141,13 +1141,13 @@ template <class T> class samples_1D {
         std::array<T,2> Integrate_Over_Kernel_exp(T xmin, T xmax, std::array<T,2> A, std::array<T,2> x0) const;
 
         //Group datum into (N) equal-dx bins, reducing variance. Ignores sigma_x_i. *Not* a histogram! See source.
-        samples_1D<T> Aggregate_Equal_Sized_Bins_Weighted_Mean(long int N, bool explicitbins = false) const;
+        samples_1D<T> Aggregate_Equal_Sized_Bins_Weighted_Mean(int64_t N, bool explicitbins = false) const;
 
         //Group datum into equal-datum (N datum per bin) bins, reducing variance. *Not* a histogram! See source.
-        samples_1D<T> Aggregate_Equal_Datum_Bins_Weighted_Mean(long int N) const; //Handles all uncertainties.
+        samples_1D<T> Aggregate_Equal_Datum_Bins_Weighted_Mean(int64_t N) const; //Handles all uncertainties.
 
         //Generate histogram with (N) equal-dx bins. Bin height is sum of f_i in bin. Propagates sigma_f_i, ignores sigma_x_i.
-        samples_1D<T> Histogram_Equal_Sized_Bins(long int N, bool explicitbins = false) const;
+        samples_1D<T> Histogram_Equal_Sized_Bins(int64_t N, bool explicitbins = false) const;
 
         //Spearman's Rank Correlation Coefficient. Ignores uncertainties. Returns: {rho, # of datum, z-value, t-value}.
         std::array<T,4> Spearmans_Rank_Correlation_Coefficient(bool *OK=nullptr) const;
@@ -1172,7 +1172,7 @@ template <class T> class samples_1D {
 
         //Computes a (2N+1)-point, all-points-in-window-are-equally-weighted, two-sided moving average or mean of the f_i. This 
         // is a convolution that effectively acts like a low-pass filter. OK to apply consecutively. Ignores x_i, sigma_x_i.
-        samples_1D<T> Moving_Average_Two_Sided_Equal_Weighting(long int N) const;
+        samples_1D<T> Moving_Average_Two_Sided_Equal_Weighting(int64_t N) const;
 
         //Performs a "Gaussian blur" by convolving a Gaussian kernel over the nearby data points. This just boils down to another
         // weighted, two-sided, moving average. It is a low-pass filter. Applying consecutively is equiv. to applying once with
@@ -1185,20 +1185,20 @@ template <class T> class samples_1D {
 
         //Applies a (2N+1)-point, all-points-in-window-are-equally-weighted, two-sided moving median filter over f_i. This 
         // is a low-pass filter. OK to apply consecutively. Ignores x_i, sigma_x_i.
-        samples_1D<T> Moving_Median_Filter_Two_Sided_Equal_Weighting(long int N) const;
+        samples_1D<T> Moving_Median_Filter_Two_Sided_Equal_Weighting(int64_t N) const;
 
         //Applies a Gaussian-weighted kernel over the nearby data points. It is a low-pass filter. Ignores x_i, sigma_x_i.
         samples_1D<T> Moving_Median_Filter_Two_Sided_Gaussian_Weighting(T datum_sigma) const;
 
         //Applies a (2N+1)-point, triangular-weighted, two-sided moving median filter over f_i. This 
         // is a low-pass filter. OK to apply consecutively. Ignores x_i, sigma_x_i.
-        samples_1D<T> Moving_Median_Filter_Two_Sided_Triangular_Weighting(long int N) const;
+        samples_1D<T> Moving_Median_Filter_Two_Sided_Triangular_Weighting(int64_t N) const;
 
 
         //Calculates an unbiased estimate of a population's variance over a window of (2N+1) points. Endpoints use fewer 
         // points (min = N) and have higher variance. If treatment of endpoints bothers you, consider doing a discrete 
         // binning instead of windowing. Ignores x_i spacing, sigma_x_i, *and* sigma_f_i! Setting N >= 5 is recommended.
-        samples_1D<T> Moving_Variance_Two_Sided(long int N) const;
+        samples_1D<T> Moving_Variance_Two_Sided(int64_t N) const;
 
 
         //Calculates the discrete derivative using forward finite differences. (The right-side endpoint uses backward 
@@ -1257,7 +1257,7 @@ template <class T> class samples_1D {
 // or inspecting normality of a measured quantity.
 template <class C>
 samples_1D<typename C::value_type>
-Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, long int N, bool explicitbins = false);
+Bag_of_numbers_to_N_equal_bin_samples_1D_histogram(const C &nums, int64_t N, bool explicitbins = false);
 
 
 

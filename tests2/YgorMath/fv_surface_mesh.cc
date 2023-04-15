@@ -3,6 +3,7 @@
 #include <utility>
 #include <iostream>
 #include <random>
+#include <cstdint>
 
 #include <YgorMath.h>
 
@@ -278,7 +279,7 @@ TEST_CASE( "fv_surface_mesh class" ){
     }
 
     SUBCASE("sample_surface_randomly"){
-        const long int random_seed = 123456;
+        const int64_t random_seed = 123456;
 
         SUBCASE("degenerate surface (single-vertex)"){
             fv_surface_mesh<double, uint32_t> mesh2;
@@ -710,7 +711,7 @@ TEST_CASE( "fv_surface_mesh class" ){
 
 TEST_CASE( "Convex_Hull" ){
     SUBCASE("a valid seed tetrahedron can reliably be found, regardless of input orientation"){
-        long int random_seed = 123456;
+        int64_t random_seed = 123456;
         std::mt19937 re( random_seed );
         std::uniform_real_distribution<> rd(0.0, 1.0); //Random distribution.
 
@@ -727,15 +728,15 @@ TEST_CASE( "Convex_Hull" ){
         //
         // This test is done to ensure that whatever order the points are in, a positive-volume seed tetrahedron
         // can be found.
-        const long int N_all_verts = all_verts.size();
-        const long int N_to_test = 4;
+        const int64_t N_all_verts = all_verts.size();
+        const int64_t N_to_test = 4;
 
         std::vector<bool> v(N_all_verts);
         std::fill(v.begin(), v.begin() + N_to_test, true);
 
         do{
-            std::vector<long int> indices;
-            for(long int i = 0; i < N_all_verts; ++i){
+            std::vector<int64_t> indices;
+            for(int64_t i = 0; i < N_all_verts; ++i){
                 if(v[i] == true) indices.push_back(i);
             }
             if(indices.size() != N_to_test) throw std::runtime_error("Insufficient data (1)");
@@ -803,7 +804,7 @@ TEST_CASE( "Convex_Hull" ){
     }
 
     SUBCASE("a seed tetrahedron can reliably be found"){
-        long int random_seed = 123456;
+        int64_t random_seed = 123456;
         std::mt19937 re( random_seed );
         std::uniform_real_distribution<> rd(0.01, 0.99); //Random distribution.
 

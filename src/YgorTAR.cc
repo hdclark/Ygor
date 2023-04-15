@@ -10,6 +10,7 @@
 #include <limits>
 #include <array>
 #include <functional>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorString.h"
@@ -20,14 +21,14 @@
 // Misc helper routines.
 static 
 std::string
-pad_left_zeros(std::string in, long int desired_length){
-    while(static_cast<long int>(in.length()) < desired_length) in = "0"_s + in;
+pad_left_zeros(std::string in, int64_t desired_length){
+    while(static_cast<int64_t>(in.length()) < desired_length) in = "0"_s + in;
     return in;
 }
 
 static
 std::string
-as_octal_signed(long int n){
+as_octal_signed(int64_t n){
     std::stringstream ss;
     ss << std::oct << n;
     return ss.str();
@@ -35,7 +36,7 @@ as_octal_signed(long int n){
 
 static
 std::string
-as_octal_unsigned(unsigned long int n){
+as_octal_unsigned(uint64_t n){
     std::stringstream ss;
     ss << std::oct << n;
     return ss.str();
@@ -65,27 +66,27 @@ void nullify_all(ustar_header &a){
 
 // Update the header checksum member.
 void compute_checksum(ustar_header &a){
-    unsigned long int sum = 0;
+    uint64_t sum = 0;
 
     a.chksum.fill(' ');
  
-    for(const auto &b : a.fname)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.fmode)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.fuser)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.fgroup)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.fsize)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.ftime)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.chksum)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.ftype)   sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.flname)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.ustari)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.ustarv)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.o_name)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.g_name)  sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.d_major) sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.d_minor) sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.fprefix) sum += static_cast<unsigned long int>(b);
-    for(const auto &b : a.padding) sum += static_cast<unsigned long int>(b);
+    for(const auto &b : a.fname)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.fmode)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.fuser)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.fgroup)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.fsize)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.ftime)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.chksum)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.ftype)   sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.flname)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.ustari)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.ustarv)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.o_name)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.g_name)  sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.d_major) sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.d_minor) sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.fprefix) sum += static_cast<uint64_t>(b);
+    for(const auto &b : a.padding) sum += static_cast<uint64_t>(b);
 
     auto chksum = pad_left_zeros(as_octal_unsigned(sum), 6);
     chksum += '\0';
@@ -100,11 +101,11 @@ ustar_writer::ustar_writer(std::ostream &os) : blocks_written(0L),
 void 
 ustar_writer::add_file(std::istream &is,
                        std::string fname,
-                       long int fsize,
+                       int64_t fsize,
                        std::string fmode,
                        std::string fuser,
                        std::string fgroup,
-                       long int ftime,
+                       int64_t ftime,
                        std::string o_name,
                        std::string g_name,
                        std::string fprefix ){
@@ -137,64 +138,64 @@ ustar_writer::add_file(std::istream &is,
         is.clear(); // Reset the EOF bit.
         is.seekg( 0UL, std::ios_base::beg );
         if(!is) throw std::runtime_error("Unable to seek input stream. Please provide file size explicitly. Refusing to continue.");
-        fsize = static_cast<long int>(bytes_available);
+        fsize = static_cast<int64_t>(bytes_available);
     }
 
     // Add metadata to the header struct.
-    std::memcpy(ustar.fname.data(),   fname.data(),   std::min<unsigned long int>(100, fname.size())  );
+    std::memcpy(ustar.fname.data(),   fname.data(),   std::min<uint64_t>(100, fname.size())  );
 
     if(!fmode.empty()){
         fmode = pad_left_zeros(fmode, 7);
-        std::memcpy(ustar.fmode.data(),   fmode.data(),   std::min<unsigned long int>(  7, fmode.size())  );
+        std::memcpy(ustar.fmode.data(),   fmode.data(),   std::min<uint64_t>(  7, fmode.size())  );
     }
 
     if(!fuser.empty()){
         fuser = pad_left_zeros(fuser, 7);
-        std::memcpy(ustar.fuser.data(),   fuser.data(),   std::min<unsigned long int>(  7, fuser.size())  );
+        std::memcpy(ustar.fuser.data(),   fuser.data(),   std::min<uint64_t>(  7, fuser.size())  );
     }
 
     if(!fgroup.empty()){
         fgroup = pad_left_zeros(fgroup, 7);
-        std::memcpy(ustar.fgroup.data(),  fgroup.data(),  std::min<unsigned long int>(  7, fgroup.size()) );
+        std::memcpy(ustar.fgroup.data(),  fgroup.data(),  std::min<uint64_t>(  7, fgroup.size()) );
     }
 
     const auto fsize_str = pad_left_zeros(as_octal_signed(fsize), 11);
-    std::memcpy(ustar.fsize.data(),   fsize_str.data(),   std::min<unsigned long int>( 11, fsize_str.size())  );
+    std::memcpy(ustar.fsize.data(),   fsize_str.data(),   std::min<uint64_t>( 11, fsize_str.size())  );
 
     if(0L <= ftime){
         const auto ftime_str = pad_left_zeros(as_octal_signed(ftime), 11);
-        std::memcpy(ustar.ftime.data(),   ftime_str.data(),   std::min<unsigned long int>( 11, ftime_str.size())  );
+        std::memcpy(ustar.ftime.data(),   ftime_str.data(),   std::min<uint64_t>( 11, ftime_str.size())  );
     }
 
     const auto ftype = "0"_s; // Normal file type.
-    std::memcpy(ustar.ftype.data(),   ftype.data(),   std::min<unsigned long int>(  1, ftype.size())  );
+    std::memcpy(ustar.ftype.data(),   ftype.data(),   std::min<uint64_t>(  1, ftype.size())  );
 
     const auto flname = ""_s;
-    std::memcpy(ustar.flname.data(),  flname.data(),  std::min<unsigned long int>(100, flname.size()) );
+    std::memcpy(ustar.flname.data(),  flname.data(),  std::min<uint64_t>(100, flname.size()) );
 
     const auto ustari = "ustar\0"_s;
-    std::memcpy(ustar.ustari.data(),  ustari.data(),  std::min<unsigned long int>(  6, ustari.size()) );
+    std::memcpy(ustar.ustari.data(),  ustari.data(),  std::min<uint64_t>(  6, ustari.size()) );
 
     const auto ustarv = "00"_s;
-    std::memcpy(ustar.ustarv.data(),  ustarv.data(),  std::min<unsigned long int>(  2, ustarv.size()) );
+    std::memcpy(ustar.ustarv.data(),  ustarv.data(),  std::min<uint64_t>(  2, ustarv.size()) );
 
-    std::memcpy(ustar.o_name.data(),  o_name.data(),  std::min<unsigned long int>( 31, o_name.size())  );
+    std::memcpy(ustar.o_name.data(),  o_name.data(),  std::min<uint64_t>( 31, o_name.size())  );
 
-    std::memcpy(ustar.g_name.data(),  g_name.data(),  std::min<unsigned long int>( 31, g_name.size())  );
+    std::memcpy(ustar.g_name.data(),  g_name.data(),  std::min<uint64_t>( 31, g_name.size())  );
 
     std::string d_major = ""_s; // If made accessible, this should be provided as an octal number.
     if(!d_major.empty()){
         d_major = pad_left_zeros(d_major, 7);
-        std::memcpy(ustar.d_major.data(), d_major.data(), std::min<unsigned long int>(  7, d_major.size()));
+        std::memcpy(ustar.d_major.data(), d_major.data(), std::min<uint64_t>(  7, d_major.size()));
     }
 
     std::string d_minor = ""_s; // If made accessible, this should be provided as an octal number.
     if(!d_minor.empty()){
         d_minor = pad_left_zeros(d_minor, 7);
-        std::memcpy(ustar.d_minor.data(), d_minor.data(), std::min<unsigned long int>(  7, d_minor.size()));
+        std::memcpy(ustar.d_minor.data(), d_minor.data(), std::min<uint64_t>(  7, d_minor.size()));
     }
 
-    std::memcpy(ustar.fprefix.data(), fprefix.data(), std::min<unsigned long int>(155, fprefix.size()));
+    std::memcpy(ustar.fprefix.data(), fprefix.data(), std::min<uint64_t>(155, fprefix.size()));
 
     compute_checksum(ustar);
 
@@ -253,7 +254,7 @@ ustar_writer::~ustar_writer(){
 
     // Pad the number of blocks to be a multiple of 20, which is conventional.
     const auto zero_pad_blocks = ( (this->blocks_written % 20) == 0 ? 0 : 20 - (this->blocks_written % 20) );
-    for(long int j = 0; j < zero_pad_blocks; ++j){
+    for(int64_t j = 0; j < zero_pad_blocks; ++j){
         for(size_t i = 0; i < 512; ++i) os.put('\0');
     }
 
@@ -281,11 +282,11 @@ ustar_writer::~ustar_writer(){
 void read_ustar(std::istream &is,
                 std::function<void(std::istream &is,
                                    std::string fname,
-                                   long int fsize,
+                                   int64_t fsize,
                                    std::string fmode,
                                    std::string fuser,
                                    std::string fgroup,
-                                   long int ftime,
+                                   int64_t ftime,
                                    std::string o_name,
                                    std::string g_name,
                                    std::string fprefix)> file_handler ){
@@ -294,12 +295,12 @@ void read_ustar(std::istream &is,
         throw std::invalid_argument("User-provided functor is invalid. Cannot continue.");
     }
 
-    const auto octal_string_to_signed_long_int = [](std::string in) -> long int {
+    const auto octal_string_to_signed_long_int = [](std::string in) -> int64_t {
         size_t pos;
         return std::stol(in, &pos, 8);
     };
 
-    long int invalid_headers = 0;
+    int64_t invalid_headers = 0;
 
     // Loop over the contents of the TAR file.
     while(true){
@@ -428,7 +429,7 @@ void read_ustar(std::istream &is,
             throw std::runtime_error("Unrecognized TAR format. Refusing to continue.");
         }
 
-        const long int fsize_l = octal_string_to_signed_long_int(fsize);
+        const int64_t fsize_l = octal_string_to_signed_long_int(fsize);
         if( (fsize_l < 0) 
         // Ustar file format limited to 8GB per individual file.
         ||  ( (ustari == "ustar") && (ustarv == "00") && (8'589'934'591 < fsize_l) )
@@ -437,7 +438,7 @@ void read_ustar(std::istream &is,
             throw std::runtime_error("Unsupported encapsulated file size. Refusing to continue.");
         }
 
-        long int ftime_l = 0;
+        int64_t ftime_l = 0;
         if(!ftime.empty()){
             try{
                 ftime_l = octal_string_to_signed_long_int(ftime);
@@ -499,7 +500,7 @@ void read_ustar(std::istream &is,
         // Read the remaining padding bytes.
         const auto rem = std::ldiv(fsize_l, 512L).rem;
         const auto zero_pad_bytes = (rem == 0L ? 0L : 512L - rem);
-        for(long int i = 0L; i < zero_pad_bytes; ++i) is.get();
+        for(int64_t i = 0L; i < zero_pad_bytes; ++i) is.get();
     }
 
     return;

@@ -36,7 +36,7 @@ class piece {
         large A;
         large B;
 
-        long int data_size;
+        int64_t data_size;
         std::basic_string<unsigned char> data;
 
         std::vector<piece> child;   //This is the data, delinearized into sequential items.
@@ -69,7 +69,7 @@ void Dump_Children(std::ostream & out, const std::vector<piece *> &in, const std
 void Get_Elements(std::vector<piece *> &out, std::vector<piece> &in, const std::vector<uint32_t> &key, const uint32_t depth = 0); //NOTE: depth defaults to 0
 void Prep_Children_For_Recompute_Children_Data_Size( std::vector<piece> &in );
 
-long int Recompute_Children_Data_Size( std::vector<piece> &in );
+int64_t Recompute_Children_Data_Size( std::vector<piece> &in );
 void Repack_Nodes( const std::vector<piece> &in, std::basic_string<unsigned char> &out );
 
 #endif
