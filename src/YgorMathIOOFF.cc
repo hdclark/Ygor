@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -140,8 +141,8 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
                    std::istream &is ){
 
     bool dims_known = false;
-    long long int N_verts = -1;
-    long long int N_faces = -1;
+    intmax_t N_verts = -1;
+    intmax_t N_faces = -1;
 
     const auto reset = [&](){
         fvsm.vertices.clear();
@@ -203,7 +204,7 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
         // If dimensions are known, then try reading until we fulfill the vert/face/edge dimensions.
         }else{
             // Fill up the vertices first.
-            if(static_cast<long long int>(fvsm.vertices.size()) != N_verts){
+            if(static_cast<intmax_t>(fvsm.vertices.size()) != N_verts){
                 if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
                 try{
                     const auto x = std::stod(split[0]);
@@ -231,10 +232,10 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
             // Then fill up the faces.
             //
             // Note that faces are zero-indexed.
-            }else if(static_cast<long long int>(fvsm.faces.size()) != N_faces){
+            }else if(static_cast<intmax_t>(fvsm.faces.size()) != N_faces){
                 if(split.size() < 1) continue; // Actually an error...
                 try{
-                    const auto N = static_cast<long long int>(split.size());
+                    const auto N = static_cast<intmax_t>(split.size());
                     const auto n = std::stoll(split.at(0)); // Number of verts for this face.
                     if(N != (n+1)){
                         YLOGWARN("File contains invalid face size statement -- refusing to parse as surface mesh");
@@ -270,19 +271,19 @@ ReadFVSMeshFromOFF(fv_surface_mesh<T,I> &fvsm,
         reset();
         return false;
     }
-    if( (static_cast<long long int>(fvsm.vertices.size()) != N_verts) ){
-        YLOGWARN("Read " << static_cast<long long int>(fvsm.vertices.size()) << " vertices (should be " << N_verts << ")");
+    if( (static_cast<intmax_t>(fvsm.vertices.size()) != N_verts) ){
+        YLOGWARN("Read " << static_cast<intmax_t>(fvsm.vertices.size()) << " vertices (should be " << N_verts << ")");
         reset();
         return false;
     }
-    if( (static_cast<long long int>(fvsm.faces.size()) != N_faces) ){
-        YLOGWARN("Read " << static_cast<long long int>(fvsm.faces.size()) << " faces (should be " << N_faces << ")");
+    if( (static_cast<intmax_t>(fvsm.faces.size()) != N_faces) ){
+        YLOGWARN("Read " << static_cast<intmax_t>(fvsm.faces.size()) << " faces (should be " << N_faces << ")");
         reset();
         return false;
     }
     if( !fvsm.vertex_normals.empty()
     &&  (fvsm.vertex_normals.size() != fvsm.vertices.size()) ){
-        YLOGWARN("Read " << static_cast<long long int>(fvsm.vertex_normals.size()) << " vertex normals (should be 0 or " << N_verts << ")");
+        YLOGWARN("Read " << static_cast<intmax_t>(fvsm.vertex_normals.size()) << " vertex normals (should be 0 or " << N_verts << ")");
         reset();
         return false;
     }
@@ -401,7 +402,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
     reset();
 
     bool dims_known = false;
-    long long int N_verts = -1;
+    intmax_t N_verts = -1;
 
     std::string line;
     while(std::getline(is, line)){
@@ -460,7 +461,7 @@ ReadPointSetFromOFF(point_set<T> &ps,
         // If dimensions are known, then try reading until we fulfill the vert count.
         }else{
             // Fill up vertices.
-            if(static_cast<long long int>(ps.points.size()) != N_verts){
+            if(static_cast<intmax_t>(ps.points.size()) != N_verts){
                 if( !( (split.size() == 3) || (split.size() == 6) ) ) continue;
                 try{
                     const auto x = std::stod(split[0]);
@@ -499,14 +500,14 @@ ReadPointSetFromOFF(point_set<T> &ps,
         reset();
         return false;
     }
-    if( (static_cast<long long int>(ps.points.size()) != N_verts) ){
-        YLOGWARN("Read " << static_cast<long long int>(ps.points.size()) << " vertices (should be " << N_verts << ")");
+    if( (static_cast<intmax_t>(ps.points.size()) != N_verts) ){
+        YLOGWARN("Read " << static_cast<intmax_t>(ps.points.size()) << " vertices (should be " << N_verts << ")");
         reset();
         return false;
     }
     if( !(ps.normals.empty()) 
-    &&  (static_cast<long long int>(ps.normals.size()) != N_verts) ){
-        YLOGWARN("Read " << static_cast<long long int>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
+    &&  (static_cast<intmax_t>(ps.normals.size()) != N_verts) ){
+        YLOGWARN("Read " << static_cast<intmax_t>(ps.normals.size()) << " normals (should be 0 or " << N_verts << ")");
         reset();
         return false;
     }

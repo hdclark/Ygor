@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -123,8 +124,8 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                 }
 
                 // Convert to absolute vertices.
-                const auto abs_x = (0LL < x) ? x : (static_cast<long long int>(fvsm.vertices.size()) + x + 1LL);
-                const auto abs_y = (0LL < y) ? y : (static_cast<long long int>(fvsm.vertices.size()) + y + 1LL);
+                const auto abs_x = (0LL < x) ? x : (static_cast<intmax_t>(fvsm.vertices.size()) + x + 1LL);
+                const auto abs_y = (0LL < y) ? y : (static_cast<intmax_t>(fvsm.vertices.size()) + y + 1LL);
 
                 // Write as a line segment, duplicating the vertices.
                 //fvsm.faces.emplace_back( fvsm.vertices.at(abs_x), fvsm.vertices.at(abs_y) );
@@ -156,7 +157,7 @@ ReadFVSMeshFromOBJ(fv_surface_mesh<T,I> &fvsm,
                     }
 
                     // Convert to absolute vertices.
-                    const auto abs_x = (0LL < x) ? x : (static_cast<long long int>(fvsm.vertices.size()) + x + 1LL);
+                    const auto abs_x = (0LL < x) ? x : (static_cast<intmax_t>(fvsm.vertices.size()) + x + 1LL);
 
                     // Record as indices.
                     fi.emplace_back( static_cast<I>(abs_x - 1LL) );
@@ -270,14 +271,14 @@ WriteFVSMeshToOBJ(const fv_surface_mesh<T,I> &fvsm,
     os.precision( original_precision );
 
     // Emit faces.
-    const auto N_verts = static_cast<long long int>(fvsm.vertices.size());
+    const auto N_verts = static_cast<intmax_t>(fvsm.vertices.size());
     for(const auto &fv : fvsm.faces){
         if(fv.empty()) continue;
 
         os << "f";
         for(const auto &v_i : fv){
-            const auto v_adj = use_relative_indexing ? static_cast<long long int>(v_i) - N_verts
-                                                     : static_cast<long long int>(v_i) + 1LL;
+            const auto v_adj = use_relative_indexing ? static_cast<intmax_t>(v_i) - N_verts
+                                                     : static_cast<intmax_t>(v_i) + 1LL;
             os << " " << v_adj;
         }
         os << "\n";

@@ -22,6 +22,7 @@
 #include <vector>
 #include <random>
 #include <numeric>
+#include <cstdint>
 //#include <ctype.h> 
 
 #include "YgorDefinitions.h"
@@ -6243,12 +6244,12 @@ fv_surface_mesh<T,I>::unpack_RGBA32_colour(uint32_t in) const {
 
 template <class T, class I>
 T
-fv_surface_mesh<T,I>::surface_area(long long int n) const {
+fv_surface_mesh<T,I>::surface_area(int64_t n) const {
     // Select which face(s) to use. If n is negative, select all faces.
     const decltype(this->faces)* faces_of_interest = &(this->faces);
     decltype(this->faces) selected_faces;
-    if(static_cast<long int>(0) <= n){
-        if(static_cast<long int>(this->faces.size()) <= n){
+    if(static_cast<int64_t>(0) <= n){
+        if(static_cast<int64_t>(this->faces.size()) <= n){
             throw std::invalid_argument("Selected face does not exist. Cannot continue.");
         }
         selected_faces.push_back( this->faces[n] );
@@ -6276,11 +6277,11 @@ fv_surface_mesh<T,I>::surface_area(long long int n) const {
     return rs_sarea.Current_Sum();
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template float  fv_surface_mesh<float , uint32_t >::surface_area(long long int) const;
-    template float  fv_surface_mesh<float , uint64_t >::surface_area(long long int) const;
+    template float  fv_surface_mesh<float , uint32_t >::surface_area(int64_t) const;
+    template float  fv_surface_mesh<float , uint64_t >::surface_area(int64_t) const;
 
-    template double fv_surface_mesh<double, uint32_t >::surface_area(long long int) const;
-    template double fv_surface_mesh<double, uint64_t >::surface_area(long long int) const;
+    template double fv_surface_mesh<double, uint32_t >::surface_area(int64_t) const;
+    template double fv_surface_mesh<double, uint64_t >::surface_area(int64_t) const;
 #endif
 
 // Regenerates this->involved_faces using this->vertices and this->faces.

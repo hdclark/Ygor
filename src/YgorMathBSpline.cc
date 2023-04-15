@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <utility>     //Needed for std::pair.
 #include <vector>
+#include <cstdint>
 //#include <optional>
 
 #include <gsl/gsl_bspline.h>
@@ -161,7 +162,7 @@ basis_spline::basis_spline(const samples_1D<double> &samps,
 // TODO! HACKED SOLUTION WITH NO BALANCING!
 for( ; used_extras < extras; ++used_extras) datum_count_for_bucket[used_extras] += 1;
         
-        if(static_cast<long long int>(std::accumulate(datum_count_for_bucket.begin(), datum_count_for_bucket.end(), 0)) != static_cast<long long int>(this->datum)){
+        if(static_cast<intmax_t>(std::accumulate(datum_count_for_bucket.begin(), datum_count_for_bucket.end(), 0)) != static_cast<intmax_t>(this->datum)){
             throw std::logic_error("Miscounted datum distributed to buckets.");
         }
 

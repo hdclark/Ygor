@@ -102,6 +102,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #ifndef USE_OWN_GETIFADDR   //Else: see below for a homebrew...
     #include <ifaddrs.h>
@@ -252,7 +253,7 @@ std::string Basic_HTTP_Response_File_Header_Only(const std::string &filename){
     out += "Accept-Ranges: bytes\r\n";  //Advertise that we can also serve byte-by-byte.
 
     out += "Content-Length: ";
-    out += Xtostring<long long int>(thesize) + "\r\n";
+    out += Xtostring<int64_t>(thesize) + "\r\n";
 
     out += "Connection: close\r\n";   //*Might* be killing mplayer streaming. Unsure. If everything seems OK, uncomment.  BE WEARY OF THIS LINE...
 //    out += "Connection: keep-alive\r\n";
@@ -288,13 +289,13 @@ std::string Range_HTTP_Response_File_Header_Only(const std::string &filename, of
 //    out += "; charset=utf-8\r\n";
     out += "\r\n";
 
-    out += "Content-Range: bytes "_s + Xtostring<long long int>(range_l) + "-"_s + Xtostring<long long int>(range_u);
-    out += "/"_s + Xtostring<long long int>(thesize) + "\r\n"_s;
+    out += "Content-Range: bytes "_s + Xtostring<int64_t>(range_l) + "-"_s + Xtostring<int64_t>(range_u);
+    out += "/"_s + Xtostring<int64_t>(thesize) + "\r\n"_s;
 
     out += "Accept-Ranges: bytes\r\n";
 
     out += "Content-Length: ";
-    out += Xtostring<long long int>(range_u-range_l+1) + "\r\n";
+    out += Xtostring<int64_t>(range_u-range_l+1) + "\r\n";
 
     out += "Connection: close\r\n";    //I think it is somehow more important to close the connection after serving the specified range.  (?) :/ 
 //    out += "Connection: keep-alive\r\n";

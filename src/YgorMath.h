@@ -18,6 +18,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 
@@ -590,7 +591,7 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Disregards face orientation; area is always positive. Individual faces can be selected, or negative to select
         // all faces.
-        T surface_area(long long int n = -1) const;
+        T surface_area(int64_t n = -1) const;
 
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);

@@ -111,7 +111,7 @@ template <class T> std::unique_ptr<T[]> str_to_buf(bool *OK, const std::string &
     // will ever be a problem, because std::string's underlying char type is always a single byte.
     // Leaving this here in case the code is adapted to something else... 
     const auto quotient = l_size/sizeof(T);
-    if(static_cast<long long int>(quotient*sizeof(T)) != static_cast<long long int>(l_size) ){
+    if(static_cast<intmax_t>(quotient*sizeof(T)) != static_cast<intmax_t>(l_size) ){
         //NOTE: This is probably not a real problem. In principle, we should just allocate a little more room
         // and let the user handle the divisibility issue themselves. However, in the use cases intended for
         // this code, it is probably better to make it harder for the user to make a mistake. If this 
@@ -764,12 +764,14 @@ template <class T>  std::string Xtostring(T numb){
     return ss.str();
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
-    template std::string Xtostring<int>(int);
-    template std::string Xtostring<long int>(long int);
-    template std::string Xtostring<long long int>(long long int);
-    template std::string Xtostring<unsigned int>(unsigned int);
-    template std::string Xtostring<unsigned long int>(unsigned long int);
-    template std::string Xtostring<unsigned long long int>(unsigned long long int);
+    template std::string Xtostring<int8_t  >(int8_t  );
+    template std::string Xtostring<int16_t >(int16_t );
+    template std::string Xtostring<int32_t >(int32_t );
+    template std::string Xtostring<int64_t >(int64_t );
+    template std::string Xtostring<uint8_t >(uint8_t );
+    template std::string Xtostring<uint16_t>(uint16_t);
+    template std::string Xtostring<uint32_t>(uint32_t);
+    template std::string Xtostring<uint64_t>(uint64_t);
     template std::string Xtostring<float>(float);
     template std::string Xtostring<double>(double);
 
@@ -782,12 +784,14 @@ template <class T>   std::string XtoPreciseString(T numb){
     return ss.str();
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
-    template std::string XtoPreciseString<int>(int);
-    template std::string XtoPreciseString<long int>(long int);
-    template std::string XtoPreciseString<long long int>(long long int);
-    template std::string XtoPreciseString<unsigned int>(unsigned int);
-    template std::string XtoPreciseString<unsigned long int>(unsigned long int);
-    template std::string XtoPreciseString<unsigned long long int>(unsigned long long int);
+    template std::string XtoPreciseString<int8_t  >(int8_t  );
+    template std::string XtoPreciseString<int16_t >(int16_t );
+    template std::string XtoPreciseString<int32_t >(int32_t );
+    template std::string XtoPreciseString<int64_t >(int64_t );
+    template std::string XtoPreciseString<uint8_t >(uint8_t );
+    template std::string XtoPreciseString<uint16_t>(uint16_t);
+    template std::string XtoPreciseString<uint32_t>(uint32_t);
+    template std::string XtoPreciseString<uint64_t>(uint64_t);
     template std::string XtoPreciseString<float>(float);
     template std::string XtoPreciseString<double>(double);
 
@@ -801,14 +805,16 @@ template <class T>   T stringtoX(const std::string &text){
     return temp;
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
-    template float                    stringtoX<float>(const std::string &);
-    template double                   stringtoX<double>(const std::string &);
-    template int                      stringtoX<int>(const std::string &);
-    template unsigned int             stringtoX<unsigned int>(const std::string &);
-    template long int                 stringtoX<long int>(const std::string &);
-    template long long int            stringtoX<long long int>(const std::string &);
-    template unsigned long int        stringtoX<unsigned long int>(const std::string &);
-    template unsigned long long int   stringtoX<unsigned long long int>(const std::string &);
+    template int8_t   stringtoX<int8_t  >(const std::string &);
+    template int16_t  stringtoX<int16_t >(const std::string &);
+    template int32_t  stringtoX<int32_t >(const std::string &);
+    template int64_t  stringtoX<int64_t >(const std::string &);
+    template uint8_t  stringtoX<uint8_t >(const std::string &);
+    template uint16_t stringtoX<uint16_t>(const std::string &);
+    template uint32_t stringtoX<uint32_t>(const std::string &);
+    template uint64_t stringtoX<uint64_t>(const std::string &);
+    template float    stringtoX<float>(const std::string &);
+    template double   stringtoX<double>(const std::string &);
 
     template<> std::string stringtoX<std::string>(const std::string &in){ return in; }
 #endif
@@ -828,14 +834,16 @@ template <class T> bool Is_String_An_X(const std::string &text){
     return false;
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
-    template bool  Is_String_An_X<float>(const std::string &);
-    template bool  Is_String_An_X<double>(const std::string &);
-    template bool  Is_String_An_X<int>(const std::string &);
-    template bool  Is_String_An_X<unsigned int>(const std::string &);
-    template bool  Is_String_An_X<long int>(const std::string &);
-    template bool  Is_String_An_X<long long int>(const std::string &);
-    template bool  Is_String_An_X<unsigned long int>(const std::string &);
-    template bool  Is_String_An_X<unsigned long long int>(const std::string &);
+    template bool Is_String_An_X<int8_t  >(const std::string &);
+    template bool Is_String_An_X<int16_t >(const std::string &);
+    template bool Is_String_An_X<int32_t >(const std::string &);
+    template bool Is_String_An_X<int64_t >(const std::string &);
+    template bool Is_String_An_X<uint8_t >(const std::string &);
+    template bool Is_String_An_X<uint16_t>(const std::string &);
+    template bool Is_String_An_X<uint32_t>(const std::string &);
+    template bool Is_String_An_X<uint64_t>(const std::string &);
+    template bool Is_String_An_X<float>(const std::string &);
+    template bool Is_String_An_X<double>(const std::string &);
 
     template<> bool Is_String_An_X<std::string>(const std::string & /*in*/){ return true; }
 #endif
@@ -883,14 +891,16 @@ bool GetValueIfKeyMatches(T *out, const std::string &key,  const unsigned char k
     return true;
 }
 #ifndef YGORSTRING_DISABLE_ALL_SPECIALIZATIONS
+    template bool GetValueIfKeyMatches(int8_t                 *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int16_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int32_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(int64_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint8_t                *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint16_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint32_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
+    template bool GetValueIfKeyMatches(uint64_t               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
     template bool GetValueIfKeyMatches(float                  *, const std::string &, const unsigned char, const std::string &, const unsigned char);
     template bool GetValueIfKeyMatches(double                 *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(int                    *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(unsigned int           *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(long int               *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(long long int          *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(unsigned long int      *, const std::string &, const unsigned char, const std::string &, const unsigned char);
-    template bool GetValueIfKeyMatches(unsigned long long int *, const std::string &, const unsigned char, const std::string &, const unsigned char);
     template bool GetValueIfKeyMatches(std::string            *, const std::string &, const unsigned char, const std::string &, const unsigned char);
 #endif
 

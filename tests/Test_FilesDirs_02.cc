@@ -2,6 +2,7 @@
 #include <string>
 #include <list>
 #include <memory>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -22,11 +23,11 @@ int main(int argc, char **argv){
     //Test the Get_Piece_of_Binary_File() function by copying a file, chunk by chunk, to a duplicate in /tmp/
     if(!Does_File_Exist_And_Can_Be_Read(FilenameIn)) YLOGERR("Unable to open input file! Bailing");
     const auto T = Size_of_File(FilenameIn);
-    const long long int N = 512; //Copy it 512 bytes at a time.
+    const int64_t N = 512; //Copy it 512 bytes at a time.
 
-    long long int n = 0; //Number of bytes copied.
+    int64_t n = 0; //Number of bytes copied.
     while(n < T){
-        const long long int c = (n+N) > T ? (T-n) : N; //Number of bytes to copy. Is N or less (on the last cycle.)
+        const int64_t c = (n+N) > T ? (T-n) : N; //Number of bytes to copy. Is N or less (on the last cycle.)
 
         const auto mem = Get_Piece_of_Binary_File<char>(FilenameIn, n, c); //Current position, number of bytes desired.
 
