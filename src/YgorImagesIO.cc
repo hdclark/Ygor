@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 #include <functional>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -1569,7 +1570,7 @@ ReadFromFITS(std::istream &is, YgorEndianness userE){
 
             for(auto & acard : l_header){
                 is.read(acard.data(),acard.size());
-                if(static_cast<long long int>(is.gcount()) != static_cast<long long int>(acard.size())){
+                if(static_cast<intmax_t>(is.gcount()) != static_cast<intmax_t>(acard.size())){
                     throw std::runtime_error("Not enough data to read full card.");
                 }
             }

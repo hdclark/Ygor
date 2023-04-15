@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
@@ -98,7 +99,7 @@ ReadFVSMeshFromASCIISTL(fv_surface_mesh<T,I> &fvsm,
             fvsm.vertices.emplace_back( vectors[2] );
             fvsm.vertices.emplace_back( vectors[3] );
 
-            const auto v_offset = static_cast<long long int>(fvsm.vertices.size()) - 3LL;
+            const auto v_offset = static_cast<intmax_t>(fvsm.vertices.size()) - 3LL;
             const std::vector<I> faces = {{ static_cast<I>(v_offset + 0LL),
                                             static_cast<I>(v_offset + 1LL),
                                             static_cast<I>(v_offset + 2LL) }};
@@ -344,7 +345,7 @@ ReadFVSMeshFromBinarySTL(fv_surface_mesh<T,I> &fvsm,
         fvsm.vertices.emplace_back(v_B);
         fvsm.vertices.emplace_back(v_C);
 
-        const auto v_offset = static_cast<long long int>(fvsm.vertices.size()) - 3LL;
+        const auto v_offset = static_cast<intmax_t>(fvsm.vertices.size()) - 3LL;
         const std::vector<I> faces = {{ static_cast<I>(v_offset + 0LL),
                                         static_cast<I>(v_offset + 1LL),
                                         static_cast<I>(v_offset + 2LL) }};
