@@ -6924,8 +6924,8 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                 auto it_B = std::begin(l_verts);
                 auto it_A = std::prev(end);
                 while(it_B != end){
-                    const I v_A = std::min(*it_A, *it_B);
-                    const I v_B = std::max(*it_A, *it_B);
+                    const I v_A = std::min<I>(*it_A, *it_B);
+                    const I v_B = std::max<I>(*it_A, *it_B);
                     nearby_edges[{ v_A, v_B }] += 1UL;
 
                     it_A = it_B;
@@ -7149,9 +7149,9 @@ fv_surface_mesh<T,I>::simplify_inner_triangles(T dist,
                     auto l_nearby_edges = nearby_edges;
                     bool proposed_nonmanifold_edge = false;
                     {
-                        const std::pair<I,I> e_0 = { std::min(it_0->curr_vert, it_1->curr_vert), std::max(it_0->curr_vert, it_1->curr_vert) };
-                        const std::pair<I,I> e_1 = { std::min(it_0->curr_vert, it_1->next_vert), std::max(it_0->curr_vert, it_1->next_vert) };
-                        const std::pair<I,I> e_2 = { std::min(it_1->curr_vert, it_1->next_vert), std::max(it_1->curr_vert, it_1->next_vert) };
+                        const std::pair<I,I> e_0 = { std::min<I>(it_0->curr_vert, it_1->curr_vert), std::max<I>(it_0->curr_vert, it_1->curr_vert) };
+                        const std::pair<I,I> e_1 = { std::min<I>(it_0->curr_vert, it_1->next_vert), std::max<I>(it_0->curr_vert, it_1->next_vert) };
+                        const std::pair<I,I> e_2 = { std::min<I>(it_1->curr_vert, it_1->next_vert), std::max<I>(it_1->curr_vert, it_1->next_vert) };
 
                         for(const auto& e : { e_0, e_1, e_2 }){
                             auto& c = l_nearby_edges[e];
@@ -7903,17 +7903,17 @@ YLOGINFO(ss.str());
                     std::set< std::array<I,2> > edges_A;
 
                     const auto& faces_A = faces[nfi];
-                    edges_A.emplace( std::array<I,2>{{ std::min(faces_A[0], faces_A[1]), std::max(faces_A[0], faces_A[1]) }} );
-                    edges_A.emplace( std::array<I,2>{{ std::min(faces_A[1], faces_A[2]), std::max(faces_A[1], faces_A[2]) }} );
-                    edges_A.emplace( std::array<I,2>{{ std::min(faces_A[2], faces_A[0]), std::max(faces_A[2], faces_A[0]) }} );
+                    edges_A.emplace( std::array<I,2>{{ std::min<I>(faces_A[0], faces_A[1]), std::max<I>(faces_A[0], faces_A[1]) }} );
+                    edges_A.emplace( std::array<I,2>{{ std::min<I>(faces_A[1], faces_A[2]), std::max<I>(faces_A[1], faces_A[2]) }} );
+                    edges_A.emplace( std::array<I,2>{{ std::min<I>(faces_A[2], faces_A[0]), std::max<I>(faces_A[2], faces_A[0]) }} );
 
                     for(auto nfj = nfi + static_cast<I>(1); nfj < (orig_face_number + N_added_faces); ++nfj){
                         std::set< std::array<I,2> > edges_B;
 
                         const auto& faces_B = faces[nfj];
-                        edges_B.emplace( std::array<I,2>{{ std::min(faces_B[0], faces_B[1]), std::max(faces_B[0], faces_B[1]) }} );
-                        edges_B.emplace( std::array<I,2>{{ std::min(faces_B[1], faces_B[2]), std::max(faces_B[1], faces_B[2]) }} );
-                        edges_B.emplace( std::array<I,2>{{ std::min(faces_B[2], faces_B[0]), std::max(faces_B[2], faces_B[0]) }} );
+                        edges_B.emplace( std::array<I,2>{{ std::min<I>(faces_B[0], faces_B[1]), std::max<I>(faces_B[0], faces_B[1]) }} );
+                        edges_B.emplace( std::array<I,2>{{ std::min<I>(faces_B[1], faces_B[2]), std::max<I>(faces_B[1], faces_B[2]) }} );
+                        edges_B.emplace( std::array<I,2>{{ std::min<I>(faces_B[2], faces_B[0]), std::max<I>(faces_B[2], faces_B[0]) }} );
 
                         std::set< std::array<I,2> > edges_common;
                         std::set_intersection(std::begin(edges_A), std::end(edges_A),

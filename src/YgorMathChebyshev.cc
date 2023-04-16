@@ -558,7 +558,7 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
 
     const auto N = static_cast<int64_t>(this->c.size()); 
     const auto M = static_cast<int64_t>(rhs.c.size()); 
-    const auto P = static_cast<int64_t>( (numb_of_c_to_use == 0) ? std::max(N,M) : numb_of_c_to_use );
+    const auto P = static_cast<int64_t>( (numb_of_c_to_use == 0) ? std::max<int64_t>(N,M) : numb_of_c_to_use );
 
     //If too many coefficients are being requested, use the non-truncated version to compute the
     // full multiplication.
@@ -591,16 +591,16 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
 
     //Second, the main diagonal of the 'difference' part.
     c[0] += half * half * half * this->c[0] * rhs.c[0];
-    int64_t diag_max_k = std::min(N,M);
+    int64_t diag_max_k = std::min<int64_t>(N,M);
     for(int64_t k = 1; k < diag_max_k; ++k){
         c[0] += half * this->c[k] * rhs.c[k];
     }
 
     //Third, the upper diagonal 'difference' part.
-    int64_t diag_max_P_M = std::min(P,M);
+    int64_t diag_max_P_M = std::min<int64_t>(P,M);
     for(int64_t k = 1; k < diag_max_P_M; ++k){
         int64_t i_start = 0;
-        int64_t i_end   = std::min(N,M-k)-1;
+        int64_t i_end   = std::min<int64_t>(N,M-k)-1;
         int64_t j_start = k;
 
         int64_t j = j_start;
@@ -611,10 +611,10 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
         }
     }
     //Third, the lower diagonal 'difference' part.
-    int64_t diag_max_P_N = std::min(P,N);
+    int64_t diag_max_P_N = std::min<int64_t>(P,N);
     for(int64_t k = 1; k < diag_max_P_N; ++k){
         int64_t i_start = k;
-        int64_t j_end   = std::min(M,N-k)-1;
+        int64_t j_end   = std::min<int64_t>(M,N-k)-1;
         int64_t j_start = 0;
 
         int64_t i = i_start;
@@ -647,7 +647,7 @@ cheby_approx<T>::Fast_Approx_Multiply(const cheby_approx<T> &rhs,
 
     const auto N = this->c.size(); 
     const auto M = rhs.c.size(); 
-    const auto P = static_cast<size_t>( std::round( fraction_of_max_c_to_use * std::max(N,M) ) );
+    const auto P = static_cast<size_t>( std::round( fraction_of_max_c_to_use * std::max<int64_t>(N,M) ) );
 
     return this->Fast_Approx_Multiply(rhs, P);
 }

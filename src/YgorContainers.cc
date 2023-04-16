@@ -639,7 +639,7 @@ yspan<T>::at(int64_t n){
 template <class T>
 int64_t
 yspan<T>::size() const {
-    return std::max(0L, this->count);
+    return std::max<int64_t>(0L, this->count);
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
     template int64_t yspan<float   >::size() const;
@@ -672,7 +672,7 @@ yspan<T>::size() const {
 template <class T>
 int64_t
 yspan<T>::stride() const {
-    return std::max(0L, this->stride_bytes);
+    return std::max<int64_t>(0L, this->stride_bytes);
 }
 #ifndef YGORCONTAINERS_DISABLE_ALL_SPECIALIZATIONS
     template int64_t yspan<float   >::stride() const;

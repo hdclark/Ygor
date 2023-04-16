@@ -808,10 +808,10 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
 
     //Figure out the 'real' minimum and maximum row and column numbers of the four nearest (surrounding) pixel centres.
     // (This is where our mirror boundary conditions first come into play.
-    const auto r_min = std::max(static_cast<int64_t>(0),r_min_virt);
-    const auto r_max = std::min(this->rows-1, r_max_virt);
-    const auto c_min = std::max(static_cast<int64_t>(0),c_min_virt);
-    const auto c_max = std::min(this->columns-1, c_max_virt);
+    const auto r_min = std::max<int64_t>(static_cast<int64_t>(0),r_min_virt);
+    const auto r_max = std::min<int64_t>(this->rows-1, r_max_virt);
+    const auto c_min = std::max<int64_t>(static_cast<int64_t>(0),c_min_virt);
+    const auto c_max = std::min<int64_t>(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
     const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dx <-- if pixel shape were considered.
@@ -862,8 +862,8 @@ template <class T,class R> R planar_image<T,R>::row_aligned_derivative_centered_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
     
     return (  static_cast<R>(this->data[this->index(row,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row,col_m_1,chnl)]) )
@@ -885,8 +885,8 @@ template <class T,class R> R planar_image<T,R>::column_aligned_derivative_center
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col,chnl)]) )
@@ -942,10 +942,10 @@ template <class T,class R> R planar_image<T,R>::prow_pcol_aligned_Roberts_cross_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col_m_1,chnl)]) )
@@ -967,10 +967,10 @@ template <class T,class R> R planar_image<T,R>::nrow_pcol_aligned_Roberts_cross_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_p_1,col_m_1,chnl)]) )
@@ -1008,10 +1008,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Prewitt_derivative_3
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1037,10 +1037,10 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Prewitt_derivativ
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1082,10 +1082,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_3x3
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 2.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1111,10 +1111,10 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  1.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 2.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1153,15 +1153,15 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Sobel_derivative_5x5
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -5.0/240.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1205,15 +1205,15 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Sobel_derivative_
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -5.0/240.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1272,10 +1272,10 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_3x
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 10.0 * static_cast<R>(this->data[this->index(row    ,col_p_1,chnl)]) 
@@ -1301,10 +1301,10 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (   3.0 * static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             + 10.0 * static_cast<R>(this->data[this->index(row_p_1,col    ,chnl)]) 
@@ -1343,15 +1343,15 @@ template <class T,class R> R planar_image<T,R>::row_aligned_Scharr_derivative_5x
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -1.0/60.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1395,15 +1395,15 @@ template <class T,class R> R planar_image<T,R>::column_aligned_Scharr_derivative
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<R>(  
               ( -1.0/60.0) * static_cast<R>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1462,8 +1462,8 @@ template <class T,class R> R planar_image<T,R>::row_aligned_second_derivative_ce
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  this->row_aligned_derivative_centered_finite_difference(row, col_p_1, chnl)
             - this->row_aligned_derivative_centered_finite_difference(row, col_m_1, chnl) )
@@ -1484,8 +1484,8 @@ template <class T,class R> R planar_image<T,R>::column_aligned_second_derivative
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
 
     return (  this->column_aligned_derivative_centered_finite_difference(row_p_1, col, chnl)
             - this->column_aligned_derivative_centered_finite_difference(row_m_1, col, chnl) )
@@ -1506,10 +1506,10 @@ template <class T,class R> R planar_image<T,R>::cross_second_derivative_centered
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return (  static_cast<R>(this->data[this->index(row_p_1,col_p_1,chnl)])
             - static_cast<R>(this->data[this->index(row_m_1,col_p_1,chnl)])
@@ -1652,10 +1652,10 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
 
     //Figure out the 'real' minimum and maximum row and column numbers of the four nearest (surrounding) pixel centres.
     // (This is where our mirror boundary conditions first come into play.
-    const auto r_min = std::max(static_cast<int64_t>(0),r_min_virt);
-    const auto r_max = std::min(this->rows-1, r_max_virt);
-    const auto c_min = std::max(static_cast<int64_t>(0),c_min_virt);
-    const auto c_max = std::min(this->columns-1, c_max_virt);
+    const auto r_min = std::max<int64_t>(static_cast<int64_t>(0),r_min_virt);
+    const auto r_max = std::min<int64_t>(this->rows-1, r_max_virt);
+    const auto c_min = std::max<int64_t>(static_cast<int64_t>(0),c_min_virt);
+    const auto c_max = std::min<int64_t>(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
     const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dx <-- if pixel shape were considered.
@@ -1825,10 +1825,10 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_3x3(int64_t 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return static_cast<T>(  
               ( 1.0/16.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
@@ -1867,15 +1867,15 @@ template <class T,class R> T planar_image<T,R>::fixed_gaussian_blur_5x5(int64_t 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<T>(  
               (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -1925,10 +1925,10 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_3x3(int64_t row, 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return static_cast<T>(  
               ( 1.0/9.0) * static_cast<double>( this->data[this->index(row_m_1,col_m_1,chnl)] ) 
@@ -1967,15 +1967,15 @@ template <class T,class R> T planar_image<T,R>::fixed_box_blur_5x5(int64_t row, 
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<T>(  
               (1.0/25.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -2034,10 +2034,10 @@ template <class T,class R> T planar_image<T,R>::fixed_sharpen_3x3(int64_t row, i
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
     return static_cast<T>(  
             - 1.0 * static_cast<double>( this->data[this->index(row_m_1,col    ,chnl)] )
@@ -2071,15 +2071,15 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(int64_t r
     || !isininc(0,chnl,this->channels-1)){
         throw std::runtime_error("Attempted to access part of image which does not exist");
     }
-    int64_t row_m_1 = std::max(static_cast<int64_t>(0),row-1);
-    int64_t row_p_1 = std::min(this->rows-1,row+1);
-    int64_t col_m_1 = std::max(static_cast<int64_t>(0),col-1);
-    int64_t col_p_1 = std::min(this->columns-1,col+1);
+    int64_t row_m_1 = std::max<int64_t>(static_cast<int64_t>(0),row-1);
+    int64_t row_p_1 = std::min<int64_t>(this->rows-1,row+1);
+    int64_t col_m_1 = std::max<int64_t>(static_cast<int64_t>(0),col-1);
+    int64_t col_p_1 = std::min<int64_t>(this->columns-1,col+1);
 
-    int64_t row_m_2 = std::max(static_cast<int64_t>(0),row-2);
-    int64_t row_p_2 = std::min(this->rows-1,row+2);
-    int64_t col_m_2 = std::max(static_cast<int64_t>(0),col-2);
-    int64_t col_p_2 = std::min(this->columns-1,col+2);
+    int64_t row_m_2 = std::max<int64_t>(static_cast<int64_t>(0),row-2);
+    int64_t row_p_2 = std::min<int64_t>(this->rows-1,row+2);
+    int64_t col_m_2 = std::max<int64_t>(static_cast<int64_t>(0),col-2);
+    int64_t col_p_2 = std::min<int64_t>(this->columns-1,col+2);
 
     return static_cast<T>(  
             - (  1.0/256.0) * static_cast<double>( this->data[this->index(row_m_2,col_m_2,chnl)] ) 
@@ -5494,7 +5494,7 @@ void Mutate_Voxels(
                                 // Find the point on the line segment that crosses the row line.
                                 const auto d1 = std::abs(row_line_offset - p1_row_offset);
                                 const auto d2 = std::abs(row_line_offset - p2_row_offset);
-                                const auto t = std::clamp(d1 / (d1 + d2), static_cast<R>(0), static_cast<R>(1));
+                                const auto t = std::clamp<double>(d1 / (d1 + d2), static_cast<R>(0), static_cast<R>(1));
                                 if( !std::isfinite(t) ){
                                     throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
                                 }
@@ -5698,10 +5698,10 @@ void Mutate_Voxels(
 
                             if(false){
                             }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                                const auto row_l = std::max( static_cast<int64_t>(row - 1), static_cast<int64_t>(0) );
-                                const auto row_h = std::min( static_cast<int64_t>(row + 1), static_cast<int64_t>(working_img_ref.get().rows - 1) );
-                                const auto col_l = std::max( static_cast<int64_t>(col - 1), static_cast<int64_t>(0) );
-                                const auto col_h = std::min( static_cast<int64_t>(col + 1), static_cast<int64_t>(working_img_ref.get().columns - 1) );
+                                const auto row_l = std::max<int64_t>( static_cast<int64_t>(row - 1), static_cast<int64_t>(0) );
+                                const auto row_h = std::min<int64_t>( static_cast<int64_t>(row + 1), static_cast<int64_t>(working_img_ref.get().rows - 1) );
+                                const auto col_l = std::max<int64_t>( static_cast<int64_t>(col - 1), static_cast<int64_t>(0) );
+                                const auto col_h = std::min<int64_t>( static_cast<int64_t>(col + 1), static_cast<int64_t>(working_img_ref.get().columns - 1) );
                                 if( row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, col, chan) );
                                 if( row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, col, chan) );
                                 if( col != col_l ) shtl.emplace_back( img_ref.get().value(row, col_l, chan) );
@@ -5733,10 +5733,10 @@ void Mutate_Voxels(
 
                             if(false){
                             }else if(options.adjacency == Mutate_Voxels_Opts::Adjacency::NearestNeighbours){
-                                const auto row_l = std::max( static_cast<int64_t>(proj_row - 1), static_cast<int64_t>(0) );
-                                const auto row_h = std::min( static_cast<int64_t>(proj_row + 1), static_cast<int64_t>(img_ref.get().rows - 1) );
-                                const auto col_l = std::max( static_cast<int64_t>(proj_col - 1), static_cast<int64_t>(0) );
-                                const auto col_h = std::min( static_cast<int64_t>(proj_col + 1), static_cast<int64_t>(img_ref.get().columns - 1) );
+                                const auto row_l = std::max<int64_t>( static_cast<int64_t>(proj_row - 1), static_cast<int64_t>(0) );
+                                const auto row_h = std::min<int64_t>( static_cast<int64_t>(proj_row + 1), static_cast<int64_t>(img_ref.get().rows - 1) );
+                                const auto col_l = std::max<int64_t>( static_cast<int64_t>(proj_col - 1), static_cast<int64_t>(0) );
+                                const auto col_h = std::min<int64_t>( static_cast<int64_t>(proj_col + 1), static_cast<int64_t>(img_ref.get().columns - 1) );
                                 if( proj_row != row_l ) shtl.emplace_back( img_ref.get().value(row_l, proj_col, chan) );
                                 if( proj_row != row_h ) shtl.emplace_back( img_ref.get().value(row_h, proj_col, chan) );
                                 if( proj_col != col_l ) shtl.emplace_back( img_ref.get().value(proj_row, col_l, chan) );

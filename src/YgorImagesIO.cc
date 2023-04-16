@@ -327,7 +327,7 @@ linear_compress_numeric<T_domain, T_range>::compress(T_domain in_val) const {
         inv_scaled = std::round(inv_scaled);
     }
 
-    const auto out = std::clamp( inv_scaled, range_t_min, range_t_max );
+    const auto out = std::clamp<intermediate_t>( inv_scaled, range_t_min, range_t_max );
 
     return static_cast<T_range>(out);
 }
@@ -431,13 +431,13 @@ linear_compress_numeric<T_domain, T_range>::decompress(T_range in_val,
     const auto domain_t_max = static_cast<intermediate_t>(std::numeric_limits<T_domain>::max());
 
     const auto l_val = static_cast<intermediate_t>(in_val);
-    auto out = static_cast<T_domain>(std::clamp(l_val * this->slope + this->intercept, domain_t_min, domain_t_max));
+    auto out = static_cast<T_domain>(std::clamp<intermediate_t>(l_val * this->slope + this->intercept, domain_t_min, domain_t_max));
     if( !std::isfinite(out) ){
         throw std::invalid_argument("Input overflowed during compression, unable to continue");
     }
 
     if( clamp_to_domain ){
-        out = std::clamp(out, this->domain_min, this->domain_max);
+        out = std::clamp<intermediate_t>(out, this->domain_min, this->domain_max);
     }else if( (out < this->domain_min)
           ||  (this->domain_max < out) ){
         throw std::invalid_argument("Decompressed input exceeds T_domain, cannot convert");

@@ -547,8 +547,8 @@ Stats::Running_MinMax<T>::Running_MinMax() : PresentMin(std::numeric_limits<T>::
 template <typename T>
 void Stats::Running_MinMax<T>::Digest(T in){
     //Be aware of sending only NaN's and +-infs through this routine.
-    this->PresentMin = std::min(this->PresentMin, in);
-    this->PresentMax = std::max(this->PresentMax, in);
+    this->PresentMin = std::min<T>(this->PresentMin, in);
+    this->PresentMax = std::max<T>(this->PresentMax, in);
     return;
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
@@ -867,7 +867,7 @@ double Stats::P_From_Paired_Wilcoxon_Signed_Rank_Test_2Tail(const std::vector<st
     //if((W_pos_shtl + W_neg_shtl) != 0.5*N_red*(N_red + 1)) YLOGERR("Programming error");
 
     //Now finish computing the statistic.
-    const auto W = std::min(W_pos_shtl,W_neg_shtl); //Should this be ::min or ::max? (Doesn't seem to matter.)
+    const auto W = std::min<double>(W_pos_shtl,W_neg_shtl); //Should this be ::min or ::max? (Doesn't seem to matter.)
 
     //Since this is an exact test, compute the z-score and use it to generate the p-value.
     // (W is asymptotically normally distributed.)
