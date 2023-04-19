@@ -10,6 +10,10 @@
 #include <cstdlib>
 #include <thread>
 #include <iomanip>
+#include <string>
+#include <ctime>
+#include <array>
+#include <exception>
 
 #include "YgorDefinitions.h"
 #include "YgorLog.h"
@@ -147,7 +151,7 @@ logger::emit(){
             *os << "--(" << log_level_to_string(msg.ll) << ")";
 
             if( l_terminal_emit_t ){
-                *os << " " << std::put_time(std::localtime(&t_conv), "%Y%m%d-%H%M%S");
+                *os << " " << get_localtime_str(t_conv);
             }
             if( l_terminal_emit_tid
             &&  (msg.tid != std::thread::id()) ){
@@ -247,6 +251,37 @@ scoped_callback::scoped_callback( logger::callback_t &&f ){
 
 scoped_callback::~scoped_callback() noexcept {
     g_logger.pop_callback(this->callback_id);
+}
+
+
+
+std::string
+get_localtime_str( std::time_t t,
+                   const std::string &format ){
+
+    std::array<char, 100> t_arr;
+    t_arr.fill('\0');
+    tm working; // Working space for thread-safe localtime_r() variant of std::localtime().
+                // Also works for non-standard localtime_s() variant.
+
+    if(
+#if defined(_WIN32) || defined(_WIN64)
+        // Note: this is a non-standard localtime_s that does *not* return a pointer.
+        (::localtime_s(&working, &t) != 0) // Returns zero on success
+#else
+        // Note: returns pointer to working tm structure.
+        (::localtime_r(&t, &working) == nullptr)
+#endif
+        //// Note: can also use stream emitter here:
+        //ss << std::put_time(std::localtime_r(&t), format.c_str());
+    ||  (!std::strftime(t_arr.data(),
+                        t_arr.size() - 1UL,
+                        format.c_str(),
+                        &working)) ){
+        throw std::runtime_error("Unable to get current time.");
+    }
+
+    return std::string(t_arr.data());
 }
 
 

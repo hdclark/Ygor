@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 #include <functional>
+#include <ctime>
 
 #include "YgorDefinitions.h"
 
@@ -100,10 +101,24 @@ extern logger g_logger;
 // Global mutex for cout/cerr terminal message synchronization.
 extern std::mutex g_term_sync;
 
+
+// Helpers.
+
+// This function implements a thread-safe replacement for std::localtime().
+//
+// Create a time_t via:
+//   const auto t_now = std::chrono::system_clock::now();
+//   const auto t_now_coarse = std::chrono::system_clock::to_time_t( t_now );
+//
+std::string
+get_localtime_str( std::time_t time,
+                   const std::string &format = "%Y%m%d-%H%M%S" );
+
 } // namespace ygor.
 
 
-// Helpers.
+// Helper macros.
+
 #ifndef YLOG_PRETTY_FUNCTION
     #if defined( __PRETTY_FUNCTION__ )
         #define YLOG_PRETTY_FUNCTION __PRETTY_FUNCTION__
