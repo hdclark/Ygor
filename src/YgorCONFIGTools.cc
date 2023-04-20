@@ -4,11 +4,6 @@
 #include <regex>   //C++11 support is currently incomplete for regex!
 #include <string>
 #include <vector>
-//#include <boost/regex.hpp> //Be sure to compile with -lboost_regex using this library.
-
-//const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:blank:]]*#)***", std::regex::perl | std::regex::icase );
-const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:space:]]*#)***", std::regex::ECMAScript | std::regex::icase );
-//const std::regex regex_contains_a_colon( R"***(:)***", std::regex::basic | std::regex::icase );
 
 #include "YgorDefinitions.h"
 #include "YgorCONFIGTools.h"    
@@ -30,7 +25,7 @@ std::vector<std::vector<std::string>> Tokenize_Simple_Config_File(std::string fi
     std::fstream FI(filename_in.c_str(), std::ifstream::in);
 
     //Set up the regex we will need.
-    //const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:blank:]]*#)***", std::regex::perl | std::regex::icase );
+    const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:space:]]*#)***", std::regex::ECMAScript | std::regex::icase );
     const std::regex regex_contains_a_linetoken( linetoken, std::regex::basic | std::regex::icase );
   
     std::string rawline;
@@ -40,8 +35,6 @@ std::vector<std::vector<std::string>> Tokenize_Simple_Config_File(std::string fi
             rawline.clear();
             continue;
         }
-//        if(  std::regex_search(rawline, regex_first_non_whitespace_is_pound) ) continue;   //If the first non-whitespace character is #, then ignore.
-//        if( !std::regex_search(rawline, regex_contains_a_linetoken) ) continue;            //If the line does not contain :, then ignore.
         //Split the line on the given linetoken.
         tokenizedline = SplitStringToVector(rawline, linetoken, 'd');  //'d' for "drop the delimiter."
         for(auto & s_it : tokenizedline){
@@ -90,7 +83,7 @@ std::vector<std::vector<std::string>> Deserialize_Simple_Config_File(const std::
     std::stringstream ss(serialized);
 
     //Set up the regex we will need.
-    //const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:blank:]]*#)***", std::regex::perl | std::regex::icase );
+    const std::regex regex_first_non_whitespace_is_pound( R"***(^[[:space:]]*#)***", std::regex::ECMAScript | std::regex::icase );
     const std::regex regex_contains_a_linetoken( linetoken, std::regex::basic | std::regex::icase );
     std::string rawline;
     std::vector<std::string> tokenizedline;
@@ -99,7 +92,7 @@ std::vector<std::vector<std::string>> Deserialize_Simple_Config_File(const std::
             rawline.clear();
             continue;
         }
-//        if( !std::regex_search(rawline, regex_contains_a_linetoken) ) continue;          //If the line does not contain the linetoken, then ignore.
+
         //Split the line on the given linetoken.
         tokenizedline = SplitStringToVector(rawline, linetoken, 'd');  //'d' for "drop the delimiter."
         for(auto & s_it : tokenizedline){
@@ -133,7 +126,6 @@ std::string Double_Serialize_Simple_Config_File(const std::vector<std::vector<st
         }
     }
     const auto serial = Serialize_Simple_Config_File(deserialized, separator); //Still contains newlines.
-    //return ReplaceAllInstances(serial, R"***(\n)***", linetoken);
     return ReplaceAllInstances(serial, "\n", linetoken);
 }
 
