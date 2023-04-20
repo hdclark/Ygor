@@ -119,6 +119,11 @@ get_localtime_str( std::time_t time,
 
 // Helper macros.
 
+#ifndef YLOG_G_TERM_WRAP
+    #define YLOG_G_TERM_WRAP( x ) { std::unique_lock<std::mutex> lock(g_term_sync); x; }
+#endif
+
+
 #ifndef YLOG_PRETTY_FUNCTION
     #if defined( __PRETTY_FUNCTION__ )
         #define YLOG_PRETTY_FUNCTION __PRETTY_FUNCTION__
