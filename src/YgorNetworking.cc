@@ -192,7 +192,7 @@ std::string Basic_HTTP_Response_Text_Header(const std::string &thetext){
     out += "Server: Apache\n";
     out += "Content-Language: en\n";
     out += "Content-Length: ";
-    out += Xtostring<size_t>(thetext.size()) + "\n";
+    out += Xtostring<uint64_t>(thetext.size()) + "\n";
     out += "Content-Type: text/html; charset=utf-8\n";
     out += "Connection: close\n";
     out += "\n";  //This empty line is required! 
@@ -220,7 +220,7 @@ std::string Basic_HTTP_Response_File_Header(const std::string &filename){
     out += "Server: Apache\r\n";
     out += "Content-Language: en\r\n";
     out += "Content-Length: ";
-    out += Xtostring<size_t>(thetext.size()) + "\r\n";
+    out += Xtostring<uint64_t>(thetext.size()) + "\r\n";
 
     out += "Content-Type: ";
     out += mimetype;

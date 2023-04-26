@@ -4312,7 +4312,7 @@ bool planar_image_collection<T,R>::Condense_Average_Images(
         //Alter the first image's metadata to reflect that averaging has occurred. You might want to consider
         // a selective whitelist approach so that unique IDs are not duplicated accidentally.
         //first_img_it->metadata.clear();
-        first_img_it->metadata["Operations Performed"] += "Averaged with "_s + Xtostring(selected_img_its.size()) + " images;";
+        first_img_it->metadata["Operations Performed"] += "Averaged with "_s + Xtostring<uint64_t>(selected_img_its.size()) + " images;";
         first_img_it->metadata["Description"] += " Averaged";
         return true;
     };
