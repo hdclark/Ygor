@@ -412,7 +412,7 @@ class taskpool {
         //Returns 'true' if there were no errors encountered. 
         bool Launch_Thread(void){
             //Check if the entire queue mutex is locked or not. If not, lock it.
-            this->entire_queue_mutex.try_lock();
+            [[maybe_unused]] bool globally_locked = this->entire_queue_mutex.try_lock();
 
             //This is the 'brains' of each thread. 
             auto lambda = [&](std::list<std::thread>::iterator self) -> void {
