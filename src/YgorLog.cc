@@ -31,7 +31,9 @@ std::mutex g_term_sync;
 
 std::string log_level_to_string(log_level ll){
     std::string out;
-    if(ll == log_level::info){
+    if(ll == log_level::debug){
+        out = "D";
+    }else if(ll == log_level::info){
         out = "I";
     }else if(ll == log_level::warn){
         out = "W";
@@ -91,6 +93,13 @@ logger::logger(){
         this->terminal_emit_sl  = (x.find("source")   != std::string::npos);
         this->terminal_emit_fl  = (x.find("filename") != std::string::npos);
     }
+    if(const char *c_term  = std::getenv("YLOG_TERMINAL_VERBOSITY"); nullptr != c_term){
+        std::string x(c_term);
+        if(x.find("debug") != std::string::npos) this->terminal_emit_min_level = log_level::debug;
+        if(x.find("info")  != std::string::npos) this->terminal_emit_min_level = log_level::info;
+        if(x.find("warn")  != std::string::npos) this->terminal_emit_min_level = log_level::warn;
+        if(x.find("err")   != std::string::npos) this->terminal_emit_min_level = log_level::err;
+    }
 
     // Cache info about the host, process, etc.
     //
@@ -122,6 +131,7 @@ logger::emit(){
     bool l_terminal_emit_fn  = false;
     bool l_terminal_emit_fl  = false;
     bool l_terminal_emit_sl  = false;
+    log_level l_terminal_emit_min_level = log_level::debug;
     {
         // Use a recursive lock here because this routine can cause program to exit, and thus the destructor to be called,
         // but the destructor calls this routine to flush messages.
@@ -134,6 +144,7 @@ logger::emit(){
         l_terminal_emit_fn  = this->terminal_emit_fn;
         l_terminal_emit_fl  = this->terminal_emit_fl;
         l_terminal_emit_sl  = this->terminal_emit_sl;
+        l_terminal_emit_min_level = this->terminal_emit_min_level;
     }
 
     // Write messages over network.
@@ -142,6 +153,8 @@ logger::emit(){
     // Flush to the console.
     if(l_emit_terminal){
         for(const auto& msg : l_msgs){
+            if(msg.ll < l_terminal_emit_min_level) continue;
+
             const std::time_t t_conv = std::chrono::system_clock::to_time_t(msg.t);
 
             std::ostream *os = &(std::cout);

@@ -23,9 +23,10 @@ namespace ygor {
 
 // Log severity or level.
 enum class log_level {
-    info,
-    warn,
-    err
+    debug = 50,
+    info  = 60,
+    warn  = 70,
+    err   = 80
 };
 
 // Helper to convert the above enum into a string.
@@ -69,6 +70,7 @@ class logger {
         bool terminal_emit_fn  = true;
         bool terminal_emit_sl  = false;
         bool terminal_emit_fl  = false;
+        log_level terminal_emit_min_level = log_level::info;
 
     public:
         logger();
@@ -148,6 +150,18 @@ get_localtime_str( std::time_t time,
     #else
         #define YLOG_PRETTY_FILENAME '(filename not available)'
     #endif
+#endif
+
+
+#ifndef YLOGDEBUG
+    #define YLOGDEBUG( x )  { std::ostringstream os; \
+                              os << x; \
+                              ygor::g_logger({ os, \
+                                   ygor::log_level::debug, \
+                                   std::this_thread::get_id(), \
+                                   YLOG_PRETTY_FUNCTION, \
+                                   YLOG_PRETTY_SRC_LOC, \
+                                   YLOG_PRETTY_FILENAME }); }
 #endif
 
 
