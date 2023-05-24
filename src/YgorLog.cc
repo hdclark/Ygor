@@ -19,6 +19,18 @@
 #include "YgorLog.h"
 
 
+// Equivalent of YGORWARN macro for emitting warnings from the implementation itself.
+#ifndef L_EMIT_SELF_WARN
+    #define L_EMIT_SELF_WARN( x )  { std::ostringstream os; \
+                                     os << x; \
+                                     (*this)({ os, \
+                                          ygor::log_level::warn, \
+                                          std::this_thread::get_id(), \
+                                          YLOG_PRETTY_FUNCTION, \
+                                          YLOG_PRETTY_SRC_LOC, \
+                                          YLOG_PRETTY_FILENAME }); }
+#endif
+
 
 namespace ygor {
 
@@ -84,6 +96,42 @@ logger::logger(){
                             || (x.find("stdout")   != std::string::npos);
     }
 
+    // Verbosity overrides.
+    const auto search_for_log_level = [](const std::string &x, log_level &ll) -> bool {
+        bool was_found = true;
+        if(false){
+        }else if(x.find("err")   != std::string::npos){ ll = log_level::err;
+        }else if(x.find("warn")  != std::string::npos){ ll = log_level::warn;
+        }else if(x.find("info")  != std::string::npos){ ll = log_level::info;
+        }else if(x.find("debug") != std::string::npos){ ll = log_level::debug;
+        }else{ was_found = false; }
+        return was_found;
+    };
+
+    if(const char *c_term  = std::getenv("YLOG_VERBOSITY"); nullptr != c_term){
+        // Override all emitters.
+        //
+        // The use-case for this emitter is usually to either fully silence all messages, or enable verbose debugging
+        // for all messages.
+        std::string x(c_term);
+        if( !search_for_log_level(x, this->terminal_emit_min_level)
+        ||  !search_for_log_level(x, this->callback_emit_min_level) ){
+            L_EMIT_SELF_WARN("Environment variable YLOG_VERBOSITY is set, but does not contain a recognizable log level. Ignoring");
+        }
+    }
+    if(const char *c_term  = std::getenv("YLOG_TERMINAL_VERBOSITY"); nullptr != c_term){
+        std::string x(c_term);
+        if( !search_for_log_level(x, this->terminal_emit_min_level) ){
+            L_EMIT_SELF_WARN("Environment variable YLOG_TERMINAL_VERBOSITY is set, but does not contain a recognizable log level. Ignoring");
+        }
+    }
+    if(const char *c_term  = std::getenv("YLOG_CALLBACK_VERBOSITY"); nullptr != c_term){
+        std::string x(c_term);
+        if( !search_for_log_level(x, this->callback_emit_min_level) ){
+            L_EMIT_SELF_WARN("Environment variable YLOG_CALLBACK_VERBOSITY is set, but does not contain a recognizable log level. Ignoring");
+        }
+    }
+
     // Override the default terminal emission format.
     if(const char *c_term  = std::getenv("YLOG_TERMINAL"); nullptr != c_term){
         std::string x(c_term);
@@ -92,13 +140,6 @@ logger::logger(){
         this->terminal_emit_fn  = (x.find("function") != std::string::npos);
         this->terminal_emit_sl  = (x.find("source")   != std::string::npos);
         this->terminal_emit_fl  = (x.find("filename") != std::string::npos);
-    }
-    if(const char *c_term  = std::getenv("YLOG_TERMINAL_VERBOSITY"); nullptr != c_term){
-        std::string x(c_term);
-        if(x.find("debug") != std::string::npos) this->terminal_emit_min_level = log_level::debug;
-        if(x.find("info")  != std::string::npos) this->terminal_emit_min_level = log_level::info;
-        if(x.find("warn")  != std::string::npos) this->terminal_emit_min_level = log_level::warn;
-        if(x.find("err")   != std::string::npos) this->terminal_emit_min_level = log_level::err;
     }
 
     // Cache info about the host, process, etc.
@@ -132,6 +173,7 @@ logger::emit(){
     bool l_terminal_emit_fl  = false;
     bool l_terminal_emit_sl  = false;
     log_level l_terminal_emit_min_level = log_level::debug;
+    log_level l_callback_emit_min_level = log_level::debug;
     {
         // Use a recursive lock here because this routine can cause program to exit, and thus the destructor to be called,
         // but the destructor calls this routine to flush messages.
@@ -145,12 +187,13 @@ logger::emit(){
         l_terminal_emit_fl  = this->terminal_emit_fl;
         l_terminal_emit_sl  = this->terminal_emit_sl;
         l_terminal_emit_min_level = this->terminal_emit_min_level;
+        l_callback_emit_min_level = this->terminal_emit_min_level;
     }
 
     // Write messages over network.
     // ...
 
-    // Flush to the console.
+    // Flush to the terminal/console.
     if(l_emit_terminal){
         for(const auto& msg : l_msgs){
             if(msg.ll < l_terminal_emit_min_level) continue;
@@ -204,6 +247,8 @@ logger::emit(){
     // Note: this should always be executed last since they can do anything, e.g., terminate the process.
     // Emitting messages to other log sinks first helps ensure messages are not lost.
     for(const auto& msg : l_msgs){
+        if(msg.ll < l_callback_emit_min_level) continue;
+
         for(const auto &c_p : l_callbacks){
             if(c_p.second){
                 try{
@@ -230,6 +275,39 @@ logger::operator()(log_message lm){
         // Note: uniformly emitting eagerly for now. This behaviour is subject to change!! TODO
         this->emit();
     }
+}
+
+void
+logger::set_min_level(log_level ll){
+    const std::lock_guard<std::mutex> lock(this->m);
+    this->terminal_emit_min_level = ll;
+    this->callback_emit_min_level = ll;
+}
+
+log_level
+logger::get_callback_min_level(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    auto ll = this->callback_emit_min_level;
+    return ll;
+}
+
+void
+logger::set_callback_min_level(log_level ll){
+    const std::lock_guard<std::mutex> lock(this->m);
+    this->callback_emit_min_level = ll;
+}
+
+log_level
+logger::get_terminal_min_level(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    auto ll = this->terminal_emit_min_level;
+    return ll;
+}
+
+void
+logger::set_terminal_min_level(log_level ll){
+    const std::lock_guard<std::mutex> lock(this->m);
+    this->terminal_emit_min_level = ll;
 }
 
 

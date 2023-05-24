@@ -72,12 +72,25 @@ class logger {
         bool terminal_emit_fl  = false;
         log_level terminal_emit_min_level = log_level::info;
 
+        log_level callback_emit_min_level = log_level::info;
+
     public:
         logger();
         ~logger() noexcept;
 
         // Create and log a message.
         void operator()( log_message );
+
+        // Query and set the minimum severity a message must have to be emitted (i.e., 'verbosity').
+        //
+        // Note that this will override defaults and environment variables, which are both set/queried at construction.
+        void set_min_level(log_level); // Applies to all emitters.
+
+        log_level get_callback_min_level(); // Applies to callback messages only.
+        void set_callback_min_level(log_level);
+
+        log_level get_terminal_min_level();  // Applies to terminal messages only.
+        void set_terminal_min_level(log_level);
 
         // Provide a callback for emitted log messages.
         callback_id_t push_callback( callback_t && );
