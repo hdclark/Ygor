@@ -57,6 +57,44 @@ std::string log_level_to_string(log_level ll){
     return out;
 }
 
+static
+void
+increase_log_level_verbosity(log_level &ll){
+    switch(ll){
+        case log_level::debug:
+            // Cannot increase verbosity further.
+            break;
+        case log_level::info:
+            ll = log_level::debug;
+            break;
+        case log_level::warn:
+            ll = log_level::info;
+            break;
+        case log_level::err:
+            ll = log_level::warn;
+            break;
+    }
+}
+
+static
+void
+decrease_log_level_verbosity(log_level &ll){
+    switch(ll){
+        case log_level::debug:
+            ll = log_level::info;
+            break;
+        case log_level::info:
+            ll = log_level::warn;
+            break;
+        case log_level::warn:
+            ll = log_level::err;
+            break;
+        case log_level::err:
+            // Cannot decrease verbosity further.
+            break;
+    }
+}
+
 log_message::log_message(std::ostringstream &os,
                          log_level log_level,
                          std::thread::id id,
@@ -284,6 +322,19 @@ logger::set_min_level(log_level ll){
     this->callback_emit_min_level = ll;
 }
 
+void
+logger::increase_verbosity(){
+    this->increase_callback_verbosity();
+    this->increase_terminal_verbosity();
+}
+
+void
+logger::decrease_verbosity(){
+    this->decrease_callback_verbosity();
+    this->decrease_terminal_verbosity();
+}
+
+
 log_level
 logger::get_callback_min_level(){
     const std::lock_guard<std::mutex> lock(this->m);
@@ -297,6 +348,19 @@ logger::set_callback_min_level(log_level ll){
     this->callback_emit_min_level = ll;
 }
 
+void
+logger::increase_callback_verbosity(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    increase_log_level_verbosity(this->callback_emit_min_level);
+}
+
+void
+logger::decrease_callback_verbosity(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    decrease_log_level_verbosity(this->callback_emit_min_level);
+}
+
+
 log_level
 logger::get_terminal_min_level(){
     const std::lock_guard<std::mutex> lock(this->m);
@@ -308,6 +372,18 @@ void
 logger::set_terminal_min_level(log_level ll){
     const std::lock_guard<std::mutex> lock(this->m);
     this->terminal_emit_min_level = ll;
+}
+
+void
+logger::increase_terminal_verbosity(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    increase_log_level_verbosity(this->terminal_emit_min_level);
+}
+
+void
+logger::decrease_terminal_verbosity(){
+    const std::lock_guard<std::mutex> lock(this->m);
+    decrease_log_level_verbosity(this->terminal_emit_min_level);
 }
 
 

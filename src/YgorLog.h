@@ -85,12 +85,18 @@ class logger {
         //
         // Note that this will override defaults and environment variables, which are both set/queried at construction.
         void set_min_level(log_level); // Applies to all emitters.
+        void increase_verbosity();
+        void decrease_verbosity();
 
         log_level get_callback_min_level(); // Applies to callback messages only.
         void set_callback_min_level(log_level);
+        void increase_callback_verbosity();
+        void decrease_callback_verbosity();
 
         log_level get_terminal_min_level();  // Applies to terminal messages only.
         void set_terminal_min_level(log_level);
+        void increase_terminal_verbosity();
+        void decrease_terminal_verbosity();
 
         // Provide a callback for emitted log messages.
         callback_id_t push_callback( callback_t && );
