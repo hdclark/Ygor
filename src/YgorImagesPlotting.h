@@ -63,8 +63,8 @@ void Plot_Pixels(const planar_image<T,R> &img, int64_t chnl){
     FILE *fp = popen("gnuplot --persist ", "w");
     if(fp == nullptr) throw std::runtime_error("Unable to open a pipe to gnuplot");
 
-    const auto HWAspectRatio = static_cast<double>(img.pxl_dx * img.rows)
-                             / static_cast<double>(img.pxl_dy * img.columns);
+    const auto HWAspectRatio = static_cast<double>(img.pxl_dy * img.rows)
+                             / static_cast<double>(img.pxl_dx * img.columns);
 
     fprintf(fp, "reset\n");
     fprintf(fp, "set size 1.0,1.0\n"); //Width, Height, clamped to [0,1].
@@ -103,8 +103,8 @@ void Plot_Pixels_RGB(const planar_image<T,R> &img, int64_t Rchnl = 0, int64_t Gc
     FILE *fp = popen("gnuplot --persist ", "w");
     if(fp == nullptr) throw std::runtime_error("Unable to open a pipe to gnuplot");
 
-    const auto HWAspectRatio = static_cast<double>(img.pxl_dx * img.rows)
-                             / static_cast<double>(img.pxl_dy * img.columns);
+    const auto HWAspectRatio = static_cast<double>(img.pxl_dy * img.rows)
+                             / static_cast<double>(img.pxl_dx * img.columns);
 
     fprintf(fp, "reset\n");
     fprintf(fp, "set size 1.0,1.0\n"); //Width, Height, clamped to [0,1].

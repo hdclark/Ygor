@@ -26,37 +26,39 @@
 //----------------------------------------------------------------------------------------------------
 //This is a class used to handle flat images (ie. 2D buffers) which may be floating in 3D space. This 
 // class is useful because it encapsulates external indexing and querying. It can simply dole out 
-// image values, or it can precisely tell you the 3D center of a given pixel (or voxel).
+// image values, or it can precisely tell you the 3D center of a given voxel (i.e., a 3D pixel).
 //
 template <class T, class R> class planar_image {
     //NOTE: template type T --- image data type (probably unsigned int).
     //NOTE: template type R --- real-world coordinates (probably double or float).
 
     public: //private:
-        //This is the actual, raw, 2D data.
-//        std::unique_ptr<T []> data;
-        std::vector<T> data;
 
-        int64_t rows;       //This is the number of rows in the 2D image.
-        int64_t columns; 
+        //  ****** If you add data members to this class, be certain that you modify all  *******
+        //  ****** routines to accommodate. This includes all serialization and IO        *******
+        //  ****** routines as well!                                                      *******
 
-        int64_t channels;   //The number of colour channels.
+        std::vector<T> data; //Voxel intensities.
 
-        R pxl_dx;//(row)    //This is the R^3 spacing of nearest-neighbour pixels, which is assumed to 
-        R pxl_dy;//(col)    // also be the in-plane dimensions of each pixel (i.e., image pixels are 
+        int64_t rows;       //Number of rows in the image.
+        int64_t columns;    //Number of columns in the image.
+        int64_t channels;   //Number of channels, e.g., would be 1 for monochrome/greyscale, 3 for RGB.
+
+        R pxl_dx;// width   //This is the R^3 spacing of nearest-neighbour voxels, which is assumed to 
+        R pxl_dy;// height  // also be the in-plane dimensions of each voxel (i.e., image voxels are 
                             // watertight).
                             //
                             // Specifically, pxl_dx is the in-plane spacing between adjacent columns,
-                            // and pxl_dy is the in-plane spacing between adjacent rows.
-                            // in the image plane (where |x| points along the row unit vector - see below).
+                            // (so pxl_dx == voxel 'width') and pxl_dy is the in-plane spacing between
+                            // adjacent rows (so pxl_dy == voxel 'height').
                             //
                             // pxl_dx could also be called pxl_drow or drow, because you need to translate
-                            // by 1.0*pxl_dx along row_unit to get to the adjacent pixel in the same row.
+                            // by pxl_dx along row_unit to get to an adjacent voxel in the *same* row.
                             //
                             // pxl_dy could also be called pxl_dcol or dcol, because you need to translate
-                            // by 1.0*pxl_dy along col_unit to get to the adjacent pixel in the same col.
+                            // by pxl_dy along col_unit to get to an adjacent voxel in the *same* col.
 
-        R pxl_dz;           //This is the R^3 'thickness' of the image. A thickness of zero is perfectly
+        R pxl_dz;// depth   //This is the R^3 'thickness' of the image. A thickness of zero is perfectly
                             // fine. (The meaning of the thickness of a plane is mostly up to the user.)
                             // It is treated as the thickness along the normal to row and col unit vectors.
                             // It is considered to be half above and half below plane of image when
@@ -70,23 +72,25 @@ template <class T, class R> class planar_image {
                             // reference (which may not be at the numbers (0,0,0)).
                             //NOTE: This vector is most likely to be (0,0,0) for typical usage.
 
-        vec3<R> offset;     //A vector from the anchor's terminus to the *center* of the pixel with pixel
+        vec3<R> offset;     //A vector from the anchor's terminus to the *center* of the voxel with voxel
                             // space coordinates (0,0). It is how we specify the position of the 2D data
                             // in R^3. Do not confuse this with the vector from the anchor's terminus to 
-                            // the *corner* of the pixel with pixel space coordinates (0,0).
+                            // the *corner* of the voxel with voxel space coordinates (0,0).
 
-        vec3<R> row_unit;   //An orientation unit vector denoting the (positive) direction of row indices.
-                            // For example, if R denotes the location of pixel(row,col), then
-                            // [R' = R + row_unit*pxl_dx] is the location of pixel(row+1,col) (if it exists).
+        vec3<R> row_unit;   //An orientation unit vector denoting the (positive) direction along a row.
+                            // So this unit vector indicates how rows are aligned in 3D space.
+                            // For example, if R denotes the location of voxel(row,col), then
+                            // [R' = R + row_unit*pxl_dx] is the location of voxel(row,col+1) (if it exists).
 
-        vec3<R> col_unit;   //An orientation unit vector denoting the (positive) direction of col indices.
-                            // For example, if R denotes the location of pixel(row,col), then
-                            // [R' = R + col_unit*pxl_dy] is the location of pixel(row,col+1) (if it exists).
+        vec3<R> col_unit;   //An orientation unit vector denoting the (positive) direction along a column.
+                            // So this unit vector indicates how columns are aligned in 3D space.
+                            // For example, if R denotes the location of voxel(row,col), then
+                            // [R' = R + col_unit*pxl_dy] is the location of voxel(row+1,col) (if it exists).
 
         std::map<std::string,std::string> metadata; //User-defined metadata.
 
         //  ****** If you add data members to this class, be certain that you modify all  *******
-        //  ****** routines to accommodata. This includes all serialization and IO        *******
+        //  ****** routines to accommodate. This includes all serialization and IO        *******
         //  ****** routines as well!                                                      *******
 
         //------------------------------------ Member functions --------------------------------------------

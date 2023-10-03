@@ -317,12 +317,12 @@ template <class T,class R> bool planar_image<T,R>::Spatially_lt(const planar_ima
     if(pos_l.x       != pos_r.x)     return (pos_l.x       < pos_r.x);
 
     //Tie break on spatial extent.
-    const auto row_extent_l = (this->rows*this->pxl_dx);
-    const auto row_extent_r = (rhs.rows*rhs.pxl_dx);
+    const auto row_extent_l = (this->columns*this->pxl_dx);
+    const auto row_extent_r = (rhs.columns*rhs.pxl_dx);
     if(row_extent_l != row_extent_r) return (row_extent_l < row_extent_r);
 
-    const auto col_extent_l = (this->columns*this->pxl_dy);
-    const auto col_extent_r = (rhs.columns*rhs.pxl_dy);
+    const auto col_extent_l = (this->rows*this->pxl_dy);
+    const auto col_extent_r = (rhs.rows*rhs.pxl_dy);
     if(col_extent_l != col_extent_r) return (col_extent_l < col_extent_r);
 
     if(this->pxl_dz  != rhs.pxl_dz)  return (this->pxl_dz  < rhs.pxl_dz);
@@ -395,8 +395,8 @@ template <class T, class R> int64_t planar_image<T,R>::index(int64_t row, int64_
 
 template <class T, class R> int64_t planar_image<T,R>::index(const vec3<R> &point, int64_t chnl) const {
     const vec3<R> P(point - this->anchor - this->offset); // Get a vector in the image's plane.
-    const auto Nr = this->row_unit.Dot(P)/this->pxl_dx;   // Appriximate row number.
-    const auto Nc = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate col number.
+    const auto Nr = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate row number.
+    const auto Nc = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate col number.
     const auto Uz = this->row_unit.Cross(this->col_unit).unit(); // Orthogonal unit vector.
 
     //Check if it is too far out of the plane of the 2D image. Be inclusive in case the image thickness is 0.
@@ -460,8 +460,8 @@ template <class T, class R> std::tuple<int64_t,int64_t,int64_t> planar_image<T,R
 //
 template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_column(const vec3<R> &point) const {
     const vec3<R> P(point - this->anchor - this->offset); // Transform the vector to share coord system with image.
-    const auto Nr = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate row number.
-    const auto Nc = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate col number.
+    const auto Nr = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate row number.
+    const auto Nc = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate col number.
     const auto Uz = this->row_unit.Cross(this->col_unit).unit(); // Orthogonal unit vector.
 
     //Check if it is too far out of the plane of the 2D image. Be inclusive in case the image thickness is 0.
@@ -814,8 +814,8 @@ template <class T,class R> T planar_image<T,R>::bilinearly_interpolate_in_pixel_
     const auto c_max = std::min<int64_t>(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
-    const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dx <-- if pixel shape were considered.
-    const auto dcol = (col - static_cast<double>(c_min_virt)); // pxl_dy <-- if pixel shape were considered.
+    const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dy <-- if pixel shape were considered.
+    const auto dcol = (col - static_cast<double>(c_min_virt)); // pxl_dx <-- if pixel shape were considered.
 
     //Get the pixel values at each of the four pixel centres.
     const auto y_r_min_c_min = static_cast<double>(this->data[this->index(r_min,c_min,chnl)]);
@@ -1658,8 +1658,8 @@ template <class T,class R> T planar_image<T,R>::bicubically_interpolate_in_pixel
     const auto c_max = std::min<int64_t>(this->columns-1, c_max_virt);
 
     //Get the fractional [0,1) indicator of row/col position between the min and max pixel coordinates.
-    const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dx <-- if pixel shape were considered.
-    const auto dcol = (col - static_cast<double>(c_min_virt)); // pxl_dy <-- if pixel shape were considered.
+    const auto drow = (row - static_cast<double>(r_min_virt)); // pxl_dy <-- if pixel shape were considered.
+    const auto dcol = (col - static_cast<double>(c_min_virt)); // pxl_dx <-- if pixel shape were considered.
 
     //Get the pixel values at each of the four pixel centres.
     const auto y_r_min_c_min = static_cast<double>(this->data[this->index(r_min,c_min,chnl)]);
@@ -2317,8 +2317,8 @@ template <class T,class R> vec3<R> planar_image<T,R>::position(int64_t row, int6
     }
     return (  this->anchor
             + this->offset
-            + this->row_unit*(this->pxl_dx*static_cast<R>(row))
-            + this->col_unit*(this->pxl_dy*static_cast<R>(col)) );
+            + this->row_unit*(this->pxl_dx*static_cast<R>(col))
+            + this->col_unit*(this->pxl_dy*static_cast<R>(row)) );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template vec3<double> planar_image<uint8_t ,double>::position(int64_t row, int64_t col) const;
@@ -2573,12 +2573,9 @@ template <class T,class R> vec3<R> planar_image<T,R>::center(void) const {
 
 //Returns the volume occupied by the image.
 template <class T,class R> R planar_image<T,R>::volume(void) const {
-    return (  this->pxl_dz 
-            * this->pxl_dy 
-            * this->pxl_dx 
-            * static_cast<R>(this->rows) 
-            * static_cast<R>(this->columns) 
-           );
+    return (  static_cast<R>(this->rows)     * this->pxl_dx 
+            * static_cast<R>(this->columns)  * this->pxl_dy 
+            * this->pxl_dz );
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template double planar_image<uint8_t ,double>::volume(void) const;
@@ -2598,20 +2595,20 @@ template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void)
 
     // Guaranteed point ordering:
     //
-    // point(0,0)    point(#rows-1,0)
+    // point(0,0)    point(0,#cols-1)
     //     \             /
-    //       1---------2          positive
+    //       1---------4          positive
     //       |         |    _____\ row_unit
     //       |         |   |     /
     //       |         |   | 
     //       |         |   |   positive
-    //       4---------3  \|/  col_unit
+    //       2---------3  \|/  col_unit
     //
     //Do *NOT* change the order of these points!
     out.push_back(this->position(           0,              0) - Rrow - Rcol);
-    out.push_back(this->position(this->rows-1,              0) + Rrow - Rcol);
+    out.push_back(this->position(this->rows-1,              0) - Rrow + Rcol);
     out.push_back(this->position(this->rows-1,this->columns-1) + Rrow + Rcol);
-    out.push_back(this->position(           0,this->columns-1) - Rrow + Rcol);
+    out.push_back(this->position(           0,this->columns-1) + Rrow - Rcol);
     return out;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
@@ -4817,8 +4814,8 @@ Contiguously_Grid_Volume(const std::list<std::reference_wrapper<contour_collecti
     const R xwidth = grid_x_max - grid_x_min;
     const R ywidth = grid_y_max - grid_y_min;
     const R zwidth = grid_z_max - grid_z_min;
-    const auto voxel_dx = xwidth / static_cast<R>(number_of_rows);
-    const auto voxel_dy = ywidth / static_cast<R>(number_of_columns);
+    const auto voxel_dx = xwidth / static_cast<R>(number_of_columns);
+    const auto voxel_dy = ywidth / static_cast<R>(number_of_rows);
     const auto voxel_dz = zwidth / static_cast<R>(number_of_images);
 
     //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
@@ -4907,8 +4904,8 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
     }
 
     //The symmetry line ("z-vector") is designated as the primary alignment vector, so we orthogonalize the other vectors around it.
-    vec3<R> GridX = x_orientation;
-    vec3<R> GridY = y_orientation;
+    vec3<R> GridX = x_orientation; // ~ row_unit
+    vec3<R> GridY = y_orientation; // ~ col_unit
     vec3<R> GridZ = symm_line.U_0;
  
     if(!GridZ.GramSchmidt_orthogonalize(GridX, GridY)){
@@ -4964,9 +4961,11 @@ Symmetrically_Contiguously_Grid_Volume(const std::list<std::reference_wrapper<co
 
     //Find a 'corner' point which defines the location of the center of the (0,0)th voxel. (This point
     // ignores z-direction and will be projected onto an appropriate z-plane later.)
-    const vec3<R> near_corner_zero = symm_line.R_0 - (GridX * grid_x_ext) - (GridY * grid_y_ext)
-                                          + (GridX * voxel_dx * static_cast<R>(0.5)) 
-                                          + (GridY * voxel_dy * static_cast<R>(0.5));
+    const vec3<R> near_corner_zero = symm_line.R_0
+                                   - (GridX * grid_x_ext)
+                                   - (GridY * grid_y_ext)
+                                   + (GridX * voxel_dx * static_cast<R>(0.5)) 
+                                   + (GridY * voxel_dy * static_cast<R>(0.5));
 
     //Generate the images.
     planar_image_collection<T,R> out;
@@ -5066,9 +5065,9 @@ Encircle_Images_with_Contours(const std::list<std::reference_wrapper<planar_imag
         contour_of_points<double> cop;
         cop.closed = true;
         cop.points.push_back(animg.get().position(     0,      0) + dRowLH + dColLH - dRow - dCol);
-        cop.points.push_back(animg.get().position(rows-1,      0) + dRowHL + dColLH + dRow - dCol);
+        cop.points.push_back(animg.get().position(rows-1,      0) + dRowHL + dColLH - dRow + dCol);
         cop.points.push_back(animg.get().position(rows-1, cols-1) + dRowHL + dColHL + dRow + dCol);
-        cop.points.push_back(animg.get().position(     0, cols-1) + dRowLH + dColHL - dRow + dCol);
+        cop.points.push_back(animg.get().position(     0, cols-1) + dRowLH + dColHL + dRow - dCol);
 
         cop.Reorient_Counter_Clockwise();
         cop.metadata = metadata;
@@ -5266,14 +5265,14 @@ void Mutate_Voxels(
             std::set<int64_t> ColumnsToVisit;
             {
                 const auto row_plane_intersects_roi = [&](vec3<double> point) -> bool {
-                    const plane<double> p(row_unit, point);
+                    const plane<double> p(col_unit, point);
                     return (roi_it->Avoids_Plane(p) == 0);
                 };
                 for(auto row = 0; row < working_img_ref.get().rows; ++row){
                     const int64_t col = 0;
                     const auto centre  = working_img_ref.get().position(row,col);
-                    const auto left    = centre - (row_unit * 0.5 * pxl_dx);
-                    const auto right   = centre + (row_unit * 0.5 * pxl_dx);
+                    const auto left    = centre - (col_unit * 0.5 * pxl_dy);
+                    const auto right   = centre + (col_unit * 0.5 * pxl_dy);
                     if(false){
                     }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
                         if( row_plane_intersects_roi(centre) ) RowsToVisit.insert(row);
@@ -5288,14 +5287,14 @@ void Mutate_Voxels(
                 }
 
                 const auto column_plane_intersects_roi = [&](vec3<double> point) -> bool {
-                    const plane<double> p(col_unit, point);
+                    const plane<double> p(row_unit, point);
                     return (roi_it->Avoids_Plane(p) == 0);
                 };
                 for(auto col = 0; col < working_img_ref.get().columns; ++col){
                     const int64_t row = 0;
                     const auto centre  = working_img_ref.get().position(row,col);
-                    const auto top     = centre - (col_unit * 0.5 * pxl_dy);
-                    const auto bottom  = centre + (col_unit * 0.5 * pxl_dy);
+                    const auto top     = centre - (row_unit * 0.5 * pxl_dx);
+                    const auto bottom  = centre + (row_unit * 0.5 * pxl_dx);
                     if(false){
                     }else if(options.inclusivity == Mutate_Voxels_Opts::Inclusivity::Centre){
                         if( column_plane_intersects_roi(centre) ) ColumnsToVisit.insert(col);
@@ -5359,10 +5358,10 @@ void Mutate_Voxels(
                             //
                             // NOTE: If you need a quick-fix, offset the row_line_offset by a few machine_eps here.
                             //       This is a terrible kludge, but will help work around pathological cases.
-                            const auto row_line_offset = static_cast<double>(row) * pxl_dx;
+                            const auto row_line_offset = static_cast<double>(row) * pxl_dy;
 
-                            const auto p1_row_offset = ( row_unit.Dot((*p1_it) - zeroth_voxel_pos) );
-                            const auto p2_row_offset = ( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                            const auto p1_row_offset = ( col_unit.Dot((*p1_it) - zeroth_voxel_pos) );
+                            const auto p2_row_offset = ( col_unit.Dot((*p2_it) - zeroth_voxel_pos) );
 
                             // Check for proximity to the threshold.
                             const bool p1_lower = (p1_row_offset <= row_line_offset);
@@ -5422,7 +5421,7 @@ void Mutate_Voxels(
                                 // Iterate until you find a vertex NOT coincident.
                                 auto p3_it = (std::next(p2_it) == end) ? std::begin(ProjectedContour.points) : std::next(p2_it);
                                 while(p3_it != p2_it){
-                                    const auto p3_row_offset = ( row_unit.Dot((*p3_it) - zeroth_voxel_pos) );
+                                    const auto p3_row_offset = ( col_unit.Dot((*p3_it) - zeroth_voxel_pos) );
                                     const bool p3_lower = (p3_row_offset <= row_line_offset);
                                     const bool p3_coincident = (std::abs(p3_row_offset - row_line_offset) < machine_eps);
                                     if(p3_coincident){
@@ -5449,12 +5448,12 @@ void Mutate_Voxels(
                                         //        p1                p3
                                         //
                                         {
-                                            const auto crossing_offset = ( col_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                                            const auto crossing_offset = ( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
                                             row_contour_crossings[row].emplace_back(crossing_offset);
                                         }
                                         {
                                             const auto p22_it = (std::prev(p3_it) == end) ? std::prev(end) : std::prev(p3_it);
-                                            const auto crossing_offset = ( col_unit.Dot((*p22_it) - zeroth_voxel_pos) );
+                                            const auto crossing_offset = ( row_unit.Dot((*p22_it) - zeroth_voxel_pos) );
                                             row_contour_crossings[row].emplace_back(crossing_offset);
                                         }
                                         break;
@@ -5476,7 +5475,7 @@ void Mutate_Voxels(
                                         //      ...o               
                                         //        p1               
                                         //
-                                        const auto crossing_offset = ( col_unit.Dot((*p2_it) - zeroth_voxel_pos) );
+                                        const auto crossing_offset = ( row_unit.Dot((*p2_it) - zeroth_voxel_pos) );
                                         row_contour_crossings[row].emplace_back(crossing_offset);
                                         break;
                                     }
@@ -5499,7 +5498,7 @@ void Mutate_Voxels(
                                     throw std::runtime_error("Numerical instability encountered. Refusing to continue.");
                                 }
                                 const auto crossing_pos = ((*p2_it) - (*p1_it)) * t + (*p1_it);
-                                const auto crossing_offset = ( col_unit.Dot(crossing_pos - zeroth_voxel_pos) );
+                                const auto crossing_offset = ( row_unit.Dot(crossing_pos - zeroth_voxel_pos) );
                                 row_contour_crossings[row].emplace_back(crossing_offset);
                             }
                         }
@@ -5540,7 +5539,7 @@ void Mutate_Voxels(
                     auto ProjectedPoint = BestFitPlane.Project_Onto_Plane_Orthogonally(point);
 
                     // Determine the corresponding row number.
-                    const auto row_num = ( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dx;
+                    const auto row_num = ( col_unit.Dot(ProjectedPoint - zeroth_voxel_pos) ) / pxl_dy;
                     const auto row = static_cast<int64_t>( std::round(row_num) );
 
                     if(row_contour_crossings.count(row) == 0){
@@ -5551,7 +5550,7 @@ void Mutate_Voxels(
                     }
 
                     // Determine the distance along the row line.
-                    const auto row_line_dist = ( col_unit.Dot(ProjectedPoint - zeroth_voxel_pos) );
+                    const auto row_line_dist = ( row_unit.Dot(ProjectedPoint - zeroth_voxel_pos) );
 
                     // Count how many crossings surround each.
                     const auto end = std::end(row_contour_crossings.at(row));
