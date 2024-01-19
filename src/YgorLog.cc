@@ -106,7 +106,7 @@ log_message::log_message(std::ostringstream &os,
                                                   fn(func_name),
                                                   tid( id ),
                                                   sl(src_loc),
-                                                  fl(file_name) {};
+                                                  fl(file_name) {}
 
 
 logger::logger(){
