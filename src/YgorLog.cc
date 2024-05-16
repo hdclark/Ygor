@@ -14,6 +14,7 @@
 #include <ctime>
 #include <array>
 #include <exception>
+#include <algorithm>
 
 #include "YgorDefinitions.h"
 #include "YgorLog.h"
