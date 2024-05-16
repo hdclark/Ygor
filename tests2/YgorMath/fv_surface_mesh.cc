@@ -4,6 +4,7 @@
 #include <iostream>
 #include <random>
 #include <cstdint>
+#include <algorithm>
 
 #include <YgorMath.h>
 
