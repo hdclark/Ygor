@@ -13,7 +13,7 @@
 ## Introduction
 
 This supporting library was written by hal clark over the span of many years
-(2010-2022) to house bits of code that are convenient for multiple projects.
+(2010-2024) to house bits of code that are convenient for multiple projects.
 
 Most, but not all of `Ygor`'s routines are focused on scientific or mathematic
 applications (i.e., geometry, simulation, optimization, and statistics). The
@@ -33,7 +33,7 @@ some reasonable chance they will be applicable or broadly useful.
 ## License and Copying
 
 All materials herein which may be copywrited, where applicable, are. Copyright
-2010-2022 Hal Clark. See [LICENSE.txt](LICENSE.txt) for details about the
+2010-2024 Hal Clark. See [LICENSE.txt](LICENSE.txt) for details about the
 license. Informally, `Ygor` is available under a GPLv3 license. 
 
 All liability is herefore disclaimed. The person(s) who use this source and/or
