@@ -397,7 +397,7 @@ template <class T, class R> int64_t planar_image<T,R>::index(const vec3<R> &poin
     const vec3<R> P(point - this->anchor - this->offset); // Get a vector in the image's plane.
     const auto Nr = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate row number.
     const auto Nc = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate col number.
-    const auto Uz = this->row_unit.Cross(this->col_unit).unit(); // Orthogonal unit vector.
+    const auto Uz = this->ortho_unit();                   // Orthogonal unit vector.
 
     //Check if it is too far out of the plane of the 2D image. Be inclusive in case the image thickness is 0.
     const auto Nz = Uz.Dot(P)/( static_cast<R>(0.5)*this->pxl_dz );
@@ -462,7 +462,7 @@ template <class T, class R> std::pair<R, R> planar_image<T,R>::fractional_row_co
     const vec3<R> P(point - this->anchor - this->offset); // Transform the vector to share coord system with image.
     const auto Nr = this->col_unit.Dot(P)/this->pxl_dy;   // Approximate row number.
     const auto Nc = this->row_unit.Dot(P)/this->pxl_dx;   // Approximate col number.
-    const auto Uz = this->row_unit.Cross(this->col_unit).unit(); // Orthogonal unit vector.
+    const auto Uz = this->ortho_unit();                   // Orthogonal unit vector.
 
     //Check if it is too far out of the plane of the 2D image. Be inclusive in case the image thickness is 0.
     const auto Nz = Uz.Dot(P)/( static_cast<R>(0.5)*this->pxl_dz );
@@ -2372,7 +2372,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_point(const vec3<
     const auto coldist     = this->col_unit.Dot(in - center);
     const auto maxdistcol  = this->col_unit.Dot(r0 - center); //Extra half-pixel width accounted for below.
 
-    const auto perpdist    = (this->col_unit.Cross(this->row_unit)).Dot(in - center);
+    const auto perpdist    = this->ortho_unit().Dot(in - center);
 
     if(YGORABS(perpdist) >= (dt*0.5)) return false;
     if(YGORABS(rowdist)  >= (YGORABS(maxdistrow)+this->pxl_dx*0.5)) return false;
@@ -2391,7 +2391,7 @@ template <class T,class R> bool planar_image<T,R>::encompasses_point(const vec3<
 template <class T,class R> bool planar_image<T,R>::sandwiches_point_within_top_bottom_planes(const vec3<R> &in) const {
     const auto center   = this->center();
     const auto dt = this->pxl_dz;
-    const auto N = this->col_unit.Cross(this->row_unit).unit();
+    const auto N = this->ortho_unit();
     const auto perpdist = N.Dot(in - center);
     if(YGORABS(perpdist) >= (dt*0.5)) return false;
     return true;
@@ -2507,7 +2507,7 @@ planar_image<T,R>::clip_to_volume(contour_collection<R> cs) const {
     //Image-face boundaries.
     const auto C = this->center();
     const auto dt = this->pxl_dz;
-    const auto N = this->col_unit.Cross(this->row_unit).unit(); // img ortho unit.
+    const auto N = this->ortho_unit(); // img ortho unit.
 
     const auto C_upper = C + (N * dt * 0.5);
     const auto C_lower = C - (N * dt * 0.5);
@@ -2620,11 +2620,38 @@ template <class T,class R> std::list<vec3<R>> planar_image<T,R>::corners2D(void)
     template std::list<vec3<double>> planar_image<double  ,double>::corners2D(void) const;
 #endif
 
+//Returns a unit vector orthogonal to the row and column unit vectors.
+template <class T,class R> vec3<R> planar_image<T,R>::ortho_unit(void) const {
+    return this->ortho_unit(this->row_unit, this->col_unit);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<double> planar_image<uint8_t ,double>::ortho_unit(void) const;
+    template vec3<double> planar_image<uint16_t,double>::ortho_unit(void) const;
+    template vec3<double> planar_image<uint32_t,double>::ortho_unit(void) const;
+    template vec3<double> planar_image<uint64_t,double>::ortho_unit(void) const;
+    template vec3<double> planar_image<float   ,double>::ortho_unit(void) const;
+    template vec3<double> planar_image<double  ,double>::ortho_unit(void) const;
+#endif
+
+
+template <class T,class R> vec3<R> planar_image<T,R>::ortho_unit(const vec3<R> &l_row_unit, const vec3<R> &l_col_unit) const {
+    return l_row_unit.Cross(l_col_unit).unit();
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template vec3<double> planar_image<uint8_t ,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+    template vec3<double> planar_image<uint16_t,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+    template vec3<double> planar_image<uint32_t,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+    template vec3<double> planar_image<uint64_t,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+    template vec3<double> planar_image<float   ,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+    template vec3<double> planar_image<double  ,double>::ortho_unit(const vec3<double> &, const vec3<double> &) const;
+#endif
+
+
 //Returns the plane that the image resides in. Useful for is_point_in_poly routines.
 // The image lies wholly in this plane, though the plane is infinite and there will be numerical 
 // precision loss the further from the centre of the image you look.
 template <class T,class R> plane<R> planar_image<T,R>::image_plane(void) const {
-    const auto orthog_unit = this->row_unit.Cross( this->col_unit );
+    const auto orthog_unit = this->ortho_unit();
     const auto centre_point = this->center();
     return plane<R>(orthog_unit, centre_point);
 }
@@ -5216,7 +5243,7 @@ void Mutate_Voxels(
 
     const auto row_unit   = working_img_ref.get().row_unit;
     const auto col_unit   = working_img_ref.get().col_unit;
-    const auto ortho_unit = row_unit.Cross( col_unit ).unit();
+    const auto ortho_unit = working_img_ref.get().ortho_unit();
     const auto pxl_dx     = working_img_ref.get().pxl_dx;
     const auto pxl_dy     = working_img_ref.get().pxl_dy;
     //const auto pxl_dz     = working_img_ref.get().pxl_dz;
@@ -6236,7 +6263,7 @@ planar_image_adjacency<T,R>::get_wholly_overlapping_images(const std::reference_
     const auto corner_C = img_refw.get().position(0,img_refw.get().columns-1);
 
     const auto machine_eps = std::numeric_limits<R>::epsilon();
-    const auto ortho_unit = img_refw.get().row_unit.Cross( img_refw.get().col_unit );
+    const auto ortho_unit = img_refw.get().ortho_unit();
     const auto z_ext = ortho_unit * (img_refw.get().pxl_dz / static_cast<R>(2.0)) 
                                   * (static_cast<R>(1) - std::sqrt(machine_eps) * static_cast<R>(10.0));
 

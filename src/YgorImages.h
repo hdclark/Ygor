@@ -251,6 +251,10 @@ template <class T, class R> class planar_image {
         //Returns an ordered list of the corners of the 2D image. Does NOT use thickness!
         std::list<vec3<R>> corners2D(void) const; 
 
+        //Returns a unit vector orthogonal to the row and column unit vectors.
+        vec3<R> ortho_unit(void) const;
+        vec3<R> ortho_unit(const vec3<R> &, const vec3<R> &) const;
+
         //Returns the plane that the image resides in. Useful for is_point_in_poly routines.
         plane<R> image_plane(void) const;
 
