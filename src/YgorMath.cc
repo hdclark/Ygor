@@ -7423,10 +7423,15 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
     const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
     const auto machine_eps = std::sqrt( eps );
 
-
-    const auto get_vert = [&](I n){
-        return *(std::next(verts_begin, n));
+    const auto truncate_vert = [&](const vec3<T> &v){
+        return vec3<T>( static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.x)) ),
+                        static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.y)) ),
+                        static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.z)) ) );
     };
+    const auto get_vert = [&](I n){
+        return truncate_vert(*(std::next(verts_begin, n)));
+    };
+
     const auto triangle_centroid = [](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C){
 // TODO: use Kahan summation to improve accuracy?
         const auto v_centroid = ( v_A / static_cast<T>(3.0) )
@@ -7504,7 +7509,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             auto i = static_cast<I>(0);
             for(auto v_it = verts_begin; v_it != verts_end; ++v_it, ++i){
                 for(auto &e : extrema){
-                    const auto score = v_it->Dot(e.dir);
+                    const auto score = truncate_vert(*v_it).Dot(e.dir);
                     if(e.curr_best_score < score){
                         e.v_i = i;
                         e.curr_best_score = score;
