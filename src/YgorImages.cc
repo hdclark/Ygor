@@ -5958,9 +5958,10 @@ bool Images_Form_Regular_Grid( std::list<std::reference_wrapper<planar_image<T,R
 // Test whether the images collectively form a rectilinear grid.
 template <class T,class R>
 bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image<T,R>>> img_refws,
-                               R eps ){
+                                   R eps ){
 
     if(img_refws.empty()){
+        YLOGDEBUG("No images provided");
         return false; // Not regular -- empty!
     }
 
@@ -5975,16 +5976,19 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
 
     if(  (rows < 1) 
     ||   (columns < 1) ){
+        YLOGDEBUG("Images have no spatial extent");
         return false; // An empty tiling.
     }
 
     if(  (pxl_dx < eps)
     ||   (pxl_dy < eps)
     ||   (pxl_dz < eps) ){
+        YLOGDEBUG("One or more voxel dimensions are smaller than the provided epsilon");
         return false; // Possibly still valid, but not something we can reasonably validate.
     }
 
     if(img_refws.size() == 1){
+        YLOGDEBUG("Trivially rectilinear: a single image is present");
         return true; // A simple tiling.
     }
 
@@ -6005,6 +6009,7 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
         if( false
         ||  (rows     != l_rows)
         ||  (columns  != l_columns) ){
+            YLOGDEBUG("Found two images with inconsistent number of rows and/or columns");
             return false;
         }
 
@@ -6022,6 +6027,7 @@ bool Images_Form_Rectilinear_Grid( std::list<std::reference_wrapper<planar_image
         ||  (l_corner_A.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_A ) ) > eps)
         ||  (l_corner_B.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_B ) ) > eps)
         ||  (l_corner_C.sq_dist( l_img_plane.Project_Onto_Plane_Orthogonally( corner_C ) ) > eps) ){
+            YLOGDEBUG("Found two images with inconsistent corner positions (eps = " << eps << ")");
             return false;
         }
     }
