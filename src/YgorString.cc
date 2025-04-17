@@ -1340,8 +1340,9 @@ std::vector<std::vector<std::string> > GetSubVectorFromTo( std::vector<std::stri
 }
 
 // This routine performs macro expansion over a given text using a regex lookup and replacement, replacing instances of
-// the indicator symbol (e.g., '$') followed by one or more of the specified allowed characters (i.e., '$Modality' or
-// '$Variable123'). The parameter in the text is replaced with the key's corresponding value from the provided map.
+// the indicator symbol (e.g., '$' or '%' or '$%') followed by one or more of the specified allowed characters
+// (i.e., '$Modality' or '$Variable123'). The parameter in the text is replaced with the key's corresponding value from
+// the provided map.
 //
 // Shell-like scoping, like '${VariableName}NotVariableName', is honoured if the brackets are permitted. Allowed
 // brackets should be paired, e.g., '{}' and '[]' and '<>' and 'AB' and '{}[]()' are all acceptable, but '[' or '{}]'
@@ -1355,10 +1356,18 @@ std::string ExpandMacros(std::string text,
     if((allowed_brackets.size() % 2) != 0){
         throw std::runtime_error("Allowed brackets must be paired, e.g., '{}', '[]', '{}[]()'");
     }
+    if(indicator_symbol.empty()){
+        throw std::runtime_error("Macro expansion indicator symbol is empty; unable to identify macros");
+    }
 
     // Append a null bracket pair to run at least once without brackets.
     allowed_brackets += '\0';
     allowed_brackets += '\0';
+
+    std::string indicator_symbol_regex;
+    for(const auto &c : indicator_symbol){
+        indicator_symbol_regex += "["_s + c + "]{1}"_s;
+    }
 
     for(size_t i = 0; (i+1) < allowed_brackets.size(); i += 2){
         const auto l_bracket = allowed_brackets.substr(i+0, 1);
@@ -1373,7 +1382,7 @@ std::string ExpandMacros(std::string text,
 
         // Search for key-value keys in the source text and extract the relevant tokens,
         // e.g., with the default the text 'A ${B} $C' will result in tokens 'B' and 'C'.
-        const auto query_regex_str = "["_s + indicator_symbol + "]{1}"_s
+        const auto query_regex_str = indicator_symbol_regex
                                    + esc_l_b
                                    + "("_s
                                    + "[" + allowed_characters + "]+"_s
@@ -1392,7 +1401,7 @@ std::string ExpandMacros(std::string text,
                 std::string esc_token;
                 for(const auto& c : p) esc_token += "["_s + c + "]"_s;
 
-                const auto replace_regex_str = "["_s + indicator_symbol + "]{1}"_s
+                const auto replace_regex_str = indicator_symbol_regex
                                              + esc_l_b
                                              + esc_token
                                              + esc_r_b;
