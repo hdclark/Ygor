@@ -202,14 +202,26 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     const std::string frac  = "[.]?([[:digit:]]*)";
     const std::string d_sep = R"***([-_/,.\ ]*)***";
     const std::string t_sep = R"***([-_/,.\: ]*)***";
+    const std::string T_sep = R"***([T]{0,1})***";
+    const std::string Z_sep = R"***([Z]{0,1})***";
 
-    //The fixed-width format, like: '20140125-012345'. 
+    //The fixed-width format, like: '20140125-012345' with one second resolution. 
     // date '+%Y%m%_d-%_H%_M%_S'
     if(Glean_date_time_from_string(in,&lt)){
 
     // Regex-based parsing. Slow and awkward, but available cross-platform and support extraction of fractional seconds.
-    // YY-MM-DD HH-MM-SS{.SSSSSS}
-    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep + dig12 + d_sep + dig12 + d_sep + dig12 + t_sep + dig12 + t_sep + dig12 + frac + "[[:space:]]*$");
+    // Conforms partially to ISO 8601.
+    //     YY-MM-DD HH-MM-SS{.SSSSSS}
+    //     YY-MM-DDTHH-MM-SS{.SSSSSS}Z
+    }else if(auto n = extract_numbers(in, "^[[:space:]]*"_s + dig24 + d_sep
+                                                            + dig12 + d_sep
+                                                            + dig12 + d_sep
+                                                            + T_sep
+                                                            + dig12 + t_sep
+                                                            + dig12 + t_sep
+                                                            + dig12 + frac
+                                                            + Z_sep
+                                                            + "[[:space:]]*$");
           (6 <= n.size()) && (0 < extract_year(n[0])) // year
                           && isininc(1,n[1],12)       // month
                           && isininc(1,n[2],31)       // day of month
