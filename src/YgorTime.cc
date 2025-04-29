@@ -326,6 +326,15 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     return true;
 }
 
+double time_mark::As_UNIX_time(double fractional_second){
+    time_mark ref;
+    ref.Set_unix_epoch();
+    auto d = static_cast<double>(ref.Diff_in_Seconds(*this));
+
+    d += fractional_second;
+    return d;
+}
+
 time_mark & time_mark::operator=(const time_mark &rhs){
     if(this == &rhs) return *this;
     this->When = rhs.When;
