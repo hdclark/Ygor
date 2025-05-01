@@ -6,6 +6,7 @@
 #include <ctime>
 #include <memory>
 #include <string>
+#include <optional>
 
 #include "YgorDefinitions.h"
 #include "YgorSerialize.h"
@@ -82,7 +83,7 @@ class time_mark {
         std::string Dump_as_postgres_string(void) const; //Format: `date +%Y-%m-%d %H:%M:%S`.
         bool Read_from_string(const std::string &in, double *fractional_second = nullptr); //Format: `date +%Y%m%d-%H%M%S` but a little lenient.
 
-        double As_UNIX_time(double fractional_second = 0.0) const; // Returns number of seconds since UNIX epoch.
+        double As_UNIX_time(void) const; // Returns number of seconds since UNIX epoch.
 
         //Serialize (deeply) to buffer starting at *offset. See source for more info.
         std::unique_ptr<uint8_t[]> Serialize(bool *OK, std::unique_ptr<uint8_t[]> in, uint64_t *offset, uint64_t *tot_size) const;

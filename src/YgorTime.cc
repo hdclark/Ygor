@@ -326,12 +326,10 @@ bool time_mark::Read_from_string(const std::string &in, double *fractional_secon
     return true;
 }
 
-double time_mark::As_UNIX_time(double fractional_second) const { // Returns number of seconds since UNIX epoch.
+double time_mark::As_UNIX_time(void) const { // Returns number of seconds since UNIX epoch.
     time_mark ref;
     ref.Set_unix_epoch();
-    auto d = static_cast<double>(ref.Diff_in_Seconds(*this));
-
-    d += fractional_second;
+    const auto d = static_cast<double>(ref.Diff_in_Seconds(*this));
     return d;
 }
 
