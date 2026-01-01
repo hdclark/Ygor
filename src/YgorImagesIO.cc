@@ -1231,6 +1231,7 @@ bool WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>
 
     auto left_pad = [](size_t width, char pad, const std::string &in) -> std::string {
         if(width < in.size()){
+            YLOGWARN("Note: input is: '" << in << "' which has length " << in.size());
             throw std::runtime_error("Unable to pad string because string is already longer than desired width"); 
         }
         return std::string(width - in.size(), pad) + in;
