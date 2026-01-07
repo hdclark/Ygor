@@ -12693,31 +12693,18 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     lin_reg_results<T> res;
 
     //Ensure the data is suitable.
-    if(this->size() < 3){
-        //If we have two points, there are as many parameters as datum. We cannot even compute the stats.
-        // While it is possible to do it for 2 data points, the closed form solution in that case is 
-        // easy enough to do in a couple lines, and probably should just be implemented as needed.
+    const auto N_samples = this->size();
+    if(N_samples < 2UL){
         if(OK == nullptr) throw std::runtime_error("Unable to perform meaningful linear regression with so few points");
         YLOGWARN("Unable to perform meaningful linear regression with so few points. Bailing");
         return ret_on_err;
     }
-    res.N = static_cast<T>(this->size());
+
+    res.N = static_cast<T>(N_samples);
     res.dof = res.N - (T)(2);
 
-    //Cycle through the data, accumulating the basic ingredients for later.
-/*
-    res.sum_x  = (T)(0);
-    res.sum_f  = (T)(0);
-    res.sum_xx = (T)(0);
-    res.sum_xf = (T)(0);
-    for(const auto &P : this->samples){
-        res.sum_x  += P[0];
-        res.sum_xx += P[0]*P[0];
-        res.sum_f  += P[2];
-        res.sum_xf += P[0]*P[2];
-    }
-*/
-    {   //Accumulate the data before summing, so we can be more careful about summing the numbers.
+    //Accumulate the data before summing, so we can be more careful about summing the numbers.
+    {
         std::vector<T> data_x, data_f, data_xx, data_xf;
         for(const auto &P : this->samples){
             data_x.push_back(  P[0]      );
@@ -12758,6 +12745,12 @@ template <class T> lin_reg_results<T> samples_1D<T>::Linear_Least_Squares_Regres
     //Now compute the statistical stuff.
     res.mean_x = res.sum_x/res.N;
     res.mean_f = res.sum_f/res.N;
+    if(N_samples == 2UL){
+        //If we have two points, there are as many parameters as datum. We cannot compute any useful stats.
+        if(OK != nullptr) *OK = true;
+        return res;
+    }
+
     res.sum_sq_res = (T)(0);
     res.Sxf = (T)(0);
     res.Sxx = (T)(0);
