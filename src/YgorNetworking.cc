@@ -3,6 +3,11 @@
 
 #if !defined(_WIN32) && !defined(_WIN64) // This file will be empty on Windows machines.
 
+// MSG_NOSIGNAL is not portable, so neuter it if not implemented.
+#if !defined(MSG_NOSIGNAL)
+    #define MSG_NOSIGNAL 0
+#endif
+
 
 //Gross fix for compiling without glibc: Define this constant to avoid getting compilation errors regarding
 // sleep_for not being part of std::this_thread:...
