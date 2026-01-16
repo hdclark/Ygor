@@ -3,20 +3,6 @@
 
 #if !defined(_WIN32) && !defined(_WIN64) // This file will be empty on Windows machines.
 
-// MSG_NOSIGNAL is not portable, so neuter it if not implemented.
-#if !defined(MSG_NOSIGNAL)
-    #define MSG_NOSIGNAL 0
-#endif
-
-
-//Gross fix for compiling without glibc: Define this constant to avoid getting compilation errors regarding
-// sleep_for not being part of std::this_thread:...
-//#ifndef _GLIBCXX_USE_NANOSLEEP
-//    #pragma message "Defining macro _GLIBCXX_USE_NANOSLEEP. In Jan 2013, this was required on some systems to get around sleep_for/std::this_thread copmile errors." 
-//    #define _GLIBCXX_USE_NANOSLEEP 1
-//#endif
-
-
 
 //#define YGORNETWORKING_NO_CHILD         //No children are spawned, so everything is shared. Useful for stateful things (media playback).
 //#define YGORNETWORKING_USE_THREAD       //Spawns threads instead of forking. Less safe due to sharing *everything* by default.
@@ -138,6 +124,23 @@
 #include "YgorLog.h"
 #include "YgorNetworking.h"
 #include "YgorString.h"            //Needed for Xtostring(), some tokenization routines.
+
+
+//Gross fix for compiling without glibc: Define this constant to avoid getting compilation errors regarding
+// sleep_for not being part of std::this_thread:...
+//#ifndef _GLIBCXX_USE_NANOSLEEP
+//    #pragma message "Defining macro _GLIBCXX_USE_NANOSLEEP. In Jan 2013, this was required on some systems to get around sleep_for/std::this_thread copmile errors." 
+//    #define _GLIBCXX_USE_NANOSLEEP 1
+//#endif
+
+
+
+// MSG_NOSIGNAL is not portable, so neuter it if not implemented.
+#ifdef MSG_NOSIGNAL
+    #define YGOR_SEND_FLAGS MSG_NOSIGNAL
+#else
+    #define YGOR_SEND_FLAGS 0
+#endif
 
 
 extern bool YGORNETWORKING_VERBOSE;
@@ -332,7 +335,7 @@ std::string Simple_HTTP_Request(const std::string &host, const std::string &requ
         Out_msg = Basic_HTTP_Request_Header(std::string(host)+":80",request);
 
         //Send the request to the server.     
-        if( send(fd,Out_msg.c_str(),Out_msg.size(),MSG_NOSIGNAL) == -1){ return false; }
+        if( send(fd,Out_msg.c_str(),Out_msg.size(),YGOR_SEND_FLAGS) == -1){ return false; }
 
         //Collect the (entire) response. Dump it to screen and sepuku.
         while((nbytes = recv(fd,buff,buffsz-1,0)) != -1){
@@ -485,7 +488,7 @@ Server_and_Client::Server_and_Client(void) : SERVER_INITIALIZED(false), SERVER_P
     this->DEFAULT_SERVER_DIALOG_LAMBDA = [&](int fd, char * /*host*/, int64_t /*port*/) -> bool {
 
         //Upon connection, we immediately send a message to the client.
-        if(send(fd, "This is the default dialog response!", 39, MSG_NOSIGNAL) == -1){
+        if(send(fd, "This is the default dialog response!", 39, YGOR_SEND_FLAGS) == -1){
             if(YGORNETWORKING_VERBOSE) YLOGWARN("Server unable to send() to client");
             return false;
         }
@@ -1269,7 +1272,7 @@ Beacon_and_Radio::Beacon_and_Radio(void) : RADIO_INITIALIZED(false), RADIO_PORT(
     // need to work and do something basic but non-trivial.
     this->DEFAULT_BEACON_DIALOG_LAMBDA = [](int fd, char * /*host*/, int64_t /*port*/) -> bool {
         //Send a simple message to all radios. This entire lambda will be looped over forever.
-        if(send(fd, "This is the default beacon message!", 38, MSG_NOSIGNAL) == -1){
+        if(send(fd, "This is the default beacon message!", 38, YGOR_SEND_FLAGS) == -1){
             if(YGORNETWORKING_VERBOSE) YLOGWARN("Beacon unable to send()");
             return false;
         }else{
