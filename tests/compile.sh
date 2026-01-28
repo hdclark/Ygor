@@ -98,6 +98,7 @@ g++ -std=c++17 Test_Stats_01.cc -o test_stats_01 -lygor -lgsl -lgslcblas -pthrea
 g++ -std=c++17 Test_Stats_02.cc -o test_stats_02  -lygor -pthread &
 g++ -std=c++17 Test_Stats_03.cc -o test_stats_03  -lygor -pthread &
 g++ -std=c++17 Test_Stats_04.cc -o test_stats_04  -lygor -pthread &
+g++ -std=c++17 Test_Stats_05.cc -o test_stats_05  -lygor -pthread &
 wait
 
 g++ -std=c++17 Test_String_01.cc -o test_string_01 -lygor -pthread &
