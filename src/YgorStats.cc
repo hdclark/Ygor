@@ -677,21 +677,22 @@ T Stats::Running_Sum<T>::Current_Sum(void) const {
 // to minimize floating-point numerical issues.
 //
 // The algorithm maintains:
-//   - count: number of samples processed
-//   - mean: running mean using Kahan summation
-//   - M2: sum of squared differences from the current mean using Kahan summation
+//   - count: number of samples processed (integer type to avoid accumulation errors)
+//   - mean: running mean using compensated summation of increments
+//   - M2: sum of squared differences from the current mean using compensated summation
 //
 // For each new value x:
 //   delta = x - mean
-//   mean += delta / count
-//   delta2 = x - mean
-//   M2 += delta * delta2
+//   mean_increment = delta / count
+//   mean is updated by digesting mean_increment (using compensated summation)
+//   delta2 = x - mean (recomputed after mean update)
+//   M2 is updated by digesting delta * delta2 (using compensated summation)
 //
 // Variance = M2 / count (population variance)
 // Sample variance = M2 / (count - 1)
 
 template <typename T>
-Stats::Running_Variance<T>::Running_Variance() : Count(static_cast<T>(0)),
+Stats::Running_Variance<T>::Running_Variance() : Count(0ULL),
                                                   Mean(),
                                                   M2() { }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
@@ -702,10 +703,10 @@ Stats::Running_Variance<T>::Running_Variance() : Count(static_cast<T>(0)),
 template <typename T>
 void Stats::Running_Variance<T>::Digest(T in){
     // Welford's algorithm for running variance.
-    this->Count += static_cast<T>(1);
+    this->Count += 1ULL;
     
     const T delta = in - this->Mean.Current_Sum();
-    const T mean_increment = delta / this->Count;
+    const T mean_increment = delta / static_cast<T>(this->Count);
     this->Mean.Digest(mean_increment);
     
     const T delta2 = in - this->Mean.Current_Sum();
@@ -721,7 +722,7 @@ void Stats::Running_Variance<T>::Digest(T in){
 
 template <typename T>
 T Stats::Running_Variance<T>::Current_Mean(void) const {
-    if(this->Count <= static_cast<T>(0)){
+    if(this->Count == 0ULL){
         // Figure out how to report the failure.
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
@@ -738,7 +739,7 @@ T Stats::Running_Variance<T>::Current_Mean(void) const {
 
 template <typename T>
 T Stats::Running_Variance<T>::Current_Variance(void) const {
-    if(this->Count <= static_cast<T>(0)){
+    if(this->Count == 0ULL){
         // Figure out how to report the failure.
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
@@ -746,7 +747,7 @@ T Stats::Running_Variance<T>::Current_Variance(void) const {
             throw std::runtime_error("Not enough data digested to provide variance and cannot emit NaN");
         }
     }
-    return this->M2.Current_Sum() / this->Count;
+    return this->M2.Current_Sum() / static_cast<T>(this->Count);
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double Stats::Running_Variance<double>::Current_Variance(void) const;
@@ -755,7 +756,7 @@ T Stats::Running_Variance<T>::Current_Variance(void) const {
 
 template <typename T>
 T Stats::Running_Variance<T>::Current_Sample_Variance(void) const {
-    if(this->Count <= static_cast<T>(1)){
+    if(this->Count <= 1ULL){
         // Figure out how to report the failure.
         if(std::numeric_limits<T>::has_quiet_NaN){
             return std::numeric_limits<T>::quiet_NaN();
@@ -763,13 +764,12 @@ T Stats::Running_Variance<T>::Current_Sample_Variance(void) const {
             throw std::runtime_error("Not enough data digested to provide sample variance and cannot emit NaN");
         }
     }
-    return this->M2.Current_Sum() / (this->Count - static_cast<T>(1));
+    return this->M2.Current_Sum() / static_cast<T>(this->Count - 1ULL);
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template double Stats::Running_Variance<double>::Current_Sample_Variance(void) const;
     template float  Stats::Running_Variance<float >::Current_Sample_Variance(void) const;
 #endif
-
 
 
 //--------------------------------------------- P-value (and related) routines ----------------------------------------------

@@ -6,6 +6,7 @@
 #define YGOR_STATS_H_HDR_GRD
 
 #include <array>
+#include <cstdint>
 #include <list>
 #include <vector>
 
@@ -69,7 +70,7 @@ class Running_Sum {
 template <class C>
 class Running_Variance {
     private:
-        C Count;
+        uint64_t Count;
         Running_Sum<C> Mean;
         Running_Sum<C> M2;  // Sum of squared differences from the current mean.
 
