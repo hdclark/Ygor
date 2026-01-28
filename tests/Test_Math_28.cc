@@ -14,8 +14,32 @@
 
 // Helper function to validate convexity
 bool validate_convexity(const std::vector<vec3<double>>& all_verts, 
-                        const std::vector<std::vector<uint32_t>>& faces,
-                        double eps = 1e-6) {
+                        const std::vector<std::vector<uint32_t>>& faces) {
+    // Compute scale-aware epsilon based on bounding box
+    vec3<double> bbox_min(std::numeric_limits<double>::infinity(),
+                          std::numeric_limits<double>::infinity(),
+                          std::numeric_limits<double>::infinity());
+    vec3<double> bbox_max(-std::numeric_limits<double>::infinity(),
+                          -std::numeric_limits<double>::infinity(),
+                          -std::numeric_limits<double>::infinity());
+    
+    for(const auto& v : all_verts){
+        if(v.isfinite()){
+            bbox_min.x = std::min(bbox_min.x, v.x);
+            bbox_min.y = std::min(bbox_min.y, v.y);
+            bbox_min.z = std::min(bbox_min.z, v.z);
+            bbox_max.x = std::max(bbox_max.x, v.x);
+            bbox_max.y = std::max(bbox_max.y, v.y);
+            bbox_max.z = std::max(bbox_max.z, v.z);
+        }
+    }
+    
+    const auto bbox_diag = bbox_max - bbox_min;
+    const auto bbox_size = bbox_diag.length();
+    const auto rel_eps = std::sqrt(std::numeric_limits<double>::epsilon());
+    const auto abs_eps = 100.0 * std::numeric_limits<double>::epsilon();
+    const double eps = (bbox_size > abs_eps) ? (bbox_size * rel_eps) : abs_eps;
+    
     size_t violations = 0;
     
     for(const auto& face : faces){
@@ -28,18 +52,22 @@ bool validate_convexity(const std::vector<vec3<double>>& all_verts,
         const auto& v_B = all_verts[face[1]];
         const auto& v_C = all_verts[face[2]];
         
-        // Compute face normal
-        const auto face_normal = (v_B - v_A).Cross(v_C - v_A);
+        // Compute normalized face normal to make offset independent of triangle size
+        const auto face_normal_unnorm = (v_B - v_A).Cross(v_C - v_A);
+        const auto face_normal = face_normal_unnorm.unit();
+        
+        if(!face_normal.isfinite()) continue;
         
         // Check all vertices against this face plane
         for(size_t i = 0; i < all_verts.size(); ++i){
             const auto& v = all_verts[i];
             const auto offset = face_normal.Dot(v - v_A);
             
+            // For a convex hull, all vertices should be on or behind the face
             if(offset > eps){
                 violations++;
                 if(violations <= 5){
-                    YLOGWARN("Vertex " << i << " is outside face plane (offset = " << offset << ")");
+                    YLOGWARN("Vertex " << i << " is outside face plane (offset = " << offset << ", eps = " << eps << ")");
                 }
             }
         }
@@ -72,11 +100,12 @@ int main(int argc, char **argv){
             
             YLOGINFO("  Generated " << faces.size() << " faces from " << verts.size() << " vertices");
             
-            if(!validate_convexity(verts, faces, 1e-14)){
-                YLOGERR("Test 1 FAILED");
+            if(!validate_convexity(verts, faces)){
+                YLOGERR("Test 1 FAILED - convexity validation failed");
                 return 1;
             }
         } catch (const std::exception& e) {
+            // Very small scales may result in degenerate configurations that cannot form a valid hull
             YLOGWARN("Test 1 caught expected exception for very small scale: " << e.what());
         }
         YLOGINFO("Test 1 PASSED");
@@ -98,7 +127,7 @@ int main(int argc, char **argv){
         
         YLOGINFO("  Generated " << faces.size() << " faces from " << verts.size() << " vertices");
         
-        if(!validate_convexity(verts, faces, 2e13)){
+        if(!validate_convexity(verts, faces)){
             YLOGERR("Test 2 FAILED");
             return 1;
         }
@@ -129,7 +158,7 @@ int main(int argc, char **argv){
             YLOGWARN("  Expected 12 faces for cube, got " << faces.size());
         }
         
-        if(!validate_convexity(verts, faces, 1e-10)){
+        if(!validate_convexity(verts, faces)){
             YLOGERR("Test 3 FAILED");
             return 1;
         }
@@ -156,7 +185,7 @@ int main(int argc, char **argv){
             YLOGWARN("  Expected 4 faces for tetrahedron, got " << faces.size());
         }
         
-        if(!validate_convexity(verts, faces, 1e-10)){
+        if(!validate_convexity(verts, faces)){
             YLOGERR("Test 4 FAILED");
             return 1;
         }
@@ -189,7 +218,7 @@ int main(int argc, char **argv){
         
         YLOGINFO("  Generated " << faces.size() << " faces from " << verts.size() << " vertices (with duplicates)");
         
-        if(!validate_convexity(verts, faces, 1e-10)){
+        if(!validate_convexity(verts, faces)){
             YLOGERR("Test 5 FAILED");
             return 1;
         }

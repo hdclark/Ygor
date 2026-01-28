@@ -7429,6 +7429,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
     vec3<T> bbox_max( -std::numeric_limits<T>::infinity(),
                       -std::numeric_limits<T>::infinity(),
                       -std::numeric_limits<T>::infinity() );
+    size_t finite_verts_count = 0;
     for(auto v_it = verts_begin; v_it != verts_end; ++v_it){
         const auto& v = *v_it;
         if(v.isfinite()){
@@ -7438,15 +7439,24 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             bbox_max.x = std::max(bbox_max.x, v.x);
             bbox_max.y = std::max(bbox_max.y, v.y);
             bbox_max.z = std::max(bbox_max.z, v.z);
+            ++finite_verts_count;
         }
     }
+    
+    // Check for degenerate cases
+    if(finite_verts_count == 0){
+        throw std::invalid_argument("No finite vertices provided.");
+    }
+    
     const auto bbox_diag = bbox_max - bbox_min;
     const auto bbox_size = bbox_diag.length();
     
     // Scale-aware epsilon: proportional to bounding box size
     // We use sqrt(machine epsilon) as a relative tolerance, then scale by bbox size
+    // For degenerate cases (all points identical), use absolute epsilon
     const auto rel_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
-    const auto machine_eps = bbox_size * rel_eps;
+    const auto abs_eps = static_cast<T>(100) * std::numeric_limits<T>::epsilon();
+    const auto machine_eps = (bbox_size > abs_eps) ? (bbox_size * rel_eps) : abs_eps;
     
     // For visibility tests, use a slightly larger margin to account for
     // accumulated floating-point errors in cross products and dot products
