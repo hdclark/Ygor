@@ -673,6 +673,105 @@ T Stats::Running_Sum<T>::Current_Sum(void) const {
 #endif
 
 
+// Implements Welford's algorithm for running variance calculation. Uses compensated summation internally
+// to minimize floating-point numerical issues.
+//
+// The algorithm maintains:
+//   - count: number of samples processed
+//   - mean: running mean using Kahan summation
+//   - M2: sum of squared differences from the current mean using Kahan summation
+//
+// For each new value x:
+//   delta = x - mean
+//   mean += delta / count
+//   delta2 = x - mean
+//   M2 += delta * delta2
+//
+// Variance = M2 / count (population variance)
+// Sample variance = M2 / (count - 1)
+
+template <typename T>
+Stats::Running_Variance<T>::Running_Variance() : Count(static_cast<T>(0)),
+                                                  Mean(),
+                                                  M2() { }
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template Stats::Running_Variance<double>::Running_Variance();
+    template Stats::Running_Variance<float >::Running_Variance();
+#endif
+
+template <typename T>
+void Stats::Running_Variance<T>::Digest(T in){
+    // Welford's algorithm for running variance.
+    this->Count += static_cast<T>(1);
+    
+    const T delta = in - this->Mean.Current_Sum();
+    const T mean_increment = delta / this->Count;
+    this->Mean.Digest(mean_increment);
+    
+    const T delta2 = in - this->Mean.Current_Sum();
+    const T m2_increment = delta * delta2;
+    this->M2.Digest(m2_increment);
+    
+    return;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template void Stats::Running_Variance<double>::Digest(double in);
+    template void Stats::Running_Variance<float >::Digest(float  in);
+#endif
+
+template <typename T>
+T Stats::Running_Variance<T>::Current_Mean(void) const {
+    if(this->Count <= static_cast<T>(0)){
+        // Figure out how to report the failure.
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            throw std::runtime_error("Not enough data digested to provide mean and cannot emit NaN");
+        }
+    }
+    return this->Mean.Current_Sum();
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double Stats::Running_Variance<double>::Current_Mean(void) const;
+    template float  Stats::Running_Variance<float >::Current_Mean(void) const;
+#endif
+
+template <typename T>
+T Stats::Running_Variance<T>::Current_Variance(void) const {
+    if(this->Count <= static_cast<T>(0)){
+        // Figure out how to report the failure.
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            throw std::runtime_error("Not enough data digested to provide variance and cannot emit NaN");
+        }
+    }
+    return this->M2.Current_Sum() / this->Count;
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double Stats::Running_Variance<double>::Current_Variance(void) const;
+    template float  Stats::Running_Variance<float >::Current_Variance(void) const;
+#endif
+
+template <typename T>
+T Stats::Running_Variance<T>::Current_Sample_Variance(void) const {
+    if(this->Count <= static_cast<T>(1)){
+        // Figure out how to report the failure.
+        if(std::numeric_limits<T>::has_quiet_NaN){
+            return std::numeric_limits<T>::quiet_NaN();
+        }else{
+            throw std::runtime_error("Not enough data digested to provide sample variance and cannot emit NaN");
+        }
+    }
+    return this->M2.Current_Sum() / (this->Count - static_cast<T>(1));
+}
+#ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
+    template double Stats::Running_Variance<double>::Current_Sample_Variance(void) const;
+    template float  Stats::Running_Variance<float >::Current_Sample_Variance(void) const;
+#endif
+
+
+
 //--------------------------------------------- P-value (and related) routines ----------------------------------------------
 double Stats::P_From_StudT_1Tail(double tval, double dof){
     //This routine is applicable to any Student's t-test. 
