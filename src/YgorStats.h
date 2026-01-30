@@ -194,6 +194,7 @@ class RandomForest {
         int64_t max_depth;            // Maximum depth of each tree.
         int64_t min_samples_split;    // Minimum samples required to split a node.
         int64_t max_features;         // Number of features to consider for each split.
+        int64_t n_features_trained;   // Number of features the model was trained on (for validation).
         uint64_t random_seed;         // Random seed for reproducibility.
         
         // Build a single decision tree using bootstrap sampling.
@@ -202,17 +203,22 @@ class RandomForest {
             const num_array<T> &y,
             const std::vector<int64_t> &sample_indices,
             int64_t depth,
+            int64_t effective_max_features,
             std::mt19937_64 &rng
         );
         
         // Find the best split for a node using random feature selection.
+        // Returns the split indices along with the best split parameters.
         bool find_best_split(
             const num_array<T> &X,
             const num_array<T> &y,
             const std::vector<int64_t> &sample_indices,
+            int64_t effective_max_features,
             int64_t &best_feature,
             T &best_threshold,
             T &best_score,
+            std::vector<int64_t> &left_indices,
+            std::vector<int64_t> &right_indices,
             std::mt19937_64 &rng
         );
         

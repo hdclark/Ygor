@@ -78,6 +78,26 @@ TEST_CASE( "RandomForest predict validation" ){
         num_array<double> x_wrong(2, 3);  // Not a row vector.
         REQUIRE_THROWS( rf.predict(x_wrong) );
     }
+    
+    SUBCASE("predict with wrong number of features throws exception"){
+        // First fit a simple model with 3 features.
+        num_array<double> X(10, 3);
+        num_array<double> y(10, 1);
+        for(int64_t i = 0; i < 10; ++i){
+            X.coeff(i, 0) = static_cast<double>(i);
+            X.coeff(i, 1) = static_cast<double>(i * 2);
+            X.coeff(i, 2) = static_cast<double>(i * 3);
+            y.coeff(i, 0) = static_cast<double>(i);
+        }
+        rf.fit(X, y);
+        
+        // Try to predict with different number of features.
+        num_array<double> x_too_few(1, 2);
+        REQUIRE_THROWS( rf.predict(x_too_few) );
+        
+        num_array<double> x_too_many(1, 5);
+        REQUIRE_THROWS( rf.predict(x_too_many) );
+    }
 }
 
 
@@ -362,4 +382,53 @@ TEST_CASE( "RandomForest bootstrap sampling" ){
     
     // Different seeds should produce different predictions due to bootstrap sampling.
     REQUIRE( pred1 != pred2 );
+}
+
+
+TEST_CASE( "RandomForest multiple fit calls" ){
+    // Test that calling fit() multiple times works correctly and that max_features
+    // is properly recalculated based on the new data.
+    
+    Stats::RandomForest<double> rf(50, 5, 2, -1, 555);  // max_features = -1 (auto).
+    
+    // First fit with 16 features (should use sqrt(16) = 4 features per split).
+    num_array<double> X1(20, 16);
+    num_array<double> y1(20, 1);
+    for(int64_t i = 0; i < 20; ++i){
+        for(int64_t j = 0; j < 16; ++j){
+            X1.coeff(i, j) = static_cast<double>(i * j) * 0.1;
+        }
+        y1.coeff(i, 0) = static_cast<double>(i);
+    }
+    rf.fit(X1, y1);
+    
+    // Verify first model works.
+    num_array<double> x_test1(1, 16);
+    for(int64_t j = 0; j < 16; ++j){
+        x_test1.coeff(0, j) = static_cast<double>(j) * 0.2;
+    }
+    const double pred1 = rf.predict(x_test1);
+    REQUIRE( std::isfinite(pred1) );
+    
+    // Second fit with 9 features (should use sqrt(9) = 3 features per split).
+    num_array<double> X2(15, 9);
+    num_array<double> y2(15, 1);
+    for(int64_t i = 0; i < 15; ++i){
+        for(int64_t j = 0; j < 9; ++j){
+            X2.coeff(i, j) = static_cast<double>(i * j) * 0.15;
+        }
+        y2.coeff(i, 0) = static_cast<double>(i) * 2.0;
+    }
+    rf.fit(X2, y2);
+    
+    // Verify second model works and rejects wrong number of features.
+    num_array<double> x_test2(1, 9);
+    for(int64_t j = 0; j < 9; ++j){
+        x_test2.coeff(0, j) = static_cast<double>(j) * 0.3;
+    }
+    const double pred2 = rf.predict(x_test2);
+    REQUIRE( std::isfinite(pred2) );
+    
+    // Old test input should now be rejected since model expects 9 features.
+    REQUIRE_THROWS( rf.predict(x_test1) );
 }

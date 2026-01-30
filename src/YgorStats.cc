@@ -1198,6 +1198,7 @@ Stats::RandomForest<T>::RandomForest(int64_t n_trees,
       max_depth(max_depth),
       min_samples_split(min_samples_split),
       max_features(max_features),
+      n_features_trained(-1),
       random_seed(random_seed) {
     
     if(n_trees <= 0){
@@ -1229,13 +1230,17 @@ void Stats::RandomForest<T>::fit(const num_array<T> &X, const num_array<T> &y) {
         throw std::invalid_argument("Output vector y must be Nx1 where N matches X.num_rows()");
     }
     
-    // Set max_features to sqrt(n_features) if not specified.
-    if(this->max_features <= 0){
-        this->max_features = std::max<int64_t>(1, static_cast<int64_t>(std::sqrt(n_features)));
+    // Store the number of features for validation in predict().
+    this->n_features_trained = n_features;
+    
+    // Determine effective max_features for this fit (don't modify the member variable).
+    int64_t effective_max_features = this->max_features;
+    if(effective_max_features <= 0){
+        effective_max_features = std::max<int64_t>(1, static_cast<int64_t>(std::sqrt(n_features)));
     }
     
     // Ensure max_features doesn't exceed n_features.
-    this->max_features = std::min(this->max_features, n_features);
+    effective_max_features = std::min(effective_max_features, n_features);
     
     // Clear any existing trees.
     this->trees.clear();
@@ -1254,7 +1259,7 @@ void Stats::RandomForest<T>::fit(const num_array<T> &X, const num_array<T> &y) {
         }
         
         // Build a tree using the bootstrap sample.
-        auto tree = build_tree(X, y, bootstrap_indices, 0, rng);
+        auto tree = build_tree(X, y, bootstrap_indices, 0, effective_max_features, rng);
         this->trees.push_back(std::move(tree));
     }
 }
@@ -1271,6 +1276,7 @@ Stats::RandomForest<T>::build_tree(
     const num_array<T> &y,
     const std::vector<int64_t> &sample_indices,
     int64_t depth,
+    int64_t effective_max_features,
     std::mt19937_64 &rng) {
     
     auto node = std::make_unique<TreeNode>();
@@ -1301,22 +1307,15 @@ Stats::RandomForest<T>::build_tree(
     int64_t best_feature;
     T best_threshold;
     T best_score;
+    std::vector<int64_t> left_indices, right_indices;
     
-    if(!find_best_split(X, y, sample_indices, best_feature, best_threshold, best_score, rng)){
+    if(!find_best_split(X, y, sample_indices, effective_max_features, 
+                       best_feature, best_threshold, best_score,
+                       left_indices, right_indices, rng)){
         // Could not find a valid split, create leaf.
         node->is_leaf = true;
         node->value = mean;
         return node;
-    }
-    
-    // Split samples based on the best split.
-    std::vector<int64_t> left_indices, right_indices;
-    for(const auto idx : sample_indices){
-        if(X.read_coeff(idx, best_feature) <= best_threshold){
-            left_indices.push_back(idx);
-        }else{
-            right_indices.push_back(idx);
-        }
     }
     
     // If split doesn't actually separate samples, create leaf.
@@ -1330,18 +1329,18 @@ Stats::RandomForest<T>::build_tree(
     node->is_leaf = false;
     node->split_feature = best_feature;
     node->split_threshold = best_threshold;
-    node->left = build_tree(X, y, left_indices, depth + 1, rng);
-    node->right = build_tree(X, y, right_indices, depth + 1, rng);
+    node->left = build_tree(X, y, left_indices, depth + 1, effective_max_features, rng);
+    node->right = build_tree(X, y, right_indices, depth + 1, effective_max_features, rng);
     
     return node;
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template std::unique_ptr<typename Stats::RandomForest<double>::TreeNode>
         Stats::RandomForest<double>::build_tree(const num_array<double> &, const num_array<double> &,
-                                               const std::vector<int64_t> &, int64_t, std::mt19937_64 &);
+                                               const std::vector<int64_t> &, int64_t, int64_t, std::mt19937_64 &);
     template std::unique_ptr<typename Stats::RandomForest<float>::TreeNode>
         Stats::RandomForest<float>::build_tree(const num_array<float> &, const num_array<float> &,
-                                              const std::vector<int64_t> &, int64_t, std::mt19937_64 &);
+                                              const std::vector<int64_t> &, int64_t, int64_t, std::mt19937_64 &);
 #endif
 
 
@@ -1350,9 +1349,12 @@ bool Stats::RandomForest<T>::find_best_split(
     const num_array<T> &X,
     const num_array<T> &y,
     const std::vector<int64_t> &sample_indices,
+    int64_t effective_max_features,
     int64_t &best_feature,
     T &best_threshold,
     T &best_score,
+    std::vector<int64_t> &left_indices,
+    std::vector<int64_t> &right_indices,
     std::mt19937_64 &rng) {
     
     const int64_t n_features = X.num_cols();
@@ -1364,11 +1366,15 @@ bool Stats::RandomForest<T>::find_best_split(
     }
     std::shuffle(feature_indices.begin(), feature_indices.end(), rng);
     
-    // Only consider max_features random features.
-    const int64_t n_features_to_try = std::min(this->max_features, n_features);
+    // Only consider effective_max_features random features.
+    const int64_t n_features_to_try = std::min(effective_max_features, n_features);
     
     best_score = -std::numeric_limits<T>::infinity();
     bool found_split = false;
+    
+    // Clear output vectors.
+    left_indices.clear();
+    right_indices.clear();
     
     // Try each randomly selected feature.
     for(int64_t f_idx = 0; f_idx < n_features_to_try; ++f_idx){
@@ -1394,27 +1400,29 @@ bool Stats::RandomForest<T>::find_best_split(
             const T threshold = (feature_values[i] + feature_values[i + 1]) / static_cast<T>(2);
             
             // Split samples.
-            std::vector<int64_t> left_indices, right_indices;
+            std::vector<int64_t> temp_left, temp_right;
             for(const auto idx : sample_indices){
                 if(X.read_coeff(idx, feature) <= threshold){
-                    left_indices.push_back(idx);
+                    temp_left.push_back(idx);
                 }else{
-                    right_indices.push_back(idx);
+                    temp_right.push_back(idx);
                 }
             }
             
             // Skip if split doesn't separate samples.
-            if(left_indices.empty() || right_indices.empty()){
+            if(temp_left.empty() || temp_right.empty()){
                 continue;
             }
             
             // Compute variance reduction.
-            const T score = compute_variance_reduction(y, left_indices, right_indices);
+            const T score = compute_variance_reduction(y, temp_left, temp_right);
             
             if(score > best_score){
                 best_score = score;
                 best_feature = feature;
                 best_threshold = threshold;
+                left_indices = temp_left;
+                right_indices = temp_right;
                 found_split = true;
             }
         }
@@ -1424,10 +1432,12 @@ bool Stats::RandomForest<T>::find_best_split(
 }
 #ifndef YGORSTATS_DISABLE_ALL_SPECIALIZATIONS
     template bool Stats::RandomForest<double>::find_best_split(const num_array<double> &, const num_array<double> &,
-                                                               const std::vector<int64_t> &, int64_t &, double &, double &,
+                                                               const std::vector<int64_t> &, int64_t, int64_t &, double &, double &,
+                                                               std::vector<int64_t> &, std::vector<int64_t> &,
                                                                std::mt19937_64 &);
     template bool Stats::RandomForest<float>::find_best_split(const num_array<float> &, const num_array<float> &,
-                                                              const std::vector<int64_t> &, int64_t &, float &, float &,
+                                                              const std::vector<int64_t> &, int64_t, int64_t &, float &, float &,
+                                                              std::vector<int64_t> &, std::vector<int64_t> &,
                                                               std::mt19937_64 &);
 #endif
 
@@ -1444,27 +1454,35 @@ T Stats::RandomForest<T>::compute_variance_reduction(
     
     if(n_total == 0) return static_cast<T>(0);
     
-    // Compute variance for left child.
+    // Compute variance for left child using numerically stable two-pass algorithm.
+    // First pass: compute mean.
     T left_sum = static_cast<T>(0);
-    T left_sum_sq = static_cast<T>(0);
     for(const auto idx : left_indices){
-        const T val = y.read_coeff(idx, 0);
-        left_sum += val;
-        left_sum_sq += val * val;
+        left_sum += y.read_coeff(idx, 0);
     }
     const T left_mean = left_sum / static_cast<T>(n_left);
-    const T left_var = (left_sum_sq / static_cast<T>(n_left)) - (left_mean * left_mean);
     
-    // Compute variance for right child.
+    // Second pass: compute variance using deviations from mean.
+    T left_sum_sq_dev = static_cast<T>(0);
+    for(const auto idx : left_indices){
+        const T dev = y.read_coeff(idx, 0) - left_mean;
+        left_sum_sq_dev += dev * dev;
+    }
+    const T left_var = left_sum_sq_dev / static_cast<T>(n_left);
+    
+    // Compute variance for right child using same two-pass algorithm.
     T right_sum = static_cast<T>(0);
-    T right_sum_sq = static_cast<T>(0);
     for(const auto idx : right_indices){
-        const T val = y.read_coeff(idx, 0);
-        right_sum += val;
-        right_sum_sq += val * val;
+        right_sum += y.read_coeff(idx, 0);
     }
     const T right_mean = right_sum / static_cast<T>(n_right);
-    const T right_var = (right_sum_sq / static_cast<T>(n_right)) - (right_mean * right_mean);
+    
+    T right_sum_sq_dev = static_cast<T>(0);
+    for(const auto idx : right_indices){
+        const T dev = y.read_coeff(idx, 0) - right_mean;
+        right_sum_sq_dev += dev * dev;
+    }
+    const T right_var = right_sum_sq_dev / static_cast<T>(n_right);
     
     // Compute weighted variance of children (lower is better for splits).
     const T weighted_child_var = (static_cast<T>(n_left) * left_var + 
@@ -1491,6 +1509,9 @@ T Stats::RandomForest<T>::predict(const num_array<T> &x) const {
     }
     if(this->trees.empty()){
         throw std::runtime_error("Model has not been fitted yet");
+    }
+    if(x.num_cols() != this->n_features_trained){
+        throw std::invalid_argument("Input features must match training data features");
     }
     
     // Average predictions from all trees (ensemble).
