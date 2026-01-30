@@ -9,9 +9,12 @@
 #include <cstdint>
 #include <list>
 #include <vector>
+#include <random>
+#include <memory>
 
 #include "YgorDefinitions.h"
 #include "YgorContainers.h"
+#include "YgorMath.h"
 
 namespace Stats {
 
@@ -156,6 +159,94 @@ double Z_From_Observed_Mean(double sample_mean, //Or observed mean.
 double Z_From_Observed_Mean(double sample_mean, //Or observed mean.
                             double population_mean, //Or true mean.
                             double stddev_of_pop_mean); //Std. dev. of population's mean == std. err..
+
+
+//-----------------------------------------------------------------------------------------------------------
+//----------------------------------------- Random Forest Regressor -----------------------------------------
+//-----------------------------------------------------------------------------------------------------------
+// A random forest implementation for regression that uses bootstrap aggregation (bagging) and
+// feature randomness. The model is trained on an Nx1 output matrix (column vector) and an NxM
+// matrix of independent variables, and can predict scalar outputs from 1xM input vectors.
+//
+// Key features:
+//  - Bootstrap sampling (bagging) for training each tree
+//  - Random feature selection at each split
+//  - Ensemble averaging for predictions
+//
+template <class T>
+class RandomForest {
+    private:
+        // Internal decision tree node structure.
+        struct TreeNode {
+            bool is_leaf;
+            T value;                    // Prediction value (for leaf nodes).
+            int64_t split_feature;      // Feature index to split on (for internal nodes).
+            T split_threshold;          // Threshold value for split (for internal nodes).
+            std::unique_ptr<TreeNode> left;   // Left child (feature <= threshold).
+            std::unique_ptr<TreeNode> right;  // Right child (feature > threshold).
+            
+            TreeNode() : is_leaf(false), value(static_cast<T>(0)), 
+                        split_feature(-1), split_threshold(static_cast<T>(0)) {}
+        };
+
+        std::vector<std::unique_ptr<TreeNode>> trees;  // Ensemble of decision trees.
+        int64_t n_trees;              // Number of trees in the forest.
+        int64_t max_depth;            // Maximum depth of each tree.
+        int64_t min_samples_split;    // Minimum samples required to split a node.
+        int64_t max_features;         // Number of features to consider for each split.
+        uint64_t random_seed;         // Random seed for reproducibility.
+        
+        // Build a single decision tree using bootstrap sampling.
+        std::unique_ptr<TreeNode> build_tree(
+            const num_array<T> &X,
+            const num_array<T> &y,
+            const std::vector<int64_t> &sample_indices,
+            int64_t depth,
+            std::mt19937_64 &rng
+        );
+        
+        // Find the best split for a node using random feature selection.
+        bool find_best_split(
+            const num_array<T> &X,
+            const num_array<T> &y,
+            const std::vector<int64_t> &sample_indices,
+            int64_t &best_feature,
+            T &best_threshold,
+            T &best_score,
+            std::mt19937_64 &rng
+        );
+        
+        // Compute variance reduction (impurity) for regression.
+        T compute_variance_reduction(
+            const num_array<T> &y,
+            const std::vector<int64_t> &left_indices,
+            const std::vector<int64_t> &right_indices
+        );
+        
+        // Predict using a single tree.
+        T predict_tree(const TreeNode *node, const num_array<T> &x) const;
+
+    public:
+        // Constructor.
+        RandomForest(int64_t n_trees = 100,
+                    int64_t max_depth = 10,
+                    int64_t min_samples_split = 2,
+                    int64_t max_features = -1,  // -1 means sqrt(n_features).
+                    uint64_t random_seed = 42);
+
+        // Fit the random forest model.
+        // X: NxM matrix of independent variables (N samples, M features).
+        // y: Nx1 matrix (column vector) of scalar outputs.
+        void fit(const num_array<T> &X, const num_array<T> &y);
+
+        // Predict a scalar output from input features.
+        // x: 1xM matrix of input features.
+        // Returns: Predicted scalar value.
+        T predict(const num_array<T> &x) const;
+        
+        // Get number of trees in the forest.
+        int64_t get_n_trees() const;
+};
 
 
 } //namespace Stats.
