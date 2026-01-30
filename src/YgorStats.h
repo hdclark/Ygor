@@ -234,20 +234,49 @@ class RandomForest {
 
     public:
         // Constructor.
+        // 
+        // Parameters:
+        //   n_trees: Number of decision trees in the forest (default: 100).
+        //   max_depth: Maximum depth of each decision tree (default: 10).
+        //   min_samples_split: Minimum number of samples required to split a node (default: 2).
+        //   max_features: Number of features to consider when looking for the best split.
+        //                 If <= 0, uses sqrt(n_features) automatically (default: -1).
+        //                 If > n_features, will be capped at n_features during fit().
+        //   random_seed: Seed for random number generator for reproducibility (default: 42).
         RandomForest(int64_t n_trees = 100,
                     int64_t max_depth = 10,
                     int64_t min_samples_split = 2,
-                    int64_t max_features = -1,  // -1 means sqrt(n_features).
+                    int64_t max_features = -1,
                     uint64_t random_seed = 42);
 
         // Fit the random forest model.
-        // X: NxM matrix of independent variables (N samples, M features).
-        // y: Nx1 matrix (column vector) of scalar outputs.
+        // 
+        // Trains the random forest using bootstrap aggregation (bagging) and random feature
+        // selection. Each tree is trained on a bootstrap sample (sampling with replacement)
+        // of the training data, and at each split, only a random subset of features is
+        // considered (feature randomness).
+        //
+        // Parameters:
+        //   X: NxM matrix of independent variables (N samples, M features).
+        //   y: Nx1 matrix (column vector) of scalar outputs.
+        //
+        // Throws:
+        //   std::invalid_argument if X is empty or if y dimensions don't match X.
         void fit(const num_array<T> &X, const num_array<T> &y);
 
         // Predict a scalar output from input features.
-        // x: 1xM matrix of input features.
-        // Returns: Predicted scalar value.
+        // 
+        // Returns the ensemble prediction by averaging predictions from all trees in the forest.
+        //
+        // Parameters:
+        //   x: 1xM matrix of input features (M must match the number of features used in fit()).
+        //
+        // Returns:
+        //   Predicted scalar value.
+        //
+        // Throws:
+        //   std::invalid_argument if x is not a row vector or has wrong number of features.
+        //   std::runtime_error if model has not been fitted yet.
         T predict(const num_array<T> &x) const;
         
         // Get number of trees in the forest.
