@@ -9540,22 +9540,19 @@ typename rtree<T>::leaf_node* rtree<T>::split_leaf_node(leaf_node* node) {
     
     // Update the original node
     node->entries = entries1;
-    node->bounds = bbox();
-    for(const auto& entry : entries1) {
-        if(&entry == &entries1.front()) {
-            node->bounds = bbox(entry, entry);
-        } else {
-            node->bounds.expand(entry);
+    if(!entries1.empty()) {
+        node->bounds = bbox(entries1[0], entries1[0]);
+        for(size_t i = 1; i < entries1.size(); ++i) {
+            node->bounds.expand(entries1[i]);
         }
     }
     
     // Update the new node
     new_leaf->entries = entries2;
-    for(const auto& entry : entries2) {
-        if(&entry == &entries2.front()) {
-            new_leaf->bounds = bbox(entry, entry);
-        } else {
-            new_leaf->bounds.expand(entry);
+    if(!entries2.empty()) {
+        new_leaf->bounds = bbox(entries2[0], entries2[0]);
+        for(size_t i = 1; i < entries2.size(); ++i) {
+            new_leaf->bounds.expand(entries2[i]);
         }
     }
     
@@ -9618,11 +9615,9 @@ void rtree<T>::adjust_tree(node_base* node, node_base* split_node) {
         }
         
         // Update parent's bounding box (after potentially adding split_node)
-        parent->bounds = bbox();
-        for(size_t i = 0; i < parent->children.size(); ++i) {
-            if(i == 0) {
-                parent->bounds = parent->children[i]->bounds;
-            } else {
+        if(!parent->children.empty()) {
+            parent->bounds = parent->children[0]->bounds;
+            for(size_t i = 1; i < parent->children.size(); ++i) {
                 parent->bounds.expand(parent->children[i]->bounds);
             }
         }
@@ -9689,25 +9684,24 @@ typename rtree<T>::internal_node* rtree<T>::split_internal_node(internal_node* n
     
     // Update original node
     node->children = children1;
-    node->bounds = bbox();
-    for(size_t i = 0; i < children1.size(); ++i) {
-        children1[i]->parent = node;
-        if(i == 0) {
-            node->bounds = children1[i]->bounds;
-        } else {
+    if(!children1.empty()) {
+        node->bounds = children1[0]->bounds;
+        for(size_t i = 1; i < children1.size(); ++i) {
+            children1[i]->parent = node;
             node->bounds.expand(children1[i]->bounds);
         }
+        children1[0]->parent = node;
     }
     
     // Update new node
     new_internal->children = children2;
-    for(size_t i = 0; i < children2.size(); ++i) {
-        children2[i]->parent = new_internal;
-        if(i == 0) {
-            new_internal->bounds = children2[i]->bounds;
-        } else {
+    if(!children2.empty()) {
+        new_internal->bounds = children2[0]->bounds;
+        for(size_t i = 1; i < children2.size(); ++i) {
+            children2[i]->parent = new_internal;
             new_internal->bounds.expand(children2[i]->bounds);
         }
+        children2[0]->parent = new_internal;
     }
     
     new_internal->parent = node->parent;
@@ -9827,6 +9821,7 @@ template <class T>
 void rtree<T>::clear() {
     if(root != nullptr) {
         delete_tree(root);
+        delete root;
         root = new leaf_node();
         height = 0;
         size = 0;
@@ -9839,9 +9834,10 @@ void rtree<T>::delete_tree(node_base* node) {
         internal_node* internal = static_cast<internal_node*>(node);
         for(auto child : internal->children) {
             delete_tree(child);
+            delete child;
         }
+        internal->children.clear();
     }
-    // Note: Don't delete here as destructor handles it
 }
 
 template <class T>

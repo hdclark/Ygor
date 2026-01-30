@@ -841,8 +841,8 @@ affine_transform<T> affine_rotate(const vec3<T> &centre, const vec3<T> &axis_uni
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------- rtree: R*-tree spatial indexing data structure -----------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
-//This class implements the R*-tree algorithm for spatial indexing of objects in 3D space.
-// The R*-tree is an enhancement of the R-tree that uses improved splitting and reinsertion algorithms
+//This class implements an R*-tree-inspired algorithm for spatial indexing of objects in 3D space.
+// The R*-tree is an enhancement of the R-tree that uses improved splitting algorithms
 // to maintain better tree structure and improve query performance.
 //
 // The tree indexes objects by their bounding boxes and supports efficient spatial queries such as:
@@ -850,9 +850,9 @@ affine_transform<T> affine_rotate(const vec3<T> &centre, const vec3<T> &axis_uni
 //  - Nearest neighbor queries
 //  - Intersection queries
 //
-// NOTE: The R*-tree uses axis-based splitting that minimizes area, margin, and overlap.
-// NOTE: Forced reinsertion is used during insertion to improve tree quality.
-// NOTE: This implementation is templated to work with various spatial types (vec3, contours, meshes, etc.).
+// NOTE: This implementation uses axis-based splitting that minimizes area and margin.
+// NOTE: This implementation is templated to work with various spatial types (vec3, etc.).
+// NOTE: Forced reinsertion is not currently implemented but may be added in the future.
 //
 template <class T> class rtree {
     public:
@@ -872,7 +872,7 @@ template <class T> class rtree {
             // Compute the surface area of the bounding box.
             T surface_area() const;
             
-            // Compute the margin (half-perimeter) of the bounding box.
+            // Compute the margin (sum of edge lengths) of the bounding box.
             T margin() const;
             
             // Check if this bbox contains a point.
@@ -975,9 +975,6 @@ template <class T> class rtree {
         // Choose the best leaf node to insert a new entry.
         leaf_node* choose_leaf(const vec3<T> &point);
         
-        // Choose the best subtree to insert a new entry.
-        node_base* choose_subtree(node_base* node, const bbox &entry_box, int level);
-        
         // Split a node that has overflowed.
         node_base* split_node(node_base* node);
         
@@ -989,9 +986,6 @@ template <class T> class rtree {
         
         // Adjust the tree after insertion (propagate changes upward).
         void adjust_tree(node_base* node, node_base* split_node);
-        
-        // Perform forced reinsertion during insertion.
-        void reinsert(node_base* node, int level);
         
         // Recursively search for entries within a bounding box.
         void search_recursive(node_base* node, const bbox &query_box, std::vector<vec3<T>> &results) const;
