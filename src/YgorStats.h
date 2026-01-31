@@ -6,6 +6,7 @@
 #define YGOR_STATS_H_HDR_GRD
 
 #include <array>
+#include <cstdint>
 #include <list>
 #include <vector>
 
@@ -61,6 +62,26 @@ class Running_Sum {
         void Digest(C in);
 
         C Current_Sum(void) const;
+};
+
+
+// Implements Welford's algorithm for running variance calculation. Uses compensated summation internally
+// to minimize floating-point numerical issues.
+template <class C>
+class Running_Variance {
+    private:
+        uint64_t Count;
+        Running_Sum<C> Mean;
+        Running_Sum<C> M2;  // Sum of squared differences from the current mean.
+
+    public:
+        Running_Variance();
+
+        void Digest(C in);
+
+        C Current_Mean(void) const;
+        C Current_Variance(void) const;  // Population variance (divide by N).
+        C Current_Sample_Variance(void) const;  // Sample variance (divide by N-1).
 };
 
 
