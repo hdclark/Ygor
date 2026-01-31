@@ -8014,6 +8014,226 @@ YLOGINFO(ss.str());
 #endif                        
 
 
+// 2D Delaunay triangulation using the Bowyer-Watson algorithm.
+// 
+// The input is a collection of vec3<T> where the z-component is expected to be zero (2D points in a plane).
+// The triangulation is performed on the x-y plane only.
+//
+// Returns an fv_surface_mesh<T, I> containing the triangulation as faces.
+template <class T, class I>
+fv_surface_mesh<T, I>
+Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
+
+    fv_surface_mesh<T, I> mesh;
+    const auto N_verts = verts.size();
+
+    // Need at least 3 vertices to form a triangle.
+    if(N_verts < 3){
+        return mesh;
+    }
+
+    const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
+
+    // Helper to compute circumcircle for a triangle (2D).
+    // Returns the circumcenter (x, y) and squared radius.
+    const auto compute_circumcircle = [&](const vec3<T> &A, const vec3<T> &B, const vec3<T> &C) 
+        -> std::tuple<T, T, T> {
+        // Using the formula for circumcenter of a triangle:
+        // D = 2*(Ax*(By-Cy) + Bx*(Cy-Ay) + Cx*(Ay-By))
+        const auto D = static_cast<T>(2) * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+
+        if(std::abs(D) < eps){
+            // Degenerate triangle (collinear points).
+            return std::make_tuple(std::numeric_limits<T>::quiet_NaN(),
+                                   std::numeric_limits<T>::quiet_NaN(),
+                                   std::numeric_limits<T>::quiet_NaN());
+        }
+
+        const auto A_sq = A.x * A.x + A.y * A.y;
+        const auto B_sq = B.x * B.x + B.y * B.y;
+        const auto C_sq = C.x * C.x + C.y * C.y;
+
+        const auto cx = (A_sq * (B.y - C.y) + B_sq * (C.y - A.y) + C_sq * (A.y - B.y)) / D;
+        const auto cy = (A_sq * (C.x - B.x) + B_sq * (A.x - C.x) + C_sq * (B.x - A.x)) / D;
+
+        const auto r_sq = (A.x - cx) * (A.x - cx) + (A.y - cy) * (A.y - cy);
+        return std::make_tuple(cx, cy, r_sq);
+    };
+
+    // Helper to check if a point is inside the circumcircle of a triangle.
+    const auto point_in_circumcircle = [&](const vec3<T> &P, const vec3<T> &A, const vec3<T> &B, const vec3<T> &C) -> bool {
+        const auto [cx, cy, r_sq] = compute_circumcircle(A, B, C);
+        if(!std::isfinite(cx) || !std::isfinite(cy) || !std::isfinite(r_sq)){
+            return false;
+        }
+        const auto dist_sq = (P.x - cx) * (P.x - cx) + (P.y - cy) * (P.y - cy);
+        return dist_sq < (r_sq + eps);
+    };
+
+    // Compute bounding box for all vertices.
+    T min_x = std::numeric_limits<T>::max();
+    T max_x = std::numeric_limits<T>::lowest();
+    T min_y = std::numeric_limits<T>::max();
+    T max_y = std::numeric_limits<T>::lowest();
+
+    for(const auto &v : verts){
+        if(!std::isfinite(v.x) || !std::isfinite(v.y)){
+            continue;
+        }
+        min_x = std::min(min_x, v.x);
+        max_x = std::max(max_x, v.x);
+        min_y = std::min(min_y, v.y);
+        max_y = std::max(max_y, v.y);
+    }
+
+    // Create a super-triangle that encompasses all vertices.
+    // Make the super-triangle large enough to contain all points.
+    const auto dx = max_x - min_x;
+    const auto dy = max_y - min_y;
+    const auto delta = std::max(dx, dy);
+    const auto mid_x = (min_x + max_x) / static_cast<T>(2);
+    const auto mid_y = (min_y + max_y) / static_cast<T>(2);
+
+    // Super-triangle vertices (we make it much larger than necessary for robustness).
+    const vec3<T> super_A(mid_x - static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
+    const vec3<T> super_B(mid_x + static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
+    const vec3<T> super_C(mid_x, mid_y + static_cast<T>(20) * delta, static_cast<T>(0));
+
+    // We store all vertices including super-triangle vertices.
+    // Indices 0, 1, 2 are super-triangle vertices.
+    std::vector<vec3<T>> all_verts;
+    all_verts.reserve(N_verts + 3);
+    all_verts.push_back(super_A);
+    all_verts.push_back(super_B);
+    all_verts.push_back(super_C);
+    for(const auto &v : verts){
+        all_verts.push_back(v);
+    }
+
+    // A triangle is represented by three vertex indices.
+    struct Triangle {
+        I a, b, c;
+        bool bad = false;
+    };
+
+    // An edge is represented by two vertex indices (ordered so lower index is first).
+    struct Edge {
+        I p1, p2;
+        bool operator==(const Edge &other) const {
+            return (p1 == other.p1 && p2 == other.p2) || (p1 == other.p2 && p2 == other.p1);
+        }
+    };
+
+    // Start with just the super-triangle.
+    std::vector<Triangle> triangles;
+    triangles.push_back(Triangle{static_cast<I>(0), static_cast<I>(1), static_cast<I>(2), false});
+
+    // Add each vertex one at a time.
+    for(size_t i = 3; i < all_verts.size(); ++i){
+        const auto &P = all_verts[i];
+
+        // Skip non-finite points.
+        if(!std::isfinite(P.x) || !std::isfinite(P.y)){
+            continue;
+        }
+
+        // Find all triangles whose circumcircle contains this point.
+        for(auto &tri : triangles){
+            if(tri.bad) continue;
+            const auto &A = all_verts[tri.a];
+            const auto &B = all_verts[tri.b];
+            const auto &C = all_verts[tri.c];
+
+            if(point_in_circumcircle(P, A, B, C)){
+                tri.bad = true;
+            }
+        }
+
+        // Find the boundary edges of the polygon hole created by removing bad triangles.
+        // An edge is on the boundary if it is not shared by any other bad triangle.
+        std::vector<Edge> polygon;
+        for(const auto &tri : triangles){
+            if(!tri.bad) continue;
+
+            // Edges of this triangle.
+            Edge e1{tri.a, tri.b};
+            Edge e2{tri.b, tri.c};
+            Edge e3{tri.c, tri.a};
+
+            std::array<Edge, 3> edges = {e1, e2, e3};
+            for(const auto &edge : edges){
+                // Check if this edge is shared with another bad triangle.
+                bool shared = false;
+                for(const auto &other_tri : triangles){
+                    if(!other_tri.bad) continue;
+                    if(&tri == &other_tri) continue;
+
+                    // Check all edges of other_tri.
+                    std::array<Edge, 3> other_edges = {
+                        Edge{other_tri.a, other_tri.b},
+                        Edge{other_tri.b, other_tri.c},
+                        Edge{other_tri.c, other_tri.a}
+                    };
+                    for(const auto &oe : other_edges){
+                        if(edge == oe){
+                            shared = true;
+                            break;
+                        }
+                    }
+                    if(shared) break;
+                }
+
+                if(!shared){
+                    polygon.push_back(edge);
+                }
+            }
+        }
+
+        // Remove the bad triangles.
+        triangles.erase(
+            std::remove_if(triangles.begin(), triangles.end(),
+                           [](const Triangle &t){ return t.bad; }),
+            triangles.end());
+
+        // Re-triangulate the polygon hole by connecting each edge to the new point.
+        const auto point_idx = static_cast<I>(i);
+        for(const auto &edge : polygon){
+            triangles.push_back(Triangle{edge.p1, edge.p2, point_idx, false});
+        }
+    }
+
+    // Remove triangles that share vertices with the super-triangle.
+    triangles.erase(
+        std::remove_if(triangles.begin(), triangles.end(),
+                       [](const Triangle &t){
+                           return (t.a < 3) || (t.b < 3) || (t.c < 3);
+                       }),
+        triangles.end());
+
+    // Build the output mesh.
+    // The mesh vertices should be the original input vertices (not the super-triangle).
+    mesh.vertices = verts;
+
+    // Adjust triangle indices: subtract 3 because we removed super-triangle vertices.
+    for(const auto &tri : triangles){
+        std::vector<I> face;
+        face.push_back(static_cast<I>(tri.a - 3));
+        face.push_back(static_cast<I>(tri.b - 3));
+        face.push_back(static_cast<I>(tri.c - 3));
+        mesh.faces.push_back(std::move(face));
+    }
+
+    return mesh;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_surface_mesh<float , uint32_t> Delaunay_Triangulation_2(const std::vector<vec3<float >> &);
+    template fv_surface_mesh<float , uint64_t> Delaunay_Triangulation_2(const std::vector<vec3<float >> &);
+
+    template fv_surface_mesh<double, uint32_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
+    template fv_surface_mesh<double, uint64_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
+#endif
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
