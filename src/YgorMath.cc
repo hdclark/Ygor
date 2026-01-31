@@ -8035,6 +8035,10 @@ fv_surface_mesh<T,I>
 Triangulate_Contours(const contour_collection<T> &cc){
     fv_surface_mesh<T,I> mesh;
 
+    // Tolerance for degenerate triangle detection and point-in-triangle tests.
+    // Scaled relative to machine epsilon to handle numerical precision issues.
+    const T area_eps = std::numeric_limits<T>::epsilon() * static_cast<T>(100);
+
     // Collect all points from all contours.
     std::vector<vec3<T>> all_points;
     for(const auto &contour : cc.contours){
@@ -8220,13 +8224,12 @@ Triangulate_Contours(const contour_collection<T> &cc){
 
     // Helper function: check if point p is inside or on the triangle formed by a, b, c.
     auto point_in_triangle = [&](size_t p, size_t a, size_t b, size_t c) -> bool {
-        const T eps = std::numeric_limits<T>::epsilon() * static_cast<T>(100);
         const T d1 = signed_triangle_area(p, a, b);
         const T d2 = signed_triangle_area(p, b, c);
         const T d3 = signed_triangle_area(p, c, a);
 
-        const bool has_neg = (d1 < -eps) || (d2 < -eps) || (d3 < -eps);
-        const bool has_pos = (d1 > eps) || (d2 > eps) || (d3 > eps);
+        const bool has_neg = (d1 < -area_eps) || (d2 < -area_eps) || (d3 < -area_eps);
+        const bool has_pos = (d1 > area_eps) || (d2 > area_eps) || (d3 > area_eps);
 
         return !(has_neg && has_pos);
     };
@@ -8264,7 +8267,7 @@ Triangulate_Contours(const contour_collection<T> &cc){
 
             // Skip degenerate triangles (collinear or duplicate points).
             const T area = signed_triangle_area(i_prev, i_curr, i_next);
-            if(std::abs(area) < std::numeric_limits<T>::epsilon() * static_cast<T>(100)){
+            if(std::abs(area) < area_eps){
                 // Degenerate triangle: remove the middle vertex.
                 it = polygon.erase(it);
                 ear_found = true;
