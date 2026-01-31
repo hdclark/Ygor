@@ -7420,16 +7420,50 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
         throw std::invalid_argument("Iterators are reversed.");
     }
     const auto N_verts = static_cast<I>( vert_it_dist );
-    const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
-    const auto machine_eps = std::sqrt( eps );
+    
+    // Compute the bounding box to determine a scale-aware epsilon.
+    // This ensures numerical tolerances adapt to the point cloud's scale.
+    vec3<T> bbox_min( std::numeric_limits<T>::infinity(),
+                      std::numeric_limits<T>::infinity(),
+                      std::numeric_limits<T>::infinity() );
+    vec3<T> bbox_max( -std::numeric_limits<T>::infinity(),
+                      -std::numeric_limits<T>::infinity(),
+                      -std::numeric_limits<T>::infinity() );
+    size_t finite_verts_count = 0;
+    for(auto v_it = verts_begin; v_it != verts_end; ++v_it){
+        const auto& v = *v_it;
+        if(v.isfinite()){
+            bbox_min.x = std::min(bbox_min.x, v.x);
+            bbox_min.y = std::min(bbox_min.y, v.y);
+            bbox_min.z = std::min(bbox_min.z, v.z);
+            bbox_max.x = std::max(bbox_max.x, v.x);
+            bbox_max.y = std::max(bbox_max.y, v.y);
+            bbox_max.z = std::max(bbox_max.z, v.z);
+            ++finite_verts_count;
+        }
+    }
+    
+    // Check for degenerate cases
+    if(finite_verts_count == 0){
+        throw std::invalid_argument("No finite vertices provided.");
+    }
+    
+    const auto bbox_diag = bbox_max - bbox_min;
+    const auto bbox_size = bbox_diag.length();
+    
+    // Scale-aware epsilon: proportional to bounding box size
+    // We use sqrt(machine epsilon) as a relative tolerance, then scale by bbox size
+    // For degenerate cases (all points identical), use absolute epsilon
+    const auto rel_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
+    const auto abs_eps = static_cast<T>(100) * std::numeric_limits<T>::epsilon();
+    const auto machine_eps = (bbox_size > abs_eps) ? (bbox_size * rel_eps) : abs_eps;
+    
+    // For visibility tests, use a slightly larger margin to account for
+    // accumulated floating-point errors in cross products and dot products
+    const auto visibility_eps = static_cast<T>(10) * machine_eps;
 
-    const auto truncate_vert = [&](const vec3<T> &v){
-        return vec3<T>( static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.x)) ),
-                        static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.y)) ),
-                        static_cast<T>( static_cast<int64_t>(std::round(100.0 * v.z)) ) );
-    };
     const auto get_vert = [&](I n){
-        return truncate_vert(*(std::next(verts_begin, n)));
+        return *(std::next(verts_begin, n));
     };
 
     const auto triangle_centroid = [](const vec3<T> &v_A, const vec3<T> &v_B, const vec3<T> &v_C){
@@ -7509,7 +7543,7 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
             auto i = static_cast<I>(0);
             for(auto v_it = verts_begin; v_it != verts_end; ++v_it, ++i){
                 for(auto &e : extrema){
-                    const auto score = truncate_vert(*v_it).Dot(e.dir);
+                    const auto score = (*v_it).Dot(e.dir);
                     if(e.curr_best_score < score){
                         e.v_i = i;
                         e.curr_best_score = score;
@@ -7719,9 +7753,12 @@ YLOGINFO("Examining vert " << i << " now.  faces.size() = " << faces.size() << "
                 const auto offset_B = face_orientation.Dot(v_i - v_B);
                 const auto offset_C = face_orientation.Dot(v_i - v_C);
 
-                const auto is_visible =  ( std::isfinite(offset_A) && (static_cast<T>(0) <= offset_A) )
-                                      && ( std::isfinite(offset_B) && (static_cast<T>(0) <= offset_B) )
-                                      && ( std::isfinite(offset_C) && (static_cast<T>(0) <= offset_C) );
+                // Use epsilon margin to account for floating-point errors in visibility test
+                // A vertex is visible if it's clearly outside the face (offset > visibility_eps)
+                // This prevents numerical errors from causing incorrect hull expansion
+                const auto is_visible =  ( std::isfinite(offset_A) && (visibility_eps < offset_A) )
+                                      && ( std::isfinite(offset_B) && (visibility_eps < offset_B) )
+                                      && ( std::isfinite(offset_C) && (visibility_eps < offset_C) );
                 if(is_visible) visible_faces.insert(fp.first);
             }
 
