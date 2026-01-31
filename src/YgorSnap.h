@@ -497,13 +497,13 @@ snap_fp<T, ScaleFactor> fmod(const snap_fp<T, ScaleFactor> &x, const snap_fp<T, 
 // Minimum of two values.
 template <class T, int64_t ScaleFactor>
 snap_fp<T, ScaleFactor> min(const snap_fp<T, ScaleFactor> &a, const snap_fp<T, ScaleFactor> &b) {
-    return a.m_value <= b.m_value ? a : b;
+    return a.raw() <= b.raw() ? a : b;
 }
 
 // Maximum of two values.
 template <class T, int64_t ScaleFactor>
 snap_fp<T, ScaleFactor> max(const snap_fp<T, ScaleFactor> &a, const snap_fp<T, ScaleFactor> &b) {
-    return a.m_value >= b.m_value ? a : b;
+    return a.raw() >= b.raw() ? a : b;
 }
 
 // Power function.
