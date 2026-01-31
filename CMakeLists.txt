@@ -1,9 +1,11 @@
 
-cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
-project(Ygor LANGUAGES CXX)
-#set(Ygor_VERSION_MAJOR 0)
-#set(Ygor_VERSION_MINOR 0)
-#set(Ygor_VERSION_PATCH 0)
+cmake_minimum_required(VERSION 3.16.0 FATAL_ERROR)
+project(Ygor
+    VERSION 0.1.0
+    DESCRIPTION "Support library with scientific emphasis"
+    HOMEPAGE_URL "https://github.com/hdclark/Ygor"
+    LANGUAGES CXX
+)
 
 ####################################################################################
 #                                  User Options
@@ -24,28 +26,24 @@ option(USE_LTO "Use link-time optimization when available." OFF)
 
 option(BUILD_SHARED_LIBS "Build shared-object/dynamically-loaded binaries." ON)
 
+option(FETCHCONTENT_FALLBACK "Use FetchContent to download missing dependencies." ON)
+
 ####################################################################################
 #                                  Configuration
 ####################################################################################
 
-# High-level configuration.
-if(NOT BUILD_SHARED_LIBS)
-    #set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    link_libraries("-static")
-    set(CMAKE_EXE_LINKER_FLAGS "-static")
-endif()
+# Modern CMake settings
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_EXTENSIONS OFF) # Disable GNU extensions (e.g., std=gnu++14).
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For use with clang-tidy et al.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(POSITION_INDEPENDENT_CODE TRUE)
 
-if(NOT CMAKE_BUILD_TYPE)
-    # Default to debug builds.
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "default to debug" FORCE)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Debug' as no build type was specified.")
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+        "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
 if(USE_LTO)
@@ -64,154 +62,234 @@ endif()
 ####################################################################################
 # Note: Dependencies are listed in CPACK list below.
 
+include(FetchContent)
+
 find_package(Threads REQUIRED)
 
+# Boost (optional)
 if(WITH_BOOST)
     if(NOT BUILD_SHARED_LIBS)
         set(Boost_USE_STATIC_RUNTIME ON)
         set(Boost_USE_STATIC_LIBS ON)
     endif()
-    find_package(Boost REQUIRED)
-    include_directories(${Boost_INCLUDE_DIRS})
+    find_package(Boost QUIET)
+    if(NOT Boost_FOUND)
+        message(STATUS "Boost not found. Disabling WITH_BOOST.")
+        set(WITH_BOOST OFF CACHE BOOL "" FORCE)
+    endif()
 endif()
 
+# Eigen (optional, with FetchContent fallback)
 if(WITH_EIGEN)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(EIGEN3 REQUIRED eigen3)
-    include_directories( ${EIGEN3_INCLUDE_DIRS} )
+    find_package(Eigen3 3.3 QUIET CONFIG)
+    if(NOT Eigen3_FOUND)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(EIGEN3 QUIET eigen3)
+        endif()
+    endif()
+
+    if(NOT Eigen3_FOUND AND NOT EIGEN3_FOUND)
+        if(FETCHCONTENT_FALLBACK)
+            message(STATUS "Eigen3 not found locally, attempting FetchContent...")
+            # Use URL method which can be more reliable than git
+            FetchContent_Declare(
+                Eigen
+                URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+                URL_HASH SHA256=8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72
+                DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            )
+            set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+            set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+            set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+            FetchContent_GetProperties(Eigen)
+            if(NOT eigen_POPULATED)
+                message(STATUS "Downloading Eigen3 (this may take a moment)...")
+                # Attempt to populate - will fail if network unavailable
+                FetchContent_MakeAvailable(Eigen)
+                if(TARGET Eigen3::Eigen)
+                    set(EIGEN_FETCHED TRUE)
+                    message(STATUS "Eigen3 fetched successfully via FetchContent.")
+                else()
+                    message(WARNING "FetchContent for Eigen3 failed. Disabling WITH_EIGEN.")
+                    set(WITH_EIGEN OFF CACHE BOOL "" FORCE)
+                endif()
+            endif()
+        else()
+            message(STATUS "Eigen not found and FETCHCONTENT_FALLBACK=OFF. Disabling WITH_EIGEN.")
+            set(WITH_EIGEN OFF CACHE BOOL "" FORCE)
+        endif()
+    endif()
 endif()
 
+# GNU GSL (optional)
 if(WITH_GNU_GSL)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GNU_GSL REQUIRED gsl)
-    include_directories( ${GNU_GSL_INCLUDE_DIRS} )
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GNU_GSL QUIET gsl)
+    endif()
+    if(NOT GNU_GSL_FOUND)
+        # Try to find GSL using CMake's FindGSL module
+        find_package(GSL QUIET)
+        if(GSL_FOUND)
+            set(GNU_GSL_FOUND TRUE)
+            set(GNU_GSL_LIBRARIES ${GSL_LIBRARIES})
+            set(GNU_GSL_INCLUDE_DIRS ${GSL_INCLUDE_DIRS})
+        endif()
+    endif()
+    if(NOT GNU_GSL_FOUND)
+        message(STATUS "GNU GSL not found. Disabling WITH_GNU_GSL.")
+        set(WITH_GNU_GSL OFF CACHE BOOL "" FORCE)
+    endif()
 endif()
 
 
 ####################################################################################
-#                                  Compiler Flags
+#                              Compiler Flags Interface
 ####################################################################################
+# Create an INTERFACE library to encapsulate common compile options
 
-# Override the default CXX flags, which are controlled by the release type.
-#
-# Note: The '_DEBUG' flags are only applied when the release mode is 'Debug' -- likewise for the other flags.
-#
-# Note: If you want to fully override the CXX_FLAGS, then do not supply a build type and specify your CXX_FLAGS by
-#       defining CMAKE_CXX_FLAGS when calling cmake.
-set(CMAKE_CXX_FLAGS_DEBUG           "-O2 -g")
-set(CMAKE_CXX_FLAGS_MINSIZEREL      "-Os -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE         "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-O3 -g")
+add_library(ygor_compile_options INTERFACE)
+add_library(Ygor::CompileOptions ALIAS ygor_compile_options)
 
-if(MEMORY_CONSTRAINED_BUILD)
-    # Do not overwrite user-provided flags, but do provide sane defaults.
-    if(NOT CMAKE_CXX_FLAGS)
-        set(CMAKE_CXX_FLAGS "-O0 -DNDEBUG")
-    endif()
-    set(CMAKE_CXX_FLAGS_DEBUG           "-O0 -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_MINSIZEREL      "-O0 -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE         "-O0 -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "-O0 -DNDEBUG")
+# C++ standard
+target_compile_features(ygor_compile_options INTERFACE cxx_std_17)
+
+# Position independent code
+set_target_properties(ygor_compile_options PROPERTIES
+    INTERFACE_POSITION_INDEPENDENT_CODE ON
+)
+
+# Static linking setup
+if(NOT BUILD_SHARED_LIBS)
+    target_link_options(ygor_compile_options INTERFACE "-static")
 endif()
 
-# Add other appropriate CXX flags.
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frounding-math")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-finite-math-only")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-var-tracking-assignments")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing")
+# Compiler-specific flags
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(ygor_compile_options INTERFACE
+        -ffast-math
+        -frounding-math
+        -fno-finite-math-only
+        -fdiagnostics-color=always
+        -fno-var-tracking-assignments
+        -Wno-deprecated
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wno-strict-aliasing
+    )
 
-    if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-        # Add gprof profiling flag.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-check")
-    endif()
+    target_compile_options(ygor_compile_options INTERFACE
+        $<$<CONFIG:Debug>:-pg>
+        $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
+        $<$<CONFIG:Debug>:-fstack-check>
+    )
 
     if(MEMORY_CONSTRAINED_BUILD)
-        # Trigger garbage collection more frequently.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param ggc-min-expand=10")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param ggc-min-heapsize=32768")
+        target_compile_options(ygor_compile_options INTERFACE
+            --param=ggc-min-expand=10
+            --param=ggc-min-heapsize=32768
+        )
     endif()
 
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-optimization-argument")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(ygor_compile_options INTERFACE
+        -fdiagnostics-color=always
+        -Wno-deprecated
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
 
     if(WITH_IWYU)
-        set(IWYU_INVOCATION iwyu) # Location of the iwyu binary.
-        list(APPEND IWYU_INVOCATION "-Xiwyu;--no_comments")
-        set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${IWYU_INVOCATION})
+        set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu;-Xiwyu;--no_comments")
     endif()
 endif()
 
-
-# Sanitizers.
-if(WITH_ASAN  OR  WITH_TSAN  OR  WITH_MSAN)
-    #set(CMAKE_CXX_FLAGS " ")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-common")
-
-    # Also enable coverage instrumentation, since sanitizers will typically be used for testing.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
-    # Clang only? Need to confirm ... TODO
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=trace-pc-guard")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoverage-mapping")
-
-    add_definitions(-U_FORTIFY_SOURCE)
+# Memory constrained build options
+if(MEMORY_CONSTRAINED_BUILD)
+    target_compile_options(ygor_compile_options INTERFACE
+        $<$<CONFIG:Debug>:-O0 -DNDEBUG>
+        $<$<CONFIG:Release>:-O0 -DNDEBUG>
+        $<$<CONFIG:MinSizeRel>:-O0 -DNDEBUG>
+        $<$<CONFIG:RelWithDebInfo>:-O0 -DNDEBUG>
+    )
+else()
+    target_compile_options(ygor_compile_options INTERFACE
+        $<$<CONFIG:Debug>:-O2 -g>
+        $<$<CONFIG:Release>:-O3 -DNDEBUG>
+        $<$<CONFIG:MinSizeRel>:-Os -DNDEBUG>
+        $<$<CONFIG:RelWithDebInfo>:-O3 -g>
+    )
 endif()
+
+
+####################################################################################
+#                                  Sanitizers
+####################################################################################
+
+add_library(ygor_sanitizer_options INTERFACE)
+add_library(Ygor::SanitizerOptions ALIAS ygor_sanitizer_options)
+
+if(WITH_ASAN OR WITH_TSAN OR WITH_MSAN)
+    target_compile_options(ygor_sanitizer_options INTERFACE
+        -O2
+        -g
+        -fno-omit-frame-pointer
+        -fno-common
+        --coverage
+    )
+    target_compile_definitions(ygor_sanitizer_options INTERFACE -U_FORTIFY_SOURCE)
+endif()
+
 if(WITH_ASAN)
-    add_compile_options( -fsanitize=address
-                         -fsanitize-address-use-after-scope )
-    add_link_options(-fsanitize=address)
-
-    add_compile_options( -fsanitize=undefined
-                         -fno-sanitize-recover=undefined )
-    add_link_options(-fsanitize=undefined)
-
+    target_compile_options(ygor_sanitizer_options INTERFACE
+        -fsanitize=address
+        -fsanitize-address-use-after-scope
+        -fsanitize=undefined
+        -fno-sanitize-recover=undefined
+    )
+    target_link_options(ygor_sanitizer_options INTERFACE
+        -fsanitize=address
+        -fsanitize=undefined
+    )
 elseif(WITH_TSAN)
     message(WARNING "TSan may not support exceptions (depends on the compiler version and platform).")
-    add_compile_options(-fsanitize=thread)
-    add_link_options(-fsanitize=thread)
+    target_compile_options(ygor_sanitizer_options INTERFACE -fsanitize=thread)
+    target_link_options(ygor_sanitizer_options INTERFACE -fsanitize=thread)
 elseif(WITH_MSAN)
     message(WARNING "MSan may not be available on your system.")
-    add_compile_options( -fsanitize=memory
-                         -fPIE
-                         -pie
-                         -fsanitize-memory-track-origins )
-    add_link_options(-fsanitize=memory)
+    target_compile_options(ygor_sanitizer_options INTERFACE
+        -fsanitize=memory
+        -fPIE
+        -pie
+        -fsanitize-memory-track-origins
+    )
+    target_link_options(ygor_sanitizer_options INTERFACE -fsanitize=memory)
 endif()
 
+
+####################################################################################
+#                              ARM Architecture Support
+####################################################################################
 
 include(CheckCXXSymbolExists)
 check_cxx_symbol_exists(__arm__     "cstdio" ARCH_IS_ARM)
 check_cxx_symbol_exists(__aarch64__ "cstdio" ARCH_IS_ARM64)
+
 if(ARCH_IS_ARM OR ARCH_IS_ARM64)
     message(STATUS "Detected ARM architecture.")
-    if(CMAKE_CXX_FLAGS MATCHES "-march=|-mcpu=|-mtune=")
-        message(STATUS "Architecture set by user.")
-    else()
-        if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-            # Enable to fix linking errors for toolchains that do not auto-detect atomic intrinsics (e.g., some ARM systems).
-            # Note: Binaries built this way should not be distributed.
+    # Only add flags if not already set by user
+    get_target_property(_current_opts ygor_compile_options INTERFACE_COMPILE_OPTIONS)
+    if(NOT _current_opts MATCHES "-march=|-mcpu=|-mtune=")
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             message(STATUS "No architecture set, adding march=native flag")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-        elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+            target_compile_options(ygor_compile_options INTERFACE -march=native)
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             message(STATUS "No architecture set, adding mcpu=generic flag")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=generic")
+            target_compile_options(ygor_compile_options INTERFACE -mcpu=generic)
         else()
             message(WARNING "Not able to set architecture, if compilation errors occur set architecture manually")
         endif()
@@ -219,53 +297,57 @@ if(ARCH_IS_ARM OR ARCH_IS_ARM64)
 endif()
 
 
+####################################################################################
+#                            std::filesystem workaround
+####################################################################################
 # Workaround for GCCv8 std::filesystem sidecar library -- can be removed when GCCv8 no longer relevant.
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+
+set(YGOR_STD_FS_LIB "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     foreach(lib_dir ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES})
-        #message("Searching directory ${lib_dir}")
-        file(GLOB_RECURSE STD_FS_LIB "${lib_dir}*stdc++fs*")
-        if(STD_FS_LIB)
+        file(GLOB_RECURSE _found_fs_lib "${lib_dir}*stdc++fs*")
+        if(_found_fs_lib)
+            set(YGOR_STD_FS_LIB "stdc++fs")
+            message(STATUS "Assuming libstdc++fs library is needed.")
             break()
         endif()
     endforeach()
-    #
-    if(STD_FS_LIB)
-        message("Assuming libstdc++fs library '${STD_FS_LIB}' is needed.")
-        set(STD_FS_LIB "stdc++fs")
-    else()
-        set(STD_FS_LIB "")
-    endif()
 endif()
 
 
 ####################################################################################
 #                                    Definitions
 ####################################################################################
-#add_definitions(-U__STRICT_ANSI__)  # Used to compile on MSYS2.
-                                     # Alternatively define _GNU_SOURCE or _XOPEN_SOURCE
-                                     # or enable GNU extensions via CMake mechanism?
 
+# Log which features are enabled
 if(WITH_LINUX_SYS)
-    message(STATUS "Assuming Linux-specific sys interfaces are available.")
-    set(YGOR_USE_LINUX_SYS 1)
+    message(STATUS "Linux-specific sys interfaces: ENABLED")
+else()
+    message(STATUS "Linux-specific sys interfaces: DISABLED")
 endif()
+
 if(WITH_EIGEN)
-    message(STATUS "Assuming Eigen is available.")
-    set(YGOR_USE_EIGEN 1)
+    message(STATUS "Eigen support: ENABLED")
+else()
+    message(STATUS "Eigen support: DISABLED")
 endif()
+
 if(WITH_GNU_GSL)
-    message(STATUS "Assuming GNU GSL is available.")
-    set(YGOR_USE_GNU_GSL 1)
+    message(STATUS "GNU GSL support: ENABLED")
+else()
+    message(STATUS "GNU GSL support: DISABLED")
 endif()
+
 if(WITH_BOOST)
-    message(STATUS "Assuming Boost libraries are available.")
-    set(YGOR_USE_BOOST 1)
+    message(STATUS "Boost support: ENABLED")
+else()
+    message(STATUS "Boost support: DISABLED")
 endif()
 
 
-# Use the directory where CMakeLists.txt is for inclusions.
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
+####################################################################################
+#                                Output Directories
+####################################################################################
 
 include(GNUInstallDirs)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
@@ -282,21 +364,68 @@ add_subdirectory(binaries)
 
 
 ####################################################################################
+#                            CMake Package Configuration
+####################################################################################
+
+include(CMakePackageConfigHelpers)
+
+# Generate version file
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Export targets to build tree
+export(TARGETS ygor ygor_compile_options ygor_sanitizer_options
+    NAMESPACE Ygor::
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/YgorTargets.cmake"
+)
+
+# Install targets
+install(TARGETS ygor ygor_compile_options ygor_sanitizer_options
+    EXPORT YgorTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Install export file
+install(EXPORT YgorTargets
+    FILE YgorTargets.cmake
+    NAMESPACE Ygor::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Ygor
+)
+
+# Generate and install config file
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/YgorConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Ygor
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Ygor
+)
+
+
+####################################################################################
 #                                    Packaging    
 ####################################################################################
 
 set(CPACK_GENERATOR "DEB")
-#set(CPACK_PACKAGE_NAME "ygor")
 
-string(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
+string(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S")
 set(CPACK_PACKAGE_VERSION "${INVOCATION_TIMESTAMP}")
-#set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64") # i386, amd64, armel, armhf, ...
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Support library with scientific emphasis.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_CONTACT "hdeanclark@gmail.com")
 set(CPACK_PACKAGE_MAINTAINER "Haley Clark <hdeanclark@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_SECTION "Science")
 
-# Ygor build dependencies, e.g., "libc6 (>= 2.3.1-6), libgcc1 (>= 1:3.4.2-12)"
+# Ygor build dependencies
 set(BUILD_DEPENDENCY_PACKAGES "")
 if(WITH_BOOST)
     list(APPEND BUILD_DEPENDENCY_PACKAGES "libboost-dev")
@@ -306,7 +435,7 @@ if(WITH_GNU_GSL)
 endif()
 list(JOIN BUILD_DEPENDENCY_PACKAGES ", " CPACK_DEBIAN_PACKAGE_DEPENDS)
 
-# Recommended or optional packages, e.g., "liboptional-dev (>= 1.2.3-1), libmaybe-dev (>= 1:1.3.2-10)"
+# Recommended packages
 set(RECOMMENDED_PACKAGES "")
 if(WITH_EIGEN)
     list(APPEND RECOMMENDED_PACKAGES "libeigen3-dev")

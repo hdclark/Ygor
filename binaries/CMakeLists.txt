@@ -1,60 +1,33 @@
 
+# Helper function to create a binary target
+function(ygor_add_executable target_name source_file)
+    add_executable(${target_name} ${source_file})
 
-add_executable(fits_replace_nans
-    Replace_NaNs.cc
-)
-target_include_directories(fits_replace_nans
-    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-)
-target_link_libraries(fits_replace_nans
-    ygor
-    m
-    Threads::Threads
-)
+    target_link_libraries(${target_name}
+        PRIVATE
+            Ygor::ygor
+    )
 
-add_executable(twot_pvalue
-    TwoT_PValue.cc
-)
-target_include_directories(twot_pvalue
-    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-)
-target_link_libraries(twot_pvalue
-    ygor
-    m
-    Threads::Threads
-)
+    set_target_properties(${target_name} PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+endfunction()
 
-add_executable(regex_tester
-    Regex_Tester.cc
-)
-target_include_directories(regex_tester
-    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-)
-target_link_libraries(regex_tester
-    ygor
-    m
-    Threads::Threads
-)
+# Create executables
+ygor_add_executable(fits_replace_nans Replace_NaNs.cc)
+ygor_add_executable(twot_pvalue TwoT_PValue.cc)
+ygor_add_executable(regex_tester Regex_Tester.cc)
+ygor_add_executable(parse_TAR_files Parse_TAR_Files.cc)
 
-add_executable(parse_TAR_files
-    Parse_TAR_Files.cc
-)
-target_include_directories(parse_TAR_files
-    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-)
-target_link_libraries(parse_TAR_files
-    ygor
-    m
-    Threads::Threads
-)
-
-install(TARGETS fits_replace_nans
-                twot_pvalue
-                regex_tester
-                parse_TAR_files
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+# Install targets
+install(TARGETS
+    fits_replace_nans
+    twot_pvalue
+    regex_tester
+    parse_TAR_files
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 
