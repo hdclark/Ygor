@@ -161,13 +161,11 @@ Triangulate_Planar_Contour_Connectivity(
         ++contour_idx;
     }
     
-    // Build index mappings for top contour vertices
-    size_t global_idx = 0;
+    // Compute total number of top vertices for indexing bottom vertices later.
+    size_t top_vertex_count = 0;
     for (const auto &contour : top_cc.contours) {
-        global_idx += contour.points.size();
+        top_vertex_count += contour.points.size();
     }
-    
-    const size_t top_vertex_count = global_idx;
     
     // Now we need to triangulate the gap between top and bottom contours.
     // We use a greedy approach that connects vertices from both planes:
@@ -215,6 +213,10 @@ Triangulate_Planar_Contour_Connectivity(
     auto find_closest_on_other_plane = [&](size_t idx, bool from_top) -> size_t {
         const auto &pos = projected_verts[idx].pos_2d;
         const auto &other_indices = from_top ? bottom_indices : top_indices;
+        
+        if (other_indices.empty()) {
+            throw std::runtime_error("Cannot find closest vertex: other plane has no vertices.");
+        }
         
         size_t closest = other_indices[0];
         T min_dist = (projected_verts[closest].pos_2d - pos).sq_length();
@@ -272,7 +274,7 @@ Triangulate_Planar_Contour_Connectivity(
     
     // Triangulate by iterating through contour edges and connecting to nearest vertices on other plane
     // Process top contour edges
-    global_idx = 0;
+    size_t global_idx = 0;
     for (const auto &contour : top_cc.contours) {
         const size_t n = contour.points.size();
         if (n < 2) {

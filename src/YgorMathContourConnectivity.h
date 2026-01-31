@@ -11,7 +11,7 @@
 //
 // This function computes the triangulation between two sets of planar contours that lie on parallel, offset planes.
 // The input consists of two contour_collections: 'top' and 'bottom', where all contours within each collection 
-// are coincident on a common plane. The planes are assumed to be coplanar (parallel) but separated by an 
+// are coincident on a common plane. The planes are assumed to be parallel but separated by an 
 // arbitrary distance.
 //
 // The function projects all vertices onto a common 2D plane and then computes a triangulation that connects the

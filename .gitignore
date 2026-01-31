@@ -22,6 +22,8 @@ test_*
 get*
 twot*
 regex*
+run_tests
+run_connectivity_tests
 
 # CodeQL build artifacts
 _codeql_build_dir
