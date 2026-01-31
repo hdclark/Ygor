@@ -1044,6 +1044,18 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         REQUIRE( mesh.faces.size() == 0 );
     }
 
+    SUBCASE("all vertices at same location handled gracefully"){
+        // All vertices at the same point -- degenerate case, no valid triangulation.
+        std::vector<vec3<double>> verts {{
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0) }};
+        const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
+        // Should not crash and should produce no valid triangles.
+        REQUIRE( mesh.faces.size() == 0 );
+    }
+
     SUBCASE("works with float type and uint64_t indices"){
         std::vector<vec3<float>> verts {{
             vec3<float>(0.0f, 0.0f, 0.0f),

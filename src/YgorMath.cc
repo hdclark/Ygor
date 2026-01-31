@@ -8099,7 +8099,14 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     // Make the super-triangle large enough to contain all points.
     const auto dx = max_x - min_x;
     const auto dy = max_y - min_y;
-    const auto delta = std::max(dx, dy);
+    auto delta = std::max(dx, dy);
+
+    // Handle degenerate case where all vertices are at the same location (or all non-finite).
+    // Use a minimum non-zero delta to create a valid super-triangle.
+    if(delta < machine_eps){
+        delta = static_cast<T>(1);
+    }
+
     const auto mid_x = (min_x + max_x) / static_cast<T>(2);
     const auto mid_y = (min_y + max_y) / static_cast<T>(2);
 
@@ -8125,11 +8132,21 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         bool bad = false;
     };
 
-    // An edge is represented by two vertex indices (ordered so lower index is first).
+    // An edge is represented by two vertex indices; equality is independent of order.
     struct Edge {
         I p1, p2;
         bool operator==(const Edge &other) const {
             return (p1 == other.p1 && p2 == other.p2) || (p1 == other.p2 && p2 == other.p1);
+        }
+    };
+
+    // Hash function for Edge to enable use in unordered containers.
+    // Order-independent: hash(p1, p2) == hash(p2, p1).
+    struct EdgeHash {
+        std::size_t operator()(const Edge &e) const {
+            const auto lo = std::min(e.p1, e.p2);
+            const auto hi = std::max(e.p1, e.p2);
+            return std::hash<I>()(lo) ^ (std::hash<I>()(hi) << 1);
         }
     };
 
@@ -8159,42 +8176,23 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         }
 
         // Find the boundary edges of the polygon hole created by removing bad triangles.
-        // An edge is on the boundary if it is not shared by any other bad triangle.
-        std::vector<Edge> polygon;
+        // An edge is on the boundary if it appears exactly once among all bad triangles.
+        // Using a hash map to count edge occurrences reduces complexity from O(n²) to O(n).
+        std::unordered_map<Edge, size_t, EdgeHash> edge_count;
         for(const auto &tri : triangles){
             if(!tri.bad) continue;
 
-            // Edges of this triangle.
-            Edge e1{tri.a, tri.b};
-            Edge e2{tri.b, tri.c};
-            Edge e3{tri.c, tri.a};
+            // Count each edge of this triangle.
+            edge_count[Edge{tri.a, tri.b}]++;
+            edge_count[Edge{tri.b, tri.c}]++;
+            edge_count[Edge{tri.c, tri.a}]++;
+        }
 
-            std::array<Edge, 3> edges = {e1, e2, e3};
-            for(const auto &edge : edges){
-                // Check if this edge is shared with another bad triangle.
-                bool shared = false;
-                for(const auto &other_tri : triangles){
-                    if(!other_tri.bad) continue;
-                    if(&tri == &other_tri) continue;
-
-                    // Check all edges of other_tri.
-                    std::array<Edge, 3> other_edges = {
-                        Edge{other_tri.a, other_tri.b},
-                        Edge{other_tri.b, other_tri.c},
-                        Edge{other_tri.c, other_tri.a}
-                    };
-                    for(const auto &oe : other_edges){
-                        if(edge == oe){
-                            shared = true;
-                            break;
-                        }
-                    }
-                    if(shared) break;
-                }
-
-                if(!shared){
-                    polygon.push_back(edge);
-                }
+        // Boundary edges are those that appear exactly once.
+        std::vector<Edge> polygon;
+        for(const auto &[edge, count] : edge_count){
+            if(count == 1){
+                polygon.push_back(edge);
             }
         }
 
