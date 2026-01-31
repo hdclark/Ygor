@@ -951,7 +951,7 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("Delaunay property is satisfied (empty circumcircle)"){
-        // The Delaunay property: no vertex is inside the circumcircle of any triangle.
+        // The Delaunay property: no vertex is strictly inside the circumcircle of any triangle.
         std::vector<vec3<double>> verts {{
             vec3<double>(0.0, 0.0, 0.0),
             vec3<double>(1.0, 0.0, 0.0),
@@ -960,11 +960,17 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
             vec3<double>(0.5, 0.5, 0.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
 
+        // Use the same tolerance strategy as the implementation.
+        const double machine_eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
         // Helper to compute circumcircle.
-        auto compute_circumcircle = [](const vec3<double> &A, const vec3<double> &B, const vec3<double> &C)
+        auto compute_circumcircle = [&machine_eps](const vec3<double> &A, const vec3<double> &B, const vec3<double> &C)
             -> std::tuple<double, double, double> {
             const double D = 2.0 * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
-            if(std::abs(D) < 1e-12){
+            const double max_coord = std::max({std::abs(A.x), std::abs(B.x), std::abs(C.x),
+                                               std::abs(A.y), std::abs(B.y), std::abs(C.y), 1.0});
+            const double det_eps = machine_eps * max_coord * max_coord;
+            if(std::abs(D) < det_eps){
                 return std::make_tuple(std::numeric_limits<double>::quiet_NaN(),
                                        std::numeric_limits<double>::quiet_NaN(),
                                        std::numeric_limits<double>::quiet_NaN());
@@ -987,15 +993,19 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
                 continue;
             }
 
-            // Check that no other vertex is inside this circumcircle.
+            // Check that no other vertex is strictly inside this circumcircle.
+            // Using consistent tolerance with the implementation.
+            const double r_tol = r_sq * machine_eps;
             for(size_t i = 0; i < mesh.vertices.size(); ++i){
                 // Skip the triangle's own vertices.
                 if(i == f[0] || i == f[1] || i == f[2]) continue;
 
                 const auto &P = mesh.vertices[i];
                 const double dist_sq = (P.x - cx) * (P.x - cx) + (P.y - cy) * (P.y - cy);
-                // Should be outside or on the circle (dist_sq >= r_sq - eps).
-                REQUIRE( dist_sq >= (r_sq - eps) );
+                // Points should be outside or on the circle (not strictly inside).
+                // This mirrors the implementation's check: dist_sq < (r_sq - r_tol) means "inside".
+                // So we require the opposite: dist_sq >= (r_sq - r_tol).
+                REQUIRE( dist_sq >= (r_sq - r_tol) );
             }
         }
     }

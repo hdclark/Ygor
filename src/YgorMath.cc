@@ -8032,7 +8032,7 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         return mesh;
     }
 
-    const auto eps = static_cast<T>(10) * std::numeric_limits<T>::epsilon();
+    const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
 
     // Helper to compute circumcircle for a triangle (2D).
     // Returns the circumcenter (x, y) and squared radius.
@@ -8042,7 +8042,12 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         // D = 2*(Ax*(By-Cy) + Bx*(Cy-Ay) + Cx*(Ay-By))
         const auto D = static_cast<T>(2) * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
 
-        if(std::abs(D) < eps){
+        // Use scale-aware tolerance for the determinant.
+        const auto max_coord = std::max({std::abs(A.x), std::abs(B.x), std::abs(C.x),
+                                         std::abs(A.y), std::abs(B.y), std::abs(C.y),
+                                         static_cast<T>(1)});
+        const auto det_eps = machine_eps * max_coord * max_coord;
+        if(std::abs(D) < det_eps){
             // Degenerate triangle (collinear points).
             return std::make_tuple(std::numeric_limits<T>::quiet_NaN(),
                                    std::numeric_limits<T>::quiet_NaN(),
@@ -8060,14 +8065,18 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         return std::make_tuple(cx, cy, r_sq);
     };
 
-    // Helper to check if a point is inside the circumcircle of a triangle.
+    // Helper to check if a point is strictly inside the circumcircle of a triangle.
+    // Points on the circle boundary are not considered "inside".
     const auto point_in_circumcircle = [&](const vec3<T> &P, const vec3<T> &A, const vec3<T> &B, const vec3<T> &C) -> bool {
         const auto [cx, cy, r_sq] = compute_circumcircle(A, B, C);
         if(!std::isfinite(cx) || !std::isfinite(cy) || !std::isfinite(r_sq)){
             return false;
         }
         const auto dist_sq = (P.x - cx) * (P.x - cx) + (P.y - cy) * (P.y - cy);
-        return dist_sq < (r_sq + eps);
+        // Use a small tolerance to handle numerical precision.
+        // Points strictly inside the circle are considered "inside".
+        const auto r_tol = r_sq * machine_eps;
+        return dist_sq < (r_sq - r_tol);
     };
 
     // Compute bounding box for all vertices.
