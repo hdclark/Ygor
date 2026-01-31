@@ -777,16 +777,14 @@ TEST_CASE( "fv_surface_mesh class" ){
         auto result = mesh.slice_with_planes(planes);
         REQUIRE(!result.contours.empty());
 
-        // For a watertight cube, slicing with a horizontal plane should produce closed contours
-        bool has_closed_contour = false;
+        // For a watertight cube, slicing with a horizontal plane should produce contours
+        // with enough points to form a shape
+        size_t total_points = 0;
         for(const auto& c : result.contours){
-            if(c.closed && c.points.size() >= 3){
-                has_closed_contour = true;
-                break;
-            }
+            total_points += c.points.size();
         }
-        // Check that we got a contour (may or may not be closed depending on topology traversal)
-        REQUIRE(result.contours.size() >= 1);
+        // A cube slice should produce at least 4 points (corners of the square cross-section)
+        REQUIRE(total_points >= 4);
     }
 
     SUBCASE("slice_with_planes with plane not intersecting mesh returns empty"){
@@ -868,10 +866,10 @@ TEST_CASE( "fv_surface_mesh class" ){
         std::list<plane<double>> planes;
         planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
 
-        // Should not crash and should produce some result
+        // Should not crash and should produce some contours
+        // (The exact number of contours depends on topology, but there should be at least one)
         auto result = mesh.slice_with_planes(planes);
-        // Just verify it doesn't crash - the exact number of contours depends on topology
-        REQUIRE(true);
+        REQUIRE(!result.contours.empty());
     }
 }
 
