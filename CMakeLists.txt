@@ -210,11 +210,12 @@ endif()
 
 # Memory constrained build options
 if(MEMORY_CONSTRAINED_BUILD)
+    # For memory-constrained builds, minimize optimization but keep Debug assertions enabled
     target_compile_options(ygor_compile_options INTERFACE
-        $<$<CONFIG:Debug>:-O0 -DNDEBUG>
+        $<$<CONFIG:Debug>:-O0 -g>
         $<$<CONFIG:Release>:-O0 -DNDEBUG>
         $<$<CONFIG:MinSizeRel>:-O0 -DNDEBUG>
-        $<$<CONFIG:RelWithDebInfo>:-O0 -DNDEBUG>
+        $<$<CONFIG:RelWithDebInfo>:-O0 -g>
     )
 else()
     target_compile_options(ygor_compile_options INTERFACE

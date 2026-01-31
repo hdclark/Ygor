@@ -141,7 +141,6 @@ target_link_libraries(ygor
 
 # Optional Boost dependency
 if(WITH_BOOST)
-    target_compile_definitions(ygor PUBLIC YGOR_USE_BOOST=1)
     if(TARGET Boost::headers)
         target_link_libraries(ygor PUBLIC Boost::headers)
     elseif(Boost_INCLUDE_DIRS)
@@ -151,7 +150,6 @@ endif()
 
 # Optional Eigen dependency
 if(WITH_EIGEN)
-    target_compile_definitions(ygor PUBLIC YGOR_USE_EIGEN=1)
     if(TARGET Eigen3::Eigen)
         target_link_libraries(ygor PUBLIC Eigen3::Eigen)
     elseif(EIGEN3_INCLUDE_DIRS)
@@ -161,18 +159,12 @@ endif()
 
 # Optional GNU GSL dependency
 if(WITH_GNU_GSL)
-    target_compile_definitions(ygor PUBLIC YGOR_USE_GNU_GSL=1)
     if(GNU_GSL_LIBRARIES)
         target_link_libraries(ygor PRIVATE ${GNU_GSL_LIBRARIES})
     endif()
     if(GNU_GSL_INCLUDE_DIRS)
         target_include_directories(ygor SYSTEM PRIVATE ${GNU_GSL_INCLUDE_DIRS})
     endif()
-endif()
-
-# Linux-specific sys interfaces
-if(WITH_LINUX_SYS)
-    target_compile_definitions(ygor PUBLIC YGOR_USE_LINUX_SYS=1)
 endif()
 
 # Install headers
