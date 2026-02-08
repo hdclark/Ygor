@@ -450,7 +450,7 @@ template <class T,class R>   class planar_image_collection {
         bool Collate_Images(planar_image_collection<T,R> &in, bool GeometricalOverlapOK = true);
 
         //Interpolate in R^3.
-        T trilinearly_interpolate(const vec3<R> &position, int64_t chnl, R out_of_bounds = std::numeric_limits<T>::quiet_NaN());
+        T trilinearly_interpolate(const vec3<R> &position, int64_t chnl, R out_of_bounds = std::numeric_limits<T>::quiet_NaN()) const;
 
 };
 

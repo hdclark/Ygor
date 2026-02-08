@@ -4581,29 +4581,29 @@ template <class T,class R> bool planar_image_collection<T,R>::Collate_Images(pla
 // that the loss of precision is irrelevant. (If you cannot deal with this, spatial interpolation is probably not what
 // you want!)
 //
-template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpolate(const vec3<R> &pos, int64_t chnl, R out_of_bounds){
+template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpolate(const vec3<R> &pos, int64_t chnl, R out_of_bounds) const {
     if(this->images.empty()) throw std::runtime_error("Cannot interpolate in R^3; there are no images.");
 
     //First, identify the nearest planes above and below the point.
-    std::list< std::pair< R, std::reference_wrapper<planar_image<T,R>> > > planes_above;
-    std::list< std::pair< R, std::reference_wrapper<planar_image<T,R>> > > planes_below;
-    for(auto & animg : this->images){
+    std::list< std::pair< R, std::reference_wrapper<const planar_image<T,R>> > > planes_above;
+    std::list< std::pair< R, std::reference_wrapper<const planar_image<T,R>> > > planes_below;
+    for(const auto & animg : this->images){
         const auto theplane = animg.image_plane();
         const auto signed_dist = theplane.Get_Signed_Distance_To_Point(pos);
         const auto is_above = (signed_dist >= static_cast<R>(0));
 
         if(is_above){
-            planes_above.push_back(std::make_pair<R,std::reference_wrapper<planar_image<T,R>>>(std::abs(signed_dist),
+            planes_above.push_back(std::make_pair<R,std::reference_wrapper<const planar_image<T,R>>>(std::abs(signed_dist),
             std::ref(animg)));
         }else{
-            planes_below.push_back(std::make_pair<R,std::reference_wrapper<planar_image<T,R>>>(std::abs(signed_dist),
+            planes_below.push_back(std::make_pair<R,std::reference_wrapper<const planar_image<T,R>>>(std::abs(signed_dist),
             std::ref(animg)));
         }
     }
 
     //Sort both lists using the distance magnitude.
-    const auto sort_less = [](const std::pair<R,std::reference_wrapper<planar_image<T,R>>> &A, 
-                              const std::pair<R,std::reference_wrapper<planar_image<T,R>>> &B) -> bool {
+    const auto sort_less = [](const std::pair<R,std::reference_wrapper<const planar_image<T,R>>> &A, 
+                              const std::pair<R,std::reference_wrapper<const planar_image<T,R>>> &B) -> bool {
         return A.first < B.first;
     };
     planes_above.sort(sort_less);
@@ -4662,12 +4662,12 @@ template <class T,class R> T planar_image_collection<T,R>::trilinearly_interpola
     return out; 
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
-    template uint8_t  planar_image_collection<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
-    template uint16_t planar_image_collection<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
-    template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
-    template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
-    template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
-    template double   planar_image_collection<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob);
+    template uint8_t  planar_image_collection<uint8_t ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint16_t planar_image_collection<uint16_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint32_t planar_image_collection<uint32_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template uint64_t planar_image_collection<uint64_t,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template float    planar_image_collection<float   ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
+    template double   planar_image_collection<double  ,double>::trilinearly_interpolate(const vec3<double> &pos, int64_t chnl, double oob) const;
 #endif
 
 
