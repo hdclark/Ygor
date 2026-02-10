@@ -625,6 +625,16 @@ template <class T, class I>   class fv_surface_mesh {
         void simplify_inner_triangles(T dist,
                                       T min_face_alignment_angle_rad = static_cast<T>(std::acos(0.25)));
 
+        // Slice the mesh with a collection of planes, producing planar contours at the intersections.
+        //
+        // This algorithm finds all edges that cross each plane, determines the intersection points,
+        // and assembles them into contours. The algorithm handles meshes with inconsistent face
+        // orientations, holes, and topological defects.
+        //
+        // Note: Returns a contour_collection containing all contours from all planes.
+        // Each contour's metadata will contain a key "PlaneIndex" indicating which plane it came from.
+        contour_collection<T> slice_with_planes(const std::list<plane<T>> &planes) const;
+
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
 
