@@ -647,6 +647,21 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
               InputIt verts_end);
 
 
+// Triangulate contours onto a common best-fit plane, producing a triangle mesh.
+//
+// This function projects all vertices from a contour_collection onto a best-fit plane using orthogonal least-squares
+// regression, then triangulates the resulting 2D polygon(s) using an ear-clipping algorithm. The result is an
+// fv_surface_mesh where the triangulation is stored as faces.
+//
+// Note: The resulting mesh represents a 'patch' of surface and will not be watertight.
+// Note: This function handles general polygons, including non-convex and polygons with multiple contours.
+// Note: Inner contours (holes) should have opposite orientation to outer contours for correct triangulation.
+//
+template <class T, class I>
+fv_surface_mesh<T,I>
+Triangulate_Contours(const contour_collection<T> &cc);
+
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
