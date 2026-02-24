@@ -22,6 +22,7 @@ test_*
 get*
 twot*
 regex*
+report_machine_parameters
 
 # CodeQL build artifacts
 _codeql_build_dir
