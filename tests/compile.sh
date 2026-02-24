@@ -105,6 +105,7 @@ g++ -std=c++17 Test_String_01.cc -o test_string_01 -lygor -pthread &
 g++ -std=c++17 Test_TAR_01.cc -o test_tar_01 -lygor -pthread &
 g++ -std=c++17 Test_YgorCONFIGTools_01.cc -o test_configtools_01 -lygor -pthread &
 g++ -std=c++17 Test_YgorDICOMTools_01.cc -o test_dicomtools_01 -lygor -pthread &
+g++ -std=c++17 Test_MeshProcessing_01.cc -o test_meshprocessing_01 -lygor -pthread &
 wait
 
 
