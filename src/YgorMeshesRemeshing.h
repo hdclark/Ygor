@@ -1,13 +1,16 @@
 //YgorMeshesRemeshing.h - Mesh processing algorithms.
 
-#ifndef YGOR_MESH_REMESHING_H_
-#define YGOR_MESH_REMESHING_H_
+#pragma once
+
+#ifndef YGOR_MESHES_REMESHING_H_
+#define YGOR_MESHES_REMESHING_H_
 
 #include <cstdint>
 #include <map>
 #include <set>
 #include <vector>
 
+#include "YgorDefinitions.h"
 #include "YgorMath.h"
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -133,4 +136,4 @@ class mesh_remesher {
 
 //---------------------------------------------------------------------------------------------------------------------------
 
-#endif // YGOR_MESH_REMESHING_H_
+#endif // YGOR_MESHES_REMESHING_H_

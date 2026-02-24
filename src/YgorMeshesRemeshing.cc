@@ -931,7 +931,7 @@ T mesh_remesher<T, I>::get_min_edge_length() const {
 //---------------------------------------------------------------------------------------------------------------------------
 // Template instantiations.
 //---------------------------------------------------------------------------------------------------------------------------
-#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+#ifndef YGOR_MESHES_REMESHING_DISABLE_ALL_SPECIALIZATIONS
     template class mesh_remesher<float,  uint32_t>;
     template class mesh_remesher<float,  uint64_t>;
     template class mesh_remesher<double, uint32_t>;
