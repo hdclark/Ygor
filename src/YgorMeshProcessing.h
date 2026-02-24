@@ -15,17 +15,28 @@ template <class T, class I> class fv_surface_mesh;
 
 template <class I>
 struct fv_surface_mesh_hole_chain {
-    std::vector<I> vertices;   // Ordered boundary vertices.
-    std::vector<I> faces;      // Face adjacent to each boundary edge.
-    std::vector<I> face_edges; // Edge index in corresponding face.
+    // Indices of boundary vertices, ordered along the boundary chain.
+    std::vector<I> vertices;
+    // For each boundary edge (between vertices[i] and vertices[i+1]), the index
+    // of the face in the mesh that is adjacent to that edge.
+    std::vector<I> faces;
+    // For each boundary edge, the local edge index within the corresponding
+    // face given by faces[i].
+    std::vector<I> face_edges;
+    // True if the boundary chain is closed (first and last vertices coincide).
     bool is_closed = false;
 };
 
 
 template <class I>
 struct fv_surface_mesh_hole_chains {
+    // All detected boundary chains in the surface mesh.
     std::vector<fv_surface_mesh_hole_chain<I>> chains;
+    // True if any boundary edge in the mesh is nonmanifold (shared by more
+    // than two faces), which may limit the robustness of boundary processing.
     bool has_nonmanifold_edges = false;
+    // True if the boundary configuration is ambiguous or inconsistent and
+    // cannot be cleanly represented as disjoint boundary chains.
     bool has_ambiguous_boundary = false;
 };
 
