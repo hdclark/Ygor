@@ -444,6 +444,50 @@ int main(int argc, char **argv) {
         YLOGINFO("  PASSED");
     }
     
+    // Test 11: Vertex attributes (normals and colours) during edge splitting.
+    {
+        YLOGINFO("Test 11: Vertex attributes during edge splitting");
+        auto mesh = create_quad();
+        
+        // Add vertex normals.
+        mesh.vertex_normals.resize(mesh.vertices.size());
+        for(size_t i = 0; i < mesh.vertices.size(); ++i) {
+            mesh.vertex_normals[i] = vec3<double>(0, 0, 1);  // All pointing up.
+        }
+        
+        // Add vertex colours (using pack_RGBA32_colour).
+        mesh.vertex_colours.resize(mesh.vertices.size());
+        for(size_t i = 0; i < mesh.vertices.size(); ++i) {
+            std::array<uint8_t, 4> color = {255, 0, 0, 255};  // Red.
+            mesh.vertex_colours[i] = mesh.pack_RGBA32_colour(color);
+        }
+        
+        size_t orig_verts = mesh.vertices.size();
+        size_t orig_normals = mesh.vertex_normals.size();
+        size_t orig_colours = mesh.vertex_colours.size();
+        
+        // Use a small target edge length to trigger splitting.
+        mesh_remesher<double, uint32_t> remesher(mesh, 0.5);
+        int64_t splits = remesher.split_long_edges();
+        
+        YLOGINFO("  Original vertices: " << orig_verts << ", normals: " << orig_normals << ", colours: " << orig_colours);
+        YLOGINFO("  After splitting vertices: " << mesh.vertices.size() << ", normals: " << mesh.vertex_normals.size() << ", colours: " << mesh.vertex_colours.size());
+        YLOGINFO("  Splits performed: " << splits);
+        
+        if(splits <= 0) {
+            throw std::runtime_error("Expected at least one edge to be split.");
+        }
+        
+        // Verify new normals have valid values (should still point roughly up).
+        for(const auto &n : mesh.vertex_normals) {
+            if(n.z < 0.9) {  // Normals should still be mostly pointing up.
+                throw std::runtime_error("Vertex normal was not properly interpolated.");
+            }
+        }
+        
+        YLOGINFO("  PASSED");
+    }
+    
     YLOGINFO("All tests passed!");
     return 0;
 }

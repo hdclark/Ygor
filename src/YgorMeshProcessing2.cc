@@ -82,6 +82,9 @@ std::vector<I> mesh_remesher<T, I>::get_faces_sharing_edge(I v0, I v1) const {
 template <class T, class I>
 I mesh_remesher<T, I>::get_opposite_vertex(I face_idx, I v0, I v1) const {
     const auto &face = m_mesh.faces[face_idx];
+    if(face.size() != 3) {
+        throw std::runtime_error("get_opposite_vertex requires triangular faces.");
+    }
     for(const auto &v : face) {
         if(v != v0 && v != v1) return v;
     }
@@ -114,18 +117,34 @@ template <class T, class I>
 bool mesh_remesher<T, I>::is_boundary_vertex(I v_idx) const {
     // A vertex is on the boundary if any of its edges is shared by only one face.
     std::set<I> neighbors;
-    for(const auto &face : m_mesh.faces) {
-        bool contains_v = false;
-        for(const auto &v : face) {
-            if(v == v_idx) {
-                contains_v = true;
-                break;
-            }
-        }
-        if(contains_v) {
+    
+    // Use involved_faces index if available for O(k) complexity instead of O(N*M).
+    if(!m_mesh.involved_faces.empty() && 
+       static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
+        const auto &incident_faces = m_mesh.involved_faces[v_idx];
+        for(const auto &f_idx : incident_faces) {
+            const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
                     neighbors.insert(v);
+                }
+            }
+        }
+    } else {
+        // Fallback: iterate through all faces.
+        for(const auto &face : m_mesh.faces) {
+            bool contains_v = false;
+            for(const auto &v : face) {
+                if(v == v_idx) {
+                    contains_v = true;
+                    break;
+                }
+            }
+            if(contains_v) {
+                for(const auto &v : face) {
+                    if(v != v_idx) {
+                        neighbors.insert(v);
+                    }
                 }
             }
         }
@@ -157,12 +176,18 @@ vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
         }
         
         if(contains_v) {
-            // Compute face normal weighted by face area.
+            // For polygonal faces, accumulate contributions from a triangle fan
+            // (face[0], face[i], face[i+1]) over all i, so that the full face area
+            // contributes to the normal.
             const auto &p0 = m_mesh.vertices[face[0]];
-            const auto &p1 = m_mesh.vertices[face[1]];
-            const auto &p2 = m_mesh.vertices[face[2]];
-            vec3<T> face_normal = (p1 - p0).Cross(p2 - p0);
-            // The magnitude of the cross product is 2x the area, which serves as a weight.
+            vec3<T> face_normal(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
+            for(size_t i = 1; i + 1 < face.size(); ++i) {
+                const auto &pi = m_mesh.vertices[face[i]];
+                const auto &pj = m_mesh.vertices[face[i + 1]];
+                face_normal += (pi - p0).Cross(pj - p0);
+            }
+            // The magnitude of the accumulated cross products is 2x the polygon area,
+            // which serves as a weight.
             normal += face_normal;
         }
     }
@@ -211,7 +236,8 @@ bool mesh_remesher<T, I>::collapse_would_invert_faces(I v_keep, I v_remove, cons
     // Check all faces that reference v_remove (except those that will be deleted).
     for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
         const auto &face = m_mesh.faces[f_idx];
-        if(face.size() < 3) continue;
+        // Only check triangular faces; skip non-triangular faces.
+        if(face.size() != 3) continue;
         
         // Check if this face contains v_remove but NOT v_keep (these faces will be modified).
         bool has_v_remove = false;
@@ -321,6 +347,11 @@ void mesh_remesher<T, I>::do_flip_edge(I face_a, I face_b, I v0, I v1, I v_opp_a
     auto &fa = m_mesh.faces[face_a];
     auto &fb = m_mesh.faces[face_b];
     
+    // Verify both faces are triangles.
+    if(fa.size() != 3 || fb.size() != 3) {
+        throw std::runtime_error("do_flip_edge requires triangular faces.");
+    }
+    
     // Determine original winding of face_a to find the rotation order.
     int v0_idx_a = -1, v1_idx_a = -1;
     for(int i = 0; i < 3; ++i) {
@@ -401,8 +432,11 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 I new_v = static_cast<I>(m_mesh.vertices.size());
                 m_mesh.vertices.push_back(midpoint);
                 
-                // Update vertex normals if they exist.
-                if(!m_mesh.vertex_normals.empty()) {
+                // Update vertex normals if they exist and have the correct size.
+                if(!m_mesh.vertex_normals.empty() &&
+                   m_mesh.vertex_normals.size() >= m_mesh.vertices.size() - 1 &&
+                   static_cast<size_t>(v0) < m_mesh.vertex_normals.size() &&
+                   static_cast<size_t>(v1) < m_mesh.vertex_normals.size()) {
                     // Interpolate normals.
                     vec3<T> avg_normal = (m_mesh.vertex_normals[v0] + m_mesh.vertex_normals[v1]) / static_cast<T>(2);
                     T len = avg_normal.length();
@@ -412,8 +446,11 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                     m_mesh.vertex_normals.push_back(avg_normal);
                 }
                 
-                // Update vertex colours if they exist.
-                if(!m_mesh.vertex_colours.empty()) {
+                // Update vertex colours if they exist and have the correct size.
+                if(!m_mesh.vertex_colours.empty() &&
+                   m_mesh.vertex_colours.size() >= m_mesh.vertices.size() - 1 &&
+                   static_cast<size_t>(v0) < m_mesh.vertex_colours.size() &&
+                   static_cast<size_t>(v1) < m_mesh.vertex_colours.size()) {
                     // Interpolate colours (simple average of each channel).
                     auto c0 = m_mesh.unpack_RGBA32_colour(m_mesh.vertex_colours[v0]);
                     auto c1 = m_mesh.unpack_RGBA32_colour(m_mesh.vertex_colours[v1]);
@@ -429,7 +466,8 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 
                 for(auto f_idx : shared_faces) {
                     const auto face_copy = m_mesh.faces[f_idx];  // Copy since we'll modify.
-                    if(face_copy.size() < 3) continue;
+                    // Only process triangular faces.
+                    if(face_copy.size() != 3) continue;
                     
                     I v_opp = get_opposite_vertex(f_idx, v0, v1);
                     
@@ -544,6 +582,41 @@ int64_t mesh_remesher<T, I>::collapse_short_edges() {
                 
                 // Move the kept vertex to the new position.
                 m_mesh.vertices[v_keep] = new_pos;
+                
+                // If we moved the vertex to a new position (midpoint case), interpolate attributes.
+                // In the boundary-preference branches above, new_pos is exactly the original position
+                // of the kept vertex, so attributes remain consistent and do not need adjustment.
+                const bool interpolate_attributes = !( (b0 && !b1) || (b1 && !b0) );
+                if(interpolate_attributes) {
+                    // Interpolate vertex normals if present and have correct size.
+                    if(!m_mesh.vertex_normals.empty() &&
+                       static_cast<size_t>(v0) < m_mesh.vertex_normals.size() &&
+                       static_cast<size_t>(v1) < m_mesh.vertex_normals.size() &&
+                       static_cast<size_t>(v_keep) < m_mesh.vertex_normals.size()) {
+                        const auto &n0 = m_mesh.vertex_normals[v0];
+                        const auto &n1 = m_mesh.vertex_normals[v1];
+                        vec3<T> avg_normal = (n0 + n1) / static_cast<T>(2);
+                        T len = avg_normal.length();
+                        if(len > static_cast<T>(1e-10)) {
+                            avg_normal = avg_normal / len;
+                        }
+                        m_mesh.vertex_normals[v_keep] = avg_normal;
+                    }
+
+                    // Interpolate vertex colours if present and have correct size.
+                    if(!m_mesh.vertex_colours.empty() &&
+                       static_cast<size_t>(v0) < m_mesh.vertex_colours.size() &&
+                       static_cast<size_t>(v1) < m_mesh.vertex_colours.size() &&
+                       static_cast<size_t>(v_keep) < m_mesh.vertex_colours.size()) {
+                        auto c0 = m_mesh.unpack_RGBA32_colour(m_mesh.vertex_colours[v0]);
+                        auto c1 = m_mesh.unpack_RGBA32_colour(m_mesh.vertex_colours[v1]);
+                        std::array<uint8_t, 4> avg_c;
+                        for(int i = 0; i < 4; ++i) {
+                            avg_c[i] = static_cast<uint8_t>((static_cast<int>(c0[i]) + static_cast<int>(c1[i])) / 2);
+                        }
+                        m_mesh.vertex_colours[v_keep] = m_mesh.pack_RGBA32_colour(avg_c);
+                    }
+                }
                 
                 // Perform the collapse.
                 do_collapse_edge(v_keep, v_remove);

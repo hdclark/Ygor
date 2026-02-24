@@ -25,6 +25,10 @@
 //   3. Edge Flipping: Edges are flipped to improve vertex valence (target valence = 6).
 //   4. Tangential Relaxation: Vertices are moved tangentially to smooth the mesh.
 //
+// The remesher is designed for triangular surface meshes (all faces are triangles).
+// Meshes containing non-triangular faces are not supported; such faces may be skipped
+// by the remeshing operations, or their processing may result in undefined behavior.
+//
 // The mesh is modified in-place and remains valid after every operation.
 //
 template <class T, class I>
