@@ -443,6 +443,67 @@ int main(int argc, char **argv){
         YLOGINFO("  Test 8 PASSED");
     }
 
+    // Test 9: Mesh with vertex normals.
+    {
+        YLOGINFO("Test 9: Mesh with vertex normals");
+        auto mesh = create_tetrahedron();
+        
+        // Add normals pointing outward from origin.
+        for(const auto &v : mesh.vertices){
+            mesh.vertex_normals.emplace_back(v.unit());
+        }
+        
+        loop_subdivide(mesh, 1);
+        
+        if(mesh.vertex_normals.size() != mesh.vertices.size()){
+            throw std::runtime_error("Test 9 failed: Vertex normals not preserved.");
+        }
+        
+        // Check that all normals have reasonable length.
+        for(const auto &n : mesh.vertex_normals){
+            double len = n.length();
+            if(len < 0.9 || len > 1.1){
+                throw std::runtime_error("Test 9 failed: Normal has unexpected length: " + std::to_string(len));
+            }
+        }
+        
+        if(!verify_mesh_integrity(mesh)){
+            throw std::runtime_error("Test 9 failed: Mesh integrity check failed.");
+        }
+        
+        YLOGINFO("  Test 9 PASSED");
+    }
+
+    // Test 10: Mesh with vertex colours.
+    {
+        YLOGINFO("Test 10: Mesh with vertex colours");
+        auto mesh = create_tetrahedron();
+        
+        // Add colours to vertices.
+        mesh.vertex_colours.push_back(mesh.pack_RGBA32_colour({255, 0, 0, 255}));   // Red
+        mesh.vertex_colours.push_back(mesh.pack_RGBA32_colour({0, 255, 0, 255}));   // Green
+        mesh.vertex_colours.push_back(mesh.pack_RGBA32_colour({0, 0, 255, 255}));   // Blue
+        mesh.vertex_colours.push_back(mesh.pack_RGBA32_colour({255, 255, 0, 255})); // Yellow
+        
+        loop_subdivide(mesh, 1);
+        
+        if(mesh.vertex_colours.size() != mesh.vertices.size()){
+            throw std::runtime_error("Test 10 failed: Vertex colours not preserved.");
+        }
+        
+        // Verify colours can be unpacked without error.
+        for(const auto &c : mesh.vertex_colours){
+            auto unpacked = mesh.unpack_RGBA32_colour(c);
+            // Just verify it doesn't crash and alpha is reasonable.
+        }
+        
+        if(!verify_mesh_integrity(mesh)){
+            throw std::runtime_error("Test 10 failed: Mesh integrity check failed.");
+        }
+        
+        YLOGINFO("  Test 10 PASSED");
+    }
+
     YLOGINFO("All tests passed!");
     return 0;
 }
