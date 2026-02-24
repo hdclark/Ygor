@@ -27,6 +27,7 @@ g++ \
   YgorContainers/*.cc \
   YgorFilesDirs.cc \
   YgorIO.cc \
+  YgorIndexRTree/*.cc \
   YgorMath/*.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
