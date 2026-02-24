@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include <YgorMath.h>
+#include <YgorMeshProcessing.h>
 
 #include "doctest/doctest.h"
 
@@ -708,6 +709,50 @@ TEST_CASE( "fv_surface_mesh class" ){
             }
         }
     }
+
+    SUBCASE("FindBoundaryChains and FillBoundaryChainsByZippering"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        const auto holes = FindBoundaryChains(mesh2);
+        REQUIRE(holes.has_nonmanifold_edges == false);
+        REQUIRE(holes.chains.size() == 1UL);
+        REQUIRE(holes.chains.front().is_closed == true);
+        REQUIRE(holes.chains.front().vertices.size() == 3UL);
+
+        REQUIRE(FillBoundaryChainsByZippering(mesh2, holes));
+        REQUIRE(mesh2.faces.size() == 4UL);
+    }
+
+    SUBCASE("EnsureConsistentFaceOrientation"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }}; // Flipped face.
+
+        int64_t genus = -1;
+        REQUIRE(EnsureConsistentFaceOrientation(mesh2, 1.0E-6, &genus));
+        REQUIRE(genus == 0);
+
+        std::map<std::pair<uint32_t,uint32_t>, std::vector<std::pair<uint32_t,uint32_t>>> edges;
+        for(uint32_t f = 0UL; f < mesh2.faces.size(); ++f){
+            const auto &face = mesh2.faces[f];
+            for(uint32_t i = 0UL; i < face.size(); ++i){
+                const auto v_a = face[i];
+                const auto v_b = face[(i + 1UL) % face.size()];
+                edges[{ std::min(v_a, v_b), std::max(v_a, v_b) }].push_back({ f, (v_a < v_b) ? 1U : 0U });
+            }
+        }
+        for(const auto &ep : edges){
+            if(ep.second.size() != 2UL) continue;
+            REQUIRE(ep.second[0].second != ep.second[1].second);
+        }
+    }
 }
 
 TEST_CASE( "Convex_Hull" ){
@@ -830,5 +875,4 @@ TEST_CASE( "Convex_Hull" ){
         REQUIRE( faces.size() == 12 );
     }
 }
-
 
