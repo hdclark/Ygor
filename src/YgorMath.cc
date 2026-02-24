@@ -6284,6 +6284,20 @@ fv_surface_mesh<T,I>::surface_area(int64_t n) const {
     template double fv_surface_mesh<double, uint64_t >::surface_area(int64_t) const;
 #endif
 
+namespace {
+    template <class T>
+    T
+    cotangent_for_opposing_vertex(const vec3<T> &P1, const vec3<T> &P2, const vec3<T> &P_opposite){
+        const auto A = P1 - P_opposite;
+        const auto B = P2 - P_opposite;
+        const auto denom = A.Cross(B).length();
+        if(denom <= std::numeric_limits<T>::epsilon()){
+            throw std::runtime_error("Unable to compute cotangent weight due to degenerate triangle. Cannot continue.");
+        }
+        return A.Dot(B) / denom;
+    }
+}
+
 template <class T, class I>
 std::array<T,2>
 fv_surface_mesh<T,I>::cotangent_weights(I v1, I v2, I v3, I v4) const {
@@ -6292,19 +6306,9 @@ fv_surface_mesh<T,I>::cotangent_weights(I v1, I v2, I v3, I v4) const {
     const auto &P3 = this->vertices.at(v3);
     const auto &P4 = this->vertices.at(v4);
 
-    const auto cotangent_for_opposing_vertex = [&](const vec3<T> &P_opposite){
-        const auto A = P1 - P_opposite;
-        const auto B = P2 - P_opposite;
-        const auto denom = A.Cross(B).length();
-        if(denom <= std::numeric_limits<T>::epsilon()){
-            throw std::runtime_error("Unable to compute cotangent weight due to degenerate triangle. Cannot continue.");
-        }
-        return A.Dot(B) / denom;
-    };
-
     return std::array<T,2>{{
-        cotangent_for_opposing_vertex(P3),
-        cotangent_for_opposing_vertex(P4)
+        cotangent_for_opposing_vertex(P1, P2, P3),
+        cotangent_for_opposing_vertex(P1, P2, P4)
     }};
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -6359,19 +6363,6 @@ fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
         edge_to_opposing_vertices[key20].push_back(i1);
     }
 
-    const auto cotangent_for_opposing_vertex = [&](I v1, I v2, I v_opp){
-        const auto &P1 = this->vertices.at(v1);
-        const auto &P2 = this->vertices.at(v2);
-        const auto &P_opp = this->vertices.at(v_opp);
-        const auto A = P1 - P_opp;
-        const auto B = P2 - P_opp;
-        const auto denom = A.Cross(B).length();
-        if(denom <= std::numeric_limits<T>::epsilon()){
-            throw std::runtime_error("Unable to compute cotangent weight due to degenerate triangle. Cannot continue.");
-        }
-        return A.Dot(B) / denom;
-    };
-
     for(const auto &edge_opps : edge_to_opposing_vertices){
         const auto i = edge_opps.first.first;
         const auto j = edge_opps.first.second;
@@ -6379,7 +6370,10 @@ fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
 
         T w = static_cast<T>(0);
         if(opps.size() == 1){
-            w = cotangent_for_opposing_vertex(i, j, opps.at(0));
+            const auto &P_i = this->vertices.at(i);
+            const auto &P_j = this->vertices.at(j);
+            const auto &P_opp = this->vertices.at(opps.at(0));
+            w = cotangent_for_opposing_vertex(P_i, P_j, P_opp);
         }else if(opps.size() == 2){
             const auto cot_w = this->cotangent_weights(i, j, opps.at(0), opps.at(1));
             w = cot_w.at(0) + cot_w.at(1);
