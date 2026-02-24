@@ -139,7 +139,9 @@ template <class T> class rtree {
         
         // R*-tree reinsertion parameters
         size_t reinsert_count;      // Number of entries to reinsert (typically 30% of max_entries).
-        bool in_reinsertion;        // Flag to prevent recursive reinsertion.
+        bool in_reinsertion;        // Flag to prevent recursive reinsertion within a single insert operation.
+                                    // Reset to false at the start of each top-level insert() call.
+                                    // This simplified implementation performs reinsertion only for leaf nodes.
         
         //--------------------------------------------------- Constructors -------------------------------------------------
         rtree();

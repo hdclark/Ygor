@@ -586,8 +586,8 @@ TEST_CASE( "rtree forced reinsertion (R*-tree behavior)" ){
         }
         std::sort(found_values.begin(), found_values.end());
         
-        for(int i = 0; i < 30; ++i) {
-            REQUIRE(found_values[static_cast<size_t>(i)] == i * 10);
+        for(size_t i = 0; i < 30; ++i) {
+            REQUIRE(found_values[i] == static_cast<int>(i) * 10);
         }
     }
     

@@ -164,6 +164,10 @@ bool rtree<T>::leaf_node::is_leaf() const {
 
 //------------------------------------------------------ Constructors -------------------------------------------------------
 
+// R*-tree reinsertion percentage (fraction of entries to reinsert on overflow).
+// Beckmann et al. recommend 30% for optimal R*-tree performance.
+constexpr double RTREE_REINSERT_FRACTION = 0.3;
+
 template <class T>
 rtree<T>::rtree() : root(std::make_unique<leaf_node>()), 
                     max_entries(8), min_entries(4), height(0), entry_count(0),
@@ -176,8 +180,9 @@ rtree<T>::rtree(size_t max_node_entries)
     if(max_entries < 2) {
         throw std::invalid_argument("Maximum entries per node must be at least 2");
     }
-    // R*-tree reinsertion: typically 30% of max_entries
-    reinsert_count = std::max(static_cast<size_t>(1), static_cast<size_t>(max_entries * 0.3));
+    // R*-tree reinsertion: typically 30% of max_entries (Beckmann et al.)
+    reinsert_count = std::max(static_cast<size_t>(1), 
+                              static_cast<size_t>(max_entries * RTREE_REINSERT_FRACTION));
     root = std::make_unique<leaf_node>();
 }
 
@@ -368,7 +373,9 @@ void rtree<T>::reinsert_leaf(leaf_node* node) {
     // Adjust the tree upward to update parent bounding boxes
     adjust_tree(node, nullptr);
     
-    // Reinsert the removed entries (decrement entry_count since they'll be re-added)
+    // Reinsert the removed entries.
+    // Note: We decrement entry_count here because insert_entry_at_leaf will increment it.
+    // The net effect is that entry_count remains unchanged, as expected for reinsertion.
     entry_count -= to_reinsert.size();
     for(const auto& e : to_reinsert) {
         insert_entry_at_leaf(e);
