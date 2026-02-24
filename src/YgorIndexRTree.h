@@ -4,6 +4,7 @@
 #define YGOR_INDEX_RTREE_H_
 
 #include <stddef.h>
+#include <any>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -14,6 +15,8 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <memory>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -26,27 +29,33 @@
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------- rtree: R*-tree spatial indexing data structure -----------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
-//This class implements an R*-tree-inspired algorithm for spatial indexing of objects in 3D space.
+//This class implements an R*-tree algorithm for spatial indexing of objects in 3D space.
 // The R*-tree is an enhancement of the R-tree that uses improved splitting algorithms
-// to maintain better tree structure and improve query performance.
+// and forced reinsertion to maintain better tree structure and improve query performance.
 //
 // The tree indexes objects by their bounding boxes and supports efficient spatial queries such as:
 //  - Range queries (find all objects within a region)
 //  - Nearest neighbor queries
 //  - Intersection queries
 //
-// NOTE: This implementation uses axis-based splitting that minimizes area and margin, so it is not a *true* R*-tree.
-//       In particular, it lacks forced reinsertion, which is a defining R*-tree optimization. So this class is effectively
-//       an R-tree with axis-sorted splits. Performance characteristics remain O(log n) insertion/search, suitable for typical
-//       spatial indexing workflows.
-//
-// NOTE: This implementation is templated to work with various spatial types (vec3, etc.).
-//
-// NOTE: Forced reinsertion is not currently implemented but may be added in the future.
+// Users can optionally associate auxiliary data (via std::any) with each inserted point.
+// This auxiliary data is not used during spatial queries but can be retrieved after lookups.
 //
 template <class T> class rtree {
     public:
         using value_type = T;
+        
+        // An entry in the tree consisting of a spatial point and optional auxiliary data.
+        struct entry {
+            vec3<T> point;
+            std::any aux_data;
+            
+            entry();
+            entry(const vec3<T> &p);
+            entry(const vec3<T> &p, std::any data);
+            
+            bool operator==(const entry &other) const;
+        };
         
         // A bounding box in 3D space defined by min and max corners.
         struct bbox {
@@ -88,38 +97,47 @@ template <class T> class rtree {
         };
         
         // Base class for all nodes in the tree.
+        struct node_base;
+        struct internal_node;
+        struct leaf_node;
+        
         struct node_base {
             bbox bounds;
-            node_base* parent;
+            internal_node* parent;  // Raw pointer for parent (ownership is top-down)
             
             node_base();
-            virtual ~node_base();
+            virtual ~node_base() = default;
             virtual bool is_leaf() const = 0;
         };
         
         // Internal node containing references to child nodes.
         struct internal_node : public node_base {
-            std::vector<node_base*> children;
+            std::vector<std::unique_ptr<node_base>> children;
             
             internal_node();
-            ~internal_node() override;
             bool is_leaf() const override;
         };
         
         // Leaf node containing actual data entries.
         struct leaf_node : public node_base {
-            std::vector<vec3<T>> entries;
+            std::vector<entry> entries;
             
             leaf_node();
             bool is_leaf() const override;
         };
         
         //--------------------------------------------------- Data members -------------------------------------------------
-        node_base* root;
+        std::unique_ptr<node_base> root;
         size_t max_entries;  // Maximum number of entries per node (M).
         size_t min_entries;  // Minimum number of entries per node (m), typically M/2.
         size_t height;       // Height of the tree.
-        size_t size;         // Total number of entries in the tree.
+        size_t entry_count;  // Total number of entries in the tree.
+        
+        // R*-tree reinsertion parameters
+        size_t reinsert_count;      // Number of entries to reinsert (typically 30% of max_entries).
+        bool in_reinsertion;        // Flag to prevent recursive reinsertion within a single insert operation.
+                                    // Reset to false at the start of each top-level insert() call.
+                                    // This simplified implementation performs reinsertion only for leaf nodes.
         
         //--------------------------------------------------- Constructors -------------------------------------------------
         rtree();
@@ -132,17 +150,29 @@ template <class T> class rtree {
         
         //--------------------------------------------------- Member functions ---------------------------------------------
         
-        // Insert a point into the tree.
+        // Insert a point into the tree (without auxiliary data).
         void insert(const vec3<T> &point);
         
-        // Search for all points within a bounding box.
-        std::vector<vec3<T>> search(const bbox &query_box) const;
+        // Insert a point with auxiliary data into the tree.
+        void insert(const vec3<T> &point, std::any aux_data);
         
-        // Search for all points within a given radius of a center point.
-        std::vector<vec3<T>> search_radius(const vec3<T> &center, T radius) const;
+        // Search for all entries within a bounding box.
+        std::vector<entry> search(const bbox &query_box) const;
         
-        // Find the k nearest neighbors to a query point.
-        std::vector<vec3<T>> nearest_neighbors(const vec3<T> &query_point, size_t k) const;
+        // Search for all points within a bounding box (returns points only, no aux data).
+        std::vector<vec3<T>> search_points(const bbox &query_box) const;
+        
+        // Search for all entries within a given radius of a center point.
+        std::vector<entry> search_radius(const vec3<T> &center, T radius) const;
+        
+        // Search for all points within a given radius of a center point (returns points only).
+        std::vector<vec3<T>> search_radius_points(const vec3<T> &center, T radius) const;
+        
+        // Find the k nearest neighbor entries to a query point.
+        std::vector<entry> nearest_neighbors(const vec3<T> &query_point, size_t k) const;
+        
+        // Find the k nearest neighbor points to a query point (returns points only).
+        std::vector<vec3<T>> nearest_neighbors_points(const vec3<T> &query_point, size_t k) const;
         
         // Check if the tree contains a specific point.
         bool contains(const vec3<T> &point) const;
@@ -162,23 +192,33 @@ template <class T> class rtree {
     private:
         //--------------------------------------------------- Helper functions ---------------------------------------------
         
+        // Insert an entry at the leaf level (main insertion).
+        void insert_entry_at_leaf(const entry &e);
+        
         // Choose the best leaf node to insert a new entry.
         leaf_node* choose_leaf(const vec3<T> &point);
         
-        // Split a node that has overflowed.
-        node_base* split_node(node_base* node);
+        // Choose the best subtree for insertion (used for internal nodes).
+        node_base* choose_subtree(node_base* node, const bbox &entry_box, size_t target_level, size_t current_level);
+        
+        // Handle overflow at a node (using R*-tree forced reinsertion or split).
+        // Returns a new split node if split occurred, nullptr otherwise.
+        std::unique_ptr<node_base> overflow_treatment(node_base* node, bool is_root);
+        
+        // Perform forced reinsertion from an overflowing leaf node.
+        void reinsert_leaf(leaf_node* node);
         
         // Split an internal node.
-        internal_node* split_internal_node(internal_node* node);
+        std::unique_ptr<internal_node> split_internal_node(internal_node* node);
         
         // Split a leaf node.
-        leaf_node* split_leaf_node(leaf_node* node);
+        std::unique_ptr<leaf_node> split_leaf_node(leaf_node* node);
         
         // Adjust the tree after insertion (propagate changes upward).
-        void adjust_tree(node_base* node, node_base* split_node);
+        void adjust_tree(node_base* node, std::unique_ptr<node_base> split_node);
         
         // Recursively search for entries within a bounding box.
-        void search_recursive(node_base* node, const bbox &query_box, std::vector<vec3<T>> &results) const;
+        void search_recursive(const node_base* node, const bbox &query_box, std::vector<entry> &results) const;
         
         // Compute the axis along which to split (for R*-tree split algorithm).
         int choose_split_axis(const std::vector<bbox> &entries) const;
@@ -186,11 +226,14 @@ template <class T> class rtree {
         // Compute the best split index along a given axis.
         size_t choose_split_index(const std::vector<bbox> &entries, int axis) const;
         
-        // Recursively delete all nodes in the tree.
-        void delete_tree(node_base* node);
+        // Update the bounding box of a node based on its contents.
+        void update_bounds(node_base* node);
         
         // Compute the height of a subtree.
-        size_t compute_height(node_base* node) const;
+        size_t compute_height(const node_base* node) const;
+        
+        // Compute the center of a bounding box.
+        vec3<T> bbox_center(const bbox &b) const;
 };
 
 #endif // YGOR_INDEX_RTREE_H_
