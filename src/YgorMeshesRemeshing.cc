@@ -40,13 +40,6 @@ int64_t mesh_remesher<T, I>::remesh_iteration() {
 }
 
 template <class T, class I>
-void mesh_remesher<T, I>::ensure_involved_faces_index() {
-    if(m_mesh.involved_faces.size() != m_mesh.vertices.size()) {
-        m_mesh.recreate_involved_face_index();
-    }
-}
-
-template <class T, class I>
 std::set<std::pair<I, I>> mesh_remesher<T, I>::get_all_edges() const {
     std::set<std::pair<I, I>> edges;
     for(const auto &face : m_mesh.faces) {
