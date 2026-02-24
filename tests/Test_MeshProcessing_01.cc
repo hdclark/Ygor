@@ -6,6 +6,7 @@
 #include <string>
 #include <set>
 #include <map>
+#include <stdexcept>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"

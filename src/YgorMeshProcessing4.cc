@@ -40,6 +40,26 @@
 //   v_new = (3/4) * v + (1/8) * (v_left + v_right)
 //   where v_left and v_right are the two boundary neighbors.
 //
+
+// Helper: Safely normalize a vector, returning fallback if near-zero length.
+template <class T>
+static vec3<T> safe_unit(const vec3<T> &v, const vec3<T> &fallback) {
+    const T len_sq = v.sq_length();
+    const T eps = static_cast<T>(1e-14);
+    if(len_sq < eps){
+        return fallback;
+    }
+    return v * (static_cast<T>(1) / std::sqrt(len_sq));
+}
+
+// Helper: Clamp a value to [0, 255] and round to uint8_t.
+template <class T>
+static uint8_t clamp_to_uint8(T val) {
+    if(val < static_cast<T>(0)) val = static_cast<T>(0);
+    if(val > static_cast<T>(255)) val = static_cast<T>(255);
+    return static_cast<uint8_t>(std::round(val));
+}
+
 template <class T, class I>
 void
 loop_subdivide(fv_surface_mesh<T,I> &fvsm,
@@ -70,9 +90,8 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
         const auto N_orig_faces = fvsm.faces.size();
 
         // Ensure we have an up-to-date index of involved faces.
-        if(fvsm.involved_faces.size() != fvsm.vertices.size()){
-            fvsm.recreate_involved_face_index();
-        }
+        // Always rebuild since faces may have been modified without updating the index.
+        fvsm.recreate_involved_face_index();
 
         // Helper: Create a canonical edge key from two vertex indices.
         // The edge key is always ordered (min, max) to ensure consistency.
@@ -82,10 +101,10 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
 
         // Build edge-to-face adjacency map.
         // For each edge, store the list of faces that contain it.
-        std::map<std::pair<I, I>, std::vector<I>> edge_faces;
-        for(I f_idx = 0; f_idx < static_cast<I>(N_orig_faces); ++f_idx){
+        std::map<std::pair<I, I>, std::vector<std::size_t>> edge_faces;
+        for(std::size_t f_idx = 0; f_idx < N_orig_faces; ++f_idx){
             const auto &face = fvsm.faces[f_idx];
-            for(size_t j = 0; j < 3; ++j){
+            for(std::size_t j = 0; j < 3; ++j){
                 auto edge_key = make_edge_key(face[j], face[(j + 1) % 3]);
                 edge_faces[edge_key].emplace_back(f_idx);
             }
@@ -132,33 +151,35 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
                         + fvsm.vertices[v3] * w_opp;
 
                 if(has_normals){
-                    new_normal = (fvsm.vertex_normals[v0] * w_edge
-                                + fvsm.vertex_normals[v1] * w_edge
-                                + fvsm.vertex_normals[v2] * w_opp
-                                + fvsm.vertex_normals[v3] * w_opp).unit();
+                    vec3<T> weighted_normal = fvsm.vertex_normals[v0] * w_edge
+                                            + fvsm.vertex_normals[v1] * w_edge
+                                            + fvsm.vertex_normals[v2] * w_opp
+                                            + fvsm.vertex_normals[v3] * w_opp;
+                    new_normal = safe_unit(weighted_normal, fvsm.vertex_normals[v0]);
                 }
                 if(has_colours){
-                    // Simple average for colours.
+                    // Weighted average for colours with clamping.
                     auto c0 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v0]);
                     auto c1 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v1]);
                     auto c2 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v2]);
                     auto c3 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v3]);
                     std::array<uint8_t, 4> c_new;
                     for(size_t ci = 0; ci < 4; ++ci){
-                        c_new[ci] = static_cast<uint8_t>(
-                            static_cast<T>(c0[ci]) * w_edge
-                          + static_cast<T>(c1[ci]) * w_edge
-                          + static_cast<T>(c2[ci]) * w_opp
-                          + static_cast<T>(c3[ci]) * w_opp);
+                        T val = static_cast<T>(c0[ci]) * w_edge
+                              + static_cast<T>(c1[ci]) * w_edge
+                              + static_cast<T>(c2[ci]) * w_opp
+                              + static_cast<T>(c3[ci]) * w_opp;
+                        c_new[ci] = clamp_to_uint8(val);
                     }
                     new_colour = fvsm.pack_RGBA32_colour(c_new);
                 }
-            }else{
+            }else if(faces_on_edge.size() == 1){
                 // Boundary edge: use simple midpoint.
                 new_pos = (fvsm.vertices[v0] + fvsm.vertices[v1]) * static_cast<T>(0.5);
 
                 if(has_normals){
-                    new_normal = (fvsm.vertex_normals[v0] + fvsm.vertex_normals[v1]).unit();
+                    vec3<T> summed_normal = fvsm.vertex_normals[v0] + fvsm.vertex_normals[v1];
+                    new_normal = safe_unit(summed_normal, fvsm.vertex_normals[v0]);
                 }
                 if(has_colours){
                     auto c0 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v0]);
@@ -169,6 +190,10 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
                     }
                     new_colour = fvsm.pack_RGBA32_colour(c_new);
                 }
+            }else{
+                // Non-manifold edge: more than 2 faces share this edge.
+                throw std::invalid_argument("Loop subdivision requires a 2-manifold mesh. Found edge with "
+                                            + std::to_string(faces_on_edge.size()) + " incident faces.");
             }
 
             // Add the new vertex.
@@ -210,16 +235,17 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
                 // Boundary vertex update.
                 // v_new = (3/4) * v + (1/8) * (v_left + v_right)
                 const auto &bn = boundary_neighbors[v_idx];
-                if(bn.size() >= 2){
+                if(bn.size() == 2){
                     const T w_center = static_cast<T>(3.0 / 4.0);
                     const T w_neighbor = static_cast<T>(1.0 / 8.0);
                     updated_positions[v_idx] = fvsm.vertices[v_idx] * w_center
                                              + fvsm.vertices[bn[0]] * w_neighbor
                                              + fvsm.vertices[bn[1]] * w_neighbor;
                     if(has_normals){
-                        updated_normals[v_idx] = (fvsm.vertex_normals[v_idx] * w_center
+                        vec3<T> weighted_normal = fvsm.vertex_normals[v_idx] * w_center
                                                 + fvsm.vertex_normals[bn[0]] * w_neighbor
-                                                + fvsm.vertex_normals[bn[1]] * w_neighbor).unit();
+                                                + fvsm.vertex_normals[bn[1]] * w_neighbor;
+                        updated_normals[v_idx] = safe_unit(weighted_normal, fvsm.vertex_normals[v_idx]);
                     }
                     if(has_colours){
                         auto c0 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v_idx]);
@@ -227,18 +253,18 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
                         auto c2 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[bn[1]]);
                         std::array<uint8_t, 4> c_new;
                         for(size_t ci = 0; ci < 4; ++ci){
-                            c_new[ci] = static_cast<uint8_t>(
-                                static_cast<T>(c0[ci]) * w_center
-                              + static_cast<T>(c1[ci]) * w_neighbor
-                              + static_cast<T>(c2[ci]) * w_neighbor);
+                            T val = static_cast<T>(c0[ci]) * w_center
+                                  + static_cast<T>(c1[ci]) * w_neighbor
+                                  + static_cast<T>(c2[ci]) * w_neighbor;
+                            c_new[ci] = clamp_to_uint8(val);
                         }
                         updated_colours[v_idx] = fvsm.pack_RGBA32_colour(c_new);
                     }
-                }else{
-                    // Corner case: vertex has fewer than 2 boundary neighbors (isolated or degenerate).
-                    updated_positions[v_idx] = fvsm.vertices[v_idx];
-                    if(has_normals) updated_normals[v_idx] = fvsm.vertex_normals[v_idx];
-                    if(has_colours) updated_colours[v_idx] = fvsm.vertex_colours[v_idx];
+                }else if(bn.size() != 2){
+                    // Non-manifold boundary vertex (not exactly 2 boundary neighbors).
+                    throw std::invalid_argument("Loop subdivision requires a 2-manifold mesh. "
+                                                "Boundary vertex has " + std::to_string(bn.size())
+                                                + " boundary neighbors (expected 2).");
                 }
             }else{
                 // Interior vertex update.
@@ -283,14 +309,15 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
 
                     updated_positions[v_idx] = fvsm.vertices[v_idx] * w_center + neighbor_sum * beta;
                     if(has_normals){
-                        updated_normals[v_idx] = (fvsm.vertex_normals[v_idx] * w_center + normal_sum * beta).unit();
+                        vec3<T> weighted_normal = fvsm.vertex_normals[v_idx] * w_center + normal_sum * beta;
+                        updated_normals[v_idx] = safe_unit(weighted_normal, fvsm.vertex_normals[v_idx]);
                     }
                     if(has_colours){
                         auto c0 = fvsm.unpack_RGBA32_colour(fvsm.vertex_colours[v_idx]);
                         std::array<uint8_t, 4> c_new;
                         for(size_t ci = 0; ci < 4; ++ci){
-                            c_new[ci] = static_cast<uint8_t>(
-                                static_cast<T>(c0[ci]) * w_center + colour_sum[ci] * beta);
+                            T val = static_cast<T>(c0[ci]) * w_center + colour_sum[ci] * beta;
+                            c_new[ci] = clamp_to_uint8(val);
                         }
                         updated_colours[v_idx] = fvsm.pack_RGBA32_colour(c_new);
                     }
