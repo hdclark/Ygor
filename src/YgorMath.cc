@@ -6335,6 +6335,9 @@ fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
         const auto i1 = fv.at(1);
         const auto i2 = fv.at(2);
 
+        if( (i0 == i1) || (i1 == i2) || (i0 == i2) ){
+            throw std::runtime_error("Laplace-Beltrami operator requires faces with three distinct vertices. Cannot continue.");
+        }
         if( (this->vertices.size() <= static_cast<size_t>(i0))
         ||  (this->vertices.size() <= static_cast<size_t>(i1))
         ||  (this->vertices.size() <= static_cast<size_t>(i2)) ){
