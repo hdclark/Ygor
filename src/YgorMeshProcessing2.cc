@@ -176,9 +176,9 @@ vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
         }
         
         if(contains_v) {
-            // For polygonal faces, accumulate contributions from a triangle fan
-            // (face[0], face[i], face[i+1]) over all i, so that the full face area
-            // contributes to the normal.
+            // Compute face normal using triangle fan decomposition.
+            // Note: While the remesher is designed for triangular meshes, this method
+            // handles arbitrary polygons for robustness in case non-triangular faces exist.
             const auto &p0 = m_mesh.vertices[face[0]];
             vec3<T> face_normal(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
             for(size_t i = 1; i + 1 < face.size(); ++i) {
@@ -433,6 +433,8 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 m_mesh.vertices.push_back(midpoint);
                 
                 // Update vertex normals if they exist and have the correct size.
+                // Note: We check size() - 1 because we already pushed the new vertex to vertices,
+                // so we need vertex_normals to have been at least as large as vertices was before.
                 if(!m_mesh.vertex_normals.empty() &&
                    m_mesh.vertex_normals.size() >= m_mesh.vertices.size() - 1 &&
                    static_cast<size_t>(v0) < m_mesh.vertex_normals.size() &&
@@ -447,6 +449,7 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 }
                 
                 // Update vertex colours if they exist and have the correct size.
+                // Note: Similar to normals, we check size() - 1 because vertices already has the new vertex.
                 if(!m_mesh.vertex_colours.empty() &&
                    m_mesh.vertex_colours.size() >= m_mesh.vertices.size() - 1 &&
                    static_cast<size_t>(v0) < m_mesh.vertex_colours.size() &&
