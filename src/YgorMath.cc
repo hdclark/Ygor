@@ -6392,7 +6392,7 @@ fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
     for(size_t i = 0; i < lb.size(); ++i){
         const auto area = barycentric_areas.at(i);
         if(area <= std::numeric_limits<T>::epsilon()){
-            throw std::runtime_error("Laplace-Beltrami operator requires every vertex to have positive local area. Cannot continue.");
+            throw std::runtime_error("Laplace-Beltrami operator requires every vertex to have positive local area and to be referenced by at least one face. Vertices with zero local area are invalid. Cannot continue.");
         }
         lb.at(i) /= (static_cast<T>(2) * area);
     }
