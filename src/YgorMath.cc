@@ -6409,14 +6409,27 @@ fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
 
 template <class T, class I>
 std::vector<T>
-fv_surface_mesh<T,I>::mean_curvature() const {
+fv_surface_mesh<T,I>::mean_curvature(const std::vector<vec3<T>> &laplace_beltrami) const {
     std::vector<T> out;
-    for(const auto &lbi : this->laplace_beltrami_operator()){
+    out.reserve(laplace_beltrami.size());
+    for(const auto &lbi : laplace_beltrami){
         out.push_back( lbi.length() / static_cast<T>(2) );
     }
     return out;
 }
+
+template <class T, class I>
+std::vector<T>
+fv_surface_mesh<T,I>::mean_curvature() const {
+    const auto lb = this->laplace_beltrami_operator();
+    return this->mean_curvature(lb);
+}
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::vector<float > fv_surface_mesh<float , uint32_t >::mean_curvature(const std::vector<vec3<float >> &) const;
+    template std::vector<float > fv_surface_mesh<float , uint64_t >::mean_curvature(const std::vector<vec3<float >> &) const;
+
+    template std::vector<double> fv_surface_mesh<double, uint32_t >::mean_curvature(const std::vector<vec3<double>> &) const;
+    template std::vector<double> fv_surface_mesh<double, uint64_t >::mean_curvature(const std::vector<vec3<double>> &) const;
     template std::vector<float > fv_surface_mesh<float , uint32_t >::mean_curvature() const;
     template std::vector<float > fv_surface_mesh<float , uint64_t >::mean_curvature() const;
 
