@@ -753,6 +753,34 @@ TEST_CASE( "fv_surface_mesh class" ){
             REQUIRE(ep.second[0].second != ep.second[1].second);
         }
     }
+
+    SUBCASE("EnsureConsistentFaceOrientation edge cases"){
+        // Non-manifold edge: three faces sharing the same undirected edge (0,1).
+        fv_surface_mesh<double, uint32_t> non_manifold_mesh;
+        non_manifold_mesh.vertices = {{ p1, p2, p3, p4, p5 }};
+        non_manifold_mesh.faces = {{
+            static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2)
+        }, {
+            static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(3)
+        }, {
+            static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(4)
+        }};
+
+        int64_t genus_non_manifold = -1;
+        (void)EnsureConsistentFaceOrientation(non_manifold_mesh, 1.0E-6, &genus_non_manifold);
+
+        // Multiple disconnected components: two separate triangles sharing no vertices.
+        fv_surface_mesh<double, uint32_t> multi_component_mesh;
+        multi_component_mesh.vertices = {{ p1, p2, p3, p4, p5, p6 }};
+        multi_component_mesh.faces = {{
+            static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2)
+        }, {
+            static_cast<uint32_t>(3), static_cast<uint32_t>(4), static_cast<uint32_t>(5)
+        }};
+
+        int64_t genus_multi_component = -1;
+        (void)EnsureConsistentFaceOrientation(multi_component_mesh, 1.0E-6, &genus_multi_component);
+    }
 }
 
 TEST_CASE( "Convex_Hull" ){
