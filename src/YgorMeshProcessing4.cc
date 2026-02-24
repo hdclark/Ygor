@@ -259,7 +259,7 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
                 }else{
                     // Compute beta using Loop's formula.
                     // beta = (1/n) * (5/8 - (3/8 + (1/4)*cos(2*pi/n))^2)
-                    const T pi = static_cast<T>(3.14159265358979323846);
+                    const T pi = static_cast<T>(3.14159265358979323846264338328);
                     const T n_t = static_cast<T>(n);
                     const T inner = static_cast<T>(3.0 / 8.0) + static_cast<T>(1.0 / 4.0) * std::cos(static_cast<T>(2.0) * pi / n_t);
                     const T beta = (static_cast<T>(1.0) / n_t) * (static_cast<T>(5.0 / 8.0) - inner * inner);
