@@ -7,6 +7,16 @@ FILE(GLOB ygor_sources "*cc")
 FILE(GLOB ygor_headers "*.h"
                        ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
+list(FIND ygor_sources "${CMAKE_CURRENT_SOURCE_DIR}/YgorImagesDithering.cc" ygor_images_dithering_src_idx)
+if(ygor_images_dithering_src_idx EQUAL -1)
+    list(APPEND ygor_sources "${CMAKE_CURRENT_SOURCE_DIR}/YgorImagesDithering.cc")
+endif()
+
+list(FIND ygor_headers "${CMAKE_CURRENT_SOURCE_DIR}/YgorImagesDithering.h" ygor_images_dithering_hdr_idx)
+if(ygor_images_dithering_hdr_idx EQUAL -1)
+    list(APPEND ygor_headers "${CMAKE_CURRENT_SOURCE_DIR}/YgorImagesDithering.h")
+endif()
+
 add_library(ygor
     ${ygor_sources}
     External/SpookyHash/SpookyV2.cpp
@@ -40,4 +50,3 @@ install(TARGETS ygor
 install(FILES ${ygor_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-

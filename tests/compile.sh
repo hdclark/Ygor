@@ -40,6 +40,7 @@ wait
 g++ -std=c++17 Test_Images_01.cc -o test_images_01 -lygor -pthread &
 g++ -std=c++17 Test_Images_02.cc -o test_images_02 -lygor -pthread -lboost_serialization -lboost_iostreams &
 g++ -std=c++17 Test_Images_03.cc -o test_images_03 -lygor -pthread &
+g++ -std=c++17 Test_Images_04.cc -o test_images_04 -lygor -pthread &
 wait
 
 g++ -std=c++17 Test_Math_01.cc -o test_math_01 -lygor -pthread &
@@ -106,5 +107,4 @@ g++ -std=c++17 Test_TAR_01.cc -o test_tar_01 -lygor -pthread &
 g++ -std=c++17 Test_YgorCONFIGTools_01.cc -o test_configtools_01 -lygor -pthread &
 g++ -std=c++17 Test_YgorDICOMTools_01.cc -o test_dicomtools_01 -lygor -pthread &
 wait
-
 
