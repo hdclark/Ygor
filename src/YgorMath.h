@@ -593,6 +593,15 @@ template <class T, class I>   class fv_surface_mesh {
         // all faces.
         T surface_area(int64_t n = -1) const;
 
+        // Computes cotangent weights opposite edge (v1,v2), using opposing vertices (v3,v4).
+        std::array<T,2> cotangent_weights(I v1, I v2, I v3, I v4) const;
+
+        // Applies the cotangent-weight Laplace-Beltrami operator to all vertices.
+        std::vector<vec3<T>> laplace_beltrami_operator() const;
+
+        // Estimates per-vertex mean curvature magnitudes from the Laplace-Beltrami operator.
+        std::vector<T> mean_curvature() const;
+
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);
 

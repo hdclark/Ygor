@@ -122,6 +122,59 @@ TEST_CASE( "fv_surface_mesh class" ){
         REQUIRE( mesh1.surface_area() == 0.5 );
     }
 
+    SUBCASE("cotangent_weights"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ vec3<double>( 1.0,  1.0,  1.0),
+                            vec3<double>(-1.0, -1.0,  1.0),
+                            vec3<double>(-1.0,  1.0, -1.0),
+                            vec3<double>( 1.0, -1.0, -1.0) }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(2), static_cast<uint32_t>(3) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        const auto cots = mesh2.cotangent_weights(0U, 1U, 2U, 3U);
+        const auto expected = 1.0 / std::sqrt(3.0);
+        REQUIRE( std::abs(cots.at(0) - expected) < eps );
+        REQUIRE( std::abs(cots.at(1) - expected) < eps );
+    }
+
+    SUBCASE("laplace_beltrami_operator and mean_curvature"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ vec3<double>( 1.0,  1.0,  1.0),
+                            vec3<double>(-1.0, -1.0,  1.0),
+                            vec3<double>(-1.0,  1.0, -1.0),
+                            vec3<double>( 1.0, -1.0, -1.0) }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(2), static_cast<uint32_t>(3) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        const auto lb = mesh2.laplace_beltrami_operator();
+        REQUIRE( lb.size() == mesh2.vertices.size() );
+        for(size_t i = 0; i < lb.size(); ++i){
+            const auto expected = mesh2.vertices.at(i) * (-2.0 / 3.0);
+            REQUIRE( std::abs(lb.at(i).x - expected.x) < eps );
+            REQUIRE( std::abs(lb.at(i).y - expected.y) < eps );
+            REQUIRE( std::abs(lb.at(i).z - expected.z) < eps );
+        }
+
+        const auto H = mesh2.mean_curvature();
+        REQUIRE( H.size() == mesh2.vertices.size() );
+        const auto expected_H = 1.0 / std::sqrt(3.0);
+        for(const auto &h : H){
+            REQUIRE( std::abs(h - expected_H) < eps );
+        }
+    }
+
+    SUBCASE("laplace_beltrami_operator throws for non-triangular facets"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }};
+        REQUIRE_THROWS( mesh2.laplace_beltrami_operator() );
+        REQUIRE_THROWS( mesh2.mean_curvature() );
+    }
+
     SUBCASE("recreate_involved_face_index"){
         REQUIRE( mesh1.involved_faces.size() == 0 );
         mesh1.recreate_involved_face_index();
@@ -830,5 +883,4 @@ TEST_CASE( "Convex_Hull" ){
         REQUIRE( faces.size() == 12 );
     }
 }
-
 

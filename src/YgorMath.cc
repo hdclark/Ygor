@@ -6284,6 +6284,149 @@ fv_surface_mesh<T,I>::surface_area(int64_t n) const {
     template double fv_surface_mesh<double, uint64_t >::surface_area(int64_t) const;
 #endif
 
+template <class T, class I>
+std::array<T,2>
+fv_surface_mesh<T,I>::cotangent_weights(I v1, I v2, I v3, I v4) const {
+    const auto &P1 = this->vertices.at(v1);
+    const auto &P2 = this->vertices.at(v2);
+    const auto &P3 = this->vertices.at(v3);
+    const auto &P4 = this->vertices.at(v4);
+
+    const auto cotangent_for_opposing_vertex = [&](const vec3<T> &P_opposite){
+        const auto A = P1 - P_opposite;
+        const auto B = P2 - P_opposite;
+        const auto denom = A.Cross(B).length();
+        if(denom <= std::numeric_limits<T>::epsilon()){
+            throw std::runtime_error("Unable to compute cotangent weight due to degenerate triangle. Cannot continue.");
+        }
+        return A.Dot(B) / denom;
+    };
+
+    return std::array<T,2>{{
+        cotangent_for_opposing_vertex(P3),
+        cotangent_for_opposing_vertex(P4)
+    }};
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::array<float,2>  fv_surface_mesh<float , uint32_t >::cotangent_weights(uint32_t, uint32_t, uint32_t, uint32_t) const;
+    template std::array<float,2>  fv_surface_mesh<float , uint64_t >::cotangent_weights(uint64_t, uint64_t, uint64_t, uint64_t) const;
+
+    template std::array<double,2> fv_surface_mesh<double, uint32_t >::cotangent_weights(uint32_t, uint32_t, uint32_t, uint32_t) const;
+    template std::array<double,2> fv_surface_mesh<double, uint64_t >::cotangent_weights(uint64_t, uint64_t, uint64_t, uint64_t) const;
+#endif
+
+template <class T, class I>
+std::vector<vec3<T>>
+fv_surface_mesh<T,I>::laplace_beltrami_operator() const {
+    std::vector<vec3<T>> lb(this->vertices.size(), vec3<T>(0,0,0));
+    std::vector<T> barycentric_areas(this->vertices.size(), static_cast<T>(0));
+
+    std::map<std::pair<I,I>, std::vector<I>> edge_to_opposing_vertices;
+    for(const auto &fv : this->faces){
+        if(fv.size() < 3) continue;
+        if(fv.size() != 3){
+            throw std::runtime_error("Laplace-Beltrami operator requires a triangular surface mesh. Cannot continue.");
+        }
+        const auto i0 = fv.at(0);
+        const auto i1 = fv.at(1);
+        const auto i2 = fv.at(2);
+
+        if( (this->vertices.size() <= static_cast<size_t>(i0))
+        ||  (this->vertices.size() <= static_cast<size_t>(i1))
+        ||  (this->vertices.size() <= static_cast<size_t>(i2)) ){
+            throw std::runtime_error("Face references a non-existent vertex. Cannot continue.");
+        }
+
+        const auto &P0 = this->vertices.at(i0);
+        const auto &P1 = this->vertices.at(i1);
+        const auto &P2 = this->vertices.at(i2);
+        const auto area = (P1 - P0).Cross(P2 - P0).length() / static_cast<T>(2);
+        if(area <= std::numeric_limits<T>::epsilon()){
+            throw std::runtime_error("Laplace-Beltrami operator requires non-degenerate triangles. Cannot continue.");
+        }
+
+        const auto area_contrib = area / static_cast<T>(3);
+        barycentric_areas.at(i0) += area_contrib;
+        barycentric_areas.at(i1) += area_contrib;
+        barycentric_areas.at(i2) += area_contrib;
+
+        const auto key01 = (i0 < i1) ? std::make_pair(i0, i1) : std::make_pair(i1, i0);
+        const auto key12 = (i1 < i2) ? std::make_pair(i1, i2) : std::make_pair(i2, i1);
+        const auto key20 = (i2 < i0) ? std::make_pair(i2, i0) : std::make_pair(i0, i2);
+
+        edge_to_opposing_vertices[key01].push_back(i2);
+        edge_to_opposing_vertices[key12].push_back(i0);
+        edge_to_opposing_vertices[key20].push_back(i1);
+    }
+
+    const auto cotangent_for_opposing_vertex = [&](I v1, I v2, I v_opp){
+        const auto &P1 = this->vertices.at(v1);
+        const auto &P2 = this->vertices.at(v2);
+        const auto &P_opp = this->vertices.at(v_opp);
+        const auto A = P1 - P_opp;
+        const auto B = P2 - P_opp;
+        const auto denom = A.Cross(B).length();
+        if(denom <= std::numeric_limits<T>::epsilon()){
+            throw std::runtime_error("Unable to compute cotangent weight due to degenerate triangle. Cannot continue.");
+        }
+        return A.Dot(B) / denom;
+    };
+
+    for(const auto &edge_opps : edge_to_opposing_vertices){
+        const auto i = edge_opps.first.first;
+        const auto j = edge_opps.first.second;
+        const auto &opps = edge_opps.second;
+
+        T w = static_cast<T>(0);
+        if(opps.size() == 1){
+            w = cotangent_for_opposing_vertex(i, j, opps.at(0));
+        }else if(opps.size() == 2){
+            const auto cot_w = this->cotangent_weights(i, j, opps.at(0), opps.at(1));
+            w = cot_w.at(0) + cot_w.at(1);
+        }else{
+            throw std::runtime_error("Edge incident to more than two triangles. Laplace-Beltrami operator requires a manifold triangular surface mesh. Cannot continue.");
+        }
+
+        const auto edge_ij = this->vertices.at(j) - this->vertices.at(i);
+        lb.at(i) += edge_ij * w;
+        lb.at(j) -= edge_ij * w;
+    }
+
+    for(size_t i = 0; i < lb.size(); ++i){
+        const auto area = barycentric_areas.at(i);
+        if(area <= std::numeric_limits<T>::epsilon()){
+            throw std::runtime_error("Laplace-Beltrami operator requires every vertex to have positive local area. Cannot continue.");
+        }
+        lb.at(i) /= (static_cast<T>(2) * area);
+    }
+
+    return lb;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::vector<vec3<float >> fv_surface_mesh<float , uint32_t >::laplace_beltrami_operator() const;
+    template std::vector<vec3<float >> fv_surface_mesh<float , uint64_t >::laplace_beltrami_operator() const;
+
+    template std::vector<vec3<double>> fv_surface_mesh<double, uint32_t >::laplace_beltrami_operator() const;
+    template std::vector<vec3<double>> fv_surface_mesh<double, uint64_t >::laplace_beltrami_operator() const;
+#endif
+
+template <class T, class I>
+std::vector<T>
+fv_surface_mesh<T,I>::mean_curvature() const {
+    std::vector<T> out;
+    for(const auto &lbi : this->laplace_beltrami_operator()){
+        out.push_back( lbi.length() / static_cast<T>(2) );
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::vector<float > fv_surface_mesh<float , uint32_t >::mean_curvature() const;
+    template std::vector<float > fv_surface_mesh<float , uint64_t >::mean_curvature() const;
+
+    template std::vector<double> fv_surface_mesh<double, uint32_t >::mean_curvature() const;
+    template std::vector<double> fv_surface_mesh<double, uint64_t >::mean_curvature() const;
+#endif
+
 // Regenerates this->involved_faces using this->vertices and this->faces.
 template <class T, class I>
 void
