@@ -175,6 +175,29 @@ TEST_CASE( "fv_surface_mesh class" ){
         REQUIRE_THROWS( mesh2.mean_curvature() );
     }
 
+    SUBCASE("laplace_beltrami_operator skips faces with fewer than 3 vertices"){
+        // Face with a single vertex
+        fv_surface_mesh<double, uint32_t> mesh_single;
+        mesh_single.vertices = {{ p1 }};
+        mesh_single.faces = {{ static_cast<uint32_t>(0) }};
+        REQUIRE_NOTHROW( mesh_single.laplace_beltrami_operator() );
+        REQUIRE_NOTHROW( mesh_single.mean_curvature() );
+        const auto lb_single = mesh_single.laplace_beltrami_operator();
+        const auto H_single = mesh_single.mean_curvature();
+        REQUIRE( lb_single.size() == mesh_single.vertices.size() );
+        REQUIRE( H_single.size() == mesh_single.vertices.size() );
+
+        // Face with two vertices
+        fv_surface_mesh<double, uint32_t> mesh_two;
+        mesh_two.vertices = {{ p1, p2 }};
+        mesh_two.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1) }};
+        REQUIRE_NOTHROW( mesh_two.laplace_beltrami_operator() );
+        REQUIRE_NOTHROW( mesh_two.mean_curvature() );
+        const auto lb_two = mesh_two.laplace_beltrami_operator();
+        const auto H_two = mesh_two.mean_curvature();
+        REQUIRE( lb_two.size() == mesh_two.vertices.size() );
+        REQUIRE( H_two.size() == mesh_two.vertices.size() );
+    }
     SUBCASE("recreate_involved_face_index"){
         REQUIRE( mesh1.involved_faces.size() == 0 );
         mesh1.recreate_involved_face_index();
