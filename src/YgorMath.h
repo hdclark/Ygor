@@ -593,7 +593,19 @@ template <class T, class I>   class fv_surface_mesh {
         // all faces.
         T surface_area(int64_t n = -1) const;
 
-        // Computes cotangent weights opposite edge (v1,v2), using opposing vertices (v3,v4).
+        // Computes cotangent weights for the edge (v1, v2) in a triangle mesh.
+        //
+        // Topology convention:
+        //   - (v1, v2) must be an edge shared by two adjacent triangles in the mesh.
+        //   - v3 is the vertex opposite this edge in one triangle, so that (v1, v2, v3) forms a face.
+        //   - v4 is the vertex opposite this edge in the other adjacent triangle, so that (v2, v1, v4) forms a face.
+        //
+        // In other words, v3 and v4 are the third vertices of the two faces incident on the edge (v1, v2). The returned
+        // array contains the cotangents of the angles at v3 and v4, respectively.
+        //
+        // Example of how to identify v3 and v4:
+        //   - Find all faces that contain both v1 and v2.
+        //   - For each such face, the remaining vertex index (neither v1 nor v2) is one of v3 or v4.
         std::array<T,2> cotangent_weights(I v1, I v2, I v3, I v4) const;
 
         // Applies the cotangent-weight Laplace-Beltrami operator to all vertices.
