@@ -188,8 +188,16 @@ void octree<T>::insert(const vec3<T> &point, std::any aux_data) {
     update_bounds(point);
     
     if(root == nullptr){
-        // Create initial root with a generous bounding box centred on the first point.
-        const T initial_half = static_cast<T>(1024);
+        // Create initial root with a bounding box sized relative to the first point.
+        const T abs_x = std::abs(point.x);
+        const T abs_y = std::abs(point.y);
+        const T abs_z = std::abs(point.z);
+        T max_coord = std::max(std::max(abs_x, abs_y), abs_z);
+        // Ensure a reasonable minimum size even if the first point is at or near the origin.
+        if(max_coord < static_cast<T>(1)){
+            max_coord = static_cast<T>(1);
+        }
+        const T initial_half = max_coord * static_cast<T>(2);
         vec3<T> half(initial_half, initial_half, initial_half);
         root = std::make_unique<octree_node>(bbox(point - half, point + half));
     }else{
