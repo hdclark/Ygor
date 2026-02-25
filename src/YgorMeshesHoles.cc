@@ -14,6 +14,8 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
+#include "YgorIndex.h"
+#include "YgorIndexCells.h"
 
 #include "YgorMeshesHoles.h"
 
@@ -39,35 +41,8 @@ VertexRepresentativeMap(const fv_surface_mesh<T,I> &fvsm,
     }
 
     //-----------------------------------------------------------------------------------------------------------------
-    // The following is a minimal spatial indexing based on spatial binning, which supports nearest-neighbour search.
-    //
-    // It is a bit hacky and should probably be replaced by a proper spatial index (e.g., quadtree, kd-tree, R-tree,
-    // etc.). TODO
-    //
-    struct cell_t {
-        int64_t x;
-        int64_t y;
-        int64_t z;
-        bool operator==(const cell_t &rhs) const {
-            return (x == rhs.x) && (y == rhs.y) && (z == rhs.z);
-        }
-    };
-    struct cell_hash_t {
-        std::size_t operator()(const cell_t &c) const {
-            const auto h0 = std::hash<int64_t>{}(c.x);
-            const auto h1 = std::hash<int64_t>{}(c.y);
-            const auto h2 = std::hash<int64_t>{}(c.z);
-            return h0 ^ (h1 << 1U) ^ (h2 << 2U);
-        }
-    };
-    const auto make_cell = [&](const vec3<T> &v) -> cell_t {
-        const auto inv_eps = static_cast<T>(1) / eps;
-        return { static_cast<int64_t>(std::floor(v.x * inv_eps)),
-                 static_cast<int64_t>(std::floor(v.y * inv_eps)),
-                 static_cast<int64_t>(std::floor(v.z * inv_eps)) };
-    };
-
-    std::unordered_map<cell_t, std::vector<I>, cell_hash_t> bins;
+    // Use cell-based spatial indexing for nearest-neighbour search.
+    cells_index<T> spatial_idx(eps);
     //-----------------------------------------------------------------------------------------------------------------
 
     const auto eps_sq = eps * eps;
@@ -76,26 +51,16 @@ VertexRepresentativeMap(const fv_surface_mesh<T,I> &fvsm,
         const auto &v_i = fvsm.vertices[i];
 
         if(v_i.isfinite()){
-            const auto c_i = make_cell(v_i);
             auto best_j = std::numeric_limits<size_t>::max();
 
             //--------------------------------------------------------------------------
-            // Spatial index lookup -- scan 3x3x3 local neighbourhood.
-            for(int64_t dx = -1L; dx <= 1L; ++dx){
-                for(int64_t dy = -1L; dy <= 1L; ++dy){
-                    for(int64_t dz = -1L; dz <= 1L; ++dz){
-                        const cell_t c_n = { c_i.x + dx, c_i.y + dy, c_i.z + dz };
-                        const auto it = bins.find(c_n);
-                        if(it == std::end(bins)) continue;
-
-                        for(const auto j_i : it->second){
-                            const auto j = static_cast<size_t>(j_i);
-                            const auto d = (v_i - fvsm.vertices[j]).sq_length();
-                            if(d <= eps_sq){
-                                best_j = std::min(best_j, j);
-                            }
-                        }
-                    }
+            // Spatial index lookup -- search within eps radius.
+            auto nearby = spatial_idx.search_radius(v_i, eps);
+            for(const auto &e : nearby){
+                const auto j = std::any_cast<size_t>(e.aux_data);
+                const auto d = (v_i - fvsm.vertices[j]).sq_length();
+                if(d <= eps_sq){
+                    best_j = std::min(best_j, j);
                 }
             }
             //--------------------------------------------------------------------------
@@ -103,7 +68,7 @@ VertexRepresentativeMap(const fv_surface_mesh<T,I> &fvsm,
             if(best_j != std::numeric_limits<size_t>::max()){
                 rep = out[best_j];
             }else{
-                bins[c_i].emplace_back(static_cast<I>(i));
+                spatial_idx.insert(v_i, i);
             }
         }
 

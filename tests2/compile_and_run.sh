@@ -28,6 +28,8 @@ g++ \
   YgorFilesDirs.cc \
   YgorIO.cc \
   YgorIndexRTree.cc \
+  YgorIndexCells.cc \
+  YgorIndexOctree.cc \
   YgorMath/*.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
