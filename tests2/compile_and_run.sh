@@ -33,6 +33,7 @@ g++ \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
   YgorMathIOXYZ.cc \
+  YgorMeshesHoles.cc \
   YgorTime/*.cc \
   YgorString.cc \
   -o run_tests \
