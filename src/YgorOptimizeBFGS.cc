@@ -74,6 +74,13 @@ bfgs_optimizer::optimize() const {
         throw std::invalid_argument("bfgs_optimizer: 'initial_params' is empty");
     }
 
+    // Validate configuration parameters.
+    if(!(this->fd_step > 0.0)){
+        throw std::invalid_argument("bfgs_optimizer: 'fd_step' must be positive");
+    }
+    if(!(this->line_search_step > 0.0)){
+        throw std::invalid_argument("bfgs_optimizer: 'line_search_step' must be positive");
+    }
     // Initialize the inverse Hessian approximation to identity.
     std::vector<std::vector<double>> H(N, std::vector<double>(N, 0.0));
     for(size_t i = 0UL; i < N; ++i){
