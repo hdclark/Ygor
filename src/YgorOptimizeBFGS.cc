@@ -65,10 +65,11 @@ bfgs_optimizer::line_search(const std::vector<double> &params,
                 trial[i] = std::min(trial[i], this->upper_bounds.value()[i]);
             }
         }
-        // Check if clamping made the step zero.
+        // Check if clamping made the step effectively zero.
+        const double step_tol = 1.0e-15;
         bool zero_step = true;
         for(size_t i = 0UL; i < N; ++i){
-            if(std::abs(trial[i] - params[i]) > 0.0){
+            if(std::abs(trial[i] - params[i]) > step_tol){
                 zero_step = false;
                 break;
             }
