@@ -435,7 +435,7 @@ EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
                             }
                         }
                         if(candidate_i == std::numeric_limits<size_t>::max()){
-                            throw std::runtime_error("Unable to compute genus: encountered an open or malformed boundary chain. Consider refining the mesh, merging duplicate vertices, and removing degenerate/non-manifold facets before retrying.");
+                            throw std::runtime_error("Unable to compute genus: encountered an open or malformed boundary chain. Consider refining the mesh, merging duplicate vertices, and removing degenerate/non-manifold faces before retrying.");
                         }
                         curr_i = candidate_i;
                     }

@@ -48,7 +48,7 @@ fv_surface_mesh_hole_chains<I>
 // The output contains one chain per connected boundary, with entries aligned so
 // that vertices[i] is the first endpoint of the boundary edge associated with
 // faces[i]/face_edges[i]. The next endpoint is vertices[(i+1) % N] for closed
-// chains.
+// chains, where N = vertices.size().
 //
 // Vertices separated by <= eps are treated as coincident while building
 // adjacency, helping to tolerate small duplicate-vertex perturbations.
