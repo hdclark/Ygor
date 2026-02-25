@@ -767,7 +767,8 @@ TEST_CASE( "fv_surface_mesh class" ){
         }};
 
         int64_t genus_non_manifold = -1;
-        (void)EnsureConsistentFaceOrientation(non_manifold_mesh, 1.0E-6, &genus_non_manifold);
+        REQUIRE(EnsureConsistentFaceOrientation(non_manifold_mesh, 1.0E-6, &genus_non_manifold) == false);
+        REQUIRE(genus_non_manifold == -1);
 
         // Multiple disconnected components: two separate triangles sharing no vertices.
         fv_surface_mesh<double, uint32_t> multi_component_mesh;
@@ -779,7 +780,24 @@ TEST_CASE( "fv_surface_mesh class" ){
         }};
 
         int64_t genus_multi_component = -1;
-        (void)EnsureConsistentFaceOrientation(multi_component_mesh, 1.0E-6, &genus_multi_component);
+        REQUIRE(EnsureConsistentFaceOrientation(multi_component_mesh, 1.0E-6, &genus_multi_component));
+        REQUIRE(genus_multi_component == 0);
+
+        // Excessively large duplicate-vertex tolerance can collapse topology and
+        // make genus estimation invalid; the routine should throw with guidance.
+        fv_surface_mesh<double, uint32_t> invalid_genus_mesh;
+        invalid_genus_mesh.vertices = {{ p1, p2, p3, p4 }};
+        invalid_genus_mesh.faces = {{
+            static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2)
+        }, {
+            static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1)
+        }, {
+            static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2)
+        }, {
+            static_cast<uint32_t>(0), static_cast<uint32_t>(2), static_cast<uint32_t>(3)
+        }};
+        int64_t invalid_genus = -1;
+        REQUIRE_THROWS(EnsureConsistentFaceOrientation(invalid_genus_mesh, 10.0, &invalid_genus));
     }
 }
 
@@ -903,4 +921,3 @@ TEST_CASE( "Convex_Hull" ){
         REQUIRE( faces.size() == 12 );
     }
 }
-

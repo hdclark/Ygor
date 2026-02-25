@@ -8,6 +8,9 @@
 #include <set>
 #include <map>
 #include <queue>
+#include <cmath>
+#include <unordered_map>
+#include <stdexcept>
 #include <utility>
 #include <algorithm>
 #include <limits>
@@ -27,16 +30,72 @@ VertexRepresentativeMap(const fv_surface_mesh<T,I> &fvsm,
     std::vector<I> out;
     out.reserve(N);
 
+    if(!(static_cast<T>(0) < eps)){
+        for(size_t i = 0UL; i < N; ++i){
+            out.emplace_back(static_cast<I>(i));
+        }
+        return out;
+    }
+
+    struct cell_t {
+        int64_t x;
+        int64_t y;
+        int64_t z;
+        bool operator==(const cell_t &rhs) const {
+            return (x == rhs.x) && (y == rhs.y) && (z == rhs.z);
+        }
+    };
+    struct cell_hash_t {
+        std::size_t operator()(const cell_t &c) const {
+            const auto h0 = std::hash<int64_t>{}(c.x);
+            const auto h1 = std::hash<int64_t>{}(c.y);
+            const auto h2 = std::hash<int64_t>{}(c.z);
+            return h0 ^ (h1 << 1U) ^ (h2 << 2U);
+        }
+    };
+    const auto make_cell = [&](const vec3<T> &v) -> cell_t {
+        const auto inv_eps = static_cast<T>(1) / eps;
+        return { static_cast<int64_t>(std::floor(v.x * inv_eps)),
+                 static_cast<int64_t>(std::floor(v.y * inv_eps)),
+                 static_cast<int64_t>(std::floor(v.z * inv_eps)) };
+    };
+
+    std::unordered_map<cell_t, std::vector<I>, cell_hash_t> bins;
+
     const auto eps_sq = eps * eps;
     for(size_t i = 0UL; i < N; ++i){
         I rep = static_cast<I>(i);
-        for(size_t j = 0UL; j < i; ++j){
-            const auto d = (fvsm.vertices[i] - fvsm.vertices[j]).sq_length();
-            if(d <= eps_sq){
-                rep = out[j];
-                break;
+        const auto &v_i = fvsm.vertices[i];
+
+        if(v_i.isfinite()){
+            const auto c_i = make_cell(v_i);
+            auto best_j = std::numeric_limits<size_t>::max();
+
+            for(int64_t dx = -1L; dx <= 1L; ++dx){
+                for(int64_t dy = -1L; dy <= 1L; ++dy){
+                    for(int64_t dz = -1L; dz <= 1L; ++dz){
+                        const cell_t c_n = { c_i.x + dx, c_i.y + dy, c_i.z + dz };
+                        const auto it = bins.find(c_n);
+                        if(it == std::end(bins)) continue;
+
+                        for(const auto j_i : it->second){
+                            const auto j = static_cast<size_t>(j_i);
+                            const auto d = (v_i - fvsm.vertices[j]).sq_length();
+                            if(d <= eps_sq){
+                                best_j = std::min(best_j, j);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(best_j != std::numeric_limits<size_t>::max()){
+                rep = out[best_j];
+            }else{
+                bins[c_i].emplace_back(static_cast<I>(i));
             }
         }
+
         out.emplace_back(rep);
     }
     return out;
@@ -375,7 +434,9 @@ EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
                                 break;
                             }
                         }
-                        if(candidate_i == std::numeric_limits<size_t>::max()) break;
+                        if(candidate_i == std::numeric_limits<size_t>::max()){
+                            throw std::runtime_error("Unable to compute genus: encountered an open or malformed boundary chain. Consider refining the mesh, merging duplicate vertices, and removing degenerate/non-manifold facets before retrying.");
+                        }
                         curr_i = candidate_i;
                     }
                 }
@@ -387,7 +448,7 @@ EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
             const int64_t chi = V - E + F;
             const int64_t numer = 2 - b - chi;
             if((numer < 0) || ((numer % 2) != 0)){
-                return false;
+                throw std::runtime_error("Unable to compute genus: mesh topology appears inconsistent with an orientable manifold. Consider refining the mesh, repairing boundaries, and removing non-manifold features before retrying.");
             }
             genus_sum += numer / 2;
         }
@@ -408,4 +469,3 @@ EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
     template bool
     EnsureConsistentFaceOrientation(fv_surface_mesh<double,uint64_t> &, double, int64_t *);
 #endif
-

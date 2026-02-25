@@ -43,12 +43,31 @@ struct fv_surface_mesh_hole_chains {
 
 template <class T, class I>
 fv_surface_mesh_hole_chains<I>
+// Detect boundary edge chains ("holes") in a face-vertex surface mesh.
+//
+// The output contains one chain per connected boundary, with entries aligned so
+// that vertices[i] is the first endpoint of the boundary edge associated with
+// faces[i]/face_edges[i]. The next endpoint is vertices[(i+1) % N] for closed
+// chains.
+//
+// Vertices separated by <= eps are treated as coincident while building
+// adjacency, helping to tolerate small duplicate-vertex perturbations.
+//
+// This routine does not modify the mesh.
 FindBoundaryChains(const fv_surface_mesh<T,I> &fvsm,
                    T eps = static_cast<T>(1E-6));
 
 
 template <class T, class I>
 bool
+// Attempt to fill closed boundary chains by zippering/triangulating each chain.
+//
+// Chains with fewer than 3 vertices or open chains are ignored. Degenerate
+// triangles (duplicate indices or very short edges <= eps) are skipped.
+//
+// Returns false only when the supplied boundary data is incompatible with the
+// mesh (e.g., out-of-range indices) or when non-manifold edges are flagged in
+// holes. Returns true otherwise (including "no-op" cases).
 FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
                               const fv_surface_mesh_hole_chains<I> &holes,
                               T eps = static_cast<T>(1E-6));
@@ -56,6 +75,17 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
 
 template <class T, class I>
 bool
+// Ensure adjacent faces are consistently oriented, flipping faces as needed.
+//
+// Returns false when a consistent orientation cannot be imposed due to
+// non-manifoldness or contradictory adjacency constraints.
+//
+// If genus != nullptr, genus is computed for each connected component and
+// summed. Boundary counting assumes manifold boundaries are closed loops. If
+// malformed boundaries are encountered, this routine throws with guidance for
+// remediation (e.g., refine/clean the mesh).
+//
+// eps controls duplicate-vertex tolerance when constructing edge adjacency.
 EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
                                 T eps = static_cast<T>(1E-6),
                                 int64_t *genus = nullptr);
