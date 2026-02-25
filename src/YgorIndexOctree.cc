@@ -183,6 +183,9 @@ void octree<T>::insert(const vec3<T> &point) {
 
 template <class T>
 void octree<T>::insert(const vec3<T> &point, std::any aux_data) {
+    if(!point.isfinite()){
+        throw std::invalid_argument("Cannot insert non-finite point into octree");
+    }
     entry e(point, std::move(aux_data));
     
     update_bounds(point);
@@ -202,7 +205,12 @@ void octree<T>::insert(const vec3<T> &point, std::any aux_data) {
         root = std::make_unique<octree_node>(bbox(point - half, point + half));
     }else{
         // If the point is outside the current root bounds, expand the root.
+        constexpr int max_expansion_iters = 128;
+        int expansion_iters = 0;
         while(!root->bounds.contains(point)){
+            if(++expansion_iters > max_expansion_iters){
+                throw std::runtime_error("Octree root expansion exceeded maximum iterations");
+            }
             // Double the root bounding box in the direction of the new point.
             auto new_root = std::make_unique<octree_node>();
             

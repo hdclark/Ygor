@@ -72,6 +72,9 @@ void cells_index<T>::insert(const vec3<T> &point) {
 
 template <class T>
 void cells_index<T>::insert(const vec3<T> &point, std::any aux_data) {
+    if(!point.isfinite()){
+        throw std::invalid_argument("Cannot insert non-finite point into cells_index");
+    }
     entry e(point, std::move(aux_data));
     const auto c = make_cell(point);
     bins[c].push_back(std::move(e));
