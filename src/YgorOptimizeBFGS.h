@@ -39,6 +39,8 @@ struct bfgs_result {
 //       return (p[0] - 3.0) * (p[0] - 3.0) + (p[1] + 1.0) * (p[1] + 1.0);
 //   };
 //   opt.initial_params = {0.0, 0.0};
+//   opt.max_iterations = 100;       // Set at least one termination condition.
+//   opt.abs_tol = 1.0e-8;           // Optional: absolute tolerance.
 //   auto result = opt.optimize();
 //
 class bfgs_optimizer {
