@@ -54,6 +54,30 @@ bfgs_optimizer::line_search(const std::vector<double> &params,
         for(size_t i = 0UL; i < N; ++i){
             trial[i] = params[i] + alpha * direction[i];
         }
+        // Apply bounds clamping to the trial point.
+        if(this->lower_bounds.has_value()){
+            for(size_t i = 0UL; i < N; ++i){
+                trial[i] = std::max(trial[i], this->lower_bounds.value()[i]);
+            }
+        }
+        if(this->upper_bounds.has_value()){
+            for(size_t i = 0UL; i < N; ++i){
+                trial[i] = std::min(trial[i], this->upper_bounds.value()[i]);
+            }
+        }
+        // Check if clamping made the step effectively zero.
+        const double step_tol = 1.0e-15;
+        bool zero_step = true;
+        for(size_t i = 0UL; i < N; ++i){
+            if(std::abs(trial[i] - params[i]) > step_tol){
+                zero_step = false;
+                break;
+            }
+        }
+        if(zero_step){
+            alpha *= rho;
+            continue;
+        }
         const double trial_cost = this->f(trial);
         if(trial_cost <= (current_cost + c1 * alpha * dg)){
             return alpha;
@@ -87,6 +111,18 @@ bfgs_optimizer::optimize() const {
     && !this->max_time.has_value()){
         throw std::invalid_argument("bfgs_optimizer: at least one termination condition must be set");
     }
+    if(this->abs_tol.has_value()
+    && !(this->abs_tol.value() > 0.0)){
+        throw std::invalid_argument("bfgs_optimizer: 'abs_tol' must be positive");
+    }
+    if(this->rel_tol.has_value()
+    && !(this->rel_tol.value() > 0.0)){
+        throw std::invalid_argument("bfgs_optimizer: 'rel_tol' must be positive");
+    }
+    if(this->max_time.has_value()
+    && (this->max_time.value() < std::chrono::steady_clock::duration::zero())){
+        throw std::invalid_argument("bfgs_optimizer: 'max_time' must be non-negative");
+    }
     if(this->lower_bounds.has_value()
     && (this->lower_bounds.value().size() != N)){
         throw std::invalid_argument("bfgs_optimizer: 'lower_bounds' size must match 'initial_params' size");
@@ -94,6 +130,14 @@ bfgs_optimizer::optimize() const {
     if(this->upper_bounds.has_value()
     && (this->upper_bounds.value().size() != N)){
         throw std::invalid_argument("bfgs_optimizer: 'upper_bounds' size must match 'initial_params' size");
+    }
+    if(this->lower_bounds.has_value()
+    && this->upper_bounds.has_value()){
+        for(size_t i = 0UL; i < N; ++i){
+            if(this->lower_bounds.value()[i] > this->upper_bounds.value()[i]){
+                throw std::invalid_argument("bfgs_optimizer: 'lower_bounds' must not exceed 'upper_bounds'");
+            }
+        }
     }
 
     // Helper to clamp parameters to optional bounds.

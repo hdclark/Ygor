@@ -37,6 +37,8 @@ g++ \
   YgorMathIOXYZ.cc \
   YgorMeshesHoles.cc \
   YgorOptimizeBFGS.cc \
+  YgorOptimizeLM.cc \
+  YgorOptimizeSA.cc \
   YgorTime/*.cc \
   YgorString.cc \
   -o run_tests \
