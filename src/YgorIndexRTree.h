@@ -41,6 +41,23 @@
 // Users can optionally associate auxiliary data (via std::any) with each inserted point.
 // This auxiliary data is not used during spatial queries but can be retrieved after lookups.
 //
+// Example usage:
+//        rtree<double> tree;
+//        
+//        // Insert with auxiliary data
+//        tree.insert(vec3<double>(1.0, 2.0, 3.0), std::string("label_a"));
+//        tree.insert(vec3<double>(4.0, 5.0, 6.0), 42);
+//        
+//        // Search returns entries with aux data preserved
+//        auto results = tree.search(query_box);
+//        for (const auto& e : results) {
+//            std::cout << e.point << " -> " << std::any_cast<std::string>(e.aux_data);
+//        }
+//        
+//        // Or use points-only methods
+//        auto points = tree.search_points(query_box);  // std::vector<vec3<T>>
+//    
+
 template <class T> class rtree {
     public:
         using value_type = T;
