@@ -1,5 +1,6 @@
 //YgorIndexRTree.h
 
+#pragma once
 #ifndef YGOR_INDEX_RTREE_H_
 #define YGOR_INDEX_RTREE_H_
 
@@ -24,6 +25,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
+#include "YgorIndex.h"
 
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -61,87 +63,11 @@
 template <class T> class rtree {
     public:
         using value_type = T;
-        
-        // An entry in the tree consisting of a spatial point and optional auxiliary data.
-        struct entry {
-            vec3<T> point;
-            std::any aux_data;
-            
-            entry();
-            entry(const vec3<T> &p);
-            entry(const vec3<T> &p, std::any data);
-            
-            bool operator==(const entry &other) const;
-        };
-        
-        // A bounding box in 3D space defined by min and max corners.
-        struct bbox {
-            vec3<T> min;
-            vec3<T> max;
-            
-            bbox();
-            bbox(const vec3<T> &min_corner, const vec3<T> &max_corner);
-            
-            // Compute the volume of the bounding box.
-            T volume() const;
-            
-            // Compute the surface area of the bounding box.
-            T surface_area() const;
-            
-            // Compute the margin (sum of edge lengths) of the bounding box.
-            T margin() const;
-            
-            // Check if this bbox contains a point.
-            bool contains(const vec3<T> &point) const;
-            
-            // Check if this bbox intersects another bbox.
-            bool intersects(const bbox &other) const;
-            
-            // Compute the union of two bounding boxes.
-            bbox union_with(const bbox &other) const;
-            
-            // Compute the intersection of two bounding boxes.
-            bbox intersection_with(const bbox &other) const;
-            
-            // Compute the increase in volume if this bbox is expanded to include another.
-            T volume_increase(const bbox &other) const;
-            
-            // Expand this bbox to include another bbox.
-            void expand(const bbox &other);
-            
-            // Expand this bbox to include a point.
-            void expand(const vec3<T> &point);
-        };
-        
-        // Base class for all nodes in the tree.
-        struct node_base;
-        struct internal_node;
-        struct leaf_node;
-        
-        struct node_base {
-            bbox bounds;
-            internal_node* parent;  // Raw pointer for parent (ownership is top-down)
-            
-            node_base();
-            virtual ~node_base() = default;
-            virtual bool is_leaf() const = 0;
-        };
-        
-        // Internal node containing references to child nodes.
-        struct internal_node : public node_base {
-            std::vector<std::unique_ptr<node_base>> children;
-            
-            internal_node();
-            bool is_leaf() const override;
-        };
-        
-        // Leaf node containing actual data entries.
-        struct leaf_node : public node_base {
-            std::vector<entry> entries;
-            
-            leaf_node();
-            bool is_leaf() const override;
-        };
+        using entry = index_entry<T>;
+        using bbox = index_bbox<T>;
+        using node_base = index_node_base<T>;
+        using internal_node = index_internal_node<T>;
+        using leaf_node = index_leaf_node<T>;
         
         //--------------------------------------------------- Data members -------------------------------------------------
         std::unique_ptr<node_base> root;
