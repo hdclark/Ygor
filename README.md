@@ -3,9 +3,6 @@
 [![Language](https://img.shields.io/github/languages/top/hdclark/Ygor.svg)](https://gitlab.com/hdeanclark/Ygor)
 [![LOC](https://tokei.rs/b1/gitlab/hdeanclark/Ygor)](https://gitlab.com/hdeanclark/Ygor)
 
-[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/hdclark/Ygor.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hdclark/Ygor/context:cpp)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/4b2ac86e6fe446a69891e5d61fb3312a)](https://www.codacy.com/app/hdclark/Ygor?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hdclark/Ygor&amp;utm_campaign=Badge_Grade)
-
 [![GitLab CI Pipeline Status](https://gitlab.com/hdeanclark/Ygor/badges/master/pipeline.svg)](https://gitlab.com/hdeanclark/Ygor/-/commits/master)
 
 [![Latest Release DOI](https://zenodo.org/badge/89644588.svg)](https://zenodo.org/badge/latestdoi/89644588)
