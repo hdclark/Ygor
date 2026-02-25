@@ -291,18 +291,34 @@ std::vector<vec3<T>> octree<T>::search_radius_points(const vec3<T> &center, T ra
 template <class T>
 std::vector<typename octree<T>::entry> octree<T>::nearest_neighbors(const vec3<T> &query_point, size_t k) const {
     std::vector<std::pair<T, entry>> all_entries;
-    
+
     if(root != nullptr){
         collect_all(root.get(), all_entries, query_point);
     }
-    
-    std::sort(all_entries.begin(), all_entries.end(),
-              [](const auto& a, const auto& b){ return a.first < b.first; });
-    
+
     std::vector<entry> results;
-    size_t count = std::min(k, all_entries.size());
-    for(size_t i = 0; i < count; ++i){
-        results.push_back(all_entries[i].second);
+    if(k == 0 || all_entries.empty()){
+        return results;
+    }
+
+    const auto cmp = [](const auto &a, const auto &b){
+        return a.first < b.first;
+    };
+
+    const size_t count = std::min(k, all_entries.size());
+
+    // If we have more entries than needed, use nth_element to select the k closest
+    if(all_entries.size() > count){
+        std::nth_element(all_entries.begin(), all_entries.begin() + static_cast<std::ptrdiff_t>(count), all_entries.end(), cmp);
+        all_entries.resize(count);
+    }
+
+    // Ensure the returned neighbors are ordered by increasing distance
+    std::sort(all_entries.begin(), all_entries.end(), cmp);
+
+    results.reserve(all_entries.size());
+    for(const auto &pair : all_entries){
+        results.push_back(pair.second);
     }
     return results;
 }
