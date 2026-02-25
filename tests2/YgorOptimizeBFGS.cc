@@ -29,6 +29,12 @@ TEST_CASE( "bfgs_optimizer basic construction" ){
         REQUIRE( !opt.rel_tol.has_value() );
         REQUIRE( !opt.max_time.has_value() );
     }
+
+    SUBCASE("optional bounds are unset by default"){
+        bfgs_optimizer opt;
+        REQUIRE( !opt.lower_bounds.has_value() );
+        REQUIRE( !opt.upper_bounds.has_value() );
+    }
 }
 
 
@@ -43,6 +49,32 @@ TEST_CASE( "bfgs_optimizer input validation" ){
     SUBCASE("throws when initial_params is empty"){
         bfgs_optimizer opt;
         opt.f = [](const std::vector<double> &p) -> double { return p[0]; };
+        opt.max_iterations = 10;
+        REQUIRE_THROWS_AS( opt.optimize(), std::invalid_argument );
+    }
+
+    SUBCASE("throws when all termination conditions are unset"){
+        bfgs_optimizer opt;
+        opt.f = [](const std::vector<double> &p) -> double { return p[0] * p[0]; };
+        opt.initial_params = {1.0};
+        REQUIRE_THROWS_AS( opt.optimize(), std::invalid_argument );
+    }
+
+    SUBCASE("throws when lower_bounds size does not match initial_params"){
+        bfgs_optimizer opt;
+        opt.f = [](const std::vector<double> &p) -> double { return p[0] * p[0]; };
+        opt.initial_params = {1.0, 2.0};
+        opt.max_iterations = 10;
+        opt.lower_bounds = std::vector<double>{0.0};
+        REQUIRE_THROWS_AS( opt.optimize(), std::invalid_argument );
+    }
+
+    SUBCASE("throws when upper_bounds size does not match initial_params"){
+        bfgs_optimizer opt;
+        opt.f = [](const std::vector<double> &p) -> double { return p[0] * p[0]; };
+        opt.initial_params = {1.0, 2.0};
+        opt.max_iterations = 10;
+        opt.upper_bounds = std::vector<double>{10.0, 10.0, 10.0};
         REQUIRE_THROWS_AS( opt.optimize(), std::invalid_argument );
     }
 }
@@ -151,7 +183,7 @@ TEST_CASE( "bfgs_optimizer termination conditions" ){
         REQUIRE( result.reason == "relative tolerance satisfied" );
     }
 
-    SUBCASE("no termination conditions means no convergence check"){
+    SUBCASE("no tolerances provided results in no convergence check"){
         // With only max_iterations set to a small value and nothing else,
         // the optimizer should stop at the iteration limit.
         opt.max_iterations = 1;
@@ -181,5 +213,47 @@ TEST_CASE( "bfgs_optimizer configurable log interval" ){
         opt.log_interval = std::chrono::seconds(0);
         auto result = opt.optimize();
         REQUIRE( result.converged );
+    }
+}
+
+
+TEST_CASE( "bfgs_optimizer parameter bounds" ){
+
+    // Minimize f(x) = (x - 5)^2, minimum at x=5.
+    bfgs_optimizer opt;
+    opt.f = [](const std::vector<double> &p) -> double {
+        return (p[0] - 5.0) * (p[0] - 5.0);
+    };
+    opt.initial_params = {0.0};
+    opt.abs_tol = 1.0e-10;
+    opt.max_iterations = 500;
+    opt.log_interval = std::chrono::hours(1);
+
+    SUBCASE("lower bound constrains the result"){
+        // Minimum at x=5, but lower bound at 6 should clamp to 6.
+        opt.lower_bounds = std::vector<double>{6.0};
+        auto result = opt.optimize();
+        REQUIRE( result.params[0] >= 6.0 - 1.0e-9 );
+    }
+
+    SUBCASE("upper bound constrains the result"){
+        // Minimum at x=5, but upper bound at 3 should clamp to 3.
+        opt.upper_bounds = std::vector<double>{3.0};
+        auto result = opt.optimize();
+        REQUIRE( result.params[0] <= 3.0 + 1.0e-9 );
+    }
+
+    SUBCASE("both bounds constrain the result"){
+        opt.lower_bounds = std::vector<double>{2.0};
+        opt.upper_bounds = std::vector<double>{3.0};
+        auto result = opt.optimize();
+        REQUIRE( result.params[0] >= 2.0 - 1.0e-9 );
+        REQUIRE( result.params[0] <= 3.0 + 1.0e-9 );
+    }
+
+    SUBCASE("no bounds allows unconstrained optimization"){
+        auto result = opt.optimize();
+        REQUIRE( result.converged );
+        REQUIRE( std::abs(result.params[0] - 5.0) < 1.0e-4 );
     }
 }

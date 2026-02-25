@@ -81,6 +81,35 @@ bfgs_optimizer::optimize() const {
     if(!(this->line_search_step > 0.0)){
         throw std::invalid_argument("bfgs_optimizer: 'line_search_step' must be positive");
     }
+    if(!this->max_iterations.has_value()
+    && !this->abs_tol.has_value()
+    && !this->rel_tol.has_value()
+    && !this->max_time.has_value()){
+        throw std::invalid_argument("bfgs_optimizer: at least one termination condition must be set");
+    }
+    if(this->lower_bounds.has_value()
+    && (this->lower_bounds.value().size() != N)){
+        throw std::invalid_argument("bfgs_optimizer: 'lower_bounds' size must match 'initial_params' size");
+    }
+    if(this->upper_bounds.has_value()
+    && (this->upper_bounds.value().size() != N)){
+        throw std::invalid_argument("bfgs_optimizer: 'upper_bounds' size must match 'initial_params' size");
+    }
+
+    // Helper to clamp parameters to optional bounds.
+    const auto clamp_params = [&](std::vector<double> &p){
+        if(this->lower_bounds.has_value()){
+            for(size_t i = 0UL; i < N; ++i){
+                p[i] = std::max(p[i], this->lower_bounds.value()[i]);
+            }
+        }
+        if(this->upper_bounds.has_value()){
+            for(size_t i = 0UL; i < N; ++i){
+                p[i] = std::min(p[i], this->upper_bounds.value()[i]);
+            }
+        }
+    };
+
     // Initialize the inverse Hessian approximation to identity.
     std::vector<std::vector<double>> H(N, std::vector<double>(N, 0.0));
     for(size_t i = 0UL; i < N; ++i){
@@ -88,12 +117,15 @@ bfgs_optimizer::optimize() const {
     }
 
     auto params = this->initial_params;
+    clamp_params(params);
     double cost = this->f(params);
     auto grad = this->approx_gradient(params);
 
     bfgs_result result;
     result.iterations = 0;
     result.converged = false;
+
+    int64_t descent_fallback_count = 0;
 
     const auto t_start = std::chrono::steady_clock::now();
     auto t_last_log = t_start;
@@ -130,14 +162,42 @@ bfgs_optimizer::optimize() const {
             }
         }
 
+        // Check that the direction is a descent direction.
+        // If not, fall back to steepest descent.
+        double dg = 0.0;
+        for(size_t i = 0UL; i < N; ++i){
+            dg += grad[i] * direction[i];
+        }
+        if(dg >= 0.0){
+            // Fall back to steepest descent direction.
+            for(size_t i = 0UL; i < N; ++i){
+                direction[i] = -grad[i];
+            }
+            ++descent_fallback_count;
+            if(descent_fallback_count >= this->max_descent_fallbacks){
+                // Reset inverse Hessian to identity.
+                for(size_t i = 0UL; i < N; ++i){
+                    for(size_t j = 0UL; j < N; ++j){
+                        H[i][j] = (i == j) ? 1.0 : 0.0;
+                    }
+                }
+                descent_fallback_count = 0;
+            }
+        }
+
         // Line search.
         const double alpha = this->line_search(params, direction, cost, grad);
 
         // Update parameters.
+        std::vector<double> params_old = params;
+        for(size_t i = 0UL; i < N; ++i){
+            params[i] += alpha * direction[i];
+        }
+        clamp_params(params);
+        // Compute the actual step taken (may differ from alpha*direction due to clamping).
         std::vector<double> s(N);
         for(size_t i = 0UL; i < N; ++i){
-            s[i] = alpha * direction[i];
-            params[i] += s[i];
+            s[i] = params[i] - params_old[i];
         }
 
         const double new_cost = this->f(params);
@@ -182,7 +242,7 @@ bfgs_optimizer::optimize() const {
             ys += y[i] * s[i];
         }
 
-        if(std::abs(ys) > 1.0e-30){
+        if(ys > 1.0e-30){
             // Compute H*y.
             std::vector<double> Hy(N, 0.0);
             for(size_t i = 0UL; i < N; ++i){

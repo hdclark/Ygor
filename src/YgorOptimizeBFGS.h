@@ -50,17 +50,26 @@ class bfgs_optimizer {
         std::vector<double> initial_params;
 
         // Optional termination conditions.
+        // At least one must be set; if all are unset, optimize() will throw.
         // If not set, the corresponding condition is not checked.
         std::optional<int64_t> max_iterations;
         std::optional<double>  abs_tol;
         std::optional<double>  rel_tol;
         std::optional<std::chrono::steady_clock::duration> max_time;
 
+        // Optional lower and upper bounds on parameters.
+        // If set, the vectors must have the same size as initial_params.
+        std::optional<std::vector<double>> lower_bounds;
+        std::optional<std::vector<double>> upper_bounds;
+
         // Step size used for finite-difference gradient approximation.
         double fd_step = 1.0e-6;
 
         // Initial step size for line search.
         double line_search_step = 1.0;
+
+        // Maximum number of steepest-descent fallbacks before resetting the inverse Hessian to identity.
+        int64_t max_descent_fallbacks = 50;
 
         // Periodic logging interval (default 1 second).
         std::chrono::steady_clock::duration log_interval = std::chrono::seconds(1);
