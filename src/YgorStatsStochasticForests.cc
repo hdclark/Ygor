@@ -523,11 +523,13 @@ void Stats::StochasticForests<T>::compute_permutation_importance(
         const int64_t n_oob = oob.size();
         if(n_oob == 0) continue;
         ++n_trees_with_oob;
+
+        // Preallocate a single row buffer for predictions to avoid repeated allocations.
+        num_array<T> x_row(1, n_features);
         
         // Compute baseline OOB SSR for this tree.
         T baseline_ssr = static_cast<T>(0);
         for(const auto idx : oob){
-            num_array<T> x_row(1, n_features);
             for(int64_t f = 0; f < n_features; ++f){
                 x_row.coeff(0, f) = X.read_coeff(idx, f);
             }
@@ -548,7 +550,6 @@ void Stats::StochasticForests<T>::compute_permutation_importance(
             
             T permuted_ssr = static_cast<T>(0);
             for(int64_t i = 0; i < n_oob; ++i){
-                num_array<T> x_row(1, n_features);
                 for(int64_t ff = 0; ff < n_features; ++ff){
                     x_row.coeff(0, ff) = X.read_coeff(oob[i], ff);
                 }
@@ -605,23 +606,29 @@ Stats::StochasticForests<T>::read_tree_node(std::istream &is) {
     if(is.fail()) return nullptr;
     
     auto node = std::make_unique<TreeNode>();
-    if(node_type == "L"){
-        node->is_leaf = true;
-        std::string val_str;
-        is >> val_str;
-        if(is.fail()) return nullptr;
-        node->value = static_cast<T>(std::stold(val_str));
-    }else if(node_type == "I"){
-        node->is_leaf = false;
-        is >> node->split_feature;
-        std::string thresh_str;
-        is >> thresh_str;
-        if(is.fail()) return nullptr;
-        node->split_threshold = static_cast<T>(std::stold(thresh_str));
-        node->left = read_tree_node(is);
-        node->right = read_tree_node(is);
-        if(!node->left || !node->right) return nullptr;
-    }else{
+    try{
+        if(node_type == "L"){
+            node->is_leaf = true;
+            std::string val_str;
+            is >> val_str;
+            if(is.fail()) return nullptr;
+            node->value = static_cast<T>(std::stold(val_str));
+        }else if(node_type == "I"){
+            node->is_leaf = false;
+            is >> node->split_feature;
+            std::string thresh_str;
+            is >> thresh_str;
+            if(is.fail()) return nullptr;
+            node->split_threshold = static_cast<T>(std::stold(thresh_str));
+            node->left = read_tree_node(is);
+            node->right = read_tree_node(is);
+            if(!node->left || !node->right) return nullptr;
+        }else{
+            return nullptr;
+        }
+    }catch(const std::invalid_argument &){
+        return nullptr;
+    }catch(const std::out_of_range &){
         return nullptr;
     }
     return node;
@@ -705,6 +712,7 @@ bool Stats::StochasticForests<T>::write_to(std::ostream &os) const {
 
 template <class T>
 bool Stats::StochasticForests<T>::read_from(std::istream &is) {
+    try{
     std::string label;
     
     // Read and validate header.
@@ -743,6 +751,7 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     int64_t n_importances;
     is >> label >> n_importances;
     if(is.fail() || label != "feature_importances") return false;
+    if(n_importances < 0 || n_importances > 1'000'000) return false;
     this->feature_importances.resize(n_importances);
     for(int64_t i = 0; i < n_importances; ++i){
         std::string val_str;
@@ -755,11 +764,13 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     int64_t n_oob_sets;
     is >> label >> n_oob_sets;
     if(is.fail() || label != "oob_sets") return false;
+    if(n_oob_sets < 0 || n_oob_sets > 1'000'000) return false;
     this->oob_indices_per_tree.resize(n_oob_sets);
     for(int64_t t = 0; t < n_oob_sets; ++t){
         int64_t n_oob;
         is >> n_oob;
         if(is.fail()) return false;
+        if(n_oob < 0 || n_oob > 1'000'000'000) return false;
         this->oob_indices_per_tree[t].resize(n_oob);
         for(int64_t i = 0; i < n_oob; ++i){
             is >> this->oob_indices_per_tree[t][i];
@@ -771,6 +782,7 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     int64_t n_gini;
     is >> label >> n_gini;
     if(is.fail() || label != "gini_importances_raw") return false;
+    if(n_gini < 0 || n_gini > 1'000'000) return false;
     this->gini_importances_raw.resize(n_gini);
     for(int64_t i = 0; i < n_gini; ++i){
         std::string val_str;
@@ -783,6 +795,7 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     int64_t n_actual_trees;
     is >> label >> n_actual_trees;
     if(is.fail() || label != "trees") return false;
+    if(n_actual_trees < 0 || n_actual_trees > 1'000'000) return false;
     
     this->trees.clear();
     this->trees.reserve(n_actual_trees);
@@ -807,12 +820,17 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     // If permutation importance is enabled, the number of OOB sets must match
     // the number of trees (as assumed by compute_permutation_importance).
     if (this->importance_method == ImportanceMethod::permutation) {
-        if (static_cast<int64_t>(this->oob_sets.size()) != n_actual_trees) {
+        if (static_cast<int64_t>(this->oob_indices_per_tree.size()) != n_actual_trees) {
             return false;
         }
     }
     
     return (!is.fail());
+    }catch(const std::invalid_argument &){
+        return false;
+    }catch(const std::out_of_range &){
+        return false;
+    }
 }
 #ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
     template bool Stats::StochasticForests<double>::read_from(std::istream &);
