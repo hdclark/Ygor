@@ -3,35 +3,35 @@
 #include <limits>
 
 #include <YgorMath.h>
-#include <YgorStatsRandomForest.h>
+#include <YgorStatsStochasticForests.h>
 
 #include "doctest/doctest.h"
 
 
-TEST_CASE( "RandomForest constructor" ){
+TEST_CASE( "StochasticForests constructor" ){
     SUBCASE("default constructor produces valid forest"){
-        Stats::RandomForest<double> rf;
+        Stats::StochasticForests<double> rf;
         REQUIRE(rf.get_n_trees() == 100);
     }
 
     SUBCASE("custom parameters are accepted"){
-        Stats::RandomForest<double> rf(50, 5, 3, 10, 12345);
+        Stats::StochasticForests<double> rf(50, 5, 3, 10, 12345);
         REQUIRE(rf.get_n_trees() == 50);
     }
 
     SUBCASE("invalid parameters are rejected"){
-        REQUIRE_THROWS( Stats::RandomForest<double>(0, 5, 2, -1, 42) );   // n_trees = 0
-        REQUIRE_THROWS( Stats::RandomForest<double>(-1, 5, 2, -1, 42) );  // n_trees < 0
-        REQUIRE_THROWS( Stats::RandomForest<double>(10, 0, 2, -1, 42) );  // max_depth = 0
-        REQUIRE_THROWS( Stats::RandomForest<double>(10, -1, 2, -1, 42) ); // max_depth < 0
-        REQUIRE_THROWS( Stats::RandomForest<double>(10, 5, 1, -1, 42) );  // min_samples_split < 2
-        REQUIRE_THROWS( Stats::RandomForest<double>(10, 5, 0, -1, 42) );  // min_samples_split < 2
+        REQUIRE_THROWS( Stats::StochasticForests<double>(0, 5, 2, -1, 42) );   // n_trees = 0
+        REQUIRE_THROWS( Stats::StochasticForests<double>(-1, 5, 2, -1, 42) );  // n_trees < 0
+        REQUIRE_THROWS( Stats::StochasticForests<double>(10, 0, 2, -1, 42) );  // max_depth = 0
+        REQUIRE_THROWS( Stats::StochasticForests<double>(10, -1, 2, -1, 42) ); // max_depth < 0
+        REQUIRE_THROWS( Stats::StochasticForests<double>(10, 5, 1, -1, 42) );  // min_samples_split < 2
+        REQUIRE_THROWS( Stats::StochasticForests<double>(10, 5, 0, -1, 42) );  // min_samples_split < 2
     }
 }
 
 
-TEST_CASE( "RandomForest fit validation" ){
-    Stats::RandomForest<double> rf(10, 5, 2, -1, 42);
+TEST_CASE( "StochasticForests fit validation" ){
+    Stats::StochasticForests<double> rf(10, 5, 2, -1, 42);
     
     SUBCASE("empty input matrices are rejected"){
         // num_array doesn't allow 0x0 matrices, so test with valid-sized but inappropriate matrices.
@@ -54,8 +54,8 @@ TEST_CASE( "RandomForest fit validation" ){
 }
 
 
-TEST_CASE( "RandomForest predict validation" ){
-    Stats::RandomForest<double> rf(10, 5, 2, -1, 42);
+TEST_CASE( "StochasticForests predict validation" ){
+    Stats::StochasticForests<double> rf(10, 5, 2, -1, 42);
     
     SUBCASE("predict before fit throws exception"){
         num_array<double> x(1, 3);
@@ -101,9 +101,9 @@ TEST_CASE( "RandomForest predict validation" ){
 }
 
 
-TEST_CASE( "RandomForest simple linear regression" ){
-    // Test that random forest can learn a simple linear relationship: y = 2*x
-    Stats::RandomForest<double> rf(100, 10, 2, -1, 42);
+TEST_CASE( "StochasticForests simple linear regression" ){
+    // Test that stochastic forest can learn a simple linear relationship: y = 2*x
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 42);
     
     // Create training data: y = 2*x for x in [0, 10).
     const int64_t n_samples = 20;
@@ -131,7 +131,7 @@ TEST_CASE( "RandomForest simple linear regression" ){
         }
         const double mean_error = total_error / static_cast<double>(n_samples);
         
-        // Random forest should learn the pattern reasonably well.
+        // Stochastic forest should learn the pattern reasonably well.
         // Allow some error due to the nature of tree-based models.
         REQUIRE( mean_error < 2.0 );
     }
@@ -156,9 +156,9 @@ TEST_CASE( "RandomForest simple linear regression" ){
 }
 
 
-TEST_CASE( "RandomForest multi-feature regression" ){
+TEST_CASE( "StochasticForests multi-feature regression" ){
     // Test with multiple features: y = x1 + 2*x2 + 3*x3
-    Stats::RandomForest<double> rf(100, 10, 2, -1, 123);
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 123);
     
     const int64_t n_samples = 50;
     const int64_t n_features = 3;
@@ -198,9 +198,9 @@ TEST_CASE( "RandomForest multi-feature regression" ){
 }
 
 
-TEST_CASE( "RandomForest non-linear regression" ){
+TEST_CASE( "StochasticForests non-linear regression" ){
     // Test with a non-linear relationship: y = x^2
-    Stats::RandomForest<double> rf(100, 15, 2, -1, 456);
+    Stats::StochasticForests<double> rf(100, 15, 2, -1, 456);
     
     const int64_t n_samples = 30;
     num_array<double> X(n_samples, 1);
@@ -230,9 +230,9 @@ TEST_CASE( "RandomForest non-linear regression" ){
 }
 
 
-TEST_CASE( "RandomForest constant output" ){
+TEST_CASE( "StochasticForests constant output" ){
     // Test with constant output values.
-    Stats::RandomForest<double> rf(50, 5, 2, -1, 789);
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 789);
     
     const int64_t n_samples = 20;
     num_array<double> X(n_samples, 2);
@@ -260,7 +260,7 @@ TEST_CASE( "RandomForest constant output" ){
 }
 
 
-TEST_CASE( "RandomForest reproducibility with same seed" ){
+TEST_CASE( "StochasticForests reproducibility with same seed" ){
     // Test that same seed produces same results.
     const uint64_t seed = 98765;
     
@@ -272,10 +272,10 @@ TEST_CASE( "RandomForest reproducibility with same seed" ){
         y.coeff(i, 0) = static_cast<double>(i) * 1.5;
     }
     
-    Stats::RandomForest<double> rf1(50, 5, 2, -1, seed);
+    Stats::StochasticForests<double> rf1(50, 5, 2, -1, seed);
     rf1.fit(X, y);
     
-    Stats::RandomForest<double> rf2(50, 5, 2, -1, seed);
+    Stats::StochasticForests<double> rf2(50, 5, 2, -1, seed);
     rf2.fit(X, y);
     
     // Predictions should be identical with same seed.
@@ -290,9 +290,9 @@ TEST_CASE( "RandomForest reproducibility with same seed" ){
 }
 
 
-TEST_CASE( "RandomForest with few samples" ){
+TEST_CASE( "StochasticForests with few samples" ){
     // Test with minimal number of samples.
-    Stats::RandomForest<double> rf(10, 3, 2, -1, 111);
+    Stats::StochasticForests<double> rf(10, 3, 2, -1, 111);
     
     num_array<double> X(3, 1);
     num_array<double> y(3, 1);
@@ -318,7 +318,7 @@ TEST_CASE( "RandomForest with few samples" ){
 }
 
 
-TEST_CASE( "RandomForest feature randomness" ){
+TEST_CASE( "StochasticForests feature randomness" ){
     // Test that max_features parameter affects model behavior.
     // With only 1 feature considered per split, results should differ from considering all features.
     
@@ -333,11 +333,11 @@ TEST_CASE( "RandomForest feature randomness" ){
     }
     
     // Model with all features considered.
-    Stats::RandomForest<double> rf_all(50, 5, 2, 5, 222);
+    Stats::StochasticForests<double> rf_all(50, 5, 2, 5, 222);
     rf_all.fit(X, y);
     
     // Model with only 1 feature considered per split.
-    Stats::RandomForest<double> rf_limited(50, 5, 2, 1, 222);
+    Stats::StochasticForests<double> rf_limited(50, 5, 2, 1, 222);
     rf_limited.fit(X, y);
     
     num_array<double> x_test(1, 5);
@@ -354,7 +354,7 @@ TEST_CASE( "RandomForest feature randomness" ){
 }
 
 
-TEST_CASE( "RandomForest bootstrap sampling" ){
+TEST_CASE( "StochasticForests bootstrap sampling" ){
     // Verify that bootstrap sampling (bagging) affects results.
     // Different random seeds should produce different models due to different bootstrap samples.
     
@@ -367,10 +367,10 @@ TEST_CASE( "RandomForest bootstrap sampling" ){
         y.coeff(i, 0) = static_cast<double>(i) * 1.2;
     }
     
-    Stats::RandomForest<double> rf1(50, 5, 2, -1, 333);
+    Stats::StochasticForests<double> rf1(50, 5, 2, -1, 333);
     rf1.fit(X, y);
     
-    Stats::RandomForest<double> rf2(50, 5, 2, -1, 444);
+    Stats::StochasticForests<double> rf2(50, 5, 2, -1, 444);
     rf2.fit(X, y);
     
     num_array<double> x_test(1, 2);
@@ -385,11 +385,11 @@ TEST_CASE( "RandomForest bootstrap sampling" ){
 }
 
 
-TEST_CASE( "RandomForest multiple fit calls" ){
+TEST_CASE( "StochasticForests multiple fit calls" ){
     // Test that calling fit() multiple times works correctly and that max_features
     // is properly recalculated based on the new data.
     
-    Stats::RandomForest<double> rf(50, 5, 2, -1, 555);  // max_features = -1 (auto).
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 555);  // max_features = -1 (auto).
     
     // First fit with 16 features (should use sqrt(16) = 4 features per split).
     num_array<double> X1(20, 16);
