@@ -727,6 +727,10 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
     int imp_method_int;
     is >> label >> imp_method_int;
     if(is.fail() || label != "importance_method") return false;
+    if(imp_method_int < 0 || imp_method_int > 2){
+        this->importance_method = ImportanceMethod::none;
+        return false;
+    }
     this->importance_method = static_cast<ImportanceMethod>(imp_method_int);
     
     // Read feature importances.
