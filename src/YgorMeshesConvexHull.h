@@ -146,8 +146,9 @@ class ConvexHull {
         T rng_uniform();
 
         // Build the initial tetrahedron from the first 4 non-degenerate points.
-        // Returns the index of the next point to process (i.e., the number of
-        // points consumed for the initial simplex).
+        // The current implementation always returns 0 and callers ignore this
+        // value; it is retained only for compatibility and does not indicate
+        // the index of the next point to process.
         uint64_t build_initial_simplex();
 
         // Add a single point (by internal index) to the existing hull.
