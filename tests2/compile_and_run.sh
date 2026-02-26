@@ -36,6 +36,7 @@ g++ \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
   YgorMathIOXYZ.cc \
+  YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
