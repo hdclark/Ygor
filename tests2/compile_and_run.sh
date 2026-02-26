@@ -31,6 +31,7 @@ g++ \
   YgorIndexCells.cc \
   YgorIndexOctree.cc \
   YgorMath/*.cc \
+  YgorMathDelaunay.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
