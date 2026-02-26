@@ -632,6 +632,13 @@ template <class T>
 bool Stats::StochasticForests<T>::write_to(std::ostream &os) const {
     const auto original_precision = os.precision();
     os.precision( std::numeric_limits<T>::max_digits10 );
+
+    // RAII guard to restore stream precision on all exit paths.
+    struct precision_guard {
+        std::ostream &s;
+        std::streamsize p;
+        ~precision_guard(){ s.precision(p); }
+    } guard{os, original_precision};
     
     os << "StochasticForests_v1" << "\n";
     os << "n_trees " << this->n_trees << "\n";
@@ -681,8 +688,6 @@ bool Stats::StochasticForests<T>::write_to(std::ostream &os) const {
         os << "end_tree\n";
     }
     
-    // Reset the precision of the stream.
-    os.precision( original_precision );
     os.flush();
     return (!os.fail());
 }
