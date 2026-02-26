@@ -247,6 +247,7 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
         // Permutation test: shuffle y_dev and recompute statistic.
         std::vector<T> y_dev_perm(y_dev);
         int64_t count_ge = 0;
+        int64_t perms_done = 0;
 
         // Early-exit parameters: check after early_check permutations.
         const int64_t early_check = std::min(static_cast<int64_t>(100), this->n_permutations);
@@ -263,10 +264,11 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
             if(perm_stat >= observed_stat){
                 ++count_ge;
             }
+            perms_done = k + 1;
 
             // Early exit: after early_check permutations, if the variable is clearly
             // non-significant, skip the remaining permutations.
-            if(k + 1 == early_check && early_check < this->n_permutations){
+            if(perms_done == early_check && early_check < this->n_permutations){
                 // Estimate p-value so far.
                 const T early_pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(early_check + 1);
                 // If the estimated p-value is much larger than alpha, exit early.
@@ -277,7 +279,7 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
             }
         }
 
-        const T pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(this->n_permutations + 1);
+        const T pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(perms_done + 1);
 
         if(pvalue < best_pvalue){
             best_pvalue = pvalue;
