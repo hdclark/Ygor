@@ -452,6 +452,12 @@ int64_t Stats::StochasticForests<T>::get_n_trees() const {
 
 template <class T>
 void Stats::StochasticForests<T>::set_importance_method(Stats::ImportanceMethod method) {
+    // According to the documentation, this must be called before fit().
+    // Use n_features_trained as an indicator of whether the model has been trained.
+    if(this->n_features_trained != -1){
+        throw std::logic_error("set_importance_method() must be called before fit(); "
+                               "changing importance_method after training may lead to inconsistent state.");
+    }
     this->importance_method = method;
 }
 #ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
