@@ -432,3 +432,381 @@ TEST_CASE( "StochasticForests multiple fit calls" ){
     // Old test input should now be rejected since model expects 9 features.
     REQUIRE_THROWS( rf.predict(x_test1) );
 }
+
+
+TEST_CASE( "StochasticForests write_to and read_from roundtrip" ){
+    // Train a model, write it, read it back, and verify predictions match.
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 42);
+    
+    const int64_t n_samples = 30;
+    const int64_t n_features = 3;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.1;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.2;
+        X.coeff(i, 2) = static_cast<double>(i) * 0.15;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + 2.0 * X.read_coeff(i, 1) + 3.0 * X.read_coeff(i, 2);
+    }
+    
+    rf.fit(X, y);
+    
+    SUBCASE("roundtrip preserves predictions exactly"){
+        // Write model.
+        std::stringstream ss;
+        REQUIRE( rf.write_to(ss) );
+        
+        // Read model.
+        Stats::StochasticForests<double> rf_loaded;
+        REQUIRE( rf_loaded.read_from(ss) );
+        
+        // Verify parameters.
+        REQUIRE( rf_loaded.get_n_trees() == 50 );
+        
+        // Verify predictions are identical.
+        for(int64_t i = 0; i < n_samples; ++i){
+            num_array<double> x_test(1, n_features);
+            x_test.coeff(0, 0) = X.read_coeff(i, 0);
+            x_test.coeff(0, 1) = X.read_coeff(i, 1);
+            x_test.coeff(0, 2) = X.read_coeff(i, 2);
+            
+            const double pred_original = rf.predict(x_test);
+            const double pred_loaded = rf_loaded.predict(x_test);
+            REQUIRE( pred_original == pred_loaded );
+        }
+    }
+    
+    SUBCASE("roundtrip preserves predictions on unseen data"){
+        std::stringstream ss;
+        REQUIRE( rf.write_to(ss) );
+        
+        Stats::StochasticForests<double> rf_loaded;
+        REQUIRE( rf_loaded.read_from(ss) );
+        
+        // Test on unseen data.
+        for(int i = 0; i < 10; ++i){
+            num_array<double> x_test(1, n_features);
+            x_test.coeff(0, 0) = static_cast<double>(i) * 0.05 + 0.025;
+            x_test.coeff(0, 1) = static_cast<double>(i) * 0.1 + 0.05;
+            x_test.coeff(0, 2) = static_cast<double>(i) * 0.075 + 0.0375;
+            
+            const double pred_original = rf.predict(x_test);
+            const double pred_loaded = rf_loaded.predict(x_test);
+            REQUIRE( pred_original == pred_loaded );
+        }
+    }
+    
+    SUBCASE("written format is text-based"){
+        std::stringstream ss;
+        REQUIRE( rf.write_to(ss) );
+        const std::string content = ss.str();
+        
+        // Verify it starts with the expected header.
+        REQUIRE( content.substr(0, 20) == "StochasticForests_v1" );
+        
+        // Verify it contains expected labels.
+        REQUIRE( content.find("n_trees 50") != std::string::npos );
+        REQUIRE( content.find("max_depth 5") != std::string::npos );
+        REQUIRE( content.find("begin_tree") != std::string::npos );
+        REQUIRE( content.find("end_tree") != std::string::npos );
+    }
+    
+    SUBCASE("read_from rejects invalid input"){
+        std::stringstream bad_ss("not a valid model");
+        Stats::StochasticForests<double> rf_bad;
+        REQUIRE( !rf_bad.read_from(bad_ss) );
+    }
+}
+
+
+TEST_CASE( "StochasticForests write_to and read_from with float" ){
+    Stats::StochasticForests<float> rf(20, 4, 2, -1, 99);
+    
+    const int64_t n_samples = 15;
+    num_array<float> X(n_samples, 2);
+    num_array<float> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<float>(i) * 0.5f;
+        X.coeff(i, 1) = static_cast<float>(i) * 0.3f;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + X.read_coeff(i, 1);
+    }
+    
+    rf.fit(X, y);
+    
+    std::stringstream ss;
+    REQUIRE( rf.write_to(ss) );
+    
+    Stats::StochasticForests<float> rf_loaded;
+    REQUIRE( rf_loaded.read_from(ss) );
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        num_array<float> x_test(1, 2);
+        x_test.coeff(0, 0) = X.read_coeff(i, 0);
+        x_test.coeff(0, 1) = X.read_coeff(i, 1);
+        
+        const float pred_original = rf.predict(x_test);
+        const float pred_loaded = rf_loaded.predict(x_test);
+        REQUIRE( pred_original == pred_loaded );
+    }
+}
+
+
+TEST_CASE( "StochasticForests importance method defaults to none" ){
+    Stats::StochasticForests<double> rf;
+    REQUIRE( rf.get_importance_method() == Stats::ImportanceMethod::none );
+    REQUIRE( rf.get_feature_importances().empty() );
+}
+
+
+TEST_CASE( "StochasticForests Gini variable importance" ){
+    // Use y = x1 + 2*x2 + 3*x3 so x3 should be most important.
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::gini);
+    
+    const int64_t n_samples = 50;
+    const int64_t n_features = 3;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.1;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.2;
+        X.coeff(i, 2) = static_cast<double>(i) * 0.15;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + 2.0 * X.read_coeff(i, 1) + 3.0 * X.read_coeff(i, 2);
+    }
+    
+    rf.fit(X, y);
+    
+    SUBCASE("importances are available after fit"){
+        auto importances = rf.get_feature_importances();
+        REQUIRE( importances.size() == 3 );
+    }
+    
+    SUBCASE("importances sum to 1"){
+        auto importances = rf.get_feature_importances();
+        double sum = 0.0;
+        for(const auto &v : importances) sum += v;
+        REQUIRE( std::abs(sum - 1.0) < 1e-10 );
+    }
+    
+    SUBCASE("importances are non-negative"){
+        auto importances = rf.get_feature_importances();
+        for(const auto &v : importances){
+            REQUIRE( v >= 0.0 );
+        }
+    }
+    
+    SUBCASE("importance method is correctly set"){
+        REQUIRE( rf.get_importance_method() == Stats::ImportanceMethod::gini );
+    }
+}
+
+
+TEST_CASE( "StochasticForests Gini importance with irrelevant feature" ){
+    // y = 2*x1, with x2 being noise (constant). x1 should have much higher importance.
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::gini);
+    
+    const int64_t n_samples = 40;
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.5;
+        X.coeff(i, 1) = 1.0;  // Constant, irrelevant feature.
+        y.coeff(i, 0) = 2.0 * X.read_coeff(i, 0);
+    }
+    
+    rf.fit(X, y);
+    
+    auto importances = rf.get_feature_importances();
+    REQUIRE( importances.size() == 2 );
+    // Feature 0 should be dominant.
+    REQUIRE( importances[0] > importances[1] );
+}
+
+
+TEST_CASE( "StochasticForests permutation variable importance" ){
+    // y = x1 + 2*x2 + 3*x3.
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::permutation);
+    
+    const int64_t n_samples = 60;
+    const int64_t n_features = 3;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.1;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.2;
+        X.coeff(i, 2) = static_cast<double>(i) * 0.15;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + 2.0 * X.read_coeff(i, 1) + 3.0 * X.read_coeff(i, 2);
+    }
+    
+    rf.fit(X, y);
+    
+    SUBCASE("importances are not available before compute"){
+        REQUIRE( rf.get_feature_importances().empty() );
+    }
+    
+    SUBCASE("compute_permutation_importance produces valid results"){
+        rf.compute_permutation_importance(X, y);
+        auto importances = rf.get_feature_importances();
+        REQUIRE( importances.size() == 3 );
+        
+        // All importances should be non-negative (permuting should increase error).
+        for(const auto &v : importances){
+            REQUIRE( v >= 0.0 );
+        }
+    }
+    
+    SUBCASE("throws without permutation method set"){
+        Stats::StochasticForests<double> rf_none(50, 5, 2, -1, 42);
+        num_array<double> X2(10, 2);
+        num_array<double> y2(10, 1);
+        for(int64_t i = 0; i < 10; ++i){
+            X2.coeff(i, 0) = static_cast<double>(i);
+            X2.coeff(i, 1) = static_cast<double>(i * 2);
+            y2.coeff(i, 0) = static_cast<double>(i);
+        }
+        rf_none.fit(X2, y2);
+        REQUIRE_THROWS( rf_none.compute_permutation_importance(X2, y2) );
+    }
+    
+    SUBCASE("throws before fit"){
+        Stats::StochasticForests<double> rf_new(50, 5, 2, -1, 42);
+        rf_new.set_importance_method(Stats::ImportanceMethod::permutation);
+        num_array<double> X2(10, 2);
+        num_array<double> y2(10, 1);
+        REQUIRE_THROWS( rf_new.compute_permutation_importance(X2, y2) );
+    }
+}
+
+
+TEST_CASE( "StochasticForests permutation importance with irrelevant feature" ){
+    // y = 3*x1, with x2 constant. x1 should have much higher importance.
+    Stats::StochasticForests<double> rf(100, 10, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::permutation);
+    
+    const int64_t n_samples = 50;
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.5;
+        X.coeff(i, 1) = 1.0;  // Constant, irrelevant feature.
+        y.coeff(i, 0) = 3.0 * X.read_coeff(i, 0);
+    }
+    
+    rf.fit(X, y);
+    rf.compute_permutation_importance(X, y);
+    
+    auto importances = rf.get_feature_importances();
+    REQUIRE( importances.size() == 2 );
+    // Feature 0 should dominate.
+    REQUIRE( importances[0] > importances[1] );
+}
+
+
+TEST_CASE( "StochasticForests no importance overhead" ){
+    // When importance is none, no overhead data should be stored.
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 42);
+    
+    num_array<double> X(20, 3);
+    num_array<double> y(20, 1);
+    for(int64_t i = 0; i < 20; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        X.coeff(i, 1) = static_cast<double>(i * 2);
+        X.coeff(i, 2) = static_cast<double>(i * 3);
+        y.coeff(i, 0) = static_cast<double>(i);
+    }
+    
+    rf.fit(X, y);
+    
+    // Should have no importances computed.
+    REQUIRE( rf.get_feature_importances().empty() );
+    REQUIRE( rf.get_importance_method() == Stats::ImportanceMethod::none );
+}
+
+
+TEST_CASE( "StochasticForests serialization with Gini importance" ){
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::gini);
+    
+    const int64_t n_samples = 30;
+    const int64_t n_features = 2;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.3;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.1;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + X.read_coeff(i, 1);
+    }
+    
+    rf.fit(X, y);
+    
+    // Serialize and deserialize.
+    std::stringstream ss;
+    REQUIRE( rf.write_to(ss) );
+    
+    Stats::StochasticForests<double> rf_loaded;
+    REQUIRE( rf_loaded.read_from(ss) );
+    
+    // Importances should be preserved.
+    auto imp_orig = rf.get_feature_importances();
+    auto imp_loaded = rf_loaded.get_feature_importances();
+    REQUIRE( imp_orig.size() == imp_loaded.size() );
+    for(size_t i = 0; i < imp_orig.size(); ++i){
+        REQUIRE( imp_orig[i] == imp_loaded[i] );
+    }
+    
+    // Predictions should also be preserved.
+    num_array<double> x_test(1, n_features);
+    x_test.coeff(0, 0) = 1.5;
+    x_test.coeff(0, 1) = 0.5;
+    REQUIRE( rf.predict(x_test) == rf_loaded.predict(x_test) );
+}
+
+
+TEST_CASE( "StochasticForests serialization with permutation importance" ){
+    Stats::StochasticForests<double> rf(50, 5, 2, -1, 42);
+    rf.set_importance_method(Stats::ImportanceMethod::permutation);
+    
+    const int64_t n_samples = 30;
+    const int64_t n_features = 2;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+    
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.3;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.1;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + X.read_coeff(i, 1);
+    }
+    
+    rf.fit(X, y);
+    rf.compute_permutation_importance(X, y);
+    
+    // Serialize and deserialize.
+    std::stringstream ss;
+    REQUIRE( rf.write_to(ss) );
+    
+    Stats::StochasticForests<double> rf_loaded;
+    REQUIRE( rf_loaded.read_from(ss) );
+    
+    // Importances should be preserved.
+    auto imp_orig = rf.get_feature_importances();
+    auto imp_loaded = rf_loaded.get_feature_importances();
+    REQUIRE( imp_orig.size() == imp_loaded.size() );
+    for(size_t i = 0; i < imp_orig.size(); ++i){
+        REQUIRE( imp_orig[i] == imp_loaded[i] );
+    }
+    
+    // Predictions should also be preserved.
+    num_array<double> x_test(1, n_features);
+    x_test.coeff(0, 0) = 1.5;
+    x_test.coeff(0, 1) = 0.5;
+    REQUIRE( rf.predict(x_test) == rf_loaded.predict(x_test) );
+}

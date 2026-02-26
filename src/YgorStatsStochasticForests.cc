@@ -29,7 +29,8 @@ Stats::StochasticForests<T>::StochasticForests(int64_t n_trees,
       min_samples_split(min_samples_split),
       max_features(max_features),
       n_features_trained(-1),
-      random_seed(random_seed) {
+      random_seed(random_seed),
+      importance_method(ImportanceMethod::none) {
     
     if(n_trees <= 0){
         throw std::invalid_argument("Number of trees must be positive");
@@ -72,9 +73,20 @@ void Stats::StochasticForests<T>::fit(const num_array<T> &X, const num_array<T> 
     // Ensure max_features doesn't exceed n_features.
     effective_max_features = std::min(effective_max_features, n_features);
     
-    // Clear any existing trees.
+    // Clear any existing trees and importance data.
     this->trees.clear();
     this->trees.reserve(this->n_trees);
+    this->feature_importances.clear();
+    this->oob_indices_per_tree.clear();
+    this->gini_importances_raw.clear();
+
+    // Initialize importance tracking if needed.
+    if(this->importance_method == ImportanceMethod::gini){
+        this->gini_importances_raw.assign(n_features, static_cast<T>(0));
+    }
+    if(this->importance_method == ImportanceMethod::permutation){
+        this->oob_indices_per_tree.reserve(this->n_trees);
+    }
     
     // Build each tree with bootstrap sampling.
     std::mt19937_64 rng(this->random_seed);
@@ -87,10 +99,43 @@ void Stats::StochasticForests<T>::fit(const num_array<T> &X, const num_array<T> 
         for(int64_t i = 0; i < n_samples; ++i){
             bootstrap_indices.push_back(sample_dist(rng));
         }
+
+        // Track OOB indices for permutation importance.
+        if(this->importance_method == ImportanceMethod::permutation){
+            std::vector<bool> in_bag(n_samples, false);
+            for(const auto idx : bootstrap_indices){
+                in_bag[idx] = true;
+            }
+            std::vector<int64_t> oob;
+            for(int64_t i = 0; i < n_samples; ++i){
+                if(!in_bag[i]){
+                    oob.push_back(i);
+                }
+            }
+            this->oob_indices_per_tree.push_back(std::move(oob));
+        }
         
         // Build a tree using the bootstrap sample.
         auto tree = build_tree(X, y, bootstrap_indices, 0, effective_max_features, rng);
         this->trees.push_back(std::move(tree));
+    }
+
+    // Finalize Gini importances: normalize to sum to 1.
+    if(this->importance_method == ImportanceMethod::gini){
+        T total = static_cast<T>(0);
+        for(const auto &v : this->gini_importances_raw){
+            total += v;
+        }
+        this->feature_importances.resize(n_features);
+        if(total > static_cast<T>(0)){
+            for(int64_t f = 0; f < n_features; ++f){
+                this->feature_importances[f] = this->gini_importances_raw[f] / total;
+            }
+        }else{
+            for(int64_t f = 0; f < n_features; ++f){
+                this->feature_importances[f] = static_cast<T>(0);
+            }
+        }
     }
 }
 #ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
@@ -159,6 +204,23 @@ Stats::StochasticForests<T>::build_tree(
     node->is_leaf = false;
     node->split_feature = best_feature;
     node->split_threshold = best_threshold;
+
+    // Accumulate Gini importance (weighted impurity decrease).
+    if(this->importance_method == ImportanceMethod::gini){
+        // Compute parent variance.
+        T sum_sq_dev = static_cast<T>(0);
+        for(const auto idx : sample_indices){
+            const T dev = y.read_coeff(idx, 0) - mean;
+            sum_sq_dev += dev * dev;
+        }
+        const T parent_var = sum_sq_dev / static_cast<T>(n_samples);
+        // best_score is -weighted_child_var, so impurity decrease = parent_var + best_score.
+        const T impurity_decrease = parent_var + best_score;
+        if(impurity_decrease > static_cast<T>(0)){
+            this->gini_importances_raw[best_feature] += static_cast<T>(n_samples) * impurity_decrease;
+        }
+    }
+
     node->left = build_tree(X, y, left_indices, depth + 1, effective_max_features, rng);
     node->right = build_tree(X, y, right_indices, depth + 1, effective_max_features, rng);
     
@@ -388,3 +450,389 @@ int64_t Stats::StochasticForests<T>::get_n_trees() const {
 #endif
 
 
+template <class T>
+void Stats::StochasticForests<T>::set_importance_method(Stats::ImportanceMethod method) {
+    // According to the documentation, this must be called before fit().
+    // Use n_features_trained as an indicator of whether the model has been trained.
+    if(this->n_features_trained != -1){
+        throw std::logic_error("set_importance_method() must be called before fit(); "
+                               "changing importance_method after training may lead to inconsistent state.");
+    }
+    this->importance_method = method;
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template void Stats::StochasticForests<double>::set_importance_method(Stats::ImportanceMethod);
+    template void Stats::StochasticForests<float>::set_importance_method(Stats::ImportanceMethod);
+#endif
+
+
+template <class T>
+Stats::ImportanceMethod Stats::StochasticForests<T>::get_importance_method() const {
+    return this->importance_method;
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template Stats::ImportanceMethod Stats::StochasticForests<double>::get_importance_method() const;
+    template Stats::ImportanceMethod Stats::StochasticForests<float>::get_importance_method() const;
+#endif
+
+
+template <class T>
+std::vector<T> Stats::StochasticForests<T>::get_feature_importances() const {
+    return this->feature_importances;
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template std::vector<double> Stats::StochasticForests<double>::get_feature_importances() const;
+    template std::vector<float> Stats::StochasticForests<float>::get_feature_importances() const;
+#endif
+
+
+template <class T>
+void Stats::StochasticForests<T>::compute_permutation_importance(
+    const num_array<T> &X, const num_array<T> &y) {
+    
+    if(this->importance_method != ImportanceMethod::permutation){
+        throw std::runtime_error("Importance method must be set to permutation before calling compute_permutation_importance");
+    }
+    if(this->trees.empty()){
+        throw std::runtime_error("Model has not been fitted yet");
+    }
+    
+    const int64_t n_samples = X.num_rows();
+    const int64_t n_features = X.num_cols();
+    
+    if(n_samples == 0 || n_features == 0){
+        throw std::invalid_argument("Input matrix X cannot be empty");
+    }
+    if(y.num_rows() != n_samples || y.num_cols() != 1){
+        throw std::invalid_argument("Output vector y must be Nx1 where N matches X.num_rows()");
+    }
+    if(n_features != this->n_features_trained){
+        throw std::invalid_argument("Input features must match training data features");
+    }
+    if(this->oob_indices_per_tree.size() != static_cast<size_t>(this->n_trees)){
+        throw std::runtime_error("OOB indices not available; model may not have been fitted with permutation importance enabled");
+    }
+    
+    this->feature_importances.assign(n_features, static_cast<T>(0));
+    
+    std::mt19937_64 rng(this->random_seed + 1);
+    int64_t n_trees_with_oob = 0;
+    
+    for(int64_t t = 0; t < this->n_trees; ++t){
+        const auto &oob = this->oob_indices_per_tree[t];
+        const int64_t n_oob = oob.size();
+        if(n_oob == 0) continue;
+        ++n_trees_with_oob;
+
+        // Preallocate a single row buffer for predictions to avoid repeated allocations.
+        num_array<T> x_row(1, n_features);
+        
+        // Compute baseline OOB SSR for this tree.
+        T baseline_ssr = static_cast<T>(0);
+        for(const auto idx : oob){
+            for(int64_t f = 0; f < n_features; ++f){
+                x_row.coeff(0, f) = X.read_coeff(idx, f);
+            }
+            const T pred = predict_tree(this->trees[t].get(), x_row);
+            const T residual = y.read_coeff(idx, 0) - pred;
+            baseline_ssr += residual * residual;
+        }
+        
+        // For each feature, permute among OOB samples and compute new SSR.
+        for(int64_t f = 0; f < n_features; ++f){
+            // Create a permuted copy of the feature values for OOB samples.
+            std::vector<T> permuted_vals;
+            permuted_vals.reserve(n_oob);
+            for(const auto idx : oob){
+                permuted_vals.push_back(X.read_coeff(idx, f));
+            }
+            std::shuffle(permuted_vals.begin(), permuted_vals.end(), rng);
+            
+            T permuted_ssr = static_cast<T>(0);
+            for(int64_t i = 0; i < n_oob; ++i){
+                for(int64_t ff = 0; ff < n_features; ++ff){
+                    x_row.coeff(0, ff) = X.read_coeff(oob[i], ff);
+                }
+                // Replace the feature with the permuted value.
+                x_row.coeff(0, f) = permuted_vals[i];
+                const T pred = predict_tree(this->trees[t].get(), x_row);
+                const T residual = y.read_coeff(oob[i], 0) - pred;
+                permuted_ssr += residual * residual;
+            }
+            
+            // Importance contribution: increase in SSR.
+            this->feature_importances[f] += (permuted_ssr - baseline_ssr) / static_cast<T>(n_oob);
+        }
+    }
+    
+    // Average across trees.
+    if(n_trees_with_oob > 0){
+        for(int64_t f = 0; f < n_features; ++f){
+            this->feature_importances[f] /= static_cast<T>(n_trees_with_oob);
+        }
+    }
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template void Stats::StochasticForests<double>::compute_permutation_importance(const num_array<double> &, const num_array<double> &);
+    template void Stats::StochasticForests<float>::compute_permutation_importance(const num_array<float> &, const num_array<float> &);
+#endif
+
+
+template <class T>
+bool Stats::StochasticForests<T>::write_tree_node(std::ostream &os, const TreeNode *node) const {
+    if(node == nullptr){
+        return false;
+    }
+    if(node->is_leaf){
+        os << "L " << node->value << "\n";
+    }else{
+        os << "I " << node->split_feature << " " << node->split_threshold << "\n";
+        if(!write_tree_node(os, node->left.get())) return false;
+        if(!write_tree_node(os, node->right.get())) return false;
+    }
+    return (!os.fail());
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::StochasticForests<double>::write_tree_node(std::ostream &, const TreeNode *) const;
+    template bool Stats::StochasticForests<float>::write_tree_node(std::ostream &, const TreeNode *) const;
+#endif
+
+
+template <class T>
+std::unique_ptr<typename Stats::StochasticForests<T>::TreeNode>
+Stats::StochasticForests<T>::read_tree_node(std::istream &is) {
+    std::string node_type;
+    is >> node_type;
+    if(is.fail()) return nullptr;
+    
+    auto node = std::make_unique<TreeNode>();
+    try{
+        if(node_type == "L"){
+            node->is_leaf = true;
+            std::string val_str;
+            is >> val_str;
+            if(is.fail()) return nullptr;
+            node->value = static_cast<T>(std::stold(val_str));
+        }else if(node_type == "I"){
+            node->is_leaf = false;
+            is >> node->split_feature;
+            std::string thresh_str;
+            is >> thresh_str;
+            if(is.fail()) return nullptr;
+            node->split_threshold = static_cast<T>(std::stold(thresh_str));
+            node->left = read_tree_node(is);
+            node->right = read_tree_node(is);
+            if(!node->left || !node->right) return nullptr;
+        }else{
+            return nullptr;
+        }
+    }catch(const std::invalid_argument &){
+        return nullptr;
+    }catch(const std::out_of_range &){
+        return nullptr;
+    }
+    return node;
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template std::unique_ptr<typename Stats::StochasticForests<double>::TreeNode>
+        Stats::StochasticForests<double>::read_tree_node(std::istream &);
+    template std::unique_ptr<typename Stats::StochasticForests<float>::TreeNode>
+        Stats::StochasticForests<float>::read_tree_node(std::istream &);
+#endif
+
+
+template <class T>
+bool Stats::StochasticForests<T>::write_to(std::ostream &os) const {
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::max_digits10 );
+
+    // RAII guard to restore stream precision on all exit paths.
+    struct precision_guard {
+        std::ostream &s;
+        std::streamsize p;
+        ~precision_guard(){ s.precision(p); }
+    } guard{os, original_precision};
+    
+    os << "StochasticForests_v1" << "\n";
+    os << "n_trees " << this->n_trees << "\n";
+    os << "max_depth " << this->max_depth << "\n";
+    os << "min_samples_split " << this->min_samples_split << "\n";
+    os << "max_features " << this->max_features << "\n";
+    os << "n_features_trained " << this->n_features_trained << "\n";
+    os << "random_seed " << this->random_seed << "\n";
+    os << "importance_method " << static_cast<int>(this->importance_method) << "\n";
+    
+    // Write feature importances.
+    const int64_t n_importances = static_cast<int64_t>(this->feature_importances.size());
+    os << "feature_importances " << n_importances << "\n";
+    for(int64_t i = 0; i < n_importances; ++i){
+        os << this->feature_importances[i];
+        if(i + 1 < n_importances) os << " ";
+    }
+    if(n_importances > 0) os << "\n";
+    
+    // Write OOB indices.
+    const int64_t n_oob_sets = static_cast<int64_t>(this->oob_indices_per_tree.size());
+    os << "oob_sets " << n_oob_sets << "\n";
+    for(int64_t t = 0; t < n_oob_sets; ++t){
+        const auto &oob = this->oob_indices_per_tree[t];
+        os << oob.size();
+        for(const auto idx : oob){
+            os << " " << idx;
+        }
+        os << "\n";
+    }
+    
+    // Write Gini raw importances.
+    const int64_t n_gini = static_cast<int64_t>(this->gini_importances_raw.size());
+    os << "gini_importances_raw " << n_gini << "\n";
+    for(int64_t i = 0; i < n_gini; ++i){
+        os << this->gini_importances_raw[i];
+        if(i + 1 < n_gini) os << " ";
+    }
+    if(n_gini > 0) os << "\n";
+    
+    // Write trees.
+    const int64_t n_actual_trees = static_cast<int64_t>(this->trees.size());
+    os << "trees " << n_actual_trees << "\n";
+    for(int64_t t = 0; t < n_actual_trees; ++t){
+        os << "begin_tree " << t << "\n";
+        if(!write_tree_node(os, this->trees[t].get())) return false;
+        os << "end_tree\n";
+    }
+    
+    os.flush();
+    return (!os.fail());
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::StochasticForests<double>::write_to(std::ostream &) const;
+    template bool Stats::StochasticForests<float>::write_to(std::ostream &) const;
+#endif
+
+
+template <class T>
+bool Stats::StochasticForests<T>::read_from(std::istream &is) {
+    try{
+    std::string label;
+    
+    // Read and validate header.
+    is >> label;
+    if(is.fail() || label != "StochasticForests_v1") return false;
+    
+    // Read parameters.
+    is >> label >> this->n_trees;
+    if(is.fail() || label != "n_trees") return false;
+    
+    is >> label >> this->max_depth;
+    if(is.fail() || label != "max_depth") return false;
+    
+    is >> label >> this->min_samples_split;
+    if(is.fail() || label != "min_samples_split") return false;
+    
+    is >> label >> this->max_features;
+    if(is.fail() || label != "max_features") return false;
+    
+    is >> label >> this->n_features_trained;
+    if(is.fail() || label != "n_features_trained") return false;
+    
+    is >> label >> this->random_seed;
+    if(is.fail() || label != "random_seed") return false;
+    
+    int imp_method_int;
+    is >> label >> imp_method_int;
+    if(is.fail() || label != "importance_method") return false;
+    if(imp_method_int < 0 || imp_method_int > 2){
+        this->importance_method = ImportanceMethod::none;
+        return false;
+    }
+    this->importance_method = static_cast<ImportanceMethod>(imp_method_int);
+    
+    // Read feature importances.
+    int64_t n_importances;
+    is >> label >> n_importances;
+    if(is.fail() || label != "feature_importances") return false;
+    if(n_importances < 0 || n_importances > 1'000'000) return false;
+    this->feature_importances.resize(n_importances);
+    for(int64_t i = 0; i < n_importances; ++i){
+        std::string val_str;
+        is >> val_str;
+        if(is.fail()) return false;
+        this->feature_importances[i] = static_cast<T>(std::stold(val_str));
+    }
+    
+    // Read OOB indices.
+    int64_t n_oob_sets;
+    is >> label >> n_oob_sets;
+    if(is.fail() || label != "oob_sets") return false;
+    if(n_oob_sets < 0 || n_oob_sets > 1'000'000) return false;
+    this->oob_indices_per_tree.resize(n_oob_sets);
+    for(int64_t t = 0; t < n_oob_sets; ++t){
+        int64_t n_oob;
+        is >> n_oob;
+        if(is.fail()) return false;
+        if(n_oob < 0 || n_oob > 1'000'000'000) return false;
+        this->oob_indices_per_tree[t].resize(n_oob);
+        for(int64_t i = 0; i < n_oob; ++i){
+            is >> this->oob_indices_per_tree[t][i];
+            if(is.fail()) return false;
+        }
+    }
+    
+    // Read Gini raw importances.
+    int64_t n_gini;
+    is >> label >> n_gini;
+    if(is.fail() || label != "gini_importances_raw") return false;
+    if(n_gini < 0 || n_gini > 1'000'000) return false;
+    this->gini_importances_raw.resize(n_gini);
+    for(int64_t i = 0; i < n_gini; ++i){
+        std::string val_str;
+        is >> val_str;
+        if(is.fail()) return false;
+        this->gini_importances_raw[i] = static_cast<T>(std::stold(val_str));
+    }
+    
+    // Read trees.
+    int64_t n_actual_trees;
+    is >> label >> n_actual_trees;
+    if(is.fail() || label != "trees") return false;
+    if(n_actual_trees < 0 || n_actual_trees > 1'000'000) return false;
+    
+    this->trees.clear();
+    this->trees.reserve(n_actual_trees);
+    for(int64_t t = 0; t < n_actual_trees; ++t){
+        int64_t tree_idx;
+        is >> label >> tree_idx;
+        if(is.fail() || label != "begin_tree") return false;
+        
+        auto node = read_tree_node(is);
+        if(!node) return false;
+        this->trees.push_back(std::move(node));
+        
+        is >> label;
+        if(is.fail() || label != "end_tree") return false;
+    }
+
+    // Validate invariants between the deserialized data and the model configuration.
+    // The number of serialized trees must match the configured forest size.
+    if (n_actual_trees != this->n_trees) {
+        return false;
+    }
+    // If permutation importance is enabled, the number of OOB sets must match
+    // the number of trees (as assumed by compute_permutation_importance).
+    if (this->importance_method == ImportanceMethod::permutation) {
+        if (static_cast<int64_t>(this->oob_indices_per_tree.size()) != n_actual_trees) {
+            return false;
+        }
+    }
+    
+    return (!is.fail());
+    }catch(const std::invalid_argument &){
+        return false;
+    }catch(const std::out_of_range &){
+        return false;
+    }
+}
+#ifndef YGOR_STATS_STOCHASTIC_FORESTS_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::StochasticForests<double>::read_from(std::istream &);
+    template bool Stats::StochasticForests<float>::read_from(std::istream &);
+#endif

@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <list>
 #include <vector>
 #include <random>
@@ -19,6 +20,31 @@
 #include "YgorMath.h"
 
 namespace Stats {
+
+// Variable importance estimation method for StochasticForests.
+//
+// Three options are available:
+//
+//   none:        No importance estimation (default). No overhead during fitting.
+//
+//   gini:        Gini variable importance, also known as MDI ("Mean Decrease in Impurity").
+//                During tree building, the weighted variance reduction (impurity decrease) at
+//                each split is accumulated for each feature. The importances are normalized to
+//                sum to 1.0. Higher values indicate more important features. This method tends
+//                to favour features with many possible split points. Set the method before calling
+//                fit(), then retrieve importances via get_feature_importances() after fitting.
+//
+//   permutation: Permutation variable importance using out-of-bag (OOB) samples.
+//                After fitting, for each tree the OOB samples are identified and a baseline
+//                sum of squared residuals (SSR) is computed. Then, for each feature, the feature
+//                values are randomly permuted among the OOB samples and the SSR is recomputed.
+//                The importance of a feature is the mean increase in SSR across all trees.
+//                Larger values indicate more important features. Set the method before calling
+//                fit() (to enable OOB index tracking), then call compute_permutation_importance()
+//                with the training data, and finally retrieve importances via
+//                get_feature_importances().
+//
+enum class ImportanceMethod : int { none = 0, gini = 1, permutation = 2 };
 
 //-----------------------------------------------------------------------------------------------------------
 //--------------------------------------- Stochastic Forest Regressor ---------------------------------------
@@ -31,6 +57,8 @@ namespace Stats {
 //  - Bootstrap sampling (bagging) for training each tree
 //  - Random feature selection at each split
 //  - Ensemble averaging for predictions
+//  - Optional variable importance estimation (Gini or permutation)
+//  - Model serialization to and from text streams
 //
 template <class T>
 class StochasticForests {
@@ -55,6 +83,11 @@ class StochasticForests {
         int64_t max_features;         // Number of features to consider for each split.
         int64_t n_features_trained;   // Number of features the model was trained on (for validation).
         uint64_t random_seed;         // Random seed for reproducibility.
+
+        ImportanceMethod importance_method; // Variable importance method.
+        std::vector<T> feature_importances; // Computed feature importances.
+        std::vector<std::vector<int64_t>> oob_indices_per_tree; // OOB sample indices per tree (for permutation).
+        std::vector<T> gini_importances_raw; // Raw accumulated Gini impurity decreases per feature.
         
         // Build a single decision tree using bootstrap sampling.
         std::unique_ptr<TreeNode> build_tree(
@@ -91,6 +124,10 @@ class StochasticForests {
         // Predict using a single tree.
         T predict_tree(const TreeNode *node, const num_array<T> &x) const;
 
+        // Serialization helpers.
+        bool write_tree_node(std::ostream &os, const TreeNode *node) const;
+        std::unique_ptr<TreeNode> read_tree_node(std::istream &is);
+
     public:
         // Constructor.
         // 
@@ -114,6 +151,11 @@ class StochasticForests {
         // selection. Each tree is trained on a bootstrap sample (sampling with replacement)
         // of the training data, and at each split, only a random subset of features is
         // considered (feature randomness).
+        //
+        // If the importance method is set to gini, impurity decreases are accumulated during
+        // tree building and Gini importances are available via get_feature_importances() after
+        // this call returns. If the importance method is set to permutation, out-of-bag sample
+        // indices are stored for later use by compute_permutation_importance().
         //
         // Parameters:
         //   X: NxM matrix of independent variables (N samples, M features).
@@ -140,6 +182,69 @@ class StochasticForests {
         
         // Get number of trees in the forest.
         int64_t get_n_trees() const;
+
+        // Set the variable importance estimation method.
+        //
+        // Must be called before fit(). If not called, defaults to ImportanceMethod::none.
+        void set_importance_method(ImportanceMethod method);
+
+        // Get the current variable importance estimation method.
+        ImportanceMethod get_importance_method() const;
+
+        // Get computed feature importances.
+        //
+        // For the gini method, importances are available after fit(). Values are normalized
+        // to sum to 1.0 and represent the mean decrease in impurity (variance reduction)
+        // attributable to each feature. Higher values indicate more important features.
+        //
+        // For the permutation method, compute_permutation_importance() must be called after
+        // fit() before this method returns valid results. Values represent the mean increase
+        // in sum of squared residuals when each feature is randomly permuted among out-of-bag
+        // samples. Larger values indicate more important features.
+        //
+        // Returns an empty vector if the importance method is none or if importances have not
+        // been computed yet.
+        std::vector<T> get_feature_importances() const;
+
+        // Compute permutation-based variable importance.
+        //
+        // Only valid when the importance method is set to ImportanceMethod::permutation and
+        // the model has been fitted. Uses the mean increase in out-of-bag sum of squared
+        // residuals after randomly permuting each feature.
+        //
+        // Parameters:
+        //   X: NxM training data matrix (must match the data used in fit()).
+        //   y: Nx1 training output vector (must match the data used in fit()).
+        //
+        // Throws:
+        //   std::runtime_error if importance method is not permutation or model not fitted.
+        //   std::invalid_argument if X or y dimensions are invalid.
+        void compute_permutation_importance(const num_array<T> &X, const num_array<T> &y);
+
+        // Write the model to a text stream.
+        //
+        // Serializes all data members, parameters, and tree structures to a human-readable
+        // text format. The model can be restored exactly using read_from() without any loss
+        // in function or accuracy. Floating point values are written with maximum precision.
+        //
+        // Parameters:
+        //   os: Output stream to write to.
+        //
+        // Returns:
+        //   true on success, false if the stream enters a fail state.
+        bool write_to(std::ostream &os) const;
+
+        // Read a model from a text stream.
+        //
+        // Restores a model previously written by write_to(). All parameters, tree structures,
+        // and importance data are restored exactly.
+        //
+        // Parameters:
+        //   is: Input stream to read from.
+        //
+        // Returns:
+        //   true on success, false if the stream format is invalid or enters a fail state.
+        bool read_from(std::istream &is);
 };
 
 } //namespace Stats.
