@@ -792,6 +792,19 @@ bool Stats::StochasticForests<T>::read_from(std::istream &is) {
         is >> label;
         if(is.fail() || label != "end_tree") return false;
     }
+
+    // Validate invariants between the deserialized data and the model configuration.
+    // The number of serialized trees must match the configured forest size.
+    if (n_actual_trees != this->n_trees) {
+        return false;
+    }
+    // If permutation importance is enabled, the number of OOB sets must match
+    // the number of trees (as assumed by compute_permutation_importance).
+    if (this->importance_method == ImportanceMethod::permutation) {
+        if (static_cast<int64_t>(this->oob_sets.size()) != n_actual_trees) {
+            return false;
+        }
+    }
     
     return (!is.fail());
 }
