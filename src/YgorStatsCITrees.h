@@ -2,7 +2,7 @@
 //
 // Implementation of conditional inference trees based on the algorithm described in:
 // Hothorn T, Hornik K, Zeileis A. Unbiased recursive partitioning: A conditional inference
-// framework. Journal of Computational and Graphical statistics. 2006 Sep 1;15(3):651-74.
+// framework. Journal of Computational and Graphical Statistics. 2006 Sep 1;15(3):651-74.
 //
 // Uses permutation-based testing for variable selection and variance-minimizing splits.
 //
