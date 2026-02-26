@@ -269,6 +269,9 @@ T orient3d(const T *pa, const T *pb, const T *pc, const T *pd) {
                 + std::abs(cdx) * (std::abs(ady * bdz) + std::abs(adz * bdy));
 
     T eps = std::numeric_limits<T>::epsilon();
+    // Error bound for the fast-path orient3d filter.  The factor 16
+    // conservatively bounds the accumulated rounding error from the ~12
+    // floating-point operations in the 3x3 determinant computation.
     T errbound = static_cast<T>(16) * eps * permanent;
 
     if(std::abs(det) > errbound){
@@ -308,6 +311,9 @@ template double orient3d(const double*, const double*, const double*, const doub
 
 template <class T>
 ConvexHull<T>::ConvexHull()
+    // Perturbation magnitude: ~1024 machine-epsilon.  This is small enough to
+    // be invisible at typical geometric scales, but large enough to reliably
+    // break exact coplanar / collinear degeneracies.
     : m_eps(std::numeric_limits<T>::epsilon() * static_cast<T>(1024)),
       m_rng_state(0x12345678ABCDEF01ULL) {
 }
