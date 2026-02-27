@@ -681,7 +681,8 @@ bool operator>=(T lhs, const snap_fp<T, ScaleFactor> &rhs) {
 
 // High precision (1e-9).
 using snap_double_nano = snap_fp<double, 1000000000LL>;
-using snap_float_nano = snap_fp<float, 1000000000LL>;
+// Note: use double for nanoscale precision; float does not have enough significant digits for a 1e9 scale.
+using snap_float_nano = snap_fp<double, 1000000000LL>;
 
 // Standard precision (1e-6).
 using snap_double_micro = snap_fp<double, 1000000LL>;
