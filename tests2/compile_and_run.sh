@@ -43,6 +43,7 @@ g++ \
   YgorOptimizeSA.cc \
   YgorTime/*.cc \
   YgorStatsCITrees.cc \
+  YgorStatsConditionalForests.cc \
   YgorStatsStochasticForests.cc \
   YgorString.cc \
   -o run_tests \
