@@ -686,7 +686,10 @@ using snap_float_nano = snap_fp<double, 1000000000LL>;
 
 // Standard precision (1e-6).
 using snap_double_micro = snap_fp<double, 1000000LL>;
-using snap_float_micro = snap_fp<float, 1000000LL>;
+// Note: we intentionally use double here to preserve micro-precision across
+// a wider dynamic range; using float with a 1e6 scale can lose precision
+// for |value| > ~100.
+using snap_float_micro = snap_fp<double, 1000000LL>;
 
 // Low precision (1e-3).
 using snap_double_milli = snap_fp<double, 1000LL>;
