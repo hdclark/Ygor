@@ -19,8 +19,8 @@
 // the gap between the two planes.
 //
 // Key features:
-// - Handles multiple contours within each collection (polygons with holes)
-// - Respects contour orientation: opposing orientations denote holes
+// - Handles multiple contours within each collection (for example, disjoint polygons)
+// - Treats all input contours uniformly; callers should not rely on orientation to denote holes
 // - Does not assume the polygons are simple or monotone
 // - The output mesh is not watertight, but represents surface patches bridging the planes
 //
