@@ -27,6 +27,7 @@ g++ \
   YgorContainers/*.cc \
   YgorFilesDirs.cc \
   YgorIO.cc \
+  YgorIOgzip.cc \
   YgorIndexRTree.cc \
   YgorIndexCells.cc \
   YgorIndexOctree.cc \
