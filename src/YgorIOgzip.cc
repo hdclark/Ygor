@@ -112,6 +112,9 @@ class streaming_bit_reader {
     // Ensure at least n bits are available in the accumulator.
     void ensure_bits(int n){
         while(nbits_ < n){
+            if(nbits_ > 56){
+                throw std::runtime_error("gzip: bit accumulator overflow");
+            }
             int ch = source_.get();
             if(ch == std::char_traits<char>::eof()){
                 throw std::runtime_error("gzip: unexpected end of compressed data");

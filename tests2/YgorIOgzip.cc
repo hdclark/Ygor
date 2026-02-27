@@ -291,7 +291,7 @@ TEST_CASE( "YgorIOgzip system gzip interoperability" ){
             gos << input;
         }
         // Use system gzip -d to decompress.
-        std::string cmd = "gzip -d -c " + tmpgz + " > " + tmpout + " 2>&1";
+        std::string cmd = "gzip -d -c '" + tmpgz + "' > '" + tmpout + "' 2>&1";
         REQUIRE(std::system(cmd.c_str()) == 0);
 
         std::ifstream ifs(tmpout, std::ios::binary);
@@ -311,7 +311,7 @@ TEST_CASE( "YgorIOgzip system gzip interoperability" ){
             std::ofstream ofs(tmpsrc, std::ios::binary);
             ofs << input;
         }
-        std::string cmd = "gzip -n -c " + tmpsrc + " > " + tmpgz + " 2>&1";
+        std::string cmd = "gzip -n -c '" + tmpsrc + "' > '" + tmpgz + "' 2>&1";
         REQUIRE(std::system(cmd.c_str()) == 0);
 
         std::ifstream ifs(tmpgz, std::ios::binary);
@@ -339,7 +339,7 @@ TEST_CASE( "YgorIOgzip system gzip interoperability" ){
             gos.write(input.data(), static_cast<std::streamsize>(input.size()));
         }
         // Validate via system gzip -t (integrity check).
-        std::string cmd = "gzip -t " + tmpgz + " 2>&1";
+        std::string cmd = "gzip -t '" + tmpgz + "' 2>&1";
         REQUIRE(std::system(cmd.c_str()) == 0);
 
         // Also round-trip decompress with our code.
