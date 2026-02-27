@@ -587,8 +587,8 @@ int main(int, char**) {
         snap_double_milli b(1.2345);
         TEST_ASSERT(approx_eq(b.to_fp(), 1.235, 1e-6), "snap_double_milli should round to 1.235");
 
-        snap_float_micro c(2.5f);
-        TEST_ASSERT(approx_eq(c.to_fp(), 2.5f, 1e-6f), "snap_float_micro should work");
+        snap_float_micro c(2.5);
+        TEST_ASSERT(approx_eq(c.to_fp(), 2.5, 1e-6), "snap_float_micro should work");
     }
 
     //-----------------------------------------------------------
@@ -636,6 +636,140 @@ int main(int, char**) {
         std::string s = a.to_string();
         // Just verify it doesn't crash and returns something reasonable.
         TEST_ASSERT(!s.empty(), "to_string should return non-empty string");
+    }
+
+    //-----------------------------------------------------------
+    // Test overflow detection
+    //-----------------------------------------------------------
+    std::cout << "  Testing overflow detection..." << std::endl;
+    {
+        using snap_t = snap_fp<double, 1000000>;
+        
+        // Test addition overflow.
+        auto near_max = snap_t::max_value();
+        auto small_positive = snap_t(1.0);
+        bool caught_overflow = false;
+        try {
+            auto result = near_max + small_positive;
+            (void)result;
+        } catch (const std::overflow_error&) {
+            caught_overflow = true;
+        }
+        TEST_ASSERT(caught_overflow, "Adding to max_value should throw overflow_error");
+
+        // Test subtraction overflow (underflow).
+        auto near_min = snap_t::min_value();
+        caught_overflow = false;
+        try {
+            auto result = near_min - small_positive;
+            (void)result;
+        } catch (const std::overflow_error&) {
+            caught_overflow = true;
+        }
+        TEST_ASSERT(caught_overflow, "Subtracting from min_value should throw overflow_error");
+
+        // Test compound assignment overflow.
+        snap_t a = snap_t::max_value();
+        caught_overflow = false;
+        try {
+            a += small_positive;
+        } catch (const std::overflow_error&) {
+            caught_overflow = true;
+        }
+        TEST_ASSERT(caught_overflow, "Compound addition overflow should throw");
+    }
+
+    //-----------------------------------------------------------
+    // Test additional mathematical functions
+    //-----------------------------------------------------------
+    std::cout << "  Testing additional mathematical functions..." << std::endl;
+    {
+        snap_fp<double, 1000000> x(2.0);
+        snap_fp<double, 1000000> y(3.0);
+        snap_fp<double, 1000000> half(0.5);
+
+        // Test hypot.
+        auto h = hypot(snap_fp<double, 1000000>(3.0), snap_fp<double, 1000000>(4.0));
+        TEST_ASSERT(approx_eq(h.to_fp(), 5.0, 1e-6), "hypot(3, 4) should equal 5");
+
+        // Test cbrt.
+        auto cb = cbrt(snap_fp<double, 1000000>(8.0));
+        TEST_ASSERT(approx_eq(cb.to_fp(), 2.0, 1e-6), "cbrt(8) should equal 2");
+
+        // Test exp2.
+        auto e2 = exp2(snap_fp<double, 1000000>(3.0));
+        TEST_ASSERT(approx_eq(e2.to_fp(), 8.0, 1e-6), "exp2(3) should equal 8");
+
+        // Test log2.
+        auto l2 = log2(snap_fp<double, 1000000>(8.0));
+        TEST_ASSERT(approx_eq(l2.to_fp(), 3.0, 1e-6), "log2(8) should equal 3");
+
+        // Test sinh/cosh/tanh.
+        snap_fp<double, 1000000> zero;
+        TEST_ASSERT(approx_eq(sinh(zero).to_fp(), 0.0, 1e-6), "sinh(0) should equal 0");
+        TEST_ASSERT(approx_eq(cosh(zero).to_fp(), 1.0, 1e-6), "cosh(0) should equal 1");
+        TEST_ASSERT(approx_eq(tanh(zero).to_fp(), 0.0, 1e-6), "tanh(0) should equal 0");
+
+        // Test asinh/acosh/atanh.
+        TEST_ASSERT(approx_eq(asinh(zero).to_fp(), 0.0, 1e-6), "asinh(0) should equal 0");
+        snap_fp<double, 1000000> one(1.0);
+        TEST_ASSERT(approx_eq(acosh(one).to_fp(), 0.0, 1e-6), "acosh(1) should equal 0");
+        TEST_ASSERT(approx_eq(atanh(zero).to_fp(), 0.0, 1e-6), "atanh(0) should equal 0");
+
+        // Test erf/erfc.
+        TEST_ASSERT(approx_eq(erf(zero).to_fp(), 0.0, 1e-6), "erf(0) should equal 0");
+        TEST_ASSERT(approx_eq(erfc(zero).to_fp(), 1.0, 1e-6), "erfc(0) should equal 1");
+
+        // Test trunc.
+        snap_fp<double, 1000000> pos_frac(3.7);
+        snap_fp<double, 1000000> neg_frac(-3.7);
+        TEST_ASSERT(approx_eq(trunc(pos_frac).to_fp(), 3.0, 1e-6), "trunc(3.7) should equal 3");
+        TEST_ASSERT(approx_eq(trunc(neg_frac).to_fp(), -3.0, 1e-6), "trunc(-3.7) should equal -3");
+
+        // Test copysign.
+        snap_fp<double, 1000000> pos(5.0);
+        snap_fp<double, 1000000> neg(-3.0);
+        TEST_ASSERT(approx_eq(copysign(pos, neg).to_fp(), -5.0, 1e-6), "copysign(5, -3) should equal -5");
+        TEST_ASSERT(approx_eq(copysign(neg, pos).to_fp(), 3.0, 1e-6), "copysign(-3, 5) should equal 3");
+
+        // Test lerp.
+        snap_fp<double, 1000000> a(0.0);
+        snap_fp<double, 1000000> b(10.0);
+        snap_fp<double, 1000000> t(0.25);
+        TEST_ASSERT(approx_eq(lerp(a, b, t).to_fp(), 2.5, 1e-6), "lerp(0, 10, 0.25) should equal 2.5");
+
+        // Test clamp.
+        snap_fp<double, 1000000> lo(0.0);
+        snap_fp<double, 1000000> hi(10.0);
+        snap_fp<double, 1000000> val_below(-5.0);
+        snap_fp<double, 1000000> val_above(15.0);
+        snap_fp<double, 1000000> val_in(5.0);
+        TEST_ASSERT(approx_eq(clamp(val_below, lo, hi).to_fp(), 0.0, 1e-6), "clamp(-5, 0, 10) should equal 0");
+        TEST_ASSERT(approx_eq(clamp(val_above, lo, hi).to_fp(), 10.0, 1e-6), "clamp(15, 0, 10) should equal 10");
+        TEST_ASSERT(approx_eq(clamp(val_in, lo, hi).to_fp(), 5.0, 1e-6), "clamp(5, 0, 10) should equal 5");
+
+        // Test isfinite/isnan/isinf.
+        TEST_ASSERT(isfinite(x), "snap_fp values should always be finite");
+        TEST_ASSERT(!isnan(x), "snap_fp values should never be NaN");
+        TEST_ASSERT(!isinf(x), "snap_fp values should never be infinite");
+
+        // Test signbit.
+        TEST_ASSERT(!signbit(pos), "signbit of positive should be false");
+        TEST_ASSERT(signbit(neg), "signbit of negative should be true");
+
+        // Test fma.
+        auto fma_result = fma(snap_fp<double, 1000000>(2.0), 
+                              snap_fp<double, 1000000>(3.0), 
+                              snap_fp<double, 1000000>(1.0));
+        TEST_ASSERT(approx_eq(fma_result.to_fp(), 7.0, 1e-6), "fma(2, 3, 1) should equal 7");
+
+        // Test remainder.
+        auto rem = remainder(snap_fp<double, 1000000>(5.3), snap_fp<double, 1000000>(2.0));
+        TEST_ASSERT(approx_eq(rem.to_fp(), std::remainder(5.3, 2.0), 1e-5), "remainder should match std::remainder");
+
+        // Test log1p and expm1.
+        TEST_ASSERT(approx_eq(log1p(zero).to_fp(), 0.0, 1e-6), "log1p(0) should equal 0");
+        TEST_ASSERT(approx_eq(expm1(zero).to_fp(), 0.0, 1e-6), "expm1(0) should equal 0");
     }
 
     std::cout << "All tests PASSED!" << std::endl;

@@ -179,12 +179,106 @@ class snap_fp {
         // Binary arithmetic operators with same snap_fp type
         //---------------------------
 
-        constexpr snap_fp operator+(const snap_fp &other) const {
-            return snap_fp(raw_tag{}, m_value + other.m_value);
+    private:
+        // Helper function to add with overflow checking.
+        // Returns the sum if no overflow occurs, otherwise throws.
+        static internal_type checked_add(internal_type a, internal_type b) {
+            if (b > 0 && a > std::numeric_limits<internal_type>::max() - b) {
+                throw std::overflow_error("snap_fp: addition overflow");
+            }
+            if (b < 0 && a < std::numeric_limits<internal_type>::min() - b) {
+                throw std::overflow_error("snap_fp: addition underflow");
+            }
+            return a + b;
         }
 
-        constexpr snap_fp operator-(const snap_fp &other) const {
-            return snap_fp(raw_tag{}, m_value - other.m_value);
+        // Helper function to subtract with overflow checking.
+        // Returns the difference if no overflow occurs, otherwise throws.
+        static internal_type checked_sub(internal_type a, internal_type b) {
+            if (b < 0 && a > std::numeric_limits<internal_type>::max() + b) {
+                throw std::overflow_error("snap_fp: subtraction overflow");
+            }
+            if (b > 0 && a < std::numeric_limits<internal_type>::min() + b) {
+                throw std::overflow_error("snap_fp: subtraction underflow");
+            }
+            return a - b;
+        }
+
+#if !defined(__SIZEOF_INT128__)
+        // Integer-based multiplication without 128-bit integers.
+        // Uses the decomposition: a*b = (a_hi*2^32 + a_lo) * (b_hi*2^32 + b_lo)
+        // Result is computed with overflow detection and proper scaling.
+        static internal_type multiply_scaled(internal_type a, internal_type b, internal_type scale) {
+            // Handle signs separately to simplify the logic.
+            const bool negative = (a < 0) != (b < 0);
+            uint64_t abs_a = static_cast<uint64_t>(a < 0 ? -a : a);
+            uint64_t abs_b = static_cast<uint64_t>(b < 0 ? -b : b);
+            uint64_t abs_scale = static_cast<uint64_t>(scale);
+
+            // Split into high and low 32-bit parts.
+            const uint64_t MASK32 = 0xFFFFFFFFULL;
+            uint64_t a_lo = abs_a & MASK32;
+            uint64_t a_hi = abs_a >> 32;
+            uint64_t b_lo = abs_b & MASK32;
+            uint64_t b_hi = abs_b >> 32;
+
+            // Compute partial products (each fits in 64 bits).
+            uint64_t lo_lo = a_lo * b_lo;
+            uint64_t lo_hi = a_lo * b_hi;
+            uint64_t hi_lo = a_hi * b_lo;
+            uint64_t hi_hi = a_hi * b_hi;
+
+            // Combine: result = hi_hi*2^64 + (lo_hi + hi_lo)*2^32 + lo_lo
+            // Then divide by scale.
+            // For simplicity, use long double for the final combination and division.
+            constexpr long double TWO_POW_64 = 18446744073709551616.0L; // 2^64, equivalent to std::ldexp(1.0L, 64)
+            constexpr long double TWO_POW_32 = 4294967296.0L;          // 2^32, equivalent to std::ldexp(1.0L, 32)
+            long double result = static_cast<long double>(hi_hi) * TWO_POW_64;
+            result += static_cast<long double>(lo_hi + hi_lo) * TWO_POW_32;
+            result += static_cast<long double>(lo_lo);
+            result /= static_cast<long double>(abs_scale);
+
+            // Check for overflow.
+            const long double max_val = static_cast<long double>(std::numeric_limits<internal_type>::max());
+            if (result > max_val) {
+                throw std::overflow_error("snap_fp: multiplication overflow");
+            }
+
+            internal_type int_result = static_cast<internal_type>(result);
+            return negative ? -int_result : int_result;
+        }
+
+        // Integer-based division without 128-bit integers.
+        // Computes (a * scale) / b with overflow handling.
+        static internal_type divide_scaled(internal_type a, internal_type b, internal_type scale) {
+            // Handle signs separately.
+            const bool negative = (a < 0) != (b < 0);
+            uint64_t abs_a = static_cast<uint64_t>(a < 0 ? -a : a);
+            uint64_t abs_b = static_cast<uint64_t>(b < 0 ? -b : b);
+            uint64_t abs_scale = static_cast<uint64_t>(scale);
+
+            // Use long double for intermediate calculation to handle large values.
+            long double dividend = static_cast<long double>(abs_a) * static_cast<long double>(abs_scale);
+            long double result = dividend / static_cast<long double>(abs_b);
+
+            // Check for overflow.
+            const long double max_val = static_cast<long double>(std::numeric_limits<internal_type>::max());
+            if (result > max_val) {
+                throw std::overflow_error("snap_fp: division overflow");
+            }
+
+            internal_type int_result = static_cast<internal_type>(result);
+            return negative ? -int_result : int_result;
+        }
+#endif
+
+    public:
+        snap_fp operator+(const snap_fp &other) const {
+            return snap_fp(raw_tag{}, checked_add(m_value, other.m_value));
+        }
+
+        snap_fp operator-(const snap_fp &other) const {
+            return snap_fp(raw_tag{}, checked_sub(m_value, other.m_value));
         }
 
         // Multiplication: (a*S) * (b*S) / S = a*b*S
@@ -195,10 +289,8 @@ class snap_fp {
             __int128 product = static_cast<__int128>(m_value) * static_cast<__int128>(other.m_value);
             return snap_fp(raw_tag{}, static_cast<internal_type>(product / ScaleFactor));
 #else
-            // Fallback for systems without 128-bit integers.
-            // Use floating point for intermediate calculation.
-            T result = to_fp() * other.to_fp();
-            return snap_fp(result);
+            // Fallback using integer-based algorithm with long double for intermediate values.
+            return snap_fp(raw_tag{}, multiply_scaled(m_value, other.m_value, ScaleFactor));
 #endif
         }
 
@@ -211,9 +303,8 @@ class snap_fp {
             __int128 dividend = static_cast<__int128>(m_value) * static_cast<__int128>(ScaleFactor);
             return snap_fp(raw_tag{}, static_cast<internal_type>(dividend / other.m_value));
 #else
-            // Fallback for systems without 128-bit integers.
-            T result = to_fp() / other.to_fp();
-            return snap_fp(result);
+            // Fallback using integer-based algorithm with long double for intermediate values.
+            return snap_fp(raw_tag{}, divide_scaled(m_value, other.m_value, ScaleFactor));
 #endif
         }
 
@@ -222,12 +313,12 @@ class snap_fp {
         //---------------------------
 
         snap_fp& operator+=(const snap_fp &other) {
-            m_value += other.m_value;
+            m_value = checked_add(m_value, other.m_value);
             return *this;
         }
 
         snap_fp& operator-=(const snap_fp &other) {
-            m_value -= other.m_value;
+            m_value = checked_sub(m_value, other.m_value);
             return *this;
         }
 
@@ -593,6 +684,189 @@ snap_fp<T, ScaleFactor> log10(const snap_fp<T, ScaleFactor> &x) {
         throw std::domain_error("snap_fp: log10 of non-positive number");
     }
     return snap_fp<T, ScaleFactor>(std::log10(x.to_fp()));
+}
+
+// Natural logarithm of (1 + x), more accurate for small x.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> log1p(const snap_fp<T, ScaleFactor> &x) {
+    if (x.raw() <= -ScaleFactor) {
+        throw std::domain_error("snap_fp: log1p argument must be > -1");
+    }
+    return snap_fp<T, ScaleFactor>(std::log1p(x.to_fp()));
+}
+
+// Logarithm base 2.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> log2(const snap_fp<T, ScaleFactor> &x) {
+    if (x.raw() <= 0) {
+        throw std::domain_error("snap_fp: log2 of non-positive number");
+    }
+    return snap_fp<T, ScaleFactor>(std::log2(x.to_fp()));
+}
+
+// Exponential minus 1, more accurate for small x.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> expm1(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::expm1(x.to_fp()));
+}
+
+// Exponential base 2.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> exp2(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::exp2(x.to_fp()));
+}
+
+// Cube root.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> cbrt(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::cbrt(x.to_fp()));
+}
+
+// Hypotenuse: sqrt(x^2 + y^2).
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> hypot(const snap_fp<T, ScaleFactor> &x, const snap_fp<T, ScaleFactor> &y) {
+    return snap_fp<T, ScaleFactor>(std::hypot(x.to_fp(), y.to_fp()));
+}
+
+// Hyperbolic functions.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> sinh(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::sinh(x.to_fp()));
+}
+
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> cosh(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::cosh(x.to_fp()));
+}
+
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> tanh(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::tanh(x.to_fp()));
+}
+
+// Inverse hyperbolic functions.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> asinh(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::asinh(x.to_fp()));
+}
+
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> acosh(const snap_fp<T, ScaleFactor> &x) {
+    if (x.to_fp() < static_cast<T>(1)) {
+        throw std::domain_error("snap_fp: acosh argument must be >= 1");
+    }
+    return snap_fp<T, ScaleFactor>(std::acosh(x.to_fp()));
+}
+
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> atanh(const snap_fp<T, ScaleFactor> &x) {
+    T val = x.to_fp();
+    if (val <= static_cast<T>(-1) || val >= static_cast<T>(1)) {
+        throw std::domain_error("snap_fp: atanh argument must be in (-1, 1)");
+    }
+    return snap_fp<T, ScaleFactor>(std::atanh(val));
+}
+
+// Error function.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> erf(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::erf(x.to_fp()));
+}
+
+// Complementary error function.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> erfc(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::erfc(x.to_fp()));
+}
+
+// Gamma function.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> tgamma(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::tgamma(x.to_fp()));
+}
+
+// Log-gamma function.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> lgamma(const snap_fp<T, ScaleFactor> &x) {
+    return snap_fp<T, ScaleFactor>(std::lgamma(x.to_fp()));
+}
+
+// Truncate toward zero.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> trunc(const snap_fp<T, ScaleFactor> &x) {
+    typename snap_fp<T, ScaleFactor>::internal_type raw = x.raw();
+    typename snap_fp<T, ScaleFactor>::internal_type truncated = (raw / ScaleFactor) * ScaleFactor;
+    return snap_fp<T, ScaleFactor>::from_raw(truncated);
+}
+
+// Copy sign: returns a value with magnitude of x and sign of y.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> copysign(const snap_fp<T, ScaleFactor> &x, const snap_fp<T, ScaleFactor> &y) {
+    auto abs_x = abs(x);
+    return y.raw() >= 0 ? abs_x : -abs_x;
+}
+
+// Fused multiply-add: returns x * y + z with a single rounding.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> fma(const snap_fp<T, ScaleFactor> &x, 
+                            const snap_fp<T, ScaleFactor> &y,
+                            const snap_fp<T, ScaleFactor> &z) {
+    return snap_fp<T, ScaleFactor>(std::fma(x.to_fp(), y.to_fp(), z.to_fp()));
+}
+
+// Remainder after division (IEEE 754).
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> remainder(const snap_fp<T, ScaleFactor> &x, const snap_fp<T, ScaleFactor> &y) {
+    if (y.raw() == 0) {
+        throw std::domain_error("snap_fp: remainder by zero");
+    }
+    return snap_fp<T, ScaleFactor>(std::remainder(x.to_fp(), y.to_fp()));
+}
+
+// Linear interpolation: returns (1-t)*a + t*b.
+// Uses the numerically stable form that guarantees lerp(a, b, 1) == b.
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> lerp(const snap_fp<T, ScaleFactor> &a, 
+                              const snap_fp<T, ScaleFactor> &b,
+                              const snap_fp<T, ScaleFactor> &t) {
+    // Use the stable form: (1-t)*a + t*b, computed via floating point for accuracy.
+    T t_fp = t.to_fp();
+    T result = (static_cast<T>(1) - t_fp) * a.to_fp() + t_fp * b.to_fp();
+    return snap_fp<T, ScaleFactor>(result);
+}
+
+// Clamp value to range [lo, hi].
+template <class T, int64_t ScaleFactor>
+snap_fp<T, ScaleFactor> clamp(const snap_fp<T, ScaleFactor> &v,
+                               const snap_fp<T, ScaleFactor> &lo,
+                               const snap_fp<T, ScaleFactor> &hi) {
+    return min(max(v, lo), hi);
+}
+
+// Check if value is finite (not infinite or NaN).
+// Note: snap_fp uses integer internally, so it's always "finite" in the FP sense,
+// but we provide this for API compatibility.
+template <class T, int64_t ScaleFactor>
+bool isfinite(const snap_fp<T, ScaleFactor> &) {
+    return true;  // snap_fp values are always finite (integer-backed).
+}
+
+// Check if value is NaN. Always false for snap_fp.
+template <class T, int64_t ScaleFactor>
+bool isnan(const snap_fp<T, ScaleFactor> &) {
+    return false;  // snap_fp cannot represent NaN.
+}
+
+// Check if value is infinite. Always false for snap_fp.
+template <class T, int64_t ScaleFactor>
+bool isinf(const snap_fp<T, ScaleFactor> &) {
+    return false;  // snap_fp cannot represent infinity.
+}
+
+// Sign bit check (true if negative).
+template <class T, int64_t ScaleFactor>
+bool signbit(const snap_fp<T, ScaleFactor> &x) {
+    return x.raw() < 0;
 }
 
 //---------------------------------------------------------------------------------------------------------------------------
