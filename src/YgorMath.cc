@@ -8180,17 +8180,111 @@ Triangulate_Contours(const contour_collection<T> &cc){
                 }
             }
 
+            // Helper to test whether a candidate bridge from leftmost_idx to candidate_idx
+            // would introduce a self-intersection with the current polygon.
+            auto bridge_intersects_polygon = [&](size_t candidate_idx) -> bool {
+                const auto &a = pts_2d[leftmost_idx];
+                const auto &b = pts_2d[candidate_idx];
+
+                auto orient = [&](const auto &p, const auto &q, const auto &r) -> int {
+                    // Compute orientation of ordered triplet (p, q, r).
+                    // Returns: 0 -> colinear, 1 -> clockwise, 2 -> counterclockwise.
+                    long double vx1 = static_cast<long double>(q.x) - static_cast<long double>(p.x);
+                    long double vy1 = static_cast<long double>(q.y) - static_cast<long double>(p.y);
+                    long double vx2 = static_cast<long double>(r.x) - static_cast<long double>(q.x);
+                    long double vy2 = static_cast<long double>(r.y) - static_cast<long double>(q.y);
+                    long double val = vx1 * vy2 - vy1 * vx2;
+                    if (val > 0) return 1;
+                    if (val < 0) return 2;
+                    return 0;
+                };
+
+                auto on_segment = [&](const auto &p, const auto &q, const auto &r) -> bool {
+                    // Check if point q lies on segment pr, assuming p,q,r are colinear.
+                    return (std::min(p.x, r.x) <= q.x && q.x <= std::max(p.x, r.x) &&
+                            std::min(p.y, r.y) <= q.y && q.y <= std::max(p.y, r.y));
+                };
+
+                auto segments_intersect = [&](const auto &p1, const auto &q1,
+                                             const auto &p2, const auto &q2) -> bool {
+                    int o1 = orient(p1, q1, p2);
+                    int o2 = orient(p1, q1, q2);
+                    int o3 = orient(p2, q2, p1);
+                    int o4 = orient(p2, q2, q1);
+
+                    // General case.
+                    if (o1 != o2 && o3 != o4) {
+                        return true;
+                    }
+
+                    // Special colinearity cases.
+                    if (o1 == 0 && on_segment(p1, p2, q1)) return true;
+                    if (o2 == 0 && on_segment(p1, q2, q1)) return true;
+                    if (o3 == 0 && on_segment(p2, p1, q2)) return true;
+                    if (o4 == 0 && on_segment(p2, q1, q2)) return true;
+
+                    return false;
+                };
+
+                // Check the bridge segment (a,b) against all edges of the current polygon.
+                if (polygon.size() < 2) {
+                    return false;
+                }
+
+                for (auto it = polygon.begin(); it != polygon.end(); ++it) {
+                    auto next_it = std::next(it);
+                    if (next_it == polygon.end()) {
+                        next_it = polygon.begin();
+                    }
+
+                    size_t e1 = *it;
+                    size_t e2 = *next_it;
+
+                    // Skip edges incident to the candidate vertex; sharing the endpoint is allowed.
+                    if (e1 == candidate_idx || e2 == candidate_idx) {
+                        continue;
+                    }
+
+                    const auto &p = pts_2d[e1];
+                    const auto &q = pts_2d[e2];
+
+                    if (segments_intersect(a, b, p, q)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            };
+
             // Find the closest visible point in the current polygon to connect to.
             auto best_it = polygon.begin();
             T best_dist = std::numeric_limits<T>::max();
+
+            // Track the closest vertex that yields a non-intersecting bridge.
+            auto best_visible_it = polygon.end();
+            T best_visible_dist = std::numeric_limits<T>::max();
+
             for(auto it = polygon.begin(); it != polygon.end(); ++it){
                 const T dist = pts_2d[*it].sq_dist(pts_2d[leftmost_idx]);
+
+                // Always track the globally closest vertex as a fallback.
                 if(dist < best_dist){
                     best_dist = dist;
                     best_it = it;
                 }
+
+                // Prefer vertices that are "visible" from leftmost_idx, i.e., whose bridge
+                // does not intersect the existing polygon.
+                if(!bridge_intersects_polygon(*it) && dist < best_visible_dist){
+                    best_visible_dist = dist;
+                    best_visible_it = it;
+                }
             }
 
+            // If a visible candidate exists, use it; otherwise fall back to the closest vertex.
+            if (best_visible_it != polygon.end()) {
+                best_it = best_visible_it;
+            }
             // Insert the new contour into the polygon by creating a bridge.
             // The bridge goes: ... best_it -> leftmost_idx -> (rest of new contour) -> leftmost_idx -> best_it ...
             std::list<size_t> new_contour_segment;
