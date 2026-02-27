@@ -420,7 +420,7 @@ class snap_fp {
         }
 
         // Get a value of one.
-        static snap_fp one() {
+        static constexpr snap_fp one() {
             return snap_fp(raw_tag{}, ScaleFactor);
         }
 
