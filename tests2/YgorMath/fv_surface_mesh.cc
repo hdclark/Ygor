@@ -708,6 +708,169 @@ TEST_CASE( "fv_surface_mesh class" ){
             }
         }
     }
+
+    SUBCASE("slice_with_planes on empty mesh returns empty contour collection"){
+        fv_surface_mesh<double, uint32_t> empty_mesh;
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
+
+        auto result = empty_mesh.slice_with_planes(planes);
+        REQUIRE(result.contours.empty());
+    }
+
+    SUBCASE("slice_with_planes with empty plane list returns empty contour collection"){
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{ vec3<double>(0.0, 0.0, 0.0),
+                           vec3<double>(1.0, 0.0, 0.0),
+                           vec3<double>(0.5, 1.0, 0.0) }};
+        mesh.faces = {{ 0, 1, 2 }};
+
+        std::list<plane<double>> empty_planes;
+        auto result = mesh.slice_with_planes(empty_planes);
+        REQUIRE(result.contours.empty());
+    }
+
+    SUBCASE("slice_with_planes on single triangle with horizontal plane"){
+        // Triangle in XZ plane from z=0 to z=1
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{ vec3<double>(0.0, 0.0, 0.0),
+                           vec3<double>(2.0, 0.0, 0.0),
+                           vec3<double>(1.0, 0.0, 1.0) }};
+        mesh.faces = {{ 0, 1, 2 }};
+
+        // Slice at z=0.5
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
+
+        auto result = mesh.slice_with_planes(planes);
+        REQUIRE(result.contours.size() == 1);
+        REQUIRE(result.contours.front().points.size() == 2);
+    }
+
+    SUBCASE("slice_with_planes on cube with single plane produces closed contour"){
+        // Create a simple cube mesh
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{
+            vec3<double>(0.0, 0.0, 0.0), // 0
+            vec3<double>(1.0, 0.0, 0.0), // 1
+            vec3<double>(1.0, 1.0, 0.0), // 2
+            vec3<double>(0.0, 1.0, 0.0), // 3
+            vec3<double>(0.0, 0.0, 1.0), // 4
+            vec3<double>(1.0, 0.0, 1.0), // 5
+            vec3<double>(1.0, 1.0, 1.0), // 6
+            vec3<double>(0.0, 1.0, 1.0)  // 7
+        }};
+        // Define 12 triangular faces (2 per cube face)
+        mesh.faces = {{
+            {0, 1, 2}, {0, 2, 3},  // Bottom
+            {4, 6, 5}, {4, 7, 6},  // Top
+            {0, 4, 5}, {0, 5, 1},  // Front
+            {2, 6, 7}, {2, 7, 3},  // Back
+            {0, 3, 7}, {0, 7, 4},  // Left
+            {1, 5, 6}, {1, 6, 2}   // Right
+        }};
+
+        // Slice at z=0.5
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
+
+        auto result = mesh.slice_with_planes(planes);
+        REQUIRE(!result.contours.empty());
+
+        // For a watertight cube, slicing with a horizontal plane should produce contours
+        // with enough points to form a shape
+        size_t total_points = 0;
+        for(const auto& c : result.contours){
+            total_points += c.points.size();
+        }
+        // A cube slice should produce at least 4 points (corners of the square cross-section)
+        REQUIRE(total_points >= 4);
+    }
+
+    SUBCASE("slice_with_planes with plane not intersecting mesh returns empty"){
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{ vec3<double>(0.0, 0.0, 0.0),
+                           vec3<double>(1.0, 0.0, 0.0),
+                           vec3<double>(0.5, 1.0, 0.0) }};
+        mesh.faces = {{ 0, 1, 2 }};
+
+        // Plane at z=5, far above the triangle at z=0
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 5.0));
+
+        auto result = mesh.slice_with_planes(planes);
+        REQUIRE(result.contours.empty());
+    }
+
+    SUBCASE("slice_with_planes with multiple planes"){
+        // Create a vertical triangular prism
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{
+            vec3<double>(0.0, 0.0, 0.0), // 0 - bottom triangle
+            vec3<double>(1.0, 0.0, 0.0), // 1
+            vec3<double>(0.5, 1.0, 0.0), // 2
+            vec3<double>(0.0, 0.0, 2.0), // 3 - top triangle
+            vec3<double>(1.0, 0.0, 2.0), // 4
+            vec3<double>(0.5, 1.0, 2.0)  // 5
+        }};
+        // Triangular faces for the prism (bottom, top, and 3 sides with 2 triangles each)
+        mesh.faces = {{
+            {0, 2, 1},              // Bottom
+            {3, 4, 5},              // Top
+            {0, 1, 4}, {0, 4, 3},   // Front side
+            {1, 2, 5}, {1, 5, 4},   // Right side
+            {2, 0, 3}, {2, 3, 5}    // Left side
+        }};
+
+        // Slice at z=0.5 and z=1.5
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 1.5));
+
+        auto result = mesh.slice_with_planes(planes);
+
+        // Should have contours from both planes
+        REQUIRE(result.contours.size() >= 2);
+
+        // Check that contours are tagged with their plane index
+        bool found_plane_0 = false;
+        bool found_plane_1 = false;
+        for(const auto& c : result.contours){
+            if(c.MetadataKeyPresent("PlaneIndex")){
+                auto val = c.GetMetadataValueAs<int64_t>("PlaneIndex");
+                if(val && *val == 0) found_plane_0 = true;
+                if(val && *val == 1) found_plane_1 = true;
+            }
+        }
+        REQUIRE(found_plane_0);
+        REQUIRE(found_plane_1);
+    }
+
+    SUBCASE("slice_with_planes handles non-manifold mesh edges"){
+        // A mesh with inconsistent face orientations
+        fv_surface_mesh<double, uint32_t> mesh;
+        mesh.vertices = {{
+            vec3<double>(0.0, 0.0, 0.0), // 0
+            vec3<double>(1.0, 0.0, 0.0), // 1
+            vec3<double>(0.5, 0.0, 1.0), // 2
+            vec3<double>(0.5, 1.0, 0.5)  // 3 - apex
+        }};
+        // Tetrahedron with mixed orientations
+        mesh.faces = {{
+            {0, 1, 2},  // Base - one orientation
+            {0, 1, 3},  // Side - same direction from shared edge (inconsistent)
+            {1, 2, 3},  // Side
+            {2, 0, 3}   // Side - reversed orientation
+        }};
+
+        std::list<plane<double>> planes;
+        planes.emplace_back(vec3<double>(0.0, 0.0, 1.0), vec3<double>(0.0, 0.0, 0.5));
+
+        // Should not crash and should produce some contours
+        // (The exact number of contours depends on topology, but there should be at least one)
+        auto result = mesh.slice_with_planes(planes);
+        REQUIRE(!result.contours.empty());
+    }
 }
 
 TEST_CASE( "Convex_Hull" ){

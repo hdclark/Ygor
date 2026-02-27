@@ -7405,6 +7405,230 @@ fv_surface_mesh<T,I>::GetMetadataValueAs(std::string key) const {
     template std::optional<std::string> fv_surface_mesh<double, uint64_t>::GetMetadataValueAs(std::string key) const;
 #endif
 
+
+// Slice the mesh with a collection of planes, producing planar contours at the intersections.
+template <class T, class I>
+contour_collection<T>
+fv_surface_mesh<T,I>::slice_with_planes(const std::list<plane<T>> &planes) const {
+    contour_collection<T> output;
+
+    // Early exit if no planes or no faces.
+    if(planes.empty() || this->faces.empty()){
+        return output;
+    }
+
+    // Process each plane separately.
+    size_t plane_index = 0;
+    for(const auto &the_plane : planes){
+        // For each face, find edges that cross the plane and compute intersection points.
+        // Store edge intersections using a map keyed by ordered vertex pairs to avoid duplicates.
+        // Each intersection point is associated with the faces that share the edge.
+        std::map<std::pair<I,I>, vec3<T>> edge_intersections;
+        // Map from edge to the faces containing that edge.
+        std::map<std::pair<I,I>, std::vector<size_t>> edge_to_faces;
+
+        for(size_t face_idx = 0; face_idx < this->faces.size(); ++face_idx){
+            const auto &face = this->faces[face_idx];
+            const auto N_verts = face.size();
+            if(N_verts < 2) continue;
+
+            // Check each edge of the face.
+            for(size_t j = 0; j < N_verts; ++j){
+                const I v_a_idx = face[j];
+                const I v_b_idx = face[(j + 1) % N_verts];
+
+                // Create ordered edge key (smaller index first) to handle edges in either direction.
+                const auto edge_key = (v_a_idx < v_b_idx) ? std::make_pair(v_a_idx, v_b_idx)
+                                                          : std::make_pair(v_b_idx, v_a_idx);
+
+                // Check if we've already processed this edge.
+                if(edge_intersections.find(edge_key) != edge_intersections.end()){
+                    // Edge already processed, just record the face association.
+                    edge_to_faces[edge_key].push_back(face_idx);
+                    continue;
+                }
+
+                const vec3<T> &v_a = this->vertices.at(v_a_idx);
+                const vec3<T> &v_b = this->vertices.at(v_b_idx);
+
+                // Check if the edge crosses the plane.
+                const bool a_above = the_plane.Is_Point_Above_Plane(v_a);
+                const bool b_above = the_plane.Is_Point_Above_Plane(v_b);
+
+                if(a_above != b_above){
+                    // Edge crosses the plane - compute intersection point.
+                    line_segment<T> edge_seg(v_a, v_b);
+                    vec3<T> intersection_pt;
+                    if(the_plane.Intersects_With_Line_Segment_Once(edge_seg, intersection_pt)){
+                        edge_intersections[edge_key] = intersection_pt;
+                        edge_to_faces[edge_key].push_back(face_idx);
+                    }
+                }
+            }
+        }
+
+        // If no intersections found for this plane, continue to next plane.
+        if(edge_intersections.empty()){
+            ++plane_index;
+            continue;
+        }
+
+        // Build a graph of intersection points connected via shared faces.
+        // Each face that has exactly 2 edge intersections contributes a connection.
+        // We use face indices to find which edges are connected (share a face).
+
+        // Build a map from each intersecting edge to its adjacent edges (via shared faces).
+        // For a manifold mesh, each face should have exactly 0 or 2 intersecting edges.
+        std::map<std::pair<I,I>, std::set<std::pair<I,I>>> edge_adjacency;
+
+        // For each face, collect all its intersecting edges.
+        std::map<size_t, std::vector<std::pair<I,I>>> face_to_edges;
+        for(const auto &ef_pair : edge_to_faces){
+            for(const auto &face_idx : ef_pair.second){
+                face_to_edges[face_idx].push_back(ef_pair.first);
+            }
+        }
+
+        // Build adjacency: edges in the same face are adjacent.
+        for(const auto &fe_pair : face_to_edges){
+            const auto &edges = fe_pair.second;
+            // For most meshes, there should be exactly 2 edges per face that cross the plane.
+            // Handle cases with more edges (non-planar faces or complex topology).
+            for(size_t i = 0; i < edges.size(); ++i){
+                for(size_t j = i + 1; j < edges.size(); ++j){
+                    edge_adjacency[edges[i]].insert(edges[j]);
+                    edge_adjacency[edges[j]].insert(edges[i]);
+                }
+            }
+        }
+
+        // Trace contours using the edge adjacency graph.
+        // Use a set to track which edges have been visited.
+        std::set<std::pair<I,I>> visited_edges;
+
+        for(const auto &ei_pair : edge_intersections){
+            const auto &start_edge = ei_pair.first;
+            if(visited_edges.find(start_edge) != visited_edges.end()){
+                continue; // Already part of a contour.
+            }
+
+            // Start a new contour from this edge.
+            contour_of_points<T> contour;
+            contour.closed = false;
+
+            // Try to trace the contour in both directions.
+            std::list<vec3<T>> contour_points;
+
+            // First, trace forward from start_edge.
+            auto current_edge = start_edge;
+            while(true){
+                if(visited_edges.find(current_edge) != visited_edges.end()){
+                    // We've returned to a visited edge - contour is closed.
+                    if(!contour_points.empty() && current_edge == start_edge){
+                        contour.closed = true;
+                    }
+                    break;
+                }
+
+                visited_edges.insert(current_edge);
+                contour_points.push_back(edge_intersections.at(current_edge));
+
+                // Find the next unvisited adjacent edge.
+                const auto &adj_edges = edge_adjacency[current_edge];
+                bool found_next = false;
+                for(const auto &next_edge : adj_edges){
+                    if(visited_edges.find(next_edge) == visited_edges.end()){
+                        current_edge = next_edge;
+                        found_next = true;
+                        break;
+                    }
+                }
+
+                if(!found_next){
+                    // Check if we can close the contour.
+                    for(const auto &next_edge : adj_edges){
+                        if(next_edge == start_edge && contour_points.size() > 2){
+                            contour.closed = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // If the contour is not closed, try to trace backward from start_edge.
+            if(!contour.closed && !contour_points.empty()){
+                // Reset visited for the start edge so we can trace backward.
+                visited_edges.erase(start_edge);
+
+                const auto &adj_edges = edge_adjacency[start_edge];
+                for(const auto &prev_edge : adj_edges){
+                    if(visited_edges.find(prev_edge) == visited_edges.end()){
+                        // Trace backward.
+                        auto current_backward = prev_edge;
+                        std::list<vec3<T>> backward_points;
+
+                        while(true){
+                            if(visited_edges.find(current_backward) != visited_edges.end()){
+                                break;
+                            }
+
+                            visited_edges.insert(current_backward);
+                            backward_points.push_front(edge_intersections.at(current_backward));
+
+                            const auto &back_adj = edge_adjacency[current_backward];
+                            bool found_prev = false;
+                            for(const auto &next_back : back_adj){
+                                if(visited_edges.find(next_back) == visited_edges.end()){
+                                    current_backward = next_back;
+                                    found_prev = true;
+                                    break;
+                                }
+                            }
+
+                            if(!found_prev) break;
+                        }
+
+                        // Prepend backward points to the contour.
+                        for(const auto &pt : backward_points){
+                            contour_points.push_front(pt);
+                        }
+                        break; // Only trace backward once.
+                    }
+                }
+
+                // Re-mark start edge as visited.
+                visited_edges.insert(start_edge);
+            }
+
+            // Skip degenerate contours.
+            if(contour_points.size() < 2){
+                continue;
+            }
+
+            // Copy points to the contour.
+            contour.points = contour_points;
+
+            // Add metadata indicating which plane this contour came from.
+            contour.metadata["PlaneIndex"] = std::to_string(plane_index);
+
+            // Add the contour to the output collection.
+            output.contours.push_back(contour);
+        }
+
+        ++plane_index;
+    }
+
+    return output;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template contour_collection<float > fv_surface_mesh<float , uint32_t>::slice_with_planes(const std::list<plane<float >> &) const;
+    template contour_collection<float > fv_surface_mesh<float , uint64_t>::slice_with_planes(const std::list<plane<float >> &) const;
+
+    template contour_collection<double> fv_surface_mesh<double, uint32_t>::slice_with_planes(const std::list<plane<double>> &) const;
+    template contour_collection<double> fv_surface_mesh<double, uint64_t>::slice_with_planes(const std::list<plane<double>> &) const;
+#endif
+
 template <class InputIt, class I>
 std::vector<std::vector<I>> // Faces.
 Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
