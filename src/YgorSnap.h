@@ -79,7 +79,7 @@ std::istream & operator>>(std::istream &, snap_fp<Y, S> &);
 // Notes:
 // - Binary operations between snap_fp types with different ScaleFactors are not allowed
 //   and will result in a compile-time error.
-// - Operations with raw floating point values are supported via implicit conversion.
+// - Operations with raw floating point values are supported via operator overloads.
 // - The range of representable values is approximately:
 //   [-INT64_MAX/ScaleFactor, INT64_MAX/ScaleFactor]
 //
