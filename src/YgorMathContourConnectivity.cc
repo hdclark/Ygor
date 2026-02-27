@@ -24,22 +24,6 @@ struct ProjectedVertex {
     size_t point_index;      // Index of the point within the contour
 };
 
-// Helper struct for edge representation.
-struct Edge {
-    size_t v1, v2;
-    
-    Edge(size_t a, size_t b) : v1(std::min(a, b)), v2(std::max(a, b)) {}
-    
-    bool operator<(const Edge &other) const {
-        if (v1 != other.v1) return v1 < other.v1;
-        return v2 < other.v2;
-    }
-    
-    bool operator==(const Edge &other) const {
-        return v1 == other.v1 && v2 == other.v2;
-    }
-};
-
 template <class T>
 fv_surface_mesh<T, uint64_t>
 Triangulate_Planar_Contour_Connectivity(
