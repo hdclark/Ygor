@@ -30,6 +30,7 @@ g++ \
   YgorIOgzip.cc \
   YgorIndexRTree.cc \
   YgorIndexCells.cc \
+  YgorIndexKDTree.cc \
   YgorIndexOctree.cc \
   YgorMath/*.cc \
   YgorMathDelaunay.cc \
