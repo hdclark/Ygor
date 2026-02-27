@@ -38,6 +38,24 @@ TEST_CASE( "Triangulate_Contours function" ){
         REQUIRE( mesh.faces.size() == 0 );
     }
 
+    SUBCASE("collinear points cause plane regression failure and return empty mesh"){
+        contour_collection<double> cc;
+        contour_of_points<double> cop;
+        cop.closed = true;
+        // All points are collinear (on a line), so plane regression cannot determine a unique plane.
+        cop.points.emplace_back(vec3<double>(0.0, 0.0, 0.0));
+        cop.points.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        cop.points.emplace_back(vec3<double>(2.0, 0.0, 0.0));
+        cop.points.emplace_back(vec3<double>(3.0, 0.0, 0.0));
+        cc.contours.push_back(cop);
+
+        auto mesh = Triangulate_Contours<double, uint32_t>(cc);
+
+        // Collinear points cannot define a plane, so an empty mesh is returned.
+        REQUIRE( mesh.vertices.size() == 0 );
+        REQUIRE( mesh.faces.size() == 0 );
+    }
+
     SUBCASE("triangular contour produces single triangle"){
         contour_collection<double> cc;
         contour_of_points<double> cop;

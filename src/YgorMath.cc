@@ -8139,16 +8139,22 @@ Triangulate_Contours(const contour_collection<T> &cc){
             polygon.push_back(i);
         }
     } else {
-        // Multiple contours: separate outer contours and holes, then merge.
-        // For now, treat all contours as part of the same polygon by merging with bridges.
-        // A more sophisticated approach would identify outer/inner relationships.
+        // Multiple contours: separate outer contours (CCW) and holes (CW), then merge.
+        // Outer contours are processed first, then holes are bridged into them.
+        // The is_ccw flag distinguishes outer contours from holes.
         
-        // Sort contours by their leftmost point (smallest x coordinate).
+        // Sort contours: outer contours (CCW) first, then by leftmost point (smallest x coordinate).
+        // This ensures outer boundaries are established before holes are merged in.
         std::vector<size_t> sorted_contour_indices(contour_infos.size());
         std::iota(sorted_contour_indices.begin(), sorted_contour_indices.end(), static_cast<size_t>(0));
         
         std::sort(sorted_contour_indices.begin(), sorted_contour_indices.end(),
             [&](size_t a, size_t b) {
+                // Outer contours (CCW) come before holes (CW).
+                if(contour_infos[a].is_ccw != contour_infos[b].is_ccw){
+                    return contour_infos[a].is_ccw; // CCW (true) comes before CW (false).
+                }
+                // Among same-type contours, sort by leftmost point.
                 T min_x_a = std::numeric_limits<T>::max();
                 T min_x_b = std::numeric_limits<T>::max();
                 for(size_t i = contour_infos[a].start_idx; i < contour_infos[a].end_idx; ++i){
@@ -8160,7 +8166,7 @@ Triangulate_Contours(const contour_collection<T> &cc){
                 return min_x_a < min_x_b;
             });
 
-        // Start with the first (leftmost) contour as the base polygon.
+        // Start with the first contour (an outer contour if any exist) as the base polygon.
         const auto &first_info = contour_infos[sorted_contour_indices[0]];
         for(size_t i = first_info.start_idx; i < first_info.end_idx; ++i){
             polygon.push_back(i);
