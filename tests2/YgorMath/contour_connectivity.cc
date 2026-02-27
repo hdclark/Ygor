@@ -128,6 +128,46 @@ TEST_CASE( "Triangulate_Planar_Contour_Connectivity basic tests" ){
             std::runtime_error
         );
     }
+
+    SUBCASE("collections with empty contour_of_points entries throw"){
+        // Create collections that have contours but no actual points
+        contour_collection<double> top_cc;
+        top_cc.contours.emplace_back();  // Empty contour_of_points
+        top_cc.contours.back().closed = true;
+        // No points added
+        
+        contour_collection<double> bottom_cc;
+        bottom_cc.contours.emplace_back();
+        bottom_cc.contours.back().closed = true;
+        bottom_cc.contours.back().points.emplace_back(vec3<double>(0.0, 0.0, 0.0));
+
+        REQUIRE_THROWS_AS(
+            Triangulate_Planar_Contour_Connectivity(top_cc, bottom_cc),
+            std::invalid_argument
+        );
+    }
+
+    SUBCASE("multiple contours with some empty entries throw"){
+        // Create a collection with one valid contour and one empty
+        contour_collection<double> top_cc;
+        top_cc.contours.emplace_back();  // First contour is empty
+        top_cc.contours.back().closed = true;
+        top_cc.contours.emplace_back();  // Second contour also empty
+        top_cc.contours.back().closed = true;
+        // No points in any contour
+        
+        contour_collection<double> bottom_cc;
+        bottom_cc.contours.emplace_back();
+        bottom_cc.contours.back().closed = true;
+        bottom_cc.contours.back().points.emplace_back(vec3<double>(0.0, 0.0, 0.0));
+        bottom_cc.contours.back().points.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+        bottom_cc.contours.back().points.emplace_back(vec3<double>(1.0, 1.0, 0.0));
+
+        REQUIRE_THROWS_AS(
+            Triangulate_Planar_Contour_Connectivity(top_cc, bottom_cc),
+            std::invalid_argument
+        );
+    }
 }
 
 TEST_CASE( "Triangulate_Planar_Contour_Connectivity with multiple contours" ){

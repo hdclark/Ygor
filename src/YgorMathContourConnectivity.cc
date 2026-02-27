@@ -43,32 +43,15 @@ Triangulate_Planar_Contour_Connectivity(
         throw std::invalid_argument("Bottom contour collection is empty.");
     }
     
-    // Collect all vertices from both collections and estimate plane normal.
-    // We'll project onto a plane perpendicular to the separation between planes.
-    vec3<T> avg_top_point(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
-    vec3<T> avg_bottom_point(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
-    size_t top_count = 0;
-    size_t bottom_count = 0;
+    // Compute average points using existing contour_collection API.
+    // This handles the empty/NaN cases appropriately.
+    const vec3<T> avg_top_point = top_cc.Average_Point();
+    const vec3<T> avg_bottom_point = bottom_cc.Average_Point();
     
-    for (const auto &contour : top_cc.contours) {
-        for (const auto &pt : contour.points) {
-            avg_top_point += pt;
-            ++top_count;
-        }
-    }
-    for (const auto &contour : bottom_cc.contours) {
-        for (const auto &pt : contour.points) {
-            avg_bottom_point += pt;
-            ++bottom_count;
-        }
-    }
-    
-    if (top_count == 0 || bottom_count == 0) {
+    // Check if average points are valid (collections may be non-empty but contain no actual vertices)
+    if (!avg_top_point.isfinite() || !avg_bottom_point.isfinite()) {
         throw std::invalid_argument("Contour collections contain no vertices.");
     }
-    
-    avg_top_point /= static_cast<T>(top_count);
-    avg_bottom_point /= static_cast<T>(bottom_count);
     
     // Compute the plane separation direction (from bottom to top)
     vec3<T> separation = avg_top_point - avg_bottom_point;
@@ -215,8 +198,40 @@ Triangulate_Planar_Contour_Connectivity(
         return closest;
     };
     
-    // Helper to check if triangle is valid (proper orientation and no edge crossings)
-    // Use 3D area calculation since the triangles span between the two planes
+    // Helper function to check if two 2D line segments intersect (excluding shared endpoints).
+    // Uses the cross-product orientation test.
+    auto segments_intersect_2d = [&](const vec2<T> &a1, const vec2<T> &a2, 
+                                     const vec2<T> &b1, const vec2<T> &b2) -> bool {
+        // Cross product of 2D vectors (returns scalar z-component)
+        auto cross_2d = [](const vec2<T> &u, const vec2<T> &v) -> T {
+            return u.x * v.y - u.y * v.x;
+        };
+        
+        const T d1 = cross_2d(b2 - b1, a1 - b1);
+        const T d2 = cross_2d(b2 - b1, a2 - b1);
+        const T d3 = cross_2d(a2 - a1, b1 - a1);
+        const T d4 = cross_2d(a2 - a1, b2 - a1);
+        
+        // Segments straddle each other if they have opposite orientations
+        const T eps = distance_eps;
+        if (((d1 > eps && d2 < -eps) || (d1 < -eps && d2 > eps)) &&
+            ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps))) {
+            return true;
+        }
+        return false;
+    };
+    
+    // Helper to check if triangle is valid:
+    // 1. Non-degenerate (has non-zero 3D area)
+    // 2. Consistent orientation (normal has a meaningful direction)
+    // 3. Edges do not intersect existing face edges in 2D projection
+    
+    // Create a map from vertex_index to projected 2D position for O(1) lookups
+    std::map<IndexType, vec2<T>> vertex_to_2d;
+    for (const auto &pv : projected_verts) {
+        vertex_to_2d[static_cast<IndexType>(pv.vertex_index)] = pv.pos_2d;
+    }
+    
     auto is_valid_triangle = [&](size_t v0, size_t v1, size_t v2) -> bool {
         const auto &p0_3d = projected_verts[v0].pos_3d;
         const auto &p1_3d = projected_verts[v1].pos_3d;
@@ -225,11 +240,68 @@ Triangulate_Planar_Contour_Connectivity(
         // Calculate 3D triangle area using cross product
         const vec3<T> edge1 = p1_3d - p0_3d;
         const vec3<T> edge2 = p2_3d - p0_3d;
-        const vec3<T> cross = edge1.Cross(edge2);
-        const T area = cross.length() / static_cast<T>(2);
+        const vec3<T> tri_normal = edge1.Cross(edge2);
+        const T area = tri_normal.length() / static_cast<T>(2);
         
+        // Reject degenerate triangles
         if (area < distance_eps * distance_eps) {
             return false;
+        }
+        
+        // Orientation check: for bridging triangles connecting top and bottom planes,
+        // we verify the triangle involves vertices from both planes. Triangles entirely
+        // on one plane would be degenerate in 3D (caught by the area check above).
+        // The non-degenerate area check is sufficient for valid bridging triangles.
+        
+        // Check for edge intersections with existing faces in 2D projection
+        const auto &p0_2d = projected_verts[v0].pos_2d;
+        const auto &p1_2d = projected_verts[v1].pos_2d;
+        const auto &p2_2d = projected_verts[v2].pos_2d;
+        
+        // Define edges of the new triangle
+        std::array<std::pair<vec2<T>, vec2<T>>, 3> new_edges = {{
+            {p0_2d, p1_2d},
+            {p1_2d, p2_2d},
+            {p2_2d, p0_2d}
+        }};
+        
+        // Check against all edges of existing faces
+        for (const auto &face : mesh.faces) {
+            if (face.size() < 3) continue;
+            
+            // Get 2D positions for existing face vertices using O(1) map lookup
+            std::vector<vec2<T>> face_verts_2d;
+            for (const auto &idx : face) {
+                auto it = vertex_to_2d.find(idx);
+                if (it != vertex_to_2d.end()) {
+                    face_verts_2d.push_back(it->second);
+                }
+            }
+            
+            if (face_verts_2d.size() < 3) continue;
+            
+            // Check each edge of the existing face
+            for (size_t i = 0; i < face_verts_2d.size(); ++i) {
+                size_t j = (i + 1) % face_verts_2d.size();
+                const auto &e1 = face_verts_2d[i];
+                const auto &e2 = face_verts_2d[j];
+                
+                // Check against each edge of the new triangle
+                for (const auto &new_edge : new_edges) {
+                    // Skip if edges share endpoints (they connect at a vertex)
+                    const T eps_sq = distance_eps * distance_eps;
+                    if ((new_edge.first - e1).sq_length() < eps_sq ||
+                        (new_edge.first - e2).sq_length() < eps_sq ||
+                        (new_edge.second - e1).sq_length() < eps_sq ||
+                        (new_edge.second - e2).sq_length() < eps_sq) {
+                        continue;
+                    }
+                    
+                    if (segments_intersect_2d(new_edge.first, new_edge.second, e1, e2)) {
+                        return false; // Edges intersect, reject triangle
+                    }
+                }
+            }
         }
         
         return true;
