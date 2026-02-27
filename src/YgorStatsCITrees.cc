@@ -189,16 +189,15 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
         y_values[i] = y.read_coeff(sample_indices[i], 0);
     }
 
-    // Pre-extract feature values for all features to avoid repeated access.
-    std::vector<std::vector<T>> feature_values(n_features);
-    for(int64_t j = 0; j < n_features; ++j){
-        feature_values[j].resize(n_samples);
-        for(int64_t i = 0; i < n_samples; ++i){
-            feature_values[j][i] = X.read_coeff(sample_indices[i], j);
-        }
-    }
+    // Instead of pre-extracting feature values for all features (which is
+    // O(n_features * n_samples) extra memory per node), we will process
+    // one feature at a time using a single reusable buffer of size
+    // n_samples. The actual filling of this buffer for each feature should
+    // be done in the per-feature loop later in this function.
+    std::vector<T> feature_buffer(n_samples);
 
     // Precompute y mean.
+    T y_sum = static_cast<T>(0);
     T y_sum = static_cast<T>(0);
     for(int64_t i = 0; i < n_samples; ++i){
         y_sum += y_values[i];
