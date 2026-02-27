@@ -126,7 +126,7 @@ class streaming_bit_reader {
 
     uint32_t read_bits(int n){
         ensure_bits(n);
-        uint32_t result = static_cast<uint32_t>(accum_) & ((1U << n) - 1U);
+        uint32_t result = static_cast<uint32_t>(accum_ & ((uint64_t{1} << n) - 1U));
         accum_ >>= n;
         nbits_ -= n;
         return result;
@@ -135,7 +135,7 @@ class streaming_bit_reader {
     // Peek at the next n bits without consuming them.
     uint32_t peek_bits(int n){
         ensure_bits(n);
-        return static_cast<uint32_t>(accum_) & ((1U << n) - 1U);
+        return static_cast<uint32_t>(accum_ & ((uint64_t{1} << n) - 1U));
     }
 
     // Consume n bits that were previously peeked.

@@ -278,6 +278,12 @@ TEST_CASE( "YgorIOgzip interoperability with known-good gzip data" ){
 }
 
 TEST_CASE( "YgorIOgzip system gzip interoperability" ){
+    // Skip all subcases if the system gzip binary is not available.
+    if(std::system("gzip --version > /dev/null 2>&1") != 0){
+        MESSAGE("gzip not found in PATH, skipping system interoperability tests");
+        return;
+    }
+
     const auto tmpdir = std::filesystem::temp_directory_path();
     const auto tmpgz  = (tmpdir / ("ygor_gzip_sysinterop_" + std::to_string(::getpid()) + ".gz")).string();
     const auto tmpout = (tmpdir / ("ygor_gzip_sysinterop_" + std::to_string(::getpid()) + ".out")).string();
