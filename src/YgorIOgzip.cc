@@ -50,6 +50,18 @@ static uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t len){
 
 // -----------------------------------------------------------------------
 // Bit-level writer (LSB-first, as required by DEFLATE).
+//
+// Per RFC 1951 section 3.1.1, data elements other than Huffman codes are
+// packed starting with the least-significant bit of the data element.
+// Huffman codes are packed starting with the most-significant bit of the
+// code.  In both cases, the bits are packed into bytes starting from the
+// least-significant bit of the byte.
+//
+// This writer takes the value argument and emits its bits starting from
+// the value's least-significant bit.  For non-Huffman data this is the
+// natural order.  For Huffman codes, the caller must bit-reverse the
+// canonical (MSB-first) code before passing it here so that the code's
+// MSB ends up at the lowest bit position in the output stream.
 // -----------------------------------------------------------------------
 class bit_writer {
   public:
@@ -91,6 +103,8 @@ class bit_writer {
 // -----------------------------------------------------------------------
 class bit_reader {
   public:
+    bit_reader() = default;
+
     explicit bit_reader(const uint8_t *data, size_t len)
         : data_(data), len_(len) {}
 
@@ -114,6 +128,15 @@ class bit_reader {
         return result;
     }
 
+    // Return nbits bits to the reader (rewind position).
+    void put_back_bits(int nbits){
+        int total = static_cast<int>(byte_pos_) * 8 + bit_pos_;
+        total -= nbits;
+        if(total < 0) throw std::runtime_error("gzip: cannot rewind past beginning of data");
+        byte_pos_ = static_cast<size_t>(total / 8);
+        bit_pos_ = total % 8;
+    }
+
     void align_to_byte(){
         if(bit_pos_ > 0){
             bit_pos_ = 0;
@@ -133,25 +156,17 @@ class bit_reader {
         return static_cast<uint16_t>(lo | (hi << 8U));
     }
 
-    bool at_end() const {
-        return (byte_pos_ >= len_) && (bit_pos_ == 0);
-    }
-
-    size_t byte_position() const {
-        return byte_pos_ + (bit_pos_ > 0 ? 1 : 0);
-    }
-
-    size_t exact_byte_position() const {
-        return byte_pos_;
-    }
-
-    int current_bit_position() const {
-        return bit_pos_;
+    uint32_t read_u32_le(){
+        uint32_t b0 = read_byte();
+        uint32_t b1 = read_byte();
+        uint32_t b2 = read_byte();
+        uint32_t b3 = read_byte();
+        return b0 | (b1 << 8U) | (b2 << 16U) | (b3 << 24U);
     }
 
   private:
-    const uint8_t *data_;
-    size_t len_;
+    const uint8_t *data_ = nullptr;
+    size_t len_ = 0;
     size_t byte_pos_ = 0;
     int bit_pos_ = 0;
 };
@@ -185,11 +200,13 @@ struct huffman_decoder {
             next_code[static_cast<size_t>(bits)] = code;
         }
 
-        // Build lookup table: for each possible code (up to max_bits), store the symbol.
-        // Use a flat table for fast lookup (works well for typical DEFLATE code lengths <= 15 bits).
+        // Build lookup table indexed by bit-reversed codes.  The table is
+        // 2^max_bits entries; shorter codes are filled across all matching
+        // suffixes so that a single read of max_bits bits suffices to look
+        // up any symbol.
         table_size_ = 1U << max_bits;
         table_.assign(table_size_, -1);
-        lengths_.resize(code_lengths.size());
+        lengths_.assign(code_lengths.size(), 0);
 
         for(size_t sym = 0; sym < code_lengths.size(); ++sym){
             int len = code_lengths[sym];
@@ -210,41 +227,17 @@ struct huffman_decoder {
         }
     }
 
+    // Decode one Huffman symbol from the bitstream.  Reads max_bits_ at
+    // once for a fast table lookup, then returns the excess bits that were
+    // not part of the resolved code via put_back_bits.
     int decode(bit_reader &br) const {
         if(max_bits_ == 0) throw std::runtime_error("gzip: empty Huffman table");
-        uint32_t code = br.read_bits(max_bits_);
-        int sym = table_[code];
+        uint32_t bits = br.read_bits(max_bits_);
+        int sym = table_[bits];
         if(sym < 0) throw std::runtime_error("gzip: invalid Huffman code");
-        // We consumed max_bits_, but the actual code may be shorter.
-        // We need to "put back" the excess bits.
-        // Since bit_reader doesn't support putback, we instead use a different approach:
-        // consume only the bits needed.
-        // Rebuild: consume bit-by-bit.
-        // Actually, the table-lookup approach already works if we account for the extra bits.
-        // The key insight: our table maps reversed-prefix to symbol, and for codes shorter
-        // than max_bits, we filled all entries. So the sym found from the first max_bits is correct.
-        // But we over-consumed bits. We need to "return" the excess bits.
+        int actual_len = lengths_[static_cast<size_t>(sym)];
+        br.put_back_bits(max_bits_ - actual_len);
         return sym;
-    }
-
-    // Decode using bit-by-bit approach (slower but simpler, avoids over-consumption).
-    int decode_slow(bit_reader &br) const {
-        uint32_t code = 0;
-        for(int len = 1; len <= max_bits_; ++len){
-            code = (code << 1U) | br.read_bits(1);
-            // Reverse code to check against table.
-            uint32_t rev = 0;
-            for(int b = 0; b < len; ++b){
-                rev |= ((code >> b) & 1U) << (len - 1 - b);
-            }
-            if(rev < table_size_){
-                int sym = table_[rev];
-                if(sym >= 0 && lengths_[static_cast<size_t>(sym)] == len){
-                    return sym;
-                }
-            }
-        }
-        throw std::runtime_error("gzip: could not decode Huffman symbol");
     }
 
     int max_bits_ = 0;
@@ -305,150 +298,156 @@ static constexpr std::array<dist_entry, 30> distance_table = {{
 }};
 
 // -----------------------------------------------------------------------
-// DEFLATE decompression.
+// DEFLATE block-level decompression.
+//
+// Decompresses a single DEFLATE block from br, appending output to
+// the window (which also serves as the back-reference sliding window).
+// Returns true if this was the final block (BFINAL = 1).
 // -----------------------------------------------------------------------
-static std::vector<uint8_t> deflate_decompress(const uint8_t *data, size_t len){
-    std::vector<uint8_t> output;
-    output.reserve(len * 4U); // Heuristic pre-allocation.
-    bit_reader br(data, len);
+static bool decompress_one_block(bit_reader &br, std::vector<uint8_t> &window){
+    bool bfinal = (br.read_bits(1) != 0);
+    uint32_t btype = br.read_bits(2);
 
-    bool bfinal = false;
-    while(!bfinal){
-        bfinal = (br.read_bits(1) != 0);
-        uint32_t btype = br.read_bits(2);
-
-        if(btype == 0U){
-            // Stored block.
-            br.align_to_byte();
-            uint16_t block_len  = br.read_u16();
-            uint16_t block_nlen = br.read_u16();
-            if(static_cast<uint16_t>(block_len ^ 0xFFFFU) != block_nlen){
-                throw std::runtime_error("gzip: stored block length mismatch");
-            }
-            for(uint16_t i = 0; i < block_len; ++i){
-                output.push_back(br.read_byte());
-            }
-
-        }else if(btype == 1U || btype == 2U){
-            // Compressed block: fixed or dynamic Huffman.
-            huffman_decoder lit_len_dec;
-            huffman_decoder dist_dec;
-
-            if(btype == 1U){
-                build_fixed_lit_len(lit_len_dec);
-                build_fixed_dist(dist_dec);
-            }else{
-                // Dynamic Huffman tables.
-                uint32_t hlit  = br.read_bits(5) + 257U;
-                uint32_t hdist = br.read_bits(5) + 1U;
-                uint32_t hclen = br.read_bits(4) + 4U;
-
-                // Code length alphabet order (RFC 1951, section 3.2.7).
-                static constexpr std::array<int, 19> cl_order = {{
-                    16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
-                }};
-
-                std::vector<int> cl_lengths(19, 0);
-                for(uint32_t i = 0; i < hclen; ++i){
-                    cl_lengths[static_cast<size_t>(cl_order[i])] = static_cast<int>(br.read_bits(3));
-                }
-
-                huffman_decoder cl_dec;
-                cl_dec.build(cl_lengths);
-
-                // Decode literal/length and distance code lengths.
-                std::vector<int> all_lengths;
-                all_lengths.reserve(hlit + hdist);
-
-                while(all_lengths.size() < hlit + hdist){
-                    int sym = cl_dec.decode_slow(br);
-                    if(sym <= 15){
-                        all_lengths.push_back(sym);
-                    }else if(sym == 16){
-                        if(all_lengths.empty()) throw std::runtime_error("gzip: repeat with no previous length");
-                        int repeat = static_cast<int>(br.read_bits(2)) + 3;
-                        int prev = all_lengths.back();
-                        for(int r = 0; r < repeat; ++r) all_lengths.push_back(prev);
-                    }else if(sym == 17){
-                        int repeat = static_cast<int>(br.read_bits(3)) + 3;
-                        for(int r = 0; r < repeat; ++r) all_lengths.push_back(0);
-                    }else if(sym == 18){
-                        int repeat = static_cast<int>(br.read_bits(7)) + 11;
-                        for(int r = 0; r < repeat; ++r) all_lengths.push_back(0);
-                    }else{
-                        throw std::runtime_error("gzip: invalid code-length symbol");
-                    }
-                }
-
-                std::vector<int> lit_lengths(all_lengths.begin(),
-                                             all_lengths.begin() + static_cast<ptrdiff_t>(hlit));
-                std::vector<int> dist_lengths(all_lengths.begin() + static_cast<ptrdiff_t>(hlit),
-                                              all_lengths.begin() + static_cast<ptrdiff_t>(hlit + hdist));
-                lit_len_dec.build(lit_lengths);
-                dist_dec.build(dist_lengths);
-            }
-
-            // Decode symbols.
-            for(;;){
-                int sym = lit_len_dec.decode_slow(br);
-                if(sym < 256){
-                    output.push_back(static_cast<uint8_t>(sym));
-                }else if(sym == 256){
-                    break; // End of block.
-                }else{
-                    // Length/distance pair.
-                    int len_idx = sym - 257;
-                    if(len_idx < 0 || len_idx >= static_cast<int>(length_table.size())){
-                        throw std::runtime_error("gzip: invalid length code");
-                    }
-                    const auto &le = length_table[static_cast<size_t>(len_idx)];
-                    int match_len = le.base;
-                    if(le.extra_bits > 0){
-                        match_len += static_cast<int>(br.read_bits(le.extra_bits));
-                    }
-
-                    int dist_sym = dist_dec.decode_slow(br);
-                    if(dist_sym < 0 || dist_sym >= static_cast<int>(distance_table.size())){
-                        throw std::runtime_error("gzip: invalid distance code");
-                    }
-                    const auto &de = distance_table[static_cast<size_t>(dist_sym)];
-                    int match_dist = de.base;
-                    if(de.extra_bits > 0){
-                        match_dist += static_cast<int>(br.read_bits(de.extra_bits));
-                    }
-
-                    if(match_dist < 1 || static_cast<size_t>(match_dist) > output.size()){
-                        throw std::runtime_error("gzip: invalid back-reference distance");
-                    }
-
-                    // Copy from output buffer (byte-by-byte for overlapping copies).
-                    size_t src_pos = output.size() - static_cast<size_t>(match_dist);
-                    for(int j = 0; j < match_len; ++j){
-                        output.push_back(output[src_pos + static_cast<size_t>(j)]);
-                    }
-                }
-            }
-        }else{
-            throw std::runtime_error("gzip: reserved block type");
+    if(btype == 0U){
+        // Stored (uncompressed) block.
+        br.align_to_byte();
+        uint16_t block_len  = br.read_u16();
+        uint16_t block_nlen = br.read_u16();
+        if(static_cast<uint16_t>(block_len ^ 0xFFFFU) != block_nlen){
+            throw std::runtime_error("gzip: stored block length mismatch");
         }
+        for(uint16_t i = 0; i < block_len; ++i){
+            window.push_back(br.read_byte());
+        }
+
+    }else if(btype == 1U || btype == 2U){
+        // Compressed block: fixed or dynamic Huffman.
+        huffman_decoder lit_len_dec;
+        huffman_decoder dist_dec;
+
+        if(btype == 1U){
+            build_fixed_lit_len(lit_len_dec);
+            build_fixed_dist(dist_dec);
+        }else{
+            // Dynamic Huffman tables.
+            uint32_t hlit  = br.read_bits(5) + 257U;
+            uint32_t hdist = br.read_bits(5) + 1U;
+            uint32_t hclen = br.read_bits(4) + 4U;
+
+            // Code length alphabet order (RFC 1951, section 3.2.7).
+            static constexpr std::array<int, 19> cl_order = {{
+                16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
+            }};
+
+            std::vector<int> cl_lengths(19, 0);
+            for(uint32_t i = 0; i < hclen; ++i){
+                cl_lengths[static_cast<size_t>(cl_order[i])] = static_cast<int>(br.read_bits(3));
+            }
+
+            huffman_decoder cl_dec;
+            cl_dec.build(cl_lengths);
+
+            // Decode literal/length and distance code lengths.
+            const size_t total_codes = hlit + hdist;
+            std::vector<int> all_lengths;
+            all_lengths.reserve(total_codes);
+
+            while(all_lengths.size() < total_codes){
+                int sym = cl_dec.decode(br);
+                if(sym <= 15){
+                    all_lengths.push_back(sym);
+                }else if(sym == 16){
+                    if(all_lengths.empty()) throw std::runtime_error("gzip: repeat with no previous length");
+                    int repeat = static_cast<int>(br.read_bits(2)) + 3;
+                    int prev = all_lengths.back();
+                    for(int r = 0; r < repeat; ++r) all_lengths.push_back(prev);
+                }else if(sym == 17){
+                    int repeat = static_cast<int>(br.read_bits(3)) + 3;
+                    for(int r = 0; r < repeat; ++r) all_lengths.push_back(0);
+                }else if(sym == 18){
+                    int repeat = static_cast<int>(br.read_bits(7)) + 11;
+                    for(int r = 0; r < repeat; ++r) all_lengths.push_back(0);
+                }else{
+                    throw std::runtime_error("gzip: invalid code-length symbol");
+                }
+
+                if(all_lengths.size() > total_codes){
+                    throw std::runtime_error("gzip: code lengths exceed expected count");
+                }
+            }
+
+            std::vector<int> lit_lengths(all_lengths.begin(),
+                                         all_lengths.begin() + static_cast<ptrdiff_t>(hlit));
+            std::vector<int> dist_lengths(all_lengths.begin() + static_cast<ptrdiff_t>(hlit),
+                                          all_lengths.begin() + static_cast<ptrdiff_t>(hlit + hdist));
+            lit_len_dec.build(lit_lengths);
+            dist_dec.build(dist_lengths);
+        }
+
+        // Decode symbols.
+        for(;;){
+            int sym = lit_len_dec.decode(br);
+            if(sym < 256){
+                window.push_back(static_cast<uint8_t>(sym));
+            }else if(sym == 256){
+                break; // End of block.
+            }else{
+                // Length/distance pair.
+                int len_idx = sym - 257;
+                if(len_idx < 0 || len_idx >= static_cast<int>(length_table.size())){
+                    throw std::runtime_error("gzip: invalid length code");
+                }
+                const auto &le = length_table[static_cast<size_t>(len_idx)];
+                int match_len = le.base;
+                if(le.extra_bits > 0){
+                    match_len += static_cast<int>(br.read_bits(le.extra_bits));
+                }
+
+                int dist_sym = dist_dec.decode(br);
+                if(dist_sym < 0 || dist_sym >= static_cast<int>(distance_table.size())){
+                    throw std::runtime_error("gzip: invalid distance code");
+                }
+                const auto &de = distance_table[static_cast<size_t>(dist_sym)];
+                int match_dist = de.base;
+                if(de.extra_bits > 0){
+                    match_dist += static_cast<int>(br.read_bits(de.extra_bits));
+                }
+
+                if(match_dist < 1 || static_cast<size_t>(match_dist) > window.size()){
+                    throw std::runtime_error("gzip: invalid back-reference distance");
+                }
+
+                // Copy from window (byte-by-byte for overlapping copies).
+                size_t src_pos = window.size() - static_cast<size_t>(match_dist);
+                for(int j = 0; j < match_len; ++j){
+                    window.push_back(window[src_pos + static_cast<size_t>(j)]);
+                }
+            }
+        }
+    }else{
+        throw std::runtime_error("gzip: reserved block type");
     }
-    return output;
+    return bfinal;
 }
 
 // -----------------------------------------------------------------------
 // DEFLATE compression (fixed Huffman codes + LZ77).
 // -----------------------------------------------------------------------
 
-// Encode a literal/length symbol using fixed Huffman codes (RFC 1951 section 3.2.6).
-// Codes are written in reverse bit order (LSB first) per the DEFLATE spec.
+// Encode a literal/length symbol using fixed Huffman codes.
+//
+// Per RFC 1951 section 3.2.6, the fixed literal/length codes are:
+//   0-143   -> 8-bit codes starting at 0b00110000  (0x030)
+//   144-255 -> 9-bit codes starting at 0b110010000 (0x190)
+//   256-279 -> 7-bit codes starting at 0b0000000   (0x000)
+//   280-287 -> 8-bit codes starting at 0b11000000  (0x0C0)
+//
+// These canonical codes are MSB-first.  Per RFC 1951 section 3.1.1,
+// "Huffman codes are packed starting with the most-significant bit of
+// the code."  Since bit_writer emits the LSB of its value argument
+// first, we bit-reverse the canonical code so that the code's MSB
+// lands at the lowest bit position in the output byte stream.
 static void emit_fixed_lit_len(bit_writer &bw, int sym){
-    // Fixed Huffman table for literal/length:
-    //   0-143   -> 8-bit codes, starting at 0x30  (00110000 - 10111111)
-    //   144-255 -> 9-bit codes, starting at 0x190 (110010000 - 111111111)
-    //   256-279 -> 7-bit codes, starting at 0x00  (0000000 - 0010111)
-    //   280-287 -> 8-bit codes, starting at 0xC0  (11000000 - 11000111)
-    //
-    // But we write bits LSB first, so we need to reverse the code bits.
     uint32_t code;
     int nbits;
     if(sym <= 143){
@@ -465,7 +464,7 @@ static void emit_fixed_lit_len(bit_writer &bw, int sym){
         nbits = 8;
     }
 
-    // Reverse the bits for LSB-first output.
+    // Bit-reverse the canonical code for LSB-first emission.
     uint32_t rev = 0;
     for(int b = 0; b < nbits; ++b){
         rev |= ((code >> b) & 1U) << (nbits - 1 - b);
@@ -473,9 +472,11 @@ static void emit_fixed_lit_len(bit_writer &bw, int sym){
     bw.write_bits(rev, nbits);
 }
 
+// Encode a fixed-Huffman distance code (5 bits, values 0-31).
+// As with literal/length codes, the canonical code is bit-reversed
+// before being passed to write_bits for correct MSB-first Huffman
+// packing (see RFC 1951 section 3.1.1).
 static void emit_fixed_dist(bit_writer &bw, int dist_code){
-    // All 32 distance codes are 5 bits, values 0-31.
-    // Reverse 5 bits for LSB-first output.
     uint32_t rev = 0;
     uint32_t code = static_cast<uint32_t>(dist_code);
     for(int b = 0; b < 5; ++b){
@@ -533,14 +534,16 @@ static uint32_t hash3(const uint8_t *p){
            (static_cast<uint32_t>(p[2]) << 10U)) & (HASH_SIZE - 1U);
 }
 
-static std::vector<uint8_t> deflate_compress(const uint8_t *data, size_t len){
-    std::vector<uint8_t> output;
-    output.reserve(len + len / 8U + 64U);
-    bit_writer bw(output);
+// Write a single DEFLATE block into the provided bit_writer.
+//
+// The caller owns the bit_writer so that consecutive blocks share the
+// same bitstream without spurious byte-alignment padding between them.
+// Only the final block (bfinal == true) is flushed to a byte boundary.
+static void deflate_write_block(bit_writer &bw, const uint8_t *data, size_t len, bool bfinal){
+    bw.write_bits(bfinal ? 1U : 0U, 1); // BFINAL.
 
     if(len == 0){
-        // Empty input: write a final stored block with zero length.
-        bw.write_bits(1, 1); // BFINAL = 1.
+        // Empty block: use stored (BTYPE = 00).
         bw.write_bits(0, 2); // BTYPE = 00 (stored).
         bw.flush_to_byte();
         // LEN = 0, NLEN = 0xFFFF.
@@ -548,12 +551,10 @@ static std::vector<uint8_t> deflate_compress(const uint8_t *data, size_t len){
         bw.write_bits(0x00, 8);
         bw.write_bits(0xFF, 8);
         bw.write_bits(0xFF, 8);
-        bw.flush_to_byte();
-        return output;
+        if(bfinal) bw.flush_to_byte();
+        return;
     }
 
-    // Use a single DEFLATE block with fixed Huffman codes.
-    bw.write_bits(1, 1); // BFINAL = 1.
     bw.write_bits(1, 2); // BTYPE = 01 (fixed Huffman).
 
     // Hash table: head[hash] = most recent position with this hash.
@@ -615,51 +616,57 @@ static std::vector<uint8_t> deflate_compress(const uint8_t *data, size_t len){
 
     // End of block marker.
     emit_fixed_lit_len(bw, 256);
-    bw.flush_to_byte();
-    return output;
+    if(bfinal) bw.flush_to_byte();
 }
 
 // -----------------------------------------------------------------------
-// Gzip framing (RFC 1952).
+// Gzip framing helpers (RFC 1952).
 // -----------------------------------------------------------------------
-static void write_gzip_header(std::vector<uint8_t> &out){
-    out.push_back(0x1F); // ID1.
-    out.push_back(0x8B); // ID2.
-    out.push_back(0x08); // CM = deflate.
-    out.push_back(0x00); // FLG = none.
-    // MTIME (4 bytes, 0 = not available).
-    out.push_back(0x00);
-    out.push_back(0x00);
-    out.push_back(0x00);
-    out.push_back(0x00);
-    out.push_back(0x00); // XFL.
-    out.push_back(0xFF); // OS = unknown.
+static void write_gzip_header_to(std::ostream &os){
+    static constexpr uint8_t header[] = {
+        0x1F, 0x8B, // ID1, ID2.
+        0x08,       // CM = deflate.
+        0x00,       // FLG = none.
+        0x00, 0x00, 0x00, 0x00, // MTIME = 0.
+        0x00,       // XFL.
+        0xFF        // OS = unknown.
+    };
+    os.write(reinterpret_cast<const char *>(header), sizeof(header));
 }
 
-static void write_u32_le(std::vector<uint8_t> &out, uint32_t val){
-    out.push_back(static_cast<uint8_t>( val        & 0xFFU));
-    out.push_back(static_cast<uint8_t>((val >>  8U) & 0xFFU));
-    out.push_back(static_cast<uint8_t>((val >> 16U) & 0xFFU));
-    out.push_back(static_cast<uint8_t>((val >> 24U) & 0xFFU));
-}
-
-static uint32_t read_u32_le(const uint8_t *p){
-    return  static_cast<uint32_t>(p[0])
-         | (static_cast<uint32_t>(p[1]) <<  8U)
-         | (static_cast<uint32_t>(p[2]) << 16U)
-         | (static_cast<uint32_t>(p[3]) << 24U);
+static void write_u32_le_to(std::ostream &os, uint32_t val){
+    uint8_t bytes[4] = {
+        static_cast<uint8_t>( val        & 0xFFU),
+        static_cast<uint8_t>((val >>  8U) & 0xFFU),
+        static_cast<uint8_t>((val >> 16U) & 0xFFU),
+        static_cast<uint8_t>((val >> 24U) & 0xFFU)
+    };
+    os.write(reinterpret_cast<const char *>(bytes), 4);
 }
 
 // -----------------------------------------------------------------------
-// compress_streambuf: compresses data written to it.
+// compress_streambuf: streaming gzip compressor.
+//
+// The gzip header is written to the sink immediately upon construction.
+// Data written to this streambuf is accumulated into an internal buffer.
+// When the buffer reaches BLOCK_SIZE, a non-final DEFLATE block is
+// emitted.  On sync(), any pending data is flushed as a non-final block.
+// On finalize() (called from the destructor or explicitly), the
+// remaining data is emitted as the final block and the gzip trailer
+// (CRC32 + ISIZE) is written.
+//
+// A single persistent bit_writer is used across all DEFLATE blocks so
+// that consecutive blocks are correctly bit-packed without spurious
+// inter-block byte-alignment padding.
 // -----------------------------------------------------------------------
 class compress_streambuf : public std::streambuf {
   public:
     explicit compress_streambuf(std::ostream &sink)
-        : sink_(sink)
+        : sink_(sink), bw_(deflate_out_)
     {
-        // Use a put-back area of size 0 and a buffer for output.
         setp(buf_.data(), buf_.data() + buf_.size());
+        // Write the gzip header immediately.
+        write_gzip_header_to(sink_);
     }
 
     ~compress_streambuf() override {
@@ -670,160 +677,225 @@ class compress_streambuf : public std::streambuf {
         }
     }
 
-    // Finalize the gzip stream (write header + compressed data + trailer).
     void finalize(){
         if(finalized_) return;
         finalized_ = true;
 
-        // Flush any remaining buffered data.
-        flush_buffer();
+        // Flush the streambuf put-area into pending_.
+        drain_put_area();
 
-        // Now compress accumulated_ and write gzip output.
-        std::vector<uint8_t> gzip_out;
-        write_gzip_header(gzip_out);
+        if(!pending_.empty()){
+            emit_block(true);
+        }else{
+            // No remaining data; emit an empty final block.
+            deflate_write_block(bw_, nullptr, 0, true);
+        }
 
-        auto deflated = deflate_compress(accumulated_.data(), accumulated_.size());
-        gzip_out.insert(gzip_out.end(), deflated.begin(), deflated.end());
+        // Flush any remaining compressed bytes to the sink.
+        flush_deflate_output();
 
-        // CRC32 and ISIZE trailer.
-        uint32_t crc = crc32_update(0, accumulated_.data(), accumulated_.size());
-        write_u32_le(gzip_out, crc);
-        uint32_t isize = static_cast<uint32_t>(accumulated_.size() & 0xFFFFFFFFU);
-        write_u32_le(gzip_out, isize);
-
-        sink_.write(reinterpret_cast<const char *>(gzip_out.data()),
-                    static_cast<std::streamsize>(gzip_out.size()));
+        // Write gzip trailer.
+        write_u32_le_to(sink_, crc_);
+        write_u32_le_to(sink_, isize_);
         sink_.flush();
     }
 
   protected:
     int_type overflow(int_type ch) override {
-        flush_buffer();
+        drain_put_area();
         if(!traits_type::eq_int_type(ch, traits_type::eof())){
-            accumulated_.push_back(static_cast<uint8_t>(ch));
+            pending_.push_back(static_cast<uint8_t>(ch));
+        }
+        if(pending_.size() >= BLOCK_SIZE){
+            emit_block(false);
         }
         return ch;
     }
 
     int sync() override {
-        flush_buffer();
+        drain_put_area();
+        if(!pending_.empty()){
+            emit_block(false);
+        }
+        flush_deflate_output();
+        sink_.flush();
         return 0;
     }
 
   private:
-    void flush_buffer(){
+    static constexpr size_t BLOCK_SIZE = 32768;
+
+    void drain_put_area(){
         auto n = pptr() - pbase();
         if(n > 0){
-            accumulated_.insert(accumulated_.end(),
-                                reinterpret_cast<const uint8_t *>(pbase()),
-                                reinterpret_cast<const uint8_t *>(pbase()) + n);
+            pending_.insert(pending_.end(),
+                            reinterpret_cast<const uint8_t *>(pbase()),
+                            reinterpret_cast<const uint8_t *>(pbase()) + n);
             setp(buf_.data(), buf_.data() + buf_.size());
+        }
+    }
+
+    void emit_block(bool is_final){
+        // Update CRC and total size over the uncompressed pending data.
+        crc_ = crc32_update(crc_, pending_.data(), pending_.size());
+        isize_ += static_cast<uint32_t>(pending_.size());
+
+        deflate_write_block(bw_, pending_.data(), pending_.size(), is_final);
+        pending_.clear();
+
+        // Write completed bytes to the sink.
+        flush_deflate_output();
+    }
+
+    // Write all completed bytes from deflate_out_ to the sink.
+    // The bit_writer's partial byte (if any) stays in its accumulator
+    // and is not in deflate_out_, so this is always safe.
+    void flush_deflate_output(){
+        if(!deflate_out_.empty()){
+            sink_.write(reinterpret_cast<const char *>(deflate_out_.data()),
+                        static_cast<std::streamsize>(deflate_out_.size()));
+            deflate_out_.clear();
         }
     }
 
     std::ostream &sink_;
     std::array<char, 8192> buf_{};
-    std::vector<uint8_t> accumulated_;
+    std::vector<uint8_t> pending_;
+    std::vector<uint8_t> deflate_out_;
+    bit_writer bw_;
+    uint32_t crc_ = 0;
+    uint32_t isize_ = 0;
     bool finalized_ = false;
 };
 
 // -----------------------------------------------------------------------
-// decompress_streambuf: decompresses gzip data read from source stream.
+// decompress_streambuf: streaming gzip decompressor.
+//
+// The compressed data is read from the source stream and buffered.
+// The gzip header is parsed on construction.  DEFLATE blocks are
+// decompressed one at a time in underflow(), producing output into
+// out_buf_ which is served as the read area.  A sliding window
+// (last 32 KB) is maintained for back-references across blocks.
+// The gzip trailer (CRC32, ISIZE) is verified after the final block.
 // -----------------------------------------------------------------------
 class decompress_streambuf : public std::streambuf {
   public:
-    explicit decompress_streambuf(std::istream &source)
-        : source_(source)
-    {
-        // Read and decompress all data eagerly.
-        decompress_all();
-        // Set up the get area.
-        if(!decompressed_.empty()){
-            char *base = reinterpret_cast<char *>(decompressed_.data());
-            setg(base, base, base + decompressed_.size());
-        }
+    explicit decompress_streambuf(std::istream &source){
+        // Read all compressed data from the source.
+        compressed_.assign(std::istreambuf_iterator<char>(source),
+                           std::istreambuf_iterator<char>());
+        parse_gzip_header();
+        br_ = bit_reader(compressed_.data() + deflate_start_,
+                         compressed_.size() - deflate_start_);
     }
 
     ~decompress_streambuf() override = default;
 
   protected:
     int_type underflow() override {
-        if(gptr() == egptr()){
-            return traits_type::eof();
+        if(gptr() < egptr()){
+            return traits_type::to_int_type(*gptr());
         }
-        return traits_type::to_int_type(*gptr());
+        // Decompress the next block(s) until we have output or reach EOF.
+        while(!deflate_done_){
+            size_t window_start = window_.size();
+            bool is_last = decompress_one_block(br_, window_);
+
+            // The new output is the portion appended to window_.
+            size_t new_bytes = window_.size() - window_start;
+
+            // Update CRC and ISIZE over the new decompressed data.
+            if(new_bytes > 0){
+                crc_ = crc32_update(crc_, window_.data() + window_start, new_bytes);
+                isize_ += static_cast<uint32_t>(new_bytes);
+            }
+
+            if(is_last){
+                deflate_done_ = true;
+                verify_trailer();
+            }
+
+            if(new_bytes > 0){
+                // Copy new output into out_buf_ for the get area.
+                out_buf_.assign(window_.begin() + static_cast<ptrdiff_t>(window_start),
+                                window_.end());
+
+                // Trim window to the last WINDOW_SIZE bytes for future
+                // back-references.
+                if(window_.size() > WINDOW_SIZE){
+                    window_.erase(window_.begin(),
+                                  window_.end() - WINDOW_SIZE);
+                }
+
+                char *base = reinterpret_cast<char *>(out_buf_.data());
+                setg(base, base, base + out_buf_.size());
+                return traits_type::to_int_type(*gptr());
+            }
+        }
+        return traits_type::eof();
     }
 
   private:
-    void decompress_all(){
-        // Read entire compressed input.
-        std::vector<uint8_t> compressed(
-            (std::istreambuf_iterator<char>(source_)),
-            std::istreambuf_iterator<char>());
+    static constexpr size_t WINDOW_SIZE = 32768;
 
-        if(compressed.size() < 18){
+    void parse_gzip_header(){
+        if(compressed_.size() < 10){
             throw std::runtime_error("gzip: input too short to be a valid gzip file");
         }
-
-        size_t pos = 0;
-
-        // Verify gzip magic number.
-        if(compressed[0] != 0x1FU || compressed[1] != 0x8BU){
+        if(compressed_[0] != 0x1FU || compressed_[1] != 0x8BU){
             throw std::runtime_error("gzip: invalid magic number");
         }
-        if(compressed[2] != 0x08U){
+        if(compressed_[2] != 0x08U){
             throw std::runtime_error("gzip: unsupported compression method (only deflate is supported)");
         }
 
-        uint8_t flg = compressed[3];
-        pos = 10; // Skip past the 10-byte header.
+        uint8_t flg = compressed_[3];
+        size_t pos = 10;
 
-        // Handle optional header fields.
         if(flg & 0x04U){ // FEXTRA.
-            if(pos + 2 > compressed.size()) throw std::runtime_error("gzip: truncated FEXTRA");
-            uint16_t xlen = static_cast<uint16_t>(compressed[pos]) |
-                            static_cast<uint16_t>(static_cast<uint16_t>(compressed[pos + 1]) << 8U);
+            if(pos + 2 > compressed_.size()) throw std::runtime_error("gzip: truncated FEXTRA");
+            uint16_t xlen = static_cast<uint16_t>(compressed_[pos]) |
+                            static_cast<uint16_t>(static_cast<uint16_t>(compressed_[pos + 1]) << 8U);
             pos += 2U + xlen;
         }
         if(flg & 0x08U){ // FNAME.
-            while(pos < compressed.size() && compressed[pos] != 0) ++pos;
-            ++pos; // Skip null terminator.
+            while(pos < compressed_.size() && compressed_[pos] != 0) ++pos;
+            ++pos;
         }
         if(flg & 0x10U){ // FCOMMENT.
-            while(pos < compressed.size() && compressed[pos] != 0) ++pos;
+            while(pos < compressed_.size() && compressed_[pos] != 0) ++pos;
             ++pos;
         }
         if(flg & 0x02U){ // FHCRC.
             pos += 2;
         }
 
-        if(pos >= compressed.size() || compressed.size() - pos < 8){
+        if(pos >= compressed_.size()){
             throw std::runtime_error("gzip: truncated gzip data");
         }
+        deflate_start_ = pos;
+    }
 
-        // The last 8 bytes are CRC32 and ISIZE.
-        size_t trailer_pos = compressed.size() - 8;
-        uint32_t expected_crc = read_u32_le(compressed.data() + trailer_pos);
-        uint32_t expected_isize = read_u32_le(compressed.data() + trailer_pos + 4);
-
-        // Decompress the DEFLATE data.
-        decompressed_ = deflate_decompress(compressed.data() + pos, trailer_pos - pos);
-
-        // Verify CRC32.
-        uint32_t actual_crc = crc32_update(0, decompressed_.data(), decompressed_.size());
-        if(actual_crc != expected_crc){
+    void verify_trailer(){
+        // The trailer immediately follows the DEFLATE stream.
+        uint32_t expected_crc = br_.read_u32_le();
+        uint32_t expected_isize = br_.read_u32_le();
+        if(crc_ != expected_crc){
             throw std::runtime_error("gzip: CRC32 mismatch");
         }
-
-        // Verify ISIZE (lower 32 bits of original size).
-        uint32_t actual_isize = static_cast<uint32_t>(decompressed_.size() & 0xFFFFFFFFU);
-        if(actual_isize != expected_isize){
+        if(isize_ != expected_isize){
             throw std::runtime_error("gzip: size mismatch");
         }
     }
 
-    std::istream &source_;
-    std::vector<uint8_t> decompressed_;
+    std::vector<uint8_t> compressed_;
+    size_t deflate_start_ = 0;
+    bit_reader br_;
+    std::vector<uint8_t> window_;
+    std::vector<uint8_t> out_buf_;
+    uint32_t crc_ = 0;
+    uint32_t isize_ = 0;
+    bool deflate_done_ = false;
 };
 
 } // namespace gzip_impl.
@@ -840,8 +912,15 @@ gzip_ostream::gzip_ostream(std::ostream &sink)
 }
 
 gzip_ostream::~gzip_ostream(){
-    // Ensure the compressor is finalized before destruction.
-    buf_->finalize();
+    // Ensure the compressor is finalized before destruction, but never throw
+    // from a destructor.  Signal any error via the stream state instead.
+    if(buf_){
+        try{
+            buf_->finalize();
+        }catch(...){
+            setstate(std::ios::badbit);
+        }
+    }
 }
 
 // -----------------------------------------------------------------------

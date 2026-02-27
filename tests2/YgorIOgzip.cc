@@ -1,7 +1,10 @@
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <unistd.h>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -164,7 +167,9 @@ TEST_CASE( "YgorIOgzip round-trip compression and decompression" ){
 }
 
 TEST_CASE( "YgorIOgzip file-based round-trip" ){
-    const std::string tmpfile = "/tmp/ygor_gzip_test.gz";
+    // Generate a unique temp file path to avoid races under parallel test runs.
+    const auto tmpdir = std::filesystem::temp_directory_path();
+    const auto tmpfile = (tmpdir / ("ygor_gzip_test_" + std::to_string(::getpid()) + ".gz")).string();
 
     SUBCASE("write and read file"){
         const std::string input = "File-based gzip test with some data: 1234567890";
