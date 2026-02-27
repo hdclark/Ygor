@@ -77,18 +77,7 @@ class Plotter {
             if(fp == nullptr) YLOGERR("Unable to open a pipe!");
         }
 
-        ~Plotter() {
-            if(fp == nullptr){
-                status = pclose(fp);
-                if(status == -1){
-                    YLOGERR("Unable to close pipe. Is the process still active? \"pclose\" reports error " << status);
-                }
-                //else{
-                //    //Use macros described under wait() to inspect `status' in order
-                //    // to determine success/failure of command executed by popen()
-                // }
-            }
-        };
+        ~Plotter() { };
 
         //Methods.
         void Iterate_Linestyle(void);
@@ -386,11 +375,7 @@ class Plotter3 {
             ss << YGORPLOT3_H_PIPE_PREP;
             ss << YGORPLOT3_H_PIPE_BEGIN_SENDING_DATA;
         }
-        ~Plotter3(){
-            if(fp != nullptr){
-                if(pclose(fp) == -1) YLOGERR("Unable to close pipe. Is the process still active?");
-            }
-        };
+        ~Plotter3(){ };
 
         //Methods.
         void Set_Global_Title(const std::string &in);
