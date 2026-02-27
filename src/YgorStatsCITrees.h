@@ -66,8 +66,10 @@ class ConditionalInferenceTrees {
             std::mt19937 &rng
         );
 
-        // Select the best variable via permutation testing.
-        // Returns true if a significant variable was found, and sets best_feature and best_pvalue.
+        // Select the best variable via a permutation-based max-type global test
+        // (Hothorn et al., 2006). Uses shared permutations and standardized statistics
+        // across all features to avoid selection bias from multiple testing.
+        // Returns true if a valid test was performed, and sets best_feature and best_pvalue.
         bool select_variable(
             const num_array<T> &X,
             const num_array<T> &y,
@@ -77,7 +79,8 @@ class ConditionalInferenceTrees {
             std::mt19937 &rng
         );
 
-        // Compute the association statistic (absolute correlation) between a feature and the response.
+        // Compute the association statistic (absolute unnormalized covariance) between a feature
+        // and the response. This is |sum_i (X_ij - Xbar)(Y_i - Ybar)|.
         T compute_association(
             const num_array<T> &X,
             const num_array<T> &y,
@@ -85,7 +88,7 @@ class ConditionalInferenceTrees {
             int64_t feature
         );
 
-        // Find the best split point for a given feature that maximizes discrepancy.
+        // Find the best split point for a given feature that minimizes weighted child variance.
         bool find_best_split_point(
             const num_array<T> &X,
             const num_array<T> &y,
@@ -124,9 +127,10 @@ class ConditionalInferenceTrees {
         // Fit the conditional inference tree model.
         //
         // Trains a single conditional inference tree using permutation-based testing
-        // for variable selection. At each node, the variable with the strongest
-        // association to the response (lowest p-value) is selected, and the split
-        // point is chosen to maximize the discrepancy between child nodes.
+        // for variable selection. At each node, a global max-type test determines
+        // whether any variable is significantly associated with the response. The
+        // variable with the largest standardized test statistic is selected, and the
+        // split point is chosen to minimize weighted child variance.
         //
         // Parameters:
         //   X: NxM matrix of independent variables (N samples, M features).

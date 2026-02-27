@@ -171,6 +171,25 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
     int64_t &best_feature,
     T &best_pvalue,
     std::mt19937 &rng) {
+    //
+    // Variable selection via a permutation-based max-type global test, following
+    // the conditional inference framework described in:
+    //   Hothorn T, Hornik K, Zeileis A. Unbiased recursive partitioning: A conditional
+    //   inference framework. Journal of Computational and Graphical Statistics.
+    //   2006 Sep 1;15(3):651-74.
+    //
+    // For each feature j, the test statistic is the standardized linear association:
+    //   c_j = |sum_i (X_{ij} - Xbar_j)(Y_i - Ybar)| / sqrt(SS_Xj)
+    // where SS_Xj = sum_i (X_{ij} - Xbar_j)^2.
+    //
+    // The global null hypothesis (all features independent of the response) is tested
+    // using the max-type statistic: c_max = max_j c_j, with the p-value estimated from
+    // the permutation distribution of c_max. This naturally controls for multiple
+    // testing across features, avoiding selection bias.
+    //
+    // This permutation-based variant avoids the need to compute the incomplete gamma
+    // function that would be required for the asymptotic chi-squared approximation.
+    //
 
     const int64_t n_features = X.num_cols();
     const int64_t n_samples = static_cast<int64_t>(sample_indices.size());
@@ -181,21 +200,11 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
 
     best_pvalue = static_cast<T>(1);
     best_feature = -1;
-    bool found = false;
 
     // Pre-extract response values for efficient shuffling.
     std::vector<T> y_values(n_samples);
     for(int64_t i = 0; i < n_samples; ++i){
         y_values[i] = y.read_coeff(sample_indices[i], 0);
-    }
-
-    // Pre-extract feature values for all features to avoid repeated access.
-    std::vector<std::vector<T>> feature_values(n_features);
-    for(int64_t j = 0; j < n_features; ++j){
-        feature_values[j].resize(n_samples);
-        for(int64_t i = 0; i < n_samples; ++i){
-            feature_values[j][i] = X.read_coeff(sample_indices[i], j);
-        }
     }
 
     // Precompute y mean.
@@ -218,77 +227,107 @@ bool Stats::ConditionalInferenceTrees<T>::select_variable(
         return false;
     }
 
-    // For each feature, compute the observed test statistic and perform permutation test.
+    // Pre-extract feature values and precompute feature deviations from mean and SS_Xj.
+    // Also compute observed standardized statistic for each feature:
+    //   c_j = |sum_i x_dev_j[i] * y_dev[i]| / sqrt(x_ss_j)
+    std::vector<std::vector<T>> x_dev(n_features);
+    std::vector<T> x_ss(n_features, static_cast<T>(0));
+    std::vector<T> inv_sqrt_x_ss(n_features, static_cast<T>(0));
+    std::vector<T> observed_stat(n_features, static_cast<T>(0));
+    std::vector<bool> feature_valid(n_features, false);
+
+    T obs_max = static_cast<T>(0);
+
     for(int64_t j = 0; j < n_features; ++j){
+        x_dev[j].resize(n_samples);
+
         // Compute feature mean.
         T x_sum = static_cast<T>(0);
         for(int64_t i = 0; i < n_samples; ++i){
-            x_sum += feature_values[j][i];
+            x_sum += X.read_coeff(sample_indices[i], j);
         }
         const T x_mean = x_sum / static_cast<T>(n_samples);
 
-        // Compute observed statistic: absolute correlation coefficient * n_samples.
-        // Using sum of (x_dev * y_dev) as the test statistic (proportional to correlation).
-        T x_ss = static_cast<T>(0);
+        // Compute feature deviations and sum of squared deviations.
         T xy_sum = static_cast<T>(0);
         for(int64_t i = 0; i < n_samples; ++i){
-            const T x_dev = feature_values[j][i] - x_mean;
-            x_ss += x_dev * x_dev;
-            xy_sum += x_dev * y_dev[i];
+            x_dev[j][i] = X.read_coeff(sample_indices[i], j) - x_mean;
+            x_ss[j] += x_dev[j][i] * x_dev[j][i];
+            xy_sum += x_dev[j][i] * y_dev[i];
         }
 
-        // If feature has zero variance, skip it.
-        if(x_ss <= static_cast<T>(0)){
+        // Skip features with zero variance.
+        if(x_ss[j] <= static_cast<T>(0)){
             continue;
         }
 
-        const T observed_stat = std::abs(xy_sum);
+        feature_valid[j] = true;
+        inv_sqrt_x_ss[j] = static_cast<T>(1) / std::sqrt(x_ss[j]);
 
-        // Permutation test: shuffle y_dev and recompute statistic.
-        std::vector<T> y_dev_perm(y_dev);
-        int64_t count_ge = 0;
-        int64_t perms_done = 0;
+        // Standardized observed statistic: |T_j| / sqrt(SS_Xj).
+        observed_stat[j] = std::abs(xy_sum) * inv_sqrt_x_ss[j];
 
-        // Early-exit parameters: check after early_check permutations.
-        const int64_t early_check = std::min(static_cast<int64_t>(100), this->n_permutations);
-
-        for(int64_t k = 0; k < this->n_permutations; ++k){
-            std::shuffle(y_dev_perm.begin(), y_dev_perm.end(), rng);
-
-            T perm_stat = static_cast<T>(0);
-            for(int64_t i = 0; i < n_samples; ++i){
-                perm_stat += (feature_values[j][i] - x_mean) * y_dev_perm[i];
-            }
-            perm_stat = std::abs(perm_stat);
-
-            if(perm_stat >= observed_stat){
-                ++count_ge;
-            }
-            perms_done = k + 1;
-
-            // Early exit: after early_check permutations, if the variable is clearly
-            // non-significant, skip the remaining permutations.
-            if(perms_done == early_check && early_check < this->n_permutations){
-                // Estimate p-value so far.
-                const T early_pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(early_check + 1);
-                // If the estimated p-value is much larger than alpha, exit early.
-                // Use a conservative threshold: 2x alpha.
-                if(early_pvalue > static_cast<T>(2) * this->alpha){
-                    break;
-                }
-            }
-        }
-
-        const T pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(perms_done + 1);
-
-        if(pvalue < best_pvalue){
-            best_pvalue = pvalue;
+        if(observed_stat[j] > obs_max){
+            obs_max = observed_stat[j];
             best_feature = j;
-            found = true;
         }
     }
 
-    return found;
+    // If no valid feature was found, return false.
+    if(best_feature < 0){
+        return false;
+    }
+
+    // Permutation test using shared permutations for all features (global max-type test).
+    // For each permutation, shuffle y_dev, compute the standardized statistic for all valid
+    // features, take the maximum, and compare against the observed maximum.
+    std::vector<T> y_dev_perm(y_dev);
+    int64_t count_ge = 0;
+
+    // Early-exit parameters: check after early_check permutations.
+    const int64_t early_check = std::min(static_cast<int64_t>(100), this->n_permutations);
+
+    for(int64_t k = 0; k < this->n_permutations; ++k){
+        std::shuffle(y_dev_perm.begin(), y_dev_perm.end(), rng);
+
+        // Compute the max standardized statistic across all valid features for this permutation.
+        T perm_max = static_cast<T>(0);
+        for(int64_t j = 0; j < n_features; ++j){
+            if(!feature_valid[j]) continue;
+
+            T perm_stat = static_cast<T>(0);
+            for(int64_t i = 0; i < n_samples; ++i){
+                perm_stat += x_dev[j][i] * y_dev_perm[i];
+            }
+            perm_stat = std::abs(perm_stat) * inv_sqrt_x_ss[j];
+
+            if(perm_stat > perm_max){
+                perm_max = perm_stat;
+            }
+        }
+
+        if(perm_max >= obs_max){
+            ++count_ge;
+        }
+
+        // Early exit: after early_check permutations, if the global test is clearly
+        // non-significant, skip the remaining permutations.
+        if(k + 1 == early_check && early_check < this->n_permutations){
+            const T early_pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(early_check + 1);
+            // If the estimated p-value is much larger than alpha, exit early.
+            // Use a conservative threshold: 2x alpha.
+            if(early_pvalue > static_cast<T>(2) * this->alpha){
+                best_pvalue = early_pvalue;
+                return true;
+            }
+        }
+    }
+
+    // Global p-value from the permutation distribution of the max statistic.
+    // Uses the formula (b+1)/(B+1) per Davison & Hinkley (1997) for valid permutation p-values.
+    best_pvalue = static_cast<T>(count_ge + 1) / static_cast<T>(this->n_permutations + 1);
+
+    return true;
 }
 #ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
     template bool Stats::ConditionalInferenceTrees<double>::select_variable(
@@ -320,7 +359,7 @@ T Stats::ConditionalInferenceTrees<T>::compute_association(
     const T x_mean = x_sum / static_cast<T>(n);
     const T y_mean = y_sum / static_cast<T>(n);
 
-    // Compute absolute correlation (unnormalized).
+    // Compute absolute unnormalized covariance: |sum_i (X_ij - Xbar)(Y_i - Ybar)|.
     T xy_sum = static_cast<T>(0);
     for(const auto idx : sample_indices){
         xy_sum += (X.read_coeff(idx, feature) - x_mean) * (y.read_coeff(idx, 0) - y_mean);
