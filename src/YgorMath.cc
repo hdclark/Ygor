@@ -3068,7 +3068,7 @@ template <class T> std::list<contour_of_points<T>> contour_of_points<T>::Split_A
               dup.points.erase(p3_it);
 
               //Pass off the computation as our own...
-              return std::move(dup.Split_Along_Plane(theplane));
+              return dup.Split_Along_Plane(theplane);
 
           }else{
               p1_it = p2_it;
