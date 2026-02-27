@@ -99,55 +99,62 @@ class bit_writer {
 };
 
 // -----------------------------------------------------------------------
-// Bit-level reader (LSB-first, as required by DEFLATE).
+// Streaming bit-level reader (LSB-first, as required by DEFLATE).
+//
+// Uses a 64-bit accumulator to buffer bits read on demand from the
+// underlying std::istream.  This avoids loading the entire compressed
+// payload into memory, enabling true streaming decompression.
 // -----------------------------------------------------------------------
-class bit_reader {
+class streaming_bit_reader {
   public:
-    bit_reader() = default;
+    explicit streaming_bit_reader(std::istream &source) : source_(source) {}
 
-    explicit bit_reader(const uint8_t *data, size_t len)
-        : data_(data), len_(len) {}
-
-    uint32_t read_bits(int nbits){
-        uint32_t result = 0;
-        int shift = 0;
-        while(nbits > 0){
-            if(byte_pos_ >= len_) throw std::runtime_error("gzip: unexpected end of compressed data");
-            int avail = 8 - bit_pos_;
-            int take = std::min(nbits, avail);
-            uint32_t mask = (1U << take) - 1U;
-            result |= ((static_cast<uint32_t>(data_[byte_pos_]) >> bit_pos_) & mask) << shift;
-            bit_pos_ += take;
-            shift += take;
-            nbits -= take;
-            if(bit_pos_ == 8){
-                bit_pos_ = 0;
-                ++byte_pos_;
+    // Ensure at least n bits are available in the accumulator.
+    void ensure_bits(int n){
+        while(nbits_ < n){
+            if(nbits_ > 56){
+                throw std::runtime_error("gzip: bit accumulator overflow");
             }
+            int ch = source_.get();
+            if(ch == std::char_traits<char>::eof()){
+                throw std::runtime_error("gzip: unexpected end of compressed data");
+            }
+            accum_ |= static_cast<uint64_t>(static_cast<uint8_t>(ch)) << nbits_;
+            nbits_ += 8;
         }
+    }
+
+    uint32_t read_bits(int n){
+        ensure_bits(n);
+        uint32_t result = static_cast<uint32_t>(accum_ & ((uint64_t{1} << n) - 1U));
+        accum_ >>= n;
+        nbits_ -= n;
         return result;
     }
 
-    // Return nbits bits to the reader (rewind position).
-    void put_back_bits(int nbits){
-        int total = static_cast<int>(byte_pos_) * 8 + bit_pos_;
-        total -= nbits;
-        if(total < 0) throw std::runtime_error("gzip: cannot rewind past beginning of data");
-        byte_pos_ = static_cast<size_t>(total / 8);
-        bit_pos_ = total % 8;
+    // Peek at the next n bits without consuming them.
+    uint32_t peek_bits(int n){
+        ensure_bits(n);
+        return static_cast<uint32_t>(accum_ & ((uint64_t{1} << n) - 1U));
+    }
+
+    // Consume n bits that were previously peeked.
+    void consume_bits(int n){
+        accum_ >>= n;
+        nbits_ -= n;
     }
 
     void align_to_byte(){
-        if(bit_pos_ > 0){
-            bit_pos_ = 0;
-            ++byte_pos_;
+        int discard = nbits_ % 8;
+        if(discard > 0){
+            accum_ >>= discard;
+            nbits_ -= discard;
         }
     }
 
     uint8_t read_byte(){
         align_to_byte();
-        if(byte_pos_ >= len_) throw std::runtime_error("gzip: unexpected end of data");
-        return data_[byte_pos_++];
+        return static_cast<uint8_t>(read_bits(8));
     }
 
     uint16_t read_u16(){
@@ -165,10 +172,9 @@ class bit_reader {
     }
 
   private:
-    const uint8_t *data_ = nullptr;
-    size_t len_ = 0;
-    size_t byte_pos_ = 0;
-    int bit_pos_ = 0;
+    std::istream &source_;
+    uint64_t accum_ = 0;
+    int nbits_ = 0;
 };
 
 // -----------------------------------------------------------------------
@@ -227,16 +233,16 @@ struct huffman_decoder {
         }
     }
 
-    // Decode one Huffman symbol from the bitstream.  Reads max_bits_ at
-    // once for a fast table lookup, then returns the excess bits that were
-    // not part of the resolved code via put_back_bits.
-    int decode(bit_reader &br) const {
+    // Decode one Huffman symbol from the bitstream.  Peeks max_bits_ at
+    // once for a fast table lookup, then consumes only the actual code
+    // length.
+    int decode(streaming_bit_reader &br) const {
         if(max_bits_ == 0) throw std::runtime_error("gzip: empty Huffman table");
-        uint32_t bits = br.read_bits(max_bits_);
+        uint32_t bits = br.peek_bits(max_bits_);
         int sym = table_[bits];
         if(sym < 0) throw std::runtime_error("gzip: invalid Huffman code");
         int actual_len = lengths_[static_cast<size_t>(sym)];
-        br.put_back_bits(max_bits_ - actual_len);
+        br.consume_bits(actual_len);
         return sym;
     }
 
@@ -304,7 +310,7 @@ static constexpr std::array<dist_entry, 30> distance_table = {{
 // the window (which also serves as the back-reference sliding window).
 // Returns true if this was the final block (BFINAL = 1).
 // -----------------------------------------------------------------------
-static bool decompress_one_block(bit_reader &br, std::vector<uint8_t> &window){
+static bool decompress_one_block(streaming_bit_reader &br, std::vector<uint8_t> &window){
     bool bfinal = (br.read_bits(1) != 0);
     uint32_t btype = br.read_bits(2);
 
@@ -771,22 +777,20 @@ class compress_streambuf : public std::streambuf {
 // -----------------------------------------------------------------------
 // decompress_streambuf: streaming gzip decompressor.
 //
-// The compressed data is read from the source stream and buffered.
-// The gzip header is parsed on construction.  DEFLATE blocks are
-// decompressed one at a time in underflow(), producing output into
-// out_buf_ which is served as the read area.  A sliding window
-// (last 32 KB) is maintained for back-references across blocks.
-// The gzip trailer (CRC32, ISIZE) is verified after the final block.
+// The gzip header is parsed from the source stream on construction.
+// Compressed data is read on demand via the streaming_bit_reader.
+// DEFLATE blocks are decompressed one at a time in underflow(),
+// producing output into out_buf_ which is served as the read area.
+// A sliding window (last 32 KB) is maintained for back-references
+// across blocks.  The gzip trailer (CRC32, ISIZE) is verified after
+// the final block.
 // -----------------------------------------------------------------------
 class decompress_streambuf : public std::streambuf {
   public:
-    explicit decompress_streambuf(std::istream &source){
-        // Read all compressed data from the source.
-        compressed_.assign(std::istreambuf_iterator<char>(source),
-                           std::istreambuf_iterator<char>());
+    explicit decompress_streambuf(std::istream &source)
+        : source_(source), br_(source_)
+    {
         parse_gzip_header();
-        br_ = bit_reader(compressed_.data() + deflate_start_,
-                         compressed_.size() - deflate_start_);
     }
 
     ~decompress_streambuf() override = default;
@@ -839,41 +843,40 @@ class decompress_streambuf : public std::streambuf {
     static constexpr size_t WINDOW_SIZE = 32768;
 
     void parse_gzip_header(){
-        if(compressed_.size() < 10){
-            throw std::runtime_error("gzip: input too short to be a valid gzip file");
-        }
-        if(compressed_[0] != 0x1FU || compressed_[1] != 0x8BU){
+        auto read_hdr_byte = [this]() -> uint8_t {
+            int ch = source_.get();
+            if(ch == std::char_traits<char>::eof()){
+                throw std::runtime_error("gzip: input too short to be a valid gzip file");
+            }
+            return static_cast<uint8_t>(ch);
+        };
+
+        if(read_hdr_byte() != 0x1FU || read_hdr_byte() != 0x8BU){
             throw std::runtime_error("gzip: invalid magic number");
         }
-        if(compressed_[2] != 0x08U){
+        if(read_hdr_byte() != 0x08U){
             throw std::runtime_error("gzip: unsupported compression method (only deflate is supported)");
         }
 
-        uint8_t flg = compressed_[3];
-        size_t pos = 10;
+        uint8_t flg = read_hdr_byte();
+        // Skip MTIME (4 bytes), XFL (1 byte), OS (1 byte).
+        for(int i = 0; i < 6; ++i) read_hdr_byte();
 
         if(flg & 0x04U){ // FEXTRA.
-            if(pos + 2 > compressed_.size()) throw std::runtime_error("gzip: truncated FEXTRA");
-            uint16_t xlen = static_cast<uint16_t>(compressed_[pos]) |
-                            static_cast<uint16_t>(static_cast<uint16_t>(compressed_[pos + 1]) << 8U);
-            pos += 2U + xlen;
+            uint16_t xlen = static_cast<uint16_t>(read_hdr_byte()) |
+                            static_cast<uint16_t>(static_cast<uint16_t>(read_hdr_byte()) << 8U);
+            for(uint16_t i = 0; i < xlen; ++i) read_hdr_byte();
         }
         if(flg & 0x08U){ // FNAME.
-            while(pos < compressed_.size() && compressed_[pos] != 0) ++pos;
-            ++pos;
+            while(read_hdr_byte() != 0U) {}
         }
         if(flg & 0x10U){ // FCOMMENT.
-            while(pos < compressed_.size() && compressed_[pos] != 0) ++pos;
-            ++pos;
+            while(read_hdr_byte() != 0U) {}
         }
         if(flg & 0x02U){ // FHCRC.
-            pos += 2;
+            read_hdr_byte();
+            read_hdr_byte();
         }
-
-        if(pos >= compressed_.size()){
-            throw std::runtime_error("gzip: truncated gzip data");
-        }
-        deflate_start_ = pos;
     }
 
     void verify_trailer(){
@@ -888,9 +891,8 @@ class decompress_streambuf : public std::streambuf {
         }
     }
 
-    std::vector<uint8_t> compressed_;
-    size_t deflate_start_ = 0;
-    bit_reader br_;
+    std::istream &source_;
+    streaming_bit_reader br_;
     std::vector<uint8_t> window_;
     std::vector<uint8_t> out_buf_;
     uint32_t crc_ = 0;
