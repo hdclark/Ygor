@@ -870,6 +870,27 @@ TEST_CASE( "ConditionalRandomForests conditional vs marginal importance bias" ){
         y.coeff(i, 0) = 3.0 * x1;
     }
 
+    // Verify that x1 and x2 are indeed highly correlated (Pearson |r| > 0.9).
+    {
+        double sum_x1 = 0.0, sum_x2 = 0.0;
+        for(int64_t i = 0; i < n_samples; ++i){
+            sum_x1 += X.read_coeff(i, 0);
+            sum_x2 += X.read_coeff(i, 1);
+        }
+        const double mean_x1 = sum_x1 / static_cast<double>(n_samples);
+        const double mean_x2 = sum_x2 / static_cast<double>(n_samples);
+        double cov = 0.0, var1 = 0.0, var2 = 0.0;
+        for(int64_t i = 0; i < n_samples; ++i){
+            const double d1 = X.read_coeff(i, 0) - mean_x1;
+            const double d2 = X.read_coeff(i, 1) - mean_x2;
+            cov += d1 * d2;
+            var1 += d1 * d1;
+            var2 += d2 * d2;
+        }
+        const double r = cov / std::sqrt(var1 * var2);
+        REQUIRE( std::abs(r) > 0.9 );
+    }
+
     // Marginal permutation importance.
     Stats::ConditionalRandomForests<double> cf_marginal(50, 10, 2, 0.10, 200, -1, 0.632, 0.2, 42);
     cf_marginal.set_importance_method(Stats::ConditionalImportanceMethod::permutation);
@@ -1124,10 +1145,11 @@ TEST_CASE( "ConditionalRandomForests conditional importance all features in cond
 }
 
 
-TEST_CASE( "ConditionalRandomForests OOB fraction matches subsample_fraction" ){
+TEST_CASE( "ConditionalRandomForests OOB tracking with subsample_fraction" ){
     // With subsampling without replacement at fraction f, each sample has probability
-    // (1-f) of being OOB for any given tree. Verify the observed OOB fraction is
-    // consistent with the expected fraction.
+    // (1-f) of being OOB for any given tree. Verify that OOB tracking is functional by
+    // confirming that compute_importance succeeds (which requires valid OOB indices) and
+    // that the serialized model contains OOB sets consistent with the number of trees.
 
     const int64_t n_samples = 200;
     const double subsample_frac = 0.632;
@@ -1140,21 +1162,27 @@ TEST_CASE( "ConditionalRandomForests OOB fraction matches subsample_fraction" ){
         y.coeff(i, 0) = static_cast<double>(i);
     }
 
-    Stats::ConditionalRandomForests<double> cf(100, 5, 2, 0.10, 100, -1, subsample_frac, 0.2, 42);
+    const int64_t n_trees = 100;
+    Stats::ConditionalRandomForests<double> cf(n_trees, 5, 2, 0.10, 100, -1, subsample_frac, 0.2, 42);
     cf.set_importance_method(Stats::ConditionalImportanceMethod::permutation);
     cf.fit(X, y);
 
-    // After fit, compute importance to confirm OOB tracking worked.
+    // compute_importance requires valid OOB indices for each tree;
+    // it would throw if OOB tracking was not properly set up.
     cf.compute_importance(X, y);
 
-    // Count how many trees each sample appeared OOB in.
-    // With subsample_fraction = 0.632, each sample should be OOB in about 36.8% of trees.
-    // We can verify that all feature importances are finite (indicating OOB tracking worked).
     auto importances = cf.get_feature_importances();
     REQUIRE( importances.size() == 2 );
     for(const auto &v : importances){
         REQUIRE( std::isfinite(v) );
     }
+
+    // Verify via serialization that OOB sets were recorded for each tree.
+    std::stringstream ss;
+    REQUIRE( cf.write_to(ss) );
+    const std::string content = ss.str();
+    const std::string oob_label = "oob_sets " + std::to_string(n_trees);
+    REQUIRE( content.find(oob_label) != std::string::npos );
 }
 
 
