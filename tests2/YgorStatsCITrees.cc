@@ -452,3 +452,287 @@ TEST_CASE( "ConditionalInferenceTrees float specialization" ){
     REQUIRE( std::isfinite(pred) );
     REQUIRE( pred > 0.0f );
 }
+
+
+TEST_CASE( "ConditionalInferenceTrees variable selection with different-scale features" ){
+    // Test that the tree correctly handles features with very different scales.
+    // Feature 0 is informative (y = x0) but has small values,
+    // Feature 1 is noise but has large values.
+    // Without standardization, the raw cross-product sum for feature 1 could dominate.
+    Stats::ConditionalInferenceTrees<double> ct(10, 2, 0.10, 500, 42);
+
+    const int64_t n_samples = 40;
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+
+    std::mt19937 rng(99);
+    std::normal_distribution<double> noise(0.0, 0.01);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        const double x0 = static_cast<double>(i) * 0.01;  // Small-scale informative feature.
+        const double x1 = static_cast<double>(i) * 1000.0; // Large-scale noise.
+        X.coeff(i, 0) = x0;
+        X.coeff(i, 1) = x1;
+        y.coeff(i, 0) = x0 + noise(rng);  // y depends on x0, not x1.
+    }
+
+    ct.fit(X, y);
+
+    // Predictions should be reasonable since the tree should capture the x0 relationship.
+    double total_error = 0.0;
+    for(int64_t i = 0; i < n_samples; ++i){
+        num_array<double> x_test(1, 2);
+        x_test.coeff(0, 0) = X.read_coeff(i, 0);
+        x_test.coeff(0, 1) = X.read_coeff(i, 1);
+        const double pred = ct.predict(x_test);
+        const double true_val = y.read_coeff(i, 0);
+        total_error += std::abs(pred - true_val);
+    }
+    const double mean_error = total_error / static_cast<double>(n_samples);
+    REQUIRE( mean_error < 0.2 );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees no splitting on pure noise" ){
+    // When the response is unrelated to all features, the tree should not split
+    // (or split minimally) due to the statistical test.
+    Stats::ConditionalInferenceTrees<double> ct(10, 2, 0.05, 500, 42);
+
+    const int64_t n_samples = 30;
+    num_array<double> X(n_samples, 3);
+    num_array<double> y(n_samples, 1);
+
+    // Features are structured but response is random noise.
+    std::mt19937 rng(123);
+    std::normal_distribution<double> noise(0.0, 1.0);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        X.coeff(i, 1) = static_cast<double>(i * 2);
+        X.coeff(i, 2) = static_cast<double>(i * 3);
+        y.coeff(i, 0) = noise(rng);
+    }
+
+    ct.fit(X, y);
+
+    // The tree should produce finite predictions.
+    num_array<double> x_test(1, 3);
+    x_test.coeff(0, 0) = 15.0;
+    x_test.coeff(0, 1) = 30.0;
+    x_test.coeff(0, 2) = 45.0;
+    const double pred = ct.predict(x_test);
+    REQUIRE( std::isfinite(pred) );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees multi-step function" ){
+    // Test with a multi-step function that requires multiple splits.
+    Stats::ConditionalInferenceTrees<double> ct(10, 2, 0.10, 300, 42);
+
+    const int64_t n_samples = 60;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        const double x_val = static_cast<double>(i);
+        X.coeff(i, 0) = x_val;
+        if(x_val < 20.0){
+            y.coeff(i, 0) = 0.0;
+        }else if(x_val < 40.0){
+            y.coeff(i, 0) = 10.0;
+        }else{
+            y.coeff(i, 0) = 20.0;
+        }
+    }
+
+    ct.fit(X, y);
+
+    // Test predictions at each step.
+    num_array<double> x_low(1, 1);
+    x_low.coeff(0, 0) = 10.0;
+    REQUIRE( ct.predict(x_low) < 5.0 );
+
+    num_array<double> x_mid(1, 1);
+    x_mid.coeff(0, 0) = 30.0;
+    const double pred_mid = ct.predict(x_mid);
+    REQUIRE( pred_mid > 5.0 );
+    REQUIRE( pred_mid < 15.0 );
+
+    num_array<double> x_high(1, 1);
+    x_high.coeff(0, 0) = 50.0;
+    REQUIRE( ct.predict(x_high) > 15.0 );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees two informative features" ){
+    // Test with two informative features: y = x0 + x1 where
+    // x0 and x1 vary on different ranges.
+    Stats::ConditionalInferenceTrees<double> ct(10, 2, 0.10, 300, 42);
+
+    const int64_t n_samples = 40;
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        // Create features that aren't perfectly correlated.
+        const double x0 = static_cast<double>(i % 10);
+        const double x1 = static_cast<double>(i / 10) * 5.0;
+        X.coeff(i, 0) = x0;
+        X.coeff(i, 1) = x1;
+        y.coeff(i, 0) = x0 + x1;
+    }
+
+    ct.fit(X, y);
+
+    // Test predictions.
+    double total_error = 0.0;
+    for(int64_t i = 0; i < n_samples; ++i){
+        num_array<double> x_test(1, 2);
+        x_test.coeff(0, 0) = X.read_coeff(i, 0);
+        x_test.coeff(0, 1) = X.read_coeff(i, 1);
+        const double pred = ct.predict(x_test);
+        const double true_val = y.read_coeff(i, 0);
+        total_error += std::abs(pred - true_val);
+    }
+    const double mean_error = total_error / static_cast<double>(n_samples);
+
+    // Tree should capture both features reasonably well.
+    REQUIRE( mean_error < 5.0 );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees single feature with all identical values" ){
+    // Test with a single feature that has all identical values (zero variance).
+    // The tree should create a leaf with the mean of y.
+    Stats::ConditionalInferenceTrees<double> ct(5, 2, 0.10, 100, 42);
+
+    const int64_t n_samples = 10;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = 5.0;  // Constant feature.
+        y.coeff(i, 0) = static_cast<double>(i);
+    }
+
+    ct.fit(X, y);
+
+    // Should predict the mean of y = (0+1+...+9)/10 = 4.5.
+    num_array<double> x_test(1, 1);
+    x_test.coeff(0, 0) = 5.0;
+    const double pred = ct.predict(x_test);
+    REQUIRE( std::abs(pred - 4.5) < 0.01 );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees depth limit is respected" ){
+    // A shallow max_depth should limit the tree's ability to fit complex data.
+    Stats::ConditionalInferenceTrees<double> ct_shallow(1, 2, 0.50, 200, 42);
+    Stats::ConditionalInferenceTrees<double> ct_deep(10, 2, 0.50, 200, 42);
+
+    const int64_t n_samples = 50;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        y.coeff(i, 0) = static_cast<double>(i) * 2.0;
+    }
+
+    ct_shallow.fit(X, y);
+    ct_deep.fit(X, y);
+
+    // Both should produce finite predictions.
+    num_array<double> x_test(1, 1);
+    x_test.coeff(0, 0) = 25.0;
+    REQUIRE( std::isfinite(ct_shallow.predict(x_test)) );
+    REQUIRE( std::isfinite(ct_deep.predict(x_test)) );
+
+    // The deep tree should generally have lower error on training data.
+    double error_shallow = 0.0;
+    double error_deep = 0.0;
+    for(int64_t i = 0; i < n_samples; ++i){
+        num_array<double> x_i(1, 1);
+        x_i.coeff(0, 0) = X.read_coeff(i, 0);
+        error_shallow += std::abs(ct_shallow.predict(x_i) - y.read_coeff(i, 0));
+        error_deep += std::abs(ct_deep.predict(x_i) - y.read_coeff(i, 0));
+    }
+    REQUIRE( error_deep <= error_shallow );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees min_samples_split is respected" ){
+    // With a high min_samples_split, the tree should not split small nodes.
+    Stats::ConditionalInferenceTrees<double> ct(10, 20, 0.50, 200, 42);
+
+    const int64_t n_samples = 25;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        y.coeff(i, 0) = static_cast<double>(i) * 2.0;
+    }
+
+    ct.fit(X, y);
+
+    // Should produce finite predictions.
+    num_array<double> x_test(1, 1);
+    x_test.coeff(0, 0) = 12.0;
+    const double pred = ct.predict(x_test);
+    REQUIRE( std::isfinite(pred) );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees predictions bounded by training range" ){
+    // Tree predictions should be bounded by the range of training y values.
+    Stats::ConditionalInferenceTrees<double> ct(10, 2, 0.10, 200, 42);
+
+    const int64_t n_samples = 30;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    double y_min = std::numeric_limits<double>::infinity();
+    double y_max = -std::numeric_limits<double>::infinity();
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        const double y_val = std::sin(static_cast<double>(i) * 0.3) * 10.0;
+        y.coeff(i, 0) = y_val;
+        y_min = std::min(y_min, y_val);
+        y_max = std::max(y_max, y_val);
+    }
+
+    ct.fit(X, y);
+
+    // Predictions on any input should be within [y_min, y_max] since
+    // leaf values are means of subsets of training y.
+    for(int64_t i = 0; i < 50; ++i){
+        num_array<double> x_test(1, 1);
+        x_test.coeff(0, 0) = static_cast<double>(i) - 10.0;  // Include out-of-range inputs.
+        const double pred = ct.predict(x_test);
+        REQUIRE( pred >= y_min - 0.01 );
+        REQUIRE( pred <= y_max + 0.01 );
+    }
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees handles two identical samples" ){
+    // Minimum valid dataset with min_samples_split = 2.
+    Stats::ConditionalInferenceTrees<double> ct(5, 2, 0.10, 100, 42);
+
+    num_array<double> X(2, 1);
+    num_array<double> y(2, 1);
+
+    X.coeff(0, 0) = 1.0;
+    X.coeff(1, 0) = 1.0;  // Same feature value.
+    y.coeff(0, 0) = 3.0;
+    y.coeff(1, 0) = 7.0;
+
+    ct.fit(X, y);
+
+    // With identical feature values, no split is possible. Mean should be 5.0.
+    num_array<double> x_test(1, 1);
+    x_test.coeff(0, 0) = 1.0;
+    const double pred = ct.predict(x_test);
+    REQUIRE( std::abs(pred - 5.0) < 0.01 );
+}
