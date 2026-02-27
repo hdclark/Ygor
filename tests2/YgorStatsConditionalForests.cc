@@ -845,3 +845,375 @@ TEST_CASE( "ConditionalRandomForests with max_features parameter" ){
     REQUIRE( std::isfinite(pred_all) );
     REQUIRE( std::isfinite(pred_limited) );
 }
+
+
+TEST_CASE( "ConditionalRandomForests conditional vs marginal importance bias" ){
+    // Key validation of Strobl et al. (2008): when x2 is correlated with x1 but does not
+    // directly influence y, standard marginal permutation importance inflates x2's importance,
+    // whereas conditional permutation importance should correctly assign less importance to x2.
+    //
+    // y = 3*x1, x2 = x1 + small_noise.
+
+    const int64_t n_samples = 80;
+    const int64_t n_features = 2;
+
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    std::mt19937 noise_rng(77);
+    std::normal_distribution<double> noise(0.0, 0.5);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        const double x1 = static_cast<double>(i) * 0.5;
+        X.coeff(i, 0) = x1;
+        X.coeff(i, 1) = x1 + noise(noise_rng);  // Highly correlated with x1.
+        y.coeff(i, 0) = 3.0 * x1;
+    }
+
+    // Verify that x1 and x2 are indeed highly correlated (Pearson |r| > 0.9).
+    {
+        double sum_x1 = 0.0, sum_x2 = 0.0;
+        for(int64_t i = 0; i < n_samples; ++i){
+            sum_x1 += X.read_coeff(i, 0);
+            sum_x2 += X.read_coeff(i, 1);
+        }
+        const double mean_x1 = sum_x1 / static_cast<double>(n_samples);
+        const double mean_x2 = sum_x2 / static_cast<double>(n_samples);
+        double cov = 0.0, var1 = 0.0, var2 = 0.0;
+        for(int64_t i = 0; i < n_samples; ++i){
+            const double d1 = X.read_coeff(i, 0) - mean_x1;
+            const double d2 = X.read_coeff(i, 1) - mean_x2;
+            cov += d1 * d2;
+            var1 += d1 * d1;
+            var2 += d2 * d2;
+        }
+        const double r = cov / std::sqrt(var1 * var2);
+        REQUIRE( std::abs(r) > 0.9 );
+    }
+
+    // Marginal permutation importance.
+    Stats::ConditionalRandomForests<double> cf_marginal(50, 10, 2, 0.10, 200, -1, 0.632, 0.2, 42);
+    cf_marginal.set_importance_method(Stats::ConditionalImportanceMethod::permutation);
+    cf_marginal.fit(X, y);
+    cf_marginal.compute_importance(X, y);
+    auto imp_marginal = cf_marginal.get_feature_importances();
+
+    // Conditional permutation importance with a low threshold to force conditioning.
+    Stats::ConditionalRandomForests<double> cf_cond(50, 10, 2, 0.10, 200, -1, 0.632, 0.20, 42);
+    cf_cond.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+    cf_cond.fit(X, y);
+    cf_cond.compute_importance(X, y);
+    auto imp_cond = cf_cond.get_feature_importances();
+
+    REQUIRE( imp_marginal.size() == 2 );
+    REQUIRE( imp_cond.size() == 2 );
+
+    // Both should identify x1 as most important.
+    REQUIRE( imp_marginal[0] > imp_marginal[1] );
+    REQUIRE( imp_cond[0] > imp_cond[1] );
+
+    // Conditional importance should reduce the apparent importance of x2 (the irrelevant
+    // but correlated feature) relative to marginal importance, per Strobl et al. (2008).
+    REQUIRE( imp_cond[1] <= imp_marginal[1] );
+}
+
+
+TEST_CASE( "ConditionalRandomForests serialization roundtrip with conditional importance" ){
+    Stats::ConditionalRandomForests<double> cf(30, 5, 2, 0.10, 100, -1, 0.632, 0.3, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+
+    const int64_t n_samples = 30;
+    const int64_t n_features = 2;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        const double x1 = static_cast<double>(i) * 0.3;
+        X.coeff(i, 0) = x1;
+        X.coeff(i, 1) = x1 * 0.5 + 1.0;
+        y.coeff(i, 0) = 2.0 * x1;
+    }
+
+    cf.fit(X, y);
+    cf.compute_importance(X, y);
+
+    std::stringstream ss;
+    REQUIRE( cf.write_to(ss) );
+
+    Stats::ConditionalRandomForests<double> cf_loaded;
+    REQUIRE( cf_loaded.read_from(ss) );
+
+    // Importances should be preserved.
+    auto imp_orig = cf.get_feature_importances();
+    auto imp_loaded = cf_loaded.get_feature_importances();
+    REQUIRE( imp_orig.size() == imp_loaded.size() );
+    for(size_t i = 0; i < imp_orig.size(); ++i){
+        REQUIRE( imp_orig[i] == imp_loaded[i] );
+    }
+
+    // Predictions should also be preserved.
+    num_array<double> x_test(1, n_features);
+    x_test.coeff(0, 0) = 1.5;
+    x_test.coeff(0, 1) = 1.75;
+    REQUIRE( cf.predict(x_test) == cf_loaded.predict(x_test) );
+
+    // Importance method should be preserved.
+    REQUIRE( cf_loaded.get_importance_method() == Stats::ConditionalImportanceMethod::conditional );
+}
+
+
+TEST_CASE( "ConditionalRandomForests conditional importance with single feature" ){
+    // With a single feature, the conditioning set is always empty, so conditional
+    // importance should fall back to standard permutation importance.
+    Stats::ConditionalRandomForests<double> cf(30, 8, 2, 0.10, 200, -1, 0.632, 0.2, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+
+    const int64_t n_samples = 30;
+    num_array<double> X(n_samples, 1);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.5;
+        y.coeff(i, 0) = 2.0 * X.read_coeff(i, 0);
+    }
+
+    cf.fit(X, y);
+    cf.compute_importance(X, y);
+
+    auto importances = cf.get_feature_importances();
+    REQUIRE( importances.size() == 1 );
+    REQUIRE( std::isfinite(importances[0]) );
+    REQUIRE( importances[0] > 0.0 );
+}
+
+
+TEST_CASE( "ConditionalRandomForests correlation threshold effect" ){
+    // With a high correlation threshold, no features will be in the conditioning set,
+    // so conditional importance should behave like marginal permutation importance.
+    // With a low threshold, conditioning should activate and produce different results.
+
+    const int64_t n_samples = 60;
+    const int64_t n_features = 2;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        const double x1 = static_cast<double>(i) * 0.5;
+        X.coeff(i, 0) = x1;
+        X.coeff(i, 1) = x1 * 0.95 + 0.1;  // Almost perfectly correlated.
+        y.coeff(i, 0) = 3.0 * x1;
+    }
+
+    // High threshold: correlation_threshold = 1.0, so no features are conditioned on.
+    Stats::ConditionalRandomForests<double> cf_high(50, 10, 2, 0.10, 200, -1, 0.632, 1.0, 42);
+    cf_high.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+    cf_high.fit(X, y);
+    cf_high.compute_importance(X, y);
+    auto imp_high = cf_high.get_feature_importances();
+
+    // Low threshold: correlation_threshold = 0.1, so features are conditioned on.
+    Stats::ConditionalRandomForests<double> cf_low(50, 10, 2, 0.10, 200, -1, 0.632, 0.1, 42);
+    cf_low.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+    cf_low.fit(X, y);
+    cf_low.compute_importance(X, y);
+    auto imp_low = cf_low.get_feature_importances();
+
+    REQUIRE( imp_high.size() == 2 );
+    REQUIRE( imp_low.size() == 2 );
+
+    for(const auto &v : imp_high){
+        REQUIRE( std::isfinite(v) );
+    }
+    for(const auto &v : imp_low){
+        REQUIRE( std::isfinite(v) );
+    }
+
+    // With threshold=1.0, no conditioning occurs, so x2 importance should be inflated.
+    // With threshold=0.1, conditioning occurs, so x2 importance should be reduced.
+    REQUIRE( imp_low[1] <= imp_high[1] );
+}
+
+
+TEST_CASE( "ConditionalRandomForests conditional importance with noisy data" ){
+    // Test importance ranking when data includes noise.
+    // y = 3*x1 + noise, with x2 irrelevant and uncorrelated.
+    Stats::ConditionalRandomForests<double> cf(50, 10, 2, 0.10, 200, -1, 0.632, 0.2, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+
+    const int64_t n_samples = 60;
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+
+    std::mt19937 rng(55);
+    std::normal_distribution<double> noise(0.0, 1.0);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.5;
+        X.coeff(i, 1) = static_cast<double>(i % 7) * 2.0;  // Not correlated with x1.
+        y.coeff(i, 0) = 3.0 * X.read_coeff(i, 0) + noise(rng);
+    }
+
+    cf.fit(X, y);
+    cf.compute_importance(X, y);
+
+    auto importances = cf.get_feature_importances();
+    REQUIRE( importances.size() == 2 );
+    REQUIRE( std::isfinite(importances[0]) );
+    REQUIRE( std::isfinite(importances[1]) );
+
+    // x1 should be much more important than x2.
+    REQUIRE( importances[0] > importances[1] );
+}
+
+
+TEST_CASE( "ConditionalRandomForests set_importance_method after fit throws" ){
+    Stats::ConditionalRandomForests<double> cf(10, 5, 2, 0.10, 100, -1, 0.632, 0.2, 42);
+
+    num_array<double> X(10, 2);
+    num_array<double> y(10, 1);
+    for(int64_t i = 0; i < 10; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        X.coeff(i, 1) = static_cast<double>(i * 2);
+        y.coeff(i, 0) = static_cast<double>(i);
+    }
+    cf.fit(X, y);
+
+    // set_importance_method should throw after fit because n_features_trained != -1.
+    REQUIRE_THROWS( cf.set_importance_method(Stats::ConditionalImportanceMethod::permutation) );
+}
+
+
+TEST_CASE( "ConditionalRandomForests conditional importance with many correlated features" ){
+    // Test with more conditioning variables than the max_cond_vars limit (10).
+    // The implementation caps conditioning variables at 10 to avoid 2^n explosion.
+    Stats::ConditionalRandomForests<double> cf(30, 8, 2, 0.10, 200, -1, 0.632, 0.0, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+
+    const int64_t n_samples = 60;
+    const int64_t n_features = 15;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    // All features are linear functions of i, so they are all highly correlated.
+    // Only feature 0 directly influences y.
+    for(int64_t i = 0; i < n_samples; ++i){
+        for(int64_t j = 0; j < n_features; ++j){
+            X.coeff(i, j) = static_cast<double>(i) * (1.0 + static_cast<double>(j) * 0.1);
+        }
+        y.coeff(i, 0) = 3.0 * X.read_coeff(i, 0);
+    }
+
+    cf.fit(X, y);
+    cf.compute_importance(X, y);
+
+    auto importances = cf.get_feature_importances();
+    REQUIRE( importances.size() == static_cast<size_t>(n_features) );
+
+    for(const auto &v : importances){
+        REQUIRE( std::isfinite(v) );
+    }
+}
+
+
+TEST_CASE( "ConditionalRandomForests conditional importance all features in conditioning set" ){
+    // With correlation_threshold = 0, all features should be in each conditioning set.
+    // This is the extreme case where every feature conditions on every other feature.
+    Stats::ConditionalRandomForests<double> cf(30, 8, 2, 0.10, 200, -1, 0.632, 0.0, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::conditional);
+
+    const int64_t n_samples = 40;
+    const int64_t n_features = 3;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.3;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.5;
+        X.coeff(i, 2) = static_cast<double>(i % 5) * 2.0;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + X.read_coeff(i, 2);
+    }
+
+    cf.fit(X, y);
+    cf.compute_importance(X, y);
+
+    auto importances = cf.get_feature_importances();
+    REQUIRE( importances.size() == 3 );
+
+    for(const auto &v : importances){
+        REQUIRE( std::isfinite(v) );
+    }
+}
+
+
+TEST_CASE( "ConditionalRandomForests OOB tracking with subsample_fraction" ){
+    // With subsampling without replacement at fraction f, each sample has probability
+    // (1-f) of being OOB for any given tree. Verify that OOB tracking is functional by
+    // confirming that compute_importance succeeds (which requires valid OOB indices) and
+    // that the serialized model contains OOB sets consistent with the number of trees.
+
+    const int64_t n_samples = 200;
+    const double subsample_frac = 0.632;
+
+    num_array<double> X(n_samples, 2);
+    num_array<double> y(n_samples, 1);
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        X.coeff(i, 1) = static_cast<double>(i * 2);
+        y.coeff(i, 0) = static_cast<double>(i);
+    }
+
+    const int64_t n_trees = 100;
+    Stats::ConditionalRandomForests<double> cf(n_trees, 5, 2, 0.10, 100, -1, subsample_frac, 0.2, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::permutation);
+    cf.fit(X, y);
+
+    // compute_importance requires valid OOB indices for each tree;
+    // it would throw if OOB tracking was not properly set up.
+    cf.compute_importance(X, y);
+
+    auto importances = cf.get_feature_importances();
+    REQUIRE( importances.size() == 2 );
+    for(const auto &v : importances){
+        REQUIRE( std::isfinite(v) );
+    }
+
+    // Verify via serialization that OOB sets were recorded for each tree.
+    std::stringstream ss;
+    REQUIRE( cf.write_to(ss) );
+    const std::string content = ss.str();
+    const std::string oob_label = "oob_sets " + std::to_string(n_trees);
+    REQUIRE( content.find(oob_label) != std::string::npos );
+}
+
+
+TEST_CASE( "ConditionalRandomForests importance compute with mismatched dimensions" ){
+    Stats::ConditionalRandomForests<double> cf(10, 5, 2, 0.10, 100, -1, 0.632, 0.2, 42);
+    cf.set_importance_method(Stats::ConditionalImportanceMethod::permutation);
+
+    num_array<double> X(20, 3);
+    num_array<double> y(20, 1);
+    for(int64_t i = 0; i < 20; ++i){
+        X.coeff(i, 0) = static_cast<double>(i);
+        X.coeff(i, 1) = static_cast<double>(i * 2);
+        X.coeff(i, 2) = static_cast<double>(i * 3);
+        y.coeff(i, 0) = static_cast<double>(i);
+    }
+    cf.fit(X, y);
+
+    SUBCASE("wrong number of features in X"){
+        num_array<double> X_wrong(20, 2);
+        num_array<double> y2(20, 1);
+        REQUIRE_THROWS( cf.compute_importance(X_wrong, y2) );
+    }
+
+    SUBCASE("y not a column vector"){
+        num_array<double> y_wrong(20, 2);
+        REQUIRE_THROWS( cf.compute_importance(X, y_wrong) );
+    }
+
+    SUBCASE("mismatched rows"){
+        num_array<double> X2(10, 3);
+        num_array<double> y2(20, 1);
+        REQUIRE_THROWS( cf.compute_importance(X2, y2) );
+    }
+}
