@@ -254,15 +254,34 @@ class snap_fp {
         }
 
         snap_fp operator*(T value) const {
-            // Multiply internal value by the floating point value directly.
-            return snap_fp(raw_tag{}, static_cast<internal_type>(std::round(static_cast<T>(m_value) * value)));
+            // Multiply internal value by the floating point value with overflow checking.
+            long double product =
+                static_cast<long double>(m_value) * static_cast<long double>(value);
+            const long double min_val =
+                static_cast<long double>(std::numeric_limits<internal_type>::min());
+            const long double max_val =
+                static_cast<long double>(std::numeric_limits<internal_type>::max());
+            if (product < min_val || product > max_val) {
+                throw std::overflow_error("snap_fp: multiplication overflow");
+            }
+            return snap_fp(raw_tag{}, static_cast<internal_type>(std::round(product)));
         }
 
         snap_fp operator/(T value) const {
             if (value == static_cast<T>(0)) {
                 throw std::domain_error("snap_fp: division by zero");
             }
-            return snap_fp(raw_tag{}, static_cast<internal_type>(std::round(static_cast<T>(m_value) / value)));
+            // Divide internal value by the floating point value with overflow checking.
+            long double quotient =
+                static_cast<long double>(m_value) / static_cast<long double>(value);
+            const long double min_val =
+                static_cast<long double>(std::numeric_limits<internal_type>::min());
+            const long double max_val =
+                static_cast<long double>(std::numeric_limits<internal_type>::max());
+            if (quotient < min_val || quotient > max_val) {
+                throw std::overflow_error("snap_fp: division overflow");
+            }
+            return snap_fp(raw_tag{}, static_cast<internal_type>(std::round(quotient)));
         }
 
         //---------------------------
