@@ -654,8 +654,11 @@ Convex_Hull_3(InputIt verts_begin, // vec3 vertices.
 // fv_surface_mesh where the triangulation is stored as faces.
 //
 // Note: The resulting mesh represents a 'patch' of surface and will not be watertight.
-// Note: This function handles general polygons, including non-convex and polygons with multiple contours.
-// Note: Inner contours (holes) should have opposite orientation to outer contours for correct triangulation.
+// Note: This function is intended for reasonably well-behaved polygons, including non-convex contours and multiple
+//       contours, and uses a simple nearest-neighbour bridging heuristic for multi-contour cases.
+// Note: Inner contours (holes) are assumed to have opposite orientation to their corresponding outer contours, and
+//       contours are assumed to be properly nested and non-self-intersecting; arbitrary configurations of holes or
+//       closely spaced contours may lead to self-intersections or other artefacts in the triangulation.
 //
 template <class T, class I>
 fv_surface_mesh<T,I>
