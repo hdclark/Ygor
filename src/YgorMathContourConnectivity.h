@@ -27,7 +27,7 @@
 // Parameters:
 // - top_cc: contour_collection with all contours lying on the 'top' plane
 // - bottom_cc: contour_collection with all contours lying on the 'bottom' plane
-// - distance_eps: tolerance for distance comparisons (default: 1E-6)
+// - distance_eps: scale for degeneracy/planarity tolerances (e.g., plane separation and small-triangle rejection) (default: 1E-6)
 //
 // Returns:
 // - fv_surface_mesh containing the triangulated surface bridging the two planes
