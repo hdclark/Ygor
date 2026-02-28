@@ -35,10 +35,10 @@ lm_optimizer::clamp_to_bounds(std::vector<double> &p) const {
 
 
 std::vector<double>
-lm_optimizer::approx_gradient(const std::vector<double> &params) const {
+lm_optimizer::approx_gradient(const std::vector<double> &params,
+                             double f0) const {
     const auto N = params.size();
     std::vector<double> grad(N, 0.0);
-    const double f0 = this->f(params);
     for(size_t i = 0UL; i < N; ++i){
         auto p_fwd = params;
         auto p_bck = params;
@@ -175,24 +175,10 @@ lm_optimizer::optimize() const {
         throw std::invalid_argument("lm_optimizer: 'lambda_decrease_factor' must be within (0,1)");
     }
 
-    // Helper to clamp parameters to optional bounds.
-    const auto clamp_params = [&](std::vector<double> &p){
-        if(this->lower_bounds.has_value()){
-            for(size_t i = 0UL; i < N; ++i){
-                p[i] = std::max(p[i], this->lower_bounds.value()[i]);
-            }
-        }
-        if(this->upper_bounds.has_value()){
-            for(size_t i = 0UL; i < N; ++i){
-                p[i] = std::min(p[i], this->upper_bounds.value()[i]);
-            }
-        }
-    };
-
     auto params = this->initial_params;
-    clamp_params(params);
+    this->clamp_to_bounds(params);
     double cost = this->f(params);
-    auto grad = this->approx_gradient(params);
+    auto grad = this->approx_gradient(params, cost);
 
     double lambda = this->initial_lambda;
 
@@ -291,7 +277,7 @@ lm_optimizer::optimize() const {
         for(size_t i = 0UL; i < N; ++i){
             trial[i] = params[i] + delta[i];
         }
-        clamp_params(trial);
+        this->clamp_to_bounds(trial);
 
         const double trial_cost = this->f(trial);
 
@@ -300,7 +286,7 @@ lm_optimizer::optimize() const {
             const double prev_cost = cost;
             params = trial;
             cost = trial_cost;
-            grad = this->approx_gradient(params);
+            grad = this->approx_gradient(params, cost);
             lambda *= this->lambda_decrease_factor;
 
             ++(result.iterations);

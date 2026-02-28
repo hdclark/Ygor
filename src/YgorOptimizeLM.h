@@ -97,8 +97,10 @@ class lm_optimizer {
         // Clamp parameter vector to configured bounds, if present.
         void clamp_to_bounds(std::vector<double> &params) const;
 
-        // Approximate the gradient of the cost function at params using central finite differences.
-        std::vector<double> approx_gradient(const std::vector<double> &params) const;
+        // Approximate the gradient of the cost function at params using finite differences.
+        // The caller provides f(params) to avoid a redundant function evaluation.
+        std::vector<double> approx_gradient(const std::vector<double> &params,
+                                            double f0) const;
 
         // Approximate the Hessian of the cost function at params using central finite differences.
         // The caller provides the current cost f(params) to avoid a redundant function evaluation,
