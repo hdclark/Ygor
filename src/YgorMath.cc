@@ -8239,6 +8239,432 @@ YLOGINFO(ss.str());
 
 
 //---------------------------------------------------------------------------------------------------------------------------
+//----------------------------- Triangulate_Contours: triangulate contours onto a best-fit plane ---------------------------
+//---------------------------------------------------------------------------------------------------------------------------
+//
+// This function projects all vertices from a contour_collection onto a best-fit plane using orthogonal least-squares
+// regression, then triangulates the resulting 2D polygon(s) using an ear-clipping algorithm. The result is an
+// fv_surface_mesh where the triangulation is stored as faces.
+//
+// The ear-clipping algorithm works by iteratively finding and removing "ears" (triangles formed by three consecutive
+// vertices where the middle vertex is convex and no other vertices lie inside the triangle). This approach handles
+// general polygons including non-convex ones.
+//
+// Note: The resulting mesh represents a 'patch' of surface and will not be watertight.
+// Note: This function handles general polygons, including non-convex and polygons with multiple contours.
+// Note: For polygons with holes, the algorithm uses a vertex-bridging approach to connect outer and inner contours.
+//
+template <class T, class I>
+fv_surface_mesh<T,I>
+Triangulate_Contours(const contour_collection<T> &cc){
+    fv_surface_mesh<T,I> mesh;
+
+    // Tolerance for degenerate triangle detection and point-in-triangle tests.
+    // Scaled relative to machine epsilon to handle numerical precision issues.
+    const T area_eps = std::numeric_limits<T>::epsilon() * static_cast<T>(100);
+
+    // Collect all points from all contours.
+    std::vector<vec3<T>> all_points;
+    for(const auto &contour : cc.contours){
+        for(const auto &p : contour.points){
+            all_points.push_back(p);
+        }
+    }
+
+    if(all_points.size() < 3){
+        // Not enough points to triangulate.
+        return mesh;
+    }
+
+    // Fit a plane to all points using orthogonal least-squares regression.
+    plane<T> best_fit_plane;
+    try {
+        best_fit_plane = Plane_Orthogonal_Regression(all_points);
+    } catch(const std::exception &) {
+        // Points are likely collinear; cannot triangulate.
+        return mesh;
+    }
+
+    // Create orthonormal basis vectors in the plane for 2D projection.
+    const vec3<T> plane_normal = best_fit_plane.N_0.unit();
+    vec3<T> plane_u, plane_v;
+
+    // Find a vector not parallel to the normal to create the basis.
+    vec3<T> arbitrary(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+    if(std::abs(plane_normal.Dot(arbitrary)) > static_cast<T>(0.9)){
+        arbitrary = vec3<T>(static_cast<T>(0), static_cast<T>(1), static_cast<T>(0));
+    }
+    plane_u = plane_normal.Cross(arbitrary).unit();
+    plane_v = plane_normal.Cross(plane_u).unit();
+
+    // Project all points onto the plane and convert to 2D coordinates.
+    // Also build the mesh vertices as the 3D projections.
+    std::vector<vec2<T>> pts_2d;
+    pts_2d.reserve(all_points.size());
+
+    for(const auto &p : all_points){
+        const vec3<T> projected = best_fit_plane.Project_Onto_Plane_Orthogonally(p);
+        mesh.vertices.push_back(projected);
+
+        // Convert to 2D coordinates in the plane's coordinate system.
+        const vec3<T> rel = projected - best_fit_plane.R_0;
+        pts_2d.emplace_back(rel.Dot(plane_u), rel.Dot(plane_v));
+    }
+
+    // Build polygon rings: track the start and end indices for each contour.
+    // The algorithm handles multiple contours by treating them as a single polygon with bridges.
+    struct ContourInfo {
+        size_t start_idx;
+        size_t end_idx; // One past the last index.
+        bool is_ccw;    // Counter-clockwise orientation (outer contour) or clockwise (hole).
+    };
+    std::vector<ContourInfo> contour_infos;
+
+    size_t global_idx = 0;
+    for(const auto &contour : cc.contours){
+        if(contour.points.size() < 3){
+            global_idx += contour.points.size();
+            continue; // Skip degenerate contours.
+        }
+
+        ContourInfo info;
+        info.start_idx = global_idx;
+        info.end_idx = global_idx + contour.points.size();
+
+        // Compute signed area to determine orientation.
+        T signed_area = static_cast<T>(0);
+        const size_t n = contour.points.size();
+        for(size_t i = 0; i < n; ++i){
+            const size_t j = (i + 1) % n;
+            const auto &pi = pts_2d[info.start_idx + i];
+            const auto &pj = pts_2d[info.start_idx + j];
+            signed_area += pi.x * pj.y - pj.x * pi.y;
+        }
+        info.is_ccw = (signed_area > static_cast<T>(0));
+
+        contour_infos.push_back(info);
+        global_idx += contour.points.size();
+    }
+
+    if(contour_infos.empty()){
+        return mesh;
+    }
+
+    // For simplicity, if there's a single contour, triangulate it directly.
+    // For multiple contours, we merge them by creating bridges between contours.
+    
+    // Build the polygon vertex list as indices into pts_2d/mesh.vertices.
+    std::list<size_t> polygon;
+    
+    if(contour_infos.size() == 1){
+        // Single contour case.
+        const auto &info = contour_infos[0];
+        for(size_t i = info.start_idx; i < info.end_idx; ++i){
+            polygon.push_back(i);
+        }
+    } else {
+        // Multiple contours: separate outer contours (CCW) and holes (CW), then merge.
+        // Outer contours are processed first, then holes are bridged into them.
+        // The is_ccw flag distinguishes outer contours from holes.
+        
+        // Sort contours: outer contours (CCW) first, then by leftmost point (smallest x coordinate).
+        // This ensures outer boundaries are established before holes are merged in.
+        std::vector<size_t> sorted_contour_indices(contour_infos.size());
+        std::iota(sorted_contour_indices.begin(), sorted_contour_indices.end(), static_cast<size_t>(0));
+        
+        std::sort(sorted_contour_indices.begin(), sorted_contour_indices.end(),
+            [&](size_t a, size_t b) {
+                // Outer contours (CCW) come before holes (CW).
+                if(contour_infos[a].is_ccw != contour_infos[b].is_ccw){
+                    return contour_infos[a].is_ccw; // CCW (true) comes before CW (false).
+                }
+                // Among same-type contours, sort by leftmost point.
+                T min_x_a = std::numeric_limits<T>::max();
+                T min_x_b = std::numeric_limits<T>::max();
+                for(size_t i = contour_infos[a].start_idx; i < contour_infos[a].end_idx; ++i){
+                    min_x_a = std::min(min_x_a, pts_2d[i].x);
+                }
+                for(size_t i = contour_infos[b].start_idx; i < contour_infos[b].end_idx; ++i){
+                    min_x_b = std::min(min_x_b, pts_2d[i].x);
+                }
+                return min_x_a < min_x_b;
+            });
+
+        // Start with the first contour (an outer contour if any exist) as the base polygon.
+        const auto &first_info = contour_infos[sorted_contour_indices[0]];
+        for(size_t i = first_info.start_idx; i < first_info.end_idx; ++i){
+            polygon.push_back(i);
+        }
+
+        // Merge remaining contours by finding bridge points.
+        for(size_t ci = 1; ci < sorted_contour_indices.size(); ++ci){
+            const auto &info = contour_infos[sorted_contour_indices[ci]];
+            
+            // Find the leftmost point in this contour.
+            size_t leftmost_idx = info.start_idx;
+            T leftmost_x = pts_2d[leftmost_idx].x;
+            for(size_t i = info.start_idx + 1; i < info.end_idx; ++i){
+                if(pts_2d[i].x < leftmost_x){
+                    leftmost_x = pts_2d[i].x;
+                    leftmost_idx = i;
+                }
+            }
+
+            // Helper to test whether a candidate bridge from leftmost_idx to candidate_idx
+            // would introduce a self-intersection with the current polygon.
+            auto bridge_intersects_polygon = [&](size_t candidate_idx) -> bool {
+                const auto &a = pts_2d[leftmost_idx];
+                const auto &b = pts_2d[candidate_idx];
+
+                auto orient = [&](const auto &p, const auto &q, const auto &r) -> int {
+                    // Compute orientation of ordered triplet (p, q, r).
+                    // Returns: 0 -> colinear, 1 -> clockwise, 2 -> counterclockwise.
+                    long double vx1 = static_cast<long double>(q.x) - static_cast<long double>(p.x);
+                    long double vy1 = static_cast<long double>(q.y) - static_cast<long double>(p.y);
+                    long double vx2 = static_cast<long double>(r.x) - static_cast<long double>(q.x);
+                    long double vy2 = static_cast<long double>(r.y) - static_cast<long double>(q.y);
+                    long double val = vx1 * vy2 - vy1 * vx2;
+                    if (val > 0) return 1;
+                    if (val < 0) return 2;
+                    return 0;
+                };
+
+                auto on_segment = [&](const auto &p, const auto &q, const auto &r) -> bool {
+                    // Check if point q lies on segment pr, assuming p,q,r are colinear.
+                    return (std::min(p.x, r.x) <= q.x && q.x <= std::max(p.x, r.x) &&
+                            std::min(p.y, r.y) <= q.y && q.y <= std::max(p.y, r.y));
+                };
+
+                auto segments_intersect = [&](const auto &p1, const auto &q1,
+                                             const auto &p2, const auto &q2) -> bool {
+                    int o1 = orient(p1, q1, p2);
+                    int o2 = orient(p1, q1, q2);
+                    int o3 = orient(p2, q2, p1);
+                    int o4 = orient(p2, q2, q1);
+
+                    // General case.
+                    if (o1 != o2 && o3 != o4) {
+                        return true;
+                    }
+
+                    // Special colinearity cases.
+                    if (o1 == 0 && on_segment(p1, p2, q1)) return true;
+                    if (o2 == 0 && on_segment(p1, q2, q1)) return true;
+                    if (o3 == 0 && on_segment(p2, p1, q2)) return true;
+                    if (o4 == 0 && on_segment(p2, q1, q2)) return true;
+
+                    return false;
+                };
+
+                // Check the bridge segment (a,b) against all edges of the current polygon.
+                if (polygon.size() < 2) {
+                    return false;
+                }
+
+                for (auto it = polygon.begin(); it != polygon.end(); ++it) {
+                    auto next_it = std::next(it);
+                    if (next_it == polygon.end()) {
+                        next_it = polygon.begin();
+                    }
+
+                    size_t e1 = *it;
+                    size_t e2 = *next_it;
+
+                    // Skip edges incident to the candidate vertex; sharing the endpoint is allowed.
+                    if (e1 == candidate_idx || e2 == candidate_idx) {
+                        continue;
+                    }
+
+                    const auto &p = pts_2d[e1];
+                    const auto &q = pts_2d[e2];
+
+                    if (segments_intersect(a, b, p, q)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            };
+
+            // Find the closest visible point in the current polygon to connect to.
+            auto best_it = polygon.begin();
+            T best_dist = std::numeric_limits<T>::max();
+
+            // Track the closest vertex that yields a non-intersecting bridge.
+            auto best_visible_it = polygon.end();
+            T best_visible_dist = std::numeric_limits<T>::max();
+
+            for(auto it = polygon.begin(); it != polygon.end(); ++it){
+                const T dist = pts_2d[*it].sq_dist(pts_2d[leftmost_idx]);
+
+                // Always track the globally closest vertex as a fallback.
+                if(dist < best_dist){
+                    best_dist = dist;
+                    best_it = it;
+                }
+
+                // Prefer vertices that are "visible" from leftmost_idx, i.e., whose bridge
+                // does not intersect the existing polygon.
+                if(!bridge_intersects_polygon(*it) && dist < best_visible_dist){
+                    best_visible_dist = dist;
+                    best_visible_it = it;
+                }
+            }
+
+            // If a visible candidate exists, use it; otherwise fall back to the closest vertex.
+            if (best_visible_it != polygon.end()) {
+                best_it = best_visible_it;
+            }
+            // Insert the new contour into the polygon by creating a bridge.
+            // The bridge goes: ... best_it -> leftmost_idx -> (rest of new contour) -> leftmost_idx -> best_it ...
+            std::list<size_t> new_contour_segment;
+            
+            // Add vertices from leftmost_idx around the contour back to leftmost_idx.
+            const size_t contour_size = info.end_idx - info.start_idx;
+            for(size_t j = 0; j < contour_size; ++j){
+                const size_t idx = info.start_idx + ((leftmost_idx - info.start_idx + j) % contour_size);
+                new_contour_segment.push_back(idx);
+            }
+            new_contour_segment.push_back(leftmost_idx); // Return to bridge point.
+            new_contour_segment.push_back(*best_it);      // Return to outer polygon.
+
+            // Insert the bridge after best_it.
+            auto insert_pos = std::next(best_it);
+            polygon.insert(insert_pos, new_contour_segment.begin(), new_contour_segment.end());
+        }
+    }
+
+    if(polygon.size() < 3){
+        return mesh;
+    }
+
+    // Helper function: compute the signed area of a triangle given by three 2D points.
+    auto signed_triangle_area = [&](size_t i0, size_t i1, size_t i2) -> T {
+        const auto &p0 = pts_2d[i0];
+        const auto &p1 = pts_2d[i1];
+        const auto &p2 = pts_2d[i2];
+        return (p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y);
+    };
+
+    // Helper function: check if point p is inside or on the triangle formed by a, b, c.
+    auto point_in_triangle = [&](size_t p, size_t a, size_t b, size_t c) -> bool {
+        const T d1 = signed_triangle_area(p, a, b);
+        const T d2 = signed_triangle_area(p, b, c);
+        const T d3 = signed_triangle_area(p, c, a);
+
+        const bool has_neg = (d1 < -area_eps) || (d2 < -area_eps) || (d3 < -area_eps);
+        const bool has_pos = (d1 > area_eps) || (d2 > area_eps) || (d3 > area_eps);
+
+        return !(has_neg && has_pos);
+    };
+
+    // Ear clipping algorithm.
+    // An "ear" is a triangle formed by three consecutive vertices where:
+    // 1. The middle vertex is convex (the triangle has the correct orientation).
+    // 2. No other polygon vertices lie inside the triangle.
+    
+    while(polygon.size() >= 3){
+        bool ear_found = false;
+        auto it = polygon.begin();
+        
+        // Determine the expected sign for convex vertices based on overall polygon orientation.
+        // For CCW polygons, convex vertices have positive signed area.
+        T total_area = static_cast<T>(0);
+        {
+            auto prev = std::prev(polygon.end());
+            for(auto curr = polygon.begin(); curr != polygon.end(); ++curr){
+                total_area += pts_2d[*prev].x * pts_2d[*curr].y - pts_2d[*curr].x * pts_2d[*prev].y;
+                prev = curr;
+            }
+        }
+        const T expected_sign = (total_area >= static_cast<T>(0)) ? static_cast<T>(1) : static_cast<T>(-1);
+
+        while(it != polygon.end()){
+            // Get previous, current, and next vertices.
+            auto prev_it = (it == polygon.begin()) ? std::prev(polygon.end()) : std::prev(it);
+            auto next_it = std::next(it);
+            if(next_it == polygon.end()) next_it = polygon.begin();
+
+            const size_t i_prev = *prev_it;
+            const size_t i_curr = *it;
+            const size_t i_next = *next_it;
+
+            // Skip degenerate triangles (collinear or duplicate points).
+            const T area = signed_triangle_area(i_prev, i_curr, i_next);
+            if(std::abs(area) < area_eps){
+                // Degenerate triangle: remove the middle vertex.
+                it = polygon.erase(it);
+                ear_found = true;
+                break;
+            }
+
+            // Check if this is a convex vertex (ear candidate).
+            const bool is_convex = (area * expected_sign >= static_cast<T>(0));
+
+            if(is_convex){
+                // Check if any other vertex lies inside this triangle.
+                bool contains_other_vertex = false;
+                for(auto check_it = polygon.begin(); check_it != polygon.end(); ++check_it){
+                    if(check_it == prev_it || check_it == it || check_it == next_it){
+                        continue;
+                    }
+                    if(point_in_triangle(*check_it, i_prev, i_curr, i_next)){
+                        contains_other_vertex = true;
+                        break;
+                    }
+                }
+
+                if(!contains_other_vertex){
+                    // Found an ear! Add the triangle and remove the middle vertex.
+                    mesh.faces.push_back({{ static_cast<I>(i_prev),
+                                            static_cast<I>(i_curr),
+                                            static_cast<I>(i_next) }});
+                    polygon.erase(it);
+                    ear_found = true;
+                    break;
+                }
+            }
+
+            ++it;
+        }
+
+        // If no ear was found and we still have more than 3 vertices, the polygon may be
+        // malformed (self-intersecting or degenerate). Fall back to removing any vertex.
+        if(!ear_found && polygon.size() >= 3){
+            if(polygon.size() == 3){
+                // Final triangle.
+                auto p0 = polygon.begin();
+                auto p1 = std::next(p0);
+                auto p2 = std::next(p1);
+                mesh.faces.push_back({{ static_cast<I>(*p0),
+                                        static_cast<I>(*p1),
+                                        static_cast<I>(*p2) }});
+                polygon.clear();
+            } else {
+                // Force remove a vertex to make progress (handles degenerate cases).
+                auto p0 = polygon.begin();
+                auto p1 = std::next(p0);
+                auto p2 = std::next(p1);
+                mesh.faces.push_back({{ static_cast<I>(*p0),
+                                        static_cast<I>(*p1),
+                                        static_cast<I>(*p2) }});
+                polygon.erase(p1);
+            }
+        }
+    }
+
+    return mesh;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_surface_mesh<float , uint32_t> Triangulate_Contours(const contour_collection<float > &);
+    template fv_surface_mesh<float , uint64_t> Triangulate_Contours(const contour_collection<float > &);
+
+    template fv_surface_mesh<double, uint32_t> Triangulate_Contours(const contour_collection<double> &);
+    template fv_surface_mesh<double, uint64_t> Triangulate_Contours(const contour_collection<double> &);
+#endif
+
+
+//---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
 
