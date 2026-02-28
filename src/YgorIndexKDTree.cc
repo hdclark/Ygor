@@ -80,14 +80,15 @@ kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int dept
     
     const int axis = depth % 3;
     
-    // Sort the range by the splitting axis coordinate.
-    std::sort(entries.begin() + static_cast<std::ptrdiff_t>(begin),
-              entries.begin() + static_cast<std::ptrdiff_t>(end),
-              [axis](const entry &a, const entry &b){
-                  return get_coord(a.point, axis) < get_coord(b.point, axis);
-              });
-    
+    // Use nth_element to partition around the median on the splitting axis.
     const size_t mid = begin + (end - begin) / 2;
+    auto mid_it = entries.begin() + static_cast<std::ptrdiff_t>(mid);
+    std::nth_element(entries.begin() + static_cast<std::ptrdiff_t>(begin),
+                     mid_it,
+                     entries.begin() + static_cast<std::ptrdiff_t>(end),
+                     [axis, this](const entry &a, const entry &b){
+                         return get_coord(a.point, axis) < get_coord(b.point, axis);
+                     });
     
     auto node = std::make_unique<kdtree_node>(entries[mid], axis);
     node->left  = build(entries, begin, mid, depth + 1);
