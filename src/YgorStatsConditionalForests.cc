@@ -714,7 +714,7 @@ void Stats::ConditionalRandomForests<T>::compute_importance(
                 }
                 const T corr = cov_sum / (static_cast<T>(n_samples) * feat_sd[j] * feat_sd[k]);
 
-                if(std::abs(corr) >= this->correlation_threshold){
+                if(std::abs(corr) > this->correlation_threshold){
                     conditioning_sets[j].push_back(k);
                 }
             }
