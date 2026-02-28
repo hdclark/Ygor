@@ -75,7 +75,7 @@ T kdtree<T>::point_to_bbox_sq_dist(const vec3<T> &point, const bbox &box) {
 
 template <class T>
 std::unique_ptr<typename kdtree<T>::kdtree_node>
-kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int depth) {
+kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int depth) const {
     if(begin >= end) return nullptr;
     
     const int axis = depth % 3;
@@ -86,11 +86,18 @@ kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int dept
     std::nth_element(entries.begin() + static_cast<std::ptrdiff_t>(begin),
                      mid_it,
                      entries.begin() + static_cast<std::ptrdiff_t>(end),
-                     [axis, this](const entry &a, const entry &b){
+                     [axis](const entry &a, const entry &b){
                          return get_coord(a.point, axis) < get_coord(b.point, axis);
                      });
     
     auto node = std::make_unique<kdtree_node>(entries[mid], axis);
+    
+    // Compute the bounding box covering all entries in this subtree.
+    node->node_bounds = bbox(entries[begin].point, entries[begin].point);
+    for(size_t i = begin + 1; i < end; ++i){
+        node->node_bounds.expand(entries[i].point);
+    }
+    
     node->left  = build(entries, begin, mid, depth + 1);
     node->right = build(entries, mid + 1, end, depth + 1);
     
@@ -98,7 +105,7 @@ kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int dept
 }
 
 template <class T>
-void kdtree<T>::ensure_built() {
+void kdtree<T>::ensure_built() const {
     if(tree_built) return;
     
     root.reset();
@@ -150,6 +157,13 @@ template <class T>
 void kdtree<T>::nearest_recursive(const kdtree_node* node, const vec3<T> &query_point, size_t k,
                                    std::vector<std::pair<T, entry>> &best) const {
     if(node == nullptr) return;
+    
+    // Prune: if the minimum distance from query to this node's bounding box
+    // exceeds the current worst distance, the entire subtree can be skipped.
+    if(best.size() == k){
+        T min_dist_sq = point_to_bbox_sq_dist(query_point, node->node_bounds);
+        if(min_dist_sq >= best.front().first) return;
+    }
     
     const T dist_sq = (node->data.point - query_point).sq_length();
     
@@ -225,22 +239,11 @@ void kdtree<T>::insert(const vec3<T> &point, std::any aux_data) {
 
 template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::search(const bbox &query_box) const {
+    ensure_built();
+    
     std::vector<entry> results;
-
-    if(tree_built) {
-        if(root != nullptr){
-            search_recursive(root.get(), query_box, results);
-        }
-    } else {
-        // Fallback for unbuilt tree: linear scan of pending entries without mutating this object.
-        for(const auto &e : pending_entries){
-            const auto &p = e.point;
-            if(p.x >= query_box.min.x && p.x <= query_box.max.x &&
-               p.y >= query_box.min.y && p.y <= query_box.max.y &&
-               p.z >= query_box.min.z && p.z <= query_box.max.z){
-                results.push_back(e);
-            }
-        }
+    if(root != nullptr){
+        search_recursive(root.get(), query_box, results);
     }
     return results;
 }
@@ -286,8 +289,7 @@ std::vector<vec3<T>> kdtree<T>::search_radius_points(const vec3<T> &center, T ra
 
 template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::nearest_neighbors(const vec3<T> &query_point, size_t k) const {
-    // Build the tree if needed (logical const: deferred build).
-    const_cast<kdtree*>(this)->ensure_built();
+    ensure_built();
     
     std::vector<std::pair<T, entry>> best;
 

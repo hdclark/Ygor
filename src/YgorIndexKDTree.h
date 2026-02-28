@@ -57,6 +57,7 @@ template <class T> class kdtree {
         struct kdtree_node {
             entry data;
             int split_axis;  // 0 = x, 1 = y, 2 = z
+            bbox node_bounds; // Bounding box of all entries in this subtree.
             std::unique_ptr<kdtree_node> left;
             std::unique_ptr<kdtree_node> right;
             
@@ -64,18 +65,18 @@ template <class T> class kdtree {
             explicit kdtree_node(const entry &e, int axis);
         };
         
-        std::unique_ptr<kdtree_node> root;
-        std::vector<entry> pending_entries;  // All entries backing the index; the kd-tree is (re)built from this collection.
+        mutable std::unique_ptr<kdtree_node> root;
+        mutable std::vector<entry> pending_entries;  // All entries backing the index; the kd-tree is (re)built from this collection.
         size_t entry_count;
         bbox bounds;
         bool bounds_initialized;
-        bool tree_built;
+        mutable bool tree_built;
         
         // Build a balanced kd-tree from a range of entries.
-        std::unique_ptr<kdtree_node> build(std::vector<entry> &entries, size_t begin, size_t end, int depth);
+        std::unique_ptr<kdtree_node> build(std::vector<entry> &entries, size_t begin, size_t end, int depth) const;
         
         // Ensure the tree is built from pending entries.
-        void ensure_built();
+        void ensure_built() const;
         
         // Recursively search for entries within a bounding box.
         void search_recursive(const kdtree_node* node, const bbox &query_box, std::vector<entry> &results) const;
