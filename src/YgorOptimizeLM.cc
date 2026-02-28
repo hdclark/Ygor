@@ -18,30 +18,34 @@
 #include "YgorLog.h"
 
 
+void
+lm_optimizer::clamp_to_bounds(std::vector<double> &p) const {
+    const auto N = p.size();
+    if(this->lower_bounds.has_value()){
+        for(size_t i = 0UL; i < N; ++i){
+            p[i] = std::max(p[i], this->lower_bounds.value()[i]);
+        }
+    }
+    if(this->upper_bounds.has_value()){
+        for(size_t i = 0UL; i < N; ++i){
+            p[i] = std::min(p[i], this->upper_bounds.value()[i]);
+        }
+    }
+}
+
+
 std::vector<double>
 lm_optimizer::approx_gradient(const std::vector<double> &params) const {
     const auto N = params.size();
     std::vector<double> grad(N, 0.0);
-    const auto clamp_params = [&](std::vector<double> &p){
-        if(this->lower_bounds.has_value()){
-            for(size_t j = 0UL; j < N; ++j){
-                p[j] = std::max(p[j], this->lower_bounds.value()[j]);
-            }
-        }
-        if(this->upper_bounds.has_value()){
-            for(size_t j = 0UL; j < N; ++j){
-                p[j] = std::min(p[j], this->upper_bounds.value()[j]);
-            }
-        }
-    };
     const double f0 = this->f(params);
     for(size_t i = 0UL; i < N; ++i){
         auto p_fwd = params;
         auto p_bck = params;
         p_fwd[i] += this->fd_step;
         p_bck[i] -= this->fd_step;
-        clamp_params(p_fwd);
-        clamp_params(p_bck);
+        this->clamp_to_bounds(p_fwd);
+        this->clamp_to_bounds(p_bck);
 
         const double x_fwd = p_fwd[i] - params[i];
         const double x_bck = params[i] - p_bck[i];
@@ -66,18 +70,6 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
     const double h = this->fd_step;
     const double h2 = h * h;
     std::vector<std::vector<double>> hess(N, std::vector<double>(N, 0.0));
-    const auto clamp_params = [&](std::vector<double> &p){
-        if(this->lower_bounds.has_value()){
-            for(size_t k = 0UL; k < N; ++k){
-                p[k] = std::max(p[k], this->lower_bounds.value()[k]);
-            }
-        }
-        if(this->upper_bounds.has_value()){
-            for(size_t k = 0UL; k < N; ++k){
-                p[k] = std::min(p[k], this->upper_bounds.value()[k]);
-            }
-        }
-    };
 
     // Use a single scratch vector and perturb/restore indices in-place to avoid
     // O(N) whole-vector copies per function evaluation in the inner loop.
@@ -85,11 +77,11 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
     for(size_t i = 0UL; i < N; ++i){
         // Diagonal element: second-order central difference.
         scratch[i] = params[i] + h;
-        clamp_params(scratch);
+        this->clamp_to_bounds(scratch);
         const double x_fwd = scratch[i] - params[i];
         const double f_fwd = this->f(scratch);
         scratch[i] = params[i] - h;
-        clamp_params(scratch);
+        this->clamp_to_bounds(scratch);
         const double x_bck = params[i] - scratch[i];
         const double f_bck = this->f(scratch);
         scratch[i] = params[i]; // restore
@@ -103,16 +95,16 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
         // Off-diagonal elements: mixed partial central difference.
         for(size_t j = i + 1UL; j < N; ++j){
             scratch[i] = params[i] + h;  scratch[j] = params[j] + h;
-            clamp_params(scratch);
+            this->clamp_to_bounds(scratch);
             const double f_pp = this->f(scratch);
             scratch[j] = params[j] - h;
-            clamp_params(scratch);
+            this->clamp_to_bounds(scratch);
             const double f_pm = this->f(scratch);
             scratch[i] = params[i] - h;
-            clamp_params(scratch);
+            this->clamp_to_bounds(scratch);
             const double f_mm = this->f(scratch);
             scratch[j] = params[j] + h;
-            clamp_params(scratch);
+            this->clamp_to_bounds(scratch);
             const double f_mp = this->f(scratch);
             scratch[i] = params[i]; // restore
             scratch[j] = params[j]; // restore
@@ -326,6 +318,8 @@ lm_optimizer::optimize() const {
             // Check convergence using relative tolerance (on the cost change relative to the current cost).
             if(this->rel_tol.has_value()){
                 const double dc = std::abs(prev_cost - cost);
+                // Scale by |f_{k+1}| (not |f_k|) so the criterion tightens as
+                // the optimizer approaches low-cost solutions.
                 const double scale = std::max(std::abs(cost), 1.0);
                 if((dc / scale) < this->rel_tol.value()){
                     result.converged = true;
