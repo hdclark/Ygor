@@ -33,6 +33,38 @@ lm_optimizer::approx_gradient(const std::vector<double> &params) const {
 }
 
 
+std::vector<std::vector<double>>
+lm_optimizer::approx_hessian(const std::vector<double> &params) const {
+    const auto N = params.size();
+    const double f0 = this->f(params);
+    std::vector<std::vector<double>> hess(N, std::vector<double>(N, 0.0));
+    for(size_t i = 0UL; i < N; ++i){
+        auto p_fwd_i = params;
+        auto p_bck_i = params;
+        p_fwd_i[i] += this->fd_step;
+        p_bck_i[i] -= this->fd_step;
+        // Diagonal element: second-order central difference.
+        hess[i][i] = (this->f(p_fwd_i) - 2.0 * f0 + this->f(p_bck_i))
+                     / (this->fd_step * this->fd_step);
+        // Off-diagonal elements: mixed partial central difference.
+        for(size_t j = i + 1UL; j < N; ++j){
+            auto p_pp = params;
+            auto p_pm = params;
+            auto p_mp = params;
+            auto p_mm = params;
+            p_pp[i] += this->fd_step;  p_pp[j] += this->fd_step;
+            p_pm[i] += this->fd_step;  p_pm[j] -= this->fd_step;
+            p_mp[i] -= this->fd_step;  p_mp[j] += this->fd_step;
+            p_mm[i] -= this->fd_step;  p_mm[j] -= this->fd_step;
+            hess[i][j] = (this->f(p_pp) - this->f(p_pm) - this->f(p_mp) + this->f(p_mm))
+                         / (4.0 * this->fd_step * this->fd_step);
+            hess[j][i] = hess[i][j];
+        }
+    }
+    return hess;
+}
+
+
 lm_result
 lm_optimizer::optimize() const {
     if(!this->f){
@@ -144,12 +176,9 @@ lm_optimizer::optimize() const {
             break;
         }
 
-        // Build the approximate Hessian H = grad * grad^T + lambda * I.
-        std::vector<std::vector<double>> H(N, std::vector<double>(N, 0.0));
+        // Build the approximate Hessian H = approx_hessian + lambda * I.
+        auto H = this->approx_hessian(params);
         for(size_t i = 0UL; i < N; ++i){
-            for(size_t j = 0UL; j < N; ++j){
-                H[i][j] = grad[i] * grad[j];
-            }
             H[i][i] += lambda;
         }
 
