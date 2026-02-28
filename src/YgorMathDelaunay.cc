@@ -5,6 +5,8 @@
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <memory>
+#include <tuple>
+#include <unordered_map>
 #include <utility>     //Needed for std::pair.
 #include <vector>
 
@@ -17,12 +19,17 @@
 //#endif
 
 
-// 2D Delaunay triangulation using the Bowyer-Watson algorithm.
+// 2D Delaunay triangulation using the incremental Bowyer-Watson algorithm.
 // 
 // The input is a collection of vec3<T> where the z-component is expected to be zero (2D points in a plane).
 // The triangulation is performed on the x-y plane only; the z-coordinate is ignored.
 //
 // Returns an fv_surface_mesh<T, I> containing the triangulation as faces.
+//
+// References:
+//  - Bowyer A. Computing dirichlet tessellations. The Computer Journal. 1981;24(2):162-166.
+//  - Watson DF. Computing the n-dimensional Delaunay tessellation with application to Voronoi polytopes.
+//    The Computer Journal. 1981;24(2):167-172.
 template <class T, class I>
 fv_surface_mesh<T, I>
 Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
@@ -76,8 +83,7 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
             return false;
         }
         const auto dist_sq = (P.x - cx) * (P.x - cx) + (P.y - cy) * (P.y - cy);
-        // Use a small tolerance to handle numerical precision.
-        // Points strictly inside the circle are considered "inside".
+        // Use a small scale-aware tolerance to handle numerical precision.
         const auto r_tol = r_sq * machine_eps;
         return dist_sq < (r_sq - r_tol);
     };
@@ -88,14 +94,19 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     T min_y = std::numeric_limits<T>::max();
     T max_y = std::numeric_limits<T>::lowest();
 
+    size_t N_finite_verts = 0;
     for(const auto &v : verts){
         if(!std::isfinite(v.x) || !std::isfinite(v.y)){
             continue;
         }
+        ++N_finite_verts;
         min_x = std::min(min_x, v.x);
         max_x = std::max(max_x, v.x);
         min_y = std::min(min_y, v.y);
         max_y = std::max(max_y, v.y);
+    }
+    if(N_finite_verts < 3){
+        return mesh;
     }
 
     // Create a super-triangle that encompasses all vertices.
@@ -172,7 +183,6 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
             const auto &A = all_verts[tri.a];
             const auto &B = all_verts[tri.b];
             const auto &C = all_verts[tri.c];
-
             if(point_in_circumcircle(P, A, B, C)){
                 tri.bad = true;
             }
@@ -180,7 +190,7 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
 
         // Find the boundary edges of the polygon hole created by removing bad triangles.
         // An edge is on the boundary if it appears exactly once among all bad triangles.
-        // Using a hash map to count edge occurrences reduces complexity from O(n²) to O(n).
+        // Using a hash map keeps this step linear in the number of bad triangles.
         std::unordered_map<Edge, size_t, EdgeHash> edge_count;
         for(const auto &tri : triangles){
             if(!tri.bad) continue;
@@ -216,8 +226,8 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     triangles.erase(
         std::remove_if(triangles.begin(), triangles.end(),
                        [](const Triangle &t){
-                           return (t.a < 3) || (t.b < 3) || (t.c < 3);
-                       }),
+                            return (t.a < 3) || (t.b < 3) || (t.c < 3);
+                        }),
         triangles.end());
 
     // Build the output mesh.
@@ -226,6 +236,13 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
 
     // Adjust triangle indices: subtract 3 because we removed super-triangle vertices.
     for(const auto &tri : triangles){
+        const auto &A = all_verts[tri.a];
+        const auto &B = all_verts[tri.b];
+        const auto &C = all_verts[tri.c];
+        const auto area2 = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x);
+        if(std::abs(area2) <= machine_eps){
+            continue;
+        }
         std::vector<I> face;
         face.push_back(static_cast<I>(tri.a - 3));
         face.push_back(static_cast<I>(tri.b - 3));
@@ -242,4 +259,3 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     template fv_surface_mesh<double, uint32_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
     template fv_surface_mesh<double, uint64_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
 #endif
-
