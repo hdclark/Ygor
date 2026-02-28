@@ -22,12 +22,38 @@ std::vector<double>
 lm_optimizer::approx_gradient(const std::vector<double> &params) const {
     const auto N = params.size();
     std::vector<double> grad(N, 0.0);
+    const auto clamp_params = [&](std::vector<double> &p){
+        if(this->lower_bounds.has_value()){
+            for(size_t j = 0UL; j < N; ++j){
+                p[j] = std::max(p[j], this->lower_bounds.value()[j]);
+            }
+        }
+        if(this->upper_bounds.has_value()){
+            for(size_t j = 0UL; j < N; ++j){
+                p[j] = std::min(p[j], this->upper_bounds.value()[j]);
+            }
+        }
+    };
+    const double f0 = this->f(params);
     for(size_t i = 0UL; i < N; ++i){
         auto p_fwd = params;
         auto p_bck = params;
         p_fwd[i] += this->fd_step;
         p_bck[i] -= this->fd_step;
-        grad[i] = (this->f(p_fwd) - this->f(p_bck)) / (2.0 * this->fd_step);
+        clamp_params(p_fwd);
+        clamp_params(p_bck);
+
+        const double x_fwd = p_fwd[i] - params[i];
+        const double x_bck = params[i] - p_bck[i];
+        if((x_fwd > 0.0) && (x_bck > 0.0)){
+            grad[i] = (this->f(p_fwd) - this->f(p_bck)) / (x_fwd + x_bck);
+        }else if(x_fwd > 0.0){
+            grad[i] = (this->f(p_fwd) - f0) / x_fwd;
+        }else if(x_bck > 0.0){
+            grad[i] = (f0 - this->f(p_bck)) / x_bck;
+        }else{
+            grad[i] = 0.0;
+        }
     }
     return grad;
 }
@@ -40,6 +66,18 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
     const double h = this->fd_step;
     const double h2 = h * h;
     std::vector<std::vector<double>> hess(N, std::vector<double>(N, 0.0));
+    const auto clamp_params = [&](std::vector<double> &p){
+        if(this->lower_bounds.has_value()){
+            for(size_t k = 0UL; k < N; ++k){
+                p[k] = std::max(p[k], this->lower_bounds.value()[k]);
+            }
+        }
+        if(this->upper_bounds.has_value()){
+            for(size_t k = 0UL; k < N; ++k){
+                p[k] = std::min(p[k], this->upper_bounds.value()[k]);
+            }
+        }
+    };
 
     // Use a single scratch vector and perturb/restore indices in-place to avoid
     // O(N) whole-vector copies per function evaluation in the inner loop.
@@ -47,21 +85,34 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
     for(size_t i = 0UL; i < N; ++i){
         // Diagonal element: second-order central difference.
         scratch[i] = params[i] + h;
+        clamp_params(scratch);
+        const double x_fwd = scratch[i] - params[i];
         const double f_fwd = this->f(scratch);
         scratch[i] = params[i] - h;
+        clamp_params(scratch);
+        const double x_bck = params[i] - scratch[i];
         const double f_bck = this->f(scratch);
         scratch[i] = params[i]; // restore
-        hess[i][i] = (f_fwd - 2.0 * f0 + f_bck) / h2;
+        if((x_fwd > 0.0) && (x_bck > 0.0)){
+            hess[i][i] = 2.0 * (x_bck * f_fwd - (x_fwd + x_bck) * f0 + x_fwd * f_bck)
+                       / (x_fwd * x_bck * (x_fwd + x_bck));
+        }else{
+            hess[i][i] = 0.0;
+        }
 
         // Off-diagonal elements: mixed partial central difference.
         for(size_t j = i + 1UL; j < N; ++j){
             scratch[i] = params[i] + h;  scratch[j] = params[j] + h;
+            clamp_params(scratch);
             const double f_pp = this->f(scratch);
             scratch[j] = params[j] - h;
+            clamp_params(scratch);
             const double f_pm = this->f(scratch);
             scratch[i] = params[i] - h;
+            clamp_params(scratch);
             const double f_mm = this->f(scratch);
             scratch[j] = params[j] + h;
+            clamp_params(scratch);
             const double f_mp = this->f(scratch);
             scratch[i] = params[i]; // restore
             scratch[j] = params[j]; // restore
@@ -193,7 +244,8 @@ lm_optimizer::optimize() const {
         }
 
         // Solve (H) * delta = -grad using Cholesky decomposition.
-        // Since H is symmetric positive-definite (due to lambda * I), Cholesky is appropriate.
+        // H can still be indefinite when lambda is small relative to negative curvature,
+        // so decomposition failure is handled below.
         std::vector<std::vector<double>> L(N, std::vector<double>(N, 0.0));
         bool cholesky_ok = true;
         for(size_t i = 0UL; i < N; ++i){
@@ -274,7 +326,7 @@ lm_optimizer::optimize() const {
             // Check convergence using relative tolerance (on the cost change relative to the current cost).
             if(this->rel_tol.has_value()){
                 const double dc = std::abs(prev_cost - cost);
-                const double scale = std::max(std::abs(prev_cost), 1.0);
+                const double scale = std::max(std::abs(cost), 1.0);
                 if((dc / scale) < this->rel_tol.value()){
                     result.converged = true;
                     result.reason = "relative tolerance satisfied";

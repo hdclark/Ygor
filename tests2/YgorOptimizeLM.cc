@@ -311,4 +311,23 @@ TEST_CASE( "lm_optimizer parameter bounds" ){
         REQUIRE( result.converged );
         REQUIRE( std::abs(result.params[0] - 5.0) < 0.05 );
     }
+
+    SUBCASE("finite-difference steps respect bounds at active constraints"){
+        lm_optimizer bnd_opt;
+        bnd_opt.f = [](const std::vector<double> &p) -> double {
+            const double x = p[0];
+            if(x < 0.0) return std::numeric_limits<double>::infinity();
+            const double d = std::sqrt(x) - 2.0;
+            return d * d;
+        };
+        bnd_opt.initial_params = {0.0};
+        bnd_opt.lower_bounds = std::vector<double>{0.0};
+        bnd_opt.abs_tol = 1.0e-10;
+        bnd_opt.max_iterations = 1000;
+        bnd_opt.log_interval = std::chrono::hours(1);
+
+        auto result = bnd_opt.optimize();
+        REQUIRE( result.converged );
+        REQUIRE( std::abs(result.params[0] - 4.0) < 0.05 );
+    }
 }

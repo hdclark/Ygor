@@ -35,6 +35,14 @@ struct lm_result {
 // damping parameter lambda. The approximate Hessian is formed using central finite differences,
 // and parameter updates are computed by solving (H + lambda * I) * delta = -gradient.
 //
+// References:
+//   - Levenberg K. A method for the solution of certain non-linear problems in least squares.
+//     Q Appl Math. 1944;2(2):164-168.
+//   - Marquardt DW. An algorithm for least-squares estimation of nonlinear parameters.
+//     SIAM J Appl Math. 1963;11(2):431-441.
+//   - Moré JJ. The Levenberg-Marquardt algorithm: implementation and theory.
+//     In: Numerical Analysis, Dundee 1977. Springer; 1978:105-116.
+//
 // Usage example:
 //
 //   lm_optimizer opt;
