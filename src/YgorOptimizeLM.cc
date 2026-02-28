@@ -33,6 +33,47 @@ lm_optimizer::approx_gradient(const std::vector<double> &params) const {
 }
 
 
+std::vector<std::vector<double>>
+lm_optimizer::approx_hessian(const std::vector<double> &params,
+                             double f0) const {
+    const auto N = params.size();
+    const double h = this->fd_step;
+    const double h2 = h * h;
+    std::vector<std::vector<double>> hess(N, std::vector<double>(N, 0.0));
+
+    // Use a single scratch vector and perturb/restore indices in-place to avoid
+    // O(N) whole-vector copies per function evaluation in the inner loop.
+    auto scratch = params;
+    for(size_t i = 0UL; i < N; ++i){
+        // Diagonal element: second-order central difference.
+        scratch[i] = params[i] + h;
+        const double f_fwd = this->f(scratch);
+        scratch[i] = params[i] - h;
+        const double f_bck = this->f(scratch);
+        scratch[i] = params[i]; // restore
+        hess[i][i] = (f_fwd - 2.0 * f0 + f_bck) / h2;
+
+        // Off-diagonal elements: mixed partial central difference.
+        for(size_t j = i + 1UL; j < N; ++j){
+            scratch[i] = params[i] + h;  scratch[j] = params[j] + h;
+            const double f_pp = this->f(scratch);
+            scratch[j] = params[j] - h;
+            const double f_pm = this->f(scratch);
+            scratch[i] = params[i] - h;
+            const double f_mm = this->f(scratch);
+            scratch[j] = params[j] + h;
+            const double f_mp = this->f(scratch);
+            scratch[i] = params[i]; // restore
+            scratch[j] = params[j]; // restore
+
+            hess[i][j] = (f_pp - f_pm - f_mp + f_mm) / (4.0 * h2);
+            hess[j][i] = hess[i][j];
+        }
+    }
+    return hess;
+}
+
+
 lm_result
 lm_optimizer::optimize() const {
     if(!this->f){
@@ -144,12 +185,10 @@ lm_optimizer::optimize() const {
             break;
         }
 
-        // Build the approximate Hessian H = grad * grad^T + lambda * I.
-        std::vector<std::vector<double>> H(N, std::vector<double>(N, 0.0));
+        // Build the approximate Hessian H = approx_hessian + lambda * I.
+        // Pass the current cost to avoid a redundant f(params) evaluation.
+        auto H = this->approx_hessian(params, cost);
         for(size_t i = 0UL; i < N; ++i){
-            for(size_t j = 0UL; j < N; ++j){
-                H[i][j] = grad[i] * grad[j];
-            }
             H[i][i] += lambda;
         }
 

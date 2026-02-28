@@ -107,6 +107,11 @@ sa_optimizer::optimize() const {
     double best_cost = current_cost;
     double prev_best_cost = best_cost;
 
+    // Track best cost periodically for stagnation-based convergence.
+    double prev_check_cost = best_cost;
+    bool any_improvement_found = false;
+    const int64_t convergence_check_interval = 1000;
+
     double temperature = this->initial_temperature;
 
     sa_result result;
@@ -162,6 +167,7 @@ sa_optimizer::optimize() const {
             prev_best_cost = best_cost;
             best_params = current_params;
             best_cost = current_cost;
+            any_improvement_found = true;
 
             // Check convergence using absolute tolerance (on the best cost improvement).
             if(this->abs_tol.has_value()){
@@ -185,6 +191,37 @@ sa_optimizer::optimize() const {
                     break;
                 }
             }
+        }
+
+        // Periodic stagnation-based convergence check.
+        // If the best cost has not improved significantly over a window of iterations,
+        // declare convergence. This handles the case where the temperature has cooled
+        // to the point that no new improvements are found.
+        // Only runs when a tolerance is set, since no convergence decision can be made otherwise.
+        if(any_improvement_found
+        && (this->abs_tol.has_value() || this->rel_tol.has_value())
+        && result.iterations > 0
+        && (result.iterations % convergence_check_interval) == 0){
+            if(this->abs_tol.has_value()){
+                const double delta = std::abs(best_cost - prev_check_cost);
+                if(delta < this->abs_tol.value()){
+                    ++(result.iterations);
+                    result.converged = true;
+                    result.reason = "absolute tolerance satisfied";
+                    break;
+                }
+            }
+            if(this->rel_tol.has_value()){
+                const double delta = std::abs(best_cost - prev_check_cost);
+                const double scale = std::max(std::abs(prev_check_cost), 1.0);
+                if((delta / scale) < this->rel_tol.value()){
+                    ++(result.iterations);
+                    result.converged = true;
+                    result.reason = "relative tolerance satisfied";
+                    break;
+                }
+            }
+            prev_check_cost = best_cost;
         }
 
         // Cool the temperature.

@@ -32,7 +32,7 @@ struct lm_result {
 //
 // Minimizes a scalar-valued cost function f(params) using the Levenberg-Marquardt method.
 // The algorithm interpolates between gradient descent and Gauss-Newton by maintaining a
-// damping parameter lambda. The approximate Hessian is formed as grad * grad^T + lambda * I,
+// damping parameter lambda. The approximate Hessian is formed using central finite differences,
 // and parameter updates are computed by solving (H + lambda * I) * delta = -gradient.
 //
 // Usage example:
@@ -88,6 +88,12 @@ class lm_optimizer {
     private:
         // Approximate the gradient of the cost function at params using central finite differences.
         std::vector<double> approx_gradient(const std::vector<double> &params) const;
+
+        // Approximate the Hessian of the cost function at params using central finite differences.
+        // The caller provides the current cost f(params) to avoid a redundant function evaluation,
+        // since the optimizer already tracks this value and f may be expensive to compute.
+        std::vector<std::vector<double>> approx_hessian(const std::vector<double> &params,
+                                                        double f0) const;
 };
 
 #endif // YGOR_OPTIMIZE_LM_HDR_GRD_H
