@@ -90,7 +90,10 @@ class lm_optimizer {
         std::vector<double> approx_gradient(const std::vector<double> &params) const;
 
         // Approximate the Hessian of the cost function at params using central finite differences.
-        std::vector<std::vector<double>> approx_hessian(const std::vector<double> &params) const;
+        // The caller provides the current cost f(params) to avoid a redundant function evaluation,
+        // since the optimizer already tracks this value and f may be expensive to compute.
+        std::vector<std::vector<double>> approx_hessian(const std::vector<double> &params,
+                                                        double f0) const;
 };
 
 #endif // YGOR_OPTIMIZE_LM_HDR_GRD_H

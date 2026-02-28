@@ -280,6 +280,19 @@ TEST_CASE( "sa_optimizer termination conditions" ){
         auto result = opt.optimize();
         REQUIRE( !result.converged );
     }
+
+    SUBCASE("stagnation-based convergence terminates before max_iterations"){
+        // Use a high cooling rate so the temperature drops quickly and improvements
+        // stall, triggering the periodic stagnation check before max_iterations.
+        opt.abs_tol = 1.0e-6;
+        opt.max_iterations = 50000;
+        opt.initial_temperature = 10.0;
+        opt.cooling_rate = 0.9;
+        opt.seed = 42;
+        auto result = opt.optimize();
+        REQUIRE( result.converged );
+        REQUIRE( result.iterations < 50000 );
+    }
 }
 
 

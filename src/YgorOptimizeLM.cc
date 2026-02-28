@@ -34,30 +34,39 @@ lm_optimizer::approx_gradient(const std::vector<double> &params) const {
 
 
 std::vector<std::vector<double>>
-lm_optimizer::approx_hessian(const std::vector<double> &params) const {
+lm_optimizer::approx_hessian(const std::vector<double> &params,
+                             double f0) const {
     const auto N = params.size();
-    const double f0 = this->f(params);
+    const double h = this->fd_step;
+    const double h2 = h * h;
     std::vector<std::vector<double>> hess(N, std::vector<double>(N, 0.0));
+
+    // Use a single scratch vector and perturb/restore indices in-place to avoid
+    // O(N) whole-vector copies per function evaluation in the inner loop.
+    auto scratch = params;
     for(size_t i = 0UL; i < N; ++i){
-        auto p_fwd_i = params;
-        auto p_bck_i = params;
-        p_fwd_i[i] += this->fd_step;
-        p_bck_i[i] -= this->fd_step;
         // Diagonal element: second-order central difference.
-        hess[i][i] = (this->f(p_fwd_i) - 2.0 * f0 + this->f(p_bck_i))
-                     / (this->fd_step * this->fd_step);
+        scratch[i] = params[i] + h;
+        const double f_fwd = this->f(scratch);
+        scratch[i] = params[i] - h;
+        const double f_bck = this->f(scratch);
+        scratch[i] = params[i]; // restore
+        hess[i][i] = (f_fwd - 2.0 * f0 + f_bck) / h2;
+
         // Off-diagonal elements: mixed partial central difference.
         for(size_t j = i + 1UL; j < N; ++j){
-            auto p_pp = params;
-            auto p_pm = params;
-            auto p_mp = params;
-            auto p_mm = params;
-            p_pp[i] += this->fd_step;  p_pp[j] += this->fd_step;
-            p_pm[i] += this->fd_step;  p_pm[j] -= this->fd_step;
-            p_mp[i] -= this->fd_step;  p_mp[j] += this->fd_step;
-            p_mm[i] -= this->fd_step;  p_mm[j] -= this->fd_step;
-            hess[i][j] = (this->f(p_pp) - this->f(p_pm) - this->f(p_mp) + this->f(p_mm))
-                         / (4.0 * this->fd_step * this->fd_step);
+            scratch[i] = params[i] + h;  scratch[j] = params[j] + h;
+            const double f_pp = this->f(scratch);
+            scratch[j] = params[j] - h;
+            const double f_pm = this->f(scratch);
+            scratch[i] = params[i] - h;
+            const double f_mm = this->f(scratch);
+            scratch[j] = params[j] + h;
+            const double f_mp = this->f(scratch);
+            scratch[i] = params[i]; // restore
+            scratch[j] = params[j]; // restore
+
+            hess[i][j] = (f_pp - f_pm - f_mp + f_mm) / (4.0 * h2);
             hess[j][i] = hess[i][j];
         }
     }
@@ -177,7 +186,8 @@ lm_optimizer::optimize() const {
         }
 
         // Build the approximate Hessian H = approx_hessian + lambda * I.
-        auto H = this->approx_hessian(params);
+        // Pass the current cost to avoid a redundant f(params) evaluation.
+        auto H = this->approx_hessian(params, cost);
         for(size_t i = 0UL; i < N; ++i){
             H[i][i] += lambda;
         }

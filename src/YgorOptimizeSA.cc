@@ -197,7 +197,9 @@ sa_optimizer::optimize() const {
         // If the best cost has not improved significantly over a window of iterations,
         // declare convergence. This handles the case where the temperature has cooled
         // to the point that no new improvements are found.
+        // Only runs when a tolerance is set, since no convergence decision can be made otherwise.
         if(any_improvement_found
+        && (this->abs_tol.has_value() || this->rel_tol.has_value())
         && result.iterations > 0
         && (result.iterations % convergence_check_interval) == 0){
             if(this->abs_tol.has_value()){
