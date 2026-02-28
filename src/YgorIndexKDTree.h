@@ -65,7 +65,7 @@ template <class T> class kdtree {
         };
         
         std::unique_ptr<kdtree_node> root;
-        std::vector<entry> pending_entries;  // Entries waiting to be built into the tree.
+        std::vector<entry> pending_entries;  // All entries backing the index; the kd-tree is (re)built from this collection.
         size_t entry_count;
         bbox bounds;
         bool bounds_initialized;
