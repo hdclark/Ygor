@@ -147,9 +147,14 @@ sa_optimizer::optimize() const {
         }
 
         // Generate a candidate by perturbing the current parameters.
+        // As in the original Metropolis/Kirkpatrick formulation, temperature
+        // controls acceptance probability, not the proposal displacement scale.
+        // Refs:
+        //   Metropolis N, et al. J Chem Phys. 1953;21(6):1087-1092.
+        //   Kirkpatrick S, Gelatt CD Jr, Vecchi MP. Science. 1983;220:671-680.
         std::vector<double> candidate(N);
         for(size_t i = 0UL; i < N; ++i){
-            candidate[i] = current_params[i] + this->step_scale * temperature * normal_dist(rng);
+            candidate[i] = current_params[i] + this->step_scale * normal_dist(rng);
         }
         clamp_params(candidate);
 

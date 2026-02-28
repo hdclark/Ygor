@@ -188,6 +188,19 @@ TEST_CASE( "sa_optimizer 1D quadratic" ){
         auto result = opt.optimize();
         REQUIRE( (result.converged || (std::abs(result.params[0] - 5.0) < 1.0 && result.cost < 1.0)) );
     }
+
+    SUBCASE("proposal scale is not collapsed by cooling"){
+        // With this deterministic seed, SA should still reach the minimum region
+        // even with a modest initial temperature and cooling schedule.
+        opt.initial_params = {-50.0};
+        opt.max_iterations = 1000;
+        opt.initial_temperature = 1.0;
+        opt.cooling_rate = 0.99;
+        opt.step_scale = 1.0;
+        opt.seed = 1;
+        auto result = opt.optimize();
+        REQUIRE( result.cost < 1.0 );
+    }
 }
 
 
