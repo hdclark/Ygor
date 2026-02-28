@@ -143,11 +143,11 @@ void kdtree<T>::search_recursive(const kdtree_node* node, const bbox &query_box,
         query_max = query_box.max.z;
     }
     
-    // Left subtree contains points with coord < split_val (or equal).
+    // Left subtree contains points from the partition's lower side.
     if(query_min <= split_val){
         search_recursive(node->left.get(), query_box, results);
     }
-    // Right subtree contains points with coord > split_val.
+    // Right subtree contains points from the partition's upper side.
     if(query_max >= split_val){
         search_recursive(node->right.get(), query_box, results);
     }
@@ -325,15 +325,21 @@ std::vector<vec3<T>> kdtree<T>::nearest_neighbors_points(const vec3<T> &query_po
 
 template <class T>
 bool kdtree<T>::contains(const vec3<T> &point) const {
-    bbox point_box(point, point);
+    // A modest 10x epsilon margin captures common round-off mismatches (for example,
+    // 0.1 + 0.2 vs 0.3) while remaining many orders of magnitude smaller than typical
+    // geometric scales in this index.
+    constexpr T contains_tolerance_factor = static_cast<T>(10);
+    const T epsilon = std::numeric_limits<T>::epsilon() * contains_tolerance_factor;
+    const T scale = std::max({ static_cast<T>(1), std::abs(point.x), std::abs(point.y), std::abs(point.z) });
+    const T tolerance = epsilon * scale;
+    vec3<T> offset(tolerance, tolerance, tolerance);
+    bbox point_box(point - offset, point + offset);
     auto results = search(point_box);
-    
-    const T epsilon = std::numeric_limits<T>::epsilon() * static_cast<T>(10);
-    
+
     for(const auto& result : results){
-        if(std::abs(result.point.x - point.x) <= epsilon &&
-           std::abs(result.point.y - point.y) <= epsilon &&
-           std::abs(result.point.z - point.z) <= epsilon){
+        if(std::abs(result.point.x - point.x) <= tolerance &&
+           std::abs(result.point.y - point.y) <= tolerance &&
+           std::abs(result.point.z - point.z) <= tolerance){
             return true;
         }
     }
@@ -364,4 +370,3 @@ typename kdtree<T>::bbox kdtree<T>::get_bounds() const {
     template class kdtree<float>;
     template class kdtree<double>;
 #endif
-

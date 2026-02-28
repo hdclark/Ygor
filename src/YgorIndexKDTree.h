@@ -21,6 +21,9 @@
 //---------------------------- kdtree: kd-tree spatial indexing data structure ----------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
 //This class implements a kd-tree for spatial indexing of objects in 3D space.
+// Core construction and axis-cycling behavior follows Bentley's original kd-tree:
+//   Bentley JL. Multidimensional binary search trees used for associative searching.
+//   Communications of the ACM. 1975;18(9):509-517.
 // The kd-tree recursively partitions space by cycling through the x, y, and z axes.
 // At each level, the splitting axis alternates (depth % 3), and the median point
 // along that axis is chosen as the partitioning element.
@@ -31,8 +34,11 @@
 //
 // The index supports efficient spatial queries such as:
 //  - Range queries (find all objects within a region)
-//  - Nearest neighbor queries
+//  - Nearest neighbor queries (branch-and-bound style pruning)
 //  - Radius queries
+// Nearest-neighbor pruning is a practical extension in the spirit of:
+//   Friedman JH, Bentley JL, Finkel RA. An algorithm for finding best matches in
+//   logarithmic expected time. ACM Trans Math Softw. 1977;3(3):209-226.
 //
 // Users can optionally associate auxiliary data (via std::any) with each inserted point.
 // This auxiliary data is not used during spatial queries but can be retrieved after lookups.
@@ -143,4 +149,3 @@ template <class T> class kdtree {
 };
 
 #endif // YGOR_INDEX_KDTREE_H_
-
