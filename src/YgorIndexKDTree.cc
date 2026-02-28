@@ -225,12 +225,22 @@ void kdtree<T>::insert(const vec3<T> &point, std::any aux_data) {
 
 template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::search(const bbox &query_box) const {
-    // Build the tree if needed (logical const: deferred build).
-    const_cast<kdtree*>(this)->ensure_built();
-    
     std::vector<entry> results;
-    if(root != nullptr){
-        search_recursive(root.get(), query_box, results);
+
+    if(tree_built) {
+        if(root != nullptr){
+            search_recursive(root.get(), query_box, results);
+        }
+    } else {
+        // Fallback for unbuilt tree: linear scan of pending entries without mutating this object.
+        for(const auto &e : pending_entries){
+            const auto &p = e.point;
+            if(p.x >= query_box.min.x && p.x <= query_box.max.x &&
+               p.y >= query_box.min.y && p.y <= query_box.max.y &&
+               p.z >= query_box.min.z && p.z <= query_box.max.z){
+                results.push_back(e);
+            }
+        }
     }
     return results;
 }
