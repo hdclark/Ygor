@@ -25,7 +25,10 @@
 //
 // If fewer than 3 vertices are provided, an empty mesh is returned.
 //
-// Note: This is a 2D triangulation algorithm (Bowyer-Watson). For 3D surface meshing, consider using Convex_Hull_3.
+// Note: This is a 2D incremental Bowyer-Watson triangulation:
+//  - Bowyer A. The Computer Journal. 1981;24(2):162-166.
+//  - Watson DF. The Computer Journal. 1981;24(2):167-172.
+// For 3D surface meshing, consider using Convex_Hull_3.
 template <class T, class I>
 fv_surface_mesh<T, I>
 Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts);

@@ -245,6 +245,23 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         REQUIRE( mesh.vertices.size() == 3 );
         REQUIRE( mesh.faces.size() == 1 );
     }
-}
 
+    SUBCASE("duplicate input vertices do not create degenerate output faces"){
+        std::vector<vec3<double>> verts {{
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0) }};
+        const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
+        for(const auto &f : mesh.faces){
+            const auto &A = mesh.vertices[f[0]];
+            const auto &B = mesh.vertices[f[1]];
+            const auto &C = mesh.vertices[f[2]];
+            const auto cross = (B - A).Cross(C - A);
+            const auto area = cross.length() / 2.0;
+            REQUIRE( area > eps );
+        }
+    }
+}
 
