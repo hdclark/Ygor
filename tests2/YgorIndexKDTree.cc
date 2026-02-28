@@ -20,6 +20,7 @@ TEST_CASE( "kdtree basic construction" ){
     }
 }
 
+
 TEST_CASE( "kdtree entry operations" ){
     SUBCASE("entry default constructor"){
         kdtree<double>::entry e;
@@ -217,6 +218,15 @@ TEST_CASE( "kdtree insertion and search" ){
         for(const auto& p : points) {
             REQUIRE(tree.contains(p) == true);
         }
+    }
+
+    SUBCASE("contains tolerates numerically equivalent floating-point queries"){
+        kdtree<double> tree;
+        const double stored = 0.1 + 0.2;
+        tree.insert(vec3<double>(stored, stored, stored));
+
+        REQUIRE(tree.contains(vec3<double>(stored, stored, stored)) == true);
+        REQUIRE(tree.contains(vec3<double>(0.3, 0.3, 0.3)) == true);
     }
     
     SUBCASE("insert non-finite point throws"){
@@ -895,4 +905,3 @@ TEST_CASE( "kdtree correctness cross-check" ){
         REQUIRE(kd_results.size() == brute_results.size());
     }
 }
-
