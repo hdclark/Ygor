@@ -18,8 +18,25 @@
 #include "YgorLog.h"
 
 
+void
+lm_optimizer::clamp_to_bounds(std::vector<double> &p) const {
+    const auto N = p.size();
+    if(this->lower_bounds.has_value()){
+        for(size_t i = 0UL; i < N; ++i){
+            p[i] = std::max(p[i], this->lower_bounds.value()[i]);
+        }
+    }
+    if(this->upper_bounds.has_value()){
+        for(size_t i = 0UL; i < N; ++i){
+            p[i] = std::min(p[i], this->upper_bounds.value()[i]);
+        }
+    }
+}
+
+
 std::vector<double>
-lm_optimizer::approx_gradient(const std::vector<double> &params) const {
+lm_optimizer::approx_gradient(const std::vector<double> &params,
+                             double f0) const {
     const auto N = params.size();
     std::vector<double> grad(N, 0.0);
     for(size_t i = 0UL; i < N; ++i){
@@ -27,7 +44,20 @@ lm_optimizer::approx_gradient(const std::vector<double> &params) const {
         auto p_bck = params;
         p_fwd[i] += this->fd_step;
         p_bck[i] -= this->fd_step;
-        grad[i] = (this->f(p_fwd) - this->f(p_bck)) / (2.0 * this->fd_step);
+        this->clamp_to_bounds(p_fwd);
+        this->clamp_to_bounds(p_bck);
+
+        const double x_fwd = p_fwd[i] - params[i];
+        const double x_bck = params[i] - p_bck[i];
+        if((x_fwd > 0.0) && (x_bck > 0.0)){
+            grad[i] = (this->f(p_fwd) - this->f(p_bck)) / (x_fwd + x_bck);
+        }else if(x_fwd > 0.0){
+            grad[i] = (this->f(p_fwd) - f0) / x_fwd;
+        }else if(x_bck > 0.0){
+            grad[i] = (f0 - this->f(p_bck)) / x_bck;
+        }else{
+            grad[i] = 0.0;
+        }
     }
     return grad;
 }
@@ -47,21 +77,34 @@ lm_optimizer::approx_hessian(const std::vector<double> &params,
     for(size_t i = 0UL; i < N; ++i){
         // Diagonal element: second-order central difference.
         scratch[i] = params[i] + h;
+        this->clamp_to_bounds(scratch);
+        const double x_fwd = scratch[i] - params[i];
         const double f_fwd = this->f(scratch);
         scratch[i] = params[i] - h;
+        this->clamp_to_bounds(scratch);
+        const double x_bck = params[i] - scratch[i];
         const double f_bck = this->f(scratch);
         scratch[i] = params[i]; // restore
-        hess[i][i] = (f_fwd - 2.0 * f0 + f_bck) / h2;
+        if((x_fwd > 0.0) && (x_bck > 0.0)){
+            hess[i][i] = 2.0 * (x_bck * f_fwd - (x_fwd + x_bck) * f0 + x_fwd * f_bck)
+                       / (x_fwd * x_bck * (x_fwd + x_bck));
+        }else{
+            hess[i][i] = 0.0;
+        }
 
         // Off-diagonal elements: mixed partial central difference.
         for(size_t j = i + 1UL; j < N; ++j){
             scratch[i] = params[i] + h;  scratch[j] = params[j] + h;
+            this->clamp_to_bounds(scratch);
             const double f_pp = this->f(scratch);
             scratch[j] = params[j] - h;
+            this->clamp_to_bounds(scratch);
             const double f_pm = this->f(scratch);
             scratch[i] = params[i] - h;
+            this->clamp_to_bounds(scratch);
             const double f_mm = this->f(scratch);
             scratch[j] = params[j] + h;
+            this->clamp_to_bounds(scratch);
             const double f_mp = this->f(scratch);
             scratch[i] = params[i]; // restore
             scratch[j] = params[j]; // restore
@@ -132,24 +175,10 @@ lm_optimizer::optimize() const {
         throw std::invalid_argument("lm_optimizer: 'lambda_decrease_factor' must be within (0,1)");
     }
 
-    // Helper to clamp parameters to optional bounds.
-    const auto clamp_params = [&](std::vector<double> &p){
-        if(this->lower_bounds.has_value()){
-            for(size_t i = 0UL; i < N; ++i){
-                p[i] = std::max(p[i], this->lower_bounds.value()[i]);
-            }
-        }
-        if(this->upper_bounds.has_value()){
-            for(size_t i = 0UL; i < N; ++i){
-                p[i] = std::min(p[i], this->upper_bounds.value()[i]);
-            }
-        }
-    };
-
     auto params = this->initial_params;
-    clamp_params(params);
+    this->clamp_to_bounds(params);
     double cost = this->f(params);
-    auto grad = this->approx_gradient(params);
+    auto grad = this->approx_gradient(params, cost);
 
     double lambda = this->initial_lambda;
 
@@ -193,7 +222,8 @@ lm_optimizer::optimize() const {
         }
 
         // Solve (H) * delta = -grad using Cholesky decomposition.
-        // Since H is symmetric positive-definite (due to lambda * I), Cholesky is appropriate.
+        // H can still be indefinite when lambda is small relative to negative curvature,
+        // so decomposition failure is handled below.
         std::vector<std::vector<double>> L(N, std::vector<double>(N, 0.0));
         bool cholesky_ok = true;
         for(size_t i = 0UL; i < N; ++i){
@@ -247,7 +277,7 @@ lm_optimizer::optimize() const {
         for(size_t i = 0UL; i < N; ++i){
             trial[i] = params[i] + delta[i];
         }
-        clamp_params(trial);
+        this->clamp_to_bounds(trial);
 
         const double trial_cost = this->f(trial);
 
@@ -256,7 +286,7 @@ lm_optimizer::optimize() const {
             const double prev_cost = cost;
             params = trial;
             cost = trial_cost;
-            grad = this->approx_gradient(params);
+            grad = this->approx_gradient(params, cost);
             lambda *= this->lambda_decrease_factor;
 
             ++(result.iterations);
@@ -274,7 +304,9 @@ lm_optimizer::optimize() const {
             // Check convergence using relative tolerance (on the cost change relative to the current cost).
             if(this->rel_tol.has_value()){
                 const double dc = std::abs(prev_cost - cost);
-                const double scale = std::max(std::abs(prev_cost), 1.0);
+                // Scale by |f_{k+1}| (not |f_k|) so the criterion tightens as
+                // the optimizer approaches low-cost solutions.
+                const double scale = std::max(std::abs(cost), 1.0);
                 if((dc / scale) < this->rel_tol.value()){
                     result.converged = true;
                     result.reason = "relative tolerance satisfied";

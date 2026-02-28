@@ -35,6 +35,14 @@ struct lm_result {
 // damping parameter lambda. The approximate Hessian is formed using central finite differences,
 // and parameter updates are computed by solving (H + lambda * I) * delta = -gradient.
 //
+// References:
+//   - Levenberg K. A method for the solution of certain non-linear problems in least squares.
+//     Q Appl Math. 1944;2(2):164-168.
+//   - Marquardt DW. An algorithm for least-squares estimation of nonlinear parameters.
+//     SIAM J Appl Math. 1963;11(2):431-441.
+//   - Moré JJ. The Levenberg-Marquardt algorithm: implementation and theory.
+//     In: Numerical Analysis, Dundee 1977. Springer; 1978:105-116.
+//
 // Usage example:
 //
 //   lm_optimizer opt;
@@ -86,8 +94,13 @@ class lm_optimizer {
         lm_result optimize() const;
 
     private:
-        // Approximate the gradient of the cost function at params using central finite differences.
-        std::vector<double> approx_gradient(const std::vector<double> &params) const;
+        // Clamp parameter vector to configured bounds, if present.
+        void clamp_to_bounds(std::vector<double> &params) const;
+
+        // Approximate the gradient of the cost function at params using finite differences.
+        // The caller provides f(params) to avoid a redundant function evaluation.
+        std::vector<double> approx_gradient(const std::vector<double> &params,
+                                            double f0) const;
 
         // Approximate the Hessian of the cost function at params using central finite differences.
         // The caller provides the current cost f(params) to avoid a redundant function evaluation,
