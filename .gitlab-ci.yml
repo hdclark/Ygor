@@ -15,7 +15,7 @@ stages:
 # Notes: reduced (or missing) optimization, some components may be missing.
 build_ci_debian_stable:
   stage: build_and_test
-  tags: [dcma, docker, linux]
+  tags: [ygor, docker, linux]
   needs: []
   image: "debian:stable"
   before_script:
@@ -36,7 +36,7 @@ build_ci_debian_stable:
 # Notes: reduced (or missing) optimization, some components may be missing.
 build_ci_arch:
   stage: build_and_test
-  tags: [dcma, docker, linux]
+  tags: [ygor, docker, linux]
   needs: []
   image: "archlinux:latest"
   before_script:
