@@ -1,6 +1,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Language](https://img.shields.io/github/languages/top/hdclark/Ygor.svg)](https://gitlab.com/hdeanclark/Ygor)
+[![SLOC](https://img.shields.io/badge/LOC-60k-green.svg)](https://gitlab.com/hdeanclark/Ygor)
 
 [![GitLab CI Pipeline Status](https://gitlab.com/hdeanclark/Ygor/badges/master/pipeline.svg)](https://gitlab.com/hdeanclark/Ygor/-/commits/master)
 
