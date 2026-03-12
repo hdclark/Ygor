@@ -2122,19 +2122,70 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(int64_t r
 #endif
 
 
-//The min/maximum pixel values of all channels.
-template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const {
-    if(this->rows*this->columns*this->channels <= 0){
+//Resolve a set of channel numbers into a concrete set of valid channel indices.
+// An empty set selects all channels. Negative values exclude the corresponding channel
+// (e.g., -2 excludes channel 2). Positive values select specific channels.
+template <class T,class R>
+std::set<int64_t>
+planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
+    if(chnls.empty()){
+        for(int64_t c = 0; c < this->channels; ++c) chnls.insert(c);
+        return chnls;
+    }
+    std::set<int64_t> resolved;
+    for(const auto &c : chnls){
+        if(c < 0){
+            for(int64_t i = 0; i < this->channels; ++i){
+                if(i != (-c)) resolved.insert(i);
+            }
+        }else{
+            resolved.insert(c);
+        }
+    }
+    return resolved;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::set<int64_t> planar_image<uint8_t ,double>::resolve_channels(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint16_t,double>::resolve_channels(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint32_t,double>::resolve_channels(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint64_t,double>::resolve_channels(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<float   ,double>::resolve_channels(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<double  ,double>::resolve_channels(std::set<int64_t>) const;
+#endif
+
+
+//The min/maximum pixel values of the specified channels.
+template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(std::set<int64_t> chnls) const {
+    const auto resolved = this->resolve_channels(chnls);
+    if(this->rows*this->columns <= 0 || resolved.empty()){
         throw std::runtime_error("Cannot compute min/max of zero pixels. This is undefined!");
     }
     T min = std::numeric_limits<T>::max();
     T max = std::numeric_limits<T>::lowest();
-    for(int64_t i = 0; i < this->rows*this->columns*this->channels; ++i){
-        if(std::isnan(this->data[i])) continue; // Exclude NaNs.
-        if(min > this->data[i]) min = this->data[i];
-        if(max < this->data[i]) max = this->data[i];
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){
+            for(const auto &c : resolved){
+                const auto v = this->value(row, col, c);
+                if(std::isnan(v)) continue;
+                if(min > v) min = v;
+                if(max < v) max = v;
+            }
+        }
     }
     return std::make_pair(min,max);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::pair<uint8_t ,uint8_t > planar_image<uint8_t ,double>::minmax(std::set<int64_t>) const;
+    template std::pair<uint16_t,uint16_t> planar_image<uint16_t,double>::minmax(std::set<int64_t>) const;
+    template std::pair<uint32_t,uint32_t> planar_image<uint32_t,double>::minmax(std::set<int64_t>) const;
+    template std::pair<uint64_t,uint64_t> planar_image<uint64_t,double>::minmax(std::set<int64_t>) const;
+    template std::pair<float   ,float   > planar_image<float   ,double>::minmax(std::set<int64_t>) const;
+    template std::pair<double  ,double  > planar_image<double  ,double>::minmax(std::set<int64_t>) const;
+#endif
+
+//Backward-compat: all channels.
+template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const {
+    return this->minmax(std::set<int64_t>());
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template std::pair<uint8_t ,uint8_t > planar_image<uint8_t ,double>::minmax(void) const;
@@ -2146,18 +2197,31 @@ template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(void) const 
 #endif
 
 
-//Set all pixel data of specific channel to the given value. No-op if channel is non-existent.
+//Set pixel data of specified channels to the given value.
+template <class T,class R> void planar_image<T,R>::fill_pixels(std::set<int64_t> chnls, T val){
+    const auto resolved = this->resolve_channels(chnls);
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){
+            for(const auto &c : resolved){
+                this->reference(row, col, c) = val;
+            }
+        }
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::fill_pixels(std::set<int64_t>, uint8_t  val);
+    template void planar_image<uint16_t,double>::fill_pixels(std::set<int64_t>, uint16_t val);
+    template void planar_image<uint32_t,double>::fill_pixels(std::set<int64_t>, uint32_t val);
+    template void planar_image<uint64_t,double>::fill_pixels(std::set<int64_t>, uint64_t val);
+    template void planar_image<float   ,double>::fill_pixels(std::set<int64_t>, float    val);
+    template void planar_image<double  ,double>::fill_pixels(std::set<int64_t>, double   val);
+#endif
+
+//Backward-compat: set all pixel data of specific channel to the given value. No-op if channel is non-existent.
 template <class T,class R> void planar_image<T,R>::fill_pixels(int64_t chnl, T val){
     if(!isininc(0,chnl,this->channels-1)) return;
-
-    //Feel free to speed this up using knowledge of the layout or contiguity or whatever. I needed it yesterday
-    // when writing, so I wrote the first thing that popped into mind.
-    for(auto row = 0; row < this->rows; ++row){
-        for(auto col = 0; col < this->columns; ++col){ 
-            this->reference(row, col, chnl) = val;
-        }
-    }                
-    return;
+    this->fill_pixels(std::set<int64_t>{chnl}, val);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::fill_pixels(int64_t chnl, uint8_t  val);
@@ -2168,20 +2232,9 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(int64_t chnl, T v
     template void planar_image<double  ,double>::fill_pixels(int64_t chnl, double   val);
 #endif
 
-//Set all pixel data (all channels) to the given value.
+//Backward-compat: set all pixel data (all channels) to the given value.
 template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
-    //Feel free to speed this up using knowledge of the layout or contiguity or whatever. I needed it yesterday
-    // when writing, so I wrote the first thing that popped into mind.
-    //
-    // This routine especially would benefit from something like memset_to_zero(this->data.data(), 0, rows*cols*chnls*sizeof(T))...
-    for(auto row = 0; row < this->rows; ++row){
-        for(auto col = 0; col < this->columns; ++col){
-            for(auto chnl = 0; chnl < this->channels; ++chnl){
-                this->reference(row, col, chnl) = val;
-            }
-        }                       
-    }       
-    return;
+    this->fill_pixels(std::set<int64_t>(), val);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::fill_pixels(uint8_t  val);
@@ -2196,17 +2249,14 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(T val){
 template<class T, class R>
 int64_t
 planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::set<int64_t> chnls){
+    const auto resolved = this->resolve_channels(chnls);
     int64_t N = 0;
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){ 
             const auto p = this->position(row, col);
             if(aplane.Is_Point_Above_Plane(p)){
                 ++N;
-                if(chnls.empty()){
-                    for(auto c = 0; c < this->channels; ++c) this->reference(row, col, c) = val;
-                }else{
-                    for(const auto &c : chnls) this->reference(row, col, c) = val;
-                }
+                for(const auto &c : resolved) this->reference(row, col, c) = val;
             }
         }
     }
@@ -2221,18 +2271,56 @@ planar_image<T,R>::set_voxels_above_plane(const plane<R> &aplane, T val, std::se
     template int64_t planar_image<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<int64_t>);
 #endif
 
-//Apply a functor to individual pixels.
+//Apply a functor to individual pixels of specified channels.
 template<class T, class R>
 void
-planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func){
+planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func, std::set<int64_t> chnls){
+    const auto resolved = this->resolve_channels(chnls);
     for(auto row = 0; row < this->rows; ++row){
         for(auto col = 0; col < this->columns; ++col){
-            for(auto chn = 0; chn < this->channels; ++chn){
+            for(const auto &chn : resolved){
                 func(row, col, chn, this->reference(row, col, chn));
             }
         }
     }
     return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>, std::set<int64_t>);
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t &val)>, std::set<int64_t>);
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t &val)>, std::set<int64_t>);
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t &val)>, std::set<int64_t>);
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    &val)>, std::set<int64_t>);
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   &val)>, std::set<int64_t>);
+#endif
+
+template<class T, class R>
+void
+planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func, std::set<int64_t> chnls) const {
+    const auto resolved = this->resolve_channels(chnls);
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){
+            for(const auto &chn : resolved){
+                func(row, col, chn, this->value(row, col, chn));
+            }
+        }
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>, std::set<int64_t>) const;
+    template void planar_image<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t val)>, std::set<int64_t>) const;
+    template void planar_image<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t val)>, std::set<int64_t>) const;
+    template void planar_image<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t val)>, std::set<int64_t>) const;
+    template void planar_image<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    val)>, std::set<int64_t>) const;
+    template void planar_image<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   val)>, std::set<int64_t>) const;
+#endif
+
+//Backward-compat: apply a functor to individual pixels of all channels.
+template<class T, class R>
+void
+planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func){
+    this->apply_to_pixels(func, std::set<int64_t>());
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>);
@@ -2246,14 +2334,7 @@ planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, 
 template<class T, class R>
 void
 planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const {
-    for(auto row = 0; row < this->rows; ++row){
-        for(auto col = 0; col < this->columns; ++col){
-            for(auto chn = 0; chn < this->channels; ++chn){
-                func(row, col, chn, this->value(row, col, chn));
-            }
-        }
-    }
-    return;
+    this->apply_to_pixels(func, std::set<int64_t>());
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>) const;
@@ -2265,18 +2346,35 @@ planar_image<T,R>::apply_to_pixels(std::function<void(int64_t row, int64_t col, 
 #endif
 
 
-//Replace non-finite numbers.
+//Replace non-finite numbers in specified channels.
+template <class T,class R>
+void 
+planar_image<T,R>::replace_nonfinite_pixels_with(std::set<int64_t> chnls, T val){
+    const auto resolved = this->resolve_channels(chnls);
+    for(auto row = 0; row < this->rows; ++row){
+        for(auto col = 0; col < this->columns; ++col){ 
+            for(const auto &c : resolved){
+                if(!std::isfinite(this->value(row, col, c))) this->reference(row, col, c) = val;
+            }
+        }
+    }                
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(std::set<int64_t>, uint8_t  val);
+    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(std::set<int64_t>, uint16_t val);
+    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(std::set<int64_t>, uint32_t val);
+    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(std::set<int64_t>, uint64_t val);
+    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(std::set<int64_t>, float    val);
+    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(std::set<int64_t>, double   val);
+#endif
+
+//Backward-compat: replace non-finite numbers in a single channel. No-op if channel is non-existent.
 template <class T,class R>
 void 
 planar_image<T,R>::replace_nonfinite_pixels_with(int64_t chnl, T val){
     if(!isininc(0,chnl,this->channels-1)) return;
-
-    for(auto row = 0; row < this->rows; ++row){
-        for(auto col = 0; col < this->columns; ++col){ 
-            if(!std::isfinite(this->value(row, col, chnl))) this->reference(row, col, chnl) = val;
-        }
-    }                
-    return;
+    this->replace_nonfinite_pixels_with(std::set<int64_t>{chnl}, val);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(int64_t chnl, uint8_t  val);
@@ -2287,17 +2385,11 @@ planar_image<T,R>::replace_nonfinite_pixels_with(int64_t chnl, T val){
     template void planar_image<double  ,double>::replace_nonfinite_pixels_with(int64_t chnl, double   val);
 #endif
 
+//Backward-compat: replace non-finite numbers in all channels.
 template <class T,class R>
 void 
 planar_image<T,R>::replace_nonfinite_pixels_with(T val){
-    for(auto row = 0; row < this->rows; ++row){
-        for(auto col = 0; col < this->columns; ++col){ 
-            for(auto chnl = 0; chnl < this->channels; ++chnl){
-                if(!std::isfinite(this->value(row, col, chnl))) this->reference(row, col, chnl) = val;
-            }
-        }
-    }                
-    return;
+    this->replace_nonfinite_pixels_with(std::set<int64_t>(), val);
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(uint8_t  val);
@@ -2744,13 +2836,11 @@ template <class T,class R> R planar_image<T,R>::Spatial_Overlap_Dice_Sorensen_Co
 //       speed it up because the implementation could become highly parallelized, if you are so inclined.
 //
 template <class T,class R> bool planar_image<T,R>::Gaussian_Pixel_Blur(std::set<int64_t> chnls, double sigma_in_units_of_pixels){
+    //Resolve channels, supporting empty set (all channels) and negative channel exclusion.
+    chnls = this->resolve_channels(chnls);
+
     //Verify that all indicated channels are actually present in the image. If not, fail before doing anything.
     for(const auto &achnl : chnls) if(!isininc(0,achnl,this->channels-1)) return false;
-
-    //If chnls is empty, blur on all channels.
-    if(chnls.empty()){
-        for(int64_t chnl = 0; chnl < this->channels; ++chnl) chnls.insert(chnl);
-    }
 
     //Make a copy of the image so we can modify the pixels without destroying the computation.
     planar_image<T,R> ref_img(*this);
@@ -4406,14 +4496,46 @@ planar_image_collection<T,R>::set_voxels_above_plane(const plane<R> &aplane, T v
     template int64_t planar_image_collection<double  ,double>::set_voxels_above_plane(const plane<double> &aplane, double   val, std::set<int64_t>);
 #endif
 
-//Apply a functor to individual pixels.
+//Apply a functor to individual pixels of specified channels.
+template<class T, class R>
+void
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func, std::set<int64_t> chnls){
+    for(auto &animg : this->images){
+        animg.apply_to_pixels(func, chnls);
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>, std::set<int64_t>);
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t &val)>, std::set<int64_t>);
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t &val)>, std::set<int64_t>);
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t &val)>, std::set<int64_t>);
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    &val)>, std::set<int64_t>);
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   &val)>, std::set<int64_t>);
+#endif
+
+template<class T, class R>
+void
+planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func, std::set<int64_t> chnls) const {
+    for(auto &animg : this->images){
+        animg.apply_to_pixels(func, chnls);
+    }
+    return;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>, std::set<int64_t>) const;
+    template void planar_image_collection<uint16_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint16_t val)>, std::set<int64_t>) const;
+    template void planar_image_collection<uint32_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint32_t val)>, std::set<int64_t>) const;
+    template void planar_image_collection<uint64_t,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint64_t val)>, std::set<int64_t>) const;
+    template void planar_image_collection<float   ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, float    val)>, std::set<int64_t>) const;
+    template void planar_image_collection<double  ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, double   val)>, std::set<int64_t>) const;
+#endif
+
+//Backward-compat: apply a functor to individual pixels of all channels.
 template<class T, class R>
 void
 planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func){
-    for(auto &animg : this->images){
-        animg.apply_to_pixels(func);
-    }
-    return;
+    this->apply_to_pixels(func, std::set<int64_t>());
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  &val)>);
@@ -4427,10 +4549,7 @@ planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, i
 template<class T, class R>
 void
 planar_image_collection<T,R>::apply_to_pixels( std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const {
-    for(auto &animg : this->images){
-        animg.apply_to_pixels(func);
-    }
-    return;
+    this->apply_to_pixels(func, std::set<int64_t>());
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template void planar_image_collection<uint8_t ,double>::apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, uint8_t  val)>) const;
