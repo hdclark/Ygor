@@ -2136,7 +2136,7 @@ planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
     for(const auto &c : chnls){
         if(c < 0){
             for(int64_t i = 0; i < this->channels; ++i){
-                if(i != (-c)) resolved.insert(i);
+                if(i != std::abs(c)) resolved.insert(i);
             }
         }else{
             resolved.insert(c);
@@ -2158,7 +2158,7 @@ planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
 template <class T,class R> std::pair<T,T> planar_image<T,R>::minmax(std::set<int64_t> chnls) const {
     const auto resolved = this->resolve_channels(chnls);
     if(this->rows*this->columns <= 0 || resolved.empty()){
-        throw std::runtime_error("Cannot compute min/max of zero pixels. This is undefined!");
+        throw std::runtime_error("Cannot compute min/max: no pixels or no valid channels selected.");
     }
     T min = std::numeric_limits<T>::max();
     T max = std::numeric_limits<T>::lowest();
