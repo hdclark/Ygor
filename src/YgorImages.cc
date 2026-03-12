@@ -2128,19 +2128,38 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(int64_t r
 template <class T,class R>
 std::set<int64_t>
 planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
+    // An empty selector set means "all channels".
     if(chnls.empty()){
         for(int64_t c = 0; c < this->channels; ++c) chnls.insert(c);
         return chnls;
     }
-    std::set<int64_t> resolved;
+
+    // Separate positive (and zero) selectors from negative (exclusion) selectors.
+    std::set<int64_t> positives;
+    std::vector<int64_t> negatives;
     for(const auto &c : chnls){
         if(c < 0){
-            for(int64_t i = 0; i < this->channels; ++i){
-                if(i != std::abs(c)) resolved.insert(i);
-            }
+            negatives.push_back(c);
         }else{
+            positives.insert(c);
+        }
+    }
+
+    std::set<int64_t> resolved;
+
+    // If any positive selectors exist, start from them; otherwise start from all channels.
+    if(!positives.empty()){
+        resolved = positives;
+    }else{
+        for(int64_t c = 0; c < this->channels; ++c){
             resolved.insert(c);
         }
+    }
+
+    // Apply exclusions indicated by negative selectors.
+    for(const auto &c : negatives){
+        const int64_t idx = std::abs(c);
+        resolved.erase(idx);
     }
     return resolved;
 }
