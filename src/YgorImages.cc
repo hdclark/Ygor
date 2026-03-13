@@ -8,6 +8,7 @@
 #include <cstdio>  //For popen.
 #include <exception>
 #include <any>
+#include <initializer_list>
 #include <set>
 #include <optional>
 #include <functional>
@@ -2123,8 +2124,8 @@ template <class T,class R> T planar_image<T,R>::fixed_unsharp_mask_5x5(int64_t r
 
 
 //Resolve a set of channel numbers into a concrete set of valid channel indices.
-// An empty set selects all channels. Negative values exclude the corresponding channel
-// (e.g., -2 excludes channel 2). Positive values select specific channels.
+// An empty set selects all channels. Any negative value causes all channels to be selected.
+// Positive values select specific channels. Throws on invalid channel indices.
 template <class T,class R>
 std::set<int64_t>
 planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
@@ -2134,34 +2135,23 @@ planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
         return chnls;
     }
 
-    // Separate positive (and zero) selectors from negative (exclusion) selectors.
-    std::set<int64_t> positives;
-    std::vector<int64_t> negatives;
+    // If any negative value is present, select all channels.
     for(const auto &c : chnls){
         if(c < 0){
-            negatives.push_back(c);
-        }else{
-            positives.insert(c);
+            std::set<int64_t> all;
+            for(int64_t i = 0; i < this->channels; ++i) all.insert(i);
+            return all;
         }
     }
 
-    std::set<int64_t> resolved;
-
-    // If any positive selectors exist, start from them; otherwise start from all channels.
-    if(!positives.empty()){
-        resolved = positives;
-    }else{
-        for(int64_t c = 0; c < this->channels; ++c){
-            resolved.insert(c);
+    // Validate all positive channel indices.
+    for(const auto &c : chnls){
+        if(!isininc(static_cast<int64_t>(0), c, this->channels - 1)){
+            throw std::invalid_argument("Invalid channel index: " + std::to_string(c));
         }
     }
 
-    // Apply exclusions indicated by negative selectors.
-    for(const auto &c : negatives){
-        const int64_t idx = std::abs(c);
-        resolved.erase(idx);
-    }
-    return resolved;
+    return chnls;
 }
 #ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
     template std::set<int64_t> planar_image<uint8_t ,double>::resolve_channels(std::set<int64_t>) const;
@@ -2170,6 +2160,36 @@ planar_image<T,R>::resolve_channels(std::set<int64_t> chnls) const {
     template std::set<int64_t> planar_image<uint64_t,double>::resolve_channels(std::set<int64_t>) const;
     template std::set<int64_t> planar_image<float   ,double>::resolve_channels(std::set<int64_t>) const;
     template std::set<int64_t> planar_image<double  ,double>::resolve_channels(std::set<int64_t>) const;
+#endif
+
+//Resolve a set of channel numbers into a concrete set by computing the complement.
+// Returns all channels except those specified (e.g., {2,3} on a 5-channel image yields {0,1,4}).
+// Throws if any negative values are provided.
+template <class T,class R>
+std::set<int64_t>
+planar_image<T,R>::resolve_channels_complement(std::set<int64_t> chnls) const {
+    for(const auto &c : chnls){
+        if(c < 0){
+            throw std::invalid_argument("Negative channel numbers are not permitted in resolve_channels_complement()");
+        }
+        if(!isininc(static_cast<int64_t>(0), c, this->channels - 1)){
+            throw std::invalid_argument("Invalid channel index: " + std::to_string(c));
+        }
+    }
+
+    std::set<int64_t> resolved;
+    for(int64_t i = 0; i < this->channels; ++i){
+        if(chnls.count(i) == 0) resolved.insert(i);
+    }
+    return resolved;
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template std::set<int64_t> planar_image<uint8_t ,double>::resolve_channels_complement(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint16_t,double>::resolve_channels_complement(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint32_t,double>::resolve_channels_complement(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<uint64_t,double>::resolve_channels_complement(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<float   ,double>::resolve_channels_complement(std::set<int64_t>) const;
+    template std::set<int64_t> planar_image<double  ,double>::resolve_channels_complement(std::set<int64_t>) const;
 #endif
 
 
@@ -2235,6 +2255,19 @@ template <class T,class R> void planar_image<T,R>::fill_pixels(std::set<int64_t>
     template void planar_image<uint64_t,double>::fill_pixels(std::set<int64_t>, uint64_t val);
     template void planar_image<float   ,double>::fill_pixels(std::set<int64_t>, float    val);
     template void planar_image<double  ,double>::fill_pixels(std::set<int64_t>, double   val);
+#endif
+
+//Initializer-list overload to ensure brace-init (e.g., fill_pixels({0,2}, val)) binds to the set-based API.
+template <class T,class R> void planar_image<T,R>::fill_pixels(std::initializer_list<int64_t> chnls, T val){
+    this->fill_pixels(std::set<int64_t>(chnls), val);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::fill_pixels(std::initializer_list<int64_t>, uint8_t  val);
+    template void planar_image<uint16_t,double>::fill_pixels(std::initializer_list<int64_t>, uint16_t val);
+    template void planar_image<uint32_t,double>::fill_pixels(std::initializer_list<int64_t>, uint32_t val);
+    template void planar_image<uint64_t,double>::fill_pixels(std::initializer_list<int64_t>, uint64_t val);
+    template void planar_image<float   ,double>::fill_pixels(std::initializer_list<int64_t>, float    val);
+    template void planar_image<double  ,double>::fill_pixels(std::initializer_list<int64_t>, double   val);
 #endif
 
 //Backward-compat: set all pixel data of specific channel to the given value. No-op if channel is non-existent.
@@ -2386,6 +2419,21 @@ planar_image<T,R>::replace_nonfinite_pixels_with(std::set<int64_t> chnls, T val)
     template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(std::set<int64_t>, uint64_t val);
     template void planar_image<float   ,double>::replace_nonfinite_pixels_with(std::set<int64_t>, float    val);
     template void planar_image<double  ,double>::replace_nonfinite_pixels_with(std::set<int64_t>, double   val);
+#endif
+
+//Initializer-list overload to ensure brace-init (e.g., replace_nonfinite_pixels_with({0,2}, val)) binds to the set-based API.
+template <class T,class R>
+void 
+planar_image<T,R>::replace_nonfinite_pixels_with(std::initializer_list<int64_t> chnls, T val){
+    this->replace_nonfinite_pixels_with(std::set<int64_t>(chnls), val);
+}
+#ifndef YGOR_IMAGES_DISABLE_ALL_SPECIALIZATIONS
+    template void planar_image<uint8_t ,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, uint8_t  val);
+    template void planar_image<uint16_t,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, uint16_t val);
+    template void planar_image<uint32_t,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, uint32_t val);
+    template void planar_image<uint64_t,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, uint64_t val);
+    template void planar_image<float   ,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, float    val);
+    template void planar_image<double  ,double>::replace_nonfinite_pixels_with(std::initializer_list<int64_t>, double   val);
 #endif
 
 //Backward-compat: replace non-finite numbers in a single channel. No-op if channel is non-existent.

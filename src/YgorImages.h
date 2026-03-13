@@ -6,6 +6,7 @@
 #include <any>
 #include <optional>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <list>
 #include <map>
@@ -200,9 +201,14 @@ template <class T, class R> class planar_image {
         T fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
         //Resolve a set of channel numbers into a concrete set of valid channel indices.
-        // An empty set selects all channels. Negative values exclude the corresponding channel
-        // (e.g., -2 excludes channel 2). Positive values select specific channels.
+        // An empty set selects all channels. Any negative value causes all channels to be selected.
+        // Positive values select specific channels. Throws on invalid channel indices.
         std::set<int64_t> resolve_channels(std::set<int64_t> chnls) const;
+
+        //Resolve a set of channel numbers into a concrete set by computing the complement.
+        // Returns all channels except those specified (e.g., {2,3} on a 5-channel image yields {0,1,4}).
+        // Throws if any negative values are provided.
+        std::set<int64_t> resolve_channels_complement(std::set<int64_t> chnls) const;
 
         //Minimum and maximum pixel values.
         std::pair<T,T> minmax(std::set<int64_t> chnls) const; //The min/maximum pixel values of specified channels.
@@ -210,6 +216,7 @@ template <class T, class R> class planar_image {
 
         //Set all pixel data to the given value.
         void fill_pixels(std::set<int64_t> chnls, T val);
+        void fill_pixels(std::initializer_list<int64_t> chnls, T val);
         void fill_pixels(int64_t chnl, T val); //Backward-compat: single channel.
         void fill_pixels(T val); //Backward-compat: all channels.
 
@@ -224,6 +231,7 @@ template <class T, class R> class planar_image {
 
         //Replace non-finite numbers.
         void replace_nonfinite_pixels_with(std::set<int64_t> chnls, T val);
+        void replace_nonfinite_pixels_with(std::initializer_list<int64_t> chnls, T val);
         void replace_nonfinite_pixels_with(int64_t chnl, T val); //Backward-compat: single channel.
         void replace_nonfinite_pixels_with(T val); //Backward-compat: all channels.
 
