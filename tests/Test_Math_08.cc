@@ -72,34 +72,6 @@ int main(int argc, char **argv){
     //toplot.Plot_as_PDF("/tmp/out.pdf");
     //OverwriteStringToFile(toplot.Dump_as_String(), "/tmp/plotme.gnuplot");
 
-
-
-    {
-      samples_1D<double> test;
-                              test.push_back(  1.0, 0.0,  2.0, 0.0 );
-                              test.push_back(  2.0, 0.0, 14.0, 0.0 );
-                              test.push_back(  4.0, 0.0,  2.0, 0.0 );
-                              test.push_back(  7.0, 0.0,  5.0, 0.0 );
-                              test.push_back(  1.0, 0.0,  8.0, 0.0 );
-                              test.push_back(  6.0, 0.0,  1.0, 0.0 );
-      YLOGINFO("Median_x is " << test.Median_x()[0]); // med0ian of 1, 2, 4, 7, 1, 6  = 3
-      YLOGINFO("Median_y is " << test.Median_y()[0]); // median of 2, 14, 2, 5, 8, 1 = 3.5
-    }
-
-
-    {
-      samples_1D<double> test;
-                              test.push_back(  1.0, 0.0,  2.0, 0.0 );
-                              test.push_back(  2.0, 0.0, 14.0, 0.0 );
-                              test.push_back(  4.0, 0.0,  2.0, 0.0 );
-                              test.push_back( 53.0, 0.0, 53.0, 0.0 );
-                              test.push_back(  7.0, 0.0,  5.0, 0.0 );
-                              test.push_back(  1.0, 0.0,  8.0, 0.0 );
-                              test.push_back(  6.0, 0.0,  1.0, 0.0 );
-      YLOGINFO("Median_x is " << test.Median_x()[0]); // median of 1, 2, 4, 53, 7, 1, 6  = 4
-      YLOGINFO("Median_y is " << test.Median_y()[0]); // median of 2, 14, 2, 53, 5, 8, 1 = 5
-    }
-
  
     return 0;
 }
