@@ -78,7 +78,7 @@ TEST_CASE( "Plane_Orthogonal_Regression" ){
             REQUIRE( std::abs(theplane.N_0.length() - 1.0) < eps );
         }catch(const std::exception &){
             // Throwing is also acceptable.
-            REQUIRE( true );
+            SUCCEED();
         }
     }
 }
