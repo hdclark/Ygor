@@ -6,6 +6,7 @@
 #include <any>
 #include <optional>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <list>
 #include <map>
@@ -199,23 +200,40 @@ template <class T, class R> class planar_image {
 
         T fixed_unsharp_mask_5x5(int64_t row, int64_t col, int64_t chnl) const; //Fails on out-of-bounds input.
 
+        //Resolve a set of channel numbers into a concrete set of valid channel indices.
+        // An empty set selects all channels. Any negative value causes all channels to be selected.
+        // Positive values select specific channels. Throws on invalid channel indices.
+        std::set<int64_t> resolve_channels(std::set<int64_t> chnls) const;
+
+        //Resolve a set of channel numbers into a concrete set by computing the complement.
+        // Returns all channels except those specified (e.g., {2,3} on a 5-channel image yields {0,1,4}).
+        // Throws if any negative values are provided.
+        std::set<int64_t> resolve_channels_complement(std::set<int64_t> chnls) const;
+
         //Minimum and maximum pixel values.
-        std::pair<T,T> minmax(void) const; //The min/maximum pixel values of all channels.
+        std::pair<T,T> minmax(std::set<int64_t> chnls) const; //The min/maximum pixel values of specified channels.
+        std::pair<T,T> minmax(void) const; //Backward-compat: all channels.
 
         //Set all pixel data to the given value.
-        void fill_pixels(int64_t chnl, T val);
-        void fill_pixels(T val); //All channels.
+        void fill_pixels(std::set<int64_t> chnls, T val);
+        void fill_pixels(std::initializer_list<int64_t> chnls, T val);
+        void fill_pixels(int64_t chnl, T val); //Backward-compat: single channel.
+        void fill_pixels(T val); //Backward-compat: all channels.
 
         //Fill pixels above a given plane. Returns the number of affected pixels. Provide empty set for all channels.
         int64_t set_voxels_above_plane(const plane<R> &, T val, std::set<int64_t> chnls);
 
         //Apply a functor to individual pixels.
-        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func);
-        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func, std::set<int64_t> chnls);
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func, std::set<int64_t> chnls) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func); //Backward-compat: all channels.
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const; //Backward-compat: all channels.
 
         //Replace non-finite numbers.
-        void replace_nonfinite_pixels_with(int64_t chnl, T val);
-        void replace_nonfinite_pixels_with(T val); //All channels.
+        void replace_nonfinite_pixels_with(std::set<int64_t> chnls, T val);
+        void replace_nonfinite_pixels_with(std::initializer_list<int64_t> chnls, T val);
+        void replace_nonfinite_pixels_with(int64_t chnl, T val); //Backward-compat: single channel.
+        void replace_nonfinite_pixels_with(T val); //Backward-compat: all channels.
 
         //Get an R^3 position of the *center* of the pixel/voxel.
         vec3<R> position(int64_t row, int64_t col) const;
@@ -431,8 +449,10 @@ template <class T,class R>   class planar_image_collection {
         int64_t set_voxels_above_plane(const plane<R> &, T val, std::set<int64_t> chnls);
 
         //Apply a functor to individual pixels.
-        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func);
-        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func, std::set<int64_t> chnls);
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func, std::set<int64_t> chnls) const;
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T &val)> func); //Backward-compat: all channels.
+        void apply_to_pixels(std::function<void(int64_t row, int64_t col, int64_t chnl, T val)> func) const; //Backward-compat: all channels.
 
         //Computes the R^3 center of the images.
         vec3<R> center(void) const;
