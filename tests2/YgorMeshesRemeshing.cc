@@ -22,6 +22,23 @@ static fv_surface_mesh<double, uint32_t> create_tetrahedron(){
     return mesh;
 }
 
+// Minimal mesh-validity check used in tests to ensure remeshing
+// operations preserve basic invariants.
+static void check_mesh_valid(const fv_surface_mesh<double, uint32_t> &mesh){
+    const auto vertex_count = mesh.vertices.size();
+
+    for(const auto &face : mesh.faces){
+        // Faces are expected to be triangles.
+        REQUIRE(face.size() == 3);
+
+        for(std::size_t i = 0; i < face.size(); ++i){
+            const uint32_t idx = face[i];
+            // All face indices must reference existing vertices.
+            REQUIRE(idx < vertex_count);
+        }
+    }
+}
+
 static fv_surface_mesh<double, uint32_t> create_octahedron(){
     fv_surface_mesh<double, uint32_t> mesh;
     mesh.vertices.push_back(vec3<double>(1, 0, 0));
@@ -160,7 +177,7 @@ TEST_CASE( "mesh_remesher edge collapsing" ){
 
 TEST_CASE( "mesh_remesher edge flipping" ){
 
-    SUBCASE("flipping does not crash"){
+    SUBCASE("flipping preserves a valid mesh and does not crash"){
         fv_surface_mesh<double, uint32_t> mesh;
         mesh.vertices.push_back(vec3<double>(0, 0, 0));
         mesh.vertices.push_back(vec3<double>(2, 0, 0));
@@ -171,6 +188,9 @@ TEST_CASE( "mesh_remesher edge flipping" ){
 
         mesh_remesher<double, uint32_t> remesher(mesh, 1.0);
         remesher.flip_edges_for_valence();
+
+        // Ensure that edge flipping did not corrupt the mesh topology.
+        check_mesh_valid(mesh);
     }
 }
 
