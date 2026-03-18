@@ -154,7 +154,7 @@ TEST_CASE( "Get_Parent_Directory" ){
     SUBCASE("/some/"){
         REQUIRE( Get_Parent_Directory("/some/") == "/" );
     }
-    SUBCASE("/ root"){
+    SUBCASE("/"){
         REQUIRE( Get_Parent_Directory("/") == "" );
     }
     SUBCASE("bare file"){
