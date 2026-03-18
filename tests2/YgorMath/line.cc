@@ -211,11 +211,16 @@ TEST_CASE( "line-line intersection" ){
     SUBCASE("closest point LB to LC"){
         vec3<double> intersection;
         REQUIRE( LB.Closest_Point_To_Line(LC, intersection) );
+        // For LB (the y-axis through the origin), the closest point to LC is the origin.
+        REQUIRE( intersection.distance(zero) < eps );
     }
 
     SUBCASE("closest point LC to LB"){
         vec3<double> intersection;
         REQUIRE( LC.Closest_Point_To_Line(LB, intersection) );
+        // For LC, the closest point to LB is (0.5, 0.0, -0.5).
+        const vec3<double> expectedLCClosest(0.5, 0.0, -0.5);
+        REQUIRE( intersection.distance(expectedLCClosest) < eps );
     }
 
     SUBCASE("same line closest point fails"){
