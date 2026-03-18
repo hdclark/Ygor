@@ -136,3 +136,41 @@ TEST_CASE( "Expand_Macros" ){
 
 }
 
+
+TEST_CASE( "Get_Parent_Directory" ){
+
+    SUBCASE("/some/file"){
+        REQUIRE( Get_Parent_Directory("/some/file") == "/some/" );
+    }
+    SUBCASE("/some/path/"){
+        REQUIRE( Get_Parent_Directory("/some/path/") == "/some/" );
+    }
+    SUBCASE("some/path/"){
+        REQUIRE( Get_Parent_Directory("some/path/") == "some/" );
+    }
+    SUBCASE("some/file"){
+        REQUIRE( Get_Parent_Directory("some/file") == "some/" );
+    }
+    SUBCASE("/some/"){
+        REQUIRE( Get_Parent_Directory("/some/") == "/" );
+    }
+    SUBCASE("/ root"){
+        REQUIRE( Get_Parent_Directory("/") == "" );
+    }
+    SUBCASE("bare file"){
+        REQUIRE( Get_Parent_Directory("file") == "" );
+    }
+    SUBCASE("../file"){
+        REQUIRE( Get_Parent_Directory("../file") == "../" );
+    }
+    SUBCASE("./file"){
+        REQUIRE( Get_Parent_Directory("./file") == "./" );
+    }
+    SUBCASE("../../../"){
+        REQUIRE( Get_Parent_Directory("../../../") == "../../" );
+    }
+    SUBCASE("./.././"){
+        REQUIRE( Get_Parent_Directory("./.././") == "./../" );
+    }
+}
+

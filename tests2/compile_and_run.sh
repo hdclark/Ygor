@@ -37,13 +37,20 @@ g++ \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
+  YgorMathIOSTL.cc \
   YgorMathIOXYZ.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
+  YgorMeshesRefinement.cc \
+  YgorMeshesRemeshing.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
   YgorOptimizeSA.cc \
   YgorTime/*.cc \
+  YgorAlgorithms.cc \
+  YgorBase64.cc \
+  YgorImages.cc \
+  YgorStats.cc \
   YgorStatsCITrees.cc \
   YgorStatsConditionalForests.cc \
   YgorStatsStochasticForests.cc \
