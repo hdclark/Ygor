@@ -10,6 +10,7 @@
 
 #include "doctest/doctest.h"
 
+constexpr double kPi = 3.141592653589793238462643383279502884;
 
 TEST_CASE( "vec3 class layout" ){
     SUBCASE("is_standard_layout"){
@@ -1220,7 +1221,7 @@ TEST_CASE( "vec3 rotate_around_unit" ){
         vec3<double> A( 1.0, 0.0, 0.0 );
         vec3<double> B( 0.0, 0.0, 1.0 );
         vec3<double> E(-1.0, 0.0, 0.0 );
-        const auto C = A.rotate_around_unit(B, M_PI);
+        const auto C = A.rotate_around_unit(B, kPi);
         REQUIRE( C.distance(E) < eps );
     }
 
@@ -1228,7 +1229,7 @@ TEST_CASE( "vec3 rotate_around_unit" ){
         vec3<double> A( 2.0, 0.0, 0.0 );
         vec3<double> B( 0.0, 0.0, 1.0 );
         vec3<double> E(-2.0, 0.0, 0.0 );
-        const auto C = A.rotate_around_unit(B, M_PI);
+        const auto C = A.rotate_around_unit(B, kPi);
         REQUIRE( C.distance(E) < eps );
     }
 
@@ -1236,7 +1237,7 @@ TEST_CASE( "vec3 rotate_around_unit" ){
         vec3<double> A( 2.0, 0.0, 0.0 );
         vec3<double> B( 0.0, 1.0, 0.0 );
         vec3<double> E(-2.0, 0.0, 0.0 );
-        const auto C = A.rotate_around_unit(B, M_PI);
+        const auto C = A.rotate_around_unit(B, kPi);
         REQUIRE( C.distance(E) < eps );
     }
 
@@ -1244,7 +1245,7 @@ TEST_CASE( "vec3 rotate_around_unit" ){
         vec3<double> A( 2.0, 0.0, 0.0 );
         vec3<double> B( 0.0, 1.0, 0.0 );
         vec3<double> E(-2.0, 0.0, 0.0 );
-        const auto C = A.rotate_around_unit(B, -M_PI);
+        const auto C = A.rotate_around_unit(B, -kPi);
         REQUIRE( C.distance(E) < eps );
     }
 
