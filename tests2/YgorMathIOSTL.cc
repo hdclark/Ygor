@@ -1,6 +1,7 @@
 
 #include <sstream>
 #include <string>
+#include <stdexcept>
 
 #include <YgorMath.h>
 #include <YgorMathIOOFF.h>
