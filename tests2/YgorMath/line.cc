@@ -218,6 +218,10 @@ TEST_CASE( "line-line intersection" ){
     SUBCASE("closest point LC to LB"){
         vec3<double> intersection;
         REQUIRE( LC.Closest_Point_To_Line(LB, intersection) );
+        // LC passes through (1,0,0) with direction (0,0,1).
+        // LB passes through (0,0,0) with direction (0,1,0).
+        // The closest point on LC to LB is (1,0,0).
+        REQUIRE( intersection.distance(vec3<double>(1.0, 0.0, 0.0)) < eps );
     }
 
     SUBCASE("same line closest point fails"){
