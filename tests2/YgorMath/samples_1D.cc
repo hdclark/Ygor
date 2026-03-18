@@ -10,6 +10,7 @@
 
 
 TEST_CASE( "samples_1D metadata serialization" ){
+    using namespace std::string_literals;
 
     samples_1D<double> buffa;
     for(double x = 0.0; x < 10.0; x += 0.15){
@@ -25,8 +26,8 @@ TEST_CASE( "samples_1D metadata serialization" ){
     const auto val_B = "val_B";
     const auto key_C = "key_C";
     const auto val_C = "val\tC";
-    const auto key_D = " very long key D with nasty characters \t \n \0 ";
-    const auto val_D = " very long val D with nasty characters \t \n \0 ";
+    const auto key_D = " very long key D with nasty characters \t \n \0 "s;
+    const auto val_D = " very long val D with nasty characters \t \n \0 "s;
 
     buffa.metadata[key_A] = val_A;
     buffa.metadata[key_B] = val_B;
