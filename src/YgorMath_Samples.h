@@ -30,4 +30,14 @@ samples_1D<double> samples_1D_sample_LIDAR(void);
 
 samples_1D<double> samples_1D_sample_Calories(void);
 
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------- fv_surface_mesh ----------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_icosahedron();
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_tetrahedron();
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_octahedron();
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_single_triangle();
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_single_quad();
+
+
 #endif

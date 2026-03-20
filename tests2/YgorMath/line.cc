@@ -1,5 +1,6 @@
 
 #include <limits>
+#include <cmath>
 #include <utility>
 #include <iostream>
 
@@ -183,6 +184,121 @@ TEST_CASE( "line operators" ){
         REQUIRE( L1 != L6 );
         REQUIRE( L1 != L7 );
         REQUIRE( L1 != L8 );
+    }
+}
+
+
+TEST_CASE( "line-line intersection" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    const vec3<double> zero(0.0, 0.0, 0.0);
+
+    line<double> LA(vec3<double>(0.0, 0.0, 0.0), vec3<double>(1.0, 0.0, 0.0));
+    line<double> LB(vec3<double>(0.0, 0.0, 0.0), vec3<double>(0.0, 1.0, 0.0));
+    line<double> LC(vec3<double>(1.0, 0.0, 0.0), vec3<double>(1.0, 0.0, 1.0));
+
+    SUBCASE("intersecting lines at origin"){
+        vec3<double> intersection;
+        REQUIRE( LA.Intersects_With_Line_Once(LB, intersection) );
+        REQUIRE( intersection.distance(zero) < eps );
+    }
+
+    SUBCASE("non-intersecting lines"){
+        vec3<double> intersection;
+        REQUIRE( !LB.Intersects_With_Line_Once(LC, intersection) );
+    }
+
+    SUBCASE("closest point LB to LC"){
+        vec3<double> intersection;
+        REQUIRE( LB.Closest_Point_To_Line(LC, intersection) );
+        // For LB (the y-axis through the origin), the closest point to LC is the origin.
+        REQUIRE( intersection.distance(zero) < eps );
+    }
+
+    SUBCASE("closest point LC to LB"){
+        vec3<double> intersection;
+        REQUIRE( LC.Closest_Point_To_Line(LB, intersection) );
+        // LC passes through (1,0,0) with direction (1,0,1).
+        // LB passes through (0,0,0) with direction (0,1,0).
+        // The closest point on LC to LB is (1,0,0).
+        REQUIRE( intersection.distance(vec3<double>(1.0, 0.0, 0.0)) < eps );
+    }
+
+    SUBCASE("same line closest point fails"){
+        vec3<double> intersection;
+        REQUIRE( !LC.Closest_Point_To_Line(LC, intersection) );
+    }
+}
+
+
+TEST_CASE( "line Project_Point_Orthogonally" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    SUBCASE("project onto z-axis"){
+        line<double> L( vec3<double>(0.0, 0.0, 0.0),
+                        vec3<double>(0.0, 0.0, 1.0) );
+        vec3<double> P(1.23, 4.56, 2.0);
+        const auto projected = L.Project_Point_Orthogonally(P);
+        REQUIRE( projected.distance(vec3<double>(0.0, 0.0, 2.0)) < eps );
+    }
+}
+
+
+TEST_CASE( "line_segment Within_Cylindrical_Volume" ){
+
+    SUBCASE("four test cases"){
+        line_segment<double> L( vec3<double>(0.0, 0.0, 0.0),
+                                vec3<double>(0.0, 0.0, 1.0) );
+        double radius = 1.0;
+
+        vec3<double> P1(1.23, 4.56, 2.0);
+        vec3<double> P2(0.15, 0.25, 0.5);
+        vec3<double> P3(0.00, 0.00, 3.0);
+        vec3<double> P4(0.00, 0.00,-0.5);
+
+        REQUIRE( !L.Within_Cylindrical_Volume(P1, radius) );
+        REQUIRE(  L.Within_Cylindrical_Volume(P2, radius) );
+        REQUIRE( !L.Within_Cylindrical_Volume(P3, radius) );
+        REQUIRE( !L.Within_Cylindrical_Volume(P4, radius) );
+    }
+}
+
+
+TEST_CASE( "line_segment Closest_Point_To_Line" ){
+
+    const line<double> l( vec3<double>(0.0, 0.0, 0.0),
+                          vec3<double>(0.0, 0.0, 1.0) );
+
+    SUBCASE("segment perpendicular to line"){
+        line_segment<double> s( vec3<double>(-1.0, 0.0, 0.0),
+                                vec3<double>( 1.0, 0.0, 0.0) );
+        vec3<double> p;
+        REQUIRE( s.Closest_Point_To_Line(l, p) );
+        REQUIRE( s.Within_Pill_Volume(p, 1E-9) );
+    }
+
+    SUBCASE("diagonal segment"){
+        line_segment<double> s( vec3<double>(-1.0,-1.0, 0.0),
+                                vec3<double>( 1.0, 1.0, 0.0) );
+        vec3<double> p;
+        REQUIRE( s.Closest_Point_To_Line(l, p) );
+        REQUIRE( s.Within_Pill_Volume(p, 1E-9) );
+    }
+
+    SUBCASE("asymmetric segment"){
+        line_segment<double> s( vec3<double>(-1.0, 0.0, 0.0),
+                                vec3<double>(10.0, 1.0, 0.0) );
+        vec3<double> p;
+        REQUIRE( s.Closest_Point_To_Line(l, p) );
+        REQUIRE( s.Within_Pill_Volume(p, 1E-9) );
+    }
+
+    SUBCASE("segment with z component"){
+        line_segment<double> s( vec3<double>(-1.0, 0.0, -1.0),
+                                vec3<double>(10.0, 1.0, 1.0) );
+        vec3<double> p;
+        REQUIRE( s.Closest_Point_To_Line(l, p) );
+        REQUIRE( s.Within_Pill_Volume(p, 1E-9) );
     }
 }
 

@@ -5,10 +5,15 @@
 #include <list>
 #include <vector>
 #include <cstdint>
+#include <sstream>
+#include <string>
+#include <stdexcept>
+
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMath_Samples.h"
+
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------- contour_of_points ----------------------------------------------------------------------
@@ -527,5 +532,103 @@ samples_1D<double> samples_1D_sample_Calories(void){
         vec2<double>(-1,2064),        vec2<double>(-0,1915)
     });
     return out;
+}
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------- fv_surface_mesh ----------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------------------------
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_icosahedron(){
+    fv_surface_mesh<double, uint64_t> mesh;
+    const double phi = (1.0 + std::sqrt(5.0)) / 2.0;
+    mesh.vertices.push_back(vec3<double>(0, 1, phi));
+    mesh.vertices.push_back(vec3<double>(0, -1, phi));
+    mesh.vertices.push_back(vec3<double>(0, 1, -phi));
+    mesh.vertices.push_back(vec3<double>(0, -1, -phi));
+    mesh.vertices.push_back(vec3<double>(1, phi, 0));
+    mesh.vertices.push_back(vec3<double>(-1, phi, 0));
+    mesh.vertices.push_back(vec3<double>(1, -phi, 0));
+    mesh.vertices.push_back(vec3<double>(-1, -phi, 0));
+    mesh.vertices.push_back(vec3<double>(phi, 0, 1));
+    mesh.vertices.push_back(vec3<double>(-phi, 0, 1));
+    mesh.vertices.push_back(vec3<double>(phi, 0, -1));
+    mesh.vertices.push_back(vec3<double>(-phi, 0, -1));
+    mesh.faces.push_back({0, 1, 8});
+    mesh.faces.push_back({0, 8, 4});
+    mesh.faces.push_back({0, 4, 5});
+    mesh.faces.push_back({0, 5, 9});
+    mesh.faces.push_back({0, 9, 1});
+    mesh.faces.push_back({1, 6, 8});
+    mesh.faces.push_back({8, 6, 10});
+    mesh.faces.push_back({8, 10, 4});
+    mesh.faces.push_back({4, 10, 2});
+    mesh.faces.push_back({4, 2, 5});
+    mesh.faces.push_back({5, 2, 11});
+    mesh.faces.push_back({5, 11, 9});
+    mesh.faces.push_back({9, 11, 7});
+    mesh.faces.push_back({9, 7, 1});
+    mesh.faces.push_back({1, 7, 6});
+    mesh.faces.push_back({6, 7, 3});
+    mesh.faces.push_back({6, 3, 10});
+    mesh.faces.push_back({10, 3, 2});
+    mesh.faces.push_back({2, 3, 11});
+    mesh.faces.push_back({11, 3, 7});
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_tetrahedron(){
+    fv_surface_mesh<double, uint64_t> mesh;
+    mesh.vertices.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+    mesh.vertices.emplace_back(vec3<double>(1.0, -1.0, -1.0));
+    mesh.vertices.emplace_back(vec3<double>(-1.0, 1.0, -1.0));
+    mesh.vertices.emplace_back(vec3<double>(-1.0, -1.0, 1.0));
+    mesh.faces.push_back({0, 1, 2});
+    mesh.faces.push_back({0, 3, 1});
+    mesh.faces.push_back({0, 2, 3});
+    mesh.faces.push_back({1, 3, 2});
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_octahedron(){
+    fv_surface_mesh<double, uint64_t> mesh;
+    mesh.vertices.push_back(vec3<double>(1, 0, 0));
+    mesh.vertices.push_back(vec3<double>(-1, 0, 0));
+    mesh.vertices.push_back(vec3<double>(0, 1, 0));
+    mesh.vertices.push_back(vec3<double>(0, -1, 0));
+    mesh.vertices.push_back(vec3<double>(0, 0, 1));
+    mesh.vertices.push_back(vec3<double>(0, 0, -1));
+    mesh.faces.push_back({0, 2, 4});
+    mesh.faces.push_back({2, 1, 4});
+    mesh.faces.push_back({1, 3, 4});
+    mesh.faces.push_back({3, 0, 4});
+    mesh.faces.push_back({2, 0, 5});
+    mesh.faces.push_back({1, 2, 5});
+    mesh.faces.push_back({3, 1, 5});
+    mesh.faces.push_back({0, 3, 5});
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_single_triangle(){
+    fv_surface_mesh<double, uint64_t> mesh;
+    mesh.vertices.emplace_back(vec3<double>(0.0, 0.0, 0.0));
+    mesh.vertices.emplace_back(vec3<double>(1.0, 0.0, 0.0));
+    mesh.vertices.emplace_back(vec3<double>(0.5, std::sqrt(3.0)/2.0, 0.0));
+    mesh.faces.push_back({0, 1, 2});
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+fv_surface_mesh<double, uint64_t> fv_surface_mesh_single_quad(){
+    fv_surface_mesh<double, uint64_t> mesh;
+    mesh.vertices.push_back(vec3<double>(0, 0, 0));
+    mesh.vertices.push_back(vec3<double>(1, 0, 0));
+    mesh.vertices.push_back(vec3<double>(1, 1, 0));
+    mesh.vertices.push_back(vec3<double>(0, 1, 0));
+    mesh.faces.push_back({0, 1, 2});
+    mesh.faces.push_back({0, 2, 3});
+    mesh.recreate_involved_face_index();
+    return mesh;
 }
 

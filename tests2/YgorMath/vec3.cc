@@ -3,12 +3,12 @@
 #include <utility>
 #include <iostream>
 #include <array>
+#include <cmath>
 #include <type_traits>
 
 #include <YgorMath.h>
 
 #include "doctest/doctest.h"
-
 
 TEST_CASE( "vec3 class layout" ){
     SUBCASE("is_standard_layout"){
@@ -1209,5 +1209,128 @@ static bool instantiate_vec3_types(){
 
 TEST_CASE( "vec3 with integer type template specializations are available" ){
     REQUIRE(instantiate_vec3_types());
+}
+
+
+TEST_CASE( "vec3 rotate_around_unit" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+    const auto pi = std::acos(-1.0);
+
+
+    SUBCASE("rotation 1: (1,0,0) around z by pi"){
+        vec3<double> A( 1.0, 0.0, 0.0 );
+        vec3<double> B( 0.0, 0.0, 1.0 );
+        vec3<double> E(-1.0, 0.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 2: (2,0,0) around z by pi"){
+        vec3<double> A( 2.0, 0.0, 0.0 );
+        vec3<double> B( 0.0, 0.0, 1.0 );
+        vec3<double> E(-2.0, 0.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 3: (2,0,0) around y by pi"){
+        vec3<double> A( 2.0, 0.0, 0.0 );
+        vec3<double> B( 0.0, 1.0, 0.0 );
+        vec3<double> E(-2.0, 0.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 4: (2,0,0) around y by -pi"){
+        vec3<double> A( 2.0, 0.0, 0.0 );
+        vec3<double> B( 0.0, 1.0, 0.0 );
+        vec3<double> E(-2.0, 0.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, -pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 5: (0,2,0) around x by pi"){
+        vec3<double> A( 0.0, 2.0, 0.0 );
+        vec3<double> B( 1.0, 0.0, 0.0 );
+        vec3<double> E( 0.0,-2.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 6: (0,2,0) around z by pi"){
+        vec3<double> A( 0.0, 2.0, 0.0 );
+        vec3<double> B( 0.0, 0.0, 1.0 );
+        vec3<double> E( 0.0,-2.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 7: (0,2,0) around z by 2*pi"){
+        vec3<double> A( 0.0, 2.0, 0.0 );
+        vec3<double> B( 0.0, 0.0, 1.0 );
+        vec3<double> E( 0.0, 2.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, 2.0 * pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 8: (0,2,0) around y by 2*pi"){
+        vec3<double> A( 0.0, 2.0, 0.0 );
+        vec3<double> B( 0.0, 1.0, 0.0 );
+        vec3<double> E( 0.0, 2.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, 2.0 * pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 9: (0,2,0) around x by 2*pi"){
+        vec3<double> A( 0.0, 2.0, 0.0 );
+        vec3<double> B( 1.0, 0.0, 0.0 );
+        vec3<double> E( 0.0, 2.0, 0.0 );
+        const auto C = A.rotate_around_unit(B, 2.0 * pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+
+    SUBCASE("rotation 10: (1,2,3) around x by 2*pi"){
+        vec3<double> A( 1.0, 2.0, 3.0 );
+        vec3<double> B( 1.0, 0.0, 0.0 );
+        vec3<double> E( 1.0, 2.0, 3.0 );
+        const auto C = A.rotate_around_unit(B, 2.0 * pi);
+        REQUIRE( C.distance(E) < eps );
+    }
+}
+
+
+TEST_CASE( "vec3 angle" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+    const auto pi = std::acos(-1.0);
+
+    SUBCASE("opposite direction"){
+        vec3<double> A(-1.0, 0.0, 0.0);
+        vec3<double> B( 1.0, 0.0, 0.0);
+        REQUIRE( std::abs(A.angle(B, nullptr) - pi) < eps );
+    }
+
+    SUBCASE("perpendicular vectors"){
+        vec3<double> A(1.0, 0.0, 0.0);
+        vec3<double> B(0.0, 1.0, 0.0);
+        REQUIRE( std::abs(A.angle(B, nullptr) - pi/2.0) < eps );
+    }
+
+    SUBCASE("identical direction"){
+        vec3<double> A(1.0, 0.0, 0.0);
+        vec3<double> B(1.0, 0.0, 0.0);
+        REQUIRE( std::abs(A.angle(B, nullptr) - 0.0) < eps );
+    }
+
+    SUBCASE("same direction different magnitude"){
+        vec3<double> A(0.8, 0.0, 0.0);
+        vec3<double> B(1.0, 0.0, 0.0);
+        REQUIRE( std::abs(A.angle(B, nullptr) - 0.0) < eps );
+    }
+
+    SUBCASE("small angle"){
+        vec3<double> A(1.0, 0.1, 0.0);
+        vec3<double> B(1.0, 0.0, 0.0);
+        REQUIRE( std::abs(A.angle(B, nullptr) - std::atan2(0.1, 1.0)) < eps ); // 0.0996687...
+    }
 }
 

@@ -14,29 +14,6 @@
 
 int main(int argc, char **argv){
 
-    //Test the angle-between-vectors code.
-    {
-      vec3<double> A(1.0,0.0,0.0);
-      vec3<double> B(0.0,1.0,0.0);
-      std::cout << A.angle(B,nullptr) << std::endl; //1.5708 == pi/2.
-
-      A = vec3<double>(1.0,0.0,0.0);
-      B = vec3<double>(1.0,0.0,0.0);
-      std::cout << A.angle(B,nullptr) << std::endl; //0.0.
-
-      A = vec3<double>(0.8,0.0,0.0);
-      B = vec3<double>(1.0,0.0,0.0);
-      std::cout << A.angle(B,nullptr) << std::endl; //0.0.
-
-      A = vec3<double>(1.0,0.1,0.0);
-      B = vec3<double>(1.0,0.0,0.0);
-      std::cout << A.angle(B,nullptr) << std::endl; //0.0996687.
-
-      A = vec3<double>(-1.0,0.0,0.0);
-      B = vec3<double>(1.0,0.0,0.0);
-      std::cout << A.angle(B,nullptr) << std::endl;  //3.14159.
-    }
-
     //Push back some contours.
     contour_collection<double> cc;
     for(int i=0; i<=10; ++i){

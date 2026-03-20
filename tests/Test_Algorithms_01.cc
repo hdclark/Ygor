@@ -37,24 +37,5 @@ int main(int argc, char **argv){
     std::cout << "The result of the double nelder-mead simplex method was " << result << std::endl;
 
 
-    //--------------------- Testing Consistent_Hash_64(...).
-    std::list<std::pair<std::string, uint64_t>> pairs;
-    pairs.push_back({ "Some string",       3924287415333687545ULL   });
-    pairs.push_back({ "Some string 1",     1340806366846037431ULL   });
-    pairs.push_back({ "Some string 2",     16715263229586335810ULL  });
-    pairs.push_back({ "Some other string", 11153072457922119554ULL }); 
-    pairs.push_back({ "S",                 4082407551497703653ULL });
-    pairs.push_back({ " ",                 6640659725864518894ULL });
-    pairs.push_back({ "",                  1337ULL  });
-
-    for(auto p_it = pairs.begin(); p_it != pairs.end(); ++p_it){
-        if(p_it->second == Consistent_Hash_64(p_it->first)){
-            YLOGINFO("Successfully hashed '" << p_it->first << "' into " << p_it->second);
-        }else{
-            YLOGINFO("UNSUCCESSFUL! Incorrectly hashed '" << p_it->first << "' into " << Consistent_Hash_64(p_it->first) << " when it should have been " << p_it->second);
-        }
-    }
-
-
     return 0;
 }

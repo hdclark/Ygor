@@ -24,30 +24,39 @@ g++ \
   -Wall \
   -I. \
   Main.cc \
+  \
+  YgorAlgorithms.cc \
+  YgorBase64.cc \
   YgorContainers/*.cc \
   YgorFilesDirs.cc \
-  YgorIO.cc \
-  YgorIOgzip.cc \
-  YgorIndexRTree.cc \
+  YgorImages.cc \
   YgorIndexCells.cc \
   YgorIndexKDTree.cc \
   YgorIndexOctree.cc \
+  YgorIndexRTree.cc \
+  YgorIO.cc \
+  YgorIOgzip.cc \
   YgorMath/*.cc \
   YgorMathDelaunay.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
+  YgorMathIOSTL.cc \
   YgorMathIOXYZ.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
+  YgorMeshesRefinement.cc \
+  YgorMeshesRemeshing.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
   YgorOptimizeSA.cc \
-  YgorTime/*.cc \
+  YgorStats.cc \
   YgorStatsCITrees.cc \
   YgorStatsConditionalForests.cc \
   YgorStatsStochasticForests.cc \
   YgorString.cc \
+  YgorTime/*.cc \
+  \
   -o run_tests \
   -lygor
 
