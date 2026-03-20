@@ -143,6 +143,7 @@ TEST_CASE( "samples_1D linear interpolation" ){
 
 TEST_CASE( "samples_1D overlap integration" ){
     const double tol = 0.01;
+    const auto pi = std::acos(-1.0);
 
     SUBCASE("rectangle overlap is 1.0"){
         samples_1D<double> f( { vec2<double>(0.0, 1.0),
@@ -178,7 +179,7 @@ TEST_CASE( "samples_1D overlap integration" ){
 
     SUBCASE("sin*cos over [0,2pi] is ~0"){
         samples_1D<double> f, g;
-        for(auto x = 0.0; x < 2.0 * M_PI; x += 0.005){
+        for(auto x = 0.0; x < 2.0 * pi; x += 0.005){
             f.push_back( vec2<double>( x, std::sin(x) ) );
             g.push_back( vec2<double>( x, std::cos(x) ) );
         }
@@ -189,7 +190,7 @@ TEST_CASE( "samples_1D overlap integration" ){
 
     SUBCASE("complex trig overlap ~3.2866"){
         samples_1D<double> f, g;
-        for(auto x = 0.0; x < 2.0 * M_PI; x += 0.005){
+        for(auto x = 0.0; x < 2.0 * pi; x += 0.005){
             f.push_back( vec2<double>( x, std::sin(x)*std::sin(x) + std::cos(x)*std::sin(x+0.1) ) );
             g.push_back( vec2<double>( x, std::sin(x+0.3) + std::cos(x/10.0) ) );
         }
@@ -264,19 +265,20 @@ TEST_CASE( "samples_1D weighted linear regression" ){
 
 TEST_CASE( "samples_1D Integrate_Over_Kernel_exp" ){
     const double tol = 0.01;
+    const auto pi = std::acos(-1.0);
 
     SUBCASE("expected value ~3.9356"){
         const bool inhibit_sort = true;
         samples_1D<double> f;
         double dx = 0.01;
-        for(auto x = 0.0; x < 2.0 * M_PI; x += dx){
+        for(auto x = 0.0; x < 2.0 * pi; x += dx){
             const auto f_at_x = std::sin(x)*std::sin(x) + std::cos(x)*std::sin(x+0.1)
                               + std::sin(x+0.3) + std::cos(x/10.0);
             f.push_back( { x, 0.5*dx, f_at_x, f_at_x*0.1 }, inhibit_sort );
         }
         f.uncertainties_known_to_be_independent_and_random = true;
 
-        const auto F = f.Integrate_Over_Kernel_exp(0.0, 2.0*M_PI, { -0.5, 0.1 }, { 0.0, 0.01 });
+        const auto F = f.Integrate_Over_Kernel_exp(0.0, 2.0*pi, { -0.5, 0.1 }, { 0.0, 0.01 });
         REQUIRE( std::abs(F[0] - 3.9356) < tol );
     }
 }

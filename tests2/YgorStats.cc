@@ -3,8 +3,13 @@
 #include <cmath>
 #include <vector>
 #include <random>
+#include <array>
+#include <sstream>
+#include <string>
+#include <cstdint>
 
 #include <YgorStats.h>
+#include <YgorMath.h>
 
 #include "doctest/doctest.h"
 
@@ -96,15 +101,6 @@ TEST_CASE( "Running_Variance" ){
         REQUIRE( std::abs(rv.Current_Variance() - 4.0) < 1.0e-6 );
     }
 }
-
-// --- Additional includes needed by migrated tests ---
-#include <array>
-#include <sstream>
-#include <string>
-#include <cstdint>
-
-#include <YgorMath.h>
-
 
 // ---------------------------------------------------------------------------
 // Migrated from tests/Test_Stats_01.cc
@@ -498,6 +494,8 @@ TEST_CASE( "Paired_tests_with_samples_1D_data" ){
     // Build paired arrays from the normalized y-values (index [2]).
     auto make_pairs = [](const samples_1D<double> &L, const samples_1D<double> &R)
         -> std::vector<std::array<double,2>> {
+        REQUIRE( L.size() == R.size() );
+        REQUIRE( L.size() > 0 );
         std::vector<std::array<double,2>> pairs;
         for(size_t i = 0; i < static_cast<size_t>(L.size()); ++i){
             pairs.push_back({ L.samples[i][2], R.samples[i][2] });
@@ -614,6 +612,7 @@ TEST_CASE( "Percentile_and_Median" ){
 
 TEST_CASE( "Running_Sum" ){
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+#if defined(__SIZEOF_INT128__)
 
     SUBCASE("compensated sum is at least as accurate as naive for double"){
         // Sum many random doubles in [0,1]. Compare Running_Sum (Kahan-style
@@ -627,6 +626,7 @@ TEST_CASE( "Running_Sum" ){
         Stats::Running_Sum<double> rs;
         double naive = 0.0;
         const auto int_scale = std::numeric_limits<double>::digits10 + 1;
+        const auto scale = std::pow(10.0, static_cast<double>(int_scale));
         __int128_t t = 0;
         std::vector<double> d;
         d.reserve(N);
@@ -634,14 +634,14 @@ TEST_CASE( "Running_Sum" ){
         for(size_t i = 0; i < N; ++i){
             double x = rd(re);
             naive += x;
-            t += static_cast<__int128_t>(x * std::pow(10.0, 1.0 * int_scale));
+            t += static_cast<__int128_t>(x * scale);
             rs.Digest(x);
             d.push_back(x);
         }
 
         const double cs = rs.Current_Sum();
         const double ss = Stats::Sum(d);
-        const double tt = static_cast<double>(t) / std::pow(10.0, 1.0 * int_scale);
+        const double tt = static_cast<double>(t) / scale;
 
         // All sums should be close to the reference.
         double cs_err = std::abs(cs - tt) / tt;
@@ -665,6 +665,7 @@ TEST_CASE( "Running_Sum" ){
         Stats::Running_Sum<float> rs;
         float naive = 0.0f;
         const auto int_scale = std::numeric_limits<float>::digits10 + 1;
+        const auto scale = std::pow(10.0, static_cast<double>(int_scale));
         __int128_t t = 0;
         std::vector<float> d;
         d.reserve(N);
@@ -672,14 +673,14 @@ TEST_CASE( "Running_Sum" ){
         for(size_t i = 0; i < N; ++i){
             float x = static_cast<float>(rd(re));
             naive += x;
-            t += static_cast<__int128_t>(x * std::pow(10.0, 1.0 * int_scale));
+            t += static_cast<__int128_t>(x * scale);
             rs.Digest(x);
             d.push_back(x);
         }
 
         const float cs = rs.Current_Sum();
         const float ss = Stats::Sum(d);
-        const float tt = static_cast<float>(t) / static_cast<float>(std::pow(10.0, 1.0 * int_scale));
+        const float tt = static_cast<float>(t) / static_cast<float>(scale);
 
         double cs_err = std::abs(static_cast<double>(cs) - static_cast<double>(tt))
                         / static_cast<double>(tt);
@@ -702,6 +703,7 @@ TEST_CASE( "Running_Sum" ){
         for(auto v : vals) rs.Digest(v);
         REQUIRE( std::abs(rs.Current_Sum() - 1.0) < eps );
     }
+#endif
 }
 
 

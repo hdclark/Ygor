@@ -3,6 +3,7 @@
 #include <list>
 #include <utility>
 #include <iostream>
+#include <cmath>
 
 #include <YgorMath.h>
 
@@ -101,6 +102,7 @@ TEST_CASE( "contour_of_points integration and utilities" ){
     }
 
     SUBCASE("string write/load round-trip"){
+        const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
         contour_of_points<double> contour({ vec3<double>(1.0/9.0, 10.0, 0.0),
                                             vec3<double>(0.0, 10.0, 0.0),
                                             vec3<double>(0.0, -72.123, 0.0),
@@ -108,7 +110,9 @@ TEST_CASE( "contour_of_points integration and utilities" ){
         contour.closed = true;
 
         auto stringified = contour.write_to_string();
-        REQUIRE(contour.load_from_string(stringified));
+        contour_of_points<double> reloaded;
+        REQUIRE(reloaded.load_from_string(stringified));
+        REQUIRE(reloaded.eps_equal(contour, eps));
     }
 
     SUBCASE("line_segment Sample_With_Spacing"){
@@ -121,4 +125,3 @@ TEST_CASE( "contour_of_points integration and utilities" ){
         REQUIRE(somepoints.size() == 4);
     }
 }
-
