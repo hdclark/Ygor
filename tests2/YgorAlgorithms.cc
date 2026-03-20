@@ -1,6 +1,8 @@
 
 #include <string>
 #include <cstdint>
+#include <cmath>
+#include <limits>
 
 #include <YgorAlgorithms.h>
 #include <YgorString.h>
@@ -65,5 +67,44 @@ TEST_CASE( "MD5_Hash" ){
                              "05c07dcbff9e889b409101710e238e56") );
         REQUIRE( Verify_MD5("...but is probably necessary!",
                              "be164b7e20919dd5e84f79b28c0364d0") );
+    }
+}
+
+
+TEST_CASE( "NMSimplex optimization" ){
+
+    const auto eps = 1.0e-3;
+
+    // f(p) = 3*p0^2 + (p1+2.5)^2 + (p2+5.76)*p2 + (p3+9)*p3
+    // Minimum at (0, -2.5, -2.88, -4.5) with value -71361/2500 == -28.5444.
+    auto func_to_min = [](double p[]) -> double {
+        return p[0]*p[0]*3.0
+             + (p[1]+2.5)*(p[1]+2.5)
+             + (p[2]+5.76)*p[2]
+             + (p[3]+9.0)*p[3];
+    };
+
+    SUBCASE("converges to known minimum"){
+        const int dimen = 4;
+        double params[4] = { 0.67, 0.67, 0.67, 0.67 };
+
+        NMSimplex<double> minimizer(dimen, 3.01, 5000, 1E-8);
+        minimizer.init(params, func_to_min);
+
+        while(minimizer.iter() == 0){}
+
+        // Converged via ftol.
+        REQUIRE( minimizer.iter() == 2 );
+
+        double result;
+        minimizer.get_all(func_to_min, params, result);
+
+        REQUIRE( std::abs(params[0] - 0.0)    < eps );
+        REQUIRE( std::abs(params[1] - (-2.5))  < eps );
+        REQUIRE( std::abs(params[2] - (-2.88)) < eps );
+        REQUIRE( std::abs(params[3] - (-4.5))  < eps );
+
+        const double expected_min = -71361.0 / 2500.0; // -28.5444
+        REQUIRE( std::abs(result - expected_min) < eps );
     }
 }
