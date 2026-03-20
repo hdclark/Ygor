@@ -70,7 +70,13 @@ TEST_CASE( "contour_of_points integration and utilities" ){
         };
         const double result = contour.Integrate_Simple_Scalar_Kernel(f);
         const double expected = std::sqrt(14.0) * (std::exp(6.0) - 1.0) / 12.0;
-        REQUIRE(std::abs(result - expected) < 1.0);
+        const double rel_tolerance = 1e-6;
+        const double abs_tolerance_min = 1e-9;
+        double tolerance = std::abs(expected) * rel_tolerance;
+        if (tolerance < abs_tolerance_min) {
+            tolerance = abs_tolerance_min;
+        }
+        REQUIRE(std::abs(result - expected) < tolerance);
     }
 
     SUBCASE("contour equality"){
