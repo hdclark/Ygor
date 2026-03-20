@@ -92,8 +92,11 @@ TEST_CASE( "contour_of_points integration and utilities" ){
                                              vec3<double>(5.0, 0.0, 0.0) });
         contour2.closed = true;
 
-        REQUIRE(contour == contour);
-        REQUIRE(contour2 == contour2);
+        contour_of_points<double> contour_same = contour;
+        contour_of_points<double> contour2_same = contour2;
+
+        REQUIRE(contour == contour_same);
+        REQUIRE(contour2 == contour2_same);
         REQUIRE_FALSE(contour == contour2);
     }
 
