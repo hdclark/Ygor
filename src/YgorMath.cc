@@ -4706,6 +4706,23 @@ template <class T> bool contour_of_points<T>::operator==(const contour_of_points
     template bool contour_of_points<double>::operator==(const contour_of_points<double> &in) const;
 #endif
 
+template <class T> bool contour_of_points<T>::eps_equal(const contour_of_points<T> &in, T eps) const {
+    if(this->closed != in.closed) return false;
+    if(this->metadata != in.metadata) return false;
+    if(this->points.size() != in.points.size()) return false;
+
+    auto itA = this->points.begin();
+    auto itB = in.points.begin();
+    for(; itA != this->points.end() && itB != in.points.end(); ++itA, ++itB){
+        if(itA->distance(*itB) > eps) return false;
+    }
+    return (itA == this->points.end()) && (itB == in.points.end());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool contour_of_points<float >::eps_equal(const contour_of_points<float > &in, float eps) const;
+    template bool contour_of_points<double>::eps_equal(const contour_of_points<double> &in, double eps) const;
+#endif
+
 template <class T> bool contour_of_points<T>::operator!=(const contour_of_points<T> &in) const {
     return !(*this == in);
 }

@@ -47,9 +47,11 @@ g++ \
   YgorMeshesHoles.cc \
   YgorMeshesRefinement.cc \
   YgorMeshesRemeshing.cc \
+  YgorNoise.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
   YgorOptimizeSA.cc \
+  YgorSerialize.cc \
   YgorStats.cc \
   YgorStatsCITrees.cc \
   YgorStatsConditionalForests.cc \
@@ -65,4 +67,3 @@ rm -rf doctest/
 ./run_tests #--success
 
 rm ./run_tests
-

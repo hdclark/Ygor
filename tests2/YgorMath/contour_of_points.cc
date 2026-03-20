@@ -3,6 +3,7 @@
 #include <list>
 #include <utility>
 #include <iostream>
+#include <cmath>
 
 #include <YgorMath.h>
 
@@ -58,3 +59,69 @@ TEST_CASE( "contour_of_points::Get_Signed_Area" ){
 
 }
 
+TEST_CASE( "contour_of_points integration and utilities" ){
+
+    SUBCASE("textbook line integral Q11 p1107"){
+        contour_of_points<double> contour({ vec3<double>(0.0, 0.0, 0.0),
+                                            vec3<double>(1.0, 2.0, 3.0) });
+        contour.closed = false;
+        auto f = [](const vec3<double> &r, const vec3<double> &, const vec3<double> &, const vec3<double> &) -> double {
+            const double x = r.x, y = r.y, z = r.z;
+            return x * std::exp(y * z);
+        };
+        const double result = contour.Integrate_Simple_Scalar_Kernel(f);
+        const double expected = std::sqrt(14.0) * (std::exp(6.0) - 1.0) / 12.0;
+        const double rel_tolerance = 1e-6;
+        const double abs_tolerance_min = 1e-9;
+        double tolerance = std::abs(expected) * rel_tolerance;
+        if (tolerance < abs_tolerance_min) {
+            tolerance = abs_tolerance_min;
+        }
+        REQUIRE(std::abs(result - expected) < tolerance);
+    }
+
+    SUBCASE("contour equality"){
+        contour_of_points<double> contour({ vec3<double>(1.0/9.0, 10.0, 0.0),
+                                            vec3<double>(0.0, 10.0, 0.0),
+                                            vec3<double>(0.0, -72.123, 0.0),
+                                            vec3<double>(5.0, 0.0, 0.0) });
+        contour.closed = true;
+
+        contour_of_points<double> contour2({ vec3<double>(5.0, 10.0, 0.0),
+                                             vec3<double>(0.1, 10.0, 0.0),
+                                             vec3<double>(0.0, 0.0, 0.0),
+                                             vec3<double>(5.0, 0.0, 0.0) });
+        contour2.closed = true;
+
+        contour_of_points<double> contour_same = contour;
+        contour_of_points<double> contour2_same = contour2;
+
+        REQUIRE(contour == contour_same);
+        REQUIRE(contour2 == contour2_same);
+        REQUIRE_FALSE(contour == contour2);
+    }
+
+    SUBCASE("string write/load round-trip"){
+        const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+        contour_of_points<double> contour({ vec3<double>(1.0/9.0, 10.0, 0.0),
+                                            vec3<double>(0.0, 10.0, 0.0),
+                                            vec3<double>(0.0, -72.123, 0.0),
+                                            vec3<double>(5.0, 0.0, 0.0) });
+        contour.closed = true;
+
+        auto stringified = contour.write_to_string();
+        contour_of_points<double> reloaded;
+        REQUIRE(reloaded.load_from_string(stringified));
+        REQUIRE(reloaded.eps_equal(contour, eps));
+    }
+
+    SUBCASE("line_segment Sample_With_Spacing"){
+        const vec3<double> A(10.0, 0.0, 0.0);
+        const vec3<double> B(11.0, 0.0, 0.0);
+        const line_segment<double> line(A, B);
+
+        double spacing = 0.3, offset = 0.05, remain = 0.0;
+        auto somepoints = line.Sample_With_Spacing(spacing, offset, remain);
+        REQUIRE(somepoints.size() == 4);
+    }
+}

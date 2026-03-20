@@ -174,3 +174,36 @@ TEST_CASE( "Get_Parent_Directory" ){
     }
 }
 
+
+TEST_CASE( "Generate_Random_String_of_Length" ){
+
+    SUBCASE("returns correct length"){
+        const auto s = Generate_Random_String_of_Length(100);
+        REQUIRE( s.size() == 100 );
+    }
+
+    SUBCASE("returns non-empty string"){
+        const auto s = Generate_Random_String_of_Length(1);
+        REQUIRE( !s.empty() );
+    }
+
+    SUBCASE("zero-length string"){
+        const auto s = Generate_Random_String_of_Length(0);
+        REQUIRE( s.empty() );
+    }
+
+    SUBCASE("different strings are generated"){
+        // Generate several strings and verify they are not all identical.
+        const size_t N = 20;
+        std::string first = Generate_Random_String_of_Length(50);
+        bool found_different = false;
+        for(size_t i = 1; i < N; ++i){
+            if(Generate_Random_String_of_Length(50) != first){
+                found_different = true;
+                break;
+            }
+        }
+        REQUIRE( found_different );
+    }
+}
+
