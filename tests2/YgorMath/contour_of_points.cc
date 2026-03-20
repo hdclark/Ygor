@@ -58,3 +58,58 @@ TEST_CASE( "contour_of_points::Get_Signed_Area" ){
 
 }
 
+TEST_CASE( "contour_of_points integration and utilities" ){
+
+    SUBCASE("textbook line integral Q11 p1107"){
+        contour_of_points<double> contour({ vec3<double>(0.0, 0.0, 0.0),
+                                            vec3<double>(1.0, 2.0, 3.0) });
+        contour.closed = false;
+        auto f = [](const vec3<double> &r, const vec3<double> &, const vec3<double> &, const vec3<double> &) -> double {
+            const double x = r.x, y = r.y, z = r.z;
+            return x * std::exp(y * z);
+        };
+        const double result = contour.Integrate_Simple_Scalar_Kernel(f);
+        const double expected = std::sqrt(14.0) * (std::exp(6.0) - 1.0) / 12.0;
+        REQUIRE(std::abs(result - expected) < 1.0);
+    }
+
+    SUBCASE("contour equality"){
+        contour_of_points<double> contour({ vec3<double>(1.0/9.0, 10.0, 0.0),
+                                            vec3<double>(0.0, 10.0, 0.0),
+                                            vec3<double>(0.0, -72.123, 0.0),
+                                            vec3<double>(5.0, 0.0, 0.0) });
+        contour.closed = true;
+
+        contour_of_points<double> contour2({ vec3<double>(5.0, 10.0, 0.0),
+                                             vec3<double>(0.1, 10.0, 0.0),
+                                             vec3<double>(0.0, 0.0, 0.0),
+                                             vec3<double>(5.0, 0.0, 0.0) });
+        contour2.closed = true;
+
+        REQUIRE(contour == contour);
+        REQUIRE(contour2 == contour2);
+        REQUIRE_FALSE(contour == contour2);
+    }
+
+    SUBCASE("string write/load round-trip"){
+        contour_of_points<double> contour({ vec3<double>(1.0/9.0, 10.0, 0.0),
+                                            vec3<double>(0.0, 10.0, 0.0),
+                                            vec3<double>(0.0, -72.123, 0.0),
+                                            vec3<double>(5.0, 0.0, 0.0) });
+        contour.closed = true;
+
+        auto stringified = contour.write_to_string();
+        REQUIRE(contour.load_from_string(stringified));
+    }
+
+    SUBCASE("line_segment Sample_With_Spacing"){
+        const vec3<double> A(10.0, 0.0, 0.0);
+        const vec3<double> B(11.0, 0.0, 0.0);
+        const line_segment<double> line(A, B);
+
+        double spacing = 0.3, offset = 0.05, remain = 0.0;
+        auto somepoints = line.Sample_With_Spacing(spacing, offset, remain);
+        REQUIRE(somepoints.size() == 4);
+    }
+}
+
