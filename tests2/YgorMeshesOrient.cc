@@ -195,10 +195,10 @@ TEST_CASE( "YgorMeshesOrient" ){
             vec3<double>(0.5, 1.0, 0.0),
             vec3<double>(1.5, 1.0, 0.0)
         };
-        // Two triangles sharing edge (1,2). Second face intentionally reversed.
+        // Two triangles sharing edge (1,2). Second face intentionally inconsistent so OrientFaces() must flip it.
         mesh.faces = {
             { 0, 1, 2 },
-            { 1, 3, 2 }   // reversed → should share edge (1,2) in same direction
+            { 1, 2, 3 }   // shares edge (1,2) in same direction as first face
         };
 
         REQUIRE(OrientFaces(mesh) == true);
