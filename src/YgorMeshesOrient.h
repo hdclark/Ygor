@@ -26,7 +26,7 @@
 //   3. Seed Selection (Bounding-Box Heuristic): The seed face for each patch
 //      is chosen as the face whose centroid is closest to one of the six axis-
 //      aligned bounding-box faces. Its orientation is set so the face normal
-//      points outward (away from the mesh centroid).
+//      points outward relative to the corresponding bounding-box face normal.
 //
 //   4. Global Consistency (Ray Casting): For disconnected patches, a ray is
 //      cast from each patch's representative face centroid along its normal.
