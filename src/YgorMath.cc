@@ -6317,10 +6317,8 @@ fv_surface_mesh<T,I>::compute_vertex_normals(void){
         return;
     }
 
-    // Rebuild the involved-faces index if it is stale or absent.
-    if(this->involved_faces.size() != this->vertices.size()){
-        this->recreate_involved_face_index();
-    }
+    // Rebuild the involved-faces index to ensure it is never stale.
+    this->recreate_involved_face_index();
 
     const auto N_verts = this->vertices.size();
     this->vertex_normals.assign(N_verts, vec3<T>(static_cast<T>(0),
