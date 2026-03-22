@@ -46,6 +46,7 @@ g++ \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
   YgorMeshesRefinement.cc \
+  YgorMeshesOrient.cc \
   YgorMeshesRemeshing.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \

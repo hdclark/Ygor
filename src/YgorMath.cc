@@ -6308,6 +6308,71 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
 #endif
 
 
+// Re-compute this->vertex_normals from current face orientations.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::compute_vertex_normals(void){
+    if(this->vertices.empty()){
+        this->vertex_normals.clear();
+        return;
+    }
+
+    // Rebuild the involved-faces index to ensure it is never stale.
+    this->recreate_involved_face_index();
+
+    const auto N_verts = this->vertices.size();
+    this->vertex_normals.assign(N_verts, vec3<T>(static_cast<T>(0),
+                                                  static_cast<T>(0),
+                                                  static_cast<T>(0)));
+
+    for(size_t v = 0UL; v < N_verts; ++v){
+        vec3<T> accum(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
+        for(const auto &f_idx : this->involved_faces[v]){
+            const auto &fv = this->faces.at(f_idx);
+            if(fv.size() < 3UL) continue;
+
+            // Compute an area-weighted face normal. For polygonal faces (size > 3),
+            // triangulate using a fan around the first vertex fv[0] and sum the
+            // triangle normals.
+            const auto &P0 = this->vertices.at(fv[0]);
+            vec3<T> face_normal_sum(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
+
+            for(std::size_t i = 1UL; i + 1UL < fv.size(); ++i){
+                const auto &Pi   = this->vertices.at(fv[i]);
+                const auto &Pip1 = this->vertices.at(fv[i + 1UL]);
+
+                // The cross product gives a vector whose length is twice the
+                // triangle area, so it naturally provides area-weighting.
+                const auto tri_normal = (Pi - P0).Cross(Pip1 - P0);
+
+                // Skip degenerate (zero-area) triangles.
+                if(tri_normal.sq_length() <= static_cast<T>(0)) continue;
+
+                face_normal_sum += tri_normal;
+            }
+
+            // Skip degenerate (zero-area) faces.
+            if(face_normal_sum.sq_length() <= static_cast<T>(0)) continue;
+
+            accum += face_normal_sum;
+        }
+
+        const auto len_sq = accum.sq_length();
+        if(len_sq > static_cast<T>(0)){
+            this->vertex_normals[v] = accum * (static_cast<T>(1) / std::sqrt(len_sq));
+        }
+        // else: leave as zero vector for isolated / degenerate vertices.
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::compute_vertex_normals(void);
+    template void fv_surface_mesh<float , uint64_t >::compute_vertex_normals(void);
+
+    template void fv_surface_mesh<double, uint32_t >::compute_vertex_normals(void);
+    template void fv_surface_mesh<double, uint64_t >::compute_vertex_normals(void);
+#endif
+
+
 // Eliminates duplicate overlapping vertices.
 template <class T, class I>
 void

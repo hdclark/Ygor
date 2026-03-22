@@ -596,6 +596,13 @@ template <class T, class I>   class fv_surface_mesh {
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);
 
+        // Re-compute this->vertex_normals using the current face orientations.
+        //
+        // Each vertex normal is the area-weighted average of the face normals of all
+        // incident faces. The involved_faces index is rebuilt if needed.
+        // Degenerate faces (zero-area) are skipped during accumulation.
+        void compute_vertex_normals(void);
+
         // Eliminates duplicate overlapping vertices.
         // Corresponding normals are removed.
         void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) );
