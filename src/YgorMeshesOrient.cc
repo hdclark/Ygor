@@ -293,25 +293,10 @@ OrientFaces(fv_surface_mesh<T,I> &fvsm,
     // -----------------------------------------------------------------------
     // 3. Bounding-box seed heuristic: For each patch, pick the face whose
     //    centroid is closest to one of the 6 axis-aligned bounding-box faces,
-    //    and orient it so its normal points outward (away from mesh centroid).
-    //    Then propagate that choice to the rest of the patch.
+    //    and orient it so its normal points outward, according to that
+    //    bounding-box face's normal. Then propagate that choice to the rest
+    //    of the patch.
     // -----------------------------------------------------------------------
-
-    // Compute mesh centroid.
-    vec3<T> mesh_centroid(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
-    {
-        size_t count = 0UL;
-        for(const auto &v : fvsm.vertices){
-            if(v.isfinite()){
-                mesh_centroid += v;
-                ++count;
-            }
-        }
-        if(count > 0UL){
-            mesh_centroid = mesh_centroid * (static_cast<T>(1) / static_cast<T>(count));
-        }
-    }
-
     // Compute AABB.
     vec3<T> bb_min( std::numeric_limits<T>::max(),
                     std::numeric_limits<T>::max(),
