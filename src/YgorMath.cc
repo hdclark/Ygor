@@ -6333,18 +6333,30 @@ fv_surface_mesh<T,I>::compute_vertex_normals(void){
             const auto &fv = this->faces.at(f_idx);
             if(fv.size() < 3UL) continue;
 
-            const auto &P_A = this->vertices.at(fv[0]);
-            const auto &P_B = this->vertices.at(fv[1]);
-            const auto &P_C = this->vertices.at(fv[2]);
+            // Compute an area-weighted face normal. For polygonal faces (size > 3),
+            // triangulate using a fan around the first vertex fv[0] and sum the
+            // triangle normals.
+            const auto &P0 = this->vertices.at(fv[0]);
+            vec3<T> face_normal_sum(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
 
-            // The cross product gives a vector whose length is twice the
-            // triangle area, so it naturally provides area-weighting.
-            const auto face_normal = (P_B - P_A).Cross(P_C - P_A);
+            for(std::size_t i = 1UL; i + 1UL < fv.size(); ++i){
+                const auto &Pi   = this->vertices.at(fv[i]);
+                const auto &Pip1 = this->vertices.at(fv[i + 1UL]);
+
+                // The cross product gives a vector whose length is twice the
+                // triangle area, so it naturally provides area-weighting.
+                const auto tri_normal = (Pi - P0).Cross(Pip1 - P0);
+
+                // Skip degenerate (zero-area) triangles.
+                if(tri_normal.sq_length() <= static_cast<T>(0)) continue;
+
+                face_normal_sum += tri_normal;
+            }
 
             // Skip degenerate (zero-area) faces.
-            if(face_normal.sq_length() <= static_cast<T>(0)) continue;
+            if(face_normal_sum.sq_length() <= static_cast<T>(0)) continue;
 
-            accum += face_normal;
+            accum += face_normal_sum;
         }
 
         const auto len_sq = accum.sq_length();
