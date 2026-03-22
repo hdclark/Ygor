@@ -6308,6 +6308,61 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
 #endif
 
 
+// Re-compute this->vertex_normals from current face orientations.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::compute_vertex_normals(void){
+    if(this->vertices.empty()){
+        this->vertex_normals.clear();
+        return;
+    }
+
+    // Rebuild the involved-faces index if it is stale or absent.
+    if(this->involved_faces.size() != this->vertices.size()){
+        this->recreate_involved_face_index();
+    }
+
+    const auto N_verts = this->vertices.size();
+    this->vertex_normals.assign(N_verts, vec3<T>(static_cast<T>(0),
+                                                  static_cast<T>(0),
+                                                  static_cast<T>(0)));
+
+    for(size_t v = 0UL; v < N_verts; ++v){
+        vec3<T> accum(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
+        for(const auto &f_idx : this->involved_faces[v]){
+            const auto &fv = this->faces.at(f_idx);
+            if(fv.size() < 3UL) continue;
+
+            const auto &P_A = this->vertices.at(fv[0]);
+            const auto &P_B = this->vertices.at(fv[1]);
+            const auto &P_C = this->vertices.at(fv[2]);
+
+            // The cross product gives a vector whose length is twice the
+            // triangle area, so it naturally provides area-weighting.
+            const auto face_normal = (P_B - P_A).Cross(P_C - P_A);
+
+            // Skip degenerate (zero-area) faces.
+            if(face_normal.sq_length() <= static_cast<T>(0)) continue;
+
+            accum += face_normal;
+        }
+
+        const auto len_sq = accum.sq_length();
+        if(len_sq > static_cast<T>(0)){
+            this->vertex_normals[v] = accum * (static_cast<T>(1) / std::sqrt(len_sq));
+        }
+        // else: leave as zero vector for isolated / degenerate vertices.
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::compute_vertex_normals(void);
+    template void fv_surface_mesh<float , uint64_t >::compute_vertex_normals(void);
+
+    template void fv_surface_mesh<double, uint32_t >::compute_vertex_normals(void);
+    template void fv_surface_mesh<double, uint64_t >::compute_vertex_normals(void);
+#endif
+
+
 // Eliminates duplicate overlapping vertices.
 template <class T, class I>
 void
