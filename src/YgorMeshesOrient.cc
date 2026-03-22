@@ -134,13 +134,26 @@ vec3<T>
 face_normal(const fv_surface_mesh<T,I> &fvsm,
             size_t f_idx){
     const auto &fv = fvsm.faces[f_idx];
-    if(fv.size() < 3UL) return vec3<T>(static_cast<T>(0),
-                                         static_cast<T>(0),
-                                         static_cast<T>(0));
+    if(fv.size() < 3UL){
+        return vec3<T>(static_cast<T>(0),
+                       static_cast<T>(0),
+                       static_cast<T>(0));
+    }
+
+    // Compute an area-weighted polygon normal by summing triangle-fan cross products.
+    // This reduces to the original behaviour for triangular faces.
     const auto &A = fvsm.vertices[fv[0]];
-    const auto &B = fvsm.vertices[fv[1]];
-    const auto &C = fvsm.vertices[fv[2]];
-    return (B - A).Cross(C - A);
+    vec3<T> n(static_cast<T>(0),
+              static_cast<T>(0),
+              static_cast<T>(0));
+
+    for(size_t i = 1UL; i + 1UL < fv.size(); ++i){
+        const auto &B = fvsm.vertices[fv[i]];
+        const auto &C = fvsm.vertices[fv[i + 1UL]];
+        n += (B - A).Cross(C - A);
+    }
+
+    return n;
 }
 
 // Compute face centroid.
