@@ -405,6 +405,7 @@ template <class T>   class contour_of_points {
 
         contour_of_points & operator= (const contour_of_points &);
         bool operator==(const contour_of_points &) const; //Attempts to compare global contour, without disregarding location of first point within the contour.
+        bool eps_equal(const contour_of_points &, T eps = std::sqrt(std::numeric_limits<T>::epsilon())) const;
         bool operator!=(const contour_of_points &) const;
         bool operator< (const contour_of_points &) const; //This is mostly for sorting / placing into a std::map. There is no great 
                                                           // way to define '<' for a contour, so be careful with it. This is designed to be fast, not reliable!

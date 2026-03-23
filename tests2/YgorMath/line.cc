@@ -302,3 +302,13 @@ TEST_CASE( "line_segment Closest_Point_To_Line" ){
     }
 }
 
+TEST_CASE("line_segment Sample_With_Spacing"){
+    const vec3<double> A(10.0, 0.0, 0.0);
+    const vec3<double> B(11.0, 0.0, 0.0);
+    const line_segment<double> line(A, B);
+
+    double spacing = 0.3, offset = 0.05, remain = 0.0;
+    auto somepoints = line.Sample_With_Spacing(spacing, offset, remain);
+    REQUIRE(somepoints.size() == 4);
+}
+

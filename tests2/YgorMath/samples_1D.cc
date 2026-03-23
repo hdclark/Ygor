@@ -100,3 +100,291 @@ TEST_CASE( "samples_1D median" ){
         REQUIRE( std::abs(test.Median_y()[0] - 5.0) < eps );
     }
 }
+
+
+TEST_CASE( "samples_1D linear interpolation" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    SUBCASE("lowest-x first orientation"){
+        samples_1D<double> testarray( { vec2<double>(0.0, 0.0),
+                                        vec2<double>(1.0, 1.0),
+                                        vec2<double>(2.0, 0.0),
+                                        vec2<double>(3.0, 2.0) } );
+
+        REQUIRE( std::abs(testarray.Interpolate_Linearly(-1E9)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 0.0)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 0.5)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1.0)[2] - 1.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1.5)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 2.0)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly(2.25)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 3.0)[2] - 2.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1E9)[2] - 0.0) < eps );
+    }
+
+    SUBCASE("lowest-x last orientation (auto-sorted)"){
+        samples_1D<double> testarray( { vec2<double>(3.0, 2.0),
+                                        vec2<double>(2.0, 0.0),
+                                        vec2<double>(1.0, 1.0),
+                                        vec2<double>(0.0, 0.0) } );
+
+        REQUIRE( std::abs(testarray.Interpolate_Linearly(-1E9)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 0.0)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 0.5)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1.0)[2] - 1.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1.5)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 2.0)[2] - 0.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly(2.25)[2] - 0.5) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 3.0)[2] - 2.0) < eps );
+        REQUIRE( std::abs(testarray.Interpolate_Linearly( 1E9)[2] - 0.0) < eps );
+    }
+}
+
+
+TEST_CASE( "samples_1D overlap integration" ){
+    const double tol = 0.01;
+    const auto pi = std::acos(-1.0);
+
+    SUBCASE("rectangle overlap is 1.0"){
+        samples_1D<double> f( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0) } );
+        samples_1D<double> g( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0) } );
+
+        REQUIRE( std::abs(f.Integrate_Overlap(g)[0] - 1.0) < tol );
+        REQUIRE( std::abs(g.Integrate_Overlap(f)[0] - 1.0) < tol );
+    }
+
+    SUBCASE("rectangle overlap backwards-defined g is 1.0"){
+        samples_1D<double> f( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0) } );
+        samples_1D<double> g( { vec2<double>(1.0, 1.0),
+                                vec2<double>(0.0, 1.0) } );
+
+        REQUIRE( std::abs(f.Integrate_Overlap(g)[0] - 1.0) < tol );
+        REQUIRE( std::abs(g.Integrate_Overlap(f)[0] - 1.0) < tol );
+    }
+
+    SUBCASE("wider f with partial overlap g is 1.0"){
+        samples_1D<double> f( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0),
+                                vec2<double>(2.0, 1.0),
+                                vec2<double>(3.0, 1.0) } );
+        samples_1D<double> g( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0) } );
+
+        REQUIRE( std::abs(f.Integrate_Overlap(g)[0] - 1.0) < tol );
+        REQUIRE( std::abs(g.Integrate_Overlap(f)[0] - 1.0) < tol );
+    }
+
+    SUBCASE("sin*cos over [0,2pi] is ~0"){
+        samples_1D<double> f, g;
+        for(auto x = 0.0; x < 2.0 * pi; x += 0.005){
+            f.push_back( vec2<double>( x, std::sin(x) ) );
+            g.push_back( vec2<double>( x, std::cos(x) ) );
+        }
+
+        REQUIRE( std::abs(f.Integrate_Overlap(g)[0]) < tol );
+        REQUIRE( std::abs(g.Integrate_Overlap(f)[0]) < tol );
+    }
+
+    SUBCASE("complex trig overlap ~3.2866"){
+        samples_1D<double> f, g;
+        for(auto x = 0.0; x < 2.0 * pi; x += 0.005){
+            f.push_back( vec2<double>( x, std::sin(x)*std::sin(x) + std::cos(x)*std::sin(x+0.1) ) );
+            g.push_back( vec2<double>( x, std::sin(x+0.3) + std::cos(x/10.0) ) );
+        }
+
+        REQUIRE( std::abs(f.Integrate_Overlap(g)[0] - 3.2866) < tol );
+        REQUIRE( std::abs(g.Integrate_Overlap(f)[0] - 3.2866) < tol );
+    }
+}
+
+
+TEST_CASE( "samples_1D normalization" ){
+    const double tol = 0.01;
+
+    SUBCASE("self-overlap after normalization is 1.0"){
+        samples_1D<double> f( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0),
+                                vec2<double>(2.0, 1.0),
+                                vec2<double>(3.0, 1.0) } );
+
+        f.Normalize_wrt_Self_Overlap();
+        REQUIRE( std::abs(f.Integrate_Overlap(f)[0] - 1.0) < tol );
+    }
+
+    SUBCASE("normalization with uncertainties"){
+        samples_1D<double> f( { { -1.0, 1.0, 0.0, 1.0 },
+                                {  0.0, 0.5, 1.0, 0.3 },
+                                {  1.0, 2.5, 2.0, 1.3 },
+                                {  2.0, 0.1, 4.0, 0.1 } } );
+
+        f.Normalize_wrt_Self_Overlap();
+        REQUIRE( std::abs(f.Integrate_Overlap(f)[0] - 1.0) < tol );
+    }
+}
+
+//Test the spearman rank correlation.
+TEST_CASE( "spearman rank correlation" ){
+    SUBCASE(" example 1 "){
+        class samples_1D<double> dat({ vec2<double>( 0.8,  1.0),
+                                       vec2<double>( 1.2,  2.0),
+                                       vec2<double>( 1.2,  3.0),
+                                       vec2<double>( 2.3,  4.0),
+                                       vec2<double>(18.0,  5.0) });
+
+        const auto stats = dat.Spearmans_Rank_Correlation_Coefficient();
+        const auto r = std::get<0>(stats);
+        const auto N_samples = std::get<1>(stats);
+        REQUIRE( std::abs(r - 0.9747) < 0.001 );
+        REQUIRE( N_samples == 5UL );
+    }
+
+    SUBCASE(" example 2 "){
+        class samples_1D<double> dat({ vec2<double>(106.0,  7.0),
+                                       vec2<double>( 86.0,  0.0),
+                                       vec2<double>(100.0, 27.0),
+                                       vec2<double>(101.0, 50.0),
+                                       vec2<double>( 99.0, 28.0),
+                                       vec2<double>(103.0, 29.0),
+                                       vec2<double>( 97.0, 20.0),
+                                       vec2<double>(113.0, 12.0),
+                                       vec2<double>(112.0,  6.0),
+                                       vec2<double>(110.0, 17.0) });
+
+        const auto stats = dat.Spearmans_Rank_Correlation_Coefficient();
+        const auto r = std::get<0>(stats);
+        const auto N_samples = std::get<1>(stats);
+        REQUIRE( std::abs(r - (-0.1758)) < 0.001 );
+        REQUIRE( N_samples == 10UL );
+    }
+}
+
+
+TEST_CASE( "samples_1D summation" ){
+    const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
+
+    SUBCASE("sum of two identical constant functions produces doubled values"){
+        samples_1D<double> f( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0),
+                                vec2<double>(2.0, 1.0),
+                                vec2<double>(3.0, 1.0) } );
+        samples_1D<double> g( { vec2<double>(0.0, 1.0),
+                                vec2<double>(1.0, 1.0),
+                                vec2<double>(2.0, 1.0),
+                                vec2<double>(3.0, 1.0) } );
+
+        auto h = f.Sum_With(g);
+        REQUIRE( h.samples.size() == 4 );
+        for(const auto &s : h.samples){
+            REQUIRE( std::abs(s[2] - 2.0) < eps );
+        }
+    }
+}
+
+
+TEST_CASE( "samples_1D linear least-squares regression" ){
+    const auto tol = 0.1;
+
+    SUBCASE("known regression values, zero uncertainties"){
+        samples_1D<double> dat({ { vec2<double>( 1.00, 2.0000 ) },
+                                 { vec2<double>( 1.05, 3.0500 ) },
+                                 { vec2<double>( 1.10, 10.600 ) },
+                                 { vec2<double>( 1.40, 1000.0 ) } });
+        auto res = dat.Linear_Least_Squares_Regression();
+
+        REQUIRE( std::abs(res.slope - 2699.98) < tol );
+        REQUIRE( std::abs(res.sigma_slope - 431.2) < tol );
+        REQUIRE( std::abs(res.intercept - (-2817.32)) < tol );
+        //REQUIRE( std::abs(res.sigma_intercept - 495.1) < tol );
+        REQUIRE( res.N == 4 );
+        REQUIRE( res.dof == 2 );
+        REQUIRE( std::abs(res.sigma_f - 134.2215) < tol );
+        REQUIRE( std::abs(res.covariance - 65.39016) < tol );
+        REQUIRE( std::abs(res.lin_corr - 0.975) < tol/100.0 );
+        REQUIRE( std::abs(res.tvalue - 6.261) < tol/10.0 );
+    }
+
+    SUBCASE("known regression values, explicitly zero uncertainties"){
+        samples_1D<double> dat({ { 1.00, 0.00, 2.0000, 0.00 },
+                                 { 1.05, 0.00, 3.0500, 0.00 },
+                                 { 1.10, 0.00, 10.600, 0.00 },
+                                 { 1.40, 0.00, 1000.0, 0.00 } });
+        auto res = dat.Weighted_Linear_Least_Squares_Regression();
+
+        REQUIRE( std::abs(res.slope - 2699.98) < tol );
+        REQUIRE( std::abs(res.sigma_slope - 0.0) < tol );
+        REQUIRE( std::abs(res.intercept - (-2817.32)) < tol );
+        REQUIRE( std::abs(res.sigma_intercept - 0.0) < tol );
+        REQUIRE( res.N == 4 );
+        REQUIRE( res.dof == 2 );
+        REQUIRE( std::abs(res.sigma_f - 134.2215) < tol );
+        REQUIRE( std::abs(res.covariance - 65.39016) < tol );
+        REQUIRE( std::abs(res.lin_corr - 0.975) < tol/100.0 );
+    }
+
+    SUBCASE("known regression values, uniform non-zero sigma_f_i uncertainties"){
+        samples_1D<double> dat({ { 1.00, 0.00, 2.0000, 1.00 },
+                                 { 1.05, 0.00, 3.0500, 1.00 },
+                                 { 1.10, 0.00, 10.600, 1.00 },
+                                 { 1.40, 0.00, 1000.0, 1.00 } });
+        auto res = dat.Weighted_Linear_Least_Squares_Regression();
+
+        REQUIRE( std::abs(res.slope - 2699.98) < tol );
+        REQUIRE( std::abs(res.sigma_slope - 3.21288) < tol );
+        REQUIRE( std::abs(res.intercept - (-2817.32)) < tol );
+        REQUIRE( std::abs(res.sigma_intercept - 3.68869) < tol );
+        REQUIRE( res.N == 4 );
+        REQUIRE( res.dof == 2 );
+        //REQUIRE( std::abs(res.sigma_f - 134.2215) < tol );
+        REQUIRE( std::abs(res.covariance - 65.39016) < tol );
+        REQUIRE( std::abs(res.lin_corr - 0.975) < tol/100.0 );
+    }
+}
+
+
+TEST_CASE( "samples_1D Integrate_Over_Kernel_exp" ){
+    const double tol = 0.01;
+    const auto pi = std::acos(-1.0);
+
+    SUBCASE("expected value ~3.9356"){
+        const bool inhibit_sort = true;
+        samples_1D<double> f;
+        double dx = 0.01;
+        for(auto x = 0.0; x < 2.0 * pi; x += dx){
+            const auto f_at_x = std::sin(x)*std::sin(x) + std::cos(x)*std::sin(x+0.1)
+                              + std::sin(x+0.3) + std::cos(x/10.0);
+            f.push_back( { x, 0.5*dx, f_at_x, f_at_x*0.1 }, inhibit_sort );
+        }
+        f.uncertainties_known_to_be_independent_and_random = true;
+
+        const auto F = f.Integrate_Over_Kernel_exp(0.0, 2.0*pi, { -0.5, 0.1 }, { 0.0, 0.01 });
+        REQUIRE( std::abs(F[0] - 3.9356) < tol );
+    }
+}
+
+
+TEST_CASE( "samples_1D Mean and Average" ){
+    const double tol = 0.01;
+
+    SUBCASE("Mean_x, Mean_y, Average_x, Average_y"){
+        samples_1D<double> f( { { 0.5, 0.0, 1.1, 0.0 },
+                                { 1.0, 0.0, 1.5, 0.0 },
+                                { 1.1, 0.0, 1.2, 0.0 },
+                                { 3.5, 0.0, 1.3, 0.0 } } );
+        const auto meanx = f.Mean_x();
+        const auto avgx  = f.Average_x();
+        const auto meany = f.Mean_y();
+        const auto avgy  = f.Average_y();
+
+        // Mean_x = (0.5+1.0+1.1+3.5)/4 = 1.525
+        REQUIRE( std::abs(meanx[0] - 1.525) < tol );
+        // Mean_y = (1.1+1.5+1.2+1.3)/4 = 1.275
+        REQUIRE( std::abs(meany[0] - 1.275) < tol );
+        // Average_x should also be defined
+        REQUIRE( std::abs(avgx[0] - 1.525) < tol );
+        // Average_y
+        REQUIRE( std::abs(avgy[0] - 1.275) < tol );
+    }
+}

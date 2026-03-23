@@ -22,6 +22,8 @@ wget -q 'https://raw.githubusercontent.com/onqtam/doctest/master/doctest/doctest
 g++ \
   -std=c++17 \
   -Wall \
+  -Wno-unused-variable \
+  -Wno-unused-value \
   -I. \
   Main.cc \
   \
@@ -45,12 +47,14 @@ g++ \
   YgorMathIOXYZ.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
-  YgorMeshesRefinement.cc \
   YgorMeshesOrient.cc \
+  YgorMeshesRefinement.cc \
   YgorMeshesRemeshing.cc \
+  YgorNoise.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
   YgorOptimizeSA.cc \
+  YgorSerialize.cc \
   YgorStats.cc \
   YgorStatsCITrees.cc \
   YgorStatsConditionalForests.cc \
@@ -66,4 +70,3 @@ rm -rf doctest/
 ./run_tests #--success
 
 rm ./run_tests
-
