@@ -481,7 +481,9 @@ void ConvexHull<T>::incorporate_point(uint64_t idx) {
     std::vector<std::pair<uint64_t,uint64_t>> horizon;
     horizon.reserve(visible.size() * 3);
 
-    std::unordered_set<uint64_t> visible_set(visible.begin(), visible.end());
+    std::unordered_set<uint64_t> visible_set;
+    visible_set.reserve(visible.size());
+    visible_set.insert(visible.begin(), visible.end());
 
     for(auto fi : visible){
         const auto &f = m_faces[fi];
