@@ -4,6 +4,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <functional>
+#include <future>
 #include <limits>
 #include <map>
 #include <set>
@@ -307,11 +309,11 @@ template double orient3d(const double*, const double*, const double*, const doub
 
 
 // ============================================================================
-// ConvexHull implementation.
+// IncrementalConvexHull implementation.
 // ============================================================================
 
 template <class T>
-ConvexHull<T>::ConvexHull()
+IncrementalConvexHull<T>::IncrementalConvexHull()
     // Perturbation magnitude: ~1024 machine-epsilon.  This is small enough to
     // be invisible at typical geometric scales, but large enough to reliably
     // break exact coplanar / collinear degeneracies.
@@ -320,7 +322,7 @@ ConvexHull<T>::ConvexHull()
 }
 
 template <class T>
-T ConvexHull<T>::rng_uniform() {
+T IncrementalConvexHull<T>::rng_uniform() {
     // xorshift64.
     m_rng_state ^= (m_rng_state << 13);
     m_rng_state ^= (m_rng_state >> 7);
@@ -329,7 +331,7 @@ T ConvexHull<T>::rng_uniform() {
 }
 
 template <class T>
-T ConvexHull<T>::orient(uint64_t a, uint64_t b, uint64_t c, uint64_t d) const {
+T IncrementalConvexHull<T>::orient(uint64_t a, uint64_t b, uint64_t c, uint64_t d) const {
     const T pa[3] = { m_points[a].x, m_points[a].y, m_points[a].z };
     const T pb[3] = { m_points[b].x, m_points[b].y, m_points[b].z };
     const T pc[3] = { m_points[c].x, m_points[c].y, m_points[c].z };
@@ -338,7 +340,7 @@ T ConvexHull<T>::orient(uint64_t a, uint64_t b, uint64_t c, uint64_t d) const {
 }
 
 template <class T>
-void ConvexHull<T>::register_face_edges(uint64_t face_idx) {
+void IncrementalConvexHull<T>::register_face_edges(uint64_t face_idx) {
     const auto &f = m_faces[face_idx];
     for(int i = 0; i < 3; ++i){
         uint64_t a = f.verts[i];
@@ -348,7 +350,7 @@ void ConvexHull<T>::register_face_edges(uint64_t face_idx) {
 }
 
 template <class T>
-void ConvexHull<T>::unregister_face_edges(uint64_t face_idx) {
+void IncrementalConvexHull<T>::unregister_face_edges(uint64_t face_idx) {
     const auto &f = m_faces[face_idx];
     for(int i = 0; i < 3; ++i){
         uint64_t a = f.verts[i];
@@ -358,10 +360,10 @@ void ConvexHull<T>::unregister_face_edges(uint64_t face_idx) {
 }
 
 template <class T>
-uint64_t ConvexHull<T>::build_initial_simplex() {
+uint64_t IncrementalConvexHull<T>::build_initial_simplex() {
     const uint64_t N = m_points.size();
     if(N < 4){
-        throw std::runtime_error("ConvexHull: need at least 4 points.");
+        throw std::runtime_error("IncrementalConvexHull: need at least 4 points.");
     }
 
     // Find the first two distinct points.
@@ -371,7 +373,7 @@ uint64_t ConvexHull<T>::build_initial_simplex() {
         ++i1;
     }
     if(i1 >= N){
-        throw std::runtime_error("ConvexHull: all points are coincident.");
+        throw std::runtime_error("IncrementalConvexHull: all points are coincident.");
     }
 
     // Find the first point not collinear with i0, i1.
@@ -384,7 +386,7 @@ uint64_t ConvexHull<T>::build_initial_simplex() {
         ++i2;
     }
     if(i2 >= N){
-        throw std::runtime_error("ConvexHull: all points are collinear.");
+        throw std::runtime_error("IncrementalConvexHull: all points are collinear.");
     }
 
     // Find the first point not coplanar with i0, i1, i2.
@@ -419,7 +421,7 @@ uint64_t ConvexHull<T>::build_initial_simplex() {
                 }
             }
             if(!found){
-                throw std::runtime_error("ConvexHull: degenerate configuration "
+                throw std::runtime_error("IncrementalConvexHull: degenerate configuration "
                                          "even after perturbation.");
             }
         }
@@ -456,7 +458,7 @@ uint64_t ConvexHull<T>::build_initial_simplex() {
 }
 
 template <class T>
-void ConvexHull<T>::incorporate_point(uint64_t idx) {
+void IncrementalConvexHull<T>::incorporate_point(uint64_t idx) {
     // Determine visible faces.  A face is visible from point idx when
     // orient(face, idx) < 0 (the point is on the exterior side).
     std::vector<uint64_t> visible;
@@ -533,7 +535,7 @@ void ConvexHull<T>::incorporate_point(uint64_t idx) {
 }
 
 template <class T>
-uint64_t ConvexHull<T>::add_vertex(const vec3<T> &v) {
+uint64_t IncrementalConvexHull<T>::add_vertex(const vec3<T> &v) {
     uint64_t idx = m_points.size();
     uint64_t eval_idx = m_eval_counter++;
 
@@ -579,14 +581,14 @@ uint64_t ConvexHull<T>::add_vertex(const vec3<T> &v) {
 }
 
 template <class T>
-void ConvexHull<T>::add_vertices(const std::vector<vec3<T>> &verts) {
+void IncrementalConvexHull<T>::add_vertices(const std::vector<vec3<T>> &verts) {
     for(const auto &v : verts){
         add_vertex(v);
     }
 }
 
 template <class T>
-void ConvexHull<T>::rebuild_mesh() const {
+void IncrementalConvexHull<T>::rebuild_mesh() const {
     m_mesh = fv_surface_mesh<T, uint64_t>();
     m_eval_order.clear();
 
@@ -634,7 +636,7 @@ void ConvexHull<T>::rebuild_mesh() const {
 }
 
 template <class T>
-const fv_surface_mesh<T, uint64_t> & ConvexHull<T>::get_mesh() const {
+const fv_surface_mesh<T, uint64_t> & IncrementalConvexHull<T>::get_mesh() const {
     if(m_mesh_dirty){
         rebuild_mesh();
     }
@@ -642,7 +644,7 @@ const fv_surface_mesh<T, uint64_t> & ConvexHull<T>::get_mesh() const {
 }
 
 template <class T>
-const std::map<uint64_t, uint64_t> & ConvexHull<T>::get_evaluation_order() const {
+const std::map<uint64_t, uint64_t> & IncrementalConvexHull<T>::get_evaluation_order() const {
     if(m_mesh_dirty){
         rebuild_mesh();
     }
@@ -650,8 +652,122 @@ const std::map<uint64_t, uint64_t> & ConvexHull<T>::get_evaluation_order() const
 }
 
 template <class T>
-uint64_t ConvexHull<T>::num_evaluated() const {
+uint64_t IncrementalConvexHull<T>::num_evaluated() const {
     return m_eval_counter;
+}
+
+
+// ============================================================================
+// DivideAndConquerConvexHull implementation.
+// ============================================================================
+
+template <class T>
+DivideAndConquerConvexHull<T>::DivideAndConquerConvexHull() = default;
+
+template <class T>
+std::vector<vec3<T>> DivideAndConquerConvexHull<T>::base_hull(const vec3<T> *pts,
+                                                              size_t n) {
+    if(n < 4){
+        return std::vector<vec3<T>>(pts, pts + n);
+    }
+
+    IncrementalConvexHull<T> ich;
+    for(size_t i = 0; i < n; ++i){
+        ich.add_vertex(pts[i]);
+    }
+    const auto &mesh = ich.get_mesh();
+    return mesh.vertices;
+}
+
+template <class T>
+std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>> &pts,
+                                                            size_t lo, size_t hi,
+                                                            size_t depth,
+                                                            work_queue<std::function<void()>> &pool) {
+    const size_t n = hi - lo;
+    if(n <= m_base_threshold){
+        return base_hull(pts.data() + lo, n);
+    }
+
+    const size_t mid = lo + n / 2;
+
+    std::vector<vec3<T>> left_result;
+    std::vector<vec3<T>> right_result;
+
+    if(depth < m_parallel_depth){
+        // Dispatch the left sub-problem to the shared thread pool and
+        // compute the right sub-problem on the current thread.
+        std::promise<void> left_promise;
+        std::future<void> left_future = left_promise.get_future();
+
+        pool.submit_task([&, lo, mid, depth](){
+            try{
+                left_result = dc_hull(pts, lo, mid, depth + 1, pool);
+                left_promise.set_value();
+            }catch(...){
+                left_promise.set_exception(std::current_exception());
+            }
+        });
+
+        right_result = dc_hull(pts, mid, hi, depth + 1, pool);
+
+        // Wait for the left sub-problem and propagate any exception.
+        left_future.get();
+    } else {
+        // Sequential recursion at deeper levels to avoid thread oversubscription.
+        left_result  = dc_hull(pts, lo, mid, depth + 1, pool);
+        right_result = dc_hull(pts, mid, hi, depth + 1, pool);
+    }
+
+    // Merge: combine hull vertices from both sub-hulls and compute
+    // the hull of the union.
+    std::vector<vec3<T>> merged;
+    merged.reserve(left_result.size() + right_result.size());
+    merged.insert(merged.end(), left_result.begin(), left_result.end());
+    merged.insert(merged.end(), right_result.begin(), right_result.end());
+
+    return base_hull(merged.data(), merged.size());
+}
+
+template <class T>
+void DivideAndConquerConvexHull<T>::compute(const std::vector<vec3<T>> &verts) {
+    m_mesh = fv_surface_mesh<T, uint64_t>();
+
+    if(verts.size() < 4){
+        // Cannot form a 3-D hull; store whatever vertices are available
+        // but leave faces empty.
+        m_mesh.vertices.assign(verts.begin(), verts.end());
+        return;
+    }
+
+    // Make a working copy and sort along the x-axis for spatial partitioning.
+    std::vector<vec3<T>> pts(verts);
+    std::sort(pts.begin(), pts.end(), [](const vec3<T> &a, const vec3<T> &b){
+        if(a.x != b.x) return a.x < b.x;
+        if(a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    });
+
+    // Create a shared thread pool for parallel sub-problem dispatch.
+    work_queue<std::function<void()>> pool;
+
+    auto hull_verts = dc_hull(pts, 0, pts.size(), 0, pool);
+
+    // Build the final mesh from the hull vertices using the incremental
+    // algorithm.
+    if(hull_verts.size() < 4){
+        m_mesh.vertices = std::move(hull_verts);
+        return;
+    }
+
+    IncrementalConvexHull<T> ich;
+    ich.add_vertices(hull_verts);
+    m_mesh = ich.get_mesh();
+}
+
+template <class T>
+const fv_surface_mesh<T, uint64_t> & DivideAndConquerConvexHull<T>::get_mesh() const {
+    return m_mesh;
 }
 
 
@@ -660,6 +776,8 @@ uint64_t ConvexHull<T>::num_evaluated() const {
 // ============================================================================
 
 #ifndef YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
-template class ConvexHull<float>;
-template class ConvexHull<double>;
+template class IncrementalConvexHull<float>;
+template class IncrementalConvexHull<double>;
+template class DivideAndConquerConvexHull<float>;
+template class DivideAndConquerConvexHull<double>;
 #endif

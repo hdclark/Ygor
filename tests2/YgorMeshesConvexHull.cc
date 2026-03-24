@@ -88,7 +88,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     using T = double;
 
     SUBCASE("Tetrahedron (4 vertices)"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(0.0, 1.0, 0.0));
@@ -103,7 +103,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Cube (8 vertices)"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(0.0, 1.0, 0.0));
@@ -123,7 +123,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Interior point is not on hull"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // Tetrahedron.
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(2.0, 0.0, 0.0));
@@ -142,7 +142,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Coplanar points (degeneracy)"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // Four coplanar points in z=0 plane.
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
@@ -160,7 +160,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Collinear points (degeneracy)"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // Three collinear points along the x-axis.
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
@@ -176,7 +176,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("All coplanar points get nudged"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // All four initial points coplanar in z=0 plane.
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
@@ -193,7 +193,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Octahedron (6 vertices)"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>( 1.0,  0.0,  0.0));
         ch.add_vertex(vec3<T>(-1.0,  0.0,  0.0));
         ch.add_vertex(vec3<T>( 0.0,  1.0,  0.0));
@@ -210,7 +210,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("add_vertices convenience method"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         std::vector<vec3<T>> pts = {
             vec3<T>(0.0, 0.0, 0.0),
             vec3<T>(1.0, 0.0, 0.0),
@@ -227,7 +227,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Online construction: add points one by one"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // Start with a tetrahedron.
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(2.0, 0.0, 0.0));
@@ -254,7 +254,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Evaluation order tracking"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(0.0, 1.0, 0.0));
@@ -276,7 +276,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Many random points form a valid hull"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         // Simple LCG for reproducible test.
         uint64_t seed = 42;
         auto next_rand = [&]() -> T {
@@ -300,7 +300,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
 
     SUBCASE("Points on a sphere"){
         // All points on a unit sphere should all be on the hull.
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         std::vector<vec3<T>> pts;
         // Generate vertices of an icosahedron (12 vertices).
         T phi = (static_cast<T>(1) + std::sqrt(static_cast<T>(5))) / static_cast<T>(2);
@@ -327,7 +327,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Convex hull contains all input points"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         std::vector<vec3<T>> pts = {
             vec3<T>(0.0, 0.0, 0.0),
             vec3<T>(3.0, 0.0, 0.0),
@@ -344,7 +344,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Float specialization works"){
-        ConvexHull<float> ch;
+        IncrementalConvexHull<float> ch;
         ch.add_vertex(vec3<float>(0.0f, 0.0f, 0.0f));
         ch.add_vertex(vec3<float>(1.0f, 0.0f, 0.0f));
         ch.add_vertex(vec3<float>(0.0f, 1.0f, 0.0f));
@@ -356,7 +356,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Duplicate vertices are handled"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(0.0, 1.0, 0.0));
@@ -377,7 +377,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Fewer than 4 vertices throws on get_mesh"){
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         ch.add_vertex(vec3<T>(0.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(1.0, 0.0, 0.0));
         ch.add_vertex(vec3<T>(0.0, 1.0, 0.0));
@@ -392,7 +392,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         // Regression test: a grid generates many interior points.  Before
         // the alive-face tracking optimisation this was extremely slow
         // because the visibility scan iterated over dead (removed) faces.
-        ConvexHull<T> ch;
+        IncrementalConvexHull<T> ch;
         const int M = 10; // M^3 = 1000 points
         std::vector<vec3<T>> pts;
         pts.reserve(static_cast<size_t>(M * M * M));
@@ -488,5 +488,246 @@ TEST_CASE( "adaptive_predicate" ){
         T o2 = adaptive_predicate::orient3d_adaptive(a, b, c, d);
         // They should have the same sign.
         REQUIRE((o1 > 0.0) == (o2 > 0.0));
+    }
+}
+
+
+TEST_CASE( "DivideAndConquerConvexHull" ){
+    using T = double;
+
+    SUBCASE("Tetrahedron (4 vertices)"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Cube (8 vertices)"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(1.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0),
+            vec3<T>(1.0, 0.0, 1.0),
+            vec3<T>(0.0, 1.0, 1.0),
+            vec3<T>(1.0, 1.0, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 8UL);
+        REQUIRE(mesh.faces.size() == 12UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Interior point is not on hull"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(2.0, 0.0, 0.0),
+            vec3<T>(0.0, 2.0, 0.0),
+            vec3<T>(0.0, 0.0, 2.0),
+            vec3<T>(0.25, 0.25, 0.25)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Octahedron (6 vertices)"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>( 1.0,  0.0,  0.0),
+            vec3<T>(-1.0,  0.0,  0.0),
+            vec3<T>( 0.0,  1.0,  0.0),
+            vec3<T>( 0.0, -1.0,  0.0),
+            vec3<T>( 0.0,  0.0,  1.0),
+            vec3<T>( 0.0,  0.0, -1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 6UL);
+        REQUIRE(mesh.faces.size() == 8UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Many random points form a valid hull"){
+        DivideAndConquerConvexHull<T> ch;
+        uint64_t seed = 42;
+        auto next_rand = [&]() -> T {
+            seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+            return static_cast<T>((seed >> 33) & 0x7FFFFFFFULL)
+                 / static_cast<T>(0x80000000ULL) * 2.0 - 1.0;
+        };
+
+        std::vector<vec3<T>> pts;
+        for(int i = 0; i < 200; ++i){
+            pts.emplace_back(next_rand(), next_rand(), next_rand());
+        }
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() <= 200UL);
+        REQUIRE(mesh.vertices.size() >= 4UL);
+    }
+
+    SUBCASE("Convex hull contains all input points"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(3.0, 0.0, 0.0),
+            vec3<T>(0.0, 3.0, 0.0),
+            vec3<T>(0.0, 0.0, 3.0),
+            vec3<T>(1.0, 1.0, 0.5),
+            vec3<T>(0.5, 0.5, 0.5),
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_points_inside(mesh, pts);
+    }
+
+    SUBCASE("Points on a sphere"){
+        DivideAndConquerConvexHull<T> ch;
+        T phi = (static_cast<T>(1) + std::sqrt(static_cast<T>(5))) / static_cast<T>(2);
+        T a = static_cast<T>(1);
+        std::vector<vec3<T>> ico_verts = {
+            vec3<T>(-a,  phi, 0), vec3<T>( a,  phi, 0),
+            vec3<T>(-a, -phi, 0), vec3<T>( a, -phi, 0),
+            vec3<T>(0, -a,  phi), vec3<T>(0,  a,  phi),
+            vec3<T>(0, -a, -phi), vec3<T>(0,  a, -phi),
+            vec3<T>( phi, 0, -a), vec3<T>( phi, 0,  a),
+            vec3<T>(-phi, 0, -a), vec3<T>(-phi, 0,  a)
+        };
+        for(auto &v : ico_verts){
+            v = v.unit();
+        }
+        ch.compute(ico_verts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 12UL);
+        REQUIRE(mesh.faces.size() == 20UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Float specialization works"){
+        DivideAndConquerConvexHull<float> ch;
+        std::vector<vec3<float>> pts = {
+            vec3<float>(0.0f, 0.0f, 0.0f),
+            vec3<float>(1.0f, 0.0f, 0.0f),
+            vec3<float>(0.0f, 1.0f, 0.0f),
+            vec3<float>(0.0f, 0.0f, 1.0f)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+    }
+
+    SUBCASE("Coplanar points (degeneracy)"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(1.0, 1.0, 0.0),
+            vec3<T>(0.5, 0.5, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() == 5UL);
+    }
+
+    SUBCASE("Large grid (mostly interior points)"){
+        DivideAndConquerConvexHull<T> ch;
+        const int M = 10;
+        std::vector<vec3<T>> pts;
+        pts.reserve(static_cast<size_t>(M * M * M));
+        for(int i = 0; i < M; ++i){
+            for(int j = 0; j < M; ++j){
+                for(int k = 0; k < M; ++k){
+                    pts.emplace_back(static_cast<T>(i),
+                                     static_cast<T>(j),
+                                     static_cast<T>(k));
+                }
+            }
+        }
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() >= 8UL);
+
+        auto N_outer_verts = static_cast<uint64_t>((M*M-4*M)*6 + M*12);
+        REQUIRE(mesh.vertices.size() <= N_outer_verts);
+    }
+
+    SUBCASE("Fewer than 4 vertices returns no faces"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        REQUIRE(mesh.faces.empty());
+    }
+
+    SUBCASE("Duplicate vertices are handled"){
+        DivideAndConquerConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0),
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() >= 4UL);
+        REQUIRE(mesh.vertices.size() <= 6UL);
     }
 }
