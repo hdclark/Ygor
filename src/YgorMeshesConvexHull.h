@@ -6,7 +6,9 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "YgorDefinitions.h"
@@ -126,6 +128,12 @@ class ConvexHull {
 
         // Current list of faces (some may be dead / removed).
         std::vector<Face> m_faces;
+
+        // Indices of faces that are currently alive (on the hull).
+        // May contain stale entries (dead faces) that are lazily compacted
+        // when the dead fraction exceeds a threshold.
+        std::vector<uint64_t> m_alive_faces;
+        uint64_t m_alive_dead_count = 0;
 
         // Adjacency: for each directed edge (a,b), store the face index that
         // owns it.  Used for fast horizon detection.
