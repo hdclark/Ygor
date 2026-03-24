@@ -594,8 +594,9 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 ++splits;
                 changed = true;
                 
-                // Invalidate index since mesh topology changed.
+                // Invalidate index and restart to handle newly created edges.
                 m_mesh.involved_faces.clear();
+                break;  // Restart the loop with updated edge set.
             }
         }
     }

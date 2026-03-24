@@ -359,6 +359,11 @@ TEST_CASE("mesh_remesher completes in bounded time on a refined mesh"){
         // The algorithm should complete 5 iterations well within 30 seconds.
         REQUIRE(elapsed_s < 30.0);
         REQUIRE(verify_mesh_integrity(mesh));
+
+        // Verify that edge lengths are tending toward the target.
+        double mean_len = remesher.mean_edge_length();
+        REQUIRE(mean_len > 0.0);
+        REQUIRE(mean_len < 3.0 * 1.5);  // Mean should not be wildly above target.
     }
 }
 
