@@ -40,6 +40,14 @@ int64_t mesh_remesher<T, I>::remesh_iteration() {
 }
 
 template <class T, class I>
+void mesh_remesher<T, I>::ensure_involved_faces_index() {
+    if(m_mesh.involved_faces.empty() ||
+       m_mesh.involved_faces.size() != m_mesh.vertices.size()) {
+        m_mesh.recreate_involved_face_index();
+    }
+}
+
+template <class T, class I>
 std::set<std::pair<I, I>> mesh_remesher<T, I>::get_all_edges() const {
     std::set<std::pair<I, I>> edges;
     for(const auto &face : m_mesh.faces) {
@@ -58,17 +66,37 @@ std::set<std::pair<I, I>> mesh_remesher<T, I>::get_all_edges() const {
 template <class T, class I>
 std::vector<I> mesh_remesher<T, I>::get_faces_sharing_edge(I v0, I v1) const {
     std::vector<I> shared_faces;
-    for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
-        const auto &face = m_mesh.faces[f_idx];
-        bool has_v0 = false, has_v1 = false;
-        for(const auto &v : face) {
-            if(v == v0) has_v0 = true;
-            if(v == v1) has_v1 = true;
+
+    // Use the involved_faces index for O(k) lookup when available.
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v0) < m_mesh.involved_faces.size() &&
+       static_cast<size_t>(v1) < m_mesh.involved_faces.size()) {
+        // Iterate over faces incident to v0 and check if they also contain v1.
+        const auto &faces_v0 = m_mesh.involved_faces[v0];
+        for(const auto &f_idx : faces_v0) {
+            const auto &face = m_mesh.faces[f_idx];
+            for(const auto &v : face) {
+                if(v == v1) {
+                    shared_faces.push_back(f_idx);
+                    break;
+                }
+            }
         }
-        if(has_v0 && has_v1) {
-            shared_faces.push_back(static_cast<I>(f_idx));
+    } else {
+        // Fallback: iterate through all faces.
+        for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
+            const auto &face = m_mesh.faces[f_idx];
+            bool has_v0 = false, has_v1 = false;
+            for(const auto &v : face) {
+                if(v == v0) has_v0 = true;
+                if(v == v1) has_v1 = true;
+            }
+            if(has_v0 && has_v1) {
+                shared_faces.push_back(static_cast<I>(f_idx));
+            }
         }
     }
+
     return shared_faces;
 }
 
@@ -87,22 +115,39 @@ I mesh_remesher<T, I>::get_opposite_vertex(I face_idx, I v0, I v1) const {
 template <class T, class I>
 I mesh_remesher<T, I>::vertex_valence(I v_idx) const {
     std::set<I> neighbors;
-    for(const auto &face : m_mesh.faces) {
-        bool contains_v = false;
-        for(const auto &v : face) {
-            if(v == v_idx) {
-                contains_v = true;
-                break;
-            }
-        }
-        if(contains_v) {
+
+    // Use the involved_faces index for O(k) lookup when available.
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
+        const auto &incident_faces = m_mesh.involved_faces[v_idx];
+        for(const auto &f_idx : incident_faces) {
+            const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
                     neighbors.insert(v);
                 }
             }
         }
+    } else {
+        // Fallback: iterate through all faces.
+        for(const auto &face : m_mesh.faces) {
+            bool contains_v = false;
+            for(const auto &v : face) {
+                if(v == v_idx) {
+                    contains_v = true;
+                    break;
+                }
+            }
+            if(contains_v) {
+                for(const auto &v : face) {
+                    if(v != v_idx) {
+                        neighbors.insert(v);
+                    }
+                }
+            }
+        }
     }
+
     return static_cast<I>(neighbors.size());
 }
 
@@ -155,23 +200,15 @@ bool mesh_remesher<T, I>::is_boundary_vertex(I v_idx) const {
 template <class T, class I>
 vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
     vec3<T> normal(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
-    
-    for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
-        const auto &face = m_mesh.faces[f_idx];
-        if(face.size() < 3) continue;
-        
-        bool contains_v = false;
-        for(const auto &v : face) {
-            if(v == v_idx) {
-                contains_v = true;
-                break;
-            }
-        }
-        
-        if(contains_v) {
-            // Compute face normal using triangle fan decomposition.
-            // Note: While the remesher is designed for triangular meshes, this method
-            // handles arbitrary polygons for robustness in case non-triangular faces exist.
+
+    // Use the involved_faces index for O(k) lookup when available.
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
+        const auto &incident_faces = m_mesh.involved_faces[v_idx];
+        for(const auto &f_idx : incident_faces) {
+            const auto &face = m_mesh.faces[f_idx];
+            if(face.size() < 3) continue;
+
             const auto &p0 = m_mesh.vertices[face[0]];
             vec3<T> face_normal(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
             for(size_t i = 1; i + 1 < face.size(); ++i) {
@@ -179,12 +216,35 @@ vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
                 const auto &pj = m_mesh.vertices[face[i + 1]];
                 face_normal += (pi - p0).Cross(pj - p0);
             }
-            // The magnitude of the accumulated cross products is 2x the polygon area,
-            // which serves as a weight.
             normal += face_normal;
         }
+    } else {
+        // Fallback: iterate through all faces.
+        for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
+            const auto &face = m_mesh.faces[f_idx];
+            if(face.size() < 3) continue;
+
+            bool contains_v = false;
+            for(const auto &v : face) {
+                if(v == v_idx) {
+                    contains_v = true;
+                    break;
+                }
+            }
+
+            if(contains_v) {
+                const auto &p0 = m_mesh.vertices[face[0]];
+                vec3<T> face_normal(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
+                for(size_t i = 1; i + 1 < face.size(); ++i) {
+                    const auto &pi = m_mesh.vertices[face[i]];
+                    const auto &pj = m_mesh.vertices[face[i + 1]];
+                    face_normal += (pi - p0).Cross(pj - p0);
+                }
+                normal += face_normal;
+            }
+        }
     }
-    
+
     T len = normal.length();
     if(len > static_cast<T>(1e-10)) {
         normal = normal / len;
@@ -195,28 +255,44 @@ vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
 template <class T, class I>
 vec3<T> mesh_remesher<T, I>::one_ring_centroid(I v_idx) const {
     std::set<I> neighbors;
-    for(const auto &face : m_mesh.faces) {
-        bool contains_v = false;
-        for(const auto &v : face) {
-            if(v == v_idx) {
-                contains_v = true;
-                break;
-            }
-        }
-        if(contains_v) {
+
+    // Use the involved_faces index for O(k) lookup when available.
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
+        const auto &incident_faces = m_mesh.involved_faces[v_idx];
+        for(const auto &f_idx : incident_faces) {
+            const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
                     neighbors.insert(v);
                 }
             }
         }
+    } else {
+        // Fallback: iterate through all faces.
+        for(const auto &face : m_mesh.faces) {
+            bool contains_v = false;
+            for(const auto &v : face) {
+                if(v == v_idx) {
+                    contains_v = true;
+                    break;
+                }
+            }
+            if(contains_v) {
+                for(const auto &v : face) {
+                    if(v != v_idx) {
+                        neighbors.insert(v);
+                    }
+                }
+            }
+        }
     }
-    
+
     vec3<T> centroid(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0));
     if(neighbors.empty()) {
         return m_mesh.vertices[v_idx];
     }
-    
+
     for(const auto &n : neighbors) {
         centroid += m_mesh.vertices[n];
     }
@@ -226,11 +302,12 @@ vec3<T> mesh_remesher<T, I>::one_ring_centroid(I v_idx) const {
 
 template <class T, class I>
 bool mesh_remesher<T, I>::collapse_would_invert_faces(I v_keep, I v_remove, const vec3<T> &new_pos) const {
-    // Check all faces that reference v_remove (except those that will be deleted).
-    for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
+    // Check faces that reference v_remove (except those that will be deleted).
+    // Use the involved_faces index for O(k) lookup when available.
+    auto check_face = [&](size_t f_idx) -> bool {
         const auto &face = m_mesh.faces[f_idx];
         // Only check triangular faces; skip non-triangular faces.
-        if(face.size() != 3) continue;
+        if(face.size() != 3) return false;
         
         // Check if this face contains v_remove but NOT v_keep (these faces will be modified).
         bool has_v_remove = false;
@@ -266,7 +343,22 @@ bool mesh_remesher<T, I>::collapse_would_invert_faces(I v_keep, I v_remove, cons
                 return true;
             }
         }
+        return false;
+    };
+
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v_remove) < m_mesh.involved_faces.size()) {
+        const auto &incident_faces = m_mesh.involved_faces[v_remove];
+        for(const auto &f_idx : incident_faces) {
+            if(check_face(f_idx)) return true;
+        }
+    } else {
+        // Fallback: iterate through all faces.
+        for(size_t f_idx = 0; f_idx < m_mesh.faces.size(); ++f_idx) {
+            if(check_face(f_idx)) return true;
+        }
     }
+
     return false;
 }
 
@@ -409,6 +501,7 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
     
     while(changed) {
         changed = false;
+        ensure_involved_faces_index();
         auto edges = get_all_edges();
         
         for(const auto &edge : edges) {
@@ -501,9 +594,8 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 ++splits;
                 changed = true;
                 
-                // Invalidate index and restart to handle newly created edges.
+                // Invalidate index since mesh topology changed.
                 m_mesh.involved_faces.clear();
-                break;  // Restart the loop with updated edge set.
             }
         }
     }
@@ -521,27 +613,12 @@ int64_t mesh_remesher<T, I>::collapse_short_edges() {
     
     while(changed) {
         changed = false;
+        ensure_involved_faces_index();
         auto edges = get_all_edges();
         
         for(const auto &edge : edges) {
             I v0 = edge.first;
             I v1 = edge.second;
-            
-            // Skip if either vertex has been invalidated (we don't actually remove vertices,
-            // so check if the edge still exists in any face).
-            bool edge_exists = false;
-            for(const auto &face : m_mesh.faces) {
-                bool has_v0 = false, has_v1 = false;
-                for(const auto &v : face) {
-                    if(v == v0) has_v0 = true;
-                    if(v == v1) has_v1 = true;
-                }
-                if(has_v0 && has_v1) {
-                    edge_exists = true;
-                    break;
-                }
-            }
-            if(!edge_exists) continue;
             
             const auto &p0 = m_mesh.vertices[v0];
             const auto &p1 = m_mesh.vertices[v1];
@@ -637,6 +714,7 @@ int64_t mesh_remesher<T, I>::flip_edges_for_valence() {
     
     while(changed) {
         changed = false;
+        ensure_involved_faces_index();
         auto edges = get_all_edges();
         
         for(const auto &edge : edges) {
@@ -660,19 +738,8 @@ int64_t mesh_remesher<T, I>::flip_edges_for_valence() {
             
             // Check if the edge between v_opp_a and v_opp_b already exists.
             // If so, flipping would create a duplicate edge.
-            bool edge_already_exists = false;
-            for(const auto &face : m_mesh.faces) {
-                bool has_a = false, has_b = false;
-                for(const auto &v : face) {
-                    if(v == v_opp_a) has_a = true;
-                    if(v == v_opp_b) has_b = true;
-                }
-                if(has_a && has_b) {
-                    edge_already_exists = true;
-                    break;
-                }
-            }
-            if(edge_already_exists) continue;
+            auto opp_shared = get_faces_sharing_edge(v_opp_a, v_opp_b);
+            if(!opp_shared.empty()) continue;
             
             // Check if flipping would improve valence.
             if(!flip_improves_valence(v0, v1, v_opp_a, v_opp_b)) continue;
@@ -722,6 +789,8 @@ int64_t mesh_remesher<T, I>::flip_edges_for_valence() {
 template <class T, class I>
 int64_t mesh_remesher<T, I>::tangential_relaxation(T lambda) {
     int64_t moved = 0;
+
+    ensure_involved_faces_index();
     
     // Compute new positions for all non-boundary vertices.
     std::vector<vec3<T>> new_positions(m_mesh.vertices.size());
@@ -730,17 +799,10 @@ int64_t mesh_remesher<T, I>::tangential_relaxation(T lambda) {
     for(size_t v_idx = 0; v_idx < m_mesh.vertices.size(); ++v_idx) {
         I vi = static_cast<I>(v_idx);
         
-        // Check if this vertex is referenced by any face.
-        bool is_used = false;
-        for(const auto &face : m_mesh.faces) {
-            for(const auto &v : face) {
-                if(v == vi) {
-                    is_used = true;
-                    break;
-                }
-            }
-            if(is_used) break;
-        }
+        // Check if this vertex is referenced by any face using the involved_faces index.
+        bool is_used = !m_mesh.involved_faces.empty() &&
+                       v_idx < m_mesh.involved_faces.size() &&
+                       !m_mesh.involved_faces[v_idx].empty();
         if(!is_used) {
             new_positions[v_idx] = m_mesh.vertices[v_idx];
             continue;

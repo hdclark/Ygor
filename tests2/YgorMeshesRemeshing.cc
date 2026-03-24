@@ -1,6 +1,7 @@
 
 #include <limits>
 #include <cmath>
+#include <chrono>
 #include <random>
 
 #include <YgorMisc.h>
@@ -322,6 +323,42 @@ TEST_CASE("mesh_remesher vertex attributes (normals and colours) honoured during
     for(size_t i = 0; i < mesh.vertices.size(); ++i){
         const auto c = mesh.vertex_colours[i];
         REQUIRE(c == packed_colour);
+    }
+}
+
+
+TEST_CASE("mesh_remesher completes in bounded time on a refined mesh"){
+
+    SUBCASE("remeshing a refined icosahedron completes promptly"){
+        // Build a refined mesh with many faces by splitting the icosahedron.
+        auto mesh = fv_surface_mesh_icosahedron();
+        for(auto &v : mesh.vertices){
+            v *= 5.0;
+        }
+
+        // Pre-refine: split all edges with a small target to create many triangles.
+        {
+            mesh_remesher<double, uint64_t> pre(mesh, 1.0);
+            pre.split_long_edges();
+        }
+
+        // Verify we actually have a non-trivial mesh (> 100 faces).
+        REQUIRE(mesh.faces.size() > 100);
+
+        // Now remesh with a different target edge length and verify completion.
+        const auto t0 = std::chrono::steady_clock::now();
+
+        mesh_remesher<double, uint64_t> remesher(mesh, 1.5);
+        for(int iter = 0; iter < 5; ++iter){
+            remesher.remesh_iteration();
+        }
+
+        const auto t1 = std::chrono::steady_clock::now();
+        const double elapsed_s = std::chrono::duration<double>(t1 - t0).count();
+
+        // The algorithm should complete 5 iterations well within 30 seconds.
+        REQUIRE(elapsed_s < 30.0);
+        REQUIRE(verify_mesh_integrity(mesh));
     }
 }
 
