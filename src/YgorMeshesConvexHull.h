@@ -13,6 +13,7 @@
 
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
+#include "YgorThreadPool.h"
 
 
 // ============================================================================
@@ -20,7 +21,7 @@
 //
 // These routines implement Shewchuk-style adaptive arithmetic for robust
 // geometric orientation tests.  They are intentionally kept separate from the
-// ConvexHull class so that they can be reused elsewhere.
+// convex hull classes so that they can be reused elsewhere.
 // ============================================================================
 
 namespace adaptive_predicate {
@@ -212,10 +213,12 @@ class DivideAndConquerConvexHull {
     private:
         // Recursive divide-and-conquer implementation.
         // Operates on a sub-range [lo, hi) of sorted points and returns
-        // the set of hull vertices for that sub-range.
+        // the set of hull vertices for that sub-range.  The shared thread
+        // pool is used for parallel sub-problem dispatch at shallow depths.
         std::vector<vec3<T>> dc_hull(std::vector<vec3<T>> &pts,
                                      size_t lo, size_t hi,
-                                     size_t depth);
+                                     size_t depth,
+                                     work_queue<std::function<void()>> &pool);
 
         // Build a hull from a small set of points using the incremental
         // algorithm and return the hull vertices.

@@ -3,13 +3,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <future>
 #include <limits>
 #include <map>
-#include <mutex>
 #include <set>
 #include <unordered_set>
 #include <stdexcept>
@@ -19,7 +17,6 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMeshesConvexHull.h"
-#include "YgorThreadPool.h"
 
 //#ifndef YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
@@ -685,7 +682,8 @@ std::vector<vec3<T>> DivideAndConquerConvexHull<T>::base_hull(const vec3<T> *pts
 template <class T>
 std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>> &pts,
                                                             size_t lo, size_t hi,
-                                                            size_t depth) {
+                                                            size_t depth,
+                                                            work_queue<std::function<void()>> &pool) {
     const size_t n = hi - lo;
     if(n <= m_base_threshold){
         return base_hull(pts.data() + lo, n);
@@ -693,54 +691,38 @@ std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>>
 
     const size_t mid = lo + n / 2;
 
+    std::vector<vec3<T>> left_result;
+    std::vector<vec3<T>> right_result;
+
     if(depth < m_parallel_depth){
-        // Spawn the left sub-problem on the thread pool and compute the
-        // right sub-problem on the current thread.
-        std::vector<vec3<T>> left_result;
-        std::mutex mtx;
-        std::condition_variable cv;
-        bool left_done = false;
+        // Dispatch the left sub-problem to the shared thread pool and
+        // compute the right sub-problem on the current thread.
+        std::promise<void> left_promise;
+        std::future<void> left_future = left_promise.get_future();
 
-        {
-            work_queue<std::function<void()>> pool(1);
-            pool.submit_task([&](){
-                left_result = dc_hull(pts, lo, mid, depth + 1);
-                {
-                    std::lock_guard<std::mutex> lk(mtx);
-                    left_done = true;
-                }
-                cv.notify_one();
-            });
+        pool.submit_task([&, lo, mid, depth](){
+            left_result = dc_hull(pts, lo, mid, depth + 1, pool);
+            left_promise.set_value();
+        });
 
-            auto right_result = dc_hull(pts, mid, hi, depth + 1);
+        right_result = dc_hull(pts, mid, hi, depth + 1, pool);
 
-            // Wait for the left sub-problem to finish.
-            {
-                std::unique_lock<std::mutex> lk(mtx);
-                cv.wait(lk, [&](){ return left_done; });
-            }
-
-            // Merge: combine hull vertices from both sub-hulls and compute
-            // the hull of the union.
-            std::vector<vec3<T>> merged;
-            merged.reserve(left_result.size() + right_result.size());
-            merged.insert(merged.end(), left_result.begin(), left_result.end());
-            merged.insert(merged.end(), right_result.begin(), right_result.end());
-
-            return base_hull(merged.data(), merged.size());
-        }
+        // Wait for the left sub-problem to finish.
+        left_future.wait();
     } else {
         // Sequential recursion at deeper levels to avoid thread oversubscription.
-        auto left_result  = dc_hull(pts, lo, mid, depth + 1);
-        auto right_result = dc_hull(pts, mid, hi, depth + 1);
-
-        std::vector<vec3<T>> merged;
-        merged.reserve(left_result.size() + right_result.size());
-        merged.insert(merged.end(), left_result.begin(), left_result.end());
-        merged.insert(merged.end(), right_result.begin(), right_result.end());
-
-        return base_hull(merged.data(), merged.size());
+        left_result  = dc_hull(pts, lo, mid, depth + 1, pool);
+        right_result = dc_hull(pts, mid, hi, depth + 1, pool);
     }
+
+    // Merge: combine hull vertices from both sub-hulls and compute
+    // the hull of the union.
+    std::vector<vec3<T>> merged;
+    merged.reserve(left_result.size() + right_result.size());
+    merged.insert(merged.end(), left_result.begin(), left_result.end());
+    merged.insert(merged.end(), right_result.begin(), right_result.end());
+
+    return base_hull(merged.data(), merged.size());
 }
 
 template <class T>
@@ -762,7 +744,10 @@ void DivideAndConquerConvexHull<T>::compute(const std::vector<vec3<T>> &verts) {
         return a.z < b.z;
     });
 
-    auto hull_verts = dc_hull(pts, 0, pts.size(), 0);
+    // Create a shared thread pool for parallel sub-problem dispatch.
+    work_queue<std::function<void()>> pool;
+
+    auto hull_verts = dc_hull(pts, 0, pts.size(), 0, pool);
 
     // Build the final mesh from the hull vertices using the incremental
     // algorithm.
