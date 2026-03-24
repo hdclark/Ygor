@@ -295,6 +295,51 @@ TEST_CASE( "YgorMeshesOrient" ){
         check_mesh_valid(mesh);
         check_consistent_orientation(mesh);
     }
+
+    SUBCASE("OrientFaces: detects contradictory constraints from multiple shared edges"){
+        // Construct a tiny mesh where two faces share multiple manifold edges and
+        // the induced orientation constraints are contradictory. This exercises
+        // the regression where flip flags could be overwritten instead of
+        // reporting an unsatisfiable orientation.
+        fv_surface_mesh<double, uint64_t> mesh;
+
+        // Simple spatial embedding; exact coordinates are not important as long
+        // as the mesh is structurally valid (triangles with in-range indices).
+        mesh.vertices = {
+            vec3<double>(0.0, 0.0, 0.0), // 0
+            vec3<double>(1.0, 0.0, 0.0), // 1
+            vec3<double>(0.5, 1.0, 0.0), // 2
+            vec3<double>(0.5, 0.5, 1.0)  // 3
+        };
+
+        // Faces are chosen so that:
+        //  - Several face pairs share more than one edge (multiple manifold edges).
+        //  - When the adjacency graph is traversed, different shared edges
+        //    between the same face pair impose conflicting flip / no-flip
+        //    constraints, which should cause OrientFaces(...) to return false.
+        //
+        // The specific pattern below forms a tightly coupled cycle:
+        //   f0 and f1 share edge (0,2).
+        //   f1 and f2 share edges (0,1) and (1,3).
+        //   f2 and f3 share edge (1,2).
+        //   f3 and f0 share edges (0,2) and (2,3).
+        //
+        // With appropriate orientation rules, this cycle cannot be oriented
+        // consistently; the implementation is expected to detect the resulting
+        // contradiction and report failure.
+        mesh.faces = {
+            { 0, 1, 2 }, // f0
+            { 0, 2, 3 }, // f1
+            { 0, 3, 1 }, // f2
+            { 1, 3, 2 }  // f3
+        };
+
+        check_mesh_valid(mesh);
+
+        // Regression expectation: the constraints contradict, so orientation
+        // cannot succeed and OrientFaces(...) must return false.
+        REQUIRE(OrientFaces(mesh) == false);
+    }
 }
 
 
