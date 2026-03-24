@@ -85,7 +85,7 @@ struct undirected_edge_hash {
     std::size_t operator()(const undirected_edge_t<I> &e) const {
         const auto h0 = std::hash<I>{}(e.first);
         const auto h1 = std::hash<I>{}(e.second);
-        return h0 ^ (h1 << 1U);
+        return h0 ^ (h1 + std::size_t(0x9e3779b9) + (h0 << 6U) + (h0 >> 2U));
     }
 };
 
