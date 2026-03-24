@@ -72,12 +72,13 @@ T orient3d(const T *pa, const T *pb, const T *pc, const T *pd);
 
 
 // ============================================================================
-// ConvexHull: online 3-D convex hull via a randomized incremental algorithm.
+// IncrementalConvexHull: online 3-D convex hull via a randomized incremental
+// algorithm.
 //
 // Template parameter T is the floating-point coordinate type (float, double).
 //
 // Usage:
-//     ConvexHull<double> ch;
+//     IncrementalConvexHull<double> ch;
 //     ch.add_vertex(v0);   // vec3<double>
 //     ch.add_vertex(v1);
 //     ...
@@ -91,9 +92,9 @@ T orient3d(const T *pa, const T *pb, const T *pc, const T *pd);
 // ============================================================================
 
 template <class T>
-class ConvexHull {
+class IncrementalConvexHull {
     public:
-        ConvexHull();
+        IncrementalConvexHull();
 
         // Add a single vertex to the hull.  Returns the evaluation-order
         // index assigned to this vertex.
@@ -175,6 +176,62 @@ class ConvexHull {
         // The output mesh, rebuilt on demand.
         mutable fv_surface_mesh<T, uint64_t> m_mesh;
         mutable bool m_mesh_dirty = true;
+};
+
+
+// ============================================================================
+// DivideAndConquerConvexHull: non-incremental 3-D convex hull via a parallel
+// divide-and-conquer algorithm.
+//
+// Template parameter T is the floating-point coordinate type (float, double).
+//
+// Usage:
+//     std::vector<vec3<double>> pts = ...;
+//     DivideAndConquerConvexHull<double> ch;
+//     ch.compute(pts);
+//     const auto &mesh = ch.get_mesh();
+//
+// The resulting hull is stored as an fv_surface_mesh<T, uint64_t>.
+//
+// This implementation uses Shewchuk-style adaptive arithmetic for robust
+// geometric orientation tests and a multi-threaded work queue for parallel
+// sub-problem processing.
+// ============================================================================
+
+template <class T>
+class DivideAndConquerConvexHull {
+    public:
+        DivideAndConquerConvexHull();
+
+        // Compute the convex hull from a given set of vertices.
+        void compute(const std::vector<vec3<T>> &verts);
+
+        // Access the computed hull mesh.
+        const fv_surface_mesh<T, uint64_t> & get_mesh() const;
+
+    private:
+        // Recursive divide-and-conquer implementation.
+        // Operates on a sub-range [lo, hi) of sorted points and returns
+        // the set of hull vertices for that sub-range.
+        std::vector<vec3<T>> dc_hull(std::vector<vec3<T>> &pts,
+                                     size_t lo, size_t hi,
+                                     size_t depth);
+
+        // Build a hull from a small set of points using the incremental
+        // algorithm and return the hull vertices.
+        std::vector<vec3<T>> base_hull(const vec3<T> *pts, size_t n);
+
+        // Threshold below which the base (incremental) algorithm is used
+        // directly instead of further subdivision.
+        static constexpr size_t m_base_threshold = 64;
+
+        // Maximum recursion depth at which parallel sub-tasks are spawned.
+        // Beyond this depth, work is done sequentially to avoid excessive
+        // thread-pool contention.
+        size_t m_parallel_depth = 3;
+
+        // The computed output mesh.
+        fv_surface_mesh<T, uint64_t> m_mesh;
 };
 
 #endif // YGOR_MESHES_CONVEX_HULL_HDR_GRD_H
