@@ -434,10 +434,13 @@ uint64_t ConvexHull<T>::build_initial_simplex() {
 
     m_faces.clear();
     m_edge_to_face.clear();
+    m_alive_faces.clear();
+    m_alive_dead_count = 0;
 
     auto add_face = [&](uint64_t a, uint64_t b, uint64_t c) {
         uint64_t idx = m_faces.size();
         m_faces.push_back(Face{ {a, b, c}, true });
+        m_alive_faces.push_back(idx);
         register_face_edges(idx);
     };
 
@@ -456,8 +459,8 @@ void ConvexHull<T>::incorporate_point(uint64_t idx) {
     // Determine visible faces.  A face is visible from point idx when
     // orient(face, idx) < 0 (the point is on the exterior side).
     std::vector<uint64_t> visible;
-    visible.reserve(m_faces.size() / 2);
-    for(uint64_t fi = 0; fi < m_faces.size(); ++fi){
+    visible.reserve(m_alive_faces.size() / 4);
+    for(auto fi : m_alive_faces){
         if(!m_faces[fi].alive) continue;
         const auto &f = m_faces[fi];
         T o = orient(f.verts[0], f.verts[1], f.verts[2], idx);
@@ -478,7 +481,7 @@ void ConvexHull<T>::incorporate_point(uint64_t idx) {
     std::vector<std::pair<uint64_t,uint64_t>> horizon;
     horizon.reserve(visible.size() * 3);
 
-    std::set<uint64_t> visible_set(visible.begin(), visible.end());
+    std::unordered_set<uint64_t> visible_set(visible.begin(), visible.end());
 
     for(auto fi : visible){
         const auto &f = m_faces[fi];
@@ -500,12 +503,27 @@ void ConvexHull<T>::incorporate_point(uint64_t idx) {
         unregister_face_edges(fi);
         m_faces[fi].alive = false;
     }
+    m_alive_dead_count += visible.size();
 
     // Create new faces connecting the horizon to the new point.
     for(const auto &[a, b] : horizon){
         uint64_t fi = m_faces.size();
         m_faces.push_back(Face{ {a, b, idx}, true });
+        m_alive_faces.push_back(fi);
         register_face_edges(fi);
+    }
+
+    // Compact m_alive_faces when dead entries exceed half the vector size.
+    if(m_alive_dead_count * 2 > m_alive_faces.size()){
+        std::vector<uint64_t> compacted;
+        compacted.reserve(m_alive_faces.size() - m_alive_dead_count);
+        for(auto fi : m_alive_faces){
+            if(m_faces[fi].alive){
+                compacted.push_back(fi);
+            }
+        }
+        m_alive_faces = std::move(compacted);
+        m_alive_dead_count = 0;
     }
 
     m_mesh_dirty = true;
@@ -537,9 +555,8 @@ uint64_t ConvexHull<T>::add_vertex(const vec3<T> &v) {
 
         // Identify simplex vertices.
         std::set<uint64_t> simplex_verts;
-        for(const auto &f : m_faces){
-            if(!f.alive) continue;
-            for(auto vi : f.verts){
+        for(auto fi : m_alive_faces){
+            for(auto vi : m_faces[fi].verts){
                 simplex_verts.insert(vi);
             }
         }
@@ -573,8 +590,9 @@ void ConvexHull<T>::rebuild_mesh() const {
     std::map<uint64_t, uint64_t> old_to_new;
     std::vector<uint64_t> new_to_old;
 
-    for(const auto &f : m_faces){
-        if(!f.alive) continue;
+    for(auto fi : m_alive_faces){
+        if(!m_faces[fi].alive) continue;
+        const auto &f = m_faces[fi];
         for(auto vi : f.verts){
             if(old_to_new.find(vi) == old_to_new.end()){
                 uint64_t ni = new_to_old.size();
@@ -590,8 +608,9 @@ void ConvexHull<T>::rebuild_mesh() const {
         m_mesh.vertices[i] = m_original[new_to_old[i]];
     }
 
-    for(const auto &f : m_faces){
-        if(!f.alive) continue;
+    for(auto fi : m_alive_faces){
+        if(!m_faces[fi].alive) continue;
+        const auto &f = m_faces[fi];
         std::vector<uint64_t> face_indices;
         face_indices.reserve(3);
         for(auto vi : f.verts){

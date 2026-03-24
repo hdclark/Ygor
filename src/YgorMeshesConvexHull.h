@@ -6,7 +6,11 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "YgorDefinitions.h"
@@ -127,9 +131,24 @@ class ConvexHull {
         // Current list of faces (some may be dead / removed).
         std::vector<Face> m_faces;
 
+        // Indices of faces that are currently alive (on the hull).
+        // May contain stale entries (dead faces) that are lazily compacted
+        // when the dead fraction exceeds a threshold.
+        std::vector<uint64_t> m_alive_faces;
+        uint64_t m_alive_dead_count = 0;
+
+        // Hash for directed-edge keys.
+        struct EdgeHash {
+            std::size_t operator()(const std::pair<uint64_t,uint64_t> &e) const {
+                auto h1 = std::hash<uint64_t>{}(e.first);
+                auto h2 = std::hash<uint64_t>{}(e.second);
+                return h1 ^ (h2 * uint64_t{0x9E3779B97F4A7C15} + (h1 << 6) + (h1 >> 2));
+            }
+        };
+
         // Adjacency: for each directed edge (a,b), store the face index that
         // owns it.  Used for fast horizon detection.
-        std::map<std::pair<uint64_t,uint64_t>, uint64_t> m_edge_to_face;
+        std::unordered_map<std::pair<uint64_t,uint64_t>, uint64_t, EdgeHash> m_edge_to_face;
 
         // Evaluation order tracking: maps mesh vertex index (after compaction)
         // to the sequential order in which the vertex was provided to add_vertex.
