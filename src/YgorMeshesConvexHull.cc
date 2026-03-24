@@ -701,14 +701,18 @@ std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>>
         std::future<void> left_future = left_promise.get_future();
 
         pool.submit_task([&, lo, mid, depth](){
-            left_result = dc_hull(pts, lo, mid, depth + 1, pool);
-            left_promise.set_value();
+            try{
+                left_result = dc_hull(pts, lo, mid, depth + 1, pool);
+                left_promise.set_value();
+            }catch(...){
+                left_promise.set_exception(std::current_exception());
+            }
         });
 
         right_result = dc_hull(pts, mid, hi, depth + 1, pool);
 
-        // Wait for the left sub-problem to finish.
-        left_future.wait();
+        // Wait for the left sub-problem and propagate any exception.
+        left_future.get();
     } else {
         // Sequential recursion at deeper levels to avoid thread oversubscription.
         left_result  = dc_hull(pts, lo, mid, depth + 1, pool);
