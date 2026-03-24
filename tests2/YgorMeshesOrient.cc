@@ -252,6 +252,49 @@ TEST_CASE( "YgorMeshesOrient" ){
         check_mesh_valid(mesh);
         check_consistent_orientation(mesh);
     }
+
+    SUBCASE("OrientFaces: large icosphere-like mesh completes promptly"){
+        // Build a UV-sphere mesh with ~10k faces to verify the algorithm
+        // completes in reasonable time and produces consistent orientation.
+        fv_surface_mesh<double, uint64_t> mesh;
+
+        const int N_lat = 50;
+        const int N_lon = 100;
+
+        // Generate vertices on a unit sphere.
+        for(int i = 0; i <= N_lat; ++i){
+            const double theta = M_PI * static_cast<double>(i) / static_cast<double>(N_lat);
+            for(int j = 0; j < N_lon; ++j){
+                const double phi = 2.0 * M_PI * static_cast<double>(j) / static_cast<double>(N_lon);
+                mesh.vertices.emplace_back(
+                    std::sin(theta) * std::cos(phi),
+                    std::sin(theta) * std::sin(phi),
+                    std::cos(theta));
+            }
+        }
+
+        // Generate triangular faces.
+        for(int i = 0; i < N_lat; ++i){
+            for(int j = 0; j < N_lon; ++j){
+                const uint64_t cur  = static_cast<uint64_t>(i * N_lon + j);
+                const uint64_t next = static_cast<uint64_t>(i * N_lon + (j + 1) % N_lon);
+                const uint64_t below_cur  = cur + static_cast<uint64_t>(N_lon);
+                const uint64_t below_next = next + static_cast<uint64_t>(N_lon);
+
+                mesh.faces.push_back({ cur, below_cur, below_next });
+                mesh.faces.push_back({ cur, below_next, next });
+            }
+        }
+
+        // Flip every other face to create inconsistencies.
+        for(size_t f = 0UL; f < mesh.faces.size(); f += 2UL){
+            std::reverse(mesh.faces[f].begin(), mesh.faces[f].end());
+        }
+
+        REQUIRE(OrientFaces(mesh) == true);
+        check_mesh_valid(mesh);
+        check_consistent_orientation(mesh);
+    }
 }
 
 
