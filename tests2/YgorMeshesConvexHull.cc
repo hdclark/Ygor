@@ -387,6 +387,36 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         const auto &mesh = ch.get_mesh();
         REQUIRE(mesh.faces.empty());
     }
+
+    SUBCASE("Large grid (mostly interior points)"){
+        // Regression test: a grid generates many interior points.  Before
+        // the alive-face tracking optimisation this was extremely slow
+        // because the visibility scan iterated over dead (removed) faces.
+        ConvexHull<T> ch;
+        const int M = 10; // M^3 = 1000 points
+        std::vector<vec3<T>> pts;
+        pts.reserve(static_cast<size_t>(M * M * M));
+        for(int i = 0; i < M; ++i){
+            for(int j = 0; j < M; ++j){
+                for(int k = 0; k < M; ++k){
+                    pts.emplace_back(static_cast<T>(i),
+                                     static_cast<T>(j),
+                                     static_cast<T>(k));
+                }
+            }
+        }
+        ch.add_vertices(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        // The convex hull of a cube grid has at least the 8 corners.
+        // Perturbation causes some face / edge points to also appear on
+        // the hull, so only check a lower bound.
+        REQUIRE(mesh.vertices.size() >= 8UL);
+        REQUIRE(mesh.vertices.size() <= static_cast<uint64_t>(M * M * M));
+    }
 }
 
 
