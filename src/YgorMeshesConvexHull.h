@@ -142,6 +142,7 @@ class ConvexHull {
             std::size_t operator()(const std::pair<uint64_t,uint64_t> &e) const {
                 auto h1 = std::hash<uint64_t>{}(e.first);
                 auto h2 = std::hash<uint64_t>{}(e.second);
+                // Golden-ratio mixing constant (2^64 / phi, truncated).
                 return h1 ^ (h2 * uint64_t{0x9E3779B97F4A7C15} + (h1 << 6) + (h1 >> 2));
             }
         };

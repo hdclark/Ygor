@@ -556,6 +556,7 @@ uint64_t ConvexHull<T>::add_vertex(const vec3<T> &v) {
         // Identify simplex vertices.
         std::set<uint64_t> simplex_verts;
         for(auto fi : m_alive_faces){
+            if(!m_faces[fi].alive) continue;
             for(auto vi : m_faces[fi].verts){
                 simplex_verts.insert(vi);
             }
