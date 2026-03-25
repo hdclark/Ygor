@@ -63,9 +63,9 @@ using csv_non_numeric_callback_t = std::function<double(const std::string &token
 //       default callback maps:
 //         - "nan" / "NaN" / "NAN" (case insensitive) and empty cells to quiet_NaN.
 //         - "inf" / "+inf" / "-inf" (case insensitive) to C++ positive/negative infinity.
-//         - All other alphanumeric text (case sensitive) to a distinct integer, with the
-//           mapping stored in the returned csv_load_result.
-//
+//         - Any other non-numeric token (including punctuation/quoted strings, case
+//           sensitive) to a distinct integer, with the mapping stored in the returned
+//           csv_load_result.
 // Returns:
 //   A csv_load_result<T> containing the loaded num_array and any string-to-int mappings.
 //
