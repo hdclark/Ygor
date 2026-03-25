@@ -72,8 +72,12 @@ int main(int argc, char **argv){
     const int64_t n_rows = all_data.num_rows();
     const int64_t n_cols = all_data.num_cols();
 
+    // Reuse a single 1xN buffer for each prediction to avoid per-row allocations.
+    num_array<double> x(1, n_cols);
     for(int64_t r = 0; r < n_rows; ++r){
-        num_array<double> x = all_data.subarray(r, r + 1, 0, n_cols);
+        for(int64_t c = 0; c < n_cols; ++c){
+            x(0, c) = all_data(r, c);
+        }
         double prediction = model.predict(x);
         std::cout << prediction << std::endl;
     }
