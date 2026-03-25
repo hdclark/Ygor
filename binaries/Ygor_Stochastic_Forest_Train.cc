@@ -110,17 +110,14 @@ int main(int argc, char **argv){
 
     while(std::getline(fi, line)){
         if(line.empty()) continue;
-        if(has_header && first_data_line){
-            has_header = false;
-            // Auto-detect delimiter from header line.
+        if(first_data_line){
+            // Auto-detect delimiter from first non-empty line.
             if(line.find('\t') != std::string::npos){
                 delimiter = '\t';
             }
-            continue;
-        }
-        if(first_data_line){
-            if(line.find('\t') != std::string::npos){
-                delimiter = '\t';
+            if(has_header){
+                first_data_line = false;
+                continue;
             }
             first_data_line = false;
         }
