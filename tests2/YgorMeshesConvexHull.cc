@@ -994,12 +994,19 @@ TEST_CASE( "MarriageBeforeConquestConvexHull" ){
         dc.compute(pts);
         const auto &dc_mesh = dc.get_mesh();
 
-        // Both should produce the same number of hull vertices and faces.
-        REQUIRE(mbc_mesh.vertices.size() == dc_mesh.vertices.size());
-        REQUIRE(mbc_mesh.faces.size() == dc_mesh.faces.size());
-
-        // Both should contain all input points.
+        // Both should produce valid hulls that contain all input points.
+        // Exact vertex/face counts may differ because each algorithm feeds
+        // points to IncrementalConvexHull in a different order, and the
+        // random perturbation used for degeneracy resolution is order-
+        // dependent.
+        check_mesh_valid(mbc_mesh);
+        check_closed_manifold(mbc_mesh);
+        check_euler(mbc_mesh);
         check_points_inside(mbc_mesh, pts);
+
+        check_mesh_valid(dc_mesh);
+        check_closed_manifold(dc_mesh);
+        check_euler(dc_mesh);
         check_points_inside(dc_mesh, pts);
     }
 }

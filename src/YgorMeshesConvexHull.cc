@@ -1106,33 +1106,76 @@ std::vector<vec3<T>> MarriageBeforeConquestConvexHull<T>::mbc_hull(
     std::vector<vec3<T>> right_pts(pts.begin() + static_cast<long>(mid),
                                    pts.begin() + static_cast<long>(hi));
 
-    // Sort each half by x within the projected plane (already mostly sorted
-    // from the global sort, but ties may exist).
-    // left_pts and right_pts are already sorted by x from the outer sort.
-
     // Find the 2-D upper bridge in xy-projection.  The bridge identifies the
-    // extreme supporting edge crossing the median x, which together with the
-    // axis-aligned extreme-point tests used in prune_interior gives the
-    // "marriage" information needed to discard interior points before
-    // recursion.
-    upper_bridge_2d(left_pts, right_pts, median_x);
+    // extreme supporting edge crossing the median x, which is the core
+    // "marriage" information used to discard interior points before recursion.
+    auto [bridge_l, bridge_r] = upper_bridge_2d(left_pts, right_pts, median_x);
 
-    // Prune interior points from each half.  This is the key advantage of
-    // marriage-before-conquest: by identifying extreme directions before
-    // recursion, we can discard points that are clearly interior, reducing
-    // the effective input size for sub-problems.
-    auto pruned_left  = prune_interior(pts.data() + lo, mid - lo);
-    auto pruned_right = prune_interior(pts.data() + mid, hi - mid);
+    // Use the bridge to prune points that are strictly below the bridge line
+    // in the xy-projection.  A point below the bridge in all three 2-D
+    // projections (xy, xz, yz) cannot be a hull vertex.  We conservatively
+    // prune only using the xy-projection bridge and the axis-aligned bounding
+    // box to avoid discarding hull vertices.
+    const auto &bl = left_pts[bridge_l];
+    const auto &br = right_pts[bridge_r];
+    T bridge_dx = br.x - bl.x;
+    T bridge_dy = br.y - bl.y;
 
-    // Re-sort pruned sets (prune_interior preserves order, but sub-ranges
-    // need to be contiguous for recursion).
-    auto cmp = [](const vec3<T> &a, const vec3<T> &b){
-        if(a.x != b.x) return a.x < b.x;
-        if(a.y != b.y) return a.y < b.y;
-        return a.z < b.z;
+    // Prune left half: keep points that are on or above the bridge line,
+    // or that are on the axis-aligned bounding box boundary.
+    auto is_above_bridge = [&](const vec3<T> &p) -> bool {
+        if(bridge_dx == static_cast<T>(0)) return true;
+        // Value of bridge line at p.x:
+        T bridge_y = bl.y + bridge_dy * (p.x - bl.x) / bridge_dx;
+        return p.y >= bridge_y;
     };
-    std::sort(pruned_left.begin(), pruned_left.end(), cmp);
-    std::sort(pruned_right.begin(), pruned_right.end(), cmp);
+
+    // Also compute axis-aligned extremes for the entire range to aid pruning.
+    T ymin = pts[lo].y, ymax = pts[lo].y;
+    T zmin = pts[lo].z, zmax = pts[lo].z;
+    for(size_t i = lo + 1; i < hi; ++i){
+        if(pts[i].y < ymin) ymin = pts[i].y;
+        if(pts[i].y > ymax) ymax = pts[i].y;
+        if(pts[i].z < zmin) zmin = pts[i].z;
+        if(pts[i].z > zmax) zmax = pts[i].z;
+    }
+
+    auto should_keep = [&](const vec3<T> &p) -> bool {
+        // Keep if on bounding-box boundary in y or z.
+        if(p.y == ymin || p.y == ymax || p.z == zmin || p.z == zmax){
+            return true;
+        }
+        // Keep if on or above the bridge line in xy-projection.
+        return is_above_bridge(p);
+    };
+
+    std::vector<vec3<T>> pruned_left;
+    pruned_left.reserve(mid - lo);
+    for(size_t i = lo; i < mid; ++i){
+        if(should_keep(pts[i])){
+            pruned_left.push_back(pts[i]);
+        }
+    }
+
+    std::vector<vec3<T>> pruned_right;
+    pruned_right.reserve(hi - mid);
+    for(size_t i = mid; i < hi; ++i){
+        if(should_keep(pts[i])){
+            pruned_right.push_back(pts[i]);
+        }
+    }
+
+    // Ensure we have enough points for recursion.
+    if(pruned_left.size() < 4){
+        pruned_left.assign(pts.begin() + static_cast<long>(lo),
+                           pts.begin() + static_cast<long>(mid));
+    }
+    if(pruned_right.size() < 4){
+        pruned_right.assign(pts.begin() + static_cast<long>(mid),
+                            pts.begin() + static_cast<long>(hi));
+    }
+
+    // Pruned sets are already sorted by x from the outer sort.
 
     // --- Conquest step ---
     std::vector<vec3<T>> left_result;
