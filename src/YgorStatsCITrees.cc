@@ -716,6 +716,9 @@ bool Stats::ConditionalInferenceTrees<T>::read_from(std::istream &is) {
     if(this->n_permutations <= 0){
         return false;
     }
+    if(this->n_features_trained <= 0){
+        return false;
+    }
     // Read tree.
     is >> label;
     if(is.fail() || label != "begin_tree") return false;
