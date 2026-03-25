@@ -74,6 +74,7 @@ std::vector<I> mesh_remesher<T, I>::get_faces_sharing_edge(I v0, I v1) const {
         // Iterate over faces incident to v0 and check if they also contain v1.
         const auto &faces_v0 = m_mesh.involved_faces[v0];
         for(const auto &f_idx : faces_v0) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v == v1) {
@@ -121,6 +122,7 @@ I mesh_remesher<T, I>::vertex_valence(I v_idx) const {
        static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
         const auto &incident_faces = m_mesh.involved_faces[v_idx];
         for(const auto &f_idx : incident_faces) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
@@ -161,6 +163,7 @@ bool mesh_remesher<T, I>::is_boundary_vertex(I v_idx) const {
        static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
         const auto &incident_faces = m_mesh.involved_faces[v_idx];
         for(const auto &f_idx : incident_faces) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
@@ -206,6 +209,7 @@ vec3<T> mesh_remesher<T, I>::vertex_normal(I v_idx) const {
        static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
         const auto &incident_faces = m_mesh.involved_faces[v_idx];
         for(const auto &f_idx : incident_faces) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             const auto &face = m_mesh.faces[f_idx];
             if(face.size() < 3) continue;
 
@@ -261,6 +265,7 @@ vec3<T> mesh_remesher<T, I>::one_ring_centroid(I v_idx) const {
        static_cast<size_t>(v_idx) < m_mesh.involved_faces.size()) {
         const auto &incident_faces = m_mesh.involved_faces[v_idx];
         for(const auto &f_idx : incident_faces) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             const auto &face = m_mesh.faces[f_idx];
             for(const auto &v : face) {
                 if(v != v_idx) {
@@ -350,6 +355,7 @@ bool mesh_remesher<T, I>::collapse_would_invert_faces(I v_keep, I v_remove, cons
        static_cast<size_t>(v_remove) < m_mesh.involved_faces.size()) {
         const auto &incident_faces = m_mesh.involved_faces[v_remove];
         for(const auto &f_idx : incident_faces) {
+            if(static_cast<size_t>(f_idx) >= m_mesh.faces.size()) continue;
             if(check_face(f_idx)) return true;
         }
     } else {
@@ -364,30 +370,128 @@ bool mesh_remesher<T, I>::collapse_would_invert_faces(I v_keep, I v_remove, cons
 
 template <class T, class I>
 void mesh_remesher<T, I>::do_collapse_edge(I v_keep, I v_remove) {
-    // Remove faces that have both v_keep and v_remove.
-    auto it = m_mesh.faces.begin();
-    while(it != m_mesh.faces.end()) {
-        bool has_keep = false, has_remove = false;
-        for(const auto &v : *it) {
-            if(v == v_keep) has_keep = true;
-            if(v == v_remove) has_remove = true;
+    involved_face_index_diff<I> diff;
+    const I N = static_cast<I>(m_mesh.faces.size());
+
+    // Phase 1: Identify dead faces (contain both v_keep and v_remove)
+    //          and modified faces (contain v_remove but not v_keep).
+    std::vector<I> dead_faces;
+    std::vector<I> modified_faces;
+
+    if(!m_mesh.involved_faces.empty() &&
+       static_cast<size_t>(v_remove) < m_mesh.involved_faces.size()) {
+        // Use the index for O(k) identification.
+        std::set<I> faces_of_keep;
+        if(static_cast<size_t>(v_keep) < m_mesh.involved_faces.size()) {
+            faces_of_keep.insert(m_mesh.involved_faces[v_keep].begin(),
+                                 m_mesh.involved_faces[v_keep].end());
         }
-        if(has_keep && has_remove) {
-            it = m_mesh.faces.erase(it);
-        } else {
-            ++it;
+        for(I f : m_mesh.involved_faces[v_remove]) {
+            if(static_cast<size_t>(f) >= m_mesh.faces.size()) continue;
+            if(faces_of_keep.count(f)) {
+                dead_faces.push_back(f);
+            } else {
+                modified_faces.push_back(f);
+            }
+        }
+    } else {
+        // Fallback: scan all faces.
+        for(size_t f = 0; f < m_mesh.faces.size(); ++f) {
+            bool has_keep = false, has_remove = false;
+            for(const auto &v : m_mesh.faces[f]) {
+                if(v == v_keep) has_keep = true;
+                if(v == v_remove) has_remove = true;
+            }
+            if(has_keep && has_remove) {
+                dead_faces.push_back(static_cast<I>(f));
+            } else if(has_remove) {
+                modified_faces.push_back(static_cast<I>(f));
+            }
         }
     }
-    
-    // Replace v_remove with v_keep in all remaining faces.
+
+    // Phase 2: Compute the old_index -> new_index mapping via simulated swap-and-pop.
+    //          This allows us to build the diff entirely against the original state.
+    std::vector<I> new_pos(N);
+    std::iota(new_pos.begin(), new_pos.end(), static_cast<I>(0));
+    std::vector<I> current_face(N);
+    std::iota(current_face.begin(), current_face.end(), static_cast<I>(0));
+
+    std::set<I> dead_set(dead_faces.begin(), dead_faces.end());
+    std::sort(dead_faces.begin(), dead_faces.end(), std::greater<I>());
+
+    I sim_size = N;
+    for(I dead_orig : dead_faces) {
+        I dead_cur = new_pos[dead_orig];
+        --sim_size;
+        if(dead_cur != sim_size) {
+            // The original face at the current last position moves to dead_cur.
+            I orig_at_last = current_face[sim_size];
+            new_pos[orig_at_last] = dead_cur;
+            current_face[dead_cur] = orig_at_last;
+        }
+        new_pos[dead_orig] = std::numeric_limits<I>::max();
+    }
+
+    // Phase 3: Build the diff against the original state.
+    // 3a. Handle dead faces: remove all vertex associations.
+    for(I orig : dead_set) {
+        for(const auto &v : m_mesh.faces[orig]) {
+            diff.entries_to_remove.emplace_back(v, orig);
+        }
+    }
+
+    // 3b. Handle moved faces: update face indices for their vertices.
+    for(I orig = 0; orig < N; ++orig) {
+        if(dead_set.count(orig)) continue;
+        if(new_pos[orig] == orig) continue;
+        // This face moved from orig to new_pos[orig].
+        for(const auto &v : m_mesh.faces[orig]) {
+            I effective_v = (v == v_remove) ? v_keep : v;
+            // Remove the old association using the original vertex.
+            diff.entries_to_remove.emplace_back(v, orig);
+            // Add the new association using the effective (post-replacement) vertex.
+            diff.entries_to_add.emplace_back(effective_v, new_pos[orig]);
+        }
+    }
+
+    // 3c. Handle vertex replacement in non-moved, non-dead faces.
+    for(I mod : modified_faces) {
+        if(new_pos[mod] != mod) continue;  // Already handled by 3b.
+        diff.entries_to_remove.emplace_back(v_remove, mod);
+        diff.entries_to_add.emplace_back(v_keep, mod);
+    }
+
+    // Phase 4: Apply changes to the faces vector.
+    // 4a. Swap-and-pop dead faces (process in descending current-position order).
+    //     We recompute current positions using the same descending-original order.
+    std::vector<I> new_pos2(N);
+    std::iota(new_pos2.begin(), new_pos2.end(), static_cast<I>(0));
+    std::vector<I> current_face2(N);
+    std::iota(current_face2.begin(), current_face2.end(), static_cast<I>(0));
+
+    I real_size = N;
+    for(I dead_orig : dead_faces) {
+        I dead_cur = new_pos2[dead_orig];
+        --real_size;
+        if(dead_cur != real_size) {
+            I orig_at_last = current_face2[real_size];
+            new_pos2[orig_at_last] = dead_cur;
+            current_face2[dead_cur] = orig_at_last;
+            std::swap(m_mesh.faces[dead_cur], m_mesh.faces[real_size]);
+        }
+        m_mesh.faces.pop_back();
+    }
+
+    // 4b. Replace v_remove with v_keep in all remaining faces.
     for(auto &face : m_mesh.faces) {
         for(auto &v : face) {
             if(v == v_remove) v = v_keep;
         }
     }
-    
-    // Invalidate the involved_faces index.
-    m_mesh.involved_faces.clear();
+
+    // Phase 5: Apply the diff to the involved_faces index.
+    m_mesh.apply_involved_face_index_diff(diff);
 }
 
 template <class T, class I>
@@ -487,8 +591,15 @@ void mesh_remesher<T, I>::do_flip_edge(I face_a, I face_b, I v0, I v1, I v_opp_a
         fb[2] = v1;
     }
     
-    // Invalidate the involved_faces index.
-    m_mesh.involved_faces.clear();
+    // Apply a surgical update to the involved_faces index.
+    // face_a lost v1 and gained v_opp_b.
+    // face_b lost v0 and gained v_opp_a.
+    involved_face_index_diff<I> diff;
+    diff.entries_to_remove.emplace_back(v1, face_a);
+    diff.entries_to_add.emplace_back(v_opp_b, face_a);
+    diff.entries_to_remove.emplace_back(v0, face_b);
+    diff.entries_to_add.emplace_back(v_opp_a, face_b);
+    m_mesh.apply_involved_face_index_diff(diff);
 }
 
 //---------------------------------------------------------------------------------------------------------------------------
@@ -553,6 +664,10 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                 // Split all faces that contain this edge.
                 auto shared_faces = get_faces_sharing_edge(v0, v1);
                 
+                // Build a surgical diff for the involved_faces index.
+                involved_face_index_diff<I> diff;
+                diff.new_vertex_count = 1;  // new_v
+
                 for(auto f_idx : shared_faces) {
                     const auto face_copy = m_mesh.faces[f_idx];  // Copy since we'll modify.
                     // Only process triangular faces.
@@ -586,16 +701,29 @@ int64_t mesh_remesher<T, I>::split_long_edges() {
                     
                     // Replace the original face with face1.
                     m_mesh.faces[f_idx] = face1;
-                    
+
                     // Add face2 as a new face.
+                    I f_new = static_cast<I>(m_mesh.faces.size());
                     m_mesh.faces.push_back(face2);
+
+                    // Diff: face f_idx lost one of (v0, v1) and gained new_v.
+                    // When v0_before_v1, face1=(v0, new_v, v_opp): lost v1.
+                    // Otherwise,         face1=(v1, new_v, v_opp): lost v0.
+                    I v_lost = v0_before_v1 ? v1 : v0;
+                    diff.entries_to_remove.emplace_back(v_lost, f_idx);
+                    diff.entries_to_add.emplace_back(new_v, f_idx);
+
+                    // Diff: new face f_new has all three vertices.
+                    for(const auto &fv : face2) {
+                        diff.entries_to_add.emplace_back(fv, f_new);
+                    }
                 }
                 
+                // Apply the surgical update to keep the index in sync.
+                m_mesh.apply_involved_face_index_diff(diff);
+
                 ++splits;
                 changed = true;
-                
-                // Invalidate index and restart to handle newly created edges.
-                m_mesh.involved_faces.clear();
                 break;  // Restart the loop with updated edge set.
             }
         }
