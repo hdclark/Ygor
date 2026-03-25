@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+#include <string>
 #include <stdexcept>
 #include <limits>
 #include <numeric>
@@ -564,4 +565,156 @@ int64_t Stats::ConditionalInferenceTrees<T>::get_n_permutations() const {
 #ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
     template int64_t Stats::ConditionalInferenceTrees<double>::get_n_permutations() const;
     template int64_t Stats::ConditionalInferenceTrees<float>::get_n_permutations() const;
+#endif
+
+
+template <class T>
+bool Stats::ConditionalInferenceTrees<T>::write_tree_node(std::ostream &os, const TreeNode *node) const {
+    if(node == nullptr){
+        return false;
+    }
+    if(node->is_leaf){
+        os << "L " << node->value << "\n";
+    }else{
+        os << "I " << node->split_feature << " " << node->split_threshold << "\n";
+        if(!write_tree_node(os, node->left.get())) return false;
+        if(!write_tree_node(os, node->right.get())) return false;
+    }
+    return (!os.fail());
+}
+#ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::ConditionalInferenceTrees<double>::write_tree_node(std::ostream &, const TreeNode *) const;
+    template bool Stats::ConditionalInferenceTrees<float>::write_tree_node(std::ostream &, const TreeNode *) const;
+#endif
+
+
+template <class T>
+std::unique_ptr<typename Stats::ConditionalInferenceTrees<T>::TreeNode>
+Stats::ConditionalInferenceTrees<T>::read_tree_node(std::istream &is) {
+    std::string node_type;
+    is >> node_type;
+    if(is.fail()) return nullptr;
+
+    auto node = std::make_unique<TreeNode>();
+    try{
+        if(node_type == "L"){
+            node->is_leaf = true;
+            std::string val_str;
+            is >> val_str;
+            if(is.fail()) return nullptr;
+            node->value = static_cast<T>(std::stold(val_str));
+        }else if(node_type == "I"){
+            node->is_leaf = false;
+            is >> node->split_feature;
+            std::string thresh_str;
+            is >> thresh_str;
+            if(is.fail()) return nullptr;
+            node->split_threshold = static_cast<T>(std::stold(thresh_str));
+            node->left = read_tree_node(is);
+            node->right = read_tree_node(is);
+            if(!node->left || !node->right) return nullptr;
+        }else{
+            return nullptr;
+        }
+    }catch(const std::invalid_argument &){
+        return nullptr;
+    }catch(const std::out_of_range &){
+        return nullptr;
+    }
+    return node;
+}
+#ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
+    template std::unique_ptr<typename Stats::ConditionalInferenceTrees<double>::TreeNode>
+        Stats::ConditionalInferenceTrees<double>::read_tree_node(std::istream &);
+    template std::unique_ptr<typename Stats::ConditionalInferenceTrees<float>::TreeNode>
+        Stats::ConditionalInferenceTrees<float>::read_tree_node(std::istream &);
+#endif
+
+
+template <class T>
+bool Stats::ConditionalInferenceTrees<T>::write_to(std::ostream &os) const {
+    const auto original_precision = os.precision();
+    os.precision( std::numeric_limits<T>::max_digits10 );
+
+    // RAII guard to restore stream precision on all exit paths.
+    struct precision_guard {
+        std::ostream &s;
+        std::streamsize p;
+        ~precision_guard(){ s.precision(p); }
+    } guard{os, original_precision};
+
+    os << "ConditionalInferenceTrees_v1" << "\n";
+    os << "max_depth " << this->max_depth << "\n";
+    os << "min_samples_split " << this->min_samples_split << "\n";
+    os << "alpha " << this->alpha << "\n";
+    os << "n_permutations " << this->n_permutations << "\n";
+    os << "n_features_trained " << this->n_features_trained << "\n";
+    os << "random_seed " << this->random_seed << "\n";
+
+    // Write tree.
+    os << "begin_tree\n";
+    if(!write_tree_node(os, this->root.get())) return false;
+    os << "end_tree\n";
+
+    os.flush();
+    return (!os.fail());
+}
+#ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::ConditionalInferenceTrees<double>::write_to(std::ostream &) const;
+    template bool Stats::ConditionalInferenceTrees<float>::write_to(std::ostream &) const;
+#endif
+
+
+template <class T>
+bool Stats::ConditionalInferenceTrees<T>::read_from(std::istream &is) {
+    try{
+    std::string label;
+
+    // Read and validate header.
+    is >> label;
+    if(is.fail() || label != "ConditionalInferenceTrees_v1") return false;
+
+    // Read parameters.
+    is >> label >> this->max_depth;
+    if(is.fail() || label != "max_depth") return false;
+
+    is >> label >> this->min_samples_split;
+    if(is.fail() || label != "min_samples_split") return false;
+
+    {
+        std::string val_str;
+        is >> label >> val_str;
+        if(is.fail() || label != "alpha") return false;
+        this->alpha = static_cast<T>(std::stold(val_str));
+    }
+
+    is >> label >> this->n_permutations;
+    if(is.fail() || label != "n_permutations") return false;
+
+    is >> label >> this->n_features_trained;
+    if(is.fail() || label != "n_features_trained") return false;
+
+    is >> label >> this->random_seed;
+    if(is.fail() || label != "random_seed") return false;
+
+    // Read tree.
+    is >> label;
+    if(is.fail() || label != "begin_tree") return false;
+
+    this->root = read_tree_node(is);
+    if(!this->root) return false;
+
+    is >> label;
+    if(is.fail() || label != "end_tree") return false;
+
+    return (!is.fail());
+    }catch(const std::invalid_argument &){
+        return false;
+    }catch(const std::out_of_range &){
+        return false;
+    }
+}
+#ifndef YGOR_STATS_CI_TREES_DISABLE_ALL_SPECIALIZATIONS
+    template bool Stats::ConditionalInferenceTrees<double>::read_from(std::istream &);
+    template bool Stats::ConditionalInferenceTrees<float>::read_from(std::istream &);
 #endif
