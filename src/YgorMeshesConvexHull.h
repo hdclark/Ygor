@@ -237,4 +237,81 @@ class DivideAndConquerConvexHull {
         fv_surface_mesh<T, uint64_t> m_mesh;
 };
 
+
+// ============================================================================
+// MarriageBeforeConquestConvexHull: non-incremental 3-D convex hull via a
+// marriage-before-conquest algorithm.
+//
+// Template parameter T is the floating-point coordinate type (float, double).
+//
+// Usage:
+//     std::vector<vec3<double>> pts = ...;
+//     MarriageBeforeConquestConvexHull<double> ch;
+//     ch.compute(pts);
+//     const auto &mesh = ch.get_mesh();
+//
+// The resulting hull is stored as an fv_surface_mesh<T, uint64_t>.
+//
+// This implementation adapts the Kirkpatrick–Seidel (1986)
+// marriage-before-conquest strategy to three dimensions.  Points are split
+// along the median x-coordinate; the "bridge" facets connecting the two
+// sub-hulls are identified *before* the sub-problems are solved (the
+// "marriage" step), interior points are pruned, and then the sub-problems
+// are solved recursively (the "conquest" step).  The final hull is the union
+// of the two sub-hulls and the bridge facets.
+//
+// Shewchuk-style adaptive arithmetic is used for robust orientation tests
+// and a multi-threaded work queue is used for parallel sub-problem dispatch.
+// ============================================================================
+
+template <class T>
+class MarriageBeforeConquestConvexHull {
+    public:
+        MarriageBeforeConquestConvexHull();
+
+        // Compute the convex hull from a given set of vertices.
+        void compute(const std::vector<vec3<T>> &verts);
+
+        // Access the computed hull mesh.
+        const fv_surface_mesh<T, uint64_t> & get_mesh() const;
+
+    private:
+        // Recursive marriage-before-conquest implementation.
+        // Operates on a sub-range [lo, hi) of sorted points and returns
+        // the set of hull vertices for that sub-range.  Interior points are
+        // pruned at each level before recursion.
+        std::vector<vec3<T>> mbc_hull(std::vector<vec3<T>> &pts,
+                                      size_t lo, size_t hi,
+                                      size_t depth,
+                                      work_queue<std::function<void()>> &pool);
+
+        // Build a hull from a small set of points using the incremental
+        // algorithm and return the hull vertices.
+        std::vector<vec3<T>> base_hull(const vec3<T> *pts, size_t n);
+
+        // Prune points that are strictly interior to the convex hull of the
+        // given range by testing against the six axis-aligned extreme planes.
+        // Returns the pruned set of points.
+        static std::vector<vec3<T>> prune_interior(const vec3<T> *pts, size_t n);
+
+        // Find the 2-D upper bridge between left points (x <= median) and
+        // right points (x > median) projected onto the xy-plane, following
+        // the Kirkpatrick–Seidel median-of-slopes approach.  Returns indices
+        // into the respective arrays.
+        static std::pair<size_t, size_t> upper_bridge_2d(
+            const std::vector<vec3<T>> &left,
+            const std::vector<vec3<T>> &right,
+            T median_x);
+
+        // Threshold below which the base (incremental) algorithm is used
+        // directly instead of further subdivision.
+        static constexpr size_t m_base_threshold = 64;
+
+        // Maximum recursion depth at which parallel sub-tasks are spawned.
+        size_t m_parallel_depth = 3;
+
+        // The computed output mesh.
+        fv_surface_mesh<T, uint64_t> m_mesh;
+};
+
 #endif // YGOR_MESHES_CONVEX_HULL_HDR_GRD_H
