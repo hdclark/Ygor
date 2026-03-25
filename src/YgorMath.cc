@@ -9214,6 +9214,28 @@ num_array<T>::read_from(std::istream &is){
     template bool num_array<double>::read_from(std::istream &);
 #endif
 
+template <class T>
+num_array<T>
+num_array<T>::subarray(int64_t row_begin, int64_t row_end, int64_t col_begin, int64_t col_end) const {
+    if( row_begin < 0 || row_end > this->rows || row_begin >= row_end
+    ||  col_begin < 0 || col_end > this->cols || col_begin >= col_end ){
+        throw std::invalid_argument("Subarray indices are out of range or produce an empty sub-array.");
+    }
+    const int64_t sub_rows = row_end - row_begin;
+    const int64_t sub_cols = col_end - col_begin;
+    num_array<T> out(sub_rows, sub_cols);
+    for(int64_t r = 0; r < sub_rows; ++r){
+        for(int64_t c = 0; c < sub_cols; ++c){
+            out.coeff(r, c) = this->read_coeff(r + row_begin, c + col_begin);
+        }
+    }
+    return out;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template num_array<float > num_array<float >::subarray(int64_t, int64_t, int64_t, int64_t) const;
+    template num_array<double> num_array<double>::subarray(int64_t, int64_t, int64_t, int64_t) const;
+#endif
+
 //---------------------------------------------------------------------------------------------------------------------
 //-------------------------- affine_transform: a class that holds an affine transformation ----------------------------
 //---------------------------------------------------------------------------------------------------------------------

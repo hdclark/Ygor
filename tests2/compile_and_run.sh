@@ -45,6 +45,7 @@ g++ \
   YgorMathIOPLY.cc \
   YgorMathIOSTL.cc \
   YgorMathIOXYZ.cc \
+  YgorMathIOCSV.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
   YgorMeshesOrient.cc \

@@ -48,13 +48,90 @@ target_link_libraries(parse_TAR_files
     Threads::Threads
 )
 
+add_executable(ygor_stochastic_forest_train
+    Ygor_Stochastic_Forest_Train.cc
+)
+target_include_directories(ygor_stochastic_forest_train
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_stochastic_forest_train
+    ygor
+    m
+    Threads::Threads
+)
+
+add_executable(ygor_stochastic_forest_predict
+    Ygor_Stochastic_Forest_Predict.cc
+)
+target_include_directories(ygor_stochastic_forest_predict
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_stochastic_forest_predict
+    ygor
+    m
+    Threads::Threads
+)
+
+add_executable(ygor_conditional_forest_train
+    Ygor_Conditional_Forest_Train.cc
+)
+target_include_directories(ygor_conditional_forest_train
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_conditional_forest_train
+    ygor
+    m
+    Threads::Threads
+)
+
+add_executable(ygor_conditional_forest_predict
+    Ygor_Conditional_Forest_Predict.cc
+)
+target_include_directories(ygor_conditional_forest_predict
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_conditional_forest_predict
+    ygor
+    m
+    Threads::Threads
+)
+
+add_executable(ygor_ci_tree_train
+    Ygor_CI_Tree_Train.cc
+)
+target_include_directories(ygor_ci_tree_train
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_ci_tree_train
+    ygor
+    m
+    Threads::Threads
+)
+
+add_executable(ygor_ci_tree_predict
+    Ygor_CI_Tree_Predict.cc
+)
+target_include_directories(ygor_ci_tree_predict
+    SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(ygor_ci_tree_predict
+    ygor
+    m
+    Threads::Threads
+)
+
 install(TARGETS fits_replace_nans
                 twot_pvalue
                 regex_tester
                 parse_TAR_files
+                ygor_stochastic_forest_train
+                ygor_stochastic_forest_predict
+                ygor_conditional_forest_train
+                ygor_conditional_forest_predict
+                ygor_ci_tree_train
+                ygor_ci_tree_predict
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
 

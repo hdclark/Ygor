@@ -13,6 +13,7 @@
 #define YGOR_STATS_CI_TREES_HDR_GRD_H
 
 #include <cstdint>
+#include <iostream>
 #include <vector>
 #include <random>
 #include <memory>
@@ -109,6 +110,10 @@ class ConditionalInferenceTrees {
         // Predict using the tree from a given node.
         T predict_tree(const TreeNode *node, const num_array<T> &x) const;
 
+        // Serialization helpers.
+        bool write_tree_node(std::ostream &os, const TreeNode *node) const;
+        std::unique_ptr<TreeNode> read_tree_node(std::istream &is);
+
     public:
         // Constructor.
         //
@@ -160,6 +165,31 @@ class ConditionalInferenceTrees {
 
         // Get the number of permutations.
         int64_t get_n_permutations() const;
+
+        // Write the model to a text stream.
+        //
+        // Serializes all data members, parameters, and tree structure to a human-readable
+        // text format. The model can be restored exactly using read_from() without any loss
+        // in function or accuracy. Floating point values are written with maximum precision.
+        //
+        // Parameters:
+        //   os: Output stream to write to.
+        //
+        // Returns:
+        //   true on success, false if the stream enters a fail state.
+        bool write_to(std::ostream &os) const;
+
+        // Read a model from a text stream.
+        //
+        // Restores a model previously written by write_to(). All parameters and tree
+        // structure are restored exactly.
+        //
+        // Parameters:
+        //   is: Input stream to read from.
+        //
+        // Returns:
+        //   true on success, false if the stream format is invalid or enters a fail state.
+        bool read_from(std::istream &is);
 };
 
 } //namespace Stats.

@@ -780,6 +780,20 @@ class num_array {
         // Serialize and deserialize to a human- and machine-readable format.
         bool write_to( std::ostream &os ) const;
         bool read_from( std::istream &is );
+
+        // Extract a sub-array (block) from the matrix as a new copy.
+        //
+        // Parameters:
+        //   row_begin: Starting row (inclusive).
+        //   row_end:   Ending row (exclusive).
+        //   col_begin: Starting column (inclusive).
+        //   col_end:   Ending column (exclusive).
+        //
+        // Returns a new num_array containing the specified sub-region.
+        //
+        // Throws:
+        //   std::invalid_argument if indices are out of range or produce an empty sub-array.
+        num_array subarray(int64_t row_begin, int64_t row_end, int64_t col_begin, int64_t col_end) const;
 };
 
 
