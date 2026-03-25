@@ -1,6 +1,8 @@
 
 #include <cmath>
 #include <limits>
+#include <sstream>
+#include <string>
 
 #include <YgorMath.h>
 #include <YgorStatsCITrees.h>
@@ -735,4 +737,185 @@ TEST_CASE( "ConditionalInferenceTrees handles two identical samples" ){
     x_test.coeff(0, 0) = 1.0;
     const double pred = ct.predict(x_test);
     REQUIRE( std::abs(pred - 5.0) < 0.01 );
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees write_to and read_from roundtrip" ){
+    // Train a model, write it, read it back, and verify predictions match.
+    Stats::ConditionalInferenceTrees<double> ct(5, 2, 0.10, 100, 42);
+
+    const int64_t n_samples = 30;
+    const int64_t n_features = 3;
+    num_array<double> X(n_samples, n_features);
+    num_array<double> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<double>(i) * 0.1;
+        X.coeff(i, 1) = static_cast<double>(i) * 0.2;
+        X.coeff(i, 2) = static_cast<double>(i) * 0.15;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + 2.0 * X.read_coeff(i, 1) + 3.0 * X.read_coeff(i, 2);
+    }
+
+    ct.fit(X, y);
+
+    SUBCASE("roundtrip preserves predictions exactly"){
+        // Write model.
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+
+        // Read model.
+        Stats::ConditionalInferenceTrees<double> ct_loaded;
+        REQUIRE( ct_loaded.read_from(ss) );
+
+        // Verify predictions are identical.
+        for(int64_t i = 0; i < n_samples; ++i){
+            num_array<double> x_test(1, n_features);
+            x_test.coeff(0, 0) = X.read_coeff(i, 0);
+            x_test.coeff(0, 1) = X.read_coeff(i, 1);
+            x_test.coeff(0, 2) = X.read_coeff(i, 2);
+
+            const double pred_original = ct.predict(x_test);
+            const double pred_loaded = ct_loaded.predict(x_test);
+            REQUIRE( pred_original == pred_loaded );
+        }
+    }
+
+    SUBCASE("roundtrip preserves predictions on unseen data"){
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+
+        Stats::ConditionalInferenceTrees<double> ct_loaded;
+        REQUIRE( ct_loaded.read_from(ss) );
+
+        // Test on unseen data.
+        for(int i = 0; i < 10; ++i){
+            num_array<double> x_test(1, n_features);
+            x_test.coeff(0, 0) = static_cast<double>(i) * 0.05 + 0.025;
+            x_test.coeff(0, 1) = static_cast<double>(i) * 0.1 + 0.05;
+            x_test.coeff(0, 2) = static_cast<double>(i) * 0.075 + 0.0375;
+
+            const double pred_original = ct.predict(x_test);
+            const double pred_loaded = ct_loaded.predict(x_test);
+            REQUIRE( pred_original == pred_loaded );
+        }
+    }
+
+    SUBCASE("written format is text-based"){
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+        const std::string content = ss.str();
+
+        // Verify it starts with the expected header.
+        REQUIRE( content.substr(0, 28) == "ConditionalInferenceTrees_v1" );
+
+        // Verify it contains expected labels.
+        REQUIRE( content.find("max_depth 5") != std::string::npos );
+        REQUIRE( content.find("min_samples_split 2") != std::string::npos );
+        REQUIRE( content.find("begin_tree") != std::string::npos );
+        REQUIRE( content.find("end_tree") != std::string::npos );
+    }
+
+    SUBCASE("read_from rejects invalid input"){
+        std::stringstream bad_ss("not a valid model");
+        Stats::ConditionalInferenceTrees<double> ct_bad;
+        REQUIRE( !ct_bad.read_from(bad_ss) );
+    }
+
+    SUBCASE("read_from rejects invalid hyperparameters"){
+        // Corrupt max_depth to 0.
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+        std::string content = ss.str();
+        auto pos = content.find("max_depth 5");
+        REQUIRE( pos != std::string::npos );
+        content.replace(pos, 11, "max_depth 0");
+
+        std::stringstream bad_ss(content);
+        Stats::ConditionalInferenceTrees<double> ct_bad;
+        REQUIRE( !ct_bad.read_from(bad_ss) );
+    }
+
+    SUBCASE("read_from rejects invalid alpha"){
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+        std::string content = ss.str();
+        // Replace "alpha 0.1" with "alpha 0" (invalid: alpha must be in (0,1)).
+        auto pos = content.find("alpha ");
+        REQUIRE( pos != std::string::npos );
+        auto end = content.find('\n', pos);
+        content.replace(pos, end - pos, "alpha 0");
+
+        std::stringstream bad_ss(content);
+        Stats::ConditionalInferenceTrees<double> ct_bad;
+        REQUIRE( !ct_bad.read_from(bad_ss) );
+    }
+
+    SUBCASE("read_from rejects out-of-range split_feature"){
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+        std::string content = ss.str();
+        // Replace a valid internal node split_feature with an out-of-range value.
+        // The format for internal nodes is "I <feature_idx> <threshold>".
+        auto pos = content.find("\nI ");
+        REQUIRE( pos != std::string::npos );
+        // Find the feature index after "I ".
+        auto feat_start = pos + 3;
+        auto feat_end = content.find(' ', feat_start);
+        REQUIRE( feat_end != std::string::npos );
+        // Replace the feature index with 999 (out of range for 3 features).
+        content.replace(feat_start, feat_end - feat_start, "999");
+
+        std::stringstream bad_ss(content);
+        Stats::ConditionalInferenceTrees<double> ct_bad;
+        REQUIRE( !ct_bad.read_from(bad_ss) );
+    }
+
+    SUBCASE("read_from rejects negative split_feature"){
+        std::stringstream ss;
+        REQUIRE( ct.write_to(ss) );
+        std::string content = ss.str();
+        auto pos = content.find("\nI ");
+        REQUIRE( pos != std::string::npos );
+        auto feat_start = pos + 3;
+        auto feat_end = content.find(' ', feat_start);
+        REQUIRE( feat_end != std::string::npos );
+        content.replace(feat_start, feat_end - feat_start, "-1");
+
+        std::stringstream bad_ss(content);
+        Stats::ConditionalInferenceTrees<double> ct_bad;
+        REQUIRE( !ct_bad.read_from(bad_ss) );
+    }
+}
+
+
+TEST_CASE( "ConditionalInferenceTrees write_to and read_from with float" ){
+    Stats::ConditionalInferenceTrees<float> ct(4, 2, 0.10f, 100, 99);
+
+    const int64_t n_samples = 15;
+    num_array<float> X(n_samples, 2);
+    num_array<float> y(n_samples, 1);
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        X.coeff(i, 0) = static_cast<float>(i) * 0.5f;
+        X.coeff(i, 1) = static_cast<float>(i) * 0.3f;
+        y.coeff(i, 0) = X.read_coeff(i, 0) + X.read_coeff(i, 1);
+    }
+
+    ct.fit(X, y);
+
+    std::stringstream ss;
+    REQUIRE( ct.write_to(ss) );
+
+    Stats::ConditionalInferenceTrees<float> ct_loaded;
+    REQUIRE( ct_loaded.read_from(ss) );
+
+    for(int64_t i = 0; i < n_samples; ++i){
+        num_array<float> x_test(1, 2);
+        x_test.coeff(0, 0) = X.read_coeff(i, 0);
+        x_test.coeff(0, 1) = X.read_coeff(i, 1);
+
+        const float pred_original = ct.predict(x_test);
+        const float pred_loaded = ct_loaded.predict(x_test);
+        REQUIRE( pred_original == pred_loaded );
+    }
 }

@@ -606,6 +606,12 @@ Stats::ConditionalInferenceTrees<T>::read_tree_node(std::istream &is) {
         }else if(node_type == "I"){
             node->is_leaf = false;
             is >> node->split_feature;
+            if(is.fail()) return nullptr;
+            // Validate split_feature against n_features_trained to prevent out-of-bounds
+            // access during prediction. n_features_trained is set before tree deserialization.
+            if(node->split_feature < 0 || node->split_feature >= this->n_features_trained){
+                return nullptr;
+            }
             std::string thresh_str;
             is >> thresh_str;
             if(is.fail()) return nullptr;

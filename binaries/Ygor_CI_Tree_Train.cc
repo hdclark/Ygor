@@ -5,7 +5,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -13,6 +12,7 @@
 
 #include "YgorArguments.h"
 #include "YgorMath.h"
+#include "YgorMathIOCSV.h"
 #include "YgorStatsCITrees.h"
 
 int main(int argc, char **argv){
@@ -85,64 +85,24 @@ int main(int argc, char **argv){
         throw std::runtime_error("Unable to open input file '" + input_file + "'.");
     }
 
-    std::vector<std::vector<double>> rows;
-    std::string line;
-    bool first_data_line = true;
-    char delimiter = ',';
-
-    while(std::getline(fi, line)){
-        if(line.empty()) continue;
-        if(first_data_line){
-            if(line.find('\t') != std::string::npos){
-                delimiter = '\t';
-            }
-            if(has_header){
-                first_data_line = false;
-                continue;
-            }
-            first_data_line = false;
-        }
-
-        std::vector<double> vals;
-        std::stringstream ss(line);
-        std::string token;
-        while(std::getline(ss, token, delimiter)){
-            vals.push_back(std::stod(token));
-        }
-        if(!vals.empty()){
-            rows.push_back(vals);
-        }
-    }
-
-    if(rows.empty()){
-        throw std::runtime_error("No data rows found in input file.");
-    }
-
-    const int64_t n_rows = static_cast<int64_t>(rows.size());
-    const int64_t n_cols = static_cast<int64_t>(rows.front().size());
+    auto csv_result = ReadNumArrayFromCSV<double>(fi, has_header);
+    const auto &all_data = csv_result.data;
+    const int64_t n_rows = all_data.num_rows();
+    const int64_t n_cols = all_data.num_cols();
     if(n_cols < 2){
         throw std::runtime_error("Input must have at least two columns (features + response).");
     }
     const int64_t n_features = n_cols - 1;
 
-    num_array<double> X(n_rows, n_features, 0.0);
-    num_array<double> y(n_rows, 1, 0.0);
-    for(int64_t r = 0; r < n_rows; ++r){
-        if(static_cast<int64_t>(rows[r].size()) != n_cols){
-            throw std::runtime_error("Row " + std::to_string(r) + " has inconsistent number of columns.");
-        }
-        for(int64_t c = 0; c < n_features; ++c){
-            X.coeff(r, c) = rows[r][c];
-        }
-        y.coeff(r, 0) = rows[r][n_features];
-    }
+    num_array<double> X = all_data.subarray(0, n_rows, 0, n_features);
+    num_array<double> y = all_data.subarray(0, n_rows, n_features, n_cols);
 
     std::cout << "Training conditional inference tree with " << n_rows << " samples and "
               << n_features << " features." << std::endl;
 
     // Train the model.
     Stats::ConditionalInferenceTrees<double> model(max_depth, min_samples_split, alpha,
-                                                   n_permutations, random_seed);
+                                                    n_permutations, random_seed);
     model.fit(X, y);
 
     // Save the model.

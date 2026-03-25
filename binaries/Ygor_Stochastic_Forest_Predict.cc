@@ -5,7 +5,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -13,6 +12,7 @@
 
 #include "YgorArguments.h"
 #include "YgorMath.h"
+#include "YgorMathIOCSV.h"
 #include "YgorStatsStochasticForests.h"
 
 int main(int argc, char **argv){
@@ -67,37 +67,13 @@ int main(int argc, char **argv){
         throw std::runtime_error("Unable to open input file '" + input_file + "'.");
     }
 
-    std::string line;
-    bool first_data_line = true;
-    char delimiter = ',';
+    auto csv_result = ReadNumArrayFromCSV<double>(fi, has_header);
+    const auto &all_data = csv_result.data;
+    const int64_t n_rows = all_data.num_rows();
+    const int64_t n_cols = all_data.num_cols();
 
-    while(std::getline(fi, line)){
-        if(line.empty()) continue;
-        if(first_data_line){
-            if(line.find('\t') != std::string::npos){
-                delimiter = '\t';
-            }
-            if(has_header){
-                first_data_line = false;
-                continue;
-            }
-            first_data_line = false;
-        }
-
-        std::vector<double> vals;
-        std::stringstream ss(line);
-        std::string token;
-        while(std::getline(ss, token, delimiter)){
-            vals.push_back(std::stod(token));
-        }
-        if(vals.empty()) continue;
-
-        const int64_t n_features = static_cast<int64_t>(vals.size());
-        num_array<double> x(1, n_features, 0.0);
-        for(int64_t c = 0; c < n_features; ++c){
-            x.coeff(0, c) = vals[c];
-        }
-
+    for(int64_t r = 0; r < n_rows; ++r){
+        num_array<double> x = all_data.subarray(r, r + 1, 0, n_cols);
         double prediction = model.predict(x);
         std::cout << prediction << std::endl;
     }
