@@ -772,6 +772,493 @@ const fv_surface_mesh<T, uint64_t> & DivideAndConquerConvexHull<T>::get_mesh() c
 
 
 // ============================================================================
+// MarriageBeforeConquestConvexHull implementation.
+//
+// This adapts the Kirkpatrick–Seidel (1986) marriage-before-conquest
+// strategy to three dimensions.  At each recursive level, points are split
+// at the median x-coordinate.  A 2-D upper bridge (projected onto the
+// xy-plane) is found using the median-of-slopes approach described in the
+// paper.  The bridge, together with axis-aligned extreme-point tests, is
+// used to prune interior points before recursion.  The two sub-hulls are
+// then computed recursively and merged.
+// ============================================================================
+
+template <class T>
+MarriageBeforeConquestConvexHull<T>::MarriageBeforeConquestConvexHull() = default;
+
+template <class T>
+std::vector<vec3<T>> MarriageBeforeConquestConvexHull<T>::base_hull(const vec3<T> *pts,
+                                                                     size_t n) {
+    if(n < 4){
+        return std::vector<vec3<T>>(pts, pts + n);
+    }
+
+    IncrementalConvexHull<T> ich;
+    for(size_t i = 0; i < n; ++i){
+        ich.add_vertex(pts[i]);
+    }
+    const auto &mesh = ich.get_mesh();
+    return mesh.vertices;
+}
+
+// Prune points that are strictly interior to the convex hull by testing
+// against the six axis-aligned extreme planes.  Any point that lies strictly
+// inside all six planes cannot be a hull vertex and is discarded.  This is
+// a fast O(n) filter that can dramatically reduce the input size for large
+// point sets with many interior points.
+template <class T>
+std::vector<vec3<T>> MarriageBeforeConquestConvexHull<T>::prune_interior(
+    const vec3<T> *pts, size_t n)
+{
+    if(n <= 6){
+        return std::vector<vec3<T>>(pts, pts + n);
+    }
+
+    T xmin = pts[0].x, xmax = pts[0].x;
+    T ymin = pts[0].y, ymax = pts[0].y;
+    T zmin = pts[0].z, zmax = pts[0].z;
+
+    for(size_t i = 1; i < n; ++i){
+        if(pts[i].x < xmin) xmin = pts[i].x;
+        if(pts[i].x > xmax) xmax = pts[i].x;
+        if(pts[i].y < ymin) ymin = pts[i].y;
+        if(pts[i].y > ymax) ymax = pts[i].y;
+        if(pts[i].z < zmin) zmin = pts[i].z;
+        if(pts[i].z > zmax) zmax = pts[i].z;
+    }
+
+    std::vector<vec3<T>> out;
+    out.reserve(n);
+    for(size_t i = 0; i < n; ++i){
+        if(pts[i].x == xmin || pts[i].x == xmax ||
+           pts[i].y == ymin || pts[i].y == ymax ||
+           pts[i].z == zmin || pts[i].z == zmax){
+            out.push_back(pts[i]);
+        } else {
+            // Interior point candidate: check if it lies strictly inside all
+            // six extreme planes.  If so, it cannot be on the hull.
+            bool interior = (pts[i].x > xmin && pts[i].x < xmax &&
+                             pts[i].y > ymin && pts[i].y < ymax &&
+                             pts[i].z > zmin && pts[i].z < zmax);
+            if(!interior){
+                out.push_back(pts[i]);
+            }
+        }
+    }
+
+    return out;
+}
+
+// Kirkpatrick–Seidel 2-D upper bridge finding.
+//
+// Given two point sets `left` and `right` (sorted by x within each set),
+// finds the upper bridge: the edge (l, r) with l in left and r in right
+// such that all points in left lie at or below the line through (l, r) and
+// all points in right lie at or below that line.  This is the core
+// "marriage" step of the Kirkpatrick–Seidel algorithm.
+//
+// The algorithm works by:
+//   1. Pairing up consecutive points in each set and computing the slope
+//      of each pair's connecting line.
+//   2. Finding the median of these slopes.
+//   3. For each set, finding the point(s) that maximise the y-intercept of
+//      the supporting line with the median slope.
+//   4. Using the relative position of the supporting points to the median
+//      x-coordinate to prune half the candidates.
+//   5. Recursing until only one candidate remains in each set.
+//
+// Returns (index into left, index into right).
+template <class T>
+std::pair<size_t, size_t> MarriageBeforeConquestConvexHull<T>::upper_bridge_2d(
+    const std::vector<vec3<T>> &left,
+    const std::vector<vec3<T>> &right,
+    T median_x)
+{
+    // Working copies of candidate indices.
+    std::vector<size_t> L_idx(left.size());
+    std::vector<size_t> R_idx(right.size());
+    for(size_t i = 0; i < left.size(); ++i) L_idx[i] = i;
+    for(size_t i = 0; i < right.size(); ++i) R_idx[i] = i;
+
+    while(L_idx.size() > 1 || R_idx.size() > 1){
+        // Collect slopes from paired-up points.
+        std::vector<T> slopes;
+        slopes.reserve(L_idx.size() / 2 + R_idx.size() / 2);
+
+        // Pair consecutive candidates in L.
+        std::vector<std::pair<size_t,size_t>> L_pairs;
+        for(size_t i = 0; i + 1 < L_idx.size(); i += 2){
+            size_t a = L_idx[i], b = L_idx[i + 1];
+            T dx = left[b].x - left[a].x;
+            if(dx != static_cast<T>(0)){
+                slopes.push_back((left[b].y - left[a].y) / dx);
+            }
+            L_pairs.push_back({a, b});
+        }
+
+        // Pair consecutive candidates in R.
+        std::vector<std::pair<size_t,size_t>> R_pairs;
+        for(size_t i = 0; i + 1 < R_idx.size(); i += 2){
+            size_t a = R_idx[i], b = R_idx[i + 1];
+            T dx = right[b].x - right[a].x;
+            if(dx != static_cast<T>(0)){
+                slopes.push_back((right[b].y - right[a].y) / dx);
+            }
+            R_pairs.push_back({a, b});
+        }
+
+        if(slopes.empty()){
+            // All pairs have equal x — fall back: keep only the highest-y
+            // point from each set.
+            break;
+        }
+
+        // Find median slope via nth_element.
+        size_t mid_s = slopes.size() / 2;
+        std::nth_element(slopes.begin(), slopes.begin() + static_cast<long>(mid_s), slopes.end());
+        T med_slope = slopes[mid_s];
+
+        // For each set, find the point(s) that maximise
+        //   h(p) = p.y - med_slope * p.x
+        // which is the y-intercept of a line with slope med_slope through p.
+
+        // Left set: find max h and the point with max x among those.
+        T best_hL = left[L_idx[0]].y - med_slope * left[L_idx[0]].x;
+        size_t best_iL = L_idx[0];
+        for(size_t i = 1; i < L_idx.size(); ++i){
+            T h = left[L_idx[i]].y - med_slope * left[L_idx[i]].x;
+            if(h > best_hL || (h == best_hL && left[L_idx[i]].x > left[best_iL].x)){
+                best_hL = h;
+                best_iL = L_idx[i];
+            }
+        }
+
+        // Right set: find max h and the point with min x among those.
+        T best_hR = right[R_idx[0]].y - med_slope * right[R_idx[0]].x;
+        size_t best_iR = R_idx[0];
+        for(size_t i = 1; i < R_idx.size(); ++i){
+            T h = right[R_idx[i]].y - med_slope * right[R_idx[i]].x;
+            if(h > best_hR || (h == best_hR && right[R_idx[i]].x < right[best_iR].x)){
+                best_hR = h;
+                best_iR = R_idx[i];
+            }
+        }
+
+        // Determine the relationship between the bridge slope and med_slope
+        // by examining the supporting line through the left and right
+        // maximisers at the median x-coordinate (KS86 Section 3).
+        //
+        // The bridge crosses x = median_x.  The supporting line with slope
+        // med_slope through the left maximiser has value at median_x:
+        //   yL = best_hL + med_slope * median_x
+        // and similarly for the right maximiser:
+        //   yR = best_hR + med_slope * median_x
+        //
+        // If yL > yR the bridge slope is less than med_slope;
+        // if yL < yR the bridge slope is greater than med_slope.
+        T yL_at_med = best_hL + med_slope * median_x;
+        T yR_at_med = best_hR + med_slope * median_x;
+
+        if(yL_at_med == yR_at_med
+           && left[best_iL].x <= median_x
+           && right[best_iR].x >= median_x){
+            return {best_iL, best_iR};
+        }
+
+        std::vector<size_t> new_L, new_R;
+        new_L.reserve(L_idx.size());
+        new_R.reserve(R_idx.size());
+
+        if(yL_at_med > yR_at_med){
+            // Bridge slope < med_slope.
+            for(auto &[a, b] : L_pairs){
+                T dx = left[b].x - left[a].x;
+                if(dx == static_cast<T>(0)){
+                    // Keep the higher-y point.
+                    new_L.push_back(left[a].y >= left[b].y ? a : b);
+                } else {
+                    T s = (left[b].y - left[a].y) / dx;
+                    if(s > med_slope){
+                        // Keep left-most (smaller x).
+                        new_L.push_back(left[a].x <= left[b].x ? a : b);
+                    } else if(s < med_slope){
+                        // Keep both.
+                        new_L.push_back(a);
+                        new_L.push_back(b);
+                    } else {
+                        // Equal: keep both.
+                        new_L.push_back(a);
+                        new_L.push_back(b);
+                    }
+                }
+            }
+            // Unpaired last element in L.
+            if(L_idx.size() % 2 == 1) new_L.push_back(L_idx.back());
+
+            for(auto &[a, b] : R_pairs){
+                T dx = right[b].x - right[a].x;
+                if(dx == static_cast<T>(0)){
+                    new_R.push_back(right[a].y >= right[b].y ? a : b);
+                } else {
+                    T s = (right[b].y - right[a].y) / dx;
+                    if(s < med_slope){
+                        // Keep right-most (larger x).
+                        new_R.push_back(right[a].x >= right[b].x ? a : b);
+                    } else if(s > med_slope){
+                        new_R.push_back(a);
+                        new_R.push_back(b);
+                    } else {
+                        new_R.push_back(a);
+                        new_R.push_back(b);
+                    }
+                }
+            }
+            if(R_idx.size() % 2 == 1) new_R.push_back(R_idx.back());
+        } else {
+            // yL_at_med < yR_at_med → bridge slope > med_slope.
+            for(auto &[a, b] : L_pairs){
+                T dx = left[b].x - left[a].x;
+                if(dx == static_cast<T>(0)){
+                    new_L.push_back(left[a].y >= left[b].y ? a : b);
+                } else {
+                    T s = (left[b].y - left[a].y) / dx;
+                    if(s < med_slope){
+                        // Keep right-most (larger x).
+                        new_L.push_back(left[a].x >= left[b].x ? a : b);
+                    } else if(s > med_slope){
+                        new_L.push_back(a);
+                        new_L.push_back(b);
+                    } else {
+                        new_L.push_back(a);
+                        new_L.push_back(b);
+                    }
+                }
+            }
+            if(L_idx.size() % 2 == 1) new_L.push_back(L_idx.back());
+
+            for(auto &[a, b] : R_pairs){
+                T dx = right[b].x - right[a].x;
+                if(dx == static_cast<T>(0)){
+                    new_R.push_back(right[a].y >= right[b].y ? a : b);
+                } else {
+                    T s = (right[b].y - right[a].y) / dx;
+                    if(s > med_slope){
+                        // Keep left-most (smaller x).
+                        new_R.push_back(right[a].x <= right[b].x ? a : b);
+                    } else if(s < med_slope){
+                        new_R.push_back(a);
+                        new_R.push_back(b);
+                    } else {
+                        new_R.push_back(a);
+                        new_R.push_back(b);
+                    }
+                }
+            }
+            if(R_idx.size() % 2 == 1) new_R.push_back(R_idx.back());
+        }
+
+        // Ensure progress: if pruning did not reduce candidate count, break.
+        if(new_L.size() >= L_idx.size() && new_R.size() >= R_idx.size()){
+            break;
+        }
+
+        if(!new_L.empty()) L_idx = std::move(new_L);
+        if(!new_R.empty()) R_idx = std::move(new_R);
+    }
+
+    // Fall-back: choose the highest-y candidate from each set.
+    size_t bestL = L_idx[0];
+    for(size_t i = 1; i < L_idx.size(); ++i){
+        if(left[L_idx[i]].y > left[bestL].y ||
+           (left[L_idx[i]].y == left[bestL].y && left[L_idx[i]].x > left[bestL].x)){
+            bestL = L_idx[i];
+        }
+    }
+    size_t bestR = R_idx[0];
+    for(size_t i = 1; i < R_idx.size(); ++i){
+        if(right[R_idx[i]].y > right[bestR].y ||
+           (right[R_idx[i]].y == right[bestR].y && right[R_idx[i]].x < right[bestR].x)){
+            bestR = R_idx[i];
+        }
+    }
+    return {bestL, bestR};
+}
+
+template <class T>
+std::vector<vec3<T>> MarriageBeforeConquestConvexHull<T>::mbc_hull(
+    std::vector<vec3<T>> &pts,
+    size_t lo, size_t hi,
+    size_t depth,
+    work_queue<std::function<void()>> &pool)
+{
+    size_t n = hi - lo;
+    if(n <= m_base_threshold){
+        return base_hull(pts.data() + lo, n);
+    }
+
+    const size_t mid = lo + n / 2;
+    T median_x = pts[mid].x;
+
+    // --- Marriage step ---
+    // Build projected (xy) candidate lists for the left and right halves.
+    std::vector<vec3<T>> left_pts(pts.begin() + lo,
+                                  pts.begin() + mid);
+    std::vector<vec3<T>> right_pts(pts.begin() + mid,
+                                   pts.begin() + hi);
+
+    // Find the 2-D upper bridge in xy-projection.  The bridge identifies the
+    // extreme supporting edge crossing the median x, which is the core
+    // "marriage" information used to discard interior points before recursion.
+    auto [bridge_l, bridge_r] = upper_bridge_2d(left_pts, right_pts, median_x);
+
+    // Use the bridge to prune points that are strictly below the bridge line
+    // in the xy-projection.  A point below the bridge in all three 2-D
+    // projections (xy, xz, yz) cannot be a hull vertex.  We conservatively
+    // prune only using the xy-projection bridge and the axis-aligned bounding
+    // box to avoid discarding hull vertices.
+    const auto &bl = left_pts[bridge_l];
+    const auto &br = right_pts[bridge_r];
+    T bridge_dx = br.x - bl.x;
+    T bridge_dy = br.y - bl.y;
+
+    // Prune left half: keep points that are on or above the bridge line,
+    // or that are on the axis-aligned bounding box boundary.
+    auto is_above_bridge = [&](const vec3<T> &p) -> bool {
+        if(bridge_dx == static_cast<T>(0)) return true;
+        // Value of bridge line at p.x:
+        T bridge_y = bl.y + bridge_dy * (p.x - bl.x) / bridge_dx;
+        return p.y >= bridge_y;
+    };
+
+    // Also compute axis-aligned extremes for the entire range to aid pruning.
+    T ymin = pts[lo].y, ymax = pts[lo].y;
+    T zmin = pts[lo].z, zmax = pts[lo].z;
+    for(size_t i = lo + 1; i < hi; ++i){
+        if(pts[i].y < ymin) ymin = pts[i].y;
+        if(pts[i].y > ymax) ymax = pts[i].y;
+        if(pts[i].z < zmin) zmin = pts[i].z;
+        if(pts[i].z > zmax) zmax = pts[i].z;
+    }
+
+    auto should_keep = [&](const vec3<T> &p) -> bool {
+        // Keep if on bounding-box boundary in y or z.
+        if(p.y == ymin || p.y == ymax || p.z == zmin || p.z == zmax){
+            return true;
+        }
+        // Keep if on or above the bridge line in xy-projection.
+        return is_above_bridge(p);
+    };
+
+    std::vector<vec3<T>> pruned_left;
+    pruned_left.reserve(mid - lo);
+    for(size_t i = lo; i < mid; ++i){
+        if(should_keep(pts[i])){
+            pruned_left.push_back(pts[i]);
+        }
+    }
+
+    std::vector<vec3<T>> pruned_right;
+    pruned_right.reserve(hi - mid);
+    for(size_t i = mid; i < hi; ++i){
+        if(should_keep(pts[i])){
+            pruned_right.push_back(pts[i]);
+        }
+    }
+
+    // Ensure we have enough points for recursion.
+    if(pruned_left.size() < 4){
+        pruned_left.assign(pts.begin() + static_cast<long>(lo),
+                           pts.begin() + static_cast<long>(mid));
+    }
+    if(pruned_right.size() < 4){
+        pruned_right.assign(pts.begin() + static_cast<long>(mid),
+                            pts.begin() + static_cast<long>(hi));
+    }
+
+    // Pruned sets are already sorted by x from the outer sort.
+
+    // --- Conquest step ---
+    std::vector<vec3<T>> left_result;
+    std::vector<vec3<T>> right_result;
+
+    if(depth < m_parallel_depth){
+        std::promise<void> left_promise;
+        std::future<void> left_future = left_promise.get_future();
+
+        pool.submit_task([&, depth](){
+            try{
+                left_result = mbc_hull(pruned_left, 0, pruned_left.size(),
+                                       depth + 1, pool);
+                left_promise.set_value();
+            }catch(...){
+                left_promise.set_exception(std::current_exception());
+            }
+        });
+
+        right_result = mbc_hull(pruned_right, 0, pruned_right.size(),
+                                depth + 1, pool);
+
+        // Wait for the left sub-problem and propagate any exception.
+        left_future.get();
+    } else {
+        left_result  = mbc_hull(pruned_left, 0, pruned_left.size(),
+                                depth + 1, pool);
+        right_result = mbc_hull(pruned_right, 0, pruned_right.size(),
+                                depth + 1, pool);
+    }
+
+    // --- Merge ---
+    // Combine hull vertices from both sub-hulls and compute the hull of
+    // the union using the base (incremental) algorithm.
+    std::vector<vec3<T>> merged;
+    merged.reserve(left_result.size() + right_result.size());
+    merged.insert(merged.end(), left_result.begin(), left_result.end());
+    merged.insert(merged.end(), right_result.begin(), right_result.end());
+
+    return base_hull(merged.data(), merged.size());
+}
+
+template <class T>
+void MarriageBeforeConquestConvexHull<T>::compute(const std::vector<vec3<T>> &verts) {
+    m_mesh = fv_surface_mesh<T, uint64_t>();
+
+    if(verts.size() < 4){
+        m_mesh.vertices.assign(verts.begin(), verts.end());
+        return;
+    }
+
+    // Make a working copy and sort along the x-axis for spatial partitioning.
+    std::vector<vec3<T>> pts(verts);
+    std::sort(pts.begin(), pts.end(), [](const vec3<T> &a, const vec3<T> &b){
+        if(a.x != b.x) return a.x < b.x;
+        if(a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    });
+
+    // Create a shared thread pool for parallel sub-problem dispatch.
+    work_queue<std::function<void()>> pool;
+
+    auto hull_verts = mbc_hull(pts, 0, pts.size(), 0, pool);
+
+    // Build the final mesh from the hull vertices using the incremental
+    // algorithm.
+    if(hull_verts.size() < 4){
+        m_mesh.vertices = std::move(hull_verts);
+        return;
+    }
+
+    IncrementalConvexHull<T> ich;
+    ich.add_vertices(hull_verts);
+    m_mesh = ich.get_mesh();
+}
+
+template <class T>
+const fv_surface_mesh<T, uint64_t> & MarriageBeforeConquestConvexHull<T>::get_mesh() const {
+    return m_mesh;
+}
+
+
+// ============================================================================
 // Explicit template instantiations.
 // ============================================================================
 
@@ -780,4 +1267,6 @@ template class IncrementalConvexHull<float>;
 template class IncrementalConvexHull<double>;
 template class DivideAndConquerConvexHull<float>;
 template class DivideAndConquerConvexHull<double>;
+template class MarriageBeforeConquestConvexHull<float>;
+template class MarriageBeforeConquestConvexHull<double>;
 #endif

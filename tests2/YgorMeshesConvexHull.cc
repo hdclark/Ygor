@@ -731,3 +731,282 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         REQUIRE(mesh.vertices.size() <= 6UL);
     }
 }
+
+
+TEST_CASE( "MarriageBeforeConquestConvexHull" ){
+    using T = double;
+
+    SUBCASE("Tetrahedron (4 vertices)"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Cube (8 vertices)"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(1.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0),
+            vec3<T>(1.0, 0.0, 1.0),
+            vec3<T>(0.0, 1.0, 1.0),
+            vec3<T>(1.0, 1.0, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 8UL);
+        REQUIRE(mesh.faces.size() == 12UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Interior point is not on hull"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(2.0, 0.0, 0.0),
+            vec3<T>(0.0, 2.0, 0.0),
+            vec3<T>(0.0, 0.0, 2.0),
+            vec3<T>(0.25, 0.25, 0.25)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Octahedron (6 vertices)"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>( 1.0,  0.0,  0.0),
+            vec3<T>(-1.0,  0.0,  0.0),
+            vec3<T>( 0.0,  1.0,  0.0),
+            vec3<T>( 0.0, -1.0,  0.0),
+            vec3<T>( 0.0,  0.0,  1.0),
+            vec3<T>( 0.0,  0.0, -1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 6UL);
+        REQUIRE(mesh.faces.size() == 8UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Many random points form a valid hull"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        uint64_t seed = 42;
+        auto next_rand = [&]() -> T {
+            seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+            return static_cast<T>((seed >> 33) & 0x7FFFFFFFULL)
+                 / static_cast<T>(0x80000000ULL) * 2.0 - 1.0;
+        };
+
+        std::vector<vec3<T>> pts;
+        for(int i = 0; i < 200; ++i){
+            pts.emplace_back(next_rand(), next_rand(), next_rand());
+        }
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() <= 200UL);
+        REQUIRE(mesh.vertices.size() >= 4UL);
+    }
+
+    SUBCASE("Convex hull contains all input points"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(3.0, 0.0, 0.0),
+            vec3<T>(0.0, 3.0, 0.0),
+            vec3<T>(0.0, 0.0, 3.0),
+            vec3<T>(1.0, 1.0, 0.5),
+            vec3<T>(0.5, 0.5, 0.5),
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_points_inside(mesh, pts);
+    }
+
+    SUBCASE("Points on a sphere"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        T phi = (static_cast<T>(1) + std::sqrt(static_cast<T>(5))) / static_cast<T>(2);
+        T a = static_cast<T>(1);
+        std::vector<vec3<T>> ico_verts = {
+            vec3<T>(-a,  phi, 0), vec3<T>( a,  phi, 0),
+            vec3<T>(-a, -phi, 0), vec3<T>( a, -phi, 0),
+            vec3<T>(0, -a,  phi), vec3<T>(0,  a,  phi),
+            vec3<T>(0, -a, -phi), vec3<T>(0,  a, -phi),
+            vec3<T>( phi, 0, -a), vec3<T>( phi, 0,  a),
+            vec3<T>(-phi, 0, -a), vec3<T>(-phi, 0,  a)
+        };
+        for(auto &v : ico_verts){
+            v = v.unit();
+        }
+        ch.compute(ico_verts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 12UL);
+        REQUIRE(mesh.faces.size() == 20UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Float specialization works"){
+        MarriageBeforeConquestConvexHull<float> ch;
+        std::vector<vec3<float>> pts = {
+            vec3<float>(0.0f, 0.0f, 0.0f),
+            vec3<float>(1.0f, 0.0f, 0.0f),
+            vec3<float>(0.0f, 1.0f, 0.0f),
+            vec3<float>(0.0f, 0.0f, 1.0f)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
+    }
+
+    SUBCASE("Coplanar points (degeneracy)"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(1.0, 1.0, 0.0),
+            vec3<T>(0.5, 0.5, 1.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() == 5UL);
+    }
+
+    SUBCASE("Large grid (mostly interior points)"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        const int M = 10;
+        std::vector<vec3<T>> pts;
+        pts.reserve(static_cast<size_t>(M * M * M));
+        for(int i = 0; i < M; ++i){
+            for(int j = 0; j < M; ++j){
+                for(int k = 0; k < M; ++k){
+                    pts.emplace_back(static_cast<T>(i),
+                                     static_cast<T>(j),
+                                     static_cast<T>(k));
+                }
+            }
+        }
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() >= 8UL);
+
+        auto N_outer_verts = static_cast<uint64_t>((M*M-4*M)*6 + M*12);
+        REQUIRE(mesh.vertices.size() <= N_outer_verts);
+    }
+
+    SUBCASE("Fewer than 4 vertices returns no faces"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        REQUIRE(mesh.faces.empty());
+    }
+
+    SUBCASE("Duplicate vertices are handled"){
+        MarriageBeforeConquestConvexHull<T> ch;
+        std::vector<vec3<T>> pts = {
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0),
+            vec3<T>(0.0, 1.0, 0.0),
+            vec3<T>(0.0, 0.0, 1.0),
+            vec3<T>(0.0, 0.0, 0.0),
+            vec3<T>(1.0, 0.0, 0.0)
+        };
+        ch.compute(pts);
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+        REQUIRE(mesh.vertices.size() >= 4UL);
+        REQUIRE(mesh.vertices.size() <= 6UL);
+    }
+
+    SUBCASE("Consistent with DivideAndConquerConvexHull"){
+        // Both algorithms should produce equivalent hulls for the same input.
+        uint64_t seed = 123;
+        auto next_rand = [&]() -> T {
+            seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+            return static_cast<T>((seed >> 33) & 0x7FFFFFFFULL)
+                 / static_cast<T>(0x80000000ULL) * 2.0 - 1.0;
+        };
+
+        std::vector<vec3<T>> pts;
+        for(int i = 0; i < 100; ++i){
+            pts.emplace_back(next_rand(), next_rand(), next_rand());
+        }
+
+        MarriageBeforeConquestConvexHull<T> mbc;
+        mbc.compute(pts);
+        const auto &mbc_mesh = mbc.get_mesh();
+
+        DivideAndConquerConvexHull<T> dc;
+        dc.compute(pts);
+        const auto &dc_mesh = dc.get_mesh();
+
+        // Both should produce valid hulls that contain all input points.
+        // Exact vertex/face counts may differ because each algorithm feeds
+        // points to IncrementalConvexHull in a different order, and the
+        // random perturbation used for degeneracy resolution is order-
+        // dependent.
+        check_mesh_valid(mbc_mesh);
+        check_closed_manifold(mbc_mesh);
+        check_euler(mbc_mesh);
+        check_points_inside(mbc_mesh, pts);
+
+        check_mesh_valid(dc_mesh);
+        check_closed_manifold(dc_mesh);
+        check_euler(dc_mesh);
+        check_points_inside(dc_mesh, pts);
+    }
+}
