@@ -412,6 +412,7 @@ void mesh_remesher<T, I>::do_collapse_edge(I v_keep, I v_remove) {
 
     // Phase 2: Compute the old_index -> new_index mapping via simulated swap-and-pop.
     //          This allows us to build the diff entirely against the original state.
+    //          Swap operations are recorded for replay in Phase 4.
     std::vector<I> new_pos(N);
     std::iota(new_pos.begin(), new_pos.end(), static_cast<I>(0));
     std::vector<I> current_face(N);
@@ -419,6 +420,9 @@ void mesh_remesher<T, I>::do_collapse_edge(I v_keep, I v_remove) {
 
     std::set<I> dead_set(dead_faces.begin(), dead_faces.end());
     std::sort(dead_faces.begin(), dead_faces.end(), std::greater<I>());
+
+    // Record (dead_current_pos, last_pos) pairs for Phase 4 replay.
+    std::vector<std::pair<I, I>> swap_ops;
 
     I sim_size = N;
     for(I dead_orig : dead_faces) {
@@ -429,6 +433,7 @@ void mesh_remesher<T, I>::do_collapse_edge(I v_keep, I v_remove) {
             I orig_at_last = current_face[sim_size];
             new_pos[orig_at_last] = dead_cur;
             current_face[dead_cur] = orig_at_last;
+            swap_ops.emplace_back(dead_cur, sim_size);
         }
         new_pos[dead_orig] = std::numeric_limits<I>::max();
     }
@@ -463,23 +468,11 @@ void mesh_remesher<T, I>::do_collapse_edge(I v_keep, I v_remove) {
     }
 
     // Phase 4: Apply changes to the faces vector.
-    // 4a. Swap-and-pop dead faces (process in descending current-position order).
-    //     We recompute current positions using the same descending-original order.
-    std::vector<I> new_pos2(N);
-    std::iota(new_pos2.begin(), new_pos2.end(), static_cast<I>(0));
-    std::vector<I> current_face2(N);
-    std::iota(current_face2.begin(), current_face2.end(), static_cast<I>(0));
-
-    I real_size = N;
-    for(I dead_orig : dead_faces) {
-        I dead_cur = new_pos2[dead_orig];
-        --real_size;
-        if(dead_cur != real_size) {
-            I orig_at_last = current_face2[real_size];
-            new_pos2[orig_at_last] = dead_cur;
-            current_face2[dead_cur] = orig_at_last;
-            std::swap(m_mesh.faces[dead_cur], m_mesh.faces[real_size]);
-        }
+    // 4a. Replay the swap-and-pop operations recorded in Phase 2.
+    for(const auto &op : swap_ops) {
+        std::swap(m_mesh.faces[op.first], m_mesh.faces[op.second]);
+    }
+    for(size_t i = 0; i < dead_set.size(); ++i) {
         m_mesh.faces.pop_back();
     }
 
