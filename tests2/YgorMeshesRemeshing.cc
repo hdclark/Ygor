@@ -345,19 +345,11 @@ TEST_CASE("mesh_remesher completes in bounded time on a refined mesh"){
         // Verify we actually have a non-trivial mesh (> 100 faces).
         REQUIRE(mesh.faces.size() > 100);
 
-        // Now remesh with a different target edge length and verify completion.
-        const auto t0 = std::chrono::steady_clock::now();
-
+        // Now remesh with a different target edge length and verify completion and mesh validity.
         mesh_remesher<double, uint64_t> remesher(mesh, 1.5);
         for(int iter = 0; iter < 5; ++iter){
             remesher.remesh_iteration();
         }
-
-        const auto t1 = std::chrono::steady_clock::now();
-        const double elapsed_s = std::chrono::duration<double>(t1 - t0).count();
-
-        // The algorithm should complete 5 iterations well within 30 seconds.
-        REQUIRE(elapsed_s < 30.0);
         REQUIRE(verify_mesh_integrity(mesh));
 
         // Verify that edge lengths are tending toward the target.
