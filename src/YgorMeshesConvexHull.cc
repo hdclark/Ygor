@@ -1101,10 +1101,10 @@ std::vector<vec3<T>> MarriageBeforeConquestConvexHull<T>::mbc_hull(
 
     // --- Marriage step ---
     // Build projected (xy) candidate lists for the left and right halves.
-    std::vector<vec3<T>> left_pts(pts.begin() + static_cast<long>(lo),
-                                  pts.begin() + static_cast<long>(mid));
-    std::vector<vec3<T>> right_pts(pts.begin() + static_cast<long>(mid),
-                                   pts.begin() + static_cast<long>(hi));
+    std::vector<vec3<T>> left_pts(pts.begin() + lo,
+                                  pts.begin() + mid);
+    std::vector<vec3<T>> right_pts(pts.begin() + mid,
+                                   pts.begin() + hi);
 
     // Find the 2-D upper bridge in xy-projection.  The bridge identifies the
     // extreme supporting edge crossing the median x, which is the core
