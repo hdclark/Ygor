@@ -6,7 +6,6 @@
 #include <map>
 #include <queue>
 #include <cmath>
-#include <unordered_map>
 #include <stdexcept>
 #include <utility>
 #include <algorithm>
@@ -221,13 +220,8 @@ OrientFaces(fv_surface_mesh<T,I> &fvsm,
     // Identify manifold edges (shared by exactly 2 faces) and non-manifold
     // edges (shared by > 2 faces). Boundary edges (1 face) are fine.
     // Build face adjacency restricted to manifold edges.
-    std::vector<std::vector<I>> face_adj(N_faces);
-
-    // For each manifold edge connecting two faces, record whether their
-    // traversal directions match or oppose.  If the two faces traverse the
-    // undirected edge in the same direction they need to be on *different*
-    // sides (one must be flipped relative to the other).
-    std::map< std::pair<I,I>, bool > need_flip;
+    // Each adjacency entry records (neighbour face, whether flip is needed).
+    std::vector<std::vector<std::pair<I, bool>>> face_adj(N_faces);
 
     for(const auto &ep : edge_map){
         if(ep.second.size() != 2UL) continue; // skip non-manifold & boundary
@@ -235,17 +229,15 @@ OrientFaces(fv_surface_mesh<T,I> &fvsm,
         const auto &a = ep.second[0UL];
         const auto &b = ep.second[1UL];
 
-        face_adj[a.face].emplace_back(b.face);
-        face_adj[b.face].emplace_back(a.face);
-
         const auto d_a = edge_direction_for_key(ep.first, a.rep_A, a.rep_B);
         const auto d_b = edge_direction_for_key(ep.first, b.rep_A, b.rep_B);
 
         // If both faces traverse the edge in the same direction relative to
         // the canonical key, they are inconsistent and one must be flipped.
         const bool require_flip = (d_a == d_b);
-        need_flip[{ a.face, b.face }] = require_flip;
-        need_flip[{ b.face, a.face }] = require_flip;
+
+        face_adj[a.face].emplace_back(b.face, require_flip);
+        face_adj[b.face].emplace_back(a.face, require_flip);
     }
 
     // -----------------------------------------------------------------------
@@ -271,10 +263,9 @@ OrientFaces(fv_surface_mesh<T,I> &fvsm,
 
             patches.back().push_back(static_cast<size_t>(f));
 
-            for(const auto n : face_adj[f]){
-                auto it = need_flip.find({ f, n });
-                if(it == need_flip.end()) continue;
-                const auto req = it->second;
+            for(const auto &adj : face_adj[f]){
+                const auto n = adj.first;
+                const auto req = adj.second;
                 const auto needed_side = req ? static_cast<int8_t>(1 - side[f])
                                               : static_cast<int8_t>(side[f]);
                 if(side[n] == -1){
