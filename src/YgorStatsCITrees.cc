@@ -697,6 +697,19 @@ bool Stats::ConditionalInferenceTrees<T>::read_from(std::istream &is) {
     is >> label >> this->random_seed;
     if(is.fail() || label != "random_seed") return false;
 
+    // Validate hyperparameter invariants after deserialization.
+    if(this->max_depth <= 0){
+        return false;
+    }
+    if(this->min_samples_split < 2){
+        return false;
+    }
+    if(this->alpha <= static_cast<T>(0) || static_cast<T>(1) <= this->alpha){
+        return false;
+    }
+    if(this->n_permutations <= 0){
+        return false;
+    }
     // Read tree.
     is >> label;
     if(is.fail() || label != "begin_tree") return false;
