@@ -61,7 +61,7 @@ int main(int argc, char **argv){
             min_samples_split = std::stoll(optarg);
         }));
     arger.push_back(std::make_tuple(2, 'f', "max-features", true, "<int>",
-        "Maximum features per split; -1 for all (default: -1).",
+        "Maximum features per split; <=0 uses sqrt(number of features) (default: -1).",
         [&](const std::string &optarg) -> void {
             max_features = std::stoll(optarg);
         }));
