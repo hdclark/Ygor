@@ -1,6 +1,13 @@
 
 cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
-project(Ygor VERSION 0.0.1 LANGUAGES CXX)
+
+# Allow external tooling (e.g., packaging) to control the project version.
+# Default to 0.0.1 if no explicit version is provided at configure time.
+if(NOT DEFINED YGOR_VERSION)
+    set(YGOR_VERSION "0.0.1")
+endif()
+
+project(Ygor VERSION ${YGOR_VERSION} LANGUAGES CXX)
 #set(Ygor_VERSION_MAJOR 0)
 #set(Ygor_VERSION_MINOR 0)
 #set(Ygor_VERSION_PATCH 0)
