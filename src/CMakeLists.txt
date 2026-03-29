@@ -23,14 +23,17 @@ target_include_directories(ygor
 )
 
 target_link_libraries(ygor
-    m
-    "${STD_FS_LIB}"
-    Threads::Threads
+    PUBLIC
+        Threads::Threads
+    PRIVATE
+        m
+        "${STD_FS_LIB}"
 )
 if(WITH_GNU_GSL)
-target_link_libraries(ygor
-    "$<$<BOOL:${WITH_GNU_GSL}>:${GNU_GSL_LIBRARIES}>"
-)
+    target_link_libraries(ygor
+        PUBLIC
+            ${GNU_GSL_LIBRARIES}
+    )
 endif()
 
 # Installation info.
