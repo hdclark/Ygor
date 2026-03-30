@@ -1,9 +1,8 @@
 
 cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
-project(Ygor LANGUAGES CXX)
-#set(Ygor_VERSION_MAJOR 0)
-#set(Ygor_VERSION_MINOR 0)
-#set(Ygor_VERSION_PATCH 0)
+
+STRING(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
+project(Ygor VERSION ${INVOCATION_TIMESTAMP} LANGUAGES CXX)
 
 ####################################################################################
 #                                  User Options
@@ -265,7 +264,6 @@ endif()
 
 # Use the directory where CMakeLists.txt is for inclusions.
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
 
 include(GNUInstallDirs)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
@@ -279,6 +277,38 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(src)
 add_subdirectory(binaries)
+
+
+####################################################################################
+#                            Package Configuration
+####################################################################################
+
+include(CMakePackageConfigHelpers)
+
+set(YGOR_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/Ygor")
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/YgorConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfig.cmake"
+    INSTALL_DESTINATION "${YGOR_CONFIG_INSTALL_DIR}"
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfigVersion.cmake"
+    COMPATIBILITY AnyNewerVersion
+)
+
+install(EXPORT YgorTargets
+        FILE YgorTargets.cmake
+        NAMESPACE Ygor::
+        DESTINATION "${YGOR_CONFIG_INSTALL_DIR}"
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/YgorConfigVersion.cmake"
+    DESTINATION "${YGOR_CONFIG_INSTALL_DIR}"
+)
 
 
 ####################################################################################

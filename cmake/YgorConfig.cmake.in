@@ -1,0 +1,22 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+
+if(@WITH_BOOST@)
+    find_dependency(Boost)
+endif()
+
+if(@WITH_EIGEN@)
+    find_dependency(PkgConfig)
+    pkg_check_modules(EIGEN3 REQUIRED eigen3)
+endif()
+
+if(@WITH_GNU_GSL@)
+    find_dependency(PkgConfig)
+    pkg_check_modules(GNU_GSL REQUIRED gsl)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/YgorTargets.cmake")
+
+check_required_components(Ygor)
