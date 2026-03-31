@@ -70,20 +70,10 @@ static T tet_quality(const fv_tet_mesh<T, I> &mesh, size_t ti){
     const T vol = std::abs((b - a).Dot( (c - a).Cross(d - a) )) / static_cast<T>(6);
     if(vol < std::numeric_limits<T>::epsilon()) return static_cast<T>(0);
 
-    // Surface area of the 4 faces.
-    const T s1 = (b - a).Cross(c - a).length() * static_cast<T>(0.5);
-    const T s2 = (b - a).Cross(d - a).length() * static_cast<T>(0.5);
-    const T s3 = (c - a).Cross(d - a).length() * static_cast<T>(0.5);
-    const T s4 = (c - b).Cross(d - b).length() * static_cast<T>(0.5);
-    const T total_area = s1 + s2 + s3 + s4;
-
-    // Insphere radius: r = 3V / A.
-    const T r_in = static_cast<T>(3) * vol / total_area;
-
-    // Circumsphere radius approximation using edge lengths.
-    // For the exact formula: R = (abc) / (8V) where a,b,c are areas... but simpler:
-    // Use the quality measure: Q = 12 * (3*V)^(2/3) / (sum of squared edge lengths).
-    // This is a well-known FEM quality metric normalized to [0,1] (1 = regular tet).
+    // Use the normalized mean-ratio quality measure:
+    //   Q = 12 * (3*V)^(2/3) / (sum of squared edge lengths),
+    // which is a well-known FEM quality metric normalized to (0, 1],
+    // with Q = 1 for a regular tetrahedron.
     const T sum_sq_edges = lab*lab + lac*lac + lad*lad + lbc*lbc + lbd*lbd + lcd*lcd;
     const T cbrt_vol = std::cbrt(static_cast<T>(3) * vol);
     const T quality = static_cast<T>(12) * cbrt_vol * cbrt_vol / sum_sq_edges;
