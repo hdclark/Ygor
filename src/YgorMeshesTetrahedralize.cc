@@ -149,9 +149,9 @@ point_inside_surface(const vec3<T> &pt,
                      const fv_surface_mesh<T, I> &surface,
                      const octree<T> &tri_index,
                      T domain_extent){
-    // Query all triangles whose centroid is within a slab encompassing the entire domain in +X.
+    // Query all triangles whose centroid is within a slab encompassing the entire domain in X.
     const auto search_box = index_bbox<T>(
-        vec3<T>(pt.x, pt.y - domain_extent, pt.z - domain_extent),
+        vec3<T>(pt.x - domain_extent, pt.y - domain_extent, pt.z - domain_extent),
         vec3<T>(pt.x + domain_extent * static_cast<T>(2), pt.y + domain_extent, pt.z + domain_extent));
 
     const auto entries = tri_index.search(search_box);
