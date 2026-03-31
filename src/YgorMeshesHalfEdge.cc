@@ -429,46 +429,64 @@ he_surface_mesh<T,I>::vertex_neighbours(I vert) const {
     const I start = this->vertex_halfedges.at(vert);
     if(start == sentinel) return out;
 
+    auto add_neighbour = [&](I v){
+        if(v != vert){
+            out.push_back(v);
+        }
+    };
+
     I cur = start;
+    bool hit_boundary = false;
+
+    // Walk around the vertex using prev->twin, collecting both adjacent
+    // face vertices (from he.next and he.prev) at each step.
     do {
         const auto &he = this->halfedges.at(cur);
-        // The destination vertex of this half-edge.
-        const auto &next_he = this->halfedges.at(he.next);
-        out.push_back(next_he.vertex);
 
-        const I prev_he = he.prev;
-        const I twin_of_prev = this->halfedges.at(prev_he).twin;
+        // Neighbour at the end of this half-edge within the face.
+        const auto &next_he = this->halfedges.at(he.next);
+        add_neighbour(next_he.vertex);
+
+        // Neighbour at the beginning of the previous half-edge within the face.
+        const auto &prev_he = this->halfedges.at(he.prev);
+        add_neighbour(prev_he.vertex);
+
+        const I twin_of_prev = prev_he.twin;
         if(twin_of_prev == sentinel){
+            hit_boundary = true;
             break;
         }
         cur = twin_of_prev;
     } while(cur != start);
 
-    // If we broke out early (boundary), also walk the other direction.
-    if(cur != start){
-        // Walk from start using twin->next.
+    // If we broke out early (boundary), also walk the other direction
+    // around the vertex using next->twin.
+    if(hit_boundary){
         I cur2 = start;
         for(;;){
             const auto &he2 = this->halfedges.at(cur2);
-            const I tw = he2.twin;
-            if(tw == sentinel){
-                // The twin's origin is the destination of the current half-edge.
-                // But since twin is sentinel, the prev half-edge's origin is the
-                // neighbour on this boundary side.  Actually, we need the vertex
-                // at the *end* of cur2 which we already have via he2.next.
-                // The boundary neighbour going this way is already captured by
-                // the prev direction. We must add the origin of twin if it exists.
-                break;
-            }
-            const I nxt = this->halfedges.at(tw).next;
-            if(nxt == start) break;
-            cur2 = nxt;
+
+            const I next_idx = he2.next;
+            const auto &next_he2 = this->halfedges.at(next_idx);
+            const I twin_of_next = next_he2.twin;
+            if(twin_of_next == sentinel) break;
+
+            cur2 = twin_of_next;
+            if(cur2 == start) break;
+
             const auto &he3 = this->halfedges.at(cur2);
+
             const auto &next_he3 = this->halfedges.at(he3.next);
-            out.push_back(next_he3.vertex);
+            add_neighbour(next_he3.vertex);
+
+            const auto &prev_he3 = this->halfedges.at(he3.prev);
+            add_neighbour(prev_he3.vertex);
         }
     }
 
+    // Deduplicate neighbours.
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
     return out;
 }
 
