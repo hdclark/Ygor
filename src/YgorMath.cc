@@ -8321,6 +8321,300 @@ YLOGINFO(ss.str());
 
 
 //---------------------------------------------------------------------------------------------------------------------------
+//---------- fv_tet_mesh: a volumetric tetrahedral mesh embedded in 3D with a straightforward data structure ----------------
+//---------------------------------------------------------------------------------------------------------------------------
+
+//------------------------------------------------------ Constructors -------------------------------------------------------
+template <class T, class I>
+fv_tet_mesh<T,I>::fv_tet_mesh() { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_tet_mesh< float , uint32_t >::fv_tet_mesh(void);
+    template fv_tet_mesh< float , uint64_t >::fv_tet_mesh(void);
+
+    template fv_tet_mesh< double, uint32_t >::fv_tet_mesh(void);
+    template fv_tet_mesh< double, uint64_t >::fv_tet_mesh(void);
+#endif
+
+template <class T, class I>
+fv_tet_mesh<T,I>::fv_tet_mesh( const fv_tet_mesh &in) : vertices(in.vertices),
+                                                         tetrahedra(in.tetrahedra),
+                                                         metadata(in.metadata) { }
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_tet_mesh< float , uint32_t >::fv_tet_mesh(const fv_tet_mesh< float , uint32_t > &);
+    template fv_tet_mesh< float , uint64_t >::fv_tet_mesh(const fv_tet_mesh< float , uint64_t > &);
+
+    template fv_tet_mesh< double, uint32_t >::fv_tet_mesh(const fv_tet_mesh< double, uint32_t > &);
+    template fv_tet_mesh< double, uint64_t >::fv_tet_mesh(const fv_tet_mesh< double, uint64_t > &);
+#endif
+
+//--------------------------------------------------------- Members ---------------------------------------------------------
+template <class T, class I>
+fv_tet_mesh<T,I> &
+fv_tet_mesh<T,I>::operator=(const fv_tet_mesh<T,I> &rhs) {
+    if(this == &rhs) return *this;
+
+    this->vertices    = rhs.vertices;
+    this->tetrahedra  = rhs.tetrahedra;
+    this->metadata    = rhs.metadata;
+    return *this;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template fv_tet_mesh<float , uint32_t > &
+      fv_tet_mesh<float , uint32_t >::operator=(const fv_tet_mesh<float , uint32_t > &);
+    template fv_tet_mesh<float , uint64_t > &
+      fv_tet_mesh<float , uint64_t >::operator=(const fv_tet_mesh<float , uint64_t > &);
+
+    template fv_tet_mesh<double, uint32_t > &
+      fv_tet_mesh<double, uint32_t >::operator=(const fv_tet_mesh<double, uint32_t > &);
+    template fv_tet_mesh<double, uint64_t > &
+      fv_tet_mesh<double, uint64_t >::operator=(const fv_tet_mesh<double, uint64_t > &);
+#endif
+
+template <class T, class I>
+bool
+fv_tet_mesh<T,I>::operator==(const fv_tet_mesh<T,I> &rhs) const {
+    if(this == &rhs) return true;
+    return (this->vertices    == rhs.vertices)
+        && (this->tetrahedra  == rhs.tetrahedra)
+        && (this->metadata    == rhs.metadata);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_tet_mesh<float , uint32_t >::operator==(const fv_tet_mesh<float , uint32_t > &) const;
+    template bool fv_tet_mesh<float , uint64_t >::operator==(const fv_tet_mesh<float , uint64_t > &) const;
+
+    template bool fv_tet_mesh<double, uint32_t >::operator==(const fv_tet_mesh<double, uint32_t > &) const;
+    template bool fv_tet_mesh<double, uint64_t >::operator==(const fv_tet_mesh<double, uint64_t > &) const;
+#endif
+
+template <class T, class I>
+bool
+fv_tet_mesh<T,I>::operator!=(const fv_tet_mesh<T,I> &rhs) const {
+    return !(*this == rhs);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_tet_mesh<float , uint32_t >::operator!=(const fv_tet_mesh<float , uint32_t > &) const;
+    template bool fv_tet_mesh<float , uint64_t >::operator!=(const fv_tet_mesh<float , uint64_t > &) const;
+
+    template bool fv_tet_mesh<double, uint32_t >::operator!=(const fv_tet_mesh<double, uint32_t > &) const;
+    template bool fv_tet_mesh<double, uint64_t >::operator!=(const fv_tet_mesh<double, uint64_t > &) const;
+#endif
+
+template <class T, class I>
+void
+fv_tet_mesh<T,I>::swap(fv_tet_mesh<T,I> &in){
+    if(this == &in) return;
+    std::swap(this->vertices   , in.vertices);
+    std::swap(this->tetrahedra , in.tetrahedra);
+    std::swap(this->metadata   , in.metadata);
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_tet_mesh<float , uint32_t >::swap(fv_tet_mesh<float , uint32_t > &);
+    template void fv_tet_mesh<float , uint64_t >::swap(fv_tet_mesh<float , uint64_t > &);
+
+    template void fv_tet_mesh<double, uint32_t >::swap(fv_tet_mesh<double, uint32_t > &);
+    template void fv_tet_mesh<double, uint64_t >::swap(fv_tet_mesh<double, uint64_t > &);
+#endif
+
+template <class T, class I>
+T
+fv_tet_mesh<T,I>::volume(int64_t n) const {
+    // Select which tet(s) to use. If n is negative, select all tets.
+    const auto *tets_ptr = &(this->tetrahedra);
+    decltype(this->tetrahedra) selected_tets;
+    if(static_cast<int64_t>(0) <= n){
+        if(static_cast<int64_t>(this->tetrahedra.size()) <= n){
+            throw std::invalid_argument("Selected tetrahedron does not exist. Cannot continue.");
+        }
+        selected_tets.push_back( this->tetrahedra[n] );
+        tets_ptr = &(selected_tets);
+    }
+
+    // Compute signed volume of each tet: V = (1/6) * det([b-a, c-a, d-a]).
+    Stats::Running_Sum<T> rs_vol;
+    for(const auto &tet : *tets_ptr){
+        const auto P_A = this->vertices.at( tet[0] );
+        const auto P_B = this->vertices.at( tet[1] );
+        const auto P_C = this->vertices.at( tet[2] );
+        const auto P_D = this->vertices.at( tet[3] );
+
+        const auto R_BA = (P_B - P_A);
+        const auto R_CA = (P_C - P_A);
+        const auto R_DA = (P_D - P_A);
+
+        const auto vol = R_BA.Dot( R_CA.Cross(R_DA) ) / static_cast<T>(6);
+        rs_vol.Digest(vol);
+    }
+
+    return rs_vol.Current_Sum();
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template float  fv_tet_mesh<float , uint32_t >::volume(int64_t) const;
+    template float  fv_tet_mesh<float , uint64_t >::volume(int64_t) const;
+
+    template double fv_tet_mesh<double, uint32_t >::volume(int64_t) const;
+    template double fv_tet_mesh<double, uint64_t >::volume(int64_t) const;
+#endif
+
+template <class T, class I>
+void
+fv_tet_mesh<T,I>::remove_disconnected_vertices(){
+    decltype(this->vertices) new_verts;
+    decltype(this->tetrahedra) new_tets;
+    new_verts.reserve(this->vertices.size());
+    new_tets.reserve(this->tetrahedra.size());
+
+    std::map<I,I> old_to_new_vert;
+
+    for(const auto& tet : this->tetrahedra){
+        std::array<I, 4> new_tet;
+        for(size_t j = 0; j < 4; ++j){
+            const auto old_i = tet[j];
+            auto it = old_to_new_vert.find(old_i);
+            if(it == old_to_new_vert.end()){
+                new_verts.push_back( this->vertices.at( old_i ) );
+                auto p = old_to_new_vert.insert( std::make_pair(old_i, static_cast<I>(new_verts.size() - 1)) );
+                it = p.first;
+            }
+            new_tet[j] = it->second;
+        }
+        new_tets.push_back( new_tet );
+    }
+
+    this->vertices   = new_verts;
+    this->tetrahedra = new_tets;
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_tet_mesh<float , uint32_t >::remove_disconnected_vertices();
+    template void fv_tet_mesh<float , uint64_t >::remove_disconnected_vertices();
+
+    template void fv_tet_mesh<double, uint32_t >::remove_disconnected_vertices();
+    template void fv_tet_mesh<double, uint64_t >::remove_disconnected_vertices();
+#endif
+
+template <class T, class I>
+void
+fv_tet_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
+    const auto sq_dist_eps = std::pow(static_cast<double>(distance_eps), 2.0);
+
+    std::map<I,I> duplicates;
+
+    // Sort vertices along z-axis for efficient duplicate detection.
+    std::vector<I> ivec( this->vertices.size() );
+    std::iota( std::begin(ivec), std::end(ivec), static_cast<I>(0) );
+    std::sort( std::begin(ivec), std::end(ivec),
+               [&](const I &l, const I &r){ return (this->vertices[l].z < this->vertices[r].z); } );
+
+    // Identify duplicates.
+    {
+        const auto end = std::end(ivec);
+        for(auto i_it = std::begin(ivec); i_it != end; ++i_it){
+            if(duplicates.count(*i_it) != 0) continue;
+            const auto v_i = this->vertices[*i_it];
+            const auto adj_end = std::find_if_not(std::next(i_it), end,
+                [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= sq_dist_eps; });
+            for(auto a_it = std::next(i_it); a_it != adj_end; ++a_it){
+                if(duplicates.count(*a_it) != 0) continue;
+                const auto v_a = this->vertices[*a_it];
+                if(v_i.sq_dist(v_a) <= sq_dist_eps){
+                    duplicates[ *a_it ] = *i_it;
+                }
+            }
+        }
+    }
+
+    if(duplicates.empty()) return;
+
+    // Replace all references to duplicate vertices.
+    for(auto &tet : this->tetrahedra){
+        for(auto &i : tet){
+            auto it = duplicates.find(i);
+            if(it != duplicates.end()) i = it->second;
+        }
+    }
+
+    // Determine the mapping from old to new vertex numbers.
+    std::map<I,I> new_number;
+    {
+        const auto N = this->vertices.size();
+        for(size_t i = 0; i < N; ++i){
+            if(duplicates.count(static_cast<I>(i)) == 0){
+                new_number[static_cast<I>(i)] = static_cast<I>(new_number.size());
+            }
+        }
+    }
+
+    // Update the vertex numbers referenced by tets.
+    for(auto &tet : this->tetrahedra){
+        for(auto &i : tet){
+            auto it = new_number.find(i);
+            if(it != new_number.end()) i = it->second;
+        }
+    }
+
+    // Purge all unreferenced vertices.
+    for(auto dp_it = std::rbegin(duplicates); dp_it != std::rend(duplicates); ++dp_it){
+        this->vertices.erase( std::next(std::begin(this->vertices), dp_it->first) );
+    }
+
+    // Remove any degenerate tets that might have collapsed.
+    this->tetrahedra.erase( std::remove_if( std::begin(this->tetrahedra), std::end(this->tetrahedra),
+        [&](const std::array<I, 4> &tet){
+            std::set<I> vis;
+            for(const auto &i : tet) vis.insert(i);
+            return (vis.size() < 4);
+        }), std::end(this->tetrahedra));
+
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_tet_mesh<float , uint32_t >::merge_duplicate_vertices(float );
+    template void fv_tet_mesh<float , uint64_t >::merge_duplicate_vertices(float );
+
+    template void fv_tet_mesh<double, uint32_t >::merge_duplicate_vertices(double);
+    template void fv_tet_mesh<double, uint64_t >::merge_duplicate_vertices(double);
+#endif
+
+template <class T, class I>
+bool
+fv_tet_mesh<T,I>::MetadataKeyPresent(std::string key) const {
+    return (this->metadata.find(key) != this->metadata.end());
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool fv_tet_mesh<float , uint32_t >::MetadataKeyPresent(std::string) const;
+    template bool fv_tet_mesh<float , uint64_t >::MetadataKeyPresent(std::string) const;
+
+    template bool fv_tet_mesh<double, uint32_t >::MetadataKeyPresent(std::string) const;
+    template bool fv_tet_mesh<double, uint64_t >::MetadataKeyPresent(std::string) const;
+#endif
+
+template <class T, class I>
+template <class U>
+std::optional<U>
+fv_tet_mesh<T,I>::GetMetadataValueAs(std::string key) const {
+    const auto it = this->metadata.find(key);
+    if(it == this->metadata.end()) return std::optional<U>();
+    try{
+        return std::stod(it->second);
+    }catch(const std::exception &){
+        return std::optional<U>();
+    }
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::optional<float > fv_tet_mesh<float , uint32_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<float > fv_tet_mesh<float , uint64_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<double> fv_tet_mesh<float , uint32_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<double> fv_tet_mesh<float , uint64_t >::GetMetadataValueAs(std::string) const;
+
+    template std::optional<float > fv_tet_mesh<double, uint32_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<float > fv_tet_mesh<double, uint64_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<double> fv_tet_mesh<double, uint32_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<double> fv_tet_mesh<double, uint64_t >::GetMetadataValueAs(std::string) const;
+#endif
+
+
+//---------------------------------------------------------------------------------------------------------------------------
 //------------------------------------- point_set: a simple 3D point cloud class --------------------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
 

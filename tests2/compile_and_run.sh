@@ -51,6 +51,7 @@ g++ \
   YgorMeshesOrient.cc \
   YgorMeshesRefinement.cc \
   YgorMeshesRemeshing.cc \
+  YgorMeshesTetrahedralize.cc \
   YgorNoise.cc \
   YgorOptimizeBFGS.cc \
   YgorOptimizeLM.cc \
