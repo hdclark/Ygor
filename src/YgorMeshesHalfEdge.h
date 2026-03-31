@@ -84,7 +84,7 @@ class he_surface_mesh {
 
         void swap(he_surface_mesh &);
 
-        // The 'default' way to pack/unpack/intepret 8-bit colour data. Provided here to avoid rewriting everywhere.
+        // The 'default' way to pack/unpack/interpret 8-bit colour data. Provided here to avoid rewriting everywhere.
         uint32_t pack_RGBA32_colour(std::array<uint8_t,4>) const;
         std::array<uint8_t,4> unpack_RGBA32_colour(uint32_t) const;
 
