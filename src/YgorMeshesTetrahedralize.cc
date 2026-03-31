@@ -432,8 +432,7 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
     }
 
     if(inside_cells.empty()){
-        // Return empty tet mesh.
-        return fv_tet_mesh<T, I>();
+        throw std::runtime_error("No interior cells found. The surface may not be watertight or consistently oriented.");
     }
 
     // -----------------------------------------------
@@ -489,9 +488,10 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
     // Returns:  0 = same-level or boundary (rule a)
     //           1 = this cell is coarser, neighbor is finer (rule b)
     //          -1 = this cell is finer, neighbor is coarser (rule c)
-    // For rule (c), also sets 'inner_corner_idx' to the index (0..3) of the face corner
+    // For rule (c), sets 'inner_corner_idx' to the index (0..3) of the face corner
     // that corresponds to the coarse cell's face centre.
     auto classify_face = [&](const decomp_cell &c, const decomp_cell &fn,
+                             const vec3<T> fc[4],
                              int &inner_corner_idx) -> int {
         inner_corner_idx = -1;
 
@@ -514,23 +514,23 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
         }
 
         // Neighbor is coarser (this cell is finer). Determine inner corner.
-        // The inner corner is the one shared by all 4 sibling cells at this face,
-        // which is the vertex at the face centre of the coarser neighbor.
-        // For a face in direction +d or -d, the inner corner depends on which sub-cell this is.
-        //
-        // We determine it by checking which corner of this cell's face is closest to
-        // the coarse cell's face centre.
-        const auto fn_cmin = cell_min(fn);
-        const auto fn_cmax = cell_max(fn);
-        const auto cmin = cell_min(c);
-        const auto cmax = cell_max(c);
-        const auto neighbour_face_centre = (fn_cmin + fn_cmax) * static_cast<T>(0.5);
-        // Compute face corners based on face direction (we'll set them per face below).
-        // For now, inner_corner_idx = -1 means we need to compute it in the face processing.
-        (void)neighbour_face_centre;
-        (void)cmin;
-        (void)cmax;
-        inner_corner_idx = -1; // Will be set during face processing.
+        // The inner corner is the face corner that coincides with the coarse cell's
+        // face centre. Use the actual coarser neighbor leaf bounds to compute this.
+        const auto coarse_cmin = cell_min(neighbor_leaf);
+        const auto coarse_cmax = cell_max(neighbor_leaf);
+        const auto coarse_face_centre = (coarse_cmin + coarse_cmax) * static_cast<T>(0.5);
+
+        // Find the face corner closest to the coarse face centre.
+        T best_dist = std::numeric_limits<T>::max();
+        inner_corner_idx = 0;
+        for(int j = 0; j < 4; ++j){
+            const T d = fc[j].sq_dist(coarse_face_centre);
+            if(d < best_dist){
+                best_dist = d;
+                inner_corner_idx = j;
+            }
+        }
+
         return -1;
     };
 
@@ -581,7 +581,7 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
             };
 
             int inner_corner = -1;
-            const int face_type = classify_face(c, fd.fn, inner_corner);
+            const int face_type = classify_face(c, fd.fn, fc, inner_corner);
 
             if(face_type == 0){
                 // Rule (a): Same level or boundary. Fan from face centre → 4 triangles.
@@ -627,37 +627,8 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
 
             }else{
                 // Rule (c): This cell is finer, neighbor is coarser.
-                // Use diagonal through the inner corner (the coarse cell's face centre).
-                //
-                // Determine which face corner is the inner corner:
-                // It's the corner of this cell that coincides with the coarse face centre.
-                // For a 2:1 balanced octree, the coarse cell's face centre is at the
-                // midpoint of the coarse face, which is one of the 4 fine cell corners
-                // on this face. The inner corner is the one that is NOT on the domain
-                // boundary of the coarse cell's face edges.
-                //
-                // Geometrically, the inner corner is the corner of this fine cell's face
-                // that is furthest from the domain boundary within the coarse cell's face.
-                // We identify it by finding which corner is equidistant from all 4 edges
-                // of the coarse cell face, i.e., it's at the coarse face centre.
-                //
-                // In the octree structure, this is the corner shared by all 4 sibling cells
-                // at this face. We can find it by checking which face corner lies at the
-                // midpoint of the coarse neighbor's face.
-                const auto fn_cmin = cell_min(fd.fn);
-                const auto fn_cmax = cell_max(fd.fn);
-                const auto coarse_face_centre = (fn_cmin + fn_cmax) * static_cast<T>(0.5);
-
-                // Find the face corner closest to the coarse face centre.
-                T best_dist = std::numeric_limits<T>::max();
-                inner_corner = 0;
-                for(int j = 0; j < 4; ++j){
-                    const T d = fc[j].sq_dist(coarse_face_centre);
-                    if(d < best_dist){
-                        best_dist = d;
-                        inner_corner = j;
-                    }
-                }
+                // inner_corner was already computed by classify_face() using the actual
+                // coarser neighbor leaf bounds.
 
                 // Split into 2 triangles using diagonal from inner corner to the opposite corner.
                 const int opp = (inner_corner + 2) % 4;

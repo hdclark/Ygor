@@ -45,7 +45,8 @@ static bool verify_tet_mesh_integrity(const fv_tet_mesh<T, I> &mesh){
 }
 
 
-// Helper: compute tet quality metric (min ratio of insphere to circumsphere radius).
+// Helper: compute tet quality using the normalized mean-ratio metric:
+//   Q = 12 * (3V)^(2/3) / (sum of squared edge lengths).
 // Returns a value in (0, 1], where 1 is a regular tetrahedron.
 template <class T, class I>
 static T tet_quality(const fv_tet_mesh<T, I> &mesh, size_t ti){
