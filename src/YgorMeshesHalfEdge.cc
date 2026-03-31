@@ -722,19 +722,32 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
 
         for(size_t j = 0; j < n; ++j){
             auto &he = out.halfedges[he_idx];
-            he.vertex = fv[j];
+
+            // Validate vertex index before using it.
+            const I v_idx = fv[j];
+            if(static_cast<size_t>(v_idx) >= out.vertices.size()){
+                throw std::runtime_error(
+                    "Face " + std::to_string(static_cast<uint64_t>(f))
+                    + " references invalid vertex index "
+                    + std::to_string(static_cast<uint64_t>(v_idx))
+                    + " (vertex count: "
+                    + std::to_string(static_cast<uint64_t>(out.vertices.size()))
+                    + ").");
+            }
+
+            he.vertex = v_idx;
             he.face   = static_cast<I>(f);
             he.twin   = sentinel;
             he.next   = first_he + static_cast<I>((j + 1) % n);
             he.prev   = first_he + static_cast<I>((j + n - 1) % n);
 
             // Record outgoing half-edge for this vertex.
-            if(out.vertex_halfedges[fv[j]] == sentinel){
-                out.vertex_halfedges[fv[j]] = he_idx;
+            if(out.vertex_halfedges[v_idx] == sentinel){
+                out.vertex_halfedges[v_idx] = he_idx;
             }
 
             // Insert into edge map for twin lookup.
-            const I v_from = fv[j];
+            const I v_from = v_idx;
             const I v_to   = fv[(j + 1) % n];
             auto key = std::make_pair(v_from, v_to);
 
