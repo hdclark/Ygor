@@ -242,7 +242,10 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
     // Step 3. Index surface triangles using the Ygor octree.
     // -----------------------------------------------
     // We insert triangle centroids with the face index as auxiliary data.
+    // Also compute the maximum distance from any triangle's centroid to its vertices,
+    // which serves as a conservative bound for the spatial search expansion.
     octree<T> tri_index;
+    T max_tri_extent = static_cast<T>(0);
     for(size_t fi = 0; fi < surface.faces.size(); ++fi){
         const auto &face = surface.faces[fi];
         if(face.size() < 3) continue;
@@ -251,6 +254,12 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
         const auto &vc = surface.vertices.at(face[2]);
         const auto centroid = (va + vb + vc) / static_cast<T>(3);
         tri_index.insert(centroid, static_cast<size_t>(fi));
+
+        // Track the maximum distance from centroid to any vertex.
+        const T da = centroid.distance(va);
+        const T db = centroid.distance(vb);
+        const T dc = centroid.distance(vc);
+        max_tri_extent = std::max({max_tri_extent, da, db, dc});
     }
 
     // -----------------------------------------------
@@ -304,16 +313,17 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
             const auto cmin = cell_min(c);
             const auto cmax = cell_max(c);
 
-            // Use the octree to find candidate triangles for this cell.
-            // NOTE: A centroid-based radius of one cell diagonal can miss large
-            // triangles whose centroids lie outside that radius but still
-            // intersect the cell. Use a conservative (effectively unbounded)
-            // radius here and rely on the precise AABB intersection test below
-            // to filter out non-intersecting triangles.
-            const auto cc = cell_centre(c);
-            const auto candidates = tri_index.search_radius(
-                                        cc,
-                                        std::numeric_limits<double>::infinity());
+            // Use the octree to find candidate triangles whose centroids fall
+            // within the cell AABB expanded by the maximum triangle extent.
+            // This avoids scanning all triangles (as an infinite radius would)
+            // while still catching large triangles that span multiple cells.
+            // We expand the cell AABB by the max centroid-to-vertex distance,
+            // which conservatively bounds how far a triangle centroid can be from
+            // a cell it actually intersects.
+            const auto expanded_min = cmin - vec3<T>(max_tri_extent, max_tri_extent, max_tri_extent);
+            const auto expanded_max = cmax + vec3<T>(max_tri_extent, max_tri_extent, max_tri_extent);
+            const auto search_box = index_bbox<T>(expanded_min, expanded_max);
+            const auto candidates = tri_index.search(search_box);
 
             bool intersects = false;
             for(const auto &entry : candidates){
@@ -516,10 +526,29 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
 
         // Neighbor is coarser (this cell is finer). Determine inner corner.
         // The inner corner is the face corner that coincides with the coarse cell's
-        // face centre. Use the actual coarser neighbor leaf bounds to compute this.
+        // face centre on the shared face. We compute the coarse face centre by fixing
+        // the coordinate along the shared-face normal (derived from the face neighbor
+        // offset fn vs c) to the appropriate min/max of the coarser cell, and averaging
+        // only the two in-face axes.
         const auto coarse_cmin = cell_min(neighbor_leaf);
         const auto coarse_cmax = cell_max(neighbor_leaf);
-        const auto coarse_face_centre = (coarse_cmin + coarse_cmax) * static_cast<T>(0.5);
+
+        // Determine which axis is the face normal by comparing fn to c.
+        // Exactly one of ix/iy/iz differs by ±1.
+        vec3<T> coarse_face_centre;
+        coarse_face_centre.x = (coarse_cmin.x + coarse_cmax.x) * static_cast<T>(0.5);
+        coarse_face_centre.y = (coarse_cmin.y + coarse_cmax.y) * static_cast<T>(0.5);
+        coarse_face_centre.z = (coarse_cmin.z + coarse_cmax.z) * static_cast<T>(0.5);
+        if(fn.ix != c.ix){
+            // X-axis face: fix x to the shared boundary.
+            coarse_face_centre.x = (fn.ix < c.ix) ? coarse_cmax.x : coarse_cmin.x;
+        }else if(fn.iy != c.iy){
+            // Y-axis face: fix y to the shared boundary.
+            coarse_face_centre.y = (fn.iy < c.iy) ? coarse_cmax.y : coarse_cmin.y;
+        }else{
+            // Z-axis face: fix z to the shared boundary.
+            coarse_face_centre.z = (fn.iz < c.iz) ? coarse_cmax.z : coarse_cmin.z;
+        }
 
         // Find the face corner closest to the coarse face centre.
         T best_dist = std::numeric_limits<T>::max();

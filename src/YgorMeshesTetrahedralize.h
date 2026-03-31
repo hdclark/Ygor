@@ -17,18 +17,24 @@
 
 // Convert a polyhedral surface mesh into a tetrahedral (volumetric) mesh using octree-based decomposition.
 //
-// This function generates a conforming tetrahedral mesh of the interior volume enclosed by the input surface
-// mesh. The algorithm proceeds as follows:
+// This function generates an approximate tetrahedral mesh of the interior volume enclosed by the input
+// surface mesh. The boundary of the output mesh follows the adaptive octree cell boundaries rather than
+// conforming to the original surface geometry, so the result is a voxel-like approximation whose accuracy
+// improves with increasing 'max_depth'. Boundary vertices are *not* projected or snapped onto the input
+// surface.
+//
+// The algorithm proceeds as follows:
 //
 //   1. An adaptive octree is built around the surface mesh bounding box.
 //      Cells intersecting the surface are recursively refined up to the specified maximum depth.
 //   2. The octree is 2:1 balanced so that adjacent leaf cells differ by at most one refinement level.
-//   3. Each leaf cell is classified as interior, exterior, or boundary using ray casting.
-//   4. Interior and boundary cells are decomposed into tetrahedra using a body-centred approach that
+//   3. Each leaf cell is classified as interior or exterior using ray casting (cell-centre point-in-surface
+//      test). Cells near the boundary may be misclassified if the surface is not watertight.
+//   4. Interior cells are decomposed into tetrahedra using a body-centred approach that
 //      naturally handles transitions between cells at different refinement levels.
 //   5. Vertex positions are snapped using a snap map and disconnected vertices are removed.
 //
-// The resulting mesh is suitable for finite-element analysis.
+// The resulting mesh is suitable for finite-element analysis on the approximate volume.
 //
 // Note: The input surface mesh should represent a closed (watertight), consistently-oriented surface.
 //       Open or self-intersecting surfaces may produce unexpected results.
