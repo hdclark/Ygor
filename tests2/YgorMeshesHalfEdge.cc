@@ -439,6 +439,31 @@ TEST_CASE( "YgorMeshesHalfEdge" ){
             const auto faces = he.vertex_faces(v);
             REQUIRE(faces.size() == 1UL);
         }
+
+        // Also verify vertex_neighbours() on this boundary mesh.
+        {
+            // Vertices 0 and 1 are incident to three neighbours each.
+            const auto neigh0 = he.vertex_neighbours(0UL);
+            const auto neigh1 = he.vertex_neighbours(1UL);
+            REQUIRE(neigh0.size() == 3UL);
+            REQUIRE(neigh1.size() == 3UL);
+
+            const std::set<uint64_t> neigh0_set(neigh0.begin(), neigh0.end());
+            const std::set<uint64_t> neigh1_set(neigh1.begin(), neigh1.end());
+            REQUIRE(neigh0_set == std::set<uint64_t>({1UL, 2UL, 3UL}));
+            REQUIRE(neigh1_set == std::set<uint64_t>({0UL, 2UL, 3UL}));
+
+            // Vertices 2 and 3 each neighbour vertices 0 and 1.
+            const auto neigh2 = he.vertex_neighbours(2UL);
+            const auto neigh3 = he.vertex_neighbours(3UL);
+            REQUIRE(neigh2.size() == 2UL);
+            REQUIRE(neigh3.size() == 2UL);
+
+            const std::set<uint64_t> neigh2_set(neigh2.begin(), neigh2.end());
+            const std::set<uint64_t> neigh3_set(neigh3.begin(), neigh3.end());
+            REQUIRE(neigh2_set == std::set<uint64_t>({0UL, 1UL}));
+            REQUIRE(neigh3_set == std::set<uint64_t>({0UL, 1UL}));
+        }
     }
 
     SUBCASE("non-manifold edge throws"){
