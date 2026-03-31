@@ -309,7 +309,7 @@ TEST_CASE( "YgorMeshesHalfEdge" ){
 
         const auto val = he.GetMetadataValueAs<int32_t>("count");
         REQUIRE(val.has_value());
-        REQUIRE(val.value() == 32 + 10); // = 42
+        REQUIRE(val.value() == 42);
     }
 
     SUBCASE("vertex_normals and vertex_colours preserved in conversion"){
