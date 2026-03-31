@@ -545,7 +545,19 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
 // pass it to fv_surface_mesh::apply_involved_face_index_diff().
 //
 // Application order: new vertices are appended first, then all removals are applied,
-// and finally all additions are applied. The result is identical to what
+// and finally all additions are applied.
+//
+// Preconditions for correctness:
+//   * involved_faces must currently match the pre-change mesh connectivity;
+//   * the diff must completely describe all changes performed on the mesh
+//     since involved_faces was last rebuilt (or last kept in sync);
+//   * new_vertex_count must be chosen so that, after applying the diff,
+//     involved_faces has one entry per vertex in the mesh (e.g., matches vertices.size()).
+//
+// fv_surface_mesh::apply_involved_face_index_diff() does not validate these
+// preconditions or repair a stale/corrupted index; it simply applies the
+// described edits. When the above preconditions hold, the resulting
+// involved_faces index is intended to be identical to what
 // recreate_involved_face_index() would produce.
 //
 template <class I>
