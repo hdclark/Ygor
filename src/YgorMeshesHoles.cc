@@ -261,11 +261,17 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     }
 
     if(made_changes){
-        involved_face_index_diff<I> diff;
-        for(size_t f = N_orig_faces; f < fvsm.faces.size(); ++f){
-            diff.new_faces.emplace_back(f, fvsm.faces[f]);
+        if(fvsm.involved_faces.size() == fvsm.vertices.size()){
+            // Index is present; apply a surgical diff for the newly-appended faces.
+            involved_face_index_diff<I> diff;
+            for(size_t f = N_orig_faces; f < fvsm.faces.size(); ++f){
+                diff.new_faces.emplace_back(f, fvsm.faces[f]);
+            }
+            fvsm.apply_involved_face_index_diff(diff);
+        }else{
+            // Index is absent; fall back to a full rebuild.
+            fvsm.recreate_involved_face_index();
         }
-        fvsm.apply_involved_face_index_diff(diff);
     }
 
     return true;
