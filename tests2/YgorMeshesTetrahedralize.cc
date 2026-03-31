@@ -301,7 +301,7 @@ TEST_CASE( "tetrahedral_mesh_from_surface_mesh" ){
         const auto tet_mesh = tetrahedral_mesh_from_surface_mesh(surface, 3);
 
         // Check that the minimum quality is above a threshold.
-        // A quality > 0.1 is generally considered acceptable for FEM.
+        // A quality > 0.05 is considered acceptable for FEM in this test.
         double min_quality = 1.0;
         for(size_t i = 0; i < tet_mesh.tetrahedra.size(); ++i){
             const auto q = tet_quality(tet_mesh, i);
