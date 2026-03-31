@@ -303,10 +303,16 @@ tetrahedral_mesh_from_surface_mesh(const fv_surface_mesh<T, I> &surface_in,
             const auto cmin = cell_min(c);
             const auto cmax = cell_max(c);
 
-            // Use the octree to find candidate triangles near this cell.
-            const auto cell_diag = (cmax - cmin).length();
+            // Use the octree to find candidate triangles for this cell.
+            // NOTE: A centroid-based radius of one cell diagonal can miss large
+            // triangles whose centroids lie outside that radius but still
+            // intersect the cell. Use a conservative (effectively unbounded)
+            // radius here and rely on the precise AABB intersection test below
+            // to filter out non-intersecting triangles.
             const auto cc = cell_centre(c);
-            const auto candidates = tri_index.search_radius(cc, cell_diag);
+            const auto candidates = tri_index.search_radius(
+                                        cc,
+                                        std::numeric_limits<double>::infinity());
 
             bool intersects = false;
             for(const auto &entry : candidates){
