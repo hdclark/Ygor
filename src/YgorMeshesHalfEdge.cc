@@ -264,7 +264,12 @@ he_surface_mesh<T,I>::compute_vertex_normals(void){
     const auto N_faces = this->face_halfedges.size();
     for(size_t f = 0; f < N_faces; ++f){
         const auto verts = this->face_vertices(static_cast<I>(f));
-        if(verts.size() < 3) continue;
+        if(verts.size() != 3){
+            throw std::runtime_error("Non-triangular face detected in compute_vertex_normals(): face "
+                + std::to_string(static_cast<uint64_t>(f))
+                + " has " + std::to_string(static_cast<uint64_t>(verts.size()))
+                + " vertices (expected 3).");
+        }
 
         const auto P_A = this->vertices.at( verts[0] );
         const auto P_B = this->vertices.at( verts[1] );
@@ -460,18 +465,14 @@ he_surface_mesh<T,I>::vertex_neighbours(I vert) const {
     } while(cur != start);
 
     // If we broke out early (boundary), also walk the other direction
-    // around the vertex using next->twin.
+    // around the vertex using twin->next.
     if(hit_boundary){
         I cur2 = start;
         for(;;){
             const auto &he2 = this->halfedges.at(cur2);
+            if(he2.twin == sentinel) break;
 
-            const I next_idx = he2.next;
-            const auto &next_he2 = this->halfedges.at(next_idx);
-            const I twin_of_next = next_he2.twin;
-            if(twin_of_next == sentinel) break;
-
-            cur2 = twin_of_next;
+            cur2 = this->halfedges.at(he2.twin).next;
             if(cur2 == start) break;
 
             const auto &he3 = this->halfedges.at(cur2);

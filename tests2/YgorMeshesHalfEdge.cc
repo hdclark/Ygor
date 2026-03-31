@@ -482,6 +482,51 @@ TEST_CASE( "YgorMeshesHalfEdge" ){
         REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
     }
 
+    SUBCASE("degenerate face throws"){
+        fv_surface_mesh<double, uint64_t> fvsm;
+        fvsm.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0)
+        };
+        // A face with only 2 vertices is degenerate.
+        fvsm.faces = {
+            {0, 1}
+        };
+        REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
+    }
+
+    SUBCASE("invalid vertex index throws"){
+        fv_surface_mesh<double, uint64_t> fvsm;
+        fvsm.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0)
+        };
+        // Face references vertex index 99, which does not exist.
+        fvsm.faces = {
+            {0, 1, 99}
+        };
+        REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
+    }
+
+    SUBCASE("non-manifold vertex (bow-tie) throws"){
+        fv_surface_mesh<double, uint64_t> fvsm;
+        // Two triangles sharing only a single vertex (bow-tie / pinch point).
+        fvsm.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),   // 0 - shared vertex (bow-tie)
+            vec3<double>(1.0, 0.0, 0.0),   // 1
+            vec3<double>(0.0, 1.0, 0.0),   // 2
+            vec3<double>(-1.0, 0.0, 0.0),  // 3
+            vec3<double>(0.0, -1.0, 0.0)   // 4
+        };
+        fvsm.faces = {
+            {0, 1, 2},
+            {0, 3, 4}
+        };
+        REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
+    }
+
     SUBCASE("empty mesh converts without error"){
         fv_surface_mesh<double, uint64_t> fvsm;
         auto he = convert_fv_to_he_surface_mesh(fvsm);
