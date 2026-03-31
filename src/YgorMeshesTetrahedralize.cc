@@ -14,6 +14,7 @@
 #include <numeric>
 #include <functional>
 #include <limits>
+#include <any>
 
 #include "YgorDefinitions.h"
 #include "YgorMisc.h"
