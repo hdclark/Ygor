@@ -26,7 +26,7 @@
 //   3. Each leaf cell is classified as interior, exterior, or boundary using ray casting.
 //   4. Interior and boundary cells are decomposed into tetrahedra using a body-centred approach that
 //      naturally handles transitions between cells at different refinement levels.
-//   5. Duplicate vertices are merged and degenerate tetrahedra are removed.
+//   5. Vertex positions are snapped using a snap map and disconnected vertices are removed.
 //
 // The resulting mesh is suitable for finite-element analysis.
 //
