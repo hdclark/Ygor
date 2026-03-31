@@ -231,6 +231,7 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     if(holes.has_nonmanifold_edges) return false;
 
     const auto eps_sq = eps * eps;
+    const auto N_faces_before = static_cast<I>(fvsm.faces.size());
     bool made_changes = false;
 
     for(const auto &chain : holes.chains){
@@ -260,7 +261,18 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     }
 
     if(made_changes){
-        fvsm.recreate_involved_face_index();
+        if(fvsm.involved_faces.size() == fvsm.vertices.size()){
+            // Index is valid; apply surgical update for the newly added faces only.
+            involved_face_index_diff<I> diff;
+            for(auto f_idx = N_faces_before; f_idx < static_cast<I>(fvsm.faces.size()); ++f_idx){
+                for(const auto &v : fvsm.faces[f_idx]){
+                    diff.entries_to_add.emplace_back(v, f_idx);
+                }
+            }
+            fvsm.apply_involved_face_index_diff(diff);
+        }else{
+            fvsm.recreate_involved_face_index();
+        }
     }
 
     return true;

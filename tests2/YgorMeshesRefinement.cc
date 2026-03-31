@@ -199,4 +199,59 @@ TEST_CASE( "loop_subdivide" ){
 
         REQUIRE( verify_mesh_integrity(mesh) );
     }
+
+    SUBCASE("involved_faces index matches recreate after 1 iteration"){
+        auto mesh = fv_surface_mesh_tetrahedron();
+        loop_subdivide(mesh, 1);
+
+        REQUIRE( !mesh.involved_faces.empty() );
+        REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
+
+        // Compare with a full rebuild to confirm the diff-based index is correct.
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    }
+
+    SUBCASE("involved_faces index matches recreate after 2 iterations"){
+        auto mesh = fv_surface_mesh_tetrahedron();
+        loop_subdivide(mesh, 2);
+
+        REQUIRE( !mesh.involved_faces.empty() );
+        REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
+
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    }
+
+    SUBCASE("involved_faces index matches recreate for icosahedron"){
+        auto mesh = fv_surface_mesh_icosahedron();
+        loop_subdivide(mesh, 1);
+
+        REQUIRE( !mesh.involved_faces.empty() );
+        REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
+
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    }
 }

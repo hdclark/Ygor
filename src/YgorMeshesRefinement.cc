@@ -90,8 +90,11 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
         const auto N_orig_faces = fvsm.faces.size();
 
         // Ensure we have an up-to-date index of involved faces.
-        // Always rebuild since faces may have been modified without updating the index.
-        fvsm.recreate_involved_face_index();
+        // On the first iteration, rebuild to handle any prior modifications.
+        // On subsequent iterations, the diff from the previous iteration keeps it current.
+        if(iter == 0){
+            fvsm.recreate_involved_face_index();
+        }
 
         // Helper: Create a canonical edge key from two vertex indices.
         // The edge key is always ordered (min, max) to ensure consistency.
@@ -360,15 +363,30 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
             new_faces.push_back({e01, e12, e20});
         }
 
+        // Compute the diff before replacing faces so we can reference the old face data.
+        involved_face_index_diff<I> diff;
+        diff.new_vertex_count = static_cast<I>(fvsm.vertices.size()) - N_orig_verts;
+
+        // Remove associations for all old faces.
+        for(size_t f_idx = 0; f_idx < N_orig_faces; ++f_idx){
+            for(const auto &v : fvsm.faces[f_idx]){
+                diff.entries_to_remove.emplace_back(v, static_cast<I>(f_idx));
+            }
+        }
+
+        // Add associations for all new faces.
+        for(size_t f_idx = 0; f_idx < new_faces.size(); ++f_idx){
+            for(const auto &v : new_faces[f_idx]){
+                diff.entries_to_add.emplace_back(v, static_cast<I>(f_idx));
+            }
+        }
+
         // Replace old faces with new faces.
         fvsm.faces = std::move(new_faces);
 
-        // Invalidate and rebuild involved_faces index.
-        fvsm.involved_faces.clear();
+        // Apply the diff to update the involved_faces index.
+        fvsm.apply_involved_face_index_diff(diff);
     }
-
-    // Rebuild the involved_faces index for the final mesh.
-    fvsm.recreate_involved_face_index();
 }
 
 #ifndef YGOR_MESHES_REFINEMENT_DISABLE_ALL_SPECIALIZATIONS
