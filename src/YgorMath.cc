@@ -8496,7 +8496,7 @@ fv_tet_mesh<T,I>::remove_disconnected_vertices(){
 template <class T, class I>
 void
 fv_tet_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
-    const auto sq_dist_eps = std::pow(static_cast<double>(distance_eps), 2.0);
+    const auto sq_dist_eps = static_cast<double>(distance_eps) * static_cast<double>(distance_eps);
 
     std::map<I,I> duplicates;
 
@@ -8513,7 +8513,7 @@ fv_tet_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
             if(duplicates.count(*i_it) != 0) continue;
             const auto v_i = this->vertices[*i_it];
             const auto adj_end = std::find_if_not(std::next(i_it), end,
-                [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= sq_dist_eps; });
+                [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= distance_eps; });
             for(auto a_it = std::next(i_it); a_it != adj_end; ++a_it){
                 if(duplicates.count(*a_it) != 0) continue;
                 const auto v_a = this->vertices[*a_it];
@@ -8593,22 +8593,47 @@ template <class T, class I>
 template <class U>
 std::optional<U>
 fv_tet_mesh<T,I>::GetMetadataValueAs(std::string key) const {
-    const auto it = this->metadata.find(key);
-    if(it == this->metadata.end()) return std::optional<U>();
-    try{
-        return std::stod(it->second);
-    }catch(const std::exception &){
+    const auto metadata_cit = this->metadata.find(key);
+    if( (metadata_cit == this->metadata.end())  || !Is_String_An_X<U>(metadata_cit->second) ){
         return std::optional<U>();
+    }else{
+        return std::make_optional(stringtoX<U>(metadata_cit->second));
     }
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template std::optional<int32_t> fv_tet_mesh<float , uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<int32_t> fv_tet_mesh<float , uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<int32_t> fv_tet_mesh<double, uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<int32_t> fv_tet_mesh<double, uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<uint32_t> fv_tet_mesh<float , uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<uint32_t> fv_tet_mesh<float , uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<uint32_t> fv_tet_mesh<double, uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<uint32_t> fv_tet_mesh<double, uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<int64_t> fv_tet_mesh<float , uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<int64_t> fv_tet_mesh<float , uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<int64_t> fv_tet_mesh<double, uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<int64_t> fv_tet_mesh<double, uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<uint64_t> fv_tet_mesh<float , uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<uint64_t> fv_tet_mesh<float , uint64_t>::GetMetadataValueAs(std::string) const;
+
+    template std::optional<uint64_t> fv_tet_mesh<double, uint32_t>::GetMetadataValueAs(std::string) const;
+    template std::optional<uint64_t> fv_tet_mesh<double, uint64_t>::GetMetadataValueAs(std::string) const;
+
     template std::optional<float > fv_tet_mesh<float , uint32_t >::GetMetadataValueAs(std::string) const;
     template std::optional<float > fv_tet_mesh<float , uint64_t >::GetMetadataValueAs(std::string) const;
-    template std::optional<double> fv_tet_mesh<float , uint32_t >::GetMetadataValueAs(std::string) const;
-    template std::optional<double> fv_tet_mesh<float , uint64_t >::GetMetadataValueAs(std::string) const;
 
     template std::optional<float > fv_tet_mesh<double, uint32_t >::GetMetadataValueAs(std::string) const;
     template std::optional<float > fv_tet_mesh<double, uint64_t >::GetMetadataValueAs(std::string) const;
+
+    template std::optional<double> fv_tet_mesh<float , uint32_t >::GetMetadataValueAs(std::string) const;
+    template std::optional<double> fv_tet_mesh<float , uint64_t >::GetMetadataValueAs(std::string) const;
+
     template std::optional<double> fv_tet_mesh<double, uint32_t >::GetMetadataValueAs(std::string) const;
     template std::optional<double> fv_tet_mesh<double, uint64_t >::GetMetadataValueAs(std::string) const;
 #endif
