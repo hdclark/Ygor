@@ -6325,6 +6325,47 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
 #endif
 
 
+// Apply a surgical update to this->involved_faces.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::apply_involved_face_index_diff(const involved_face_index_diff<I> &diff){
+    // Extend involved_faces for new vertices.
+    for(I i = 0; i < diff.new_vertex_count; ++i){
+        this->involved_faces.emplace_back();
+    }
+
+    // Apply removals.
+    for(const auto &entry : diff.entries_to_remove){
+        const auto v_idx = entry.first;
+        const auto f_idx = entry.second;
+        if(static_cast<size_t>(v_idx) >= this->involved_faces.size()) continue;
+        auto &face_list = this->involved_faces[v_idx];
+        auto it = std::find(face_list.begin(), face_list.end(), f_idx);
+        if(it != face_list.end()){
+            // Swap-and-pop for O(1) erasure (order of entries is not significant).
+            std::swap(*it, face_list.back());
+            face_list.pop_back();
+        }
+    }
+
+    // Apply additions.
+    for(const auto &entry : diff.entries_to_add){
+        const auto v_idx = entry.first;
+        const auto f_idx = entry.second;
+        if(static_cast<size_t>(v_idx) >= this->involved_faces.size()) continue;
+        this->involved_faces[v_idx].push_back(f_idx);
+    }
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint32_t> &);
+    template void fv_surface_mesh<float , uint64_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint64_t> &);
+
+    template void fv_surface_mesh<double, uint32_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint32_t> &);
+    template void fv_surface_mesh<double, uint64_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint64_t> &);
+#endif
+
+
 // Re-compute this->vertex_normals from current face orientations.
 template <class T, class I>
 void
