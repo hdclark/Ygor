@@ -232,6 +232,7 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
 
     const auto eps_sq = eps * eps;
     bool made_changes = false;
+    const auto N_orig_faces = fvsm.faces.size();
 
     for(const auto &chain : holes.chains){
         if(!chain.is_closed) continue;
@@ -260,7 +261,11 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     }
 
     if(made_changes){
-        fvsm.recreate_involved_face_index();
+        involved_face_index_diff<I> diff;
+        for(size_t f = N_orig_faces; f < fvsm.faces.size(); ++f){
+            diff.new_faces.emplace_back(f, fvsm.faces[f]);
+        }
+        fvsm.apply_involved_face_index_diff(diff);
     }
 
     return true;

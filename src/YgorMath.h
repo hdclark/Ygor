@@ -535,6 +535,20 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
                             T distance_eps = static_cast<T>(1E-3));
 
 //---------------------------------------------------------------------------------------------------------------------------
+//--- involved_face_index_diff: a lightweight diff describing surgical updates to the involved_faces index -----------------
+//---------------------------------------------------------------------------------------------------------------------------
+// Instead of regenerating the entire involved_faces index from scratch (via recreate_involved_face_index), this struct
+// describes a minimal set of additions and removals that can be applied to an existing index.
+//
+// Each entry in 'new_faces' is a (face_index, vertex_indices) pair indicating a face to register in the index.
+// Each entry in 'old_faces' is a (face_index, vertex_indices) pair indicating a face to deregister from the index.
+template <class I>
+struct involved_face_index_diff {
+    std::vector<std::pair<size_t, std::vector<I>>> new_faces; // faces to add: (face_index, vertex_indices).
+    std::vector<std::pair<size_t, std::vector<I>>> old_faces; // faces to remove: (face_index, vertex_indices).
+};
+
+//---------------------------------------------------------------------------------------------------------------------------
 //--------------- fv_surface_mesh: a 2D surface mesh embedded in 3D with a straightforward data structure -------------------
 //---------------------------------------------------------------------------------------------------------------------------
 //Simple, direct face-vertex list data structure representing a 3D surface mesh. Few constraints are imposed by this
@@ -596,6 +610,10 @@ template <class T, class I>   class fv_surface_mesh {
 
         // Regenerates this->involved_faces using this->vertices and this->faces.
         void recreate_involved_face_index(void);
+
+        // Apply a surgical diff to this->involved_faces rather than regenerating from scratch.
+        // The index is resized to match this->vertices if needed.
+        void apply_involved_face_index_diff(const involved_face_index_diff<I> &diff);
 
         // Re-compute this->vertex_normals using the current face orientations.
         //

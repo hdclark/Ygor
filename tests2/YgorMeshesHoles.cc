@@ -37,6 +37,27 @@ TEST_CASE( "YgorMeshesHoles" ){
         REQUIRE(mesh2.faces.size() == 4UL);
     }
 
+    SUBCASE("FillBoundaryChainsByZippering involved_faces index matches full rebuild"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        // Build the initial index so the diff has something to update.
+        mesh2.recreate_involved_face_index();
+        REQUIRE(mesh2.involved_faces.size() == 4UL);
+
+        const auto holes = FindBoundaryChains(mesh2);
+        REQUIRE(FillBoundaryChainsByZippering(mesh2, holes));
+        REQUIRE(mesh2.faces.size() == 4UL);
+
+        // The diff-maintained index should match a full rebuild.
+        const auto diff_index = mesh2.involved_faces;
+        mesh2.recreate_involved_face_index();
+        REQUIRE(diff_index == mesh2.involved_faces);
+    }
+
     SUBCASE("EnsureConsistentFaceOrientation"){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p2, p3, p4 }};

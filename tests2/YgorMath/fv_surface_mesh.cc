@@ -128,6 +128,110 @@ TEST_CASE( "fv_surface_mesh class" ){
         REQUIRE( mesh1.involved_faces.size() == 3 );
     }
 
+    SUBCASE("apply_involved_face_index_diff adding faces to empty index"){
+        // Start with a single triangle and no index.
+        REQUIRE( mesh1.involved_faces.empty() );
+
+        // Build the index via a diff that adds the single existing face.
+        involved_face_index_diff<uint32_t> diff;
+        diff.new_faces.emplace_back(0, mesh1.faces[0]);
+        mesh1.apply_involved_face_index_diff(diff);
+
+        REQUIRE( mesh1.involved_faces.size() == 3 );
+        REQUIRE( mesh1.involved_faces[0].size() == 1 );
+        REQUIRE( mesh1.involved_faces[0][0] == 0 );
+        REQUIRE( mesh1.involved_faces[1].size() == 1 );
+        REQUIRE( mesh1.involved_faces[1][0] == 0 );
+        REQUIRE( mesh1.involved_faces[2].size() == 1 );
+        REQUIRE( mesh1.involved_faces[2][0] == 0 );
+    }
+
+    SUBCASE("apply_involved_face_index_diff appending new faces"){
+        // Build the index, then append a new face and apply a diff.
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) }};
+        mesh2.recreate_involved_face_index();
+        REQUIRE( mesh2.involved_faces.size() == 4 );
+        REQUIRE( mesh2.involved_faces[3].empty() ); // vertex 3 not in any face yet
+
+        // Append a second face referencing vertex 3.
+        mesh2.faces.emplace_back(std::vector<uint32_t>{ 0, 2, 3 });
+
+        involved_face_index_diff<uint32_t> diff;
+        diff.new_faces.emplace_back(1, mesh2.faces[1]);
+        mesh2.apply_involved_face_index_diff(diff);
+
+        // Vertex 0 is now in faces 0 and 1.
+        REQUIRE( mesh2.involved_faces[0].size() == 2 );
+        // Vertex 1 is still only in face 0.
+        REQUIRE( mesh2.involved_faces[1].size() == 1 );
+        // Vertex 2 is now in faces 0 and 1.
+        REQUIRE( mesh2.involved_faces[2].size() == 2 );
+        // Vertex 3 is now in face 1.
+        REQUIRE( mesh2.involved_faces[3].size() == 1 );
+        REQUIRE( mesh2.involved_faces[3][0] == 1 );
+    }
+
+    SUBCASE("apply_involved_face_index_diff removing faces"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                        { static_cast<uint32_t>(0), static_cast<uint32_t>(2), static_cast<uint32_t>(3) }};
+        mesh2.recreate_involved_face_index();
+
+        // Remove face 1 via a diff.
+        involved_face_index_diff<uint32_t> diff;
+        diff.old_faces.emplace_back(1, mesh2.faces[1]);
+        mesh2.apply_involved_face_index_diff(diff);
+
+        REQUIRE( mesh2.involved_faces[0].size() == 1 ); // face 0 only
+        REQUIRE( mesh2.involved_faces[2].size() == 1 ); // face 0 only
+        REQUIRE( mesh2.involved_faces[3].empty() );     // was only in face 1
+    }
+
+    SUBCASE("apply_involved_face_index_diff matches recreate after appending faces"){
+        // Build index, append faces, apply diff, and compare with a full rebuild.
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                        { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) }};
+        mesh2.recreate_involved_face_index();
+
+        const size_t N_orig = mesh2.faces.size();
+        mesh2.faces.emplace_back(std::vector<uint32_t>{ 1, 3, 2 });
+
+        involved_face_index_diff<uint32_t> diff;
+        for(size_t f = N_orig; f < mesh2.faces.size(); ++f){
+            diff.new_faces.emplace_back(f, mesh2.faces[f]);
+        }
+        mesh2.apply_involved_face_index_diff(diff);
+
+        // Take a snapshot of the diff-maintained index.
+        const auto diff_index = mesh2.involved_faces;
+
+        // Rebuild from scratch and compare.
+        mesh2.recreate_involved_face_index();
+        REQUIRE( diff_index == mesh2.involved_faces );
+    }
+
+    SUBCASE("apply_involved_face_index_diff resizes for new vertices"){
+        mesh1.recreate_involved_face_index();
+        REQUIRE( mesh1.involved_faces.size() == 3 );
+
+        // Add a new vertex and a face referencing it.
+        mesh1.vertices.emplace_back(vec3<double>(1.0, 1.0, 1.0));
+        mesh1.faces.emplace_back(std::vector<uint32_t>{ 0, 2, 3 });
+
+        involved_face_index_diff<uint32_t> diff;
+        diff.new_faces.emplace_back(1, mesh1.faces[1]);
+        mesh1.apply_involved_face_index_diff(diff);
+
+        REQUIRE( mesh1.involved_faces.size() == 4 );
+        REQUIRE( mesh1.involved_faces[3].size() == 1 );
+        REQUIRE( mesh1.involved_faces[3][0] == 1 );
+    }
+
     SUBCASE("merge_duplicate_vertices"){
         fv_surface_mesh<double, uint32_t> mesh2;
         mesh2.vertices = {{ p1, p1, p4 }};

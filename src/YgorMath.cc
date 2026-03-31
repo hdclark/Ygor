@@ -6325,6 +6325,44 @@ fv_surface_mesh<T,I>::recreate_involved_face_index(void){
 #endif
 
 
+// Apply a surgical diff to this->involved_faces.
+template <class T, class I>
+void
+fv_surface_mesh<T,I>::apply_involved_face_index_diff(const involved_face_index_diff<I> &diff){
+    // Ensure the index is sized to match the current vertex count.
+    this->involved_faces.resize(this->vertices.size());
+
+    // Remove entries for old faces.
+    for(const auto &entry : diff.old_faces){
+        const auto face_idx = static_cast<I>(entry.first);
+        for(const auto &v : entry.second){
+            if(static_cast<size_t>(v) < this->involved_faces.size()){
+                auto &iv = this->involved_faces[v];
+                iv.erase(std::remove(iv.begin(), iv.end(), face_idx), iv.end());
+            }
+        }
+    }
+
+    // Add entries for new faces.
+    for(const auto &entry : diff.new_faces){
+        const auto face_idx = static_cast<I>(entry.first);
+        for(const auto &v : entry.second){
+            if(static_cast<size_t>(v) < this->involved_faces.size()){
+                this->involved_faces[v].emplace_back(face_idx);
+            }
+        }
+    }
+    return;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template void fv_surface_mesh<float , uint32_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint32_t> &);
+    template void fv_surface_mesh<float , uint64_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint64_t> &);
+
+    template void fv_surface_mesh<double, uint32_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint32_t> &);
+    template void fv_surface_mesh<double, uint64_t >::apply_involved_face_index_diff(const involved_face_index_diff<uint64_t> &);
+#endif
+
+
 // Re-compute this->vertex_normals from current face orientations.
 template <class T, class I>
 void
