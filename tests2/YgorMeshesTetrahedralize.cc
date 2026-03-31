@@ -6,6 +6,8 @@
 #include <string>
 #include <set>
 #include <stdexcept>
+#include <limits>
+#include <algorithm>
 
 #include <YgorMath.h>
 #include <YgorMath_Samples.h>
