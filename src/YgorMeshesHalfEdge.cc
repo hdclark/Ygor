@@ -733,7 +733,12 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
     for(size_t f = 0; f < N_faces; ++f){
         const auto &fv = fvsm.faces[f];
         const auto n = fv.size();
-        if(n < 2) continue; // Degenerate face, skip.
+        if(n < 3){
+            throw std::runtime_error("Degenerate face detected: face "
+                + std::to_string(static_cast<uint64_t>(f))
+                + " has " + std::to_string(static_cast<uint64_t>(n))
+                + " vertices (minimum 3 required). Cannot build half-edge mesh.");
+        }
 
         const I first_he = he_idx;
         out.face_halfedges[f] = first_he;
@@ -798,6 +803,60 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
     for(size_t h = 0; h < out.halfedges.size(); ++h){
         if(out.halfedges[h].twin == sentinel){
             out.vertex_halfedges[out.halfedges[h].vertex] = static_cast<I>(h);
+        }
+    }
+
+    // Validate that no vertex has a non-manifold (bow-tie) topology.
+    //
+    // For each vertex, walk the full one-ring fan.  If the number of half-edges
+    // originating from the vertex that we encounter during the fan walk does not
+    // equal the total number of half-edges originating from that vertex, then
+    // the vertex has multiple disconnected fans (a bow-tie) and is non-manifold.
+    {
+        // Count total outgoing half-edges per vertex.
+        std::vector<I> total_outgoing(N_verts, static_cast<I>(0));
+        for(const auto &he : out.halfedges){
+            total_outgoing.at(he.vertex) += static_cast<I>(1);
+        }
+
+        for(size_t v = 0; v < N_verts; ++v){
+            const I start = out.vertex_halfedges[v];
+            if(start == sentinel) continue;
+
+            I fan_count = static_cast<I>(0);
+            I cur = start;
+
+            // Walk using prev->twin (one direction around the fan).
+            bool hit_boundary = false;
+            do {
+                ++fan_count;
+                const auto &he = out.halfedges.at(cur);
+                const I twin_of_prev = out.halfedges.at(he.prev).twin;
+                if(twin_of_prev == sentinel){
+                    hit_boundary = true;
+                    break;
+                }
+                cur = twin_of_prev;
+            } while(cur != start);
+
+            // If we hit a boundary, also walk the other direction (twin->next).
+            if(hit_boundary){
+                cur = start;
+                for(;;){
+                    const auto &he = out.halfedges.at(cur);
+                    if(he.twin == sentinel) break;
+                    cur = out.halfedges.at(he.twin).next;
+                    if(cur == start) break;
+                    ++fan_count;
+                }
+            }
+
+            if(fan_count != total_outgoing[v]){
+                throw std::runtime_error("Non-manifold vertex detected: vertex "
+                    + std::to_string(static_cast<uint64_t>(v))
+                    + " has multiple disconnected edge fans (bow-tie topology)."
+                    " Cannot build half-edge mesh.");
+            }
         }
     }
 
