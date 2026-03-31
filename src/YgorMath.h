@@ -701,6 +701,58 @@ template <class T, class I>   class fv_surface_mesh {
 };
 
 
+//---------------------------------------------------------------------------------------------------------------------------
+//---------- fv_tet_mesh: a volumetric tetrahedral mesh embedded in 3D with a straightforward data structure ----------------
+//---------------------------------------------------------------------------------------------------------------------------
+//Simple, direct face-vertex list data structure representing a 3D tetrahedral (volumetric) mesh. This data structure
+// stores vertices and tetrahedra (each tetrahedron references 4 vertices). Few constraints are imposed, and
+// interpretation of the mesh and enforcement of specific qualities is generally left to the user.
+//
+// Note: This data structure is not efficient, clever, or tuned for any specific use-case. It is meant to provide a
+// simple entrypoint into volumetric mesh handling and a lowest-common-denominator for marshalling tet meshes
+// between file formats and specialized libraries.
+template <class T, class I>   class fv_tet_mesh {
+    public:
+        std::vector<vec3<T>> vertices; // List of all vertices appearing in the mesh.
+                                       // Note that vertices may be disconnected from all tetrahedra.
+
+        std::vector<std::array<I, 4>> tetrahedra; // List of tetrahedra appearing in the mesh.
+                                                   // Each tetrahedron is composed of 4 vertex indices.
+                                                   // Index starts at zero.
+
+        std::map<std::string,std::string> metadata; // User-defined metadata.
+
+
+        //Constructors.
+        fv_tet_mesh();
+        fv_tet_mesh(const fv_tet_mesh &in);
+
+        //Member functions.
+        fv_tet_mesh & operator= (const fv_tet_mesh &);
+        bool operator==(const fv_tet_mesh &) const;
+        bool operator!=(const fv_tet_mesh &) const;
+
+        void swap(fv_tet_mesh &);
+
+        // Compute the signed volume of an individual tetrahedron (if n >= 0) or total volume (if n < 0).
+        // Individual tet volumes can be negative if the vertex winding is inverted.
+        // The total volume is the sum of all signed tet volumes.
+        T volume(int64_t n = -1) const;
+
+        // Remove vertices not referenced by any tetrahedra.
+        void remove_disconnected_vertices();
+
+        // Merge duplicate vertices that are within the given distance epsilon of one another.
+        void merge_duplicate_vertices( T distance_eps = static_cast<T>(1E-6) );
+
+        //Checks if the key is present without inspecting the value.
+        bool MetadataKeyPresent(std::string key) const;
+
+        //Attempts to cast the value if present. Optional is disengaged if key is missing or cast fails.
+        template <class U> std::optional<U> GetMetadataValueAs(std::string key) const;
+};
+
+
 // Extract a convex hull from a set of vec3s.
 //
 // Note that due to numerical limitations, the hull may or may not include points within a small eps from the hull.
