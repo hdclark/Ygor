@@ -496,6 +496,35 @@ TEST_CASE( "YgorMeshesHalfEdge" ){
         REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
     }
 
+    SUBCASE("non-triangular face throws"){
+        fv_surface_mesh<double, uint64_t> fvsm;
+        fvsm.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0)
+        };
+        // A face with 4 vertices (quad) should be rejected.
+        fvsm.faces = {
+            {0, 1, 2, 3}
+        };
+        REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
+    }
+
+    SUBCASE("face with duplicate vertex index throws"){
+        fv_surface_mesh<double, uint64_t> fvsm;
+        fvsm.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0)
+        };
+        // A face with a repeated vertex creates a self-loop edge.
+        fvsm.faces = {
+            {0, 1, 1}
+        };
+        REQUIRE_THROWS(convert_fv_to_he_surface_mesh(fvsm));
+    }
+
     SUBCASE("invalid vertex index throws"){
         fv_surface_mesh<double, uint64_t> fvsm;
         fvsm.vertices = {

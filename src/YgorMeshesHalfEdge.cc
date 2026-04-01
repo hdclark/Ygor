@@ -724,25 +724,49 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
     }
     out.halfedges.resize(total_he);
 
+    // Validate that the total counts fit in the index type I.
+    if(N_verts > static_cast<size_t>(sentinel)
+    || N_faces > static_cast<size_t>(sentinel)
+    || total_he > static_cast<size_t>(sentinel)){
+        throw std::runtime_error("Mesh size exceeds the capacity of the index type: "
+            + std::to_string(N_verts) + " vertices, "
+            + std::to_string(N_faces) + " faces, "
+            + std::to_string(total_he) + " half-edges.");
+    }
+
     // Second pass: create half-edges for each face and link next/prev within
     // each face loop.  Also build an edge map for twin lookup.
     //
     // The map key is (v_from, v_to) for a directed edge.
-    std::map<std::pair<I,I>, I> edge_to_he;
+    std::map<std::pair<I,I>, size_t> edge_to_he;
 
-    I he_idx = static_cast<I>(0);
+    size_t he_idx = 0;
     for(size_t f = 0; f < N_faces; ++f){
         const auto &fv = fvsm.faces[f];
         const auto n = fv.size();
-        if(n < 3){
-            throw std::runtime_error("Degenerate face detected: face "
+        if(n != 3){
+            throw std::runtime_error("Non-triangular face detected: face "
                 + std::to_string(static_cast<uint64_t>(f))
                 + " has " + std::to_string(static_cast<uint64_t>(n))
-                + " vertices (minimum 3 required). Cannot build half-edge mesh.");
+                + " vertices (exactly 3 required). Cannot build half-edge mesh.");
         }
 
-        const I first_he = he_idx;
-        out.face_halfedges[f] = first_he;
+        // Validate that no vertex appears more than once within this face
+        // (which would create self-loop / degenerate edges).
+        for(size_t a = 0; a < n; ++a){
+            for(size_t b = a + 1; b < n; ++b){
+                if(fv[a] == fv[b]){
+                    throw std::runtime_error("Degenerate face detected: face "
+                        + std::to_string(static_cast<uint64_t>(f))
+                        + " has duplicate vertex index "
+                        + std::to_string(static_cast<uint64_t>(fv[a]))
+                        + ". Cannot build half-edge mesh.");
+                }
+            }
+        }
+
+        const size_t first_he = he_idx;
+        out.face_halfedges[f] = static_cast<I>(first_he);
 
         for(size_t j = 0; j < n; ++j){
             auto &he = out.halfedges[he_idx];
@@ -762,12 +786,12 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
             he.vertex = v_idx;
             he.face   = static_cast<I>(f);
             he.twin   = sentinel;
-            he.next   = first_he + static_cast<I>((j + 1) % n);
-            he.prev   = first_he + static_cast<I>((j + n - 1) % n);
+            he.next   = static_cast<I>(first_he + ((j + 1) % n));
+            he.prev   = static_cast<I>(first_he + ((j + n - 1) % n));
 
             // Record outgoing half-edge for this vertex.
             if(out.vertex_halfedges[v_idx] == sentinel){
-                out.vertex_halfedges[v_idx] = he_idx;
+                out.vertex_halfedges[v_idx] = static_cast<I>(he_idx);
             }
 
             // Insert into edge map for twin lookup.
@@ -792,8 +816,8 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
         auto twin_key = std::make_pair(key.second, key.first);
         auto it = edge_to_he.find(twin_key);
         if(it != edge_to_he.end()){
-            out.halfedges[idx].twin       = it->second;
-            out.halfedges[it->second].twin = idx;
+            out.halfedges[idx].twin              = static_cast<I>(it->second);
+            out.halfedges[it->second].twin       = static_cast<I>(idx);
         }
         // If no twin exists, this is a boundary edge and twin remains sentinel.
     }
