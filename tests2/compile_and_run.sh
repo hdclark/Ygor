@@ -47,6 +47,7 @@ g++ \
   YgorMathIOXYZ.cc \
   YgorMathIOCSV.cc \
   YgorMeshesConvexHull.cc \
+  YgorMeshesHalfEdge.cc \
   YgorMeshesHoles.cc \
   YgorMeshesOrient.cc \
   YgorMeshesRefinement.cc \
