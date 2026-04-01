@@ -753,16 +753,10 @@ convert_fv_to_he_surface_mesh(const fv_surface_mesh<T,I> &fvsm){
 
         // Validate that no vertex appears more than once within this face
         // (which would create self-loop / degenerate edges).
-        for(size_t a = 0; a < n; ++a){
-            for(size_t b = a + 1; b < n; ++b){
-                if(fv[a] == fv[b]){
-                    throw std::runtime_error("Degenerate face detected: face "
-                        + std::to_string(static_cast<uint64_t>(f))
-                        + " has duplicate vertex index "
-                        + std::to_string(static_cast<uint64_t>(fv[a]))
-                        + ". Cannot build half-edge mesh.");
-                }
-            }
+        if(fv[0] == fv[1] || fv[0] == fv[2] || fv[1] == fv[2]){
+            throw std::runtime_error("Degenerate face detected: face "
+                + std::to_string(static_cast<uint64_t>(f))
+                + " has duplicate vertex indices. Cannot build half-edge mesh.");
         }
 
         const size_t first_he = he_idx;
