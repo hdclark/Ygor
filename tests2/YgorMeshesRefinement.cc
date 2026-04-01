@@ -78,6 +78,17 @@ static bool verify_mesh_integrity(const fv_surface_mesh<double, uint64_t> &mesh)
 }
 
 TEST_CASE( "loop_subdivide" ){
+    const auto require_involved_faces_matches_recreate = [](const auto &mesh){
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    };
 
     SUBCASE("single triangle: V'=V+E, F'=4F"){
         auto mesh = fv_surface_mesh_single_triangle();
@@ -207,16 +218,8 @@ TEST_CASE( "loop_subdivide" ){
         REQUIRE( !mesh.involved_faces.empty() );
         REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
 
-        // Compare with a full rebuild to confirm the diff-based index is correct.
-        auto reference = mesh;
-        reference.recreate_involved_face_index();
-        for(size_t v = 0; v < mesh.vertices.size(); ++v){
-            auto got = mesh.involved_faces[v];
-            auto expected = reference.involved_faces[v];
-            std::sort(got.begin(), got.end());
-            std::sort(expected.begin(), expected.end());
-            REQUIRE(got == expected);
-        }
+        // Compare with a full rebuild to confirm index correctness.
+        require_involved_faces_matches_recreate(mesh);
     }
 
     SUBCASE("involved_faces index matches recreate after 2 iterations"){
@@ -226,15 +229,7 @@ TEST_CASE( "loop_subdivide" ){
         REQUIRE( !mesh.involved_faces.empty() );
         REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
 
-        auto reference = mesh;
-        reference.recreate_involved_face_index();
-        for(size_t v = 0; v < mesh.vertices.size(); ++v){
-            auto got = mesh.involved_faces[v];
-            auto expected = reference.involved_faces[v];
-            std::sort(got.begin(), got.end());
-            std::sort(expected.begin(), expected.end());
-            REQUIRE(got == expected);
-        }
+        require_involved_faces_matches_recreate(mesh);
     }
 
     SUBCASE("involved_faces index matches recreate for icosahedron"){
@@ -244,14 +239,6 @@ TEST_CASE( "loop_subdivide" ){
         REQUIRE( !mesh.involved_faces.empty() );
         REQUIRE( mesh.involved_faces.size() == mesh.vertices.size() );
 
-        auto reference = mesh;
-        reference.recreate_involved_face_index();
-        for(size_t v = 0; v < mesh.vertices.size(); ++v){
-            auto got = mesh.involved_faces[v];
-            auto expected = reference.involved_faces[v];
-            std::sort(got.begin(), got.end());
-            std::sort(expected.begin(), expected.end());
-            REQUIRE(got == expected);
-        }
+        require_involved_faces_matches_recreate(mesh);
     }
 }

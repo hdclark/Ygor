@@ -19,6 +19,17 @@ TEST_CASE( "YgorMeshesHoles" ){
     const vec3<double> p4(0.0, 0.0, 0.0);
     const vec3<double> p5(1.0, 0.0, 1.0);
     const vec3<double> p6(1.0, 1.0, 0.0);
+    const auto require_involved_faces_matches_recreate = [](const auto &mesh){
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    };
 
     SUBCASE("FindBoundaryChains and FillBoundaryChainsByZippering"){
         fv_surface_mesh<double, uint32_t> mesh2;
@@ -57,15 +68,7 @@ TEST_CASE( "YgorMeshesHoles" ){
         REQUIRE(mesh2.involved_faces.size() == mesh2.vertices.size());
 
         // Compare with a full rebuild to confirm correctness.
-        auto reference = mesh2;
-        reference.recreate_involved_face_index();
-        for(size_t v = 0; v < mesh2.vertices.size(); ++v){
-            auto got = mesh2.involved_faces[v];
-            auto expected = reference.involved_faces[v];
-            std::sort(got.begin(), got.end());
-            std::sort(expected.begin(), expected.end());
-            REQUIRE(got == expected);
-        }
+        require_involved_faces_matches_recreate(mesh2);
     }
 
     SUBCASE("FillBoundaryChainsByZippering rebuilds when index absent"){
@@ -84,15 +87,7 @@ TEST_CASE( "YgorMeshesHoles" ){
         REQUIRE(mesh2.involved_faces.size() == mesh2.vertices.size());
 
         // Verify the rebuilt index matches a fresh recreate.
-        auto reference = mesh2;
-        reference.recreate_involved_face_index();
-        for(size_t v = 0; v < mesh2.vertices.size(); ++v){
-            auto got = mesh2.involved_faces[v];
-            auto expected = reference.involved_faces[v];
-            std::sort(got.begin(), got.end());
-            std::sort(expected.begin(), expected.end());
-            REQUIRE(got == expected);
-        }
+        require_involved_faces_matches_recreate(mesh2);
     }
 
     SUBCASE("EnsureConsistentFaceOrientation"){
@@ -168,4 +163,3 @@ TEST_CASE( "YgorMeshesHoles" ){
         REQUIRE_THROWS(EnsureConsistentFaceOrientation(invalid_genus_mesh, 10.0, &invalid_genus));
     }
 }
-

@@ -363,29 +363,11 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
             new_faces.push_back({e01, e12, e20});
         }
 
-        // Compute the diff before replacing faces so we can reference the old face data.
-        involved_face_index_diff<I> diff;
-        diff.new_vertex_count = static_cast<I>(fvsm.vertices.size()) - N_orig_verts;
-
-        // Remove associations for all old faces.
-        for(size_t f_idx = 0; f_idx < N_orig_faces; ++f_idx){
-            for(const auto &v : fvsm.faces[f_idx]){
-                diff.entries_to_remove.emplace_back(v, static_cast<I>(f_idx));
-            }
-        }
-
-        // Add associations for all new faces.
-        for(size_t f_idx = 0; f_idx < new_faces.size(); ++f_idx){
-            for(const auto &v : new_faces[f_idx]){
-                diff.entries_to_add.emplace_back(v, static_cast<I>(f_idx));
-            }
-        }
-
         // Replace old faces with new faces.
         fvsm.faces = std::move(new_faces);
 
-        // Apply the diff to update the involved_faces index.
-        fvsm.apply_involved_face_index_diff(diff);
+        // Topology replacement is global; rebuilding is more practical than a full remove/add diff.
+        fvsm.recreate_involved_face_index();
     }
 }
 
@@ -396,4 +378,3 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
     template void loop_subdivide(fv_surface_mesh<double, uint32_t> &, int64_t);
     template void loop_subdivide(fv_surface_mesh<double, uint64_t> &, int64_t);
 #endif
-
