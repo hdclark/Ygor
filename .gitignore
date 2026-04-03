@@ -25,7 +25,5 @@ regex*
 report_machine_parameters
 run_tests
 
-# CodeQL build artifacts
-_codeql_build_dir
-_codeql_detected_source_root
-
+*.ply
+bin/Test_*
