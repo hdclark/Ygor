@@ -16,10 +16,10 @@ public:
     quaternion() = default;
     quaternion(double w_, double x_, double y_, double z_);
 
-    static quaternion identity();
-    static quaternion from_axis_angle(const vec3<double> &axis, double angle_rad);
-    static quaternion from_two_unit_vectors(const vec3<double> &from, const vec3<double> &to);
-    static quaternion from_euler_ypr(double yaw_rad, double pitch_rad, double roll_rad);
+    quaternion identity();
+    quaternion from_axis_angle(const vec3<double> &axis, double angle_rad);
+    quaternion from_two_unit_vectors(const vec3<double> &from, const vec3<double> &to);
+    quaternion from_euler_ypr(double yaw_rad, double pitch_rad, double roll_rad);
 
     quaternion conjugate() const;
     double norm() const;
