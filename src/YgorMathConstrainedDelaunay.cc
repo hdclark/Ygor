@@ -680,8 +680,12 @@ bool constrain_edge(const std::vector<vec3<T>> &verts,
     retained.insert(retained.end(), tris1.begin(), tris1.end());
     prune_triangles(verts, retained);
 
+    if(!triangulation_has_edge(retained, a, b)){
+        return false;
+    }
+
     triangles.swap(retained);
-    return triangulation_has_edge(triangles, a, b) || triangles.empty();
+    return true;
 }
 
 } // namespace
