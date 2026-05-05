@@ -324,7 +324,7 @@ bool collect_user_constraints(const std::vector<vec3<T>> &verts,
 
         const auto edge_key = make_edge(a, b);
         if(!seen.insert(edge_key).second){
-            continue;
+            return false;
         }
 
         for(size_t i = 0; i < verts.size(); ++i){
