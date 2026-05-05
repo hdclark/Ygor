@@ -92,7 +92,7 @@ void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, 
 
         const auto &t0 = tris.at(0);
         const auto &t1 = tris.at(1);
-        const auto opposite = [](const std::array<I, 3> &tri, edge_type<I> edge_key) -> I {
+        const auto find_opposite_vertex = [](const std::array<I, 3> &tri, edge_type<I> edge_key) -> I {
             for(const auto idx : tri){
                 if((idx != edge_key.first) && (idx != edge_key.second)){
                     return idx;
@@ -101,8 +101,8 @@ void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, 
             return edge_key.first;
         };
 
-        const auto w = opposite(t0, edge);
-        const auto x = opposite(t1, edge);
+        const auto w = find_opposite_vertex(t0, edge);
+        const auto x = find_opposite_vertex(t1, edge);
         const auto &a = mesh.vertices.at(edge.first);
         const auto &b = mesh.vertices.at(edge.second);
         const auto &c = mesh.vertices.at(w);

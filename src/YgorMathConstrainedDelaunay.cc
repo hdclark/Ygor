@@ -16,6 +16,10 @@
 
 namespace {
 
+constexpr size_t CDT_INVALID_VERTEX_INDEX = std::numeric_limits<size_t>::max();
+constexpr size_t CDT_LEGALIZATION_GUARD_SCALE = 8;
+constexpr size_t CDT_LEGALIZATION_GUARD_BIAS = 16;
+
 struct CDT_Edge {
     size_t a;
     size_t b;
@@ -405,13 +409,13 @@ bool walk_boundary_chain(size_t start,
         }
 
         const auto &nbrs = it->second;
-        size_t next = std::numeric_limits<size_t>::max();
+        size_t next = CDT_INVALID_VERTEX_INDEX;
         if(nbrs.at(0) != prev){
             next = nbrs.at(0);
         }else if(nbrs.at(1) != prev){
             next = nbrs.at(1);
         }
-        if((next == std::numeric_limits<size_t>::max()) || (next == start)){
+        if((next == CDT_INVALID_VERTEX_INDEX) || (next == start)){
             return false;
         }
         prev = cur;
@@ -536,11 +540,19 @@ template <class T>
 bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
                                     const std::set<CDT_Edge> &boundary_edges,
                                     std::vector<CDT_Triangle> &triangles) {
-    const auto max_iters = triangles.size() * triangles.size() * 8 + 16;
+    // Edge legalisation converges quickly for these small cavity polygons; this guard only prevents
+    // accidental non-termination if a future change breaks the flip logic.
+    const auto max_iters = triangles.size() * triangles.size() * CDT_LEGALIZATION_GUARD_SCALE
+                         + CDT_LEGALIZATION_GUARD_BIAS;
     size_t iter = 0;
     bool changed = true;
+    bool hit_iteration_limit = false;
 
-    while(changed && (iter++ < max_iters)){
+    while(changed){
+        if(iter++ >= max_iters){
+            hit_iteration_limit = true;
+            break;
+        }
         changed = false;
 
         std::map<CDT_Edge, std::vector<size_t>> edge_to_triangles;
@@ -581,7 +593,7 @@ bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
         }
     }
 
-    if(iter > max_iters){
+    if(hit_iteration_limit){
         return false;
     }
 
