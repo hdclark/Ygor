@@ -19,12 +19,21 @@ cd "${REPOROOT}/tests2/"
 mkdir -p doctest/
 wget -q 'https://raw.githubusercontent.com/onqtam/doctest/master/doctest/doctest.h' -O doctest/doctest.h
 
+BUILD_DIR="${REPOROOT}/build-tests2"
+cmake -S "${REPOROOT}" -B "${BUILD_DIR}" \
+  -DWITH_BOOST=OFF \
+  -DWITH_EIGEN=OFF \
+  -DWITH_GNU_GSL=OFF
+cmake --build "${BUILD_DIR}" -j2
+
 g++ \
   -std=c++17 \
   -Wall \
   -Wno-unused-variable \
   -Wno-unused-value \
   -I. \
+  -I"${REPOROOT}/src" \
+  -I"${BUILD_DIR}/src" \
   Main.cc \
   \
   YgorAlgorithms.cc \
@@ -40,6 +49,7 @@ g++ \
   YgorIOgzip.cc \
   YgorMath/*.cc \
   YgorMathDelaunay.cc \
+  YgorMathConstrainedDelaunay.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
@@ -65,6 +75,8 @@ g++ \
   YgorTime/*.cc \
   \
   -o run_tests \
+  -L"${BUILD_DIR}/lib" \
+  -Wl,-rpath,"${BUILD_DIR}/lib" \
   -lygor
 
 rm -rf doctest/
