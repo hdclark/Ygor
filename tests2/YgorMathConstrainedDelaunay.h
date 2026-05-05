@@ -29,25 +29,35 @@ edge_type<I> make_edge(I a, I b) {
 
 template <class T>
 T orient2d(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c) {
-    const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
-    const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
-    const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
-    const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
-    return -adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data());
+    const long double abx = static_cast<long double>(b.x) - static_cast<long double>(a.x);
+    const long double aby = static_cast<long double>(b.y) - static_cast<long double>(a.y);
+    const long double acx = static_cast<long double>(c.x) - static_cast<long double>(a.x);
+    const long double acy = static_cast<long double>(c.y) - static_cast<long double>(a.y);
+    return static_cast<T>(abx * acy - aby * acx);
 }
 
 template <class T>
 T incircle2d(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d) {
-    const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
-    const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
-    const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
-    const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
+    const long double adx = static_cast<long double>(a.x) - static_cast<long double>(d.x);
+    const long double ady = static_cast<long double>(a.y) - static_cast<long double>(d.y);
+    const long double bdx = static_cast<long double>(b.x) - static_cast<long double>(d.x);
+    const long double bdy = static_cast<long double>(b.y) - static_cast<long double>(d.y);
+    const long double cdx = static_cast<long double>(c.x) - static_cast<long double>(d.x);
+    const long double cdy = static_cast<long double>(c.y) - static_cast<long double>(d.y);
 
-    auto det = adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data());
+    const long double alift = adx * adx + ady * ady;
+    const long double blift = bdx * bdx + bdy * bdy;
+    const long double clift = cdx * cdx + cdy * cdy;
+
+    long double det =
+          alift * (bdx * cdy - bdy * cdx)
+        - blift * (adx * cdy - ady * cdx)
+        + clift * (adx * bdy - ady * bdx);
+
     if(orient2d(a, b, c) < static_cast<T>(0)){
         det = -det;
     }
-    return det;
+    return static_cast<T>(det);
 }
 
 template <class T, class I>
