@@ -134,7 +134,7 @@ void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, 
 
 template <class T>
 bool point_on_segment_or_endpoint(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b) {
-    if(orient2d(a, b, p) != static_cast<T>(0)){
+    if(orient2d(a, b, p) != 0){
         return false;
     }
 

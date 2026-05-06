@@ -563,8 +563,8 @@ bool walk_boundary_chain(size_t start,
 }
 
 template <class T>
-long double polygon_signed_area(const std::vector<vec3<T>> &verts,
-                                const std::vector<size_t> &poly) {
+long double polygon_signed_area_ld(const std::vector<vec3<T>> &verts,
+                                   const std::vector<size_t> &poly) {
     long double area = 0.0L;
     for(size_t i = 0; i < poly.size(); ++i){
         const auto &a = verts.at(poly.at(i));
@@ -596,7 +596,7 @@ bool triangulate_polygon_ear_clip(const std::vector<vec3<T>> &verts,
     }
 
     auto poly = chain;
-    const auto area = polygon_signed_area(verts, poly);
+    const auto area = polygon_signed_area_ld(verts, poly);
     if(area == 0.0L){
         return true;
     }
@@ -703,7 +703,7 @@ bool diagonal_lies_inside_polygon(const std::vector<vec3<T>> &verts,
         return false;
     }
 
-    const auto area = polygon_signed_area(verts, polygon);
+    const auto area = polygon_signed_area_ld(verts, polygon);
     if(area == 0.0L){
         return false;
     }
