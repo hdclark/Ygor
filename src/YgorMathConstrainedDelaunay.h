@@ -16,8 +16,8 @@
 // performed on the x-y plane. The z-component is ignored.
 //
 // The input edges are interpreted as undirected constraints and are expected to reference vertex indices using
-// two-element vectors. Distinct valid user-supplied edges are emitted first in the output mesh as 2-vertex faces,
-// followed by any generated triangulation edges, and finally the triangulation triangles.
+// two-element vectors. They constrain the triangulation internally, but the returned mesh contains only the generated
+// triangular facets.
 //
 // Invalid or mutually incompatible constraints (for example, out-of-range indices, self-intersections, or a vertex
 // lying strictly in the interior of a constrained segment) cause an empty mesh to be returned.
@@ -26,7 +26,7 @@
 //
 // The implementation follows the constrained Delaunay segment-insertion approach described by:
 //  - Chew LP. Constrained delaunay triangulations. Proc. Symp. Comput. Geom. 1987:215-222.
-// Robust orientation and in-circle predicates are evaluated using the adaptive arithmetic implementation exposed by
+// Robust orientation and in-circle sign tests are evaluated using the adaptive arithmetic implementation exposed by
 // YgorMeshesConvexHull.
 template <class T, class I>
 fv_surface_mesh<T, I>

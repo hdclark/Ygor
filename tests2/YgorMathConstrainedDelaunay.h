@@ -61,21 +61,32 @@ T incircle2d(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T>
 }
 
 template <class T, class I>
-void require_triangle_edges_are_listed(const fv_surface_mesh<T, I> &mesh) {
-    std::set<edge_type<I>> listed_edges;
-    for(const auto &face : mesh.faces){
-        if(face.size() == 2){
-            listed_edges.insert(make_edge(face.at(0), face.at(1)));
-        }
-    }
-
+std::set<edge_type<I>> collect_triangle_edges(const fv_surface_mesh<T, I> &mesh) {
+    std::set<edge_type<I>> edges;
     for(const auto &face : mesh.faces){
         if(face.size() != 3){
             continue;
         }
-        REQUIRE(listed_edges.count(make_edge(face.at(0), face.at(1))) == 1);
-        REQUIRE(listed_edges.count(make_edge(face.at(1), face.at(2))) == 1);
-        REQUIRE(listed_edges.count(make_edge(face.at(2), face.at(0))) == 1);
+        edges.insert(make_edge(face.at(0), face.at(1)));
+        edges.insert(make_edge(face.at(1), face.at(2)));
+        edges.insert(make_edge(face.at(2), face.at(0)));
+    }
+    return edges;
+}
+
+template <class T, class I>
+void require_all_faces_are_triangles(const fv_surface_mesh<T, I> &mesh) {
+    for(const auto &face : mesh.faces){
+        REQUIRE(face.size() == 3);
+    }
+}
+
+template <class T, class I>
+void require_constraints_are_triangle_edges(const fv_surface_mesh<T, I> &mesh,
+                                            const std::vector<edge_type<I>> &constraints) {
+    const auto mesh_edges = collect_triangle_edges(mesh);
+    for(const auto &edge : constraints){
+        REQUIRE(mesh_edges.count(edge) == 1);
     }
 }
 
@@ -118,6 +129,52 @@ void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, 
         const auto &c = mesh.vertices.at(w);
         const auto &d = mesh.vertices.at(x);
         REQUIRE(incircle2d(a, b, c, d) <= static_cast<T>(0));
+    }
+}
+
+template <class T>
+bool point_on_segment_or_endpoint(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b) {
+    if(orient2d(a, b, p) != static_cast<T>(0)){
+        return false;
+    }
+
+    return (std::min(a.x, b.x) <= p.x) && (p.x <= std::max(a.x, b.x))
+        && (std::min(a.y, b.y) <= p.y) && (p.y <= std::max(a.y, b.y));
+}
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec3<T>> &polygon, const vec3<T> &p) {
+    for(size_t i = 0; i < polygon.size(); ++i){
+        if(point_on_segment_or_endpoint(p, polygon.at(i), polygon.at((i + 1) % polygon.size()))){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++){
+        const auto &a = polygon.at(i);
+        const auto &b = polygon.at(j);
+        const bool intersects = ((a.y > p.y) != (b.y > p.y))
+                             && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
+        if(intersects){
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+template <class T, class I>
+void require_triangle_centroids_within_polygon(const fv_surface_mesh<T, I> &mesh,
+                                               const std::vector<vec3<T>> &polygon) {
+    for(const auto &face : mesh.faces){
+        REQUIRE(face.size() == 3);
+        const auto &a = mesh.vertices.at(face.at(0));
+        const auto &b = mesh.vertices.at(face.at(1));
+        const auto &c = mesh.vertices.at(face.at(2));
+        const vec3<T> centroid((a.x + b.x + c.x) / static_cast<T>(3),
+                               (a.y + b.y + c.y) / static_cast<T>(3),
+                               static_cast<T>(0));
+        REQUIRE(point_in_polygon_or_on_boundary(polygon, centroid));
     }
 }
 

@@ -57,32 +57,46 @@ T coord_eps(const vec3<T> &a, const vec3<T> &b) {
     return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
 }
 
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("no-fast-math")
+#endif
+
 template <class T>
-T orient2d(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c) {
+int signum(T value) {
+    return (static_cast<T>(0) < value) - (value < static_cast<T>(0));
+}
+
+template <class T>
+int orient2d_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c) {
     const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
     const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
     const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
     const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
-    return -adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data());
+    return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
 }
 
 template <class T>
-T incircle2d(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d) {
+int incircle2d_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d) {
     const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
     const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
     const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
     const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
 
-    auto det = adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data());
-    if(orient2d(a, b, c) < static_cast<T>(0)){
-        det = -det;
+    auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+    if(orient2d_sign(a, b, c) < 0){
+        det_sign = -det_sign;
     }
-    return det;
+    return det_sign;
 }
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 template <class T>
 bool point_on_closed_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b) {
-    if(orient2d(a, b, p) != static_cast<T>(0)){
+    if(orient2d_sign(a, b, p) != 0){
         return false;
     }
 
@@ -112,15 +126,15 @@ bool segments_intersect_beyond_shared_endpoints(const vec3<T> &a, const vec3<T> 
         return true;
     }
 
-    const auto o1 = orient2d(a, b, c);
-    const auto o2 = orient2d(a, b, d);
-    const auto o3 = orient2d(c, d, a);
-    const auto o4 = orient2d(c, d, b);
+    const auto o1 = orient2d_sign(a, b, c);
+    const auto o2 = orient2d_sign(a, b, d);
+    const auto o3 = orient2d_sign(c, d, a);
+    const auto o4 = orient2d_sign(c, d, b);
 
-    return (((o1 < static_cast<T>(0)) && (o2 > static_cast<T>(0)))
-         || ((o1 > static_cast<T>(0)) && (o2 < static_cast<T>(0))))
-        && (((o3 < static_cast<T>(0)) && (o4 > static_cast<T>(0)))
-         || ((o3 > static_cast<T>(0)) && (o4 < static_cast<T>(0))));
+    return (((o1 < 0) && (o2 > 0))
+         || ((o1 > 0) && (o2 < 0)))
+        && (((o3 < 0) && (o4 > 0))
+         || ((o3 > 0) && (o4 < 0)));
 }
 
 template <class T>
@@ -128,24 +142,47 @@ bool point_in_triangle_or_on_boundary(const vec3<T> &p,
                                       const vec3<T> &a,
                                       const vec3<T> &b,
                                       const vec3<T> &c) {
-    const auto o = orient2d(a, b, c);
-    if(o == static_cast<T>(0)){
+    const auto o = orient2d_sign(a, b, c);
+    if(o == 0){
         return false;
     }
 
-    const auto o1 = orient2d(a, b, p);
-    const auto o2 = orient2d(b, c, p);
-    const auto o3 = orient2d(c, a, p);
+    const auto o1 = orient2d_sign(a, b, p);
+    const auto o2 = orient2d_sign(b, c, p);
+    const auto o3 = orient2d_sign(c, a, p);
 
-    if(o > static_cast<T>(0)){
-        return (o1 >= static_cast<T>(0))
-            && (o2 >= static_cast<T>(0))
-            && (o3 >= static_cast<T>(0));
+    if(o > 0){
+        return (o1 >= 0)
+            && (o2 >= 0)
+            && (o3 >= 0);
     }
 
-    return (o1 <= static_cast<T>(0))
-        && (o2 <= static_cast<T>(0))
-        && (o3 <= static_cast<T>(0));
+    return (o1 <= 0)
+        && (o2 <= 0)
+        && (o3 <= 0);
+}
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec3<T>> &verts,
+                                     const std::vector<size_t> &polygon,
+                                     const vec3<T> &p) {
+    for(size_t i = 0; i < polygon.size(); ++i){
+        if(point_on_closed_segment(p, verts.at(polygon.at(i)), verts.at(polygon.at((i + 1) % polygon.size())))){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++){
+        const auto &a = verts.at(polygon.at(i));
+        const auto &b = verts.at(polygon.at(j));
+        const bool intersects = ((a.y > p.y) != (b.y > p.y))
+                             && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
+        if(intersects){
+            inside = !inside;
+        }
+    }
+    return inside;
 }
 
 template <class T>
@@ -154,12 +191,12 @@ bool make_ccw_triangle(const std::vector<vec3<T>> &verts,
                        size_t b,
                        size_t c,
                        CDT_Triangle &out) {
-    const auto o = orient2d(verts.at(a), verts.at(b), verts.at(c));
-    if(o > static_cast<T>(0)){
+    const auto o = orient2d_sign(verts.at(a), verts.at(b), verts.at(c));
+    if(o > 0){
         out = CDT_Triangle{a, b, c};
         return true;
     }
-    if(o < static_cast<T>(0)){
+    if(o < 0){
         out = CDT_Triangle{a, c, b};
         return true;
     }
@@ -177,7 +214,7 @@ void prune_triangles(const std::vector<vec3<T>> &verts,
         if((tri.a == tri.b) || (tri.b == tri.c) || (tri.c == tri.a)){
             continue;
         }
-        if(orient2d(verts.at(tri.a), verts.at(tri.b), verts.at(tri.c)) == static_cast<T>(0)){
+        if(orient2d_sign(verts.at(tri.a), verts.at(tri.b), verts.at(tri.c)) == 0){
             continue;
         }
         auto key = std::array<size_t, 3>{{ tri.a, tri.b, tri.c }};
@@ -248,7 +285,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec3<T>> &v
             if(tri.bad){
                 continue;
             }
-            if(incircle2d(all_verts.at(tri.a), all_verts.at(tri.b), all_verts.at(tri.c), p) > static_cast<T>(0)){
+            if(incircle2d_sign(all_verts.at(tri.a), all_verts.at(tri.b), all_verts.at(tri.c), p) > 0){
                 tri.bad = true;
             }
         }
@@ -354,6 +391,108 @@ bool collect_user_constraints(const std::vector<vec3<T>> &verts,
     return true;
 }
 
+void extract_constraint_cycles(const std::vector<std::pair<size_t, size_t>> &constraints,
+                               std::vector<std::vector<size_t>> &cycles) {
+    cycles.clear();
+
+    std::map<size_t, std::vector<size_t>> adjacency;
+    for(const auto &[a, b] : constraints){
+        adjacency[a].push_back(b);
+        adjacency[b].push_back(a);
+    }
+
+    std::set<size_t> visited_vertices;
+    for(const auto &[start, _] : adjacency){
+        if(visited_vertices.count(start) != 0){
+            continue;
+        }
+
+        std::vector<size_t> component;
+        std::vector<size_t> stack{ start };
+        visited_vertices.insert(start);
+        bool is_cycle_component = true;
+
+        while(!stack.empty()){
+            const auto cur = stack.back();
+            stack.pop_back();
+            component.push_back(cur);
+
+            const auto it = adjacency.find(cur);
+            if((it == adjacency.end()) || (it->second.size() != 2)){
+                is_cycle_component = false;
+                continue;
+            }
+
+            for(const auto next : it->second){
+                if(visited_vertices.insert(next).second){
+                    stack.push_back(next);
+                }
+            }
+        }
+
+        if(!is_cycle_component || (component.size() < 3)){
+            continue;
+        }
+
+        std::vector<size_t> cycle;
+        cycle.reserve(component.size());
+        size_t prev = CDT_INVALID_VERTEX_INDEX;
+        size_t cur = start;
+        while(true){
+            cycle.push_back(cur);
+            const auto &nbrs = adjacency.at(cur);
+            const auto next = (nbrs.at(0) != prev) ? nbrs.at(0) : nbrs.at(1);
+            prev = cur;
+            cur = next;
+            if(cur == start){
+                break;
+            }
+            if(cycle.size() > component.size()){
+                cycle.clear();
+                break;
+            }
+        }
+
+        if(cycle.size() == component.size()){
+            cycles.push_back(cycle);
+        }
+    }
+}
+
+template <class T>
+void retain_triangles_in_constraint_cycles(const std::vector<vec3<T>> &verts,
+                                           const std::vector<std::pair<size_t, size_t>> &constraints,
+                                           std::vector<CDT_Triangle> &triangles) {
+    std::vector<std::vector<size_t>> cycles;
+    extract_constraint_cycles(constraints, cycles);
+    if(cycles.empty()){
+        return;
+    }
+
+    std::vector<CDT_Triangle> filtered;
+    filtered.reserve(triangles.size());
+    for(const auto &tri : triangles){
+        const auto &a = verts.at(tri.a);
+        const auto &b = verts.at(tri.b);
+        const auto &c = verts.at(tri.c);
+        const vec3<T> centroid((a.x + b.x + c.x) / static_cast<T>(3),
+                               (a.y + b.y + c.y) / static_cast<T>(3),
+                               static_cast<T>(0));
+
+        size_t containing_cycles = 0;
+        for(const auto &cycle : cycles){
+            if(point_in_polygon_or_on_boundary(verts, cycle, centroid)){
+                ++containing_cycles;
+            }
+        }
+        if((containing_cycles % 2) == 1){
+            filtered.push_back(tri);
+        }
+    }
+
+    triangles.swap(filtered);
+}
+
 inline std::array<CDT_Edge, 3> triangle_edges(const CDT_Triangle &tri) {
     return std::array<CDT_Edge, 3>{{
         make_edge(tri.a, tri.b),
@@ -424,15 +563,16 @@ bool walk_boundary_chain(size_t start,
 }
 
 template <class T>
-T polygon_signed_area(const std::vector<vec3<T>> &verts,
-                      const std::vector<size_t> &poly) {
-    T area = static_cast<T>(0);
+long double polygon_signed_area(const std::vector<vec3<T>> &verts,
+                                const std::vector<size_t> &poly) {
+    long double area = 0.0L;
     for(size_t i = 0; i < poly.size(); ++i){
         const auto &a = verts.at(poly.at(i));
         const auto &b = verts.at(poly.at((i + 1) % poly.size()));
-        area += (a.x * b.y) - (b.x * a.y);
+        area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
+              - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
     }
-    return area / static_cast<T>(2);
+    return area / 2.0L;
 }
 
 template <class T>
@@ -457,10 +597,10 @@ bool triangulate_polygon_ear_clip(const std::vector<vec3<T>> &verts,
 
     auto poly = chain;
     const auto area = polygon_signed_area(verts, poly);
-    if(area == static_cast<T>(0)){
+    if(area == 0.0L){
         return true;
     }
-    const auto poly_sign = (area > static_cast<T>(0)) ? 1 : -1;
+    const auto poly_sign = (area > 0.0L) ? 1 : -1;
 
     while(poly.size() > 3){
         bool clipped = false;
@@ -469,9 +609,9 @@ bool triangulate_polygon_ear_clip(const std::vector<vec3<T>> &verts,
             const auto prev = poly.at((i + n - 1) % n);
             const auto cur  = poly.at(i);
             const auto next = poly.at((i + 1) % n);
-            const auto o = orient2d(verts.at(prev), verts.at(cur), verts.at(next));
-            if((poly_sign > 0 && o <= static_cast<T>(0))
-            || (poly_sign < 0 && o >= static_cast<T>(0))){
+            const auto o = orient2d_sign(verts.at(prev), verts.at(cur), verts.at(next));
+            if((poly_sign > 0 && o <= 0)
+            || (poly_sign < 0 && o >= 0)){
                 continue;
             }
 
@@ -518,6 +658,65 @@ template <class T>
 bool diagonal_crosses_polygon_boundary(const std::vector<vec3<T>> &verts,
                                        size_t a,
                                        size_t b,
+                                       const std::set<CDT_Edge> &boundary_edges);
+
+template <class T>
+bool diagonal_in_polygon_cone(const std::vector<vec3<T>> &verts,
+                              const std::vector<size_t> &polygon,
+                              size_t vertex_pos,
+                              size_t other_pos,
+                              int poly_sign) {
+    const auto n = polygon.size();
+    const auto prev = polygon.at((vertex_pos + n - 1) % n);
+    const auto cur = polygon.at(vertex_pos);
+    const auto next = polygon.at((vertex_pos + 1) % n);
+    const auto other = polygon.at(other_pos);
+
+    const auto corner_turn = poly_sign * orient2d_sign(verts.at(prev), verts.at(cur), verts.at(next));
+    if(corner_turn > 0){
+        return (poly_sign * orient2d_sign(verts.at(cur), verts.at(other), verts.at(prev)) > 0)
+            && (poly_sign * orient2d_sign(verts.at(other), verts.at(cur), verts.at(next)) > 0);
+    }
+
+    return !((poly_sign * orient2d_sign(verts.at(cur), verts.at(other), verts.at(next)) >= 0)
+          && (poly_sign * orient2d_sign(verts.at(other), verts.at(cur), verts.at(prev)) >= 0));
+}
+
+template <class T>
+bool diagonal_lies_inside_polygon(const std::vector<vec3<T>> &verts,
+                                  size_t a,
+                                  size_t b,
+                                  const std::vector<size_t> &polygon,
+                                  const std::set<CDT_Edge> &boundary_edges) {
+    if((a == b) || diagonal_crosses_polygon_boundary(verts, a, b, boundary_edges)){
+        return false;
+    }
+
+    std::map<size_t, size_t> positions;
+    for(size_t i = 0; i < polygon.size(); ++i){
+        positions[polygon.at(i)] = i;
+    }
+
+    const auto it_a = positions.find(a);
+    const auto it_b = positions.find(b);
+    if((it_a == positions.end()) || (it_b == positions.end())){
+        return false;
+    }
+
+    const auto area = polygon_signed_area(verts, polygon);
+    if(area == 0.0L){
+        return false;
+    }
+    const auto poly_sign = (area > 0.0L) ? 1 : -1;
+
+    return diagonal_in_polygon_cone(verts, polygon, it_a->second, it_b->second, poly_sign)
+        && diagonal_in_polygon_cone(verts, polygon, it_b->second, it_a->second, poly_sign);
+}
+
+template <class T>
+bool diagonal_crosses_polygon_boundary(const std::vector<vec3<T>> &verts,
+                                       size_t a,
+                                       size_t b,
                                        const std::set<CDT_Edge> &boundary_edges) {
     const auto diag = make_edge(a, b);
     if(boundary_edges.count(diag) != 0){
@@ -538,6 +737,7 @@ bool diagonal_crosses_polygon_boundary(const std::vector<vec3<T>> &verts,
 
 template <class T>
 bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
+                                    const std::vector<size_t> &polygon,
                                     const std::set<CDT_Edge> &boundary_edges,
                                     std::vector<CDT_Triangle> &triangles) {
     // Edge legalisation converges quickly for these small cavity polygons; this guard only prevents
@@ -571,11 +771,11 @@ bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
             const auto t1 = incident.at(1);
             const auto w = opposite_vertex(triangles.at(t0), edge);
             const auto x = opposite_vertex(triangles.at(t1), edge);
-            if((w == x) || diagonal_crosses_polygon_boundary(verts, w, x, boundary_edges)){
+            if((w == x) || !diagonal_lies_inside_polygon(verts, w, x, polygon, boundary_edges)){
                 continue;
             }
 
-            if(incircle2d(verts.at(edge.a), verts.at(edge.b), verts.at(w), verts.at(x)) <= static_cast<T>(0)){
+            if(incircle2d_sign(verts.at(edge.a), verts.at(edge.b), verts.at(w), verts.at(x)) <= 0){
                 continue;
             }
 
@@ -671,8 +871,8 @@ bool constrain_edge(const std::vector<vec3<T>> &verts,
     std::vector<CDT_Triangle> tris1;
     if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0)
     || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1)
-    || !legalize_polygon_triangulation(verts, boundary0, tris0)
-    || !legalize_polygon_triangulation(verts, boundary1, tris1)){
+    || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0)
+    || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1)){
         return false;
     }
 
@@ -712,25 +912,8 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
     }
 
     prune_triangles(verts, triangles);
-
-    std::set<CDT_Edge> user_edges;
-    for(const auto &[a, b] : constraints){
-        user_edges.insert(make_edge(a, b));
-        mesh.faces.push_back({ static_cast<I>(a), static_cast<I>(b) });
-    }
-
-    std::set<CDT_Edge> triangulation_edges;
-    for(const auto &tri : triangles){
-        triangulation_edges.insert(make_edge(tri.a, tri.b));
-        triangulation_edges.insert(make_edge(tri.b, tri.c));
-        triangulation_edges.insert(make_edge(tri.c, tri.a));
-    }
-
-    for(const auto &edge : triangulation_edges){
-        if(user_edges.count(edge) == 0){
-            mesh.faces.push_back({ static_cast<I>(edge.a), static_cast<I>(edge.b) });
-        }
-    }
+    retain_triangles_in_constraint_cycles(verts, constraints, triangles);
+    prune_triangles(verts, triangles);
 
     for(const auto &tri : triangles){
         mesh.faces.push_back({ static_cast<I>(tri.a), static_cast<I>(tri.b), static_cast<I>(tri.c) });

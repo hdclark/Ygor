@@ -28,6 +28,11 @@
 
 namespace adaptive_predicate {
 
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("no-fast-math")
+#endif
+
 namespace detail {
 
 // splitter is (2^ceil(p/2) + 1) where p is the number of significand bits.
@@ -246,7 +251,9 @@ T orient3d_adaptive(const T *pa, const T *pb, const T *pc, const T *pd) {
     T result[64];
     int resultlen = expansion_sum(sum1len, sum1, ctermlen, cterm, result);
 
-    return estimate(resultlen, result);
+    T compressed[64];
+    const int compressed_len = compress(resultlen, result, compressed);
+    return compressed[compressed_len - 1];
 }
 
 template <class T>
@@ -304,6 +311,10 @@ template float orient3d_adaptive(const float*, const float*, const float*, const
 template double orient3d_adaptive(const double*, const double*, const double*, const double*);
 template float orient3d(const float*, const float*, const float*, const float*);
 template double orient3d(const double*, const double*, const double*, const double*);
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 } // namespace adaptive_predicate
 
