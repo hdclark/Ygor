@@ -1,4 +1,5 @@
 
+#include <array>
 #include <algorithm>
 #include <limits>
 #include <set>
@@ -107,6 +108,33 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             { make_edge<uint32_t>(0, 1), make_edge<uint32_t>(1, 2), make_edge<uint32_t>(2, 3),
               make_edge<uint32_t>(3, 4), make_edge<uint32_t>(4, 5), make_edge<uint32_t>(5, 0) });
         require_triangle_centroids_within_polygon(mesh, verts);
+    }
+
+    SUBCASE("closed constrained regions are still filtered when extra constraints touch the boundary"){
+        const std::vector<vec3<double>> verts{{
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(2.0, 0.0, 0.0),
+            vec3<double>(2.0, 2.0, 0.0),
+            vec3<double>(0.0, 2.0, 0.0),
+            vec3<double>(1.0, 1.0, 0.0),
+            vec3<double>(3.0, 1.0, 0.0)
+        }};
+        const std::vector<std::vector<uint32_t>> edges{{
+            {0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}
+        }};
+        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
+
+        REQUIRE(mesh.vertices.size() == verts.size());
+        REQUIRE(mesh.faces.size() == 4);
+        require_all_faces_are_triangles(mesh);
+        require_constraints_are_triangle_edges(mesh,
+            { make_edge<uint32_t>(0, 1), make_edge<uint32_t>(1, 2), make_edge<uint32_t>(2, 3),
+              make_edge<uint32_t>(3, 0), make_edge<uint32_t>(0, 4) });
+        require_triangle_centroids_within_polygon(mesh,
+            { verts.at(0), verts.at(1), verts.at(2), verts.at(3) });
+        for(const auto &face : mesh.faces){
+            REQUIRE(std::find(face.begin(), face.end(), uint32_t{5}) == face.end());
+        }
     }
 
     SUBCASE("crossing constraints are rejected"){

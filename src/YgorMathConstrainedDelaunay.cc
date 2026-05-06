@@ -12,7 +12,7 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
-#include "YgorMeshesConvexHull.h"
+#include "YgorMeshesAdaptivePredicates.h"
 
 namespace {
 
@@ -37,6 +37,12 @@ struct CDT_Triangle {
     size_t a;
     size_t b;
     size_t c;
+};
+
+struct CDT_ConstraintFace {
+    std::vector<size_t> cycle;
+    size_t component = 0;
+    long double area = 0.0L;
 };
 
 inline CDT_Edge make_edge(size_t a, size_t b) {
@@ -184,6 +190,10 @@ bool point_in_polygon_or_on_boundary(const std::vector<vec3<T>> &verts,
     }
     return inside;
 }
+
+template <class T>
+long double polygon_signed_area_ld(const std::vector<vec3<T>> &verts,
+                                   const std::vector<size_t> &poly);
 
 template <class T>
 bool make_ccw_triangle(const std::vector<vec3<T>> &verts,
@@ -391,82 +401,179 @@ bool collect_user_constraints(const std::vector<vec3<T>> &verts,
     return true;
 }
 
-void extract_constraint_cycles(const std::vector<std::pair<size_t, size_t>> &constraints,
-                               std::vector<std::vector<size_t>> &cycles) {
-    cycles.clear();
+template <class T>
+bool build_constraint_faces(const std::vector<vec3<T>> &verts,
+                            const std::vector<std::pair<size_t, size_t>> &constraints,
+                            std::vector<CDT_ConstraintFace> &faces,
+                            std::map<std::pair<size_t, size_t>, size_t> &halfedge_to_face,
+                            std::map<size_t, size_t> &component_outer_face) {
+    faces.clear();
+    halfedge_to_face.clear();
+    component_outer_face.clear();
 
     std::map<size_t, std::vector<size_t>> adjacency;
     for(const auto &[a, b] : constraints){
         adjacency[a].push_back(b);
         adjacency[b].push_back(a);
     }
+    if(adjacency.empty()){
+        return true;
+    }
 
+    for(auto &[vertex, nbrs] : adjacency){
+        std::sort(nbrs.begin(), nbrs.end(),
+                  [&](size_t lhs, size_t rhs) {
+                      const auto &origin = verts.at(vertex);
+                      const auto &a = verts.at(lhs);
+                      const auto &b = verts.at(rhs);
+                      const auto angle_a = std::atan2(a.y - origin.y, a.x - origin.x);
+                      const auto angle_b = std::atan2(b.y - origin.y, b.x - origin.x);
+                      return angle_a < angle_b;
+                  });
+    }
+
+    std::map<size_t, size_t> vertex_component;
     std::set<size_t> visited_vertices;
+    size_t next_component = 0;
     for(const auto &[start, _] : adjacency){
         if(visited_vertices.count(start) != 0){
             continue;
         }
 
-        std::vector<size_t> component;
-        std::vector<size_t> stack{ start };
+        std::vector<size_t> pending{ start };
         visited_vertices.insert(start);
-        bool is_cycle_component = true;
-
-        while(!stack.empty()){
-            const auto cur = stack.back();
-            stack.pop_back();
-            component.push_back(cur);
-
-            const auto it = adjacency.find(cur);
-            if((it == adjacency.end()) || (it->second.size() != 2)){
-                is_cycle_component = false;
-                continue;
-            }
-
-            for(const auto next : it->second){
-                if(visited_vertices.insert(next).second){
-                    stack.push_back(next);
+        while(!pending.empty()){
+            const auto cur = pending.back();
+            pending.pop_back();
+            vertex_component[cur] = next_component;
+            for(const auto nbr : adjacency.at(cur)){
+                if(visited_vertices.insert(nbr).second){
+                    pending.push_back(nbr);
                 }
             }
         }
+        ++next_component;
+    }
 
-        if(!is_cycle_component || (component.size() < 3)){
-            continue;
-        }
-
-        std::vector<size_t> cycle;
-        cycle.reserve(component.size());
-        size_t prev = CDT_INVALID_VERTEX_INDEX;
-        size_t cur = start;
-        while(true){
-            cycle.push_back(cur);
-            const auto &nbrs = adjacency.at(cur);
-            const auto next = (nbrs.at(0) != prev) ? nbrs.at(0) : nbrs.at(1);
-            prev = cur;
-            cur = next;
-            if(cur == start){
-                break;
+    std::set<std::pair<size_t, size_t>> visited_halfedges;
+    const auto max_face_steps = constraints.size() * 2 + 1;
+    for(const auto &[start, nbrs] : adjacency){
+        for(const auto first : nbrs){
+            const auto start_halfedge = std::make_pair(start, first);
+            if(visited_halfedges.count(start_halfedge) != 0){
+                continue;
             }
-            if(cycle.size() > component.size()){
-                cycle.clear();
-                break;
-            }
-        }
 
-        if(cycle.size() == component.size()){
-            cycles.push_back(cycle);
+            CDT_ConstraintFace face;
+            size_t prev = start;
+            size_t cur = first;
+            while(true){
+                const auto halfedge = std::make_pair(prev, cur);
+                visited_halfedges.insert(halfedge);
+                halfedge_to_face[halfedge] = faces.size();
+                face.cycle.push_back(prev);
+
+                const auto &ordered = adjacency.at(cur);
+                const auto it = std::find(ordered.begin(), ordered.end(), prev);
+                if(it == ordered.end()){
+                    return false;
+                }
+
+                const auto idx = static_cast<size_t>(std::distance(ordered.begin(), it));
+                const auto next = ordered.at((idx + ordered.size() - 1) % ordered.size());
+                prev = cur;
+                cur = next;
+
+                if((prev == start_halfedge.first) && (cur == start_halfedge.second)){
+                    break;
+                }
+                if(face.cycle.size() > max_face_steps){
+                    return false;
+                }
+            }
+
+            face.component = vertex_component.at(face.cycle.front());
+            face.area = polygon_signed_area_ld(verts, face.cycle);
+            faces.push_back(std::move(face));
         }
     }
+
+    for(size_t i = 0; i < faces.size(); ++i){
+        const auto component = faces.at(i).component;
+        const auto outer_it = component_outer_face.find(component);
+        if((outer_it == component_outer_face.end())
+        || (faces.at(i).area < faces.at(outer_it->second).area)){
+            component_outer_face[component] = i;
+        }
+    }
+
+    return true;
 }
 
 template <class T>
-void retain_triangles_in_constraint_cycles(const std::vector<vec3<T>> &verts,
-                                           const std::vector<std::pair<size_t, size_t>> &constraints,
-                                           std::vector<CDT_Triangle> &triangles) {
-    std::vector<std::vector<size_t>> cycles;
-    extract_constraint_cycles(constraints, cycles);
-    if(cycles.empty()){
-        return;
+bool retain_triangles_in_constraint_faces(const std::vector<vec3<T>> &verts,
+                                          const std::vector<std::pair<size_t, size_t>> &constraints,
+                                          std::vector<CDT_Triangle> &triangles) {
+    std::vector<CDT_ConstraintFace> faces;
+    std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
+    std::map<size_t, size_t> component_outer_face;
+    if(!build_constraint_faces(verts, constraints, faces, halfedge_to_face, component_outer_face)){
+        return false;
+    }
+    if(faces.empty()){
+        return true;
+    }
+
+    std::vector<std::vector<size_t>> face_adjacency(faces.size());
+    for(const auto &[a, b] : constraints){
+        const auto left_it  = halfedge_to_face.find(std::make_pair(a, b));
+        const auto right_it = halfedge_to_face.find(std::make_pair(b, a));
+        if((left_it == halfedge_to_face.end()) || (right_it == halfedge_to_face.end())){
+            return false;
+        }
+        const auto left_face = left_it->second;
+        const auto right_face = right_it->second;
+        if(left_face == right_face){
+            continue;
+        }
+        face_adjacency.at(left_face).push_back(right_face);
+        face_adjacency.at(right_face).push_back(left_face);
+    }
+
+    std::vector<int> face_parity(faces.size(), -1);
+    for(const auto &[component, outer_face] : component_outer_face){
+        const auto sample_idx = faces.at(outer_face).cycle.front();
+        int base_parity = 0;
+        for(const auto &[other_component, other_outer_face] : component_outer_face){
+            if(other_component == component){
+                continue;
+            }
+            if(point_in_polygon_or_on_boundary(verts, faces.at(other_outer_face).cycle, verts.at(sample_idx))){
+                base_parity ^= 1;
+            }
+        }
+
+        std::vector<size_t> pending{ outer_face };
+        face_parity.at(outer_face) = base_parity;
+        while(!pending.empty()){
+            const auto face_idx = pending.back();
+            pending.pop_back();
+            for(const auto adjacent_face : face_adjacency.at(face_idx)){
+                const auto next_parity = face_parity.at(face_idx) ^ 1;
+                if(face_parity.at(adjacent_face) == -1){
+                    face_parity.at(adjacent_face) = next_parity;
+                    pending.push_back(adjacent_face);
+                }else if(face_parity.at(adjacent_face) != next_parity){
+                    return false;
+                }
+            }
+        }
+    }
+
+    const auto has_closed_region = std::any_of(faces.begin(), faces.end(),
+                                               [](const CDT_ConstraintFace &face){ return face.area > 0.0L; });
+    if(!has_closed_region){
+        return true;
     }
 
     std::vector<CDT_Triangle> filtered;
@@ -479,18 +586,19 @@ void retain_triangles_in_constraint_cycles(const std::vector<vec3<T>> &verts,
                                (a.y + b.y + c.y) / static_cast<T>(3),
                                static_cast<T>(0));
 
-        size_t containing_cycles = 0;
-        for(const auto &cycle : cycles){
-            if(point_in_polygon_or_on_boundary(verts, cycle, centroid)){
-                ++containing_cycles;
+        for(size_t i = 0; i < faces.size(); ++i){
+            if((faces.at(i).area <= 0.0L) || (face_parity.at(i) != 1)){
+                continue;
             }
-        }
-        if((containing_cycles % 2) == 1){
-            filtered.push_back(tri);
+            if(point_in_polygon_or_on_boundary(verts, faces.at(i).cycle, centroid)){
+                filtered.push_back(tri);
+                break;
+            }
         }
     }
 
     triangles.swap(filtered);
+    return true;
 }
 
 inline std::array<CDT_Edge, 3> triangle_edges(const CDT_Triangle &tri) {
@@ -912,7 +1020,9 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
     }
 
     prune_triangles(verts, triangles);
-    retain_triangles_in_constraint_cycles(verts, constraints, triangles);
+    if(!retain_triangles_in_constraint_faces(verts, constraints, triangles)){
+        return fv_surface_mesh<T, I>();
+    }
     prune_triangles(verts, triangles);
 
     for(const auto &tri : triangles){

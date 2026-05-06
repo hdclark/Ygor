@@ -2,6 +2,7 @@
 
 #include <algorithm>   //Needed for std::reverse.
 #include <any>
+#include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <memory>
@@ -13,6 +14,7 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMathDelaunay.h"
+#include "YgorMeshesAdaptivePredicates.h"
 
 //#ifndef YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
 //     #define YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
@@ -44,48 +46,29 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
 
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
 
-    // Helper to compute circumcircle for a triangle (2D).
-    // Returns the circumcenter (x, y) and squared radius.
-    const auto compute_circumcircle = [&](const vec3<T> &A, const vec3<T> &B, const vec3<T> &C) 
-        -> std::tuple<T, T, T> {
-        // Using the formula for circumcenter of a triangle:
-        // D = 2*(Ax*(By-Cy) + Bx*(Cy-Ay) + Cx*(Ay-By))
-        const auto D = static_cast<T>(2) * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
-
-        // Use scale-aware tolerance for the determinant.
-        const auto max_coord = std::max({std::abs(A.x), std::abs(B.x), std::abs(C.x),
-                                         std::abs(A.y), std::abs(B.y), std::abs(C.y),
-                                         static_cast<T>(1)});
-        const auto det_eps = machine_eps * max_coord * max_coord;
-        if(std::abs(D) < det_eps){
-            // Degenerate triangle (collinear points).
-            return std::make_tuple(std::numeric_limits<T>::quiet_NaN(),
-                                   std::numeric_limits<T>::quiet_NaN(),
-                                   std::numeric_limits<T>::quiet_NaN());
-        }
-
-        const auto A_sq = A.x * A.x + A.y * A.y;
-        const auto B_sq = B.x * B.x + B.y * B.y;
-        const auto C_sq = C.x * C.x + C.y * C.y;
-
-        const auto cx = (A_sq * (B.y - C.y) + B_sq * (C.y - A.y) + C_sq * (A.y - B.y)) / D;
-        const auto cy = (A_sq * (C.x - B.x) + B_sq * (A.x - C.x) + C_sq * (B.x - A.x)) / D;
-
-        const auto r_sq = (A.x - cx) * (A.x - cx) + (A.y - cy) * (A.y - cy);
-        return std::make_tuple(cx, cy, r_sq);
+    const auto signum = [](T value) -> int {
+        return (static_cast<T>(0) < value) - (value < static_cast<T>(0));
     };
 
-    // Helper to check if a point is strictly inside the circumcircle of a triangle.
-    // Points on the circle boundary are not considered "inside".
-    const auto point_in_circumcircle = [&](const vec3<T> &P, const vec3<T> &A, const vec3<T> &B, const vec3<T> &C) -> bool {
-        const auto [cx, cy, r_sq] = compute_circumcircle(A, B, C);
-        if(!std::isfinite(cx) || !std::isfinite(cy) || !std::isfinite(r_sq)){
-            return false;
+    const auto orient2d_sign = [&](const vec3<T> &a, const vec3<T> &b, const vec3<T> &c) -> int {
+        const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
+        const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
+        const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
+        const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
+        return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+    };
+
+    const auto incircle2d_sign = [&](const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d) -> int {
+        const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
+        const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
+        const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
+        const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
+
+        auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+        if(orient2d_sign(a, b, c) < 0){
+            det_sign = -det_sign;
         }
-        const auto dist_sq = (P.x - cx) * (P.x - cx) + (P.y - cy) * (P.y - cy);
-        // Use a small scale-aware tolerance to handle numerical precision.
-        const auto r_tol = r_sq * machine_eps;
-        return dist_sq < (r_sq - r_tol);
+        return det_sign;
     };
 
     // Compute bounding box for all vertices.
@@ -183,7 +166,7 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
             const auto &A = all_verts[tri.a];
             const auto &B = all_verts[tri.b];
             const auto &C = all_verts[tri.c];
-            if(point_in_circumcircle(P, A, B, C)){
+            if(incircle2d_sign(A, B, C, P) > 0){
                 tri.bad = true;
             }
         }
@@ -239,8 +222,7 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
         const auto &A = all_verts[tri.a];
         const auto &B = all_verts[tri.b];
         const auto &C = all_verts[tri.c];
-        const auto area2 = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x);
-        if(std::abs(area2) <= machine_eps){
+        if(orient2d_sign(A, B, C) == 0){
             continue;
         }
         std::vector<I> face;

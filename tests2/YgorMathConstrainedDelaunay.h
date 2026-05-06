@@ -10,7 +10,7 @@
 
 #include "../src/YgorMathConstrainedDelaunay.h"
 #include <YgorMath.h>
-#include <YgorMeshesConvexHull.h>
+#include <YgorMeshesAdaptivePredicates.h>
 
 #include "doctest/doctest.h"
 
