@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "../src/YgorMathConstrainedDelaunay.h"
+#include <YgorMathConstrainedDelaunay.h>
 #include <YgorMath.h>
 #include <YgorMeshesConvexHull.h>
 
