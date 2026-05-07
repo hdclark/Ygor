@@ -36,6 +36,7 @@
 #include "YgorBase64.h"   //Used for samples_1D metadata serialization.
 
 #include "YgorMathIOOBJ.h"
+#include "YgorMeshesAdaptivePredicates.h"
 
 //#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -1590,6 +1591,223 @@ template <class T>    bool vec2<T>::isfinite(void) const {
     template bool vec2<int16_t >::isfinite(void) const;
     template bool vec2<int32_t >::isfinite(void) const;
     template bool vec2<int64_t >::isfinite(void) const;
+#endif
+
+//Adaptive arithmetic adaptors for vec2 class.
+namespace {
+
+template <class T>
+T coord_eps(const vec2<T> &a, const vec2<T> &b){
+    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(b.x), std::abs(b.y), static_cast<T>(1)});
+    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+}
+
+template <class T>
+bool same_xy(const vec2<T> &a, const vec2<T> &b){
+    return (a.x == b.x) && (a.y == b.y);
+}
+
+} // namespace
+
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("no-fast-math")
+#endif
+
+template <class T>
+int signum(T value){
+    return (static_cast<T>(0) < value) - (value < static_cast<T>(0));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template int signum(float value);
+    template int signum(double value);
+#endif
+
+template <class T>
+int orient2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c){
+    const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
+    const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
+    const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
+    const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
+    return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template int orient2d_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c);
+    template int orient2d_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c);
+#endif
+
+template <class T>
+int incircle2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d){
+    const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
+    const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
+    const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
+    const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
+
+    auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+    if(orient2d_sign(a, b, c) < 0){
+        det_sign = -det_sign;
+    }
+    return det_sign;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template int incircle2d_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c, const vec2<float> &d);
+    template int incircle2d_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c, const vec2<double> &d);
+#endif
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+template <class T>
+bool point_on_closed_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b){
+    if(orient2d_sign(a, b, p) != 0){
+        return false;
+    }
+
+    const auto eps = coord_eps(a, b);
+    return (std::min(a.x, b.x) - eps <= p.x) && (p.x <= std::max(a.x, b.x) + eps)
+        && (std::min(a.y, b.y) - eps <= p.y) && (p.y <= std::max(a.y, b.y) + eps);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_on_closed_segment(const vec2<float> &p, const vec2<float> &a, const vec2<float> &b);
+    template bool point_on_closed_segment(const vec2<double> &p, const vec2<double> &a, const vec2<double> &b);
+#endif
+
+template <class T>
+bool point_on_open_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b){
+    if(!point_on_closed_segment(p, a, b)){
+        return false;
+    }
+    return !same_xy(p, a) && !same_xy(p, b);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_on_open_segment(const vec2<float> &p, const vec2<float> &a, const vec2<float> &b);
+    template bool point_on_open_segment(const vec2<double> &p, const vec2<double> &a, const vec2<double> &b);
+#endif
+
+template <class T>
+bool segments_intersect_beyond_shared_endpoints(const vec2<T> &a,
+                                                const vec2<T> &b,
+                                                const vec2<T> &c,
+                                                const vec2<T> &d){
+    if(point_on_open_segment(a, c, d) || point_on_open_segment(b, c, d)
+    || point_on_open_segment(c, a, b) || point_on_open_segment(d, a, b)){
+        return true;
+    }
+
+    const auto o1 = orient2d_sign(a, b, c);
+    const auto o2 = orient2d_sign(a, b, d);
+    const auto o3 = orient2d_sign(c, d, a);
+    const auto o4 = orient2d_sign(c, d, b);
+
+    return (((o1 < 0) && (o2 > 0))
+         || ((o1 > 0) && (o2 < 0)))
+        && (((o3 < 0) && (o4 > 0))
+         || ((o3 > 0) && (o4 < 0)));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool segments_intersect_beyond_shared_endpoints(const vec2<float> &a,
+                                                             const vec2<float> &b,
+                                                             const vec2<float> &c,
+                                                             const vec2<float> &d);
+    template bool segments_intersect_beyond_shared_endpoints(const vec2<double> &a,
+                                                             const vec2<double> &b,
+                                                             const vec2<double> &c,
+                                                             const vec2<double> &d);
+#endif
+
+template <class T>
+bool point_in_triangle_or_on_boundary(const vec2<T> &p,
+                                      const vec2<T> &a,
+                                      const vec2<T> &b,
+                                      const vec2<T> &c){
+    const auto o = orient2d_sign(a, b, c);
+    if(o == 0){
+        return false;
+    }
+
+    const auto o1 = orient2d_sign(a, b, p);
+    const auto o2 = orient2d_sign(b, c, p);
+    const auto o3 = orient2d_sign(c, a, p);
+
+    if(o > 0){
+        return (o1 >= 0)
+            && (o2 >= 0)
+            && (o3 >= 0);
+    }
+
+    return (o1 <= 0)
+        && (o2 <= 0)
+        && (o3 <= 0);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_in_triangle_or_on_boundary(const vec2<float> &p,
+                                                   const vec2<float> &a,
+                                                   const vec2<float> &b,
+                                                   const vec2<float> &c);
+    template bool point_in_triangle_or_on_boundary(const vec2<double> &p,
+                                                   const vec2<double> &a,
+                                                   const vec2<double> &b,
+                                                   const vec2<double> &c);
+#endif
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &verts,
+                                     const std::vector<size_t> &polygon,
+                                     const vec2<T> &p){
+    if(polygon.empty()){
+        throw std::invalid_argument("Polygon contains no vertices, cannot continue");
+    }
+    for(size_t i = 0; i < polygon.size(); ++i){
+        if(point_on_closed_segment(p, verts.at(polygon.at(i)), verts.at(polygon.at((i + 1) % polygon.size())))){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++){
+        const auto &a = verts.at(polygon.at(i));
+        const auto &b = verts.at(polygon.at(j));
+        const bool intersects = ((a.y > p.y) != (b.y > p.y))
+                             && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
+        if(intersects){
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<float>> &verts,
+                                                  const std::vector<size_t> &polygon,
+                                                  const vec2<float> &p);
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<double>> &verts,
+                                                  const std::vector<size_t> &polygon,
+                                                  const vec2<double> &p);
+#endif
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &polygon, const vec2<T> &p){
+    for(size_t i = 0; i < polygon.size(); ++i){
+        if(point_on_closed_segment(p, polygon.at(i), polygon.at((i + 1) % polygon.size()))){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++){
+        const auto &a = polygon.at(i);
+        const auto &b = polygon.at(j);
+        const bool intersects = ((a.y > p.y) != (b.y > p.y))
+                             && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
+        if(intersects){
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<float>> &polygon, const vec2<float> &p);
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<double>> &polygon, const vec2<double> &p);
 #endif
 
 

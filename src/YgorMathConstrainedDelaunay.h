@@ -12,8 +12,7 @@
 
 // Perform 2D constrained Delaunay triangulation of vertices on a planar surface.
 //
-// The input vertices are vec3's where the z-component is expected to be zero (or near-zero). The triangulation is
-// performed on the x-y plane. The z-component is ignored.
+// The input vertices are vec2's representing planar x-y coordinates.
 //
 // The input edges are interpreted as undirected constraints and are expected to reference vertex indices using
 // two-element vectors. They constrain the triangulation internally, but the returned mesh contains only the generated
@@ -30,7 +29,7 @@
 // Robust orientation and in-circle sign tests are evaluated using adaptive arithmetic.
 template <class T, class I>
 fv_surface_mesh<T, I>
-Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
+Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
                                      const std::vector<std::vector<I>> &edges);
 
 

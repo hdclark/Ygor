@@ -17,31 +17,31 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("fewer than 3 vertices returns empty mesh"){
         // 0 vertices
-        std::vector<vec3<double>> verts0;
+        std::vector<vec2<double>> verts0;
         const auto mesh0 = Delaunay_Triangulation_2<double, uint32_t>(verts0);
         REQUIRE( mesh0.vertices.size() == 0 );
         REQUIRE( mesh0.faces.size() == 0 );
 
         // 1 vertex
-        std::vector<vec3<double>> verts1 {{ vec3<double>(0.0, 0.0, 0.0) }};
+        std::vector<vec2<double>> verts1 {{ vec2<double>(0.0, 0.0) }};
         const auto mesh1 = Delaunay_Triangulation_2<double, uint32_t>(verts1);
         REQUIRE( mesh1.vertices.size() == 0 );
         REQUIRE( mesh1.faces.size() == 0 );
 
         // 2 vertices
-        std::vector<vec3<double>> verts2 {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0) }};
+        std::vector<vec2<double>> verts2 {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0) }};
         const auto mesh2 = Delaunay_Triangulation_2<double, uint32_t>(verts2);
         REQUIRE( mesh2.vertices.size() == 0 );
         REQUIRE( mesh2.faces.size() == 0 );
     }
 
     SUBCASE("exactly 3 vertices produces exactly 1 triangle"){
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.5, 1.0, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.5, 1.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         REQUIRE( mesh.vertices.size() == 3 );
         REQUIRE( mesh.faces.size() == 1 );
@@ -49,11 +49,11 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("4 vertices forming a square produces 2 triangles"){
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         REQUIRE( mesh.vertices.size() == 4 );
         REQUIRE( mesh.faces.size() == 2 );
@@ -64,12 +64,12 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("5 vertices with one in center produces 4 triangles"){
         // Square with center point.
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0),
-            vec3<double>(0.5, 0.5, 0.0) }};  // center
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0),
+            vec2<double>(0.5, 0.5) }};  // center
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         REQUIRE( mesh.vertices.size() == 5 );
         REQUIRE( mesh.faces.size() == 4 );
@@ -80,10 +80,10 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("regular grid produces valid triangulation"){
         // A 3x3 grid of points = 9 vertices.
-        std::vector<vec3<double>> verts;
+        std::vector<vec2<double>> verts;
         for(int i = 0; i < 3; ++i){
             for(int j = 0; j < 3; ++j){
-                verts.emplace_back(vec3<double>(static_cast<double>(i), static_cast<double>(j), 0.0));
+                verts.emplace_back(vec2<double>(static_cast<double>(i), static_cast<double>(j)));
             }
         }
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
@@ -96,12 +96,12 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("all triangles have valid indices"){
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0),
-            vec3<double>(0.5, 0.5, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0),
+            vec2<double>(0.5, 0.5) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         for(const auto &f : mesh.faces){
             REQUIRE( f.size() == 3 );
@@ -112,12 +112,12 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("triangles have non-zero area"){
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0),
-            vec3<double>(0.5, 0.5, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0),
+            vec2<double>(0.5, 0.5) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         for(const auto &f : mesh.faces){
             const auto &A = mesh.vertices[f[0]];
@@ -132,12 +132,12 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("Delaunay property is satisfied (empty circumcircle)"){
         // The Delaunay property: no vertex is strictly inside the circumcircle of any triangle.
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0),
-            vec3<double>(0.5, 0.5, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0),
+            vec2<double>(0.5, 0.5) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
 
         // Use the same tolerance strategy as the implementation.
@@ -194,9 +194,9 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         std::mt19937 re(12345);
         std::uniform_real_distribution<double> rd(0.0, 10.0);
 
-        std::vector<vec3<double>> verts;
+        std::vector<vec2<double>> verts;
         for(size_t i = 0; i < 20; ++i){
-            verts.emplace_back(vec3<double>(rd(re), rd(re), 0.0));
+            verts.emplace_back(vec2<double>(rd(re), rd(re)));
         }
 
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
@@ -214,11 +214,11 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("collinear vertices handled gracefully"){
         // All vertices on a line -- no valid triangulation possible.
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(2.0, 0.0, 0.0),
-            vec3<double>(3.0, 0.0, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(3.0, 0.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         // For collinear points, we expect no valid triangles (or degenerate triangles removed).
         REQUIRE( mesh.faces.size() == 0 );
@@ -226,33 +226,33 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
 
     SUBCASE("all vertices at same location handled gracefully"){
         // All vertices at the same point -- degenerate case, no valid triangulation.
-        std::vector<vec3<double>> verts {{
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(1.0, 1.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(1.0, 1.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         // Should not crash and should produce no valid triangles.
         REQUIRE( mesh.faces.size() == 0 );
     }
 
     SUBCASE("works with float type and uint64_t indices"){
-        std::vector<vec3<float>> verts {{
-            vec3<float>(0.0f, 0.0f, 0.0f),
-            vec3<float>(1.0f, 0.0f, 0.0f),
-            vec3<float>(0.5f, 1.0f, 0.0f) }};
+        std::vector<vec2<float>> verts {{
+            vec2<float>(0.0f, 0.0f),
+            vec2<float>(1.0f, 0.0f),
+            vec2<float>(0.5f, 1.0f) }};
         const auto mesh = Delaunay_Triangulation_2<float, uint64_t>(verts);
         REQUIRE( mesh.vertices.size() == 3 );
         REQUIRE( mesh.faces.size() == 1 );
     }
 
     SUBCASE("duplicate input vertices do not create degenerate output faces"){
-        std::vector<vec3<double>> verts {{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0) }};
+        std::vector<vec2<double>> verts {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0),
+            vec2<double>(0.0, 1.0) }};
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
         for(const auto &f : mesh.faces){
             const auto &A = mesh.vertices[f[0]];

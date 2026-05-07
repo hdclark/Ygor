@@ -179,6 +179,45 @@ template <class T> class vec2 {
         template<class Y> friend std::istream & operator >> (std::istream &, vec2<Y> &);           
 };
 
+// Adaptive arithmetic adaptors used for geometric queries with on-the-fly precision enhancement.
+//
+// Note these merely specialize the underlying adaptive_predicates implementation from YgorMathAdaptivePredicates for
+// the vec2 class.
+template <class T>
+int signum(T value);
+
+template <class T>
+int orient2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c);
+
+template <class T>
+int incircle2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d);
+
+template <class T>
+bool point_on_closed_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b);
+
+template <class T>
+bool point_on_open_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b);
+
+template <class T>
+bool segments_intersect_beyond_shared_endpoints(const vec2<T> &a,
+                                                const vec2<T> &b,
+                                                const vec2<T> &c,
+                                                const vec2<T> &d);
+
+template <class T>
+bool point_in_triangle_or_on_boundary(const vec2<T> &p,
+                                      const vec2<T> &a,
+                                      const vec2<T> &b,
+                                      const vec2<T> &c);
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &verts,
+                                     const std::vector<size_t> &polygon,
+                                     const vec2<T> &p);
+
+template <class T>
+bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &polygon, const vec2<T> &p);
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------- line: (infinitely-long) lines in 3D space ---------------------------------------
