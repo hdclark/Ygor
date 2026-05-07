@@ -8,13 +8,14 @@
 #include <vector>
 
 #include "YgorMathConstrainedDelaunay.h"
+#include "YgorMeshesAdaptivePredicates.h"
 #include "doctest/doctest.h"
 
 using namespace ygor_test_constrained_delaunay;
 
 TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     SUBCASE("empty input returns empty mesh"){
-        const std::vector<vec3<double>> verts;
+        const std::vector<vec2<double>> verts;
         const std::vector<std::vector<uint32_t>> edges;
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
         REQUIRE(mesh.vertices.empty());
@@ -22,9 +23,9 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("two vertices with one constrained edge yields no faces"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -34,10 +35,10 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("triangle boundary constraints produce only the triangle"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1}, {1, 2}, {2, 0} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -50,12 +51,12 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("constraint insertion keeps only triangles and preserves the constrained edge"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(2.0, 0.0, 0.0),
-            vec3<double>(2.0, 2.0, 0.0),
-            vec3<double>(0.0, 2.0, 0.0),
-            vec3<double>(1.1, 0.8, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(2.0, 2.0),
+            vec2<double>(0.0, 2.0),
+            vec2<double>(1.1, 0.8)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 2} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -68,12 +69,12 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("polygon boundary constraints produce only triangle faces"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(2.0, 0.0, 0.0),
-            vec3<double>(3.0, 1.0, 0.0),
-            vec3<double>(1.5, 2.5, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(3.0, 1.0),
+            vec2<double>(1.5, 2.5),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 0} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -90,13 +91,13 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("non-convex constrained polygon stays inside the constrained region"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(6.0, 1.0, 0.0),
-            vec3<double>(-3.0, 4.0, 0.0),
-            vec3<double>(-3.0, 1.0, 0.0),
-            vec3<double>(-2.0, -1.0, 0.0),
-            vec3<double>(-2.0, -5.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(6.0, 1.0),
+            vec2<double>(-3.0, 4.0),
+            vec2<double>(-3.0, 1.0),
+            vec2<double>(-2.0, -1.0),
+            vec2<double>(-2.0, -5.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 0} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -111,13 +112,13 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("closed constrained regions are still filtered when extra constraints touch the boundary"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(2.0, 0.0, 0.0),
-            vec3<double>(2.0, 2.0, 0.0),
-            vec3<double>(0.0, 2.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(3.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(2.0, 2.0),
+            vec2<double>(0.0, 2.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(3.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{
             {0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}
@@ -138,11 +139,11 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("crossing constraints are rejected"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(1.0, 1.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(1.0, 1.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 2}, {1, 3} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -151,11 +152,11 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("constraint passing through another vertex is rejected"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(2.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 2} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -164,10 +165,10 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("malformed constraints are rejected"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1, 2} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -176,10 +177,10 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("out-of-range constraints are rejected"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 3} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -188,10 +189,10 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("self-edge constraints are rejected"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {1, 1} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -200,10 +201,10 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("duplicate constraints are rejected even when reversed"){
-        const std::vector<vec3<double>> verts{{
-            vec3<double>(0.0, 0.0, 0.0),
-            vec3<double>(1.0, 0.0, 0.0),
-            vec3<double>(0.0, 1.0, 0.0)
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1}, {1, 0} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
@@ -212,11 +213,11 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("float coordinates and uint64_t indices are supported"){
-        const std::vector<vec3<float>> verts{{
-            vec3<float>(0.0f, 0.0f, 0.0f),
-            vec3<float>(1.0f, 0.0f, 0.0f),
-            vec3<float>(0.0f, 1.0f, 0.0f),
-            vec3<float>(1.0f, 1.0f, 0.0f)
+        const std::vector<vec2<float>> verts{{
+            vec2<float>(0.0f, 0.0f),
+            vec2<float>(1.0f, 0.0f),
+            vec2<float>(0.0f, 1.0f),
+            vec2<float>(1.0f, 1.0f)
         }};
         const std::vector<std::vector<uint64_t>> edges{{ {0, 2} }};
         const auto mesh = Constrained_Delaunay_Triangulation_2<float, uint64_t>(verts, edges);

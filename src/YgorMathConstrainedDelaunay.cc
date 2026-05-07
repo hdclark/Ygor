@@ -12,7 +12,6 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
-#include "YgorMeshesAdaptivePredicates.h"
 
 namespace {
 
@@ -53,150 +52,21 @@ inline CDT_Edge make_edge(size_t a, size_t b){
 }
 
 template <class T>
-bool is_finite_2d(const vec3<T> &v){
+bool is_finite_2d(const vec2<T> &v){
     return std::isfinite(v.x) && std::isfinite(v.y);
 }
 
 template <class T>
-T coord_eps(const vec3<T> &a, const vec3<T> &b){
-    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(b.x), std::abs(b.y), static_cast<T>(1)});
-    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
-}
-
-#if defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize ("no-fast-math")
-#endif
-
-template <class T>
-int signum(T value){
-    return (static_cast<T>(0) < value) - (value < static_cast<T>(0));
-}
-
-template <class T>
-int orient2d_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c){
-    const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
-    const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
-    const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
-    const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
-    return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
-}
-
-template <class T>
-int incircle2d_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d){
-    const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
-    const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
-    const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
-    const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
-
-    auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
-    if(orient2d_sign(a, b, c) < 0){
-        det_sign = -det_sign;
-    }
-    return det_sign;
-}
-
-#if defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-template <class T>
-bool point_on_closed_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b){
-    if(orient2d_sign(a, b, p) != 0){
-        return false;
-    }
-
-    const auto eps = coord_eps(a, b);
-    return (std::min(a.x, b.x) - eps <= p.x) && (p.x <= std::max(a.x, b.x) + eps)
-        && (std::min(a.y, b.y) - eps <= p.y) && (p.y <= std::max(a.y, b.y) + eps);
-}
-
-template <class T>
-bool same_xy(const vec3<T> &a, const vec3<T> &b){
+bool same_xy(const vec2<T> &a, const vec2<T> &b){
     return (a.x == b.x) && (a.y == b.y);
 }
 
 template <class T>
-bool point_on_open_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b){
-    if(!point_on_closed_segment(p, a, b)){
-        return false;
-    }
-    return !same_xy(p, a) && !same_xy(p, b);
-}
-
-template <class T>
-bool segments_intersect_beyond_shared_endpoints(const vec3<T> &a, const vec3<T> &b,
-                                                const vec3<T> &c, const vec3<T> &d){
-    if(point_on_open_segment(a, c, d) || point_on_open_segment(b, c, d)
-    || point_on_open_segment(c, a, b) || point_on_open_segment(d, a, b)){
-        return true;
-    }
-
-    const auto o1 = orient2d_sign(a, b, c);
-    const auto o2 = orient2d_sign(a, b, d);
-    const auto o3 = orient2d_sign(c, d, a);
-    const auto o4 = orient2d_sign(c, d, b);
-
-    return (((o1 < 0) && (o2 > 0))
-         || ((o1 > 0) && (o2 < 0)))
-        && (((o3 < 0) && (o4 > 0))
-         || ((o3 > 0) && (o4 < 0)));
-}
-
-template <class T>
-bool point_in_triangle_or_on_boundary(const vec3<T> &p,
-                                      const vec3<T> &a,
-                                      const vec3<T> &b,
-                                      const vec3<T> &c){
-    const auto o = orient2d_sign(a, b, c);
-    if(o == 0){
-        return false;
-    }
-
-    const auto o1 = orient2d_sign(a, b, p);
-    const auto o2 = orient2d_sign(b, c, p);
-    const auto o3 = orient2d_sign(c, a, p);
-
-    if(o > 0){
-        return (o1 >= 0)
-            && (o2 >= 0)
-            && (o3 >= 0);
-    }
-
-    return (o1 <= 0)
-        && (o2 <= 0)
-        && (o3 <= 0);
-}
-
-template <class T>
-bool point_in_polygon_or_on_boundary(const std::vector<vec3<T>> &verts,
-                                     const std::vector<size_t> &polygon,
-                                     const vec3<T> &p){
-    for(size_t i = 0; i < polygon.size(); ++i){
-        if(point_on_closed_segment(p, verts.at(polygon.at(i)), verts.at(polygon.at((i + 1) % polygon.size())))){
-            return true;
-        }
-    }
-
-    bool inside = false;
-    for(size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++){
-        const auto &a = verts.at(polygon.at(i));
-        const auto &b = verts.at(polygon.at(j));
-        const bool intersects = ((a.y > p.y) != (b.y > p.y))
-                             && (p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x);
-        if(intersects){
-            inside = !inside;
-        }
-    }
-    return inside;
-}
-
-template <class T>
-long double polygon_signed_area_ld(const std::vector<vec3<T>> &verts,
+long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
                                    const std::vector<size_t> &poly);
 
 template <class T>
-bool make_ccw_triangle(const std::vector<vec3<T>> &verts,
+bool make_ccw_triangle(const std::vector<vec2<T>> &verts,
                        size_t a,
                        size_t b,
                        size_t c,
@@ -214,7 +84,7 @@ bool make_ccw_triangle(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-void prune_triangles(const std::vector<vec3<T>> &verts,
+void prune_triangles(const std::vector<vec2<T>> &verts,
                      std::vector<CDT_Triangle> &triangles){
     std::set<std::array<size_t, 3>> seen;
     std::vector<CDT_Triangle> filtered;
@@ -238,7 +108,7 @@ void prune_triangles(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec3<T>> &verts){
+std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &verts){
     std::vector<CDT_Triangle> output;
 
     T min_x = std::numeric_limits<T>::max();
@@ -268,11 +138,11 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec3<T>> &v
     const auto mid_x = (min_x + max_x) / static_cast<T>(2);
     const auto mid_y = (min_y + max_y) / static_cast<T>(2);
 
-    std::vector<vec3<T>> all_verts;
+    std::vector<vec2<T>> all_verts;
     all_verts.reserve(verts.size() + 3);
-    all_verts.emplace_back(mid_x - static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
-    all_verts.emplace_back(mid_x + static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
-    all_verts.emplace_back(mid_x, mid_y + static_cast<T>(20) * delta, static_cast<T>(0));
+    all_verts.emplace_back(mid_x - static_cast<T>(20) * delta, mid_y - delta);
+    all_verts.emplace_back(mid_x + static_cast<T>(20) * delta, mid_y - delta);
+    all_verts.emplace_back(mid_x, mid_y + static_cast<T>(20) * delta);
     all_verts.insert(all_verts.end(), verts.begin(), verts.end());
 
     struct WorkingTriangle {
@@ -349,7 +219,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec3<T>> &v
 }
 
 template <class T, class I>
-bool collect_user_constraints(const std::vector<vec3<T>> &verts,
+bool collect_user_constraints(const std::vector<vec2<T>> &verts,
                               const std::vector<std::vector<I>> &edges,
                               std::vector<std::pair<size_t, size_t>> &constraints){
     constraints.clear();
@@ -402,7 +272,7 @@ bool collect_user_constraints(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool build_constraint_faces(const std::vector<vec3<T>> &verts,
+bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                             const std::vector<std::pair<size_t, size_t>> &constraints,
                             std::vector<CDT_ConstraintFace> &faces,
                             std::map<std::pair<size_t, size_t>, size_t> &halfedge_to_face,
@@ -511,7 +381,7 @@ bool build_constraint_faces(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool retain_triangles_in_constraint_faces(const std::vector<vec3<T>> &verts,
+bool retain_triangles_in_constraint_faces(const std::vector<vec2<T>> &verts,
                                           const std::vector<std::pair<size_t, size_t>> &constraints,
                                           std::vector<CDT_Triangle> &triangles){
     std::vector<CDT_ConstraintFace> faces;
@@ -582,9 +452,8 @@ bool retain_triangles_in_constraint_faces(const std::vector<vec3<T>> &verts,
         const auto &a = verts.at(tri.a);
         const auto &b = verts.at(tri.b);
         const auto &c = verts.at(tri.c);
-        const vec3<T> centroid((a.x + b.x + c.x) / static_cast<T>(3),
-                               (a.y + b.y + c.y) / static_cast<T>(3),
-                               static_cast<T>(0));
+        const vec2<T> centroid((a.x + b.x + c.x) / static_cast<T>(3),
+                               (a.y + b.y + c.y) / static_cast<T>(3));
 
         for(size_t i = 0; i < faces.size(); ++i){
             if((faces.at(i).area <= 0.0L) || (face_parity.at(i) != 1)){
@@ -671,7 +540,7 @@ bool walk_boundary_chain(size_t start,
 }
 
 template <class T>
-long double polygon_signed_area_ld(const std::vector<vec3<T>> &verts,
+long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
                                    const std::vector<size_t> &poly){
     long double area = 0.0L;
     for(size_t i = 0; i < poly.size(); ++i){
@@ -684,7 +553,7 @@ long double polygon_signed_area_ld(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool triangulate_polygon_ear_clip(const std::vector<vec3<T>> &verts,
+bool triangulate_polygon_ear_clip(const std::vector<vec2<T>> &verts,
                                   const std::vector<size_t> &chain,
                                   std::set<CDT_Edge> &boundary_edges,
                                   std::vector<CDT_Triangle> &triangles){
@@ -763,7 +632,7 @@ bool triangulate_polygon_ear_clip(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool diagonal_crosses_polygon_boundary(const std::vector<vec3<T>> &verts,
+bool diagonal_crosses_polygon_boundary(const std::vector<vec2<T>> &verts,
                                        size_t a,
                                        size_t b,
                                        const std::set<CDT_Edge> &boundary_edges){
@@ -785,7 +654,7 @@ bool diagonal_crosses_polygon_boundary(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool diagonal_in_polygon_cone(const std::vector<vec3<T>> &verts,
+bool diagonal_in_polygon_cone(const std::vector<vec2<T>> &verts,
                               const std::vector<size_t> &polygon,
                               size_t vertex_pos,
                               size_t other_pos,
@@ -807,7 +676,7 @@ bool diagonal_in_polygon_cone(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool diagonal_lies_inside_polygon(const std::vector<vec3<T>> &verts,
+bool diagonal_lies_inside_polygon(const std::vector<vec2<T>> &verts,
                                   size_t a,
                                   size_t b,
                                   const std::vector<size_t> &polygon,
@@ -839,7 +708,7 @@ bool diagonal_lies_inside_polygon(const std::vector<vec3<T>> &verts,
 
 
 template <class T>
-bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
+bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
                                     const std::vector<size_t> &polygon,
                                     const std::set<CDT_Edge> &boundary_edges,
                                     std::vector<CDT_Triangle> &triangles){
@@ -905,7 +774,7 @@ bool legalize_polygon_triangulation(const std::vector<vec3<T>> &verts,
 }
 
 template <class T>
-bool constrain_edge(const std::vector<vec3<T>> &verts,
+bool constrain_edge(const std::vector<vec2<T>> &verts,
                     size_t a,
                     size_t b,
                     std::vector<CDT_Triangle> &triangles){
@@ -996,7 +865,7 @@ bool constrain_edge(const std::vector<vec3<T>> &verts,
 
 template <class T, class I>
 fv_surface_mesh<T, I>
-Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
+Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
                                      const std::vector<std::vector<I>> &edges){
     fv_surface_mesh<T, I> mesh;
 
@@ -1005,7 +874,10 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
         return mesh;
     }
 
-    mesh.vertices = verts;
+    mesh.vertices.reserve(verts.size());
+    for(const auto &vert : verts){
+        mesh.vertices.emplace_back(vert.x, vert.y, static_cast<T>(0));
+    }
 
     auto triangles = build_delaunay_triangles(verts);
     for(const auto &[a, b] : constraints){
@@ -1028,9 +900,9 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts,
 }
 
 #ifndef YGOR_MATH_CONSTRAINED_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
-    template fv_surface_mesh<float , uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec3<float >> &, const std::vector<std::vector<uint32_t>> &);
-    template fv_surface_mesh<float , uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec3<float >> &, const std::vector<std::vector<uint64_t>> &);
+    template fv_surface_mesh<float , uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint32_t>> &);
+    template fv_surface_mesh<float , uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint64_t>> &);
 
-    template fv_surface_mesh<double, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec3<double>> &, const std::vector<std::vector<uint32_t>> &);
-    template fv_surface_mesh<double, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec3<double>> &, const std::vector<std::vector<uint64_t>> &);
+    template fv_surface_mesh<double, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint32_t>> &);
+    template fv_surface_mesh<double, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint64_t>> &);
 #endif

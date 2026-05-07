@@ -2,7 +2,6 @@
 
 #include <algorithm>   //Needed for std::reverse.
 #include <any>
-#include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <memory>
@@ -14,7 +13,6 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMathDelaunay.h"
-#include "YgorMeshesAdaptivePredicates.h"
 
 //#ifndef YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
 //     #define YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
@@ -23,8 +21,7 @@
 
 // 2D Delaunay triangulation using the incremental Bowyer-Watson algorithm.
 // 
-// The input is a collection of vec3<T> where the z-component is expected to be zero (2D points in a plane).
-// The triangulation is performed on the x-y plane only; the z-coordinate is ignored.
+// The input is a collection of vec2<T> representing 2D points on the x-y plane.
 //
 // Returns an fv_surface_mesh<T, I> containing the triangulation as faces.
 //
@@ -34,7 +31,7 @@
 //    The Computer Journal. 1981;24(2):167-172.
 template <class T, class I>
 fv_surface_mesh<T, I>
-Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
+Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
 
     fv_surface_mesh<T, I> mesh;
     const auto N_verts = verts.size();
@@ -45,31 +42,6 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     }
 
     const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() );
-
-    const auto signum = [](T value) -> int {
-        return (static_cast<T>(0) < value) - (value < static_cast<T>(0));
-    };
-
-    const auto orient2d_sign = [&](const vec3<T> &a, const vec3<T> &b, const vec3<T> &c) -> int {
-        const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
-        const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
-        const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
-        const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(1) }};
-        return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
-    };
-
-    const auto incircle2d_sign = [&](const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d) -> int {
-        const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
-        const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
-        const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
-        const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
-
-        auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
-        if(orient2d_sign(a, b, c) < 0){
-            det_sign = -det_sign;
-        }
-        return det_sign;
-    };
 
     // Compute bounding box for all vertices.
     T min_x = std::numeric_limits<T>::max();
@@ -108,13 +80,13 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     const auto mid_y = (min_y + max_y) / static_cast<T>(2);
 
     // Super-triangle vertices (we make it much larger than necessary for robustness).
-    const vec3<T> super_A(mid_x - static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
-    const vec3<T> super_B(mid_x + static_cast<T>(20) * delta, mid_y - delta, static_cast<T>(0));
-    const vec3<T> super_C(mid_x, mid_y + static_cast<T>(20) * delta, static_cast<T>(0));
+    const vec2<T> super_A(mid_x - static_cast<T>(20) * delta, mid_y - delta);
+    const vec2<T> super_B(mid_x + static_cast<T>(20) * delta, mid_y - delta);
+    const vec2<T> super_C(mid_x, mid_y + static_cast<T>(20) * delta);
 
     // We store all vertices including super-triangle vertices.
     // Indices 0, 1, 2 are super-triangle vertices.
-    std::vector<vec3<T>> all_verts;
+    std::vector<vec2<T>> all_verts;
     all_verts.reserve(N_verts + 3);
     all_verts.push_back(super_A);
     all_verts.push_back(super_B);
@@ -215,7 +187,10 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
 
     // Build the output mesh.
     // The mesh vertices should be the original input vertices (not the super-triangle).
-    mesh.vertices = verts;
+    mesh.vertices.reserve(verts.size());
+    for(const auto &vert : verts){
+        mesh.vertices.emplace_back(vert.x, vert.y, static_cast<T>(0));
+    }
 
     // Adjust triangle indices: subtract 3 because we removed super-triangle vertices.
     for(const auto &tri : triangles){
@@ -235,9 +210,9 @@ Delaunay_Triangulation_2(const std::vector<vec3<T>> &verts) {
     return mesh;
 }
 #ifndef YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
-    template fv_surface_mesh<float , uint32_t> Delaunay_Triangulation_2(const std::vector<vec3<float >> &);
-    template fv_surface_mesh<float , uint64_t> Delaunay_Triangulation_2(const std::vector<vec3<float >> &);
+    template fv_surface_mesh<float , uint32_t> Delaunay_Triangulation_2(const std::vector<vec2<float >> &);
+    template fv_surface_mesh<float , uint64_t> Delaunay_Triangulation_2(const std::vector<vec2<float >> &);
 
-    template fv_surface_mesh<double, uint32_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
-    template fv_surface_mesh<double, uint64_t> Delaunay_Triangulation_2(const std::vector<vec3<double>> &);
+    template fv_surface_mesh<double, uint32_t> Delaunay_Triangulation_2(const std::vector<vec2<double>> &);
+    template fv_surface_mesh<double, uint64_t> Delaunay_Triangulation_2(const std::vector<vec2<double>> &);
 #endif
