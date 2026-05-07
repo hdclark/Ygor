@@ -15,298 +15,13 @@
 #include <vector>
 
 #include "YgorDefinitions.h"
+#include "YgorMeshesAdaptivePredicates.h"
 #include "YgorMath.h"
 #include "YgorMeshesConvexHull.h"
 
 //#ifndef YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
 //#endif
-
-// ============================================================================
-// Adaptive-precision floating-point predicates (Shewchuk-style).
-// ============================================================================
-
-namespace adaptive_predicate {
-
-namespace detail {
-
-// splitter is (2^ceil(p/2) + 1) where p is the number of significand bits.
-// For double (p = 53): splitter = 2^27 + 1 = 134217729.
-// For float  (p = 24): splitter = 2^12 + 1 = 4097.
-template <class T>
-constexpr T splitter() {
-    constexpr int p = std::numeric_limits<T>::digits; // significand bits
-    constexpr int s = (p + 1) / 2;
-    T val = static_cast<T>(1);
-    for(int i = 0; i < s; ++i) val *= static_cast<T>(2);
-    return val + static_cast<T>(1);
-}
-
-// Split a floating-point number into high and low parts such that
-// a = ahi + alo  and  |ahi|, |alo| <= |a|.
-template <class T>
-inline void split(T a, T &ahi, T &alo) {
-    T c = splitter<T>() * a;
-    T abig = c - a;
-    ahi = c - abig;
-    alo = a - ahi;
-}
-
-} // namespace detail
-
-template <class T>
-void two_product(T a, T b, T &hi, T &lo) {
-    hi = a * b;
-    T ahi, alo, bhi, blo;
-    detail::split(a, ahi, alo);
-    detail::split(b, bhi, blo);
-    T err1 = hi - (ahi * bhi);
-    T err2 = err1 - (alo * bhi);
-    T err3 = err2 - (ahi * blo);
-    lo = (alo * blo) - err3;
-}
-
-template <class T>
-void two_sum(T a, T b, T &hi, T &lo) {
-    hi = a + b;
-    T bvirt = hi - a;
-    T avirt = hi - bvirt;
-    T bround = b - bvirt;
-    T around = a - avirt;
-    lo = around + bround;
-}
-
-template <class T>
-int grow_expansion(int elen, const T *e, T b, T *h) {
-    T Q = b;
-    for(int i = 0; i < elen; ++i){
-        T Qnew, hh;
-        two_sum(Q, e[i], Qnew, hh);
-        h[i] = hh;
-        Q = Qnew;
-    }
-    h[elen] = Q;
-    return elen + 1;
-}
-
-template <class T>
-int expansion_sum(int elen, const T *e, int flen, const T *f, T *h) {
-    // Copy e into h.
-    for(int i = 0; i < elen; ++i) h[i] = e[i];
-    int hlen = elen;
-    for(int i = 0; i < flen; ++i){
-        // Grow h by f[i].
-        T Q = f[i];
-        for(int j = 0; j < hlen; ++j){
-            T Qnew, hh;
-            two_sum(Q, h[j], Qnew, hh);
-            h[j] = hh;
-            Q = Qnew;
-        }
-        h[hlen] = Q;
-        ++hlen;
-    }
-    return hlen;
-}
-
-template <class T>
-int scale_expansion(int elen, const T *e, T b, T *h) {
-    T bhi, blo;
-    detail::split(b, bhi, blo);
-    int hlen = 0;
-
-    T Q, hh;
-    two_product(e[0], b, Q, hh);
-    if(hh != static_cast<T>(0)){
-        h[hlen++] = hh;
-    }
-    for(int i = 1; i < elen; ++i){
-        T Ti, ti;
-        two_product(e[i], b, Ti, ti);
-        T Qnew, hh2;
-        two_sum(Q, ti, Qnew, hh2);
-        if(hh2 != static_cast<T>(0)){
-            h[hlen++] = hh2;
-        }
-        T Qnew2, hh3;
-        two_sum(Qnew, Ti, Qnew2, hh3);
-        if(hh3 != static_cast<T>(0)){
-            h[hlen++] = hh3;
-        }
-        Q = Qnew2;
-    }
-    if(Q != static_cast<T>(0) || hlen == 0){
-        h[hlen++] = Q;
-    }
-    return hlen;
-}
-
-template <class T>
-int compress(int elen, const T *e, T *h) {
-    int hlen = 0;
-    for(int i = 0; i < elen; ++i){
-        if(e[i] != static_cast<T>(0)){
-            h[hlen++] = e[i];
-        }
-    }
-    if(hlen == 0){
-        h[0] = static_cast<T>(0);
-        return 1;
-    }
-    return hlen;
-}
-
-template <class T>
-T estimate(int elen, const T *e) {
-    T Q = static_cast<T>(0);
-    for(int i = 0; i < elen; ++i){
-        Q += e[i];
-    }
-    return Q;
-}
-
-// orient3d: compute the orientation of four 3-D points.
-//
-// Returns the sign of the determinant:
-//
-//   | ax-dx  ay-dy  az-dz |
-//   | bx-dx  by-dy  bz-dz |
-//   | cx-dx  cy-dy  cz-dz |
-//
-// which equals (a-d) . ((b-d) x (c-d)).
-//
-// Note: this equals  -((d-a) . ((b-a) x (c-a))), so the sign is OPPOSITE
-// to what one gets by dotting (d-a) with the face normal (b-a)x(c-a).
-//
-template <class T>
-T orient3d_adaptive(const T *pa, const T *pb, const T *pc, const T *pd) {
-    T adx = pa[0] - pd[0];
-    T ady = pa[1] - pd[1];
-    T adz = pa[2] - pd[2];
-    T bdx = pb[0] - pd[0];
-    T bdy = pb[1] - pd[1];
-    T bdz = pb[2] - pd[2];
-    T cdx = pc[0] - pd[0];
-    T cdy = pc[1] - pd[1];
-    T cdz = pc[2] - pd[2];
-
-    // Compute 2x2 minors as exact two-component expansions.
-    T bdxcdy_hi, bdxcdy_lo;
-    two_product(bdx, cdy, bdxcdy_hi, bdxcdy_lo);
-    T cdxbdy_hi, cdxbdy_lo;
-    two_product(cdx, bdy, cdxbdy_hi, cdxbdy_lo);
-
-    T cdxady_hi, cdxady_lo;
-    two_product(cdx, ady, cdxady_hi, cdxady_lo);
-    T adxcdy_hi, adxcdy_lo;
-    two_product(adx, cdy, adxcdy_hi, adxcdy_lo);
-
-    T adxbdy_hi, adxbdy_lo;
-    two_product(adx, bdy, adxbdy_hi, adxbdy_lo);
-    T bdxady_hi, bdxady_lo;
-    two_product(bdx, ady, bdxady_hi, bdxady_lo);
-
-    // bc = bdx*cdy - cdx*bdy  (4 components)
-    T bc[4];
-    T bc_tmp[4];
-    bc_tmp[0] = bdxcdy_lo;
-    bc_tmp[1] = bdxcdy_hi;
-    T neg_cdxbdy[2] = { -cdxbdy_lo, -cdxbdy_hi };
-    int bclen = expansion_sum(2, bc_tmp, 2, neg_cdxbdy, bc);
-
-    // ca = cdx*ady - adx*cdy  (4 components)
-    T ca[4];
-    T ca_tmp[4];
-    ca_tmp[0] = cdxady_lo;
-    ca_tmp[1] = cdxady_hi;
-    T neg_adxcdy[2] = { -adxcdy_lo, -adxcdy_hi };
-    int calen = expansion_sum(2, ca_tmp, 2, neg_adxcdy, ca);
-
-    // ab = adx*bdy - bdx*ady  (4 components)
-    T ab[4];
-    T ab_tmp[4];
-    ab_tmp[0] = adxbdy_lo;
-    ab_tmp[1] = adxbdy_hi;
-    T neg_bdxady[2] = { -bdxady_lo, -bdxady_hi };
-    int ablen = expansion_sum(2, ab_tmp, 2, neg_bdxady, ab);
-
-    // det = adz * bc + bdz * ca + cdz * ab.
-    T aterm[16];
-    int atermlen = scale_expansion(bclen, bc, adz, aterm);
-
-    T bterm[16];
-    int btermlen = scale_expansion(calen, ca, bdz, bterm);
-
-    T cterm[16];
-    int ctermlen = scale_expansion(ablen, ab, cdz, cterm);
-
-    T sum1[32];
-    int sum1len = expansion_sum(atermlen, aterm, btermlen, bterm, sum1);
-
-    T result[64];
-    int resultlen = expansion_sum(sum1len, sum1, ctermlen, cterm, result);
-
-    return estimate(resultlen, result);
-}
-
-template <class T>
-T orient3d(const T *pa, const T *pb, const T *pc, const T *pd) {
-    // Fast path: regular floating-point determinant.
-    T adx = pa[0] - pd[0];
-    T ady = pa[1] - pd[1];
-    T adz = pa[2] - pd[2];
-    T bdx = pb[0] - pd[0];
-    T bdy = pb[1] - pd[1];
-    T bdz = pb[2] - pd[2];
-    T cdx = pc[0] - pd[0];
-    T cdy = pc[1] - pd[1];
-    T cdz = pc[2] - pd[2];
-
-    T det = adx * (bdy * cdz - bdz * cdy)
-          + bdx * (cdy * adz - cdz * ady)
-          + cdx * (ady * bdz - adz * bdy);
-
-    // Compute error bound.
-    T permanent = std::abs(adx) * (std::abs(bdy * cdz) + std::abs(bdz * cdy))
-                + std::abs(bdx) * (std::abs(cdy * adz) + std::abs(cdz * ady))
-                + std::abs(cdx) * (std::abs(ady * bdz) + std::abs(adz * bdy));
-
-    T eps = std::numeric_limits<T>::epsilon();
-    // Error bound for the fast-path orient3d filter.  The factor 16
-    // conservatively bounds the accumulated rounding error from the ~12
-    // floating-point operations in the 3x3 determinant computation.
-    T errbound = static_cast<T>(16) * eps * permanent;
-
-    if(std::abs(det) > errbound){
-        return det;
-    }
-
-    // Fall back to adaptive precision.
-    return orient3d_adaptive(pa, pb, pc, pd);
-}
-
-// Explicit instantiations.
-template void two_product(float, float, float&, float&);
-template void two_product(double, double, double&, double&);
-template void two_sum(float, float, float&, float&);
-template void two_sum(double, double, double&, double&);
-template int grow_expansion(int, const float*, float, float*);
-template int grow_expansion(int, const double*, double, double*);
-template int expansion_sum(int, const float*, int, const float*, float*);
-template int expansion_sum(int, const double*, int, const double*, double*);
-template int scale_expansion(int, const float*, float, float*);
-template int scale_expansion(int, const double*, double, double*);
-template int compress(int, const float*, float*);
-template int compress(int, const double*, double*);
-template float estimate(int, const float*);
-template double estimate(int, const double*);
-template float orient3d_adaptive(const float*, const float*, const float*, const float*);
-template double orient3d_adaptive(const double*, const double*, const double*, const double*);
-template float orient3d(const float*, const float*, const float*, const float*);
-template double orient3d(const double*, const double*, const double*, const double*);
-
-} // namespace adaptive_predicate
-
 
 // ============================================================================
 // IncrementalConvexHull implementation.
@@ -318,11 +33,11 @@ IncrementalConvexHull<T>::IncrementalConvexHull()
     // be invisible at typical geometric scales, but large enough to reliably
     // break exact coplanar / collinear degeneracies.
     : m_eps(std::numeric_limits<T>::epsilon() * static_cast<T>(1024)),
-      m_rng_state(0x12345678ABCDEF01ULL) {
+      m_rng_state(0x12345678ABCDEF01ULL){
 }
 
 template <class T>
-T IncrementalConvexHull<T>::rng_uniform() {
+T IncrementalConvexHull<T>::rng_uniform(){
     // xorshift64.
     m_rng_state ^= (m_rng_state << 13);
     m_rng_state ^= (m_rng_state >> 7);
@@ -340,7 +55,7 @@ T IncrementalConvexHull<T>::orient(uint64_t a, uint64_t b, uint64_t c, uint64_t 
 }
 
 template <class T>
-void IncrementalConvexHull<T>::register_face_edges(uint64_t face_idx) {
+void IncrementalConvexHull<T>::register_face_edges(uint64_t face_idx){
     const auto &f = m_faces[face_idx];
     for(int i = 0; i < 3; ++i){
         uint64_t a = f.verts[i];
@@ -350,7 +65,7 @@ void IncrementalConvexHull<T>::register_face_edges(uint64_t face_idx) {
 }
 
 template <class T>
-void IncrementalConvexHull<T>::unregister_face_edges(uint64_t face_idx) {
+void IncrementalConvexHull<T>::unregister_face_edges(uint64_t face_idx){
     const auto &f = m_faces[face_idx];
     for(int i = 0; i < 3; ++i){
         uint64_t a = f.verts[i];
@@ -360,7 +75,7 @@ void IncrementalConvexHull<T>::unregister_face_edges(uint64_t face_idx) {
 }
 
 template <class T>
-uint64_t IncrementalConvexHull<T>::build_initial_simplex() {
+uint64_t IncrementalConvexHull<T>::build_initial_simplex(){
     const uint64_t N = m_points.size();
     if(N < 4){
         throw std::runtime_error("IncrementalConvexHull: need at least 4 points.");
@@ -440,7 +155,7 @@ uint64_t IncrementalConvexHull<T>::build_initial_simplex() {
     m_alive_faces.clear();
     m_alive_dead_count = 0;
 
-    auto add_face = [&](uint64_t a, uint64_t b, uint64_t c) {
+    auto add_face = [&](uint64_t a, uint64_t b, uint64_t c){
         uint64_t idx = m_faces.size();
         m_faces.push_back(Face{ {a, b, c}, true });
         m_alive_faces.push_back(idx);
@@ -458,7 +173,7 @@ uint64_t IncrementalConvexHull<T>::build_initial_simplex() {
 }
 
 template <class T>
-void IncrementalConvexHull<T>::incorporate_point(uint64_t idx) {
+void IncrementalConvexHull<T>::incorporate_point(uint64_t idx){
     // Determine visible faces.  A face is visible from point idx when
     // orient(face, idx) < 0 (the point is on the exterior side).
     std::vector<uint64_t> visible;
@@ -535,7 +250,7 @@ void IncrementalConvexHull<T>::incorporate_point(uint64_t idx) {
 }
 
 template <class T>
-uint64_t IncrementalConvexHull<T>::add_vertex(const vec3<T> &v) {
+uint64_t IncrementalConvexHull<T>::add_vertex(const vec3<T> &v){
     uint64_t idx = m_points.size();
     uint64_t eval_idx = m_eval_counter++;
 
@@ -581,7 +296,7 @@ uint64_t IncrementalConvexHull<T>::add_vertex(const vec3<T> &v) {
 }
 
 template <class T>
-void IncrementalConvexHull<T>::add_vertices(const std::vector<vec3<T>> &verts) {
+void IncrementalConvexHull<T>::add_vertices(const std::vector<vec3<T>> &verts){
     for(const auto &v : verts){
         add_vertex(v);
     }
@@ -666,7 +381,7 @@ DivideAndConquerConvexHull<T>::DivideAndConquerConvexHull() = default;
 
 template <class T>
 std::vector<vec3<T>> DivideAndConquerConvexHull<T>::base_hull(const vec3<T> *pts,
-                                                              size_t n) {
+                                                              size_t n){
     if(n < 4){
         return std::vector<vec3<T>>(pts, pts + n);
     }
@@ -683,7 +398,7 @@ template <class T>
 std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>> &pts,
                                                             size_t lo, size_t hi,
                                                             size_t depth,
-                                                            work_queue<std::function<void()>> &pool) {
+                                                            work_queue<std::function<void()>> &pool){
     const size_t n = hi - lo;
     if(n <= m_base_threshold){
         return base_hull(pts.data() + lo, n);
@@ -730,7 +445,7 @@ std::vector<vec3<T>> DivideAndConquerConvexHull<T>::dc_hull(std::vector<vec3<T>>
 }
 
 template <class T>
-void DivideAndConquerConvexHull<T>::compute(const std::vector<vec3<T>> &verts) {
+void DivideAndConquerConvexHull<T>::compute(const std::vector<vec3<T>> &verts){
     m_mesh = fv_surface_mesh<T, uint64_t>();
 
     if(verts.size() < 4){
