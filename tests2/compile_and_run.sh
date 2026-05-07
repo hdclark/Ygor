@@ -63,6 +63,7 @@ g++ \
   YgorStatsConditionalForests.cc \
   YgorStatsStochasticForests.cc \
   YgorString.cc \
+  YgorThreadPool.cc \
   YgorTime/*.cc \
   \
   -o run_tests \
