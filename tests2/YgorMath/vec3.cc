@@ -1334,3 +1334,83 @@ TEST_CASE( "vec3 angle" ){
     }
 }
 
+TEST_CASE( "vec3 adaptive predicate wrappers" ){
+    using T = double;
+
+    SUBCASE("orient_sign tracks tetrahedron orientation"){
+        const vec3<T> a(0.0, 0.0, 0.0);
+        const vec3<T> b(1.0, 0.0, 0.0);
+        const vec3<T> c(0.0, 1.0, 0.0);
+        const vec3<T> d(0.0, 0.0, 1.0);
+
+        REQUIRE(orient_sign(a, b, c, d) < 0);
+        REQUIRE(orient_sign(a, c, b, d) > 0);
+    }
+
+    SUBCASE("insphere_sign is positive inside and negative outside"){
+        const vec3<T> a(0.0, 0.0, 0.0);
+        const vec3<T> b(1.0, 0.0, 0.0);
+        const vec3<T> c(0.0, 1.0, 0.0);
+        const vec3<T> d(0.0, 0.0, 1.0);
+
+        REQUIRE(insphere_sign(a, b, c, d, vec3<T>(0.5, 0.5, 0.5)) > 0);
+        REQUIRE(insphere_sign(a, b, c, d, vec3<T>(2.0, 2.0, 2.0)) < 0);
+        REQUIRE(insphere_sign(a, b, c, d, a) == 0);
+        REQUIRE(insphere_sign(a, c, b, d, vec3<T>(0.5, 0.5, 0.5)) > 0);
+    }
+
+    SUBCASE("segment membership distinguishes endpoints from interior points"){
+        const vec3<T> a(0.0, 0.0, 0.0);
+        const vec3<T> b(2.0, 2.0, 2.0);
+
+        REQUIRE(point_on_closed_segment(vec3<T>(1.0, 1.0, 1.0), a, b));
+        REQUIRE(point_on_closed_segment(a, a, b));
+        REQUIRE(point_on_open_segment(vec3<T>(1.0, 1.0, 1.0), a, b));
+        REQUIRE(!point_on_open_segment(a, a, b));
+        REQUIRE(!point_on_closed_segment(vec3<T>(1.0, 1.0, 1.1), a, b));
+    }
+
+    SUBCASE("segment intersection ignores shared endpoints but detects real overlap"){
+        REQUIRE(segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                           vec3<T>(1.0, 1.0, 0.0),
+                                                           vec3<T>(0.0, 1.0, 0.0),
+                                                           vec3<T>(1.0, 0.0, 0.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(1.0, 0.0, 0.0),
+                                                            vec3<T>(1.0, 0.0, 0.0),
+                                                            vec3<T>(1.0, 1.0, 0.0)));
+
+        REQUIRE(segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                           vec3<T>(2.0, 0.0, 0.0),
+                                                           vec3<T>(0.0, 0.0, 0.0),
+                                                           vec3<T>(2.0, 0.0, 0.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(1.0, 1.0, 0.0),
+                                                            vec3<T>(0.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 0.0, 1.0)));
+    }
+
+    SUBCASE("degenerate segments are treated as points"){
+        REQUIRE(segments_intersect_beyond_shared_endpoints(vec3<T>(1.0, 1.0, 1.0),
+                                                           vec3<T>(1.0, 1.0, 1.0),
+                                                           vec3<T>(0.0, 0.0, 0.0),
+                                                           vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(3.0, 3.0, 3.0),
+                                                            vec3<T>(3.0, 3.0, 3.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0)));
+    }
+}

@@ -116,6 +116,31 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
                                                               std::function<vec3<double>(vec3<double> x, double T)> F, 
                                                               double T, int64_t steps);
 
+// Adaptive arithmetic adaptors used for 3D geometric queries with on-the-fly precision enhancement.
+//
+// These wrappers specialize the underlying adaptive_predicate implementation for the vec3 class.
+template <class T>
+int orient_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d);
+
+template <class T>
+int insphere_sign(const vec3<T> &a,
+                  const vec3<T> &b,
+                  const vec3<T> &c,
+                  const vec3<T> &d,
+                  const vec3<T> &e);
+
+template <class T>
+bool point_on_closed_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b);
+
+template <class T>
+bool point_on_open_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b);
+
+template <class T>
+bool segments_intersect_beyond_shared_endpoints(const vec3<T> &a,
+                                                const vec3<T> &b,
+                                                const vec3<T> &c,
+                                                const vec3<T> &d);
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //----------------------------------------- vec2: A two-dimensional vector --------------------------------------------------
@@ -181,16 +206,16 @@ template <class T> class vec2 {
 
 // Adaptive arithmetic adaptors used for geometric queries with on-the-fly precision enhancement.
 //
-// Note these merely specialize the underlying adaptive_predicates implementation from YgorMathAdaptivePredicates for
+// Note these merely specialize the underlying adaptive_predicates implementation from YgorMeshesAdaptivePredicates for
 // the vec2 class.
 template <class T>
 int signum(T value);
 
 template <class T>
-int orient2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c);
+int orient_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c);
 
 template <class T>
-int incircle2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d);
+int incircle_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d);
 
 template <class T>
 bool point_on_closed_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b);

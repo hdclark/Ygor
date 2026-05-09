@@ -102,7 +102,7 @@ void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, 
         const auto b = as_vec2(mesh.vertices.at(edge.second));
         const auto c = as_vec2(mesh.vertices.at(w));
         const auto d = as_vec2(mesh.vertices.at(x));
-        REQUIRE(incircle2d_sign(a, b, c, d) <= static_cast<T>(0));
+        REQUIRE(incircle_sign(a, b, c, d) <= static_cast<T>(0));
     }
 }
 
