@@ -71,7 +71,7 @@ bool make_ccw_triangle(const std::vector<vec2<T>> &verts,
                        size_t b,
                        size_t c,
                        CDT_Triangle &out){
-    const auto o = orient2d_sign(verts.at(a), verts.at(b), verts.at(c));
+    const auto o = orient_sign(verts.at(a), verts.at(b), verts.at(c));
     if(o > 0){
         out = CDT_Triangle{a, b, c};
         return true;
@@ -94,7 +94,7 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
         if((tri.a == tri.b) || (tri.b == tri.c) || (tri.c == tri.a)){
             continue;
         }
-        if(orient2d_sign(verts.at(tri.a), verts.at(tri.b), verts.at(tri.c)) == 0){
+        if(orient_sign(verts.at(tri.a), verts.at(tri.b), verts.at(tri.c)) == 0){
             continue;
         }
         auto key = std::array<size_t, 3>{{ tri.a, tri.b, tri.c }};
@@ -165,7 +165,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
             if(tri.bad){
                 continue;
             }
-            if(incircle2d_sign(all_verts.at(tri.a), all_verts.at(tri.b), all_verts.at(tri.c), p) > 0){
+            if(incircle_sign(all_verts.at(tri.a), all_verts.at(tri.b), all_verts.at(tri.c), p) > 0){
                 tri.bad = true;
             }
         }
@@ -586,7 +586,7 @@ bool triangulate_polygon_ear_clip(const std::vector<vec2<T>> &verts,
             const auto prev = poly.at((i + n - 1) % n);
             const auto cur  = poly.at(i);
             const auto next = poly.at((i + 1) % n);
-            const auto o = orient2d_sign(verts.at(prev), verts.at(cur), verts.at(next));
+            const auto o = orient_sign(verts.at(prev), verts.at(cur), verts.at(next));
             if((poly_sign > 0 && o <= 0)
             || (poly_sign < 0 && o >= 0)){
                 continue;
@@ -665,14 +665,14 @@ bool diagonal_in_polygon_cone(const std::vector<vec2<T>> &verts,
     const auto next = polygon.at((vertex_pos + 1) % n);
     const auto other = polygon.at(other_pos);
 
-    const auto corner_turn = poly_sign * orient2d_sign(verts.at(prev), verts.at(cur), verts.at(next));
+    const auto corner_turn = poly_sign * orient_sign(verts.at(prev), verts.at(cur), verts.at(next));
     if(corner_turn > 0){
-        return (poly_sign * orient2d_sign(verts.at(cur), verts.at(other), verts.at(prev)) > 0)
-            && (poly_sign * orient2d_sign(verts.at(other), verts.at(cur), verts.at(next)) > 0);
+        return (poly_sign * orient_sign(verts.at(cur), verts.at(other), verts.at(prev)) > 0)
+            && (poly_sign * orient_sign(verts.at(other), verts.at(cur), verts.at(next)) > 0);
     }
 
-    return !((poly_sign * orient2d_sign(verts.at(cur), verts.at(other), verts.at(next)) >= 0)
-          && (poly_sign * orient2d_sign(verts.at(other), verts.at(cur), verts.at(prev)) >= 0));
+    return !((poly_sign * orient_sign(verts.at(cur), verts.at(other), verts.at(next)) >= 0)
+          && (poly_sign * orient_sign(verts.at(other), verts.at(cur), verts.at(prev)) >= 0));
 }
 
 template <class T>
@@ -747,7 +747,7 @@ bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
                 continue;
             }
 
-            if(incircle2d_sign(verts.at(edge.a), verts.at(edge.b), verts.at(w), verts.at(x)) <= 0){
+            if(incircle_sign(verts.at(edge.a), verts.at(edge.b), verts.at(w), verts.at(x)) <= 0){
                 continue;
             }
 

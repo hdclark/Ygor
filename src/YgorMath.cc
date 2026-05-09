@@ -993,6 +993,210 @@ std::tuple<vec3<double>,vec3<double>> Evolve_x_v_over_T_via_F(const std::tuple<v
     return out;
 }
 
+//Adaptive arithmetic adaptors for vec3 class.
+namespace {
+
+template <class T>
+T coord_eps(const vec3<T> &a, const vec3<T> &b){
+    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(a.z),
+                                 std::abs(b.x), std::abs(b.y), std::abs(b.z),
+                                 static_cast<T>(1)});
+    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+}
+
+template <class T>
+T coord_eps(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d){
+    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(a.z),
+                                 std::abs(b.x), std::abs(b.y), std::abs(b.z),
+                                 std::abs(c.x), std::abs(c.y), std::abs(c.z),
+                                 std::abs(d.x), std::abs(d.y), std::abs(d.z),
+                                 static_cast<T>(1)});
+    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+}
+
+template <class T>
+bool same_xyz(const vec3<T> &a, const vec3<T> &b){
+    return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+}
+
+template <class T>
+int det2_sign(T a11, T a12, T a21, T a22){
+    T det[4];
+    T p1_hi, p1_lo;
+    adaptive_predicate::two_product(a11, a22, p1_hi, p1_lo);
+    const T p1[2] = { p1_lo, p1_hi };
+
+    T p2_hi, p2_lo;
+    adaptive_predicate::two_product(a21, a12, p2_hi, p2_lo);
+    const T neg_p2[2] = { -p2_lo, -p2_hi };
+
+    const int hlen = adaptive_predicate::expansion_sum(2, p1, 2, neg_p2, det);
+    T compressed[4];
+    const int compressed_len = adaptive_predicate::compress(hlen, det, compressed);
+    return signum(compressed[compressed_len - 1]);
+}
+
+} // namespace
+
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("no-fast-math")
+#endif
+
+template <class T>
+int orient_sign(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c, const vec3<T> &d){
+    const std::array<T, 3> pa{{ a.x, a.y, a.z }};
+    const std::array<T, 3> pb{{ b.x, b.y, b.z }};
+    const std::array<T, 3> pc{{ c.x, c.y, c.z }};
+    const std::array<T, 3> pd{{ d.x, d.y, d.z }};
+    return signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template int orient_sign(const vec3<float> &a, const vec3<float> &b, const vec3<float> &c, const vec3<float> &d);
+    template int orient_sign(const vec3<double> &a, const vec3<double> &b, const vec3<double> &c, const vec3<double> &d);
+#endif
+
+template <class T>
+int insphere_sign(const vec3<T> &a,
+                  const vec3<T> &b,
+                  const vec3<T> &c,
+                  const vec3<T> &d,
+                  const vec3<T> &e){
+    const std::array<T, 3> pa{{ a.x, a.y, a.z }};
+    const std::array<T, 3> pb{{ b.x, b.y, b.z }};
+    const std::array<T, 3> pc{{ c.x, c.y, c.z }};
+    const std::array<T, 3> pd{{ d.x, d.y, d.z }};
+    const std::array<T, 3> pe{{ e.x, e.y, e.z }};
+
+    auto det_sign = signum(adaptive_predicate::insphere(pa.data(), pb.data(), pc.data(), pd.data(), pe.data()));
+    if(orient_sign(a, b, c, d) < 0){
+        det_sign = -det_sign;
+    }
+    return det_sign;
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template int insphere_sign(const vec3<float> &a,
+                               const vec3<float> &b,
+                               const vec3<float> &c,
+                               const vec3<float> &d,
+                               const vec3<float> &e);
+    template int insphere_sign(const vec3<double> &a,
+                               const vec3<double> &b,
+                               const vec3<double> &c,
+                               const vec3<double> &d,
+                               const vec3<double> &e);
+#endif
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+template <class T>
+bool point_on_closed_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b){
+    const auto ab = b - a;
+    const auto ap = p - a;
+    if((det2_sign(ab.x, ab.y, ap.x, ap.y) != 0)
+    || (det2_sign(ab.x, ab.z, ap.x, ap.z) != 0)
+    || (det2_sign(ab.y, ab.z, ap.y, ap.z) != 0)){
+        return false;
+    }
+
+    const auto eps = coord_eps(a, b);
+    return (std::min(a.x, b.x) - eps <= p.x) && (p.x <= std::max(a.x, b.x) + eps)
+        && (std::min(a.y, b.y) - eps <= p.y) && (p.y <= std::max(a.y, b.y) + eps)
+        && (std::min(a.z, b.z) - eps <= p.z) && (p.z <= std::max(a.z, b.z) + eps);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_on_closed_segment(const vec3<float> &p, const vec3<float> &a, const vec3<float> &b);
+    template bool point_on_closed_segment(const vec3<double> &p, const vec3<double> &a, const vec3<double> &b);
+#endif
+
+template <class T>
+bool point_on_open_segment(const vec3<T> &p, const vec3<T> &a, const vec3<T> &b){
+    if(!point_on_closed_segment(p, a, b)){
+        return false;
+    }
+    return !same_xyz(p, a) && !same_xyz(p, b);
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool point_on_open_segment(const vec3<float> &p, const vec3<float> &a, const vec3<float> &b);
+    template bool point_on_open_segment(const vec3<double> &p, const vec3<double> &a, const vec3<double> &b);
+#endif
+
+template <class T>
+bool segments_intersect_beyond_shared_endpoints(const vec3<T> &a,
+                                                const vec3<T> &b,
+                                                const vec3<T> &c,
+                                                const vec3<T> &d){
+    if(point_on_open_segment(a, c, d) || point_on_open_segment(b, c, d)
+    || point_on_open_segment(c, a, b) || point_on_open_segment(d, a, b)){
+        return true;
+    }
+
+    if(orient_sign(a, b, c, d) != 0){
+        return false;
+    }
+
+    const auto u = b - a;
+    const auto v = d - c;
+    const auto w = c - a;
+    const auto cross_uv = u.Cross(v);
+    const auto denom = cross_uv.sq_length();
+    const auto eps = coord_eps(a, b, c, d);
+
+    if(denom <= eps * eps){
+        const auto ac = c - a;
+        if((det2_sign(u.x, u.y, ac.x, ac.y) != 0)
+        || (det2_sign(u.x, u.z, ac.x, ac.z) != 0)
+        || (det2_sign(u.y, u.z, ac.y, ac.z) != 0)){
+            return false;
+        }
+
+        const auto axis = [&u](){
+            if((std::abs(u.x) >= std::abs(u.y)) && (std::abs(u.x) >= std::abs(u.z))){
+                return 0;
+            }
+            if(std::abs(u.y) >= std::abs(u.z)){
+                return 1;
+            }
+            return 2;
+        }();
+
+        const auto coord = [axis](const vec3<T> &p){
+            if(axis == 0) return p.x;
+            if(axis == 1) return p.y;
+            return p.z;
+        };
+
+        const auto overlap_min = std::max(std::min(coord(a), coord(b)), std::min(coord(c), coord(d)));
+        const auto overlap_max = std::min(std::max(coord(a), coord(b)), std::max(coord(c), coord(d)));
+        return (overlap_max - overlap_min) > eps;
+    }
+
+    const auto s = (w.Cross(v)).Dot(cross_uv) / denom;
+    const auto t = (w.Cross(u)).Dot(cross_uv) / denom;
+    if((s < -eps) || (s > static_cast<T>(1) + eps)
+    || (t < -eps) || (t > static_cast<T>(1) + eps)){
+        return false;
+    }
+
+    const auto endpoint_param = [eps](T value){
+        return (std::abs(value) <= eps) || (std::abs(value - static_cast<T>(1)) <= eps);
+    };
+
+    return !(endpoint_param(s) && endpoint_param(t));
+}
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+    template bool segments_intersect_beyond_shared_endpoints(const vec3<float> &a,
+                                                             const vec3<float> &b,
+                                                             const vec3<float> &c,
+                                                             const vec3<float> &d);
+    template bool segments_intersect_beyond_shared_endpoints(const vec3<double> &a,
+                                                             const vec3<double> &b,
+                                                             const vec3<double> &c,
+                                                             const vec3<double> &d);
+#endif
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------- vec2: A three-dimensional vector -------------------------------------------------
@@ -1624,7 +1828,7 @@ int signum(T value){
 #endif
 
 template <class T>
-int orient2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c){
+int orient_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c){
     const std::array<T, 3> pa{{ a.x, a.y, static_cast<T>(0) }};
     const std::array<T, 3> pb{{ b.x, b.y, static_cast<T>(0) }};
     const std::array<T, 3> pc{{ c.x, c.y, static_cast<T>(0) }};
@@ -1632,26 +1836,26 @@ int orient2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c){
     return -signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template int orient2d_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c);
-    template int orient2d_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c);
+    template int orient_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c);
+    template int orient_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c);
 #endif
 
 template <class T>
-int incircle2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d){
+int incircle_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d){
     const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
     const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
     const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
     const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
 
     auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
-    if(orient2d_sign(a, b, c) < 0){
+    if(orient_sign(a, b, c) < 0){
         det_sign = -det_sign;
     }
     return det_sign;
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
-    template int incircle2d_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c, const vec2<float> &d);
-    template int incircle2d_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c, const vec2<double> &d);
+    template int incircle_sign(const vec2<float> &a, const vec2<float> &b, const vec2<float> &c, const vec2<float> &d);
+    template int incircle_sign(const vec2<double> &a, const vec2<double> &b, const vec2<double> &c, const vec2<double> &d);
 #endif
 
 #if defined(__GNUC__)
@@ -1660,7 +1864,7 @@ int incircle2d_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const 
 
 template <class T>
 bool point_on_closed_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b){
-    if(orient2d_sign(a, b, p) != 0){
+    if(orient_sign(a, b, p) != 0){
         return false;
     }
 
@@ -1695,10 +1899,10 @@ bool segments_intersect_beyond_shared_endpoints(const vec2<T> &a,
         return true;
     }
 
-    const auto o1 = orient2d_sign(a, b, c);
-    const auto o2 = orient2d_sign(a, b, d);
-    const auto o3 = orient2d_sign(c, d, a);
-    const auto o4 = orient2d_sign(c, d, b);
+    const auto o1 = orient_sign(a, b, c);
+    const auto o2 = orient_sign(a, b, d);
+    const auto o3 = orient_sign(c, d, a);
+    const auto o4 = orient_sign(c, d, b);
 
     return (((o1 < 0) && (o2 > 0))
          || ((o1 > 0) && (o2 < 0)))
@@ -1721,14 +1925,14 @@ bool point_in_triangle_or_on_boundary(const vec2<T> &p,
                                       const vec2<T> &a,
                                       const vec2<T> &b,
                                       const vec2<T> &c){
-    const auto o = orient2d_sign(a, b, c);
+    const auto o = orient_sign(a, b, c);
     if(o == 0){
         return false;
     }
 
-    const auto o1 = orient2d_sign(a, b, p);
-    const auto o2 = orient2d_sign(b, c, p);
-    const auto o3 = orient2d_sign(c, a, p);
+    const auto o1 = orient_sign(a, b, p);
+    const auto o2 = orient_sign(b, c, p);
+    const auto o3 = orient_sign(c, a, p);
 
     if(o > 0){
         return (o1 >= 0)

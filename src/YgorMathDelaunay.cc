@@ -138,7 +138,7 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
             const auto &A = all_verts[tri.a];
             const auto &B = all_verts[tri.b];
             const auto &C = all_verts[tri.c];
-            if(incircle2d_sign(A, B, C, P) > 0){
+            if(incircle_sign(A, B, C, P) > 0){
                 tri.bad = true;
             }
         }
@@ -197,7 +197,7 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
         const auto &A = all_verts[tri.a];
         const auto &B = all_verts[tri.b];
         const auto &C = all_verts[tri.c];
-        if(orient2d_sign(A, B, C) == 0){
+        if(orient_sign(A, B, C) == 0){
             continue;
         }
         std::vector<I> face;
