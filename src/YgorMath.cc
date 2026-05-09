@@ -1128,6 +1128,19 @@ bool segments_intersect_beyond_shared_endpoints(const vec3<T> &a,
                                                 const vec3<T> &b,
                                                 const vec3<T> &c,
                                                 const vec3<T> &d){
+    const auto ab_is_point = same_xyz(a, b);
+    const auto cd_is_point = same_xyz(c, d);
+
+    if(ab_is_point && cd_is_point){
+        return false;
+    }
+    if(ab_is_point){
+        return point_on_open_segment(a, c, d);
+    }
+    if(cd_is_point){
+        return point_on_open_segment(c, a, b);
+    }
+
     if(point_on_open_segment(a, c, d) || point_on_open_segment(b, c, d)
     || point_on_open_segment(c, a, b) || point_on_open_segment(d, a, b)){
         return true;

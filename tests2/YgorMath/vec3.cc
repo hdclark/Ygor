@@ -1391,4 +1391,26 @@ TEST_CASE( "vec3 adaptive predicate wrappers" ){
                                                             vec3<T>(0.0, 1.0, 1.0),
                                                             vec3<T>(1.0, 0.0, 1.0)));
     }
+
+    SUBCASE("degenerate segments are treated as points"){
+        REQUIRE(segments_intersect_beyond_shared_endpoints(vec3<T>(1.0, 1.0, 1.0),
+                                                           vec3<T>(1.0, 1.0, 1.0),
+                                                           vec3<T>(0.0, 0.0, 0.0),
+                                                           vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(3.0, 3.0, 3.0),
+                                                            vec3<T>(3.0, 3.0, 3.0),
+                                                            vec3<T>(0.0, 0.0, 0.0),
+                                                            vec3<T>(2.0, 2.0, 2.0)));
+
+        REQUIRE(!segments_intersect_beyond_shared_endpoints(vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0),
+                                                            vec3<T>(1.0, 1.0, 1.0)));
+    }
 }
