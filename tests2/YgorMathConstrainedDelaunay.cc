@@ -247,6 +247,36 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
         }
     }
 
+    SUBCASE("regular polygon remains triangulable even when very small and offset from the origin"){
+        std::vector<vec2<double>> verts;
+        std::vector<std::vector<uint32_t>> edges;
+        constexpr uint32_t N = 20;
+        constexpr double radius = 1.0e-9;
+        constexpr double x_offset = 123.456;
+        constexpr double y_offset = -987.654;
+        const auto pi = std::acos(-1.0);
+        for(uint32_t i = 0; i < N; ++i){
+            const auto angle = (2.0 * pi * static_cast<double>(i)) / static_cast<double>(N);
+            verts.emplace_back(x_offset + radius * std::cos(angle),
+                               y_offset + radius * std::sin(angle));
+            edges.push_back({ i, static_cast<uint32_t>((i + 1) % N) });
+        }
+
+        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
+        REQUIRE(mesh.vertices.size() == verts.size());
+        REQUIRE(mesh.faces.size() == verts.size() - 2);
+        require_all_faces_are_triangles(mesh);
+        require_constraints_are_triangle_edges(mesh,
+            { make_edge<uint32_t>(0, 1), make_edge<uint32_t>(1, 2), make_edge<uint32_t>(2, 3),
+              make_edge<uint32_t>(3, 4), make_edge<uint32_t>(4, 5), make_edge<uint32_t>(5, 6),
+              make_edge<uint32_t>(6, 7), make_edge<uint32_t>(7, 8), make_edge<uint32_t>(8, 9),
+              make_edge<uint32_t>(9, 10), make_edge<uint32_t>(10, 11), make_edge<uint32_t>(11, 12),
+              make_edge<uint32_t>(12, 13), make_edge<uint32_t>(13, 14), make_edge<uint32_t>(14, 15),
+              make_edge<uint32_t>(15, 16), make_edge<uint32_t>(16, 17), make_edge<uint32_t>(17, 18),
+              make_edge<uint32_t>(18, 19), make_edge<uint32_t>(19, 0) });
+        require_triangle_centroids_within_polygon(mesh, verts);
+    }
+
     SUBCASE("crossing constraints are rejected"){
         const std::vector<vec2<double>> verts{{
             vec2<double>(0.0, 0.0),
@@ -255,9 +285,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 2}, {1, 3} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("constraint passing through another vertex is rejected"){
@@ -268,9 +296,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 2} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("malformed constraints are rejected"){
@@ -280,9 +306,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1, 2} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("out-of-range constraints are rejected"){
@@ -292,9 +316,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 3} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("self-edge constraints are rejected"){
@@ -304,9 +326,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {1, 1} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("duplicate constraints are rejected even when reversed"){
@@ -316,9 +336,7 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
             vec2<double>(0.0, 1.0)
         }};
         const std::vector<std::vector<uint32_t>> edges{{ {0, 1}, {1, 0} }};
-        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
-        REQUIRE(mesh.vertices.empty());
-        REQUIRE(mesh.faces.empty());
+        REQUIRE_THROWS( Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges) );
     }
 
     SUBCASE("float coordinates and uint64_t indices are supported"){

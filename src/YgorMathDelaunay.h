@@ -22,7 +22,8 @@
 // Returns an fv_surface_mesh containing the triangulation as faces. The mesh is not watertight, and represents a
 // 'patch' of surface. Vertices are copied to the mesh, so no input vertices are modified.
 //
-// If fewer than 3 vertices are provided, an empty mesh is returned.
+// Invalid input (for example, fewer than 3 vertices, non-finite coordinates, or collinear/coincident geometry) and
+// unexpected triangulation failures are reported by throwing an exception with a diagnostic message.
 //
 // Note: This is a 2D incremental Bowyer-Watson triangulation:
 //  - Bowyer A. The Computer Journal. 1981;24(2):162-166.

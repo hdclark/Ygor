@@ -15,26 +15,20 @@
 TEST_CASE( "Delaunay_Triangulation_2 function" ){
     const auto eps = std::sqrt( std::numeric_limits<double>::epsilon() );
 
-    SUBCASE("fewer than 3 vertices returns empty mesh"){
+    SUBCASE("fewer than 3 vertices is rejected"){
         // 0 vertices
         std::vector<vec2<double>> verts0;
-        const auto mesh0 = Delaunay_Triangulation_2<double, uint32_t>(verts0);
-        REQUIRE( mesh0.vertices.size() == 0 );
-        REQUIRE( mesh0.faces.size() == 0 );
+        REQUIRE_THROWS( Delaunay_Triangulation_2<double, uint32_t>(verts0) );
 
         // 1 vertex
         std::vector<vec2<double>> verts1 {{ vec2<double>(0.0, 0.0) }};
-        const auto mesh1 = Delaunay_Triangulation_2<double, uint32_t>(verts1);
-        REQUIRE( mesh1.vertices.size() == 0 );
-        REQUIRE( mesh1.faces.size() == 0 );
+        REQUIRE_THROWS( Delaunay_Triangulation_2<double, uint32_t>(verts1) );
 
         // 2 vertices
         std::vector<vec2<double>> verts2 {{
             vec2<double>(0.0, 0.0),
             vec2<double>(1.0, 0.0) }};
-        const auto mesh2 = Delaunay_Triangulation_2<double, uint32_t>(verts2);
-        REQUIRE( mesh2.vertices.size() == 0 );
-        REQUIRE( mesh2.faces.size() == 0 );
+        REQUIRE_THROWS( Delaunay_Triangulation_2<double, uint32_t>(verts2) );
     }
 
     SUBCASE("exactly 3 vertices produces exactly 1 triangle"){
@@ -212,28 +206,24 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         }
     }
 
-    SUBCASE("collinear vertices handled gracefully"){
+    SUBCASE("collinear vertices are rejected"){
         // All vertices on a line -- no valid triangulation possible.
         std::vector<vec2<double>> verts {{
             vec2<double>(0.0, 0.0),
             vec2<double>(1.0, 0.0),
             vec2<double>(2.0, 0.0),
             vec2<double>(3.0, 0.0) }};
-        const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
-        // For collinear points, we expect no valid triangles (or degenerate triangles removed).
-        REQUIRE( mesh.faces.size() == 0 );
+        REQUIRE_THROWS( Delaunay_Triangulation_2<double, uint32_t>(verts) );
     }
 
-    SUBCASE("all vertices at same location handled gracefully"){
+    SUBCASE("all vertices at same location are rejected"){
         // All vertices at the same point -- degenerate case, no valid triangulation.
         std::vector<vec2<double>> verts {{
             vec2<double>(1.0, 1.0),
             vec2<double>(1.0, 1.0),
             vec2<double>(1.0, 1.0),
             vec2<double>(1.0, 1.0) }};
-        const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
-        // Should not crash and should produce no valid triangles.
-        REQUIRE( mesh.faces.size() == 0 );
+        REQUIRE_THROWS( Delaunay_Triangulation_2<double, uint32_t>(verts) );
     }
 
     SUBCASE("works with float type and uint64_t indices"){
@@ -263,5 +253,25 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
             REQUIRE( area > eps );
         }
     }
-}
 
+    SUBCASE("regular polygon remains triangulable even when very small and offset from the origin"){
+        std::vector<vec2<double>> verts;
+        constexpr size_t N = 20;
+        constexpr double radius = 1.0e-9;
+        constexpr double x_offset = 123.456;
+        constexpr double y_offset = -987.654;
+        const auto pi = std::acos(-1.0);
+        for(size_t i = 0; i < N; ++i){
+            const auto angle = (2.0 * pi * static_cast<double>(i)) / static_cast<double>(N);
+            verts.emplace_back(x_offset + radius * std::cos(angle),
+                               y_offset + radius * std::sin(angle));
+        }
+
+        const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
+        REQUIRE(mesh.vertices.size() == N);
+        REQUIRE(mesh.faces.size() == N - 2);
+        for(const auto &face : mesh.faces){
+            REQUIRE(face.size() == 3);
+        }
+    }
+}

@@ -1062,11 +1062,34 @@ int insphere_sign(const vec3<T> &a,
                   const vec3<T> &c,
                   const vec3<T> &d,
                   const vec3<T> &e){
-    const std::array<T, 3> pa{{ a.x, a.y, a.z }};
-    const std::array<T, 3> pb{{ b.x, b.y, b.z }};
-    const std::array<T, 3> pc{{ c.x, c.y, c.z }};
-    const std::array<T, 3> pd{{ d.x, d.y, d.z }};
-    const std::array<T, 3> pe{{ e.x, e.y, e.z }};
+
+    //// Direct way, which does not handle (1) vertices offset from the origin or (2) vertices with
+    //// small offsets well.
+    //const std::array<T, 3> pa{{ a.x, a.y, a.z }};
+    //const std::array<T, 3> pb{{ b.x, b.y, b.z }};
+    //const std::array<T, 3> pc{{ c.x, c.y, c.z }};
+    //const std::array<T, 3> pd{{ d.x, d.y, d.z }};
+    //const std::array<T, 3> pe{{ e.x, e.y, e.z }};
+    
+    // Translate all points using vertex 'd' and then compare.
+    const auto aex = a.x - e.x;
+    const auto aey = a.y - e.y;
+    const auto aez = a.z - e.z;
+    const auto bex = b.x - e.x;
+    const auto bey = b.y - e.y;
+    const auto bez = b.z - e.z;
+    const auto cex = c.x - e.x;
+    const auto cey = c.y - e.y;
+    const auto cez = c.z - e.z;
+    const auto dex = d.x - e.x;
+    const auto dey = d.y - e.y;
+    const auto dez = d.z - e.z;
+
+    const std::array<T, 3> pa{{ aex, aey, aez }};
+    const std::array<T, 3> pb{{ bex, bey, bez }};
+    const std::array<T, 3> pc{{ cex, cey, cez }};
+    const std::array<T, 3> pd{{ dex, dey, dez }};
+    const std::array<T, 3> pe{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) }};
 
     auto det_sign = signum(adaptive_predicate::insphere(pa.data(), pb.data(), pc.data(), pd.data(), pe.data()));
     if(orient_sign(a, b, c, d) < 0){
@@ -1855,10 +1878,26 @@ int orient_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c){
 
 template <class T>
 int incircle_sign(const vec2<T> &a, const vec2<T> &b, const vec2<T> &c, const vec2<T> &d){
-    const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
-    const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
-    const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
-    const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
+
+    //// Direct way, which does not handle (1) vertices offset from the origin or (2) vertices with
+    //// small offsets well.
+    //const std::array<T, 3> pa{{ a.x, a.y, a.x * a.x + a.y * a.y }};
+    //const std::array<T, 3> pb{{ b.x, b.y, b.x * b.x + b.y * b.y }};
+    //const std::array<T, 3> pc{{ c.x, c.y, c.x * c.x + c.y * c.y }};
+    //const std::array<T, 3> pd{{ d.x, d.y, d.x * d.x + d.y * d.y }};
+    
+    // Translate all points using vertex 'd' and then compare.
+    const auto adx = a.x - d.x;
+    const auto ady = a.y - d.y;
+    const auto bdx = b.x - d.x;
+    const auto bdy = b.y - d.y;
+    const auto cdx = c.x - d.x;
+    const auto cdy = c.y - d.y;
+
+    const std::array<T, 3> pa{{ adx, ady, adx * adx + ady * ady }};
+    const std::array<T, 3> pb{{ bdx, bdy, bdx * bdx + bdy * bdy }};
+    const std::array<T, 3> pc{{ cdx, cdy, cdx * cdx + cdy * cdy }};
+    const std::array<T, 3> pd{{ static_cast<T>(0), static_cast<T>(0), static_cast<T>(0) }};
 
     auto det_sign = signum(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()));
     if(orient_sign(a, b, c) < 0){

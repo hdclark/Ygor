@@ -19,7 +19,8 @@
 // triangular facets.
 //
 // Invalid or mutually incompatible constraints (for example, out-of-range indices, self-intersections, or a vertex
-// laying strictly in the interior of a constrained segment) cause an empty mesh to be returned.
+// laying strictly in the interior of a constrained segment) and unexpected triangulation failures are reported by
+// throwing an exception with a diagnostic message.
 //
 // Vertices are copied to the mesh, so no input vertices are modified.
 //

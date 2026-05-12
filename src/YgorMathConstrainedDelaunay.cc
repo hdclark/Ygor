@@ -6,10 +6,13 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "YgorDefinitions.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
 
@@ -51,6 +54,14 @@ inline CDT_Edge make_edge(size_t a, size_t b){
     return CDT_Edge{a, b};
 }
 
+inline bool cdt_fail(std::string *diag, const std::string &msg){
+    if(diag != nullptr){
+        *diag = msg;
+    }
+    YLOGDEBUG(msg);
+    return false;
+}
+
 template <class T>
 bool is_finite_2d(const vec2<T> &v){
     return std::isfinite(v.x) && std::isfinite(v.y);
@@ -59,6 +70,40 @@ bool is_finite_2d(const vec2<T> &v){
 template <class T>
 bool same_xy(const vec2<T> &a, const vec2<T> &b){
     return (a.x == b.x) && (a.y == b.y);
+}
+
+template <class T>
+bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
+    size_t a = verts.size();
+    for(size_t i = 0; i < verts.size(); ++i){
+        if(is_finite_2d(verts.at(i))){
+            a = i;
+            break;
+        }
+    }
+    if(a == verts.size()){
+        return false;
+    }
+    size_t b = verts.size();
+    for(size_t i = a + 1; i < verts.size(); ++i){
+        if(is_finite_2d(verts.at(i)) && !same_xy(verts.at(a), verts.at(i))){
+            b = i;
+            break;
+        }
+    }
+    if(b == verts.size()){
+        return false;
+    }
+
+    for(size_t i = b + 1; i < verts.size(); ++i){
+        if(!is_finite_2d(verts.at(i))){
+            continue;
+        }
+        if(orient_sign(verts.at(a), verts.at(b), verts.at(i)) != 0){
+            return true;
+        }
+    }
+    return false;
 }
 
 template <class T>
@@ -221,27 +266,34 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
 template <class T, class I>
 bool collect_user_constraints(const std::vector<vec2<T>> &verts,
                               const std::vector<std::vector<I>> &edges,
-                              std::vector<std::pair<size_t, size_t>> &constraints){
+                              std::vector<std::pair<size_t, size_t>> &constraints,
+                              std::string *diag){
     constraints.clear();
     std::set<CDT_Edge> seen;
 
-    for(const auto &edge : edges){
+    for(size_t edge_idx = 0; edge_idx < edges.size(); ++edge_idx){
+        const auto &edge = edges.at(edge_idx);
         if(edge.size() != 2){
-            return false;
+            return cdt_fail(diag, "Constraint " + std::to_string(edge_idx)
+                                 + " does not contain exactly two vertex indices.");
         }
 
         const auto a = static_cast<size_t>(edge.at(0));
         const auto b = static_cast<size_t>(edge.at(1));
         if((a >= verts.size()) || (b >= verts.size()) || (a == b)){
-            return false;
+            return cdt_fail(diag, "Constraint " + std::to_string(edge_idx)
+                                 + " references invalid vertex indices (" + std::to_string(a)
+                                 + ", " + std::to_string(b) + ").");
         }
         if(!is_finite_2d(verts.at(a)) || !is_finite_2d(verts.at(b)) || same_xy(verts.at(a), verts.at(b))){
-            return false;
+            return cdt_fail(diag, "Constraint " + std::to_string(edge_idx)
+                                 + " has coincident or non-finite endpoints.");
         }
 
         const auto edge_key = make_edge(a, b);
         if(!seen.insert(edge_key).second){
-            return false;
+            return cdt_fail(diag, "Constraint " + std::to_string(edge_idx)
+                                 + " duplicates an existing constrained edge.");
         }
 
         for(size_t i = 0; i < verts.size(); ++i){
@@ -249,7 +301,9 @@ bool collect_user_constraints(const std::vector<vec2<T>> &verts,
                 continue;
             }
             if(point_on_open_segment(verts.at(i), verts.at(a), verts.at(b))){
-                return false;
+                return cdt_fail(diag, "Vertex " + std::to_string(i)
+                                     + " lies strictly inside constrained segment ("
+                                     + std::to_string(a) + ", " + std::to_string(b) + ").");
             }
         }
 
@@ -261,7 +315,9 @@ bool collect_user_constraints(const std::vector<vec2<T>> &verts,
             }
             if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
                                                           verts.at(c), verts.at(d))){
-                return false;
+                return cdt_fail(diag, "Constraint (" + std::to_string(a) + ", " + std::to_string(b)
+                                     + ") intersects constraint (" + std::to_string(c) + ", "
+                                     + std::to_string(d) + ") beyond a shared endpoint.");
             }
         }
 
@@ -276,7 +332,8 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                             const std::vector<std::pair<size_t, size_t>> &constraints,
                             std::vector<CDT_ConstraintFace> &faces,
                             std::map<std::pair<size_t, size_t>, size_t> &halfedge_to_face,
-                            std::map<size_t, size_t> &component_outer_face){
+                            std::map<size_t, size_t> &component_outer_face,
+                            std::string *diag){
     faces.clear();
     halfedge_to_face.clear();
     component_outer_face.clear();
@@ -346,7 +403,8 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                 const auto &ordered = adjacency.at(cur);
                 const auto it = std::find(ordered.begin(), ordered.end(), prev);
                 if(it == ordered.end()){
-                    return false;
+                    return cdt_fail(diag, "Constraint face reconstruction lost halfedge ordering at vertex "
+                                         + std::to_string(cur) + ".");
                 }
 
                 const auto idx = static_cast<size_t>(std::distance(ordered.begin(), it));
@@ -358,7 +416,7 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                     break;
                 }
                 if(face.cycle.size() > max_face_steps){
-                    return false;
+                    return cdt_fail(diag, "Constraint face reconstruction exceeded the traversal guard while tracing a boundary cycle.");
                 }
             }
 
@@ -383,11 +441,12 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
 template <class T>
 bool retain_triangles_in_constraint_faces(const std::vector<vec2<T>> &verts,
                                           const std::vector<std::pair<size_t, size_t>> &constraints,
-                                          std::vector<CDT_Triangle> &triangles){
+                                          std::vector<CDT_Triangle> &triangles,
+                                          std::string *diag){
     std::vector<CDT_ConstraintFace> faces;
     std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
     std::map<size_t, size_t> component_outer_face;
-    if(!build_constraint_faces(verts, constraints, faces, halfedge_to_face, component_outer_face)){
+    if(!build_constraint_faces(verts, constraints, faces, halfedge_to_face, component_outer_face, diag)){
         return false;
     }
     if(faces.empty()){
@@ -399,7 +458,8 @@ bool retain_triangles_in_constraint_faces(const std::vector<vec2<T>> &verts,
         const auto left_it  = halfedge_to_face.find(std::make_pair(a, b));
         const auto right_it = halfedge_to_face.find(std::make_pair(b, a));
         if((left_it == halfedge_to_face.end()) || (right_it == halfedge_to_face.end())){
-            return false;
+            return cdt_fail(diag, "Constraint halfedge (" + std::to_string(a) + ", " + std::to_string(b)
+                                 + ") was not matched to both incident constraint faces.");
         }
         const auto left_face = left_it->second;
         const auto right_face = right_it->second;
@@ -434,7 +494,7 @@ bool retain_triangles_in_constraint_faces(const std::vector<vec2<T>> &verts,
                     face_parity.at(adjacent_face) = next_parity;
                     pending.push_back(adjacent_face);
                 }else if(face_parity.at(adjacent_face) != next_parity){
-                    return false;
+                    return cdt_fail(diag, "Constraint face parity propagation became inconsistent; the constrained arrangement is not a valid planar subdivision.");
                 }
             }
         }
@@ -498,10 +558,11 @@ bool triangulation_has_edge(const std::vector<CDT_Triangle> &triangles,
 }
 
 bool walk_boundary_chain(size_t start,
-                        size_t stop,
-                        size_t first,
-                        const std::map<size_t, std::vector<size_t>> &adjacency,
-                        std::vector<size_t> &chain){
+                         size_t stop,
+                         size_t first,
+                         const std::map<size_t, std::vector<size_t>> &adjacency,
+                         std::vector<size_t> &chain,
+                         std::string *diag){
     chain.clear();
     chain.push_back(start);
 
@@ -512,7 +573,7 @@ bool walk_boundary_chain(size_t start,
 
     while(true){
         if(!visited.insert(cur).second && (cur != stop)){
-            return false;
+            return cdt_fail(diag, "Constraint cavity boundary traversal encountered a repeated vertex before reaching the target endpoint.");
         }
         chain.push_back(cur);
         if(cur == stop){
@@ -521,7 +582,8 @@ bool walk_boundary_chain(size_t start,
 
         const auto it = adjacency.find(cur);
         if((it == adjacency.end()) || (it->second.size() != 2)){
-            return false;
+            return cdt_fail(diag, "Constraint cavity boundary vertex " + std::to_string(cur)
+                                 + " does not have the expected degree 2.");
         }
 
         const auto &nbrs = it->second;
@@ -532,7 +594,7 @@ bool walk_boundary_chain(size_t start,
             next = nbrs.at(1);
         }
         if((next == CDT_INVALID_VERTEX_INDEX) || (next == start)){
-            return false;
+            return cdt_fail(diag, "Constraint cavity boundary traversal could not determine the next boundary vertex.");
         }
         prev = cur;
         cur = next;
@@ -556,12 +618,13 @@ template <class T>
 bool triangulate_polygon_ear_clip(const std::vector<vec2<T>> &verts,
                                   const std::vector<size_t> &chain,
                                   std::set<CDT_Edge> &boundary_edges,
-                                  std::vector<CDT_Triangle> &triangles){
+                                  std::vector<CDT_Triangle> &triangles,
+                                  std::string *diag){
     boundary_edges.clear();
     triangles.clear();
 
     if(chain.size() < 2){
-        return false;
+        return cdt_fail(diag, "Constraint cavity polygon has fewer than two vertices.");
     }
 
     for(size_t i = 0; i < chain.size(); ++i){
@@ -616,7 +679,7 @@ bool triangulate_polygon_ear_clip(const std::vector<vec2<T>> &verts,
         }
 
         if(!clipped){
-            return false;
+            return cdt_fail(diag, "Ear-clipping failed because no valid ear could be found in the constraint cavity polygon.");
         }
     }
 
@@ -711,7 +774,8 @@ template <class T>
 bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
                                     const std::vector<size_t> &polygon,
                                     const std::set<CDT_Edge> &boundary_edges,
-                                    std::vector<CDT_Triangle> &triangles){
+                                    std::vector<CDT_Triangle> &triangles,
+                                    std::string *diag){
     // Edge legalisation converges quickly for these small cavity polygons; this guard only prevents
     // accidental non-termination if a future change breaks the flip logic.
     const auto max_iters = triangles.size() * triangles.size() * CDT_LEGALIZATION_GUARD_SCALE
@@ -766,7 +830,7 @@ bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
     }
 
     if(hit_iteration_limit){
-        return false;
+        return cdt_fail(diag, "Constraint cavity edge legalization exceeded the iteration guard.");
     }
 
     prune_triangles(verts, triangles);
@@ -777,7 +841,8 @@ template <class T>
 bool constrain_edge(const std::vector<vec2<T>> &verts,
                     size_t a,
                     size_t b,
-                    std::vector<CDT_Triangle> &triangles){
+                    std::vector<CDT_Triangle> &triangles,
+                    std::string *diag){
     if(triangulation_has_edge(triangles, a, b)){
         return true;
     }
@@ -796,7 +861,8 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
     }
 
     if(removed.empty()){
-        return false;
+        return cdt_fail(diag, "No triangles crossed constrained segment (" + std::to_string(a)
+                             + ", " + std::to_string(b) + "), but the segment was not present in the triangulation.");
     }
 
     std::map<CDT_Edge, size_t> boundary_counts;
@@ -827,13 +893,14 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
     const auto it_b = adjacency.find(b);
     if((it_a == adjacency.end()) || (it_b == adjacency.end())
     || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
-        return false;
+        return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
+                             + ") does not expose the expected two boundary chains.");
     }
 
     std::vector<size_t> chain0;
     std::vector<size_t> chain1;
-    if(!walk_boundary_chain(a, b, it_a->second.at(0), adjacency, chain0)
-    || !walk_boundary_chain(a, b, it_a->second.at(1), adjacency, chain1)){
+    if(!walk_boundary_chain(a, b, it_a->second.at(0), adjacency, chain0, diag)
+    || !walk_boundary_chain(a, b, it_a->second.at(1), adjacency, chain1, diag)){
         return false;
     }
 
@@ -841,10 +908,10 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
     std::set<CDT_Edge> boundary1;
     std::vector<CDT_Triangle> tris0;
     std::vector<CDT_Triangle> tris1;
-    if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0)
-    || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1)
-    || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0)
-    || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1)){
+    if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0, diag)
+    || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1, diag)
+    || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0, diag)
+    || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1, diag)){
         return false;
     }
 
@@ -853,7 +920,8 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
     prune_triangles(verts, retained);
 
     if(!triangulation_has_edge(retained, a, b)){
-        return false;
+        return cdt_fail(diag, "Constraint insertion for segment (" + std::to_string(a) + ", "
+                             + std::to_string(b) + ") completed without creating the requested constrained edge.");
     }
 
     triangles.swap(retained);
@@ -868,34 +936,107 @@ fv_surface_mesh<T, I>
 Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
                                      const std::vector<std::vector<I>> &edges){
     fv_surface_mesh<T, I> mesh;
-
-    std::vector<std::pair<size_t, size_t>> constraints;
-    if(!collect_user_constraints(verts, edges, constraints)){
+    if(verts.empty() && edges.empty()){
+        YLOGDEBUG("Constrained Delaunay triangulation received empty input");
         return mesh;
     }
+
+    size_t first_nonfinite_index = verts.size();
+    for(size_t i = 0; i < verts.size(); ++i){
+        if(!is_finite_2d(verts.at(i))){
+            first_nonfinite_index = i;
+            break;
+        }
+    }
+    if(first_nonfinite_index != verts.size()){
+        YLOGWARN("Refusing constrained Delaunay triangulation because vertex " << first_nonfinite_index
+                 << " is not finite: (" << verts.at(first_nonfinite_index).x
+                 << ", " << verts.at(first_nonfinite_index).y << ")");
+        throw std::invalid_argument("Constrained Delaunay triangulation requires all vertex coordinates to be finite.");
+    }
+
+    size_t duplicate_vertices = 0;
+    {
+        // TODO: would it be better to hash/index here so that all verts **within some eps** are treated as duplicate?
+        // Maybe OK to just ask the user to provide a problem-specific eps??
+        std::map<std::pair<T, T>, size_t> vertex_counts;
+        for(const auto &vert : verts){
+            ++vertex_counts[std::make_pair(vert.x, vert.y)];
+        }
+        for(const auto &entry : vertex_counts){
+            const size_t count = entry.second;
+            if(count > 1){
+                duplicate_vertices += (count * (count - 1)) / 2;
+            }
+        }
+    }
+    if(duplicate_vertices != 0){
+        YLOGWARN("Constrained Delaunay triangulation received " << duplicate_vertices
+                 << " pair(s) of duplicate vertices; degenerate duplicates can destabilize constraint insertion");
+    }
+
+    std::vector<std::pair<size_t, size_t>> constraints;
+    std::string diag;
+    if(!collect_user_constraints(verts, edges, constraints, &diag)){
+        YLOGWARN(diag);
+        throw std::invalid_argument(diag);
+    }
+    YLOGDEBUG("Constrained Delaunay triangulation input: vertices=" << verts.size()
+              << ", constraints=" << constraints.size());
 
     mesh.vertices.reserve(verts.size());
     for(const auto &vert : verts){
         mesh.vertices.emplace_back(vert.x, vert.y, static_cast<T>(0));
     }
 
+    const auto has_closed_region = [&constraints](){
+        if(constraints.size() < 3){
+            return false;
+        }
+        std::map<size_t, size_t> degree;
+        for(const auto &[a, b] : constraints){
+            ++degree[a];
+            ++degree[b];
+        }
+        return std::all_of(degree.begin(), degree.end(),
+                           [](const auto &entry){ return entry.second == 2; });
+    }();
+
+    if(has_closed_region && !has_non_collinear_triplet(verts)){
+        YLOGWARN("Refusing constrained Delaunay triangulation because the constrained region is degenerate");
+        throw std::invalid_argument("Constrained Delaunay triangulation requires at least one non-collinear triplet of vertices for a closed constrained region.");
+    }
+
     auto triangles = build_delaunay_triangles(verts);
+    if(has_closed_region && triangles.empty()){
+        YLOGDEBUG("Initial unconstrained triangulation produced no triangles for a closed constrained region");
+        throw std::runtime_error("Constrained Delaunay triangulation could not build an initial triangulation for the provided constrained region.");
+    }
     for(const auto &[a, b] : constraints){
-        if(!triangles.empty() && !constrain_edge(verts, a, b, triangles)){
-            return fv_surface_mesh<T, I>();
+        if(!triangles.empty() && !constrain_edge(verts, a, b, triangles, &diag)){
+            YLOGWARN(diag);
+            throw std::runtime_error(diag);
         }
     }
 
     prune_triangles(verts, triangles);
-    if(!retain_triangles_in_constraint_faces(verts, constraints, triangles)){
-        return fv_surface_mesh<T, I>();
+    if(!retain_triangles_in_constraint_faces(verts, constraints, triangles, &diag)){
+        YLOGWARN(diag);
+        throw std::runtime_error(diag);
     }
     prune_triangles(verts, triangles);
+
+    if(has_closed_region && triangles.empty()){
+        const auto msg = "Constrained Delaunay triangulation produced no interior triangles for a closed constrained region.";
+        YLOGWARN(msg);
+        throw std::runtime_error(msg);
+    }
 
     for(const auto &tri : triangles){
         mesh.faces.push_back({ static_cast<I>(tri.a), static_cast<I>(tri.b), static_cast<I>(tri.c) });
     }
 
+    YLOGDEBUG("Constrained Delaunay triangulation produced " << mesh.faces.size() << " triangle(s)");
     return mesh;
 }
 
