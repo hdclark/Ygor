@@ -882,7 +882,8 @@ template <class T>    bool vec3<T>::operator<(const vec3<T> &rhs) const {
 #endif
    
 template <class T>    bool vec3<T>::isfinite(void) const {
-    return std::isfinite(this->x) && std::isfinite(this->y) && std::isfinite(this->z);
+    using std::isfinite;
+    return isfinite(this->x) && isfinite(this->y) && isfinite(this->z);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool vec3<float   >::isfinite(void) const;
@@ -1015,10 +1016,12 @@ namespace {
 
 template <class T>
 T coord_eps(const vec3<T> &a, const vec3<T> &b){
-    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(a.z),
-                                 std::abs(b.x), std::abs(b.y), std::abs(b.z),
+    using std::abs;
+    using std::sqrt;
+    const auto scale = std::max({abs(a.x), abs(a.y), abs(a.z),
+                                 abs(b.x), abs(b.y), abs(b.z),
                                  static_cast<T>(1)});
-    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+    return sqrt(std::numeric_limits<T>::epsilon()) * scale;
 }
 
 template <class T>
@@ -1842,7 +1845,8 @@ template <class T>    bool vec2<T>::operator<(const vec2<T> &rhs) const {
 
     
 template <class T>    bool vec2<T>::isfinite(void) const {
-    return std::isfinite(this->x) && std::isfinite(this->y);
+    using std::isfinite;
+    return isfinite(this->x) && isfinite(this->y);
 }
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool vec2<float   >::isfinite(void) const;
@@ -1864,8 +1868,10 @@ namespace {
 
 template <class T>
 T coord_eps(const vec2<T> &a, const vec2<T> &b){
-    const auto scale = std::max({std::abs(a.x), std::abs(a.y), std::abs(b.x), std::abs(b.y), static_cast<T>(1)});
-    return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+    using std::abs;
+    using std::sqrt;
+    const auto scale = std::max({abs(a.x), abs(a.y), abs(b.x), abs(b.y), static_cast<T>(1)});
+    return sqrt(std::numeric_limits<T>::epsilon()) * scale;
 }
 
 template <class T>
@@ -1956,6 +1962,7 @@ bool point_on_closed_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool point_on_closed_segment(const vec2<float> &p, const vec2<float> &a, const vec2<float> &b);
     template bool point_on_closed_segment(const vec2<double> &p, const vec2<double> &a, const vec2<double> &b);
+    template bool point_on_closed_segment(const vec2<ArbPrec> &p, const vec2<ArbPrec> &a, const vec2<ArbPrec> &b);
 #endif
 
 template <class T>
@@ -1968,6 +1975,7 @@ bool point_on_open_segment(const vec2<T> &p, const vec2<T> &a, const vec2<T> &b)
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool point_on_open_segment(const vec2<float> &p, const vec2<float> &a, const vec2<float> &b);
     template bool point_on_open_segment(const vec2<double> &p, const vec2<double> &a, const vec2<double> &b);
+    template bool point_on_open_segment(const vec2<ArbPrec> &p, const vec2<ArbPrec> &a, const vec2<ArbPrec> &b);
 #endif
 
 template <class T>
@@ -1999,6 +2007,10 @@ bool segments_intersect_beyond_shared_endpoints(const vec2<T> &a,
                                                              const vec2<double> &b,
                                                              const vec2<double> &c,
                                                              const vec2<double> &d);
+    template bool segments_intersect_beyond_shared_endpoints(const vec2<ArbPrec> &a,
+                                                             const vec2<ArbPrec> &b,
+                                                             const vec2<ArbPrec> &c,
+                                                             const vec2<ArbPrec> &d);
 #endif
 
 template <class T>
@@ -2034,6 +2046,10 @@ bool point_in_triangle_or_on_boundary(const vec2<T> &p,
                                                    const vec2<double> &a,
                                                    const vec2<double> &b,
                                                    const vec2<double> &c);
+    template bool point_in_triangle_or_on_boundary(const vec2<ArbPrec> &p,
+                                                   const vec2<ArbPrec> &a,
+                                                   const vec2<ArbPrec> &b,
+                                                   const vec2<ArbPrec> &c);
 #endif
 
 template <class T>
@@ -2068,6 +2084,9 @@ bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &verts,
     template bool point_in_polygon_or_on_boundary(const std::vector<vec2<double>> &verts,
                                                   const std::vector<size_t> &polygon,
                                                   const vec2<double> &p);
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<ArbPrec>> &verts,
+                                                  const std::vector<size_t> &polygon,
+                                                  const vec2<ArbPrec> &p);
 #endif
 
 template <class T>
@@ -2093,6 +2112,7 @@ bool point_in_polygon_or_on_boundary(const std::vector<vec2<T>> &polygon, const 
 #ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
     template bool point_in_polygon_or_on_boundary(const std::vector<vec2<float>> &polygon, const vec2<float> &p);
     template bool point_in_polygon_or_on_boundary(const std::vector<vec2<double>> &polygon, const vec2<double> &p);
+    template bool point_in_polygon_or_on_boundary(const std::vector<vec2<ArbPrec>> &polygon, const vec2<ArbPrec> &p);
 #endif
 
 

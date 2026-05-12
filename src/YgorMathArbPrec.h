@@ -83,6 +83,7 @@ class ArbPrec {
                 std::size_t precision_bits);
 
         static std::size_t clamp_precision_bits(std::size_t bits) noexcept;
+        static int compare_abs(const ArbPrec &lhs, const ArbPrec &rhs);
         void normalize();
 
         friend ArbPrec abs(const ArbPrec &value);
@@ -117,7 +118,7 @@ class numeric_limits<ArbPrec> {
         static constexpr bool has_signaling_NaN = false;
         static constexpr float_denorm_style has_denorm = denorm_absent;
         static constexpr bool has_denorm_loss = false;
-        static constexpr rounding_style round_style = round_to_nearest;
+        static constexpr std::float_round_style round_style = std::round_to_nearest;
         static constexpr bool is_iec559 = false;
         static constexpr bool is_bounded = false;
         static constexpr bool is_modulo = false;

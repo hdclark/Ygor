@@ -23,7 +23,7 @@ void trim(limbs_t &limbs){
     }
 }
 
-bool is_zero(const limbs_t &limbs){
+bool limbs_are_zero(const limbs_t &limbs){
     return std::all_of(limbs.begin(), limbs.end(), [](auto limb){ return limb == 0U; });
 }
 
@@ -278,7 +278,9 @@ std::string limbs_to_hex(const limbs_t &limbs){
     return out.str();
 }
 
-int compare_abs(const ArbPrec &lhs, const ArbPrec &rhs){
+} // namespace
+
+int ArbPrec::compare_abs(const ArbPrec &lhs, const ArbPrec &rhs){
     if(lhs.m_sign == 0 && rhs.m_sign == 0){
         return 0;
     }
@@ -295,8 +297,6 @@ int compare_abs(const ArbPrec &lhs, const ArbPrec &rhs){
     }
     return compare(lhs.m_limbs, shift_left(rhs.m_limbs, static_cast<std::size_t>(lhs.m_exponent - rhs.m_exponent)));
 }
-
-} // namespace
 
 ArbPrec::ArbPrec()
     : m_precision_bits(clamp_precision_bits(0)){
@@ -548,7 +548,7 @@ bool operator<(const ArbPrec &lhs, const ArbPrec &rhs){
     if(lhs.m_sign == 0){
         return false;
     }
-    const auto cmp = compare_abs(lhs, rhs);
+    const auto cmp = ArbPrec::compare_abs(lhs, rhs);
     return (lhs.m_sign > 0) ? (cmp < 0) : (cmp > 0);
 }
 
@@ -615,7 +615,7 @@ std::size_t ArbPrec::clamp_precision_bits(std::size_t bits) noexcept{
 
 void ArbPrec::normalize(){
     trim(m_limbs);
-    if(m_limbs.empty() || is_zero(m_limbs)){
+    if(m_limbs.empty() || limbs_are_zero(m_limbs)){
         m_sign = 0;
         m_exponent = 0;
         m_limbs.clear();

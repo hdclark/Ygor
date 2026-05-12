@@ -366,8 +366,10 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                       const auto &origin = verts.at(vertex);
                       const auto &a = verts.at(lhs);
                       const auto &b = verts.at(rhs);
-                      const auto angle_a = std::atan2(a.y - origin.y, a.x - origin.x);
-                      const auto angle_b = std::atan2(b.y - origin.y, b.x - origin.x);
+                      const auto angle_a = std::atan2(static_cast<long double>(a.y - origin.y),
+                                                      static_cast<long double>(a.x - origin.x));
+                      const auto angle_b = std::atan2(static_cast<long double>(b.y - origin.y),
+                                                      static_cast<long double>(b.x - origin.x));
                       return angle_a < angle_b;
                   });
     }
