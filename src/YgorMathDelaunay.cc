@@ -1,4 +1,4 @@
-//YgorMAthDelaunay.cc.
+//YgorMathDelaunay.cc.
 
 #include <algorithm>
 #include <array>
