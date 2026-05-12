@@ -109,6 +109,40 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
 }
 
 template <class T>
+bool is_upper_half_plane(const vec2<T> &origin, const vec2<T> &point){
+    const auto dy = point.y - origin.y;
+    if(dy > static_cast<T>(0)){
+        return true;
+    }
+    if(dy < static_cast<T>(0)){
+        return false;
+    }
+    return (point.x - origin.x) >= static_cast<T>(0);
+}
+
+template <class T>
+bool radial_angle_less(const vec2<T> &origin, const vec2<T> &lhs, const vec2<T> &rhs){
+    const auto lhs_upper = is_upper_half_plane(origin, lhs);
+    const auto rhs_upper = is_upper_half_plane(origin, rhs);
+    if(lhs_upper != rhs_upper){
+        return lhs_upper && !rhs_upper;
+    }
+
+    const auto turn = orient_sign(origin, lhs, rhs);
+    if(turn != 0){
+        return turn > 0;
+    }
+
+    const auto lhs_dx = lhs.x - origin.x;
+    const auto lhs_dy = lhs.y - origin.y;
+    const auto rhs_dx = rhs.x - origin.x;
+    const auto rhs_dy = rhs.y - origin.y;
+    const auto lhs_dist_sq = lhs_dx * lhs_dx + lhs_dy * lhs_dy;
+    const auto rhs_dist_sq = rhs_dx * rhs_dx + rhs_dy * rhs_dy;
+    return lhs_dist_sq < rhs_dist_sq;
+}
+
+template <class T>
 long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
                                    const std::vector<size_t> &poly);
 
@@ -366,11 +400,7 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
                       const auto &origin = verts.at(vertex);
                       const auto &a = verts.at(lhs);
                       const auto &b = verts.at(rhs);
-                      const auto angle_a = std::atan2(static_cast<long double>(a.y - origin.y),
-                                                      static_cast<long double>(a.x - origin.x));
-                      const auto angle_b = std::atan2(static_cast<long double>(b.y - origin.y),
-                                                      static_cast<long double>(b.x - origin.x));
-                      return angle_a < angle_b;
+                      return radial_angle_less(origin, a, b);
                   });
     }
 

@@ -13,13 +13,13 @@
 
 #include "doctest/doctest.h"
 
-struct ArbPrecPrecisionGuard {
-    explicit ArbPrecPrecisionGuard(size_t bits)
+struct ArbPrecGuard {
+    explicit ArbPrecGuard(size_t bits)
         : previous_bits(ArbPrec::default_precision_bits()) {
         ArbPrec::set_default_precision_bits(bits);
     }
 
-    ~ArbPrecPrecisionGuard(){
+    ~ArbPrecGuard(){
         ArbPrec::set_default_precision_bits(previous_bits);
     }
 
@@ -137,7 +137,7 @@ TEST_CASE( "YgorMeshesConvexHull" ){
     }
 
     SUBCASE("Arbitrary precision tetrahedron produces a valid incremental hull"){
-        const ArbPrecPrecisionGuard precision_guard(320);
+        const ArbPrecGuard precision_guard(320);
         IncrementalConvexHull<ArbPrec> ch;
         ch.add_vertex(vec3<ArbPrec>(ArbPrec(0.0, 320), ArbPrec(0.0, 320), ArbPrec(0.0, 320)));
         ch.add_vertex(vec3<ArbPrec>(ArbPrec(1.0, 320), ArbPrec(0.0, 320), ArbPrec(0.0, 320)));

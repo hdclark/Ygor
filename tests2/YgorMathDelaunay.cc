@@ -12,13 +12,13 @@
 
 #include "doctest/doctest.h"
 
-struct ArbPrecPrecisionGuard {
-    explicit ArbPrecPrecisionGuard(size_t bits)
+struct ArbPrecGuard {
+    explicit ArbPrecGuard(size_t bits)
         : previous_bits(ArbPrec::default_precision_bits()) {
         ArbPrec::set_default_precision_bits(bits);
     }
 
-    ~ArbPrecPrecisionGuard(){
+    ~ArbPrecGuard(){
         ArbPrec::set_default_precision_bits(previous_bits);
     }
 
@@ -251,7 +251,7 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("arbitrary precision values round-trip through double"){
-        ArbPrecPrecisionGuard precision_guard(320);
+        ArbPrecGuard precision_guard(320);
 
         const ArbPrec value(0.125);
         CHECK(static_cast<double>(value) == doctest::Approx(0.125));
@@ -298,7 +298,7 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
     }
 
     SUBCASE("arbitrary precision regular polygon remains triangulable when very small and offset from the origin"){
-        ArbPrecPrecisionGuard precision_guard(384);
+        ArbPrecGuard precision_guard(384);
 
         std::vector<vec2<ArbPrec>> verts;
         constexpr size_t N = 20;
