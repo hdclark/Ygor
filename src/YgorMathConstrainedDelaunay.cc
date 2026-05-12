@@ -14,6 +14,7 @@
 #include "YgorDefinitions.h"
 #include "YgorLog.h"
 #include "YgorMath.h"
+#include "YgorMathArbPrec.h"
 #include "YgorMathConstrainedDelaunay.h"
 
 namespace {
@@ -64,7 +65,8 @@ inline bool cdt_fail(std::string *diag, const std::string &msg){
 
 template <class T>
 bool is_finite_2d(const vec2<T> &v){
-    return std::isfinite(v.x) && std::isfinite(v.y);
+    using std::isfinite;
+    return isfinite(v.x) && isfinite(v.y);
 }
 
 template <class T>
@@ -203,6 +205,17 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
     for(size_t i = 3; i < all_verts.size(); ++i){
         const auto &p = all_verts.at(i);
         if(!is_finite_2d(p)){
+            continue;
+        }
+
+        bool duplicate_point = false;
+        for(size_t j = 3; j < i; ++j){
+            if(same_xy(all_verts.at(j), p)){
+                duplicate_point = true;
+                break;
+            }
+        }
+        if(duplicate_point){
             continue;
         }
 
@@ -1046,4 +1059,7 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
 
     template fv_surface_mesh<double, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint32_t>> &);
     template fv_surface_mesh<double, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint64_t>> &);
+
+    template fv_surface_mesh<ArbPrec, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<ArbPrec>> &, const std::vector<std::vector<uint32_t>> &);
+    template fv_surface_mesh<ArbPrec, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<ArbPrec>> &, const std::vector<std::vector<uint64_t>> &);
 #endif
