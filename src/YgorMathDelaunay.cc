@@ -34,22 +34,34 @@ bool same_xy(const vec2<T> &a, const vec2<T> &b){
 
 template <class T>
 bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
+    size_t a = verts.size();
+    for(size_t i = 0; i < verts.size(); ++i){
+        if(is_finite_2d(verts.at(i))){
+            a = i;
+            break;
+        }
+    }
+    if(a == verts.size()){
+        return false;
+    }
+
+    size_t b = verts.size();
+    for(size_t i = a + 1; i < verts.size(); ++i){
+        if(is_finite_2d(verts.at(i)) && !same_xy(verts.at(a), verts.at(i))){
+            b = i;
+            break;
+        }
+    }
+    if(b == verts.size()){
+        return false;
+    }
+
     for(size_t i = 0; i < verts.size(); ++i){
         if(!is_finite_2d(verts.at(i))){
             continue;
         }
-        for(size_t j = i + 1; j < verts.size(); ++j){
-            if(!is_finite_2d(verts.at(j)) || same_xy(verts.at(i), verts.at(j))){
-                continue;
-            }
-            for(size_t k = j + 1; k < verts.size(); ++k){
-                if(!is_finite_2d(verts.at(k))){
-                    continue;
-                }
-                if(orient_sign(verts.at(i), verts.at(j), verts.at(k)) != 0){
-                    return true;
-                }
-            }
+        if(orient_sign(verts.at(a), verts.at(b), verts.at(i)) != 0){
+            return true;
         }
     }
     return false;
