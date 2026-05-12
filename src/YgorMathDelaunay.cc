@@ -261,9 +261,10 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
             }
         }
         if(polygon.empty()){
-            YLOGDEBUG("Skipping insertion of vertex " << (i - 3)
+            YLOGDEBUG("Failed insertion of vertex " << (i - 3)
                       << " because no Bowyer-Watson cavity boundary edges were found");
-            continue;
+            throw std::runtime_error(
+                "Bowyer-Watson insertion failed: no cavity boundary edges were found for an inserted vertex");
         }
 
         triangles.erase(
