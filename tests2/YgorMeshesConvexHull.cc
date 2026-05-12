@@ -8,9 +8,23 @@
 #include <vector>
 
 #include <YgorMath.h>
+#include <YgorMathArbPrec.h>
 #include <YgorMeshesConvexHull.h>
 
 #include "doctest/doctest.h"
+
+struct ArbPrecGuard {
+    explicit ArbPrecGuard(size_t bits)
+        : previous_bits(ArbPrec::default_precision_bits()) {
+        ArbPrec::set_default_precision_bits(bits);
+    }
+
+    ~ArbPrecGuard(){
+        ArbPrec::set_default_precision_bits(previous_bits);
+    }
+
+    size_t previous_bits;
+};
 
 
 // Helper: verify that every face is a triangle with valid vertex indices.
@@ -118,6 +132,22 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         REQUIRE(mesh.vertices.size() == 8UL);
         // A triangulated cube has 12 triangles (6 faces * 2).
         REQUIRE(mesh.faces.size() == 12UL);
+        check_closed_manifold(mesh);
+        check_euler(mesh);
+    }
+
+    SUBCASE("Arbitrary precision tetrahedron produces a valid incremental hull"){
+        const ArbPrecGuard precision_guard(320);
+        IncrementalConvexHull<ArbPrec> ch;
+        ch.add_vertex(vec3<ArbPrec>(ArbPrec(0.0, 320), ArbPrec(0.0, 320), ArbPrec(0.0, 320)));
+        ch.add_vertex(vec3<ArbPrec>(ArbPrec(1.0, 320), ArbPrec(0.0, 320), ArbPrec(0.0, 320)));
+        ch.add_vertex(vec3<ArbPrec>(ArbPrec(0.0, 320), ArbPrec(1.0, 320), ArbPrec(0.0, 320)));
+        ch.add_vertex(vec3<ArbPrec>(ArbPrec(0.0, 320), ArbPrec(0.0, 320), ArbPrec(1.0, 320)));
+
+        const auto &mesh = ch.get_mesh();
+        check_mesh_valid(mesh);
+        REQUIRE(mesh.vertices.size() == 4UL);
+        REQUIRE(mesh.faces.size() == 4UL);
         check_closed_manifold(mesh);
         check_euler(mesh);
     }

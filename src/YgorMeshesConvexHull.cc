@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "YgorDefinitions.h"
+#include "YgorMathArbPrec.h"
 #include "YgorMeshesAdaptivePredicates.h"
 #include "YgorMath.h"
 #include "YgorMeshesConvexHull.h"
@@ -493,6 +494,8 @@ const fv_surface_mesh<T, uint64_t> & DivideAndConquerConvexHull<T>::get_mesh() c
 #ifndef YGOR_MESHES_CONVEX_HULL_DISABLE_ALL_SPECIALIZATIONS
 template class IncrementalConvexHull<float>;
 template class IncrementalConvexHull<double>;
+template class IncrementalConvexHull<ArbPrec>;
 template class DivideAndConquerConvexHull<float>;
 template class DivideAndConquerConvexHull<double>;
+template class DivideAndConquerConvexHull<ArbPrec>;
 #endif

@@ -7,9 +7,23 @@
 #include <algorithm>
 
 #include <YgorMath.h>
+#include <YgorMathArbPrec.h>
 #include <YgorMathDelaunay.h>
 
 #include "doctest/doctest.h"
+
+struct ArbPrecGuard {
+    explicit ArbPrecGuard(size_t bits)
+        : previous_bits(ArbPrec::default_precision_bits()) {
+        ArbPrec::set_default_precision_bits(bits);
+    }
+
+    ~ArbPrecGuard(){
+        ArbPrec::set_default_precision_bits(previous_bits);
+    }
+
+    size_t previous_bits;
+};
 
 
 TEST_CASE( "Delaunay_Triangulation_2 function" ){
@@ -236,6 +250,14 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         REQUIRE( mesh.faces.size() == 1 );
     }
 
+    SUBCASE("arbitrary precision values round-trip through double"){
+        ArbPrecGuard precision_guard(320);
+
+        const ArbPrec value(0.125);
+        CHECK(static_cast<double>(value) == doctest::Approx(0.125));
+        CHECK(static_cast<float>(ArbPrec(0.5f, 192)) == doctest::Approx(0.5f));
+    }
+
     SUBCASE("duplicate input vertices do not create degenerate output faces"){
         std::vector<vec2<double>> verts {{
             vec2<double>(0.0, 0.0),
@@ -268,6 +290,29 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
         }
 
         const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
+        REQUIRE(mesh.vertices.size() == N);
+        REQUIRE(mesh.faces.size() == N - 2);
+        for(const auto &face : mesh.faces){
+            REQUIRE(face.size() == 3);
+        }
+    }
+
+    SUBCASE("arbitrary precision regular polygon remains triangulable when very small and offset from the origin"){
+        ArbPrecGuard precision_guard(384);
+
+        std::vector<vec2<ArbPrec>> verts;
+        constexpr size_t N = 20;
+        constexpr double radius = 1.0e-12;
+        constexpr double x_offset = 123.456;
+        constexpr double y_offset = -987.654;
+        const auto pi = std::acos(-1.0);
+        for(size_t i = 0; i < N; ++i){
+            const auto angle = (2.0 * pi * static_cast<double>(i)) / static_cast<double>(N);
+            verts.emplace_back(ArbPrec(x_offset + radius * std::cos(angle), 384),
+                               ArbPrec(y_offset + radius * std::sin(angle), 384));
+        }
+
+        const auto mesh = Delaunay_Triangulation_2<ArbPrec, uint32_t>(verts);
         REQUIRE(mesh.vertices.size() == N);
         REQUIRE(mesh.faces.size() == N - 2);
         for(const auto &face : mesh.faces){

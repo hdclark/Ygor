@@ -13,6 +13,7 @@
 #include <cmath>
 #include <limits>
 
+#include "YgorMathArbPrec.h"
 #include "YgorMeshesAdaptivePredicates.h"
 
 namespace adaptive_predicate {
@@ -632,5 +633,67 @@ template double insphere(const double*, const double*, const double*, const doub
 #if defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+
+template <>
+ArbPrec orient3d_adaptive<ArbPrec>(const ArbPrec *pa, const ArbPrec *pb, const ArbPrec *pc, const ArbPrec *pd){
+    const ArbPrec adx = pa[0] - pd[0];
+    const ArbPrec ady = pa[1] - pd[1];
+    const ArbPrec adz = pa[2] - pd[2];
+    const ArbPrec bdx = pb[0] - pd[0];
+    const ArbPrec bdy = pb[1] - pd[1];
+    const ArbPrec bdz = pb[2] - pd[2];
+    const ArbPrec cdx = pc[0] - pd[0];
+    const ArbPrec cdy = pc[1] - pd[1];
+    const ArbPrec cdz = pc[2] - pd[2];
+
+    const ArbPrec m[3][3] = {
+        { adx, ady, adz },
+        { bdx, bdy, bdz },
+        { cdx, cdy, cdz }
+    };
+    return detail::det3_fast(m);
+}
+
+template <>
+ArbPrec orient3d<ArbPrec>(const ArbPrec *pa, const ArbPrec *pb, const ArbPrec *pc, const ArbPrec *pd){
+    return orient3d_adaptive<ArbPrec>(pa, pb, pc, pd);
+}
+
+template <>
+ArbPrec insphere_adaptive<ArbPrec>(const ArbPrec *pa,
+                                   const ArbPrec *pb,
+                                   const ArbPrec *pc,
+                                   const ArbPrec *pd,
+                                   const ArbPrec *pe){
+    const ArbPrec aex = pa[0] - pe[0];
+    const ArbPrec aey = pa[1] - pe[1];
+    const ArbPrec aez = pa[2] - pe[2];
+    const ArbPrec bex = pb[0] - pe[0];
+    const ArbPrec bey = pb[1] - pe[1];
+    const ArbPrec bez = pb[2] - pe[2];
+    const ArbPrec cex = pc[0] - pe[0];
+    const ArbPrec cey = pc[1] - pe[1];
+    const ArbPrec cez = pc[2] - pe[2];
+    const ArbPrec dex = pd[0] - pe[0];
+    const ArbPrec dey = pd[1] - pe[1];
+    const ArbPrec dez = pd[2] - pe[2];
+
+    const ArbPrec m[4][4] = {
+        { aex, aey, aez, aex * aex + aey * aey + aez * aez },
+        { bex, bey, bez, bex * bex + bey * bey + bez * bez },
+        { cex, cey, cez, cex * cex + cey * cey + cez * cez },
+        { dex, dey, dez, dex * dex + dey * dey + dez * dez }
+    };
+    return detail::det4_fast(m);
+}
+
+template <>
+ArbPrec insphere<ArbPrec>(const ArbPrec *pa,
+                          const ArbPrec *pb,
+                          const ArbPrec *pc,
+                          const ArbPrec *pd,
+                          const ArbPrec *pe){
+    return insphere_adaptive<ArbPrec>(pa, pb, pc, pd, pe);
+}
 
 } // namespace adaptive_predicate

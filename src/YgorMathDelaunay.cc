@@ -13,6 +13,7 @@
 #include "YgorDefinitions.h"
 #include "YgorLog.h"
 #include "YgorMath.h"
+#include "YgorMathArbPrec.h"
 #include "YgorMathDelaunay.h"
 
 //#ifndef YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
@@ -23,7 +24,8 @@ namespace {
 
 template <class T>
 bool is_finite_2d(const vec2<T> &v){
-    return std::isfinite(v.x) && std::isfinite(v.y);
+    using std::isfinite;
+    return isfinite(v.x) && isfinite(v.y);
 }
 
 template <class T>
@@ -155,7 +157,8 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
 template <class T, class I>
 fv_surface_mesh<T, I>
 Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
-    const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() ) * 10.0;
+    using std::sqrt;
+    const auto machine_eps = sqrt( std::numeric_limits<T>::epsilon() ) * 10.0;
     const auto N_verts = verts.size();
 
     // Need at least 3 vertices to form a triangle.
@@ -267,7 +270,18 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
         const auto &P = all_verts[i];
 
         // Skip non-finite points.
-        if(!std::isfinite(P.x) || !std::isfinite(P.y)){
+        if(!is_finite_2d(P)){
+            continue;
+        }
+
+        bool duplicate_point = false;
+        for(size_t j = 3; j < i; ++j){
+            if(same_xy(all_verts[j], P)){
+                duplicate_point = true;
+                break;
+            }
+        }
+        if(duplicate_point){
             continue;
         }
 
@@ -368,4 +382,7 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
 
     template fv_surface_mesh<double, uint32_t> Delaunay_Triangulation_2(const std::vector<vec2<double>> &);
     template fv_surface_mesh<double, uint64_t> Delaunay_Triangulation_2(const std::vector<vec2<double>> &);
+
+    template fv_surface_mesh<ArbPrec, uint32_t> Delaunay_Triangulation_2(const std::vector<vec2<ArbPrec>> &);
+    template fv_surface_mesh<ArbPrec, uint64_t> Delaunay_Triangulation_2(const std::vector<vec2<ArbPrec>> &);
 #endif
