@@ -4,12 +4,10 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
-#include <cstring>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
-#include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -17,6 +15,8 @@
 #include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathDelaunay.h"
+#include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesConvexHull.h"
 
 //#ifndef YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
 //     #define YGOR_MATH_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
@@ -66,54 +66,6 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
         }
     }
     return false;
-}
-
-template <class T>
-uint64_t hash_coord_bits(T value){
-    typename std::conditional<(sizeof(T) <= sizeof(uint32_t)), uint32_t, uint64_t>::type bits = 0;
-    std::memcpy(&bits, &value, sizeof(T));
-    return static_cast<uint64_t>(bits);
-}
-
-inline uint64_t mix_perturbation_bits(uint64_t state){
-    state ^= (state >> 33);
-    state *= 0xff51afd7ed558ccdULL;
-    state ^= (state >> 33);
-    state *= 0xc4ceb9fe1a85ec53ULL;
-    state ^= (state >> 33);
-    return state;
-}
-
-template <class T>
-T step_towards(T value, bool toward_positive, unsigned steps){
-    const auto limit = toward_positive ? std::numeric_limits<T>::infinity()
-                                       : -std::numeric_limits<T>::infinity();
-    for(unsigned i = 0; i < steps; ++i){
-        value = std::nextafter(value, limit);
-    }
-    return value;
-}
-
-template <class T>
-std::vector<vec2<T>> make_working_vertices(const std::vector<vec2<T>> &verts){
-    std::vector<vec2<T>> working = verts;
-    for(auto &vert : working){
-        if(!is_finite_2d(vert)){
-            continue;
-        }
-        auto seed = mix_perturbation_bits(hash_coord_bits(vert.x) ^ (hash_coord_bits(vert.y) << 1));
-        const auto x_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
-        seed >>= 2;
-        const auto y_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
-        seed >>= 2;
-        const bool x_positive = (seed & 0x1ULL) != 0;
-        seed >>= 1;
-        const bool y_positive = (seed & 0x1ULL) != 0;
-
-        vert.x = step_towards(vert.x, x_positive, x_steps);
-        vert.y = step_towards(vert.y, y_positive, y_steps);
-    }
-    return working;
 }
 
 // A triangle is represented by three vertex indices.
@@ -191,6 +143,108 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
     triangles.swap(filtered);
 }
 
+template <class T>
+bool is_lower_lifted_face(const vec3<T> &a,
+                          const vec3<T> &b,
+                          const vec3<T> &c,
+                          const vec3<T> &below_point){
+    const std::array<T, 3> pa{{ a.x, a.y, a.z }};
+    const std::array<T, 3> pb{{ b.x, b.y, b.z }};
+    const std::array<T, 3> pc{{ c.x, c.y, c.z }};
+    const std::array<T, 3> pd{{ below_point.x, below_point.y, below_point.z }};
+    return adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()) < static_cast<T>(0);
+}
+
+template <class T>
+std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>> &verts){
+    std::vector<DelaunayTriangle> triangles;
+    std::map<std::pair<T, T>, size_t> unique_to_original;
+    std::vector<vec2<T>> unique_verts;
+    unique_verts.reserve(verts.size());
+
+    T min_x = std::numeric_limits<T>::max();
+    T max_x = std::numeric_limits<T>::lowest();
+    T min_y = std::numeric_limits<T>::max();
+    T max_y = std::numeric_limits<T>::lowest();
+
+    for(size_t i = 0; i < verts.size(); ++i){
+        const auto &vert = verts.at(i);
+        const auto key = std::make_pair(vert.x, vert.y);
+        if(unique_to_original.emplace(key, i).second){
+            unique_verts.push_back(vert);
+            min_x = std::min(min_x, vert.x);
+            max_x = std::max(max_x, vert.x);
+            min_y = std::min(min_y, vert.y);
+            max_y = std::max(max_y, vert.y);
+        }
+    }
+    if(unique_verts.size() < 3){
+        return triangles;
+    }
+    if(unique_verts.size() == 3){
+        DelaunayTriangle tri{};
+        if(make_ccw_triangle(verts,
+                             unique_to_original.at(std::make_pair(unique_verts.at(0).x, unique_verts.at(0).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(1).x, unique_verts.at(1).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(2).x, unique_verts.at(2).y)),
+                             tri)){
+            triangles.push_back(tri);
+        }
+        return triangles;
+    }
+
+    const auto lift_center_x = (min_x + max_x) / static_cast<T>(2);
+    const auto lift_center_y = (min_y + max_y) / static_cast<T>(2);
+    const auto lift_scale = std::max(max_x - min_x, max_y - min_y);
+    const auto inv_lift_scale = (lift_scale > static_cast<T>(0)) ? (static_cast<T>(1) / lift_scale)
+                                                                 : static_cast<T>(1);
+    T min_z = std::numeric_limits<T>::max();
+    std::vector<vec3<T>> lifted_verts;
+    lifted_verts.reserve(unique_verts.size());
+    for(const auto &vert : unique_verts){
+        const auto dx = (vert.x - lift_center_x) * inv_lift_scale;
+        const auto dy = (vert.y - lift_center_y) * inv_lift_scale;
+        const auto z = dx * dx + dy * dy;
+        lifted_verts.emplace_back(dx, dy, z);
+        min_z = std::min(min_z, z);
+    }
+
+    IncrementalConvexHull<T> hull;
+    hull.add_vertices(lifted_verts);
+
+    const auto &hull_mesh = hull.get_mesh();
+    const auto &eval_order = hull.get_evaluation_order();
+    const auto below_z = min_z - static_cast<T>(2);
+    const vec3<T> below_point(static_cast<T>(0),
+                              static_cast<T>(0),
+                              below_z);
+
+    triangles.reserve(hull_mesh.faces.size());
+    for(const auto &face : hull_mesh.faces){
+        if(face.size() != 3){
+            continue;
+        }
+        const auto ia = eval_order.at(face.at(0));
+        const auto ib = eval_order.at(face.at(1));
+        const auto ic = eval_order.at(face.at(2));
+        if(!is_lower_lifted_face(lifted_verts.at(ia), lifted_verts.at(ib), lifted_verts.at(ic), below_point)){
+            continue;
+        }
+
+        DelaunayTriangle tri{};
+        if(make_ccw_triangle(verts,
+                             unique_to_original.at(std::make_pair(unique_verts.at(ia).x, unique_verts.at(ia).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(ib).x, unique_verts.at(ib).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(ic).x, unique_verts.at(ic).y)),
+                             tri)){
+            triangles.push_back(tri);
+        }
+    }
+
+    prune_triangles(verts, triangles);
+    return triangles;
+}
+
 } // namespace
 
 // 2D Delaunay triangulation using the incremental Bowyer-Watson algorithm.
@@ -206,7 +260,6 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
 template <class T, class I>
 fv_surface_mesh<T, I>
 Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
-    const auto machine_eps = std::sqrt( std::numeric_limits<T>::epsilon() ) * 10.0;
     const auto N_verts = verts.size();
 
     // Need at least 3 vertices to form a triangle.
@@ -277,119 +330,10 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
     YLOGDEBUG("Delaunay triangulation input: vertices=" << N_verts
               << ", bbox=[(" << min_x << ", " << min_y << "), (" << max_x << ", " << max_y << ")]");
 
-    const auto working_verts = make_working_vertices(verts);
-
-    // Create a super-triangle that encompasses all vertices.
-    // Make the super-triangle large enough to contain all points.
-    const auto dx = max_x - min_x;
-    const auto dy = max_y - min_y;
-    auto delta = std::max(dx, dy);
-
-    // Handle degenerate case where all vertices are at the same location (or all non-finite).
-    // Use a minimum non-zero delta to create a valid super-triangle.
-    if(delta < machine_eps){
-        YLOGWARN("Delaunay triangulation bounding box is numerically degenerate; falling back to a unit super-triangle scale");
-        delta = static_cast<T>(1);
-    }
-
-    const auto mid_x = (min_x + max_x) / static_cast<T>(2);
-    const auto mid_y = (min_y + max_y) / static_cast<T>(2);
-
-    // Super-triangle vertices (we make it much larger than necessary for robustness).
-    const vec2<T> super_A(mid_x - static_cast<T>(20) * delta, mid_y - delta);
-    const vec2<T> super_B(mid_x + static_cast<T>(20) * delta, mid_y - delta);
-    const vec2<T> super_C(mid_x, mid_y + static_cast<T>(20) * delta);
-
-    // We store all vertices including super-triangle vertices.
-    // Indices 0, 1, 2 are super-triangle vertices.
-    std::vector<vec2<T>> all_verts;
-    all_verts.reserve(N_verts + 3);
-    all_verts.push_back(super_A);
-    all_verts.push_back(super_B);
-    all_verts.push_back(super_C);
-    for(const auto &v : working_verts){
-        all_verts.push_back(v);
-    }
-
-    // Start with just the super-triangle.
-    std::vector<DelaunayTriangle> triangles;
-    triangles.push_back(DelaunayTriangle{0, 1, 2, false});
-
-    // Add each vertex one at a time.
-    for(size_t i = 3; i < all_verts.size(); ++i){
-        const auto &P = all_verts[i];
-
-        // Skip non-finite points.
-        if(!std::isfinite(P.x) || !std::isfinite(P.y)){
-            continue;
-        }
-
-        // Find all triangles whose circumcircle contains this point.
-        for(auto &tri : triangles){
-            if(tri.bad){
-                continue;
-            }
-            const auto &A = all_verts[tri.a];
-            const auto &B = all_verts[tri.b];
-            const auto &C = all_verts[tri.c];
-            if(incircle_sign(A, B, C, P) > 0){
-                tri.bad = true;
-            }
-        }
-
-        // Find the boundary edges of the polygon hole created by removing bad triangles.
-        // An edge is on the boundary if it appears exactly once among all bad triangles.
-        // Using a hash map keeps this step linear in the number of bad triangles.
-        std::unordered_map<DelaunayEdge, size_t, EdgeHash> edge_count;
-        for(const auto &tri : triangles){
-            if(!tri.bad){
-                continue;
-            }
-            // Count each edge of this triangle.
-            ++edge_count[make_edge(tri.a, tri.b)];
-            ++edge_count[make_edge(tri.b, tri.c)];
-            ++edge_count[make_edge(tri.c, tri.a)];
-        }
-
-        // Boundary edges are those that appear exactly once.
-        std::vector<DelaunayEdge> polygon;
-        for(const auto &[edge, count] : edge_count){
-            if(count == 1){
-                polygon.push_back(edge);
-            }
-        }
-        if(polygon.empty()){
-            YLOGWARN("Failed insertion of vertex " << (i - 3)
-                     << " because no Bowyer-Watson cavity boundary edges were found");
-            throw std::runtime_error("Bowyer-Watson insertion failed: no cavity boundary edges were found for an inserted vertex");
-        }
-
-        // Remove the bad triangles.
-        triangles.erase(
-            std::remove_if(triangles.begin(), triangles.end(),
-                           [](const DelaunayTriangle &t){ return t.bad; }),
-            triangles.end());
-
-        // Re-triangulate the polygon hole by connecting each edge to the new point.
-        for(const auto &edge : polygon){
-            DelaunayTriangle next{};
-            if(make_ccw_triangle(all_verts, edge.a, edge.b, i, next)){
-                triangles.push_back(next);
-            }
-        }
-    }
-
-    // Remove triangles that share vertices with the super-triangle.
-    triangles.erase(
-        std::remove_if(triangles.begin(), triangles.end(),
-                       [](const DelaunayTriangle &t){
-                            return (t.a < 3) || (t.b < 3) || (t.c < 3);
-                        }),
-        triangles.end());
-    prune_triangles(all_verts, triangles);
+    auto triangles = build_delaunay_triangles(verts);
 
     if(triangles.empty()){
-        YLOGDEBUG("Delaunay triangulation did not produce any finite triangles after removing the super-triangle");
+        YLOGDEBUG("Delaunay triangulation did not produce any finite triangles");
         throw std::runtime_error("Delaunay triangulation failed to produce any triangles for the provided vertices.");
     }
 
@@ -403,9 +347,9 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
 
     // Adjust triangle indices: subtract 3 because we removed super-triangle vertices.
     for(const auto &tri : triangles){
-        mesh.faces.push_back({ static_cast<I>(tri.a - 3),
-                               static_cast<I>(tri.b - 3),
-                               static_cast<I>(tri.c - 3) });
+        mesh.faces.push_back({ static_cast<I>(tri.a),
+                               static_cast<I>(tri.b),
+                               static_cast<I>(tri.c) });
     }
     if(mesh.faces.empty()){
         YLOGDEBUG("All candidate Delaunay faces were pruned as degenerate");
