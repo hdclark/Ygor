@@ -29,6 +29,23 @@ target_link_libraries(ygor
         m
         "${STD_FS_LIB}"
 )
+
+set(ygor_robust_fp_sources
+    YgorMeshesAdaptivePredicates.cc
+    YgorMath.cc
+    YgorMathDelaunay.cc
+    YgorMathConstrainedDelaunay.cc
+    YgorMeshesConvexHull.cc
+)
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set_source_files_properties(${ygor_robust_fp_sources}
+        PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off;-fexcess-precision=standard"
+    )
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set_source_files_properties(${ygor_robust_fp_sources}
+        PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off"
+    )
+endif()
 if(WITH_GNU_GSL)
     target_link_libraries(ygor
         PUBLIC
@@ -47,4 +64,3 @@ install(TARGETS ygor
 install(FILES ${ygor_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-

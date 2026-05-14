@@ -65,6 +65,23 @@ void require_constraints_are_triangle_edges(const fv_surface_mesh<T, I> &mesh,
 }
 
 template <class T, class I>
+void require_edges_are_manifold(const fv_surface_mesh<T, I> &mesh){
+    std::map<edge_type<I>, size_t> counts;
+    for(const auto &face : mesh.faces){
+        if(face.size() != 3){
+            continue;
+        }
+        ++counts[make_edge(face.at(0), face.at(1))];
+        ++counts[make_edge(face.at(1), face.at(2))];
+        ++counts[make_edge(face.at(2), face.at(0))];
+    }
+    for(const auto &[edge, count] : counts){
+        (void)edge;
+        REQUIRE(count <= 2);
+    }
+}
+
+template <class T, class I>
 void require_non_constraint_edges_are_locally_delaunay(const fv_surface_mesh<T, I> &mesh,
                                                        const std::vector<edge_type<I>> &constraints){
     std::set<edge_type<I>> constraint_edges(constraints.begin(), constraints.end());
@@ -274,7 +291,30 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
               make_edge<uint32_t>(12, 13), make_edge<uint32_t>(13, 14), make_edge<uint32_t>(14, 15),
               make_edge<uint32_t>(15, 16), make_edge<uint32_t>(16, 17), make_edge<uint32_t>(17, 18),
               make_edge<uint32_t>(18, 19), make_edge<uint32_t>(19, 0) });
+        require_edges_are_manifold(mesh);
         require_triangle_centroids_within_polygon(mesh, verts);
+    }
+
+    SUBCASE("regular constrained polygons on a common circle stay manifold across many vertex counts"){
+        const auto pi = std::acos(-1.0);
+        for(uint32_t n = 4; n <= 32; ++n){
+            std::vector<vec2<double>> verts;
+            std::vector<std::vector<uint32_t>> edges;
+            verts.reserve(n);
+            edges.reserve(n);
+            for(uint32_t i = 0; i < n; ++i){
+                const auto angle = (2.0 * pi * static_cast<double>(i)) / static_cast<double>(n);
+                verts.emplace_back(std::cos(angle), std::sin(angle));
+                edges.push_back({ i, static_cast<uint32_t>((i + 1) % n) });
+            }
+
+            const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
+            REQUIRE(mesh.vertices.size() == verts.size());
+            REQUIRE(mesh.faces.size() == verts.size() - 2);
+            require_all_faces_are_triangles(mesh);
+            require_edges_are_manifold(mesh);
+            require_triangle_centroids_within_polygon(mesh, verts);
+        }
     }
 
     SUBCASE("crossing constraints are rejected"){

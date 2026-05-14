@@ -2,10 +2,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <set>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -63,6 +66,54 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
         }
     }
     return false;
+}
+
+template <class T>
+uint64_t hash_coord_bits(T value){
+    typename std::conditional<(sizeof(T) <= sizeof(uint32_t)), uint32_t, uint64_t>::type bits = 0;
+    std::memcpy(&bits, &value, sizeof(T));
+    return static_cast<uint64_t>(bits);
+}
+
+inline uint64_t mix_perturbation_bits(uint64_t state){
+    state ^= (state >> 33);
+    state *= 0xff51afd7ed558ccdULL;
+    state ^= (state >> 33);
+    state *= 0xc4ceb9fe1a85ec53ULL;
+    state ^= (state >> 33);
+    return state;
+}
+
+template <class T>
+T step_towards(T value, bool toward_positive, unsigned steps){
+    const auto limit = toward_positive ? std::numeric_limits<T>::infinity()
+                                       : -std::numeric_limits<T>::infinity();
+    for(unsigned i = 0; i < steps; ++i){
+        value = std::nextafter(value, limit);
+    }
+    return value;
+}
+
+template <class T>
+std::vector<vec2<T>> make_working_vertices(const std::vector<vec2<T>> &verts){
+    std::vector<vec2<T>> working = verts;
+    for(auto &vert : working){
+        if(!is_finite_2d(vert)){
+            continue;
+        }
+        auto seed = mix_perturbation_bits(hash_coord_bits(vert.x) ^ (hash_coord_bits(vert.y) << 1));
+        const auto x_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
+        seed >>= 2;
+        const auto y_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
+        seed >>= 2;
+        const bool x_positive = (seed & 0x1ULL) != 0;
+        seed >>= 1;
+        const bool y_positive = (seed & 0x1ULL) != 0;
+
+        vert.x = step_towards(vert.x, x_positive, x_steps);
+        vert.y = step_towards(vert.y, y_positive, y_steps);
+    }
+    return working;
 }
 
 // A triangle is represented by three vertex indices.
@@ -226,6 +277,8 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
     YLOGDEBUG("Delaunay triangulation input: vertices=" << N_verts
               << ", bbox=[(" << min_x << ", " << min_y << "), (" << max_x << ", " << max_y << ")]");
 
+    const auto working_verts = make_working_vertices(verts);
+
     // Create a super-triangle that encompasses all vertices.
     // Make the super-triangle large enough to contain all points.
     const auto dx = max_x - min_x;
@@ -254,7 +307,7 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
     all_verts.push_back(super_A);
     all_verts.push_back(super_B);
     all_verts.push_back(super_C);
-    for(const auto &v : verts){
+    for(const auto &v : working_verts){
         all_verts.push_back(v);
     }
 

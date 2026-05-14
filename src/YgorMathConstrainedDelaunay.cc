@@ -2,12 +2,15 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -104,6 +107,54 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &verts){
         }
     }
     return false;
+}
+
+template <class T>
+uint64_t hash_coord_bits(T value){
+    typename std::conditional<(sizeof(T) <= sizeof(uint32_t)), uint32_t, uint64_t>::type bits = 0;
+    std::memcpy(&bits, &value, sizeof(T));
+    return static_cast<uint64_t>(bits);
+}
+
+inline uint64_t mix_perturbation_bits(uint64_t state){
+    state ^= (state >> 33);
+    state *= 0xff51afd7ed558ccdULL;
+    state ^= (state >> 33);
+    state *= 0xc4ceb9fe1a85ec53ULL;
+    state ^= (state >> 33);
+    return state;
+}
+
+template <class T>
+T step_towards(T value, bool toward_positive, unsigned steps){
+    const auto limit = toward_positive ? std::numeric_limits<T>::infinity()
+                                       : -std::numeric_limits<T>::infinity();
+    for(unsigned i = 0; i < steps; ++i){
+        value = std::nextafter(value, limit);
+    }
+    return value;
+}
+
+template <class T>
+std::vector<vec2<T>> make_working_vertices(const std::vector<vec2<T>> &verts){
+    std::vector<vec2<T>> working = verts;
+    for(auto &vert : working){
+        if(!is_finite_2d(vert)){
+            continue;
+        }
+        auto seed = mix_perturbation_bits(hash_coord_bits(vert.x) ^ (hash_coord_bits(vert.y) << 1));
+        const auto x_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
+        seed >>= 2;
+        const auto y_steps = static_cast<unsigned>((seed & 0x3ULL) + 1ULL);
+        seed >>= 2;
+        const bool x_positive = (seed & 0x1ULL) != 0;
+        seed >>= 1;
+        const bool y_positive = (seed & 0x1ULL) != 0;
+
+        vert.x = step_towards(vert.x, x_positive, x_steps);
+        vert.y = step_towards(vert.y, y_positive, y_steps);
+    }
+    return working;
 }
 
 template <class T>
@@ -1007,24 +1058,26 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
         throw std::invalid_argument("Constrained Delaunay triangulation requires at least one non-collinear triplet of vertices for a closed constrained region.");
     }
 
-    auto triangles = build_delaunay_triangles(verts);
+    const auto working_verts = make_working_vertices(verts);
+
+    auto triangles = build_delaunay_triangles(working_verts);
     if(has_closed_region && triangles.empty()){
         YLOGDEBUG("Initial unconstrained triangulation produced no triangles for a closed constrained region");
         throw std::runtime_error("Constrained Delaunay triangulation could not build an initial triangulation for the provided constrained region.");
     }
     for(const auto &[a, b] : constraints){
-        if(!triangles.empty() && !constrain_edge(verts, a, b, triangles, &diag)){
+        if(!triangles.empty() && !constrain_edge(working_verts, a, b, triangles, &diag)){
             YLOGWARN(diag);
             throw std::runtime_error(diag);
         }
     }
 
-    prune_triangles(verts, triangles);
-    if(!retain_triangles_in_constraint_faces(verts, constraints, triangles, &diag)){
+    prune_triangles(working_verts, triangles);
+    if(!retain_triangles_in_constraint_faces(working_verts, constraints, triangles, &diag)){
         YLOGWARN(diag);
         throw std::runtime_error(diag);
     }
-    prune_triangles(verts, triangles);
+    prune_triangles(working_verts, triangles);
 
     if(has_closed_region && triangles.empty()){
         const auto msg = "Constrained Delaunay triangulation produced no interior triangles for a closed constrained region.";
