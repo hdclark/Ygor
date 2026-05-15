@@ -16,8 +16,11 @@ if [ ! -d "${REPOROOT}" ] ; then
 fi
 cd "${REPOROOT}/tests2/"
 
+rm -rf doctest/
 mkdir -p doctest/
 wget -q 'https://raw.githubusercontent.com/onqtam/doctest/master/doctest/doctest.h' -O doctest/doctest.h
+sed -i -e 's@^\([#]define INFO[(]\)@//\1@g' doctest/doctest.h
+sed -i -e 's@^\([#]define WARN[(]\)@//\1@g' doctest/doctest.h
 
 g++ \
   -std=c++17 \

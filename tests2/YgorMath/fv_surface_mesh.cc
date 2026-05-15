@@ -376,7 +376,7 @@ TEST_CASE( "fv_surface_mesh class" ){
                 N += (PG.Is_Point_Above_Plane(p)) ? 0 : 1;
             }
             const size_t diff = (N < 500) ? (500 - N) : (N - 500);
-            INFO("Samples in the lower triangle = " << N);
+            DOCTEST_INFO("Samples in the lower triangle = " << N);
             REQUIRE(diff < 400); // ~25 std. dev.s. If encountered, this almost certainly indicates bias.
             REQUIRE(diff < 300); // ~19 std. dev.s. If encountered, this almost certainly indicates bias.
             REQUIRE(diff < 200); // ~12 std. dev.s. If encountered, this almost certainly indicates bias.
