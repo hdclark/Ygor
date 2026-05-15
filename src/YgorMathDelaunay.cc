@@ -247,9 +247,14 @@ std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>
 
 } // namespace
 
-// 2D Delaunay triangulation using the incremental Bowyer-Watson algorithm.
+// 2D Delaunay triangulation via the lower hull of paraboloid-lifted points.
 // 
 // The input is a collection of vec2<T> representing 2D points on the x-y plane.
+// This implementation lifts each unique 2D vertex to (x, y, x^2 + y^2), computes a
+// 3D convex hull, and projects the lower hull facets back to 2D triangles. That
+// differs from the incremental Bowyer-Watson construction described in the first
+// two references, but produces the same Delaunay tessellation while avoiding the
+// cocircular initialization failure mode that motivated this implementation change.
 //
 // Returns an fv_surface_mesh<T, I> containing the triangulation as faces.
 //
@@ -338,14 +343,14 @@ Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts) {
     }
 
     // Build the output mesh.
-    // The mesh vertices should be the original input vertices (not the super-triangle).
+    // Preserve the original input vertices in the output mesh; the lifted geometry is temporary.
     fv_surface_mesh<T, I> mesh;
     mesh.vertices.reserve(verts.size());
     for(const auto &vert : verts){
         mesh.vertices.emplace_back(vert.x, vert.y, static_cast<T>(0));
     }
 
-    // Adjust triangle indices: subtract 3 because we removed super-triangle vertices.
+    // Triangle indices already refer to the original input vertex ordering.
     for(const auto &tri : triangles){
         mesh.faces.push_back({ static_cast<I>(tri.a),
                                static_cast<I>(tri.b),
