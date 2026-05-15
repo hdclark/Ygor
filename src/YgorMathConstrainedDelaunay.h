@@ -14,8 +14,8 @@
 //
 // The input vertices are vec2's representing planar x-y coordinates.
 //
-// The input edges are interpreted as undirected constraints and are expected to reference vertex indices using
-// two-element vectors. They constrain the triangulation internally, but the returned mesh contains only the generated
+// The input edges are interpreted as undirected constraints and are expected to reference valid vertex indices.
+// They constrain the triangulation internally, but the returned mesh contains only the generated
 // triangular facets.
 //
 // Invalid or mutually incompatible constraints (for example, out-of-range indices, self-intersections, or a vertex
@@ -24,8 +24,19 @@
 //
 // Vertices are copied to the mesh, so no input vertices are modified.
 //
-// The implementation follows the constrained Delaunay segment-insertion approach described by:
+// The implementation follows an approach inspired primarily by:
+//  - Edelsbrunner H, Seidel R. Voronoi diagrams and arrangements. In Proceedings of the first annual symposium on
+//    Computational geometry 1985 Jun 1 (pp. 251-262).
+//
+// Algorithm overview: this implementation first generates a full unconstrained Delaunay triangulation using the
+// 'lifting' method of hoisting vec2 into vec3 via normalizing and assigning a z coordinate placed on paraboloid
+// z = x*x + y*y, extracting the lower part of the 3D convex hull (which is the unconstrained Delaunay triangulation),
+// and then implementing local mesh adjustments to achieve the input constraints.
+//
+// Other relevant references:
 //  - Chew LP. Constrained delaunay triangulations. Proc. Symp. Comput. Geom. 1987:215-222.
+//  - Sloan SW. A fast algorithm for generating constrained Delaunay triangulations.
+//    Computers & Structures. 1993 May 3;47(3):441-50.
 //
 // Robust orientation and in-circle sign tests are evaluated using adaptive arithmetic.
 template <class T, class I>

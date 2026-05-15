@@ -274,4 +274,23 @@ TEST_CASE( "Delaunay_Triangulation_2 function" ){
             REQUIRE(face.size() == 3);
         }
     }
+
+    SUBCASE("regular polygons on a common circle remain triangulable across many vertex counts"){
+        const auto pi = std::acos(-1.0);
+        for(size_t n = 4; n <= 32; ++n){
+            std::vector<vec2<double>> verts;
+            verts.reserve(n);
+            for(size_t i = 0; i < n; ++i){
+                const auto angle = (2.0 * pi * static_cast<double>(i)) / static_cast<double>(n);
+                verts.emplace_back(std::cos(angle), std::sin(angle));
+            }
+
+            const auto mesh = Delaunay_Triangulation_2<double, uint32_t>(verts);
+            REQUIRE(mesh.vertices.size() == n);
+            REQUIRE(mesh.faces.size() == n - 2);
+            for(const auto &face : mesh.faces){
+                REQUIRE(face.size() == 3);
+            }
+        }
+    }
 }

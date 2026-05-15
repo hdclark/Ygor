@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -15,6 +16,8 @@
 #include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
+#include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesConvexHull.h"
 
 namespace {
 
@@ -155,107 +158,90 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
 template <class T>
 std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &verts){
     std::vector<CDT_Triangle> output;
+    std::map<std::pair<T, T>, size_t> unique_to_original;
+    std::vector<vec2<T>> unique_verts;
+    unique_verts.reserve(verts.size());
 
     T min_x = std::numeric_limits<T>::max();
     T max_x = std::numeric_limits<T>::lowest();
     T min_y = std::numeric_limits<T>::max();
     T max_y = std::numeric_limits<T>::lowest();
-    size_t n_finite = 0;
-    for(const auto &v : verts){
-        if(!is_finite_2d(v)){
-            continue;
+
+    for(size_t i = 0; i < verts.size(); ++i){
+        const auto &vert = verts.at(i);
+        const auto key = std::make_pair(vert.x, vert.y);
+        if(unique_to_original.emplace(key, i).second){
+            unique_verts.push_back(vert);
+            min_x = std::min(min_x, vert.x);
+            max_x = std::max(max_x, vert.x);
+            min_y = std::min(min_y, vert.y);
+            max_y = std::max(max_y, vert.y);
         }
-        ++n_finite;
-        min_x = std::min(min_x, v.x);
-        max_x = std::max(max_x, v.x);
-        min_y = std::min(min_y, v.y);
-        max_y = std::max(max_y, v.y);
     }
-    if(n_finite < 3){
+    if(unique_verts.size() < 3){
+        return output;
+    }
+    if(unique_verts.size() == 3){
+        CDT_Triangle tri{};
+        if(make_ccw_triangle(verts,
+                             unique_to_original.at(std::make_pair(unique_verts.at(0).x, unique_verts.at(0).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(1).x, unique_verts.at(1).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(2).x, unique_verts.at(2).y)),
+                             tri)){
+            output.push_back(tri);
+        }
         return output;
     }
 
-    auto delta = std::max(max_x - min_x, max_y - min_y);
-    if(delta <= static_cast<T>(0)){
-        delta = static_cast<T>(1);
+    const auto lift_center_x = (min_x + max_x) / static_cast<T>(2);
+    const auto lift_center_y = (min_y + max_y) / static_cast<T>(2);
+    const auto lift_scale = std::max(max_x - min_x, max_y - min_y);
+    const auto inv_lift_scale = (lift_scale > static_cast<T>(0)) ? (static_cast<T>(1) / lift_scale)
+                                                                 : static_cast<T>(1);
+    T min_z = std::numeric_limits<T>::max();
+    std::vector<vec3<T>> lifted_verts;
+    lifted_verts.reserve(unique_verts.size());
+    for(const auto &vert : unique_verts){
+        const auto dx = (vert.x - lift_center_x) * inv_lift_scale;
+        const auto dy = (vert.y - lift_center_y) * inv_lift_scale;
+        const auto z = dx * dx + dy * dy;
+        lifted_verts.emplace_back(dx, dy, z);
+        min_z = std::min(min_z, z);
     }
 
-    const auto mid_x = (min_x + max_x) / static_cast<T>(2);
-    const auto mid_y = (min_y + max_y) / static_cast<T>(2);
+    IncrementalConvexHull<T> hull;
+    hull.add_vertices(lifted_verts);
 
-    std::vector<vec2<T>> all_verts;
-    all_verts.reserve(verts.size() + 3);
-    all_verts.emplace_back(mid_x - static_cast<T>(20) * delta, mid_y - delta);
-    all_verts.emplace_back(mid_x + static_cast<T>(20) * delta, mid_y - delta);
-    all_verts.emplace_back(mid_x, mid_y + static_cast<T>(20) * delta);
-    all_verts.insert(all_verts.end(), verts.begin(), verts.end());
+    const auto &hull_mesh = hull.get_mesh();
+    const auto &eval_order = hull.get_evaluation_order();
+    const vec3<T> below_point(static_cast<T>(0),
+                              static_cast<T>(0),
+                              min_z - static_cast<T>(2));
 
-    struct WorkingTriangle {
-        size_t a;
-        size_t b;
-        size_t c;
-        bool bad = false;
-    };
-
-    std::vector<WorkingTriangle> triangles;
-    triangles.push_back(WorkingTriangle{0, 1, 2, false});
-
-    for(size_t i = 3; i < all_verts.size(); ++i){
-        const auto &p = all_verts.at(i);
-        if(!is_finite_2d(p)){
+    for(const auto &face : hull_mesh.faces){
+        if(face.size() != 3){
             continue;
         }
 
-        for(auto &tri : triangles){
-            if(tri.bad){
-                continue;
-            }
-            if(incircle_sign(all_verts.at(tri.a), all_verts.at(tri.b), all_verts.at(tri.c), p) > 0){
-                tri.bad = true;
-            }
-        }
+        const auto ia = eval_order.at(face.at(0));
+        const auto ib = eval_order.at(face.at(1));
+        const auto ic = eval_order.at(face.at(2));
 
-        std::map<CDT_Edge, size_t> edge_count;
-        for(const auto &tri : triangles){
-            if(!tri.bad){
-                continue;
-            }
-            ++edge_count[make_edge(tri.a, tri.b)];
-            ++edge_count[make_edge(tri.b, tri.c)];
-            ++edge_count[make_edge(tri.c, tri.a)];
-        }
-
-        triangles.erase(std::remove_if(triangles.begin(), triangles.end(),
-                                       [](const WorkingTriangle &tri){ return tri.bad; }),
-                        triangles.end());
-
-        for(const auto &[edge, count] : edge_count){
-            if(count != 1){
-                continue;
-            }
-
-            CDT_Triangle next_tri{};
-            if(make_ccw_triangle(all_verts, edge.a, edge.b, i, next_tri)){
-                WorkingTriangle next;
-                next.a = next_tri.a;
-                next.b = next_tri.b;
-                next.c = next_tri.c;
-                next.bad = false;
-                triangles.push_back(next);
-            }
-        }
-    }
-
-    for(const auto &tri : triangles){
-        if((tri.a < 3) || (tri.b < 3) || (tri.c < 3)){
+        const std::array<T, 3> pa{{ lifted_verts.at(ia).x, lifted_verts.at(ia).y, lifted_verts.at(ia).z }};
+        const std::array<T, 3> pb{{ lifted_verts.at(ib).x, lifted_verts.at(ib).y, lifted_verts.at(ib).z }};
+        const std::array<T, 3> pc{{ lifted_verts.at(ic).x, lifted_verts.at(ic).y, lifted_verts.at(ic).z }};
+        const std::array<T, 3> pd{{ below_point.x, below_point.y, below_point.z }};
+        if(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()) >= static_cast<T>(0)){
             continue;
         }
-        CDT_Triangle out{};
-        if(make_ccw_triangle(all_verts, tri.a, tri.b, tri.c, out)){
-            out.a -= 3;
-            out.b -= 3;
-            out.c -= 3;
-            output.push_back(out);
+
+        CDT_Triangle tri{};
+        if(make_ccw_triangle(verts,
+                             unique_to_original.at(std::make_pair(unique_verts.at(ia).x, unique_verts.at(ia).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(ib).x, unique_verts.at(ib).y)),
+                             unique_to_original.at(std::make_pair(unique_verts.at(ic).x, unique_verts.at(ic).y)),
+                             tri)){
+            output.push_back(tri);
         }
     }
 
