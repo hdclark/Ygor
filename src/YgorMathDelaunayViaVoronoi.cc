@@ -934,6 +934,8 @@ class FortuneSweepBuilder {
                 }
             }
             {
+                // Euler's formula for planar triangulations: F = 2V - 2 - h,
+                // where V is the vertex count and h is the convex hull size.
                 const auto n_unique = m_scaled_verts.size();
                 const auto h_hull = hull.size();
                 const auto expected_tris = (n_unique >= 3) ? (2 * n_unique - 2 - h_hull) : static_cast<size_t>(0);
