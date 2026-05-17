@@ -952,8 +952,15 @@ class FortuneSweepBuilder {
                         {{ std::min(tri.b, tri.c), std::max(tri.b, tri.c) }, tri.a},
                         {{ std::min(tri.c, tri.a), std::max(tri.c, tri.a) }, tri.b} }}){
                     const auto &adjacent = edge_to_opposites.at(entry.first);
-                    if(adjacent.size() != 2){
+                    if(adjacent.size() == 1){
                         continue;
+                    }
+                    if(adjacent.size() != 2){
+                        std::ostringstream oss;
+                        oss << "Voronoi sweep produced a non-manifold edge between unique vertices "
+                            << entry.first.first << " and " << entry.first.second
+                            << " with " << adjacent.size() << " incident triangles";
+                        throw std::runtime_error(oss.str());
                     }
                     const auto other = (adjacent.at(0) == entry.second) ? adjacent.at(1) : adjacent.at(0);
                     if(incircle_sign(m_scaled_verts.at(tri.a),
