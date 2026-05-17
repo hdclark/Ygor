@@ -43,6 +43,7 @@ g++ \
   YgorIOgzip.cc \
   YgorMath/*.cc \
   YgorMathDelaunay.cc \
+  YgorMathDelaunayViaVoronoi.cc \
   YgorMathConstrainedDelaunay.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
