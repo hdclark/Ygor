@@ -195,8 +195,8 @@ void flatten_closed_polygons(const std::vector<std::vector<vec2<T>>> &closed_pol
             const auto key = std::make_pair(v.x, v.y);
             if(vertex_to_index.count(key) != 0){
                 YLOGWARN("Closed polygon input reuses the boundary vertex " << point_to_string(v)
-                         << " in multiple places.");
-                throw std::invalid_argument("Closed polygon input contains duplicate boundary vertices across polygon loops.");
+                         << " across different polygon loops.");
+                throw std::invalid_argument("Closed polygon input contains duplicate boundary vertices across different polygon loops.");
             }
             const auto idx = verts.size();
             vertex_to_index[key] = idx;

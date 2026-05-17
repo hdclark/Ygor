@@ -27,15 +27,19 @@
 // The returned fv_surface_mesh contains only triangular faces spanning the bounded
 // odd-parity regions induced by the input loops; vertices are copied into the mesh.
 //
-// Relevant references:
+// Relevant references for polygon-triangulation background and the odd/even
+// region interpretation used here:
 //  - Seidel R. A simple and fast incremental randomized algorithm for computing
 //    trapezoidal decompositions and for triangulating polygons. Computational
 //    Geometry. 1991;1(1):51-64.
 //  - de Berg M, van Kreveld M, Overmars M, Schwarzkopf O. Computational Geometry:
 //    Algorithms and Applications. 2nd ed. Springer; 2000. Chapter 3.
 //
-// Robust orientation and segment-intersection tests are delegated to the adaptive
-// arithmetic predicates wrapped in YgorMath.
+// The current implementation focuses on robust closed-polygon preprocessing: it
+// validates the loop arrangement, converts the loops into constrained boundary
+// edges, and then retains only the odd-parity interior faces from the resulting
+// triangulation.  Robust orientation and segment-intersection tests are delegated
+// to the adaptive arithmetic predicates wrapped in YgorMath.
 template <class T, class I>
 fv_surface_mesh<T, I>
 Triangulate_Seidels_2(const std::vector<std::vector<vec2<T>>> &closed_polygons);

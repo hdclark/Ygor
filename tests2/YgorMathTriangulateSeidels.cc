@@ -54,7 +54,7 @@ bool inside_odd_parity_region(const std::vector<std::vector<vec2<T>>> &loops,
     size_t winding_parity = 0;
     for(const auto &loop_in : loops){
         const auto loop = normalized_loop(loop_in);
-        if(::point_in_polygon_or_on_boundary(loop, p)){
+        if(point_in_polygon_or_on_boundary(loop, p)){
             ++winding_parity;
         }
     }
