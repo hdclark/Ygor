@@ -215,6 +215,39 @@ void flatten_closed_polygons(const std::vector<std::vector<vec2<T>>> &closed_pol
     }
 }
 
+template <class T>
+bool point_inside_odd_parity_region(const std::vector<std::vector<vec2<T>>> &closed_polygons,
+                                    const vec2<T> &p){
+    size_t depth = 0;
+    for(const auto &poly : closed_polygons){
+        if(point_in_polygon_or_on_boundary(poly, p)){
+            ++depth;
+        }
+    }
+    return (depth % 2) == 1;
+}
+
+template <class T, class I>
+void retain_faces_in_odd_parity_region(fv_surface_mesh<T, I> &mesh,
+                                       const std::vector<std::vector<vec2<T>>> &closed_polygons){
+    std::vector<std::vector<I>> filtered;
+    filtered.reserve(mesh.faces.size());
+    for(const auto &face : mesh.faces){
+        if(face.size() != 3){
+            continue;
+        }
+        const auto &a = mesh.vertices.at(face.at(0));
+        const auto &b = mesh.vertices.at(face.at(1));
+        const auto &c = mesh.vertices.at(face.at(2));
+        const vec2<T> centroid((a.x + b.x + c.x) / static_cast<T>(3),
+                               (a.y + b.y + c.y) / static_cast<T>(3));
+        if(point_inside_odd_parity_region(closed_polygons, centroid)){
+            filtered.push_back(face);
+        }
+    }
+    mesh.faces.swap(filtered);
+}
+
 } // namespace
 
 template <class T, class I>
@@ -250,6 +283,8 @@ Triangulate_Seidels_2(const std::vector<std::vector<vec2<T>>> &closed_polygons){
         YLOGWARN("Seidel polygon triangulation failed: " << e.what());
         throw;
     }
+
+    retain_faces_in_odd_parity_region(mesh, normalized);
 
     if(!verts.empty() && mesh.faces.empty()){
         const auto msg = "Seidel polygon triangulation produced no triangles for a non-empty polygon arrangement.";
