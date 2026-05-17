@@ -24,6 +24,9 @@
 
 namespace {
 
+// Allow a few extra half-edge traversals beyond the nominal 2*m walk so the
+// face-recovery loop can safely step past a repeated seed half-edge and still
+// close the cycle before declaring the topology inconsistent.
 constexpr size_t FORTUNE_FACE_GUARD_BIAS = 8;
 
 struct FortuneTriangle {
@@ -369,6 +372,9 @@ class FortuneSweepBuilder {
             : m_scaled_verts(scaled_verts),
               m_unique_to_original(unique_to_original),
               m_rng_state(0x9E3779B97F4A7C15ULL),
+              // The sweep operates on normalized O(1) coordinates, so a small
+              // multiple of machine epsilon is large enough to break exact event
+              // ties while remaining far below any geometric feature scale.
               m_geom_eps(static_cast<long double>(std::numeric_limits<T>::epsilon()) * 64.0L){
         }
 
