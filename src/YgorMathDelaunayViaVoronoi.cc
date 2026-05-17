@@ -933,8 +933,17 @@ class FortuneSweepBuilder {
                     }
                 }
             }
-            if(triangles.empty()){
-                throw std::runtime_error("Voronoi sweep failed to recover any bounded Delaunay faces.");
+            {
+                const auto n_unique = m_scaled_verts.size();
+                const auto h_hull = hull.size();
+                const auto expected_tris = (n_unique >= 3) ? (2 * n_unique - 2 - h_hull) : static_cast<size_t>(0);
+                if(triangles.size() != expected_tris){
+                    std::ostringstream oss;
+                    oss << "Voronoi sweep face recovery produced " << triangles.size()
+                        << " triangle(s) but expected " << expected_tris
+                        << " (n=" << n_unique << ", h=" << h_hull << ")";
+                    throw std::runtime_error(oss.str());
+                }
             }
             return triangles;
         }

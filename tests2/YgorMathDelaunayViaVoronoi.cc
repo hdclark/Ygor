@@ -84,6 +84,23 @@ TEST_CASE("Delaunay_Triangulation_2_via_Voronoi function"){
             vec2<double>(1.0, 0.0) }));
     }
 
+    SUBCASE("non-finite coordinates are rejected"){
+        const auto nan_val = std::numeric_limits<double>::quiet_NaN();
+        const auto inf_val = std::numeric_limits<double>::infinity();
+        REQUIRE_THROWS(Delaunay_Triangulation_2_via_Voronoi<double, uint32_t>({
+            vec2<double>(nan_val, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, 1.0) }));
+        REQUIRE_THROWS(Delaunay_Triangulation_2_via_Voronoi<double, uint32_t>({
+            vec2<double>(0.0, 0.0),
+            vec2<double>(inf_val, 0.0),
+            vec2<double>(0.0, 1.0) }));
+        REQUIRE_THROWS(Delaunay_Triangulation_2_via_Voronoi<double, uint32_t>({
+            vec2<double>(0.0, 0.0),
+            vec2<double>(1.0, 0.0),
+            vec2<double>(0.0, -inf_val) }));
+    }
+
     SUBCASE("simple triangle produces one face"){
         const std::vector<vec2<double>> verts{{
             vec2<double>(0.0, 0.0),
