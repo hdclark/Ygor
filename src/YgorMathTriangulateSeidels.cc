@@ -34,20 +34,20 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &poly){
         return false;
     }
 
-    size_t a = 0;
-    size_t b = poly.size();
+    const size_t first_vertex_idx = 0;
+    size_t first_distinct_idx = poly.size();
     for(size_t i = 1; i < poly.size(); ++i){
-        if(!same_xy(poly.at(a), poly.at(i))){
-            b = i;
+        if(!same_xy(poly.at(first_vertex_idx), poly.at(i))){
+            first_distinct_idx = i;
             break;
         }
     }
-    if(b >= poly.size()){
+    if(first_distinct_idx >= poly.size()){
         return false;
     }
 
-    for(size_t i = b + 1; i < poly.size(); ++i){
-        if(orient_sign(poly.at(a), poly.at(b), poly.at(i)) != 0){
+    for(size_t i = first_distinct_idx + 1; i < poly.size(); ++i){
+        if(orient_sign(poly.at(first_vertex_idx), poly.at(first_distinct_idx), poly.at(i)) != 0){
             return true;
         }
     }
@@ -251,10 +251,10 @@ template <class T>
 T interpolate_y_at_x(const vec2<T> &a,
                      const vec2<T> &b,
                      long double x){
-    const auto dx = static_cast<long double>(b.x) - static_cast<long double>(a.x);
-    if(dx == 0.0L){
+    if(a.x == b.x){
         return a.y;
     }
+    const auto dx = static_cast<long double>(b.x) - static_cast<long double>(a.x);
 
     const auto t = (x - static_cast<long double>(a.x)) / dx;
     const auto y = static_cast<long double>(a.y)
@@ -284,6 +284,7 @@ build_trapezoidal_slices(const std::vector<std::vector<vec2<T>>> &closed_polygon
     if(x_events.size() < 2){
         return slices;
     }
+    constexpr long double order_tol = 64.0L * std::numeric_limits<T>::epsilon();
 
     // Narkhede and Manocha describe Seidel's polygon triangulation as a trapezoidal decomposition
     // followed by triangulation of the monotone cells.  This implementation keeps that structure
@@ -292,7 +293,7 @@ build_trapezoidal_slices(const std::vector<std::vector<vec2<T>>> &closed_polygon
     for(size_t xi = 0; (xi + 1) < x_events.size(); ++xi){
         const auto x_left = static_cast<long double>(x_events.at(xi));
         const auto x_right = static_cast<long double>(x_events.at(xi + 1));
-        if(x_left == x_right){
+        if(std::abs(x_right - x_left) <= order_tol){
             continue;
         }
         const auto x_mid = (x_left + x_right) / 2.0L;
@@ -318,11 +319,11 @@ build_trapezoidal_slices(const std::vector<std::vector<vec2<T>>> &closed_polygon
         }
 
         std::sort(crossings.begin(), crossings.end(),
-                  [](const auto &lhs, const auto &rhs){
-                      if(lhs.y_mid != rhs.y_mid){
+                  [order_tol](const auto &lhs, const auto &rhs){
+                      if(std::abs(lhs.y_mid - rhs.y_mid) > order_tol){
                           return lhs.y_mid < rhs.y_mid;
                       }
-                      if(lhs.left.y != rhs.left.y){
+                      if(std::abs(static_cast<long double>(lhs.left.y) - static_cast<long double>(rhs.left.y)) > order_tol){
                           return lhs.left.y < rhs.left.y;
                       }
                       return lhs.right.y < rhs.right.y;
