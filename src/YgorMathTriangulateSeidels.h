@@ -35,11 +35,12 @@
 //  - de Berg M, van Kreveld M, Overmars M, Schwarzkopf O. Computational Geometry:
 //    Algorithms and Applications. 2nd ed. Springer; 2000. Chapter 3.
 //
-// The current implementation focuses on robust closed-polygon preprocessing: it
-// validates the loop arrangement, converts the loops into constrained boundary
-// edges, and then retains only the odd-parity interior faces from the resulting
-// triangulation.  Robust orientation and segment-intersection tests are delegated
-// to the adaptive arithmetic predicates wrapped in YgorMath.
+// The current implementation keeps the robust closed-polygon preprocessing local
+// and then triangulates the validated odd-parity region through a self-contained
+// trapezoidal decomposition followed by direct triangulation of the resulting
+// monotone trapezoids.  Robust orientation, point-in-polygon, and
+// segment-intersection tests are delegated to the adaptive arithmetic predicates
+// wrapped in YgorMath.
 template <class T, class I>
 fv_surface_mesh<T, I>
 Triangulate_Seidels_2(const std::vector<std::vector<vec2<T>>> &closed_polygons);
