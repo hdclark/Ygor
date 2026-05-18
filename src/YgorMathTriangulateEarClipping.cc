@@ -22,6 +22,7 @@
 namespace {
 
 constexpr size_t TE_INVALID_INDEX = std::numeric_limits<size_t>::max();
+constexpr long double TE_SWEEP_EPSILON_SCALE = 16.0L;
 
 struct TE_Ring {
     size_t input_polygon_index = 0;
@@ -100,6 +101,15 @@ long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
         area += (ax * by) - (bx * ay);
     }
     return area / 2.0L;
+}
+
+template <class T>
+long double polygon_signed_area_ld(const std::vector<vec2<T>> &poly){
+    std::vector<size_t> indices(poly.size());
+    for(size_t i = 0; i < poly.size(); ++i){
+        indices.at(i) = i;
+    }
+    return polygon_signed_area_ld(poly, indices);
 }
 
 template <class T>
@@ -216,14 +226,7 @@ bool sanitize_polygon_ring(const std::vector<vec2<T>> &input,
         }
     }
 
-    const auto area = polygon_signed_area_ld(sanitized,
-                                             [&sanitized](){
-                                                 std::vector<size_t> idx(sanitized.size());
-                                                 for(size_t i = 0; i < sanitized.size(); ++i){
-                                                     idx.at(i) = i;
-                                                 }
-                                                 return idx;
-                                             }());
+    const auto area = polygon_signed_area_ld(sanitized);
     if(area == 0.0L){
         return te_fail(diag, "Polygon " + std::to_string(polygon_index)
                              + " encloses zero signed area after sanitization.");
@@ -469,9 +472,6 @@ TE_BridgeChoice choose_visible_bridge(const std::vector<vec2<T>> &verts,
         }
         bool intersects_other_hole = false;
         for(const auto &other_hole : other_holes){
-            if(&other_hole == &hole){
-                continue;
-            }
             if(segment_intersects_ring_except_incident(verts, other_hole, TE_INVALID_INDEX, hole_anchor, outer_anchor)){
                 intersects_other_hole = true;
                 break;
@@ -660,7 +660,8 @@ size_t left_edge_of_vertex(const std::set<size_t, TE_StatusComparator<T>> &statu
                            size_t vertex_pos){
     const auto &v = verts.at(occurrences.at(vertex_pos));
     const auto bbox_scale = std::max(std::abs(static_cast<long double>(v.x)), std::abs(static_cast<long double>(v.y))) + 1.0L;
-    ctx.query_y = static_cast<long double>(v.y) - (std::numeric_limits<long double>::epsilon() * bbox_scale * 16.0L);
+    ctx.query_y = static_cast<long double>(v.y)
+                - (std::numeric_limits<long double>::epsilon() * bbox_scale * TE_SWEEP_EPSILON_SCALE);
     ctx.query_x = static_cast<long double>(v.x);
     ctx.query_vertex = vertex_pos;
 

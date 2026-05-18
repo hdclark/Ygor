@@ -48,8 +48,8 @@ void require_edges_are_manifold(const fv_surface_mesh<T, I> &mesh){
         ++counts[make_edge(face.at(1), face.at(2))];
         ++counts[make_edge(face.at(2), face.at(0))];
     }
-    for(const auto &[edge, count] : counts){
-        (void)edge;
+    for(const auto &[unused_edge, count] : counts){
+        (void)unused_edge;
         REQUIRE(count <= 2);
     }
 }
