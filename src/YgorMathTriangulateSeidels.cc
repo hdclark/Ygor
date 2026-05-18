@@ -34,18 +34,23 @@ bool has_non_collinear_triplet(const std::vector<vec2<T>> &poly){
     if(poly.size() < 3){
         return false;
     }
-    for(size_t i = 0; i < poly.size(); ++i){
-        for(size_t j = i + 1; j < poly.size(); ++j){
-            if(same_xy(poly.at(i), poly.at(j))){
-                continue;
-            }
-            for(size_t k = j + 1; k < poly.size(); ++k){
-                if(orient_sign(poly.at(i), poly.at(j), poly.at(k)) != 0){
-                    return true;
-                }
-            }
+
+    size_t i = 0;
+    size_t j = 1;
+    while(j < poly.size() && same_xy(poly.at(i), poly.at(j))){
+        ++j;
+    }
+
+    if(j >= poly.size()){
+        return false;
+    }
+
+    for(size_t k = 0; k < poly.size(); ++k){
+        if(orient_sign(poly.at(i), poly.at(j), poly.at(k)) != 0){
+            return true;
         }
     }
+
     return false;
 }
 
