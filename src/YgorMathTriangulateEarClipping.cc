@@ -88,12 +88,16 @@ long double sq_dist_ld(const vec2<T> &a, const vec2<T> &b){
 template <class T>
 long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
                                    const std::vector<size_t> &poly){
+    const auto &origin = verts.at(poly.front());
     long double area = 0.0L;
     for(size_t i = 0; i < poly.size(); ++i){
         const auto &a = verts.at(poly.at(i));
         const auto &b = verts.at(poly.at((i + 1) % poly.size()));
-        area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
-              - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
+        const auto ax = static_cast<long double>(a.x) - static_cast<long double>(origin.x);
+        const auto ay = static_cast<long double>(a.y) - static_cast<long double>(origin.y);
+        const auto bx = static_cast<long double>(b.x) - static_cast<long double>(origin.x);
+        const auto by = static_cast<long double>(b.y) - static_cast<long double>(origin.y);
+        area += (ax * by) - (bx * ay);
     }
     return area / 2.0L;
 }
@@ -102,12 +106,16 @@ template <class T>
 long double polygon_signed_area_ld_occurrences(const std::vector<vec2<T>> &verts,
                                                const std::vector<size_t> &occurrences,
                                                const std::vector<size_t> &cycle){
+    const auto &origin = verts.at(occurrences.at(cycle.front()));
     long double area = 0.0L;
     for(size_t i = 0; i < cycle.size(); ++i){
         const auto &a = verts.at(occurrences.at(cycle.at(i)));
         const auto &b = verts.at(occurrences.at(cycle.at((i + 1) % cycle.size())));
-        area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
-              - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
+        const auto ax = static_cast<long double>(a.x) - static_cast<long double>(origin.x);
+        const auto ay = static_cast<long double>(a.y) - static_cast<long double>(origin.y);
+        const auto bx = static_cast<long double>(b.x) - static_cast<long double>(origin.x);
+        const auto by = static_cast<long double>(b.y) - static_cast<long double>(origin.y);
+        area += (ax * by) - (bx * ay);
     }
     return area / 2.0L;
 }
@@ -727,7 +735,6 @@ bool decompose_into_monotone_faces(const std::vector<vec2<T>> &verts,
         const auto prev_edge = (vertex_pos + occurrences.size() - 1) % occurrences.size();
         const auto next_edge = vertex_pos;
         const auto next_occ = (vertex_pos + 1) % occurrences.size();
-        const auto prev_occ = (vertex_pos + occurrences.size() - 1) % occurrences.size();
         const bool next_below = is_above_event_order(verts.at(occurrences.at(vertex_pos)),
                                                      verts.at(occurrences.at(next_occ)));
 
