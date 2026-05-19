@@ -1551,6 +1551,12 @@ Triangulate_Monotone_Decomposition(const std::vector<std::vector<vec2<T>>> &vert
         }
     }
 
+    if(!mesh.vertices.empty() && mesh.faces.empty()){
+        const auto msg = "Failed to triangulate monotone decomposition: no triangles were produced.";
+        YLOGWARN(msg);
+        throw std::runtime_error(msg);
+    }
+
     return mesh;
 }
 #ifndef YGOR_MATH_MONOTONE_DECOMPOSITION_DISABLE_ALL_SPECIALIZATIONS
