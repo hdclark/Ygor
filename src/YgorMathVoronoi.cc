@@ -221,7 +221,11 @@ class FortuneVoronoiBuilder {
         std::vector<InternalVertex> m_vertices;
         std::vector<InternalEdge> m_edges;
 
+        // Fortune's event queue depends on strict y-ordering; this inflated machine-epsilon guard suppresses
+        // circle events whose computed bottoms are numerically indistinguishable from the current directrix.
         static constexpr long double event_guard_factor = 1024.0L;
+        static constexpr long double vertex_merge_tolerance_factor = 64.0L;
+        static constexpr long double ray_sample_guard_factor = 64.0L;
 
         void validate_input(){
             if(m_input_sites.size() < 2){
@@ -532,7 +536,8 @@ class FortuneVoronoiBuilder {
         }
 
         size_t add_vertex(const PrecisePoint2 &center, std::array<size_t, 3> sites){
-            const auto tol = static_cast<long double>(64) * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
+            const auto tol = vertex_merge_tolerance_factor
+                           * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
             for(size_t i = 0; i < m_vertices.size(); ++i){
                 const auto dx = static_cast<long double>(m_vertices.at(i).position.x) - center.x;
                 const auto dy = static_cast<long double>(m_vertices.at(i).position.y) - center.y;
@@ -602,7 +607,8 @@ class FortuneVoronoiBuilder {
             }
 
             const auto event_y = center.y - radius;
-            const auto guard = static_cast<long double>(64) * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
+            const auto guard = ray_sample_guard_factor
+                             * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
             if(!(event_y < (current_sweep_y - guard))){
                 return;
             }
@@ -760,7 +766,8 @@ class FortuneVoronoiBuilder {
                     const auto it = samples.find(i);
                     if(it != samples.end()){
                         for(const auto &candidate : it->second){
-                            if(sq_dist(candidate, endpoint) > static_cast<T>(64) * std::numeric_limits<T>::epsilon()){
+                            if(sq_dist(candidate, endpoint) > static_cast<T>(ray_sample_guard_factor)
+                                                             * std::numeric_limits<T>::epsilon()){
                                 chosen = candidate;
                                 break;
                             }
