@@ -477,6 +477,9 @@ class FortuneVoronoiBuilder {
                          - (qx * qx + qy * qy - sweep_y * sweep_y) / z1;
 
             if(std::abs(a) <= event_tolerance()){
+                if(std::abs(b) <= event_tolerance()){
+                    return (px + qx) / static_cast<long double>(2);
+                }
                 return -c / b;
             }
 
