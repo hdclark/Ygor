@@ -9,7 +9,7 @@
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 
-// Perform 2D constrained triangulation of closed polygon boundaries on a planar surface.
+// Perform 2D triangulation of closed polygon boundaries on a planar surface.
 //
 // The input is interpreted as a collection of closed polygon rings in planar x-y coordinates.
 // Each ring may be oriented arbitrarily. Nested rings are interpreted with the even-odd rule, so
