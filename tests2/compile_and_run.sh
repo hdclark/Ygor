@@ -44,6 +44,7 @@ g++ \
   YgorMath/*.cc \
   YgorMathDelaunay.cc \
   YgorMathConstrainedDelaunay.cc \
+  YgorMathVoronoi.cc \
   YgorMathIOOBJ.cc \
   YgorMathIOOFF.cc \
   YgorMathIOPLY.cc \
