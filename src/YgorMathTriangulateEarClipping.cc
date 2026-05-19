@@ -728,7 +728,93 @@ bool decompose_into_monotone_faces(const std::vector<vec2<T>> &verts,
     ctx.occurrences = &occurrences;
     TE_StatusComparator<T> comp;
     comp.ctx = &ctx;
-    std::set<size_t, TE_StatusComparator<T>> status(comp);
+    struct TE_StatusStructure {
+        using container_type = std::vector<size_t>;
+        using iterator = container_type::iterator;
+        using const_iterator = container_type::const_iterator;
+
+        explicit TE_StatusStructure(const TE_StatusComparator<T> &comparator)
+            : comp(comparator) {}
+
+        std::pair<iterator, bool> insert(size_t edge){
+            refresh_order();
+            const auto existing = std::find(edges.begin(), edges.end(), edge);
+            if(existing != edges.end()){
+                return std::make_pair(existing, false);
+            }
+            edges.push_back(edge);
+            refresh_order();
+            const auto it = std::find(edges.begin(), edges.end(), edge);
+            return std::make_pair(it, true);
+        }
+
+        size_t erase(size_t edge){
+            const auto it = std::find(edges.begin(), edges.end(), edge);
+            if(it == edges.end()){
+                return 0;
+            }
+            edges.erase(it);
+            return 1;
+        }
+
+        iterator lower_bound(size_t edge){
+            refresh_order();
+            return std::lower_bound(edges.begin(), edges.end(), edge, less_for_algorithms());
+        }
+
+        const_iterator lower_bound(size_t edge) const{
+            return const_cast<TE_StatusStructure*>(this)->lower_bound(edge);
+        }
+
+        iterator begin(){
+            refresh_order();
+            return edges.begin();
+        }
+
+        const_iterator begin() const{
+            return const_cast<TE_StatusStructure*>(this)->begin();
+        }
+
+        iterator end(){
+            refresh_order();
+            return edges.end();
+        }
+
+        const_iterator end() const{
+            return const_cast<TE_StatusStructure*>(this)->end();
+        }
+
+        bool empty() const{
+            return edges.empty();
+        }
+
+    private:
+        struct LessForAlgorithms {
+            const TE_StatusComparator<T> *comp = nullptr;
+
+            bool operator()(size_t lhs, size_t rhs) const{
+                if((*comp)(lhs, rhs)){
+                    return true;
+                }
+                if((*comp)(rhs, lhs)){
+                    return false;
+                }
+                return lhs < rhs;
+            }
+        };
+
+        LessForAlgorithms less_for_algorithms() const{
+            return LessForAlgorithms{ &comp };
+        }
+
+        void refresh_order(){
+            std::sort(edges.begin(), edges.end(), less_for_algorithms());
+        }
+
+        TE_StatusComparator<T> comp;
+        container_type edges;
+    };
+    TE_StatusStructure status(comp);
     std::map<size_t, size_t> helper;
 
     for(const auto vertex_pos : events){
