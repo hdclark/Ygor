@@ -13,17 +13,6 @@
 
 namespace {
 
-template <class T, class I>
-std::vector<vec2<T>> materialize_piece(const std::vector<std::vector<vec2<T>>> &verts,
-                                       const monotone_t<I> &piece){
-    std::vector<vec2<T>> out;
-    out.reserve(piece.vertices.size());
-    for(const auto &[poly_idx, vert_idx] : piece.vertices){
-        out.push_back(verts.at(static_cast<size_t>(poly_idx)).at(static_cast<size_t>(vert_idx)));
-    }
-    return out;
-}
-
 template <class T>
 long double polygon_area(const std::vector<vec2<T>> &poly){
     long double area = 0.0L;
@@ -83,10 +72,24 @@ void require_valid_monotone_output(const std::vector<std::vector<vec2<T>>> &vert
             REQUIRE(static_cast<size_t>(poly_idx) < verts.size());
             REQUIRE(static_cast<size_t>(vert_idx) < verts.at(static_cast<size_t>(poly_idx)).size());
         }
-        const auto poly = materialize_piece(verts, piece);
+        const auto poly = Materialize_Polygon(verts, piece);
         REQUIRE(polygon_area(poly) > 0.0L);
         REQUIRE(is_y_monotone(poly));
     }
+}
+
+template <class T, class I>
+int monotone_score(const std::vector<std::vector<vec2<T>>> &verts,
+                   const std::vector<monotone_t<I>> &pieces,
+                   const vec2<T> &p){
+    int score = 0;
+    for(const auto &piece : pieces){
+        const auto poly = Materialize_Polygon(verts, piece);
+        if(point_in_polygon_or_on_boundary(poly, p)){
+            score += piece.interior ? 1 : -1;
+        }
+    }
+    return score;
 }
 
 } // namespace
@@ -167,11 +170,16 @@ TEST_CASE("Monotone_Decomposition_2 function"){
         };
 
         const auto pieces = Monotone_Decomposition_2<double, uint32_t>(verts);
-        REQUIRE(pieces.size() == 3);
-        REQUIRE(pieces.at(0).interior);
-        REQUIRE(!pieces.at(1).interior);
-        REQUIRE(pieces.at(2).interior);
+        // Bridging holes and islands can legitimately change the exact monotone count, so this case checks semantic
+        // coverage/parity instead of pinning the partition to a single triangulation-equivalent count.
+        REQUIRE(pieces.size() >= 3);
+        REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return piece.interior; }));
+        REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return !piece.interior; }));
         require_valid_monotone_output(verts, pieces);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(1.0, 1.0)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(2.5, 2.5)) < 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 3.75)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(9.0, 9.0)) == 0);
     }
 
     SUBCASE("nested polygons result in joined, not overlapping monotones"){
@@ -192,6 +200,9 @@ TEST_CASE("Monotone_Decomposition_2 function"){
 
         const auto pieces = Monotone_Decomposition_2<double, uint32_t>(verts);
         REQUIRE(pieces.size() > 2);
+        require_valid_monotone_output(verts, pieces);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 0.5)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 2.0)) < 0);
     }
 
     SUBCASE("touching nested polygons are rejected"){
