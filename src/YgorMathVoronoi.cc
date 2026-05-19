@@ -110,6 +110,7 @@ struct VertexCellKeyHash {
     size_t operator()(const VertexCellKey &key) const noexcept {
         const auto hx = std::hash<int64_t>{}(key.x);
         const auto hy = std::hash<int64_t>{}(key.y);
+        // 64-bit golden-ratio constant, commonly used to mix partially correlated hash inputs.
         return hx ^ (hy + 0x9e3779b97f4a7c15ULL + (hx << 6U) + (hx >> 2U));
     }
 };
@@ -171,7 +172,9 @@ class FortuneVoronoiBuilder {
             size_t site_index = 0;
             Node *prev = nullptr;
             Node *next = nullptr;
+            // Active breakpoint edge between this arc and its immediate left neighbor.
             std::optional<size_t> left_edge_index;
+            // Detached edge that resumes once this temporary arc collapses after a breakpoint site insertion.
             std::optional<size_t> pending_edge_index;
             Event *circle_event = nullptr;
             uint64_t priority = 0;
@@ -353,6 +356,7 @@ class FortuneVoronoiBuilder {
             }
         }
 
+        // Standard splitmix64 scrambling, used here to turn sequential node ids into treap priorities.
         static uint64_t splitmix64(uint64_t value){
             value += 0x9e3779b97f4a7c15ULL;
             value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
@@ -740,7 +744,7 @@ class FortuneVoronoiBuilder {
             const auto sign = orient_sign(m_sites.at(arc->prev->site_index),
                                           m_sites.at(arc->site_index),
                                           m_sites.at(arc->next->site_index));
-            if(sign == 0){
+            if(sign >= 0){
                 return;
             }
 

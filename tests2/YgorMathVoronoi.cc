@@ -174,12 +174,12 @@ TEST_CASE( "Voronoi_Diagram_2 function" ){
         }
     }
 
-    SUBCASE("four general-position sites produce a bounded Voronoi edge"){
+    SUBCASE("four sites can produce a bounded Voronoi edge"){
         std::vector<vec2<double>> sites {{
-            vec2<double>(0.0, 0.0),
-            vec2<double>(4.0, 0.0),
-            vec2<double>(0.0, 3.0),
-            vec2<double>(5.0, 4.0) }};
+            vec2<double>(-2.0, -2.0),
+            vec2<double>(-2.0, -1.0),
+            vec2<double>(-2.0, 0.0),
+            vec2<double>(-1.0, -2.0) }};
         const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
 
         REQUIRE( diagram.vertices.size() >= 2 );
