@@ -126,6 +126,49 @@ TEST_CASE("Triangulate_Ear_Clipping_2 function"){
         REQUIRE(mesh_area(mesh) == doctest::Approx(16.0));
     }
 
+    SUBCASE("closed rings with redundant collinear samples are sanitized before triangulation"){
+        const std::vector<std::vector<vec2<double>>> polygons{{
+            {
+                vec2<double>(0.0, 0.0),
+                vec2<double>(2.0, 0.0),
+                vec2<double>(4.0, 0.0),
+                vec2<double>(4.0, 4.0),
+                vec2<double>(0.0, 4.0),
+                vec2<double>(0.0, 0.0),
+                vec2<double>(0.0, 0.0)
+            }
+        }};
+        const auto mesh = Triangulate_Ear_Clipping_2<double, uint32_t>(polygons);
+        REQUIRE(mesh.vertices.size() == 4);
+        REQUIRE(mesh.faces.size() == 2);
+        require_all_faces_are_triangles(mesh);
+        require_edges_are_manifold(mesh);
+        require_triangle_centroids_within_arrangement(mesh, polygons);
+        REQUIRE(mesh_area(mesh) == doctest::Approx(16.0));
+    }
+
+    SUBCASE("concave non-y-monotone polygon is decomposed and triangulated"){
+        const std::vector<std::vector<vec2<double>>> polygons{{
+            {
+                vec2<double>(0.0, 0.0),
+                vec2<double>(4.0, 0.0),
+                vec2<double>(4.0, 4.0),
+                vec2<double>(3.0, 4.0),
+                vec2<double>(3.0, 1.0),
+                vec2<double>(1.0, 1.0),
+                vec2<double>(1.0, 4.0),
+                vec2<double>(0.0, 4.0)
+            }
+        }};
+        const auto mesh = Triangulate_Ear_Clipping_2<double, uint32_t>(polygons);
+        REQUIRE(mesh.vertices.size() == 8);
+        REQUIRE(mesh.faces.size() == 6);
+        require_all_faces_are_triangles(mesh);
+        require_edges_are_manifold(mesh);
+        require_triangle_centroids_within_arrangement(mesh, polygons);
+        REQUIRE(mesh_area(mesh) == doctest::Approx(10.0));
+    }
+
     SUBCASE("polygon with a hole triangulates the even-odd interior only"){
         const std::vector<std::vector<vec2<double>>> polygons{{
             { vec2<double>(0.0, 0.0), vec2<double>(4.0, 0.0), vec2<double>(4.0, 4.0), vec2<double>(0.0, 4.0) },

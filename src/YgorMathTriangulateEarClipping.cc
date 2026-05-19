@@ -79,6 +79,18 @@ bool same_xy(const vec2<T> &a, const vec2<T> &b){
     return (a.x == b.x) && (a.y == b.y);
 }
 
+template <class I>
+bool mesh_index_type_can_represent_vertex_count(size_t vertex_count){
+    if(vertex_count == 0){
+        return true;
+    }
+    if constexpr (std::numeric_limits<I>::max() >= std::numeric_limits<size_t>::max()){
+        return true;
+    }else{
+        return (vertex_count - 1) <= static_cast<size_t>(std::numeric_limits<I>::max());
+    }
+}
+
 template <class T>
 long double sq_dist_ld(const vec2<T> &a, const vec2<T> &b){
     const auto dx = static_cast<long double>(a.x) - static_cast<long double>(b.x);
@@ -652,8 +664,8 @@ bool edge_is_active_below_vertex(const std::vector<vec2<T>> &verts,
     return (a_is_above_v != b_is_above_v) || ((a == v) && v_is_above_b) || ((b == v) && v_is_above_a);
 }
 
-template <class T>
-size_t left_edge_of_vertex(const std::set<size_t, TE_StatusComparator<T>> &status,
+template <class T, class Status>
+size_t left_edge_of_vertex(const Status &status,
                            TE_SweepContext<T> &ctx,
                            const std::vector<vec2<T>> &verts,
                            const std::vector<size_t> &occurrences,
@@ -1186,6 +1198,13 @@ Triangulate_Ear_Clipping_2(const std::vector<std::vector<vec2<T>>> &closed_polyg
     if(!build_ring_nesting(rings, verts, &diag)){
         YLOGWARN(diag);
         throw std::invalid_argument(diag);
+    }
+
+    if(!mesh_index_type_can_represent_vertex_count<I>(verts.size())){
+        const auto msg = "Ear-clipping triangulation produced " + std::to_string(verts.size())
+                       + " vertices, which exceeds the representable range of the requested mesh index type.";
+        YLOGWARN(msg);
+        throw std::overflow_error(msg);
     }
 
     mesh.vertices.reserve(verts.size());
