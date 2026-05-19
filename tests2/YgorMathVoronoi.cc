@@ -105,7 +105,8 @@ TEST_CASE( "Voronoi_Diagram_2 function" ){
         REQUIRE( d0 == doctest::Approx(d2).epsilon(eps * 16) );
 
         for(const auto &edge : diagram.edges){
-            REQUIRE( edge.vertex0.has_value() || edge.vertex1.has_value() );
+            const bool has_vertex = edge.vertex0.has_value() || edge.vertex1.has_value();
+            REQUIRE( has_vertex );
             require_edge_bisects_sites(sites, diagram, edge, static_cast<double>(eps));
         }
     }

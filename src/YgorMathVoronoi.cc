@@ -89,6 +89,12 @@ T sq_dist(const vec2<T> &a, const vec2<T> &b){
     return dx * dx + dy * dy;
 }
 
+
+struct PrecisePoint2 {
+    long double x = 0.0L;
+    long double y = 0.0L;
+};
+
 template <class T, class I>
 class FortuneVoronoiBuilder {
     public:
@@ -104,6 +110,11 @@ class FortuneVoronoiBuilder {
 
         VoronoiDiagram2<T, I> build(){
             validate_input();
+            if(all_sites_collinear()){
+                build_collinear_diagram();
+                finalize_output();
+                return m_output;
+            }
             enqueue_site_events();
 
             while(!m_events.empty()){
@@ -161,7 +172,7 @@ class FortuneVoronoiBuilder {
             long double x = 0.0L;
             size_t site_index = 0;
             Node *arc = nullptr;
-            vec2<long double> center;
+            PrecisePoint2 center;
             bool valid = true;
             uint64_t sequence = 0;
         };
@@ -258,6 +269,44 @@ class FortuneVoronoiBuilder {
             YLOGDEBUG("Voronoi diagram input: sites=" << m_input_sites.size()
                       << ", bbox=[(" << min_x << ", " << min_y << "), ("
                       << max_x << ", " << max_y << ")]");
+        }
+
+        bool all_sites_collinear() const {
+            if(m_sites.size() < 3){
+                return true;
+            }
+            size_t a = 0;
+            size_t b = 1;
+            for(size_t i = 2; i < m_sites.size(); ++i){
+                if(orient_sign(m_sites.at(a), m_sites.at(b), m_sites.at(i)) != 0){
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Fortune's tree-of-parabolas formulation degenerates when every site is collinear because no genuine
+        // circle events exist; in that case the Voronoi diagram is simply the set of perpendicular bisectors between
+        // consecutive sites ordered along the supporting line.
+        void build_collinear_diagram(){
+            std::vector<size_t> order(m_sites.size());
+            for(size_t i = 0; i < order.size(); ++i){
+                order[i] = i;
+            }
+
+            const auto axis = m_sites.at(1) - m_sites.at(0);
+            std::sort(order.begin(), order.end(), [&](size_t lhs, size_t rhs){
+                const auto pl = m_sites.at(lhs).Dot(axis);
+                const auto pr = m_sites.at(rhs).Dot(axis);
+                if(pl != pr){
+                    return pl < pr;
+                }
+                return lhs < rhs;
+            });
+
+            for(size_t i = 0; (i + 1) < order.size(); ++i){
+                (void)create_edge(order.at(i), order.at(i + 1));
+            }
         }
 
         void enqueue_site_events(){
@@ -392,6 +441,8 @@ class FortuneVoronoiBuilder {
             return (dx * dx + yy * yy - sweep_y * sweep_y) / denom;
         }
 
+        // The beach line is the lower envelope of the site parabolas, so the active breakpoint is the intersection
+        // with the smaller y-value among the two analytic roots (Fortune, 1987; de Berg et al., 2008).
         long double breakpoint_x(size_t left_site, size_t right_site, long double sweep_y) const {
             const auto &p = m_sites.at(left_site);
             const auto &q = m_sites.at(right_site);
@@ -435,9 +486,9 @@ class FortuneVoronoiBuilder {
             return (y0 < y1) ? x0 : x1;
         }
 
-        vec2<long double> breakpoint_point(size_t left_site, size_t right_site, long double sweep_y) const {
+        PrecisePoint2 breakpoint_point(size_t left_site, size_t right_site, long double sweep_y) const {
             const auto x = breakpoint_x(left_site, right_site, sweep_y);
-            return vec2<long double>(x, evaluate_parabola_y(left_site, x, sweep_y));
+            return PrecisePoint2{x, evaluate_parabola_y(left_site, x, sweep_y)};
         }
 
         Node* find_arc_above(long double x, long double sweep_y) const {
@@ -456,7 +507,7 @@ class FortuneVoronoiBuilder {
         bool compute_circumcenter(const vec2<T> &a,
                                   const vec2<T> &b,
                                   const vec2<T> &c,
-                                  vec2<long double> &center,
+                                  PrecisePoint2 &center,
                                   long double &radius) const {
             const long double ax = static_cast<long double>(a.x) - static_cast<long double>(b.x);
             const long double ay = static_cast<long double>(a.y) - static_cast<long double>(b.y);
@@ -472,15 +523,15 @@ class FortuneVoronoiBuilder {
             const auto c_len = cx * cx + cy * cy;
             const auto ux = (a_len * cy - c_len * ay) / denom;
             const auto uy = (ax * c_len - cx * a_len) / denom;
-            center = vec2<long double>(static_cast<long double>(b.x) + ux,
-                                       static_cast<long double>(b.y) + uy);
+            center = PrecisePoint2{static_cast<long double>(b.x) + ux,
+                                    static_cast<long double>(b.y) + uy};
             const auto dx = center.x - static_cast<long double>(a.x);
             const auto dy = center.y - static_cast<long double>(a.y);
             radius = std::sqrt(dx * dx + dy * dy);
             return std::isfinite(center.x) && std::isfinite(center.y) && std::isfinite(radius);
         }
 
-        size_t add_vertex(const vec2<long double> &center, std::array<size_t, 3> sites){
+        size_t add_vertex(const PrecisePoint2 &center, std::array<size_t, 3> sites){
             const auto tol = static_cast<long double>(64) * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
             for(size_t i = 0; i < m_vertices.size(); ++i){
                 const auto dx = static_cast<long double>(m_vertices.at(i).position.x) - center.x;
@@ -519,6 +570,9 @@ class FortuneVoronoiBuilder {
             }
         }
 
+        // Circle events are only valid for clockwise triples of consecutive arcs in a top-to-bottom sweep. The
+        // orientation decision uses Shewchuk-style adaptive predicates through orient_sign so that nearly collinear
+        // triples do not spuriously generate unstable Voronoi vertices.
         void schedule_circle_event(Node *arc, long double current_sweep_y){
             if((arc == nullptr) || (arc->prev == nullptr) || (arc->next == nullptr)){
                 return;
@@ -537,7 +591,7 @@ class FortuneVoronoiBuilder {
                 return;
             }
 
-            vec2<long double> center;
+            PrecisePoint2 center;
             long double radius = 0.0L;
             if(!compute_circumcenter(m_sites.at(arc->prev->site_index),
                                      m_sites.at(arc->site_index),
@@ -563,6 +617,8 @@ class FortuneVoronoiBuilder {
             m_events.push(event);
         }
 
+        // Insert a new site by splitting the arc directly above it into three leaves: old-left, new-site, old-right.
+        // The two breakpoints initially trace the same bisector edge, exactly as in Fortune's original tree update.
         void handle_site_event(size_t site_index){
             const auto directrix = std::nextafter(static_cast<long double>(m_sites.at(site_index).y),
                                                   -std::numeric_limits<long double>::infinity());
@@ -607,14 +663,16 @@ class FortuneVoronoiBuilder {
             schedule_circle_event(right_arc, directrix);
         }
 
+        // When the middle arc disappears, the two converging breakpoint traces meet at a Voronoi vertex and the
+        // surviving ancestor breakpoint is retargeted to the newly adjacent arc pair.
         void handle_circle_event(Event *event){
             auto *arc = event->arc;
             if((arc == nullptr) || (arc->circle_event != event)){
                 return;
             }
 
-            auto *left_bp = ::left_breakpoint(arc);
-            auto *right_bp = ::right_breakpoint(arc);
+            auto *left_bp = left_breakpoint(arc);
+            auto *right_bp = right_breakpoint(arc);
             if((left_bp == nullptr) || (right_bp == nullptr) || (arc->prev == nullptr) || (arc->next == nullptr)){
                 arc->circle_event = nullptr;
                 return;
