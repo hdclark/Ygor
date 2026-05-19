@@ -302,12 +302,34 @@ template <class T>
 bool point_in_polygon_or_on_boundary_robust(const std::vector<vec2<T>> &verts,
                                             const std::vector<size_t> &polygon,
                                             const vec2<T> &p){
-    std::vector<vec2<T>> coords;
-    coords.reserve(polygon.size());
-    for(const auto idx : polygon){
-        coords.push_back(verts.at(idx));
+    if(polygon.empty()){
+        throw std::invalid_argument("Polygon contains no vertices, cannot continue");
     }
-    return point_in_polygon_or_on_boundary_robust(coords, p);
+
+    for(size_t i = 0; i < polygon.size(); ++i){
+        const auto &a = verts.at(polygon.at(i));
+        const auto &b = verts.at(polygon.at((i + 1) % polygon.size()));
+        if(point_on_closed_segment(p, a, b)){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0; i < polygon.size(); ++i){
+        const auto &a = verts.at(polygon.at(i));
+        const auto &b = verts.at(polygon.at((i + 1) % polygon.size()));
+        if((a.y > p.y) == (b.y > p.y)){
+            continue;
+        }
+
+        const auto o = orient_sign(a, b, p);
+        if((o == 0)
+        || ((b.y > a.y) && (o > 0))
+        || ((b.y < a.y) && (o < 0))){
+            inside = !inside;
+        }
+    }
+    return inside;
 }
 
 template <class T>
