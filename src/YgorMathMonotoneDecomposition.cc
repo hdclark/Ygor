@@ -979,6 +979,8 @@ bool find_bridge(const WorkingPolygon<T> &working,
             const auto dy = static_cast<long double>(a.y) - static_cast<long double>(b.y);
             const auto len = (dx * dx) + (dy * dy);
             if((!found) || (len < best_len)
+            // Equal-length visible bridges are geometrically interchangeable here, so fall back to the position pair to
+            // keep the preprocessing deterministic across runs and standard-library implementations.
             || ((len == best_len) && (std::make_pair(i, j) < std::make_pair(working_pos, hole_pos)))){
                 found = true;
                 best_len = len;
@@ -999,13 +1001,14 @@ void splice_hole(WorkingPolygon<T> &working,
     merged.interior = working.interior;
     merged.refs.reserve(working.refs.size() + hole.refs.size() + 2);
     merged.coords.reserve(working.coords.size() + hole.coords.size() + 2);
+    const auto hole_n = hole.refs.size();
 
     for(size_t i = 0; i <= working_pos; ++i){
         merged.refs.push_back(working.refs.at(i));
         merged.coords.push_back(working.coords.at(i));
     }
-    for(size_t offset = 0; offset < hole.refs.size(); ++offset){
-        const auto idx = (hole_pos + hole.refs.size() - offset) % hole.refs.size();
+    for(size_t offset = 0; offset < hole_n; ++offset){
+        const auto idx = (hole_pos + ((hole_n - offset) % hole_n)) % hole_n;
         merged.refs.push_back(hole.refs.at(idx));
         merged.coords.push_back(hole.coords.at(idx));
     }

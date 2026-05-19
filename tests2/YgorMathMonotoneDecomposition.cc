@@ -181,6 +181,8 @@ TEST_CASE("Monotone_Decomposition_2 function"){
         };
 
         const auto pieces = Monotone_Decomposition_2<double, uint32_t>(verts);
+        // Bridging holes and islands can legitimately change the exact monotone count, so this case checks semantic
+        // coverage/parity instead of pinning the partition to a single triangulation-equivalent count.
         REQUIRE(pieces.size() >= 3);
         REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return piece.interior; }));
         REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return !piece.interior; }));
