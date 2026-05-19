@@ -290,8 +290,7 @@ bool point_in_polygon_or_on_boundary_robust(const std::vector<vec2<T>> &polygon,
         }
 
         const auto o = orient_sign(a, b, p);
-        if((o == 0)
-        || ((b.y > a.y) && (o > 0))
+        if(((b.y > a.y) && (o > 0))
         || ((b.y < a.y) && (o < 0))){
             inside = !inside;
         }
