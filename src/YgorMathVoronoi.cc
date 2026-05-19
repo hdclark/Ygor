@@ -52,10 +52,19 @@ Normalization2<T> compute_normalization(const std::vector<vec2<T>> &verts){
         max_y = std::max(max_y, vert.y);
     }
 
+    const T half = static_cast<T>(0.5);
+    const T span_x = (max_x * half - min_x * half) * static_cast<T>(2);
+    const T span_y = (max_y * half - min_y * half) * static_cast<T>(2);
+
     Normalization2<T> norm;
-    norm.center = vec2<T>((min_x + max_x) / static_cast<T>(2),
-                          (min_y + max_y) / static_cast<T>(2));
-    norm.scale = std::max(max_x - min_x, max_y - min_y);
+    norm.center = vec2<T>(min_x * half + max_x * half,
+                          min_y * half + max_y * half);
+    norm.scale = std::max(span_x, span_y);
+
+    if(!is_finite_2d(norm.center) || !std::isfinite(norm.scale)){
+        throw std::invalid_argument("Voronoi normalization overflowed for finite input");
+    }
+
     if(!(norm.scale > static_cast<T>(0))){
         norm.scale = static_cast<T>(1);
     }
