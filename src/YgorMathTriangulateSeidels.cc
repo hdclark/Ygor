@@ -8,6 +8,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -122,12 +123,10 @@ void validate_polygon_arrangement(const std::vector<std::vector<vec2<T>>> &polys
             const auto edge_i_next = (edge_i + 1) % poly.size();
             for(size_t poly_j = poly_idx; poly_j < polys.size(); ++poly_j){
                 const auto &other = polys.at(poly_j);
-                for(size_t edge_j = 0; edge_j < other.size(); ++edge_j){
+                const auto edge_j_begin = (poly_idx == poly_j) ? (edge_i + 1) : 0;
+                for(size_t edge_j = edge_j_begin; edge_j < other.size(); ++edge_j){
                     const auto edge_j_next = (edge_j + 1) % other.size();
 
-                    if((poly_idx == poly_j) && (edge_i == edge_j)){
-                        continue;
-                    }
                     if(poly_idx == poly_j){
                         if(edge_i == edge_j_next){
                             continue;
@@ -319,14 +318,9 @@ build_trapezoidal_slices(const std::vector<std::vector<vec2<T>>> &closed_polygon
         }
 
         std::sort(crossings.begin(), crossings.end(),
-                  [order_tol](const auto &lhs, const auto &rhs){
-                      if(std::abs(lhs.y_mid - rhs.y_mid) > order_tol){
-                          return lhs.y_mid < rhs.y_mid;
-                      }
-                      if(std::abs(static_cast<long double>(lhs.left.y) - static_cast<long double>(rhs.left.y)) > order_tol){
-                          return lhs.left.y < rhs.left.y;
-                      }
-                      return lhs.right.y < rhs.right.y;
+                  [](const auto &lhs, const auto &rhs){
+                      return std::tie(lhs.y_mid, lhs.left.y, lhs.right.y)
+                           < std::tie(rhs.y_mid, rhs.left.y, rhs.right.y);
                   });
 
         if((crossings.size() % 2) != 0){
