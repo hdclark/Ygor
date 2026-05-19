@@ -42,7 +42,10 @@ template <class T>
 struct NormalizedPolygon {
     size_t polygon_index = 0;
     bool interior = true;
+    size_t parent = std::numeric_limits<size_t>::max();
+    long double area_abs = 0.0L;
     std::vector<size_t> original_indices;
+    std::vector<size_t> children;
 };
 
 template <class T>
@@ -52,6 +55,18 @@ long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
     for(size_t i = 0; i < poly.size(); ++i){
         const auto &a = verts.at(poly.at(i));
         const auto &b = verts.at(poly.at((i + 1) % poly.size()));
+        area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
+              - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
+    }
+    return area / 2.0L;
+}
+
+template <class T>
+long double polygon_signed_area_ld(const std::vector<vec2<T>> &poly){
+    long double area = 0.0L;
+    for(size_t i = 0; i < poly.size(); ++i){
+        const auto &a = poly.at(i);
+        const auto &b = poly.at((i + 1) % poly.size());
         area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
               - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
     }
@@ -248,11 +263,53 @@ struct SweepQuery {
 
 template <class T>
 struct WorkingPolygon {
-    size_t polygon_index = 0;
     bool interior = true;
-    std::vector<size_t> original_indices;
+    std::vector<std::pair<size_t, size_t>> refs;
     std::vector<vec2<T>> coords;
 };
+
+template <class T>
+bool point_in_polygon_or_on_boundary_robust(const std::vector<vec2<T>> &polygon,
+                                            const vec2<T> &p){
+    if(polygon.empty()){
+        throw std::invalid_argument("Polygon contains no vertices, cannot continue");
+    }
+
+    for(size_t i = 0; i < polygon.size(); ++i){
+        if(point_on_closed_segment(p, polygon.at(i), polygon.at((i + 1) % polygon.size()))){
+            return true;
+        }
+    }
+
+    bool inside = false;
+    for(size_t i = 0; i < polygon.size(); ++i){
+        const auto &a = polygon.at(i);
+        const auto &b = polygon.at((i + 1) % polygon.size());
+        if((a.y > p.y) == (b.y > p.y)){
+            continue;
+        }
+
+        const auto o = orient_sign(a, b, p);
+        if((o == 0)
+        || ((b.y > a.y) && (o > 0))
+        || ((b.y < a.y) && (o < 0))){
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+template <class T>
+bool point_in_polygon_or_on_boundary_robust(const std::vector<vec2<T>> &verts,
+                                            const std::vector<size_t> &polygon,
+                                            const vec2<T> &p){
+    std::vector<vec2<T>> coords;
+    coords.reserve(polygon.size());
+    for(const auto idx : polygon){
+        coords.push_back(verts.at(idx));
+    }
+    return point_in_polygon_or_on_boundary_robust(coords, p);
+}
 
 template <class T>
 bool edge_left_of_vertex(const WorkingPolygon<T> &poly,
@@ -733,8 +790,8 @@ bool convert_faces(const WorkingPolygon<T> &poly,
         piece.interior = poly.interior;
         piece.vertices.reserve(face.size());
         for(const auto pos : face){
-            const auto polygon_index = static_cast<I>(poly.polygon_index);
-            const auto vertex_index = static_cast<I>(poly.original_indices.at(pos));
+            const auto polygon_index = static_cast<I>(poly.refs.at(pos).first);
+            const auto vertex_index = static_cast<I>(poly.refs.at(pos).second);
             piece.vertices.emplace_back(polygon_index, vertex_index);
         }
         rotate_face_to_smallest<I>(piece.vertices);
@@ -747,22 +804,252 @@ bool convert_faces(const WorkingPolygon<T> &poly,
 }
 
 template <class T>
-bool classify_polygon_parity(const std::vector<std::vector<vec2<T>>> &all_verts,
-                             std::vector<NormalizedPolygon<T>> &polys){
+bool build_polygon_tree(const std::vector<std::vector<vec2<T>>> &all_verts,
+                        std::vector<NormalizedPolygon<T>> &polys){
+    for(auto &poly : polys){
+        poly.parent = std::numeric_limits<size_t>::max();
+        poly.children.clear();
+        poly.area_abs = std::abs(polygon_signed_area_ld(all_verts.at(poly.polygon_index),
+                                                        poly.original_indices));
+    }
+
     for(size_t i = 0; i < polys.size(); ++i){
-        size_t depth = 0;
         const auto &sample = all_verts.at(polys.at(i).polygon_index).at(polys.at(i).original_indices.front());
+        size_t parent = std::numeric_limits<size_t>::max();
+        long double parent_area = std::numeric_limits<long double>::max();
         for(size_t j = 0; j < polys.size(); ++j){
             if(i == j){
                 continue;
             }
-            if(point_in_polygon_or_on_boundary(all_verts.at(polys.at(j).polygon_index),
-                                               polys.at(j).original_indices,
-                                               sample)){
-                ++depth;
+            if(point_in_polygon_or_on_boundary_robust(all_verts.at(polys.at(j).polygon_index),
+                                                      polys.at(j).original_indices,
+                                                      sample)
+            && (polys.at(j).area_abs < parent_area)){
+                parent = j;
+                parent_area = polys.at(j).area_abs;
             }
         }
+        polys.at(i).parent = parent;
+    }
+
+    for(size_t i = 0; i < polys.size(); ++i){
+        if(polys.at(i).parent != std::numeric_limits<size_t>::max()){
+            polys.at(polys.at(i).parent).children.push_back(i);
+        }
+    }
+
+    for(size_t i = 0; i < polys.size(); ++i){
+        size_t depth = 0;
+        for(size_t cur = polys.at(i).parent;
+            cur != std::numeric_limits<size_t>::max();
+            cur = polys.at(cur).parent){
+            ++depth;
+        }
         polys.at(i).interior = ((depth % 2) == 0);
+    }
+    return true;
+}
+
+template <class T>
+WorkingPolygon<T> make_working_polygon(const std::vector<std::vector<vec2<T>>> &verts,
+                                       const NormalizedPolygon<T> &poly){
+    WorkingPolygon<T> working;
+    working.interior = poly.interior;
+    working.refs.reserve(poly.original_indices.size());
+    working.coords.reserve(poly.original_indices.size());
+    for(const auto idx : poly.original_indices){
+        working.refs.emplace_back(poly.polygon_index, idx);
+        working.coords.push_back(verts.at(poly.polygon_index).at(idx));
+    }
+    return working;
+}
+
+template <class T>
+bool bridge_crosses_cycle(const std::vector<vec2<T>> &cycle,
+                          size_t skip_vertex_pos,
+                          const vec2<T> &a,
+                          const vec2<T> &b){
+    for(size_t i = 0; i < cycle.size(); ++i){
+        const auto j = (i + 1) % cycle.size();
+        const bool incident = (skip_vertex_pos != std::numeric_limits<size_t>::max())
+                           && ((i == skip_vertex_pos) || (j == skip_vertex_pos));
+        if(incident){
+            continue;
+        }
+
+        const auto &c = cycle.at(i);
+        const auto &d = cycle.at(j);
+        if(segments_intersect_beyond_shared_endpoints(a, b, c, d)
+        || point_on_open_segment(a, c, d)
+        || point_on_open_segment(b, c, d)
+        || point_on_open_segment(c, a, b)
+        || point_on_open_segment(d, a, b)){
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class T>
+bool bridge_makes_collinear_splice(const WorkingPolygon<T> &working,
+                                   size_t working_pos,
+                                   const WorkingPolygon<T> &hole,
+                                   size_t hole_pos){
+    const auto working_n = working.coords.size();
+    const auto hole_n = hole.coords.size();
+    const auto &p = working.coords.at(working_pos);
+    const auto &h = hole.coords.at(hole_pos);
+    const auto &working_prev = working.coords.at((working_pos + working_n - 1) % working_n);
+    const auto &working_next = working.coords.at((working_pos + 1) % working_n);
+    const auto &hole_prev = hole.coords.at((hole_pos + hole_n - 1) % hole_n);
+    const auto &hole_next = hole.coords.at((hole_pos + 1) % hole_n);
+
+    return (orient_sign(working_prev, p, h) == 0)
+        || (orient_sign(h, p, working_next) == 0)
+        || (orient_sign(p, h, hole_prev) == 0)
+        || (orient_sign(hole_next, h, p) == 0);
+}
+
+template <class T>
+size_t rightmost_vertex(const WorkingPolygon<T> &poly){
+    size_t best = 0;
+    for(size_t i = 1; i < poly.coords.size(); ++i){
+        const auto &cand = poly.coords.at(i);
+        const auto &cur = poly.coords.at(best);
+        if((cand.x > cur.x) || ((cand.x == cur.x) && (cand.y < cur.y))){
+            best = i;
+        }
+    }
+    return best;
+}
+
+template <class T>
+bool find_bridge(const WorkingPolygon<T> &working,
+                 const std::vector<WorkingPolygon<T>> &holes,
+                 size_t hole_index,
+                 size_t &working_pos,
+                 size_t &hole_pos){
+    bool found = false;
+    long double best_len = std::numeric_limits<long double>::max();
+
+    const auto &hole = holes.at(hole_index);
+    for(size_t i = 0; i < working.coords.size(); ++i){
+        const auto &a = working.coords.at(i);
+        for(size_t j = 0; j < hole.coords.size(); ++j){
+            const auto &b = hole.coords.at(j);
+            if(bridge_makes_collinear_splice(working, i, hole, j)){
+                continue;
+            }
+            if(bridge_crosses_cycle(working.coords, i, a, b)){
+                continue;
+            }
+
+            bool blocked = false;
+            for(size_t k = 0; k < holes.size(); ++k){
+                const auto skip = (k == hole_index) ? j : std::numeric_limits<size_t>::max();
+                if(bridge_crosses_cycle(holes.at(k).coords, skip, a, b)){
+                    blocked = true;
+                    break;
+                }
+            }
+            if(blocked){
+                continue;
+            }
+
+            const vec2<T> midpoint((a.x + b.x) / static_cast<T>(2),
+                                   (a.y + b.y) / static_cast<T>(2));
+            if(!point_in_polygon_or_on_boundary_robust(working.coords, midpoint)){
+                continue;
+            }
+            bool midpoint_in_hole = false;
+            for(const auto &other_hole : holes){
+                if(point_in_polygon_or_on_boundary_robust(other_hole.coords, midpoint)){
+                    midpoint_in_hole = true;
+                    break;
+                }
+            }
+            if(midpoint_in_hole){
+                continue;
+            }
+
+            const auto dx = static_cast<long double>(a.x) - static_cast<long double>(b.x);
+            const auto dy = static_cast<long double>(a.y) - static_cast<long double>(b.y);
+            const auto len = (dx * dx) + (dy * dy);
+            if((!found) || (len < best_len)
+            || ((len == best_len) && (std::make_pair(i, j) < std::make_pair(working_pos, hole_pos)))){
+                found = true;
+                best_len = len;
+                working_pos = i;
+                hole_pos = j;
+            }
+        }
+    }
+    return found;
+}
+
+template <class T>
+void splice_hole(WorkingPolygon<T> &working,
+                 const WorkingPolygon<T> &hole,
+                 size_t working_pos,
+                 size_t hole_pos){
+    WorkingPolygon<T> merged;
+    merged.interior = working.interior;
+    merged.refs.reserve(working.refs.size() + hole.refs.size() + 2);
+    merged.coords.reserve(working.coords.size() + hole.coords.size() + 2);
+
+    for(size_t i = 0; i <= working_pos; ++i){
+        merged.refs.push_back(working.refs.at(i));
+        merged.coords.push_back(working.coords.at(i));
+    }
+    for(size_t offset = 0; offset < hole.refs.size(); ++offset){
+        const auto idx = (hole_pos + hole.refs.size() - offset) % hole.refs.size();
+        merged.refs.push_back(hole.refs.at(idx));
+        merged.coords.push_back(hole.coords.at(idx));
+    }
+    merged.refs.push_back(hole.refs.at(hole_pos));
+    merged.coords.push_back(hole.coords.at(hole_pos));
+    merged.refs.push_back(working.refs.at(working_pos));
+    merged.coords.push_back(working.coords.at(working_pos));
+    for(size_t i = working_pos + 1; i < working.refs.size(); ++i){
+        merged.refs.push_back(working.refs.at(i));
+        merged.coords.push_back(working.coords.at(i));
+    }
+
+    working = std::move(merged);
+}
+
+template <class T>
+bool build_region_boundary(const std::vector<std::vector<vec2<T>>> &verts,
+                           const std::vector<NormalizedPolygon<T>> &normalized,
+                           size_t polygon_pos,
+                           WorkingPolygon<T> &working,
+                           std::string *diag){
+    working = make_working_polygon(verts, normalized.at(polygon_pos));
+    std::vector<WorkingPolygon<T>> holes;
+    holes.reserve(normalized.at(polygon_pos).children.size());
+    for(const auto child_pos : normalized.at(polygon_pos).children){
+        holes.push_back(make_working_polygon(verts, normalized.at(child_pos)));
+    }
+
+    while(!holes.empty()){
+        size_t selected_hole = 0;
+        for(size_t i = 1; i < holes.size(); ++i){
+            const auto cand = rightmost_vertex(holes.at(i));
+            const auto cur = rightmost_vertex(holes.at(selected_hole));
+            const auto &cand_v = holes.at(i).coords.at(cand);
+            const auto &cur_v = holes.at(selected_hole).coords.at(cur);
+            if((cand_v.x > cur_v.x) || ((cand_v.x == cur_v.x) && (cand_v.y < cur_v.y))){
+                selected_hole = i;
+            }
+        }
+
+        size_t working_pos = 0;
+        size_t hole_pos = 0;
+        if(!find_bridge(working, holes, selected_hole, working_pos, hole_pos)){
+            return monotone_fail(diag, "Failed to construct a non-intersecting bridge between a polygon and one of its directly nested children.");
+        }
+        splice_hole(working, holes.at(selected_hole), working_pos, hole_pos);
+        holes.erase(holes.begin() + static_cast<std::ptrdiff_t>(selected_hole));
     }
     return true;
 }
@@ -794,18 +1081,14 @@ bool decompose_all_polygons(const std::vector<std::vector<vec2<T>>> &verts,
         }
     }
 
-    if(!classify_polygon_parity(verts, normalized)){
+    if(!build_polygon_tree(verts, normalized)){
         return false;
     }
 
-    for(const auto &poly : normalized){
+    for(size_t poly_pos = 0; poly_pos < normalized.size(); ++poly_pos){
         WorkingPolygon<T> working;
-        working.polygon_index = poly.polygon_index;
-        working.interior = poly.interior;
-        working.original_indices = poly.original_indices;
-        working.coords.reserve(poly.original_indices.size());
-        for(const auto idx : poly.original_indices){
-            working.coords.push_back(verts.at(poly.polygon_index).at(idx));
+        if(!build_region_boundary(verts, normalized, poly_pos, working, diag)){
+            return false;
         }
 
         std::set<std::pair<size_t, size_t>> diagonals;

@@ -89,6 +89,20 @@ void require_valid_monotone_output(const std::vector<std::vector<vec2<T>>> &vert
     }
 }
 
+template <class T, class I>
+int monotone_score(const std::vector<std::vector<vec2<T>>> &verts,
+                   const std::vector<monotone_t<I>> &pieces,
+                   const vec2<T> &p){
+    int score = 0;
+    for(const auto &piece : pieces){
+        const auto poly = materialize_piece(verts, piece);
+        if(point_in_polygon_or_on_boundary(poly, p)){
+            score += piece.interior ? 1 : -1;
+        }
+    }
+    return score;
+}
+
 } // namespace
 
 TEST_CASE("Monotone_Decomposition_2 function"){
@@ -167,11 +181,14 @@ TEST_CASE("Monotone_Decomposition_2 function"){
         };
 
         const auto pieces = Monotone_Decomposition_2<double, uint32_t>(verts);
-        REQUIRE(pieces.size() == 3);
-        REQUIRE(pieces.at(0).interior);
-        REQUIRE(!pieces.at(1).interior);
-        REQUIRE(pieces.at(2).interior);
+        REQUIRE(pieces.size() >= 3);
+        REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return piece.interior; }));
+        REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return !piece.interior; }));
         require_valid_monotone_output(verts, pieces);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(1.0, 1.0)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(2.5, 2.5)) == 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 3.75)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(9.0, 9.0)) == 0);
     }
 
     SUBCASE("nested polygons result in joined, not overlapping monotones"){
@@ -192,6 +209,9 @@ TEST_CASE("Monotone_Decomposition_2 function"){
 
         const auto pieces = Monotone_Decomposition_2<double, uint32_t>(verts);
         REQUIRE(pieces.size() > 2);
+        require_valid_monotone_output(verts, pieces);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 0.5)) > 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 2.0)) == 0);
     }
 
     SUBCASE("touching nested polygons are rejected"){
