@@ -929,6 +929,9 @@ bool find_bridge(const WorkingPolygon<T> &working,
                  size_t hole_index,
                  size_t &working_pos,
                  size_t &hole_pos){
+    // Following the standard hole-joining preprocessing described by de Berg et al. and Held, we connect a loop to each
+    // directly nested child by duplicating a visible bridge segment as a zero-width corridor. The implementation below
+    // keeps the predicates robust by validating each candidate using adaptive orientation/segment tests only.
     bool found = false;
     long double best_len = std::numeric_limits<long double>::max();
 
@@ -1032,6 +1035,8 @@ bool build_region_boundary(const std::vector<std::vector<vec2<T>>> &verts,
     }
 
     while(!holes.empty()){
+        // The rightmost-child ordering mirrors the usual polygon-with-holes bridge insertion strategy and helps keep the
+        // temporary corridors from interfering with not-yet-processed children.
         size_t selected_hole = 0;
         for(size_t i = 1; i < holes.size(); ++i){
             const auto cand = rightmost_vertex(holes.at(i));

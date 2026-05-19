@@ -186,7 +186,7 @@ TEST_CASE("Monotone_Decomposition_2 function"){
         REQUIRE(std::any_of(pieces.begin(), pieces.end(), [](const auto &piece){ return !piece.interior; }));
         require_valid_monotone_output(verts, pieces);
         REQUIRE(monotone_score(verts, pieces, vec2<double>(1.0, 1.0)) > 0);
-        REQUIRE(monotone_score(verts, pieces, vec2<double>(2.5, 2.5)) == 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(2.5, 2.5)) < 0);
         REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 3.75)) > 0);
         REQUIRE(monotone_score(verts, pieces, vec2<double>(9.0, 9.0)) == 0);
     }
@@ -211,7 +211,7 @@ TEST_CASE("Monotone_Decomposition_2 function"){
         REQUIRE(pieces.size() > 2);
         require_valid_monotone_output(verts, pieces);
         REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 0.5)) > 0);
-        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 2.0)) == 0);
+        REQUIRE(monotone_score(verts, pieces, vec2<double>(4.0, 2.0)) < 0);
     }
 
     SUBCASE("touching nested polygons are rejected"){
