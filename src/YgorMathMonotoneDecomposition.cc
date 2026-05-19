@@ -262,7 +262,9 @@ bool edge_left_of_vertex(const WorkingPolygon<T> &poly,
                                   poly.coords.at(edge.lower),
                                   poly.coords.at(vertex_pos));
     if(sign == 0){
-        return std::tie(edge.upper, edge.lower) < std::tie(vertex_pos, vertex_pos);
+        // This should only happen for explicitly guarded degeneracies (for example, if a future change relaxes the
+        // "no touching" validation), so fall back to a deterministic ordering based on the edge key.
+        return std::tie(edge.upper, edge.lower) < std::make_tuple(vertex_pos, vertex_pos);
     }
     return sign > 0;
 }
@@ -746,8 +748,7 @@ bool convert_faces(const WorkingPolygon<T> &poly,
 
 template <class T>
 bool classify_polygon_parity(const std::vector<std::vector<vec2<T>>> &all_verts,
-                             std::vector<NormalizedPolygon<T>> &polys,
-                             std::string *diag){
+                             std::vector<NormalizedPolygon<T>> &polys){
     for(size_t i = 0; i < polys.size(); ++i){
         size_t depth = 0;
         const auto &sample = all_verts.at(polys.at(i).polygon_index).at(polys.at(i).original_indices.front());
@@ -763,7 +764,6 @@ bool classify_polygon_parity(const std::vector<std::vector<vec2<T>>> &all_verts,
         }
         polys.at(i).interior = ((depth % 2) == 0);
     }
-    (void)diag;
     return true;
 }
 
@@ -794,7 +794,7 @@ bool decompose_all_polygons(const std::vector<std::vector<vec2<T>>> &verts,
         }
     }
 
-    if(!classify_polygon_parity(verts, normalized, diag)){
+    if(!classify_polygon_parity(verts, normalized)){
         return false;
     }
 
