@@ -9,6 +9,7 @@
 #include <memory>
 #include <queue>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -22,11 +23,6 @@ namespace {
 template <class T>
 bool is_finite_2d(const vec2<T> &v){
     return std::isfinite(v.x) && std::isfinite(v.y);
-}
-
-template <class T>
-bool same_xy(const vec2<T> &a, const vec2<T> &b){
-    return (a.x == b.x) && (a.y == b.y);
 }
 
 template <class T>
@@ -101,6 +97,23 @@ struct PrecisePoint2 {
     long double y = 0.0L;
 };
 
+struct VertexCellKey {
+    int64_t x = 0;
+    int64_t y = 0;
+
+    bool operator==(const VertexCellKey &rhs) const {
+        return (x == rhs.x) && (y == rhs.y);
+    }
+};
+
+struct VertexCellKeyHash {
+    size_t operator()(const VertexCellKey &key) const noexcept {
+        const auto hx = std::hash<int64_t>{}(key.x);
+        const auto hy = std::hash<int64_t>{}(key.y);
+        return hx ^ (hy + 0x9e3779b97f4a7c15ULL + (hx << 6U) + (hx >> 2U));
+    }
+};
+
 template <class T, class I>
 class FortuneVoronoiBuilder {
     public:
@@ -130,7 +143,6 @@ class FortuneVoronoiBuilder {
                     continue;
                 }
 
-                m_sweep_y = event->y;
                 if(event->type == EventType::Site){
                     handle_site_event(event->site_index);
                 }else{
@@ -144,11 +156,6 @@ class FortuneVoronoiBuilder {
         }
 
     private:
-        enum class NodeType {
-            Arc,
-            Breakpoint,
-        };
-
         enum class EventType {
             Site,
             Circle,
@@ -157,19 +164,18 @@ class FortuneVoronoiBuilder {
         struct Event;
 
         struct Node {
-            NodeType type = NodeType::Arc;
             Node *parent = nullptr;
             Node *left = nullptr;
             Node *right = nullptr;
 
             size_t site_index = 0;
-            size_t left_site = 0;
-            size_t right_site = 0;
-            size_t edge_index = 0;
-
             Node *prev = nullptr;
             Node *next = nullptr;
+            std::optional<size_t> left_edge_index;
+            std::optional<size_t> pending_edge_index;
             Event *circle_event = nullptr;
+            uint64_t priority = 0;
+            size_t subtree_size = 1;
         };
 
         struct Event {
@@ -218,14 +224,15 @@ class FortuneVoronoiBuilder {
         VoronoiDiagram2<T, I> m_output;
 
         Node *m_root = nullptr;
-        long double m_sweep_y = std::numeric_limits<long double>::infinity();
         uint64_t m_next_sequence = 0;
+        uint64_t m_next_priority = 0;
 
         std::vector<std::unique_ptr<Node>> m_node_storage;
         std::vector<std::unique_ptr<Event>> m_event_storage;
         std::priority_queue<Event*, std::vector<Event*>, EventCompare> m_events;
         std::vector<InternalVertex> m_vertices;
         std::vector<InternalEdge> m_edges;
+        std::unordered_map<VertexCellKey, std::vector<size_t>, VertexCellKeyHash> m_vertex_grid;
 
         // Fortune's event queue depends on strict y-ordering; this inflated machine-epsilon guard suppresses
         // circle events whose computed bottoms are numerically indistinguishable from the current directrix.
@@ -346,21 +353,17 @@ class FortuneVoronoiBuilder {
             }
         }
 
-        Node* make_arc(size_t site_index){
-            auto node = std::make_unique<Node>();
-            node->type = NodeType::Arc;
-            node->site_index = site_index;
-            auto *ptr = node.get();
-            m_node_storage.push_back(std::move(node));
-            return ptr;
+        static uint64_t splitmix64(uint64_t value){
+            value += 0x9e3779b97f4a7c15ULL;
+            value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+            value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+            return value ^ (value >> 31U);
         }
 
-        Node* make_breakpoint(size_t left_site, size_t right_site, size_t edge_index){
+        Node* make_arc(size_t site_index){
             auto node = std::make_unique<Node>();
-            node->type = NodeType::Breakpoint;
-            node->left_site = left_site;
-            node->right_site = right_site;
-            node->edge_index = edge_index;
+            node->site_index = site_index;
+            node->priority = splitmix64(m_next_priority++);
             auto *ptr = node.get();
             m_node_storage.push_back(std::move(node));
             return ptr;
@@ -374,61 +377,163 @@ class FortuneVoronoiBuilder {
             return ptr;
         }
 
-        void replace_node(Node *old_node, Node *new_node){
-            auto *parent = old_node->parent;
-            if(parent == nullptr){
-                m_root = new_node;
-            }else if(parent->left == old_node){
-                parent->left = new_node;
-            }else{
-                parent->right = new_node;
+        static size_t subtree_size(const Node *node){
+            return (node == nullptr) ? 0U : node->subtree_size;
+        }
+
+        static void update_node(Node *node){
+            if(node == nullptr){
+                return;
             }
-            if(new_node != nullptr){
-                new_node->parent = parent;
+            node->subtree_size = subtree_size(node->left) + subtree_size(node->right) + 1U;
+            if(node->left != nullptr){
+                node->left->parent = node;
+            }
+            if(node->right != nullptr){
+                node->right->parent = node;
             }
         }
 
-        static void attach_children(Node *parent, Node *left_child, Node *right_child){
-            parent->left = left_child;
-            parent->right = right_child;
-            if(left_child != nullptr){
-                left_child->parent = parent;
+        static Node* merge_treaps(Node *lhs, Node *rhs){
+            if(lhs == nullptr){
+                if(rhs != nullptr){
+                    rhs->parent = nullptr;
+                }
+                return rhs;
             }
-            if(right_child != nullptr){
-                right_child->parent = parent;
+            if(rhs == nullptr){
+                lhs->parent = nullptr;
+                return lhs;
+            }
+
+            if(lhs->priority < rhs->priority){
+                lhs->right = merge_treaps(lhs->right, rhs);
+                update_node(lhs);
+                lhs->parent = nullptr;
+                return lhs;
+            }
+
+            rhs->left = merge_treaps(lhs, rhs->left);
+            update_node(rhs);
+            rhs->parent = nullptr;
+            return rhs;
+        }
+
+        static std::pair<Node*, Node*> split_treap(Node *root, size_t left_count){
+            if(root == nullptr){
+                return { nullptr, nullptr };
+            }
+
+            if(subtree_size(root->left) >= left_count){
+                auto halves = split_treap(root->left, left_count);
+                root->left = halves.second;
+                update_node(root);
+                if(halves.first != nullptr){
+                    halves.first->parent = nullptr;
+                }
+                root->parent = nullptr;
+                return { halves.first, root };
+            }
+
+            auto halves = split_treap(root->right, left_count - subtree_size(root->left) - 1U);
+            root->right = halves.first;
+            update_node(root);
+            if(halves.second != nullptr){
+                halves.second->parent = nullptr;
+            }
+            root->parent = nullptr;
+            return { root, halves.second };
+        }
+
+        static Node* leftmost_arc(Node *root){
+            auto *node = root;
+            while((node != nullptr) && (node->left != nullptr)){
+                node = node->left;
+            }
+            return node;
+        }
+
+        size_t arc_rank(const Node *node) const {
+            size_t rank = subtree_size(node->left);
+            auto *cur = node;
+            while(cur->parent != nullptr){
+                if(cur->parent->right == cur){
+                    rank += subtree_size(cur->parent->left) + 1U;
+                }
+                cur = cur->parent;
+            }
+            return rank;
+        }
+
+        void replace_arc(Node *arc, const std::vector<Node*> &replacement){
+            const auto rank = arc_rank(arc);
+            auto left_and_tail = split_treap(m_root, rank);
+            auto arc_and_right = split_treap(left_and_tail.second, 1U);
+            (void)arc_and_right.first;
+
+            Node *middle = nullptr;
+            for(auto *node : replacement){
+                node->parent = nullptr;
+                node->left = nullptr;
+                node->right = nullptr;
+                node->subtree_size = 1U;
+                middle = merge_treaps(middle, node);
+            }
+
+            m_root = merge_treaps(merge_treaps(left_and_tail.first, middle), arc_and_right.second);
+            if(m_root != nullptr){
+                m_root->parent = nullptr;
             }
         }
 
-        static Node* left_breakpoint(Node *arc){
-            auto *child = arc;
-            auto *parent = arc->parent;
-            while((parent != nullptr) && (parent->left == child)){
-                child = parent;
-                parent = parent->parent;
+        void remove_arc(Node *arc){
+            const auto rank = arc_rank(arc);
+            auto left_and_tail = split_treap(m_root, rank);
+            auto arc_and_right = split_treap(left_and_tail.second, 1U);
+            (void)arc_and_right.first;
+            m_root = merge_treaps(left_and_tail.first, arc_and_right.second);
+            if(m_root != nullptr){
+                m_root->parent = nullptr;
             }
-            return parent;
         }
 
-        static Node* right_breakpoint(Node *arc){
-            auto *child = arc;
-            auto *parent = arc->parent;
-            while((parent != nullptr) && (parent->right == child)){
-                child = parent;
-                parent = parent->parent;
+        void insert_arc_before(Node *arc, Node *inserted){
+            const auto rank = arc_rank(arc);
+            auto halves = split_treap(m_root, rank);
+            inserted->parent = nullptr;
+            inserted->left = nullptr;
+            inserted->right = nullptr;
+            inserted->subtree_size = 1U;
+            m_root = merge_treaps(merge_treaps(halves.first, inserted), halves.second);
+            if(m_root != nullptr){
+                m_root->parent = nullptr;
             }
-            return parent;
+        }
+
+        void reset_edge_geometry(InternalEdge &edge) const {
+            const auto midpoint = (m_sites.at(edge.left_site) + m_sites.at(edge.right_site)) / static_cast<T>(2);
+            edge.sample_point = midpoint;
+            edge.direction = perp_ccw(m_sites.at(edge.right_site) - m_sites.at(edge.left_site));
+            if(edge.direction.sq_length() == static_cast<T>(0)){
+                edge.direction = vec2<T>(static_cast<T>(0), static_cast<T>(1));
+            }
+        }
+
+        void retarget_active_edge(size_t edge_index, size_t left_site, size_t right_site){
+            auto &edge = m_edges.at(edge_index);
+            if(edge.vertex0.has_value() || edge.vertex1.has_value()){
+                throw std::runtime_error("Voronoi sweep-line tried to retarget a finished edge during a same-level site insertion.");
+            }
+            edge.left_site = left_site;
+            edge.right_site = right_site;
+            reset_edge_geometry(edge);
         }
 
         size_t create_edge(size_t left_site, size_t right_site){
             InternalEdge edge;
             edge.left_site = left_site;
             edge.right_site = right_site;
-            const auto midpoint = (m_sites.at(left_site) + m_sites.at(right_site)) / static_cast<T>(2);
-            edge.sample_point = midpoint;
-            edge.direction = perp_ccw(m_sites.at(right_site) - m_sites.at(left_site));
-            if(edge.direction.sq_length() == static_cast<T>(0)){
-                edge.direction = vec2<T>(static_cast<T>(0), static_cast<T>(1));
-            }
+            reset_edge_geometry(edge);
             m_edges.push_back(edge);
             return m_edges.size() - 1;
         }
@@ -506,11 +611,20 @@ class FortuneVoronoiBuilder {
 
         Node* find_arc_above(long double x, long double sweep_y) const {
             auto *node = m_root;
-            while((node != nullptr) && (node->type == NodeType::Breakpoint)){
-                const auto bx = breakpoint_x(node->left_site, node->right_site, sweep_y);
-                node = (x < bx) ? node->left : node->right;
+            while(node != nullptr){
+                if((node->prev != nullptr)
+                && (x < breakpoint_x(node->prev->site_index, node->site_index, sweep_y))){
+                    node = node->left;
+                    continue;
+                }
+                if((node->next != nullptr)
+                && !(x < breakpoint_x(node->site_index, node->next->site_index, sweep_y))){
+                    node = node->right;
+                    continue;
+                }
+                return node;
             }
-            return node;
+            return nullptr;
         }
 
         long double event_tolerance() const {
@@ -544,22 +658,45 @@ class FortuneVoronoiBuilder {
             return std::isfinite(center.x) && std::isfinite(center.y) && std::isfinite(radius);
         }
 
+        static VertexCellKey vertex_cell_key_for(const PrecisePoint2 &center, long double tol){
+            return VertexCellKey{
+                static_cast<int64_t>(std::floor(center.x / tol)),
+                static_cast<int64_t>(std::floor(center.y / tol))
+            };
+        }
+
+        void merge_vertex_sites(InternalVertex &vertex, const std::array<size_t, 3> &sites){
+            for(const auto site : sites){
+                if(std::find(vertex.incident_sites.begin(),
+                             vertex.incident_sites.end(),
+                             site) == vertex.incident_sites.end()){
+                    vertex.incident_sites.push_back(site);
+                }
+            }
+            std::sort(vertex.incident_sites.begin(), vertex.incident_sites.end());
+        }
+
         size_t add_vertex(const PrecisePoint2 &center, std::array<size_t, 3> sites){
             const auto tol = vertex_merge_tolerance_factor
                            * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
-            for(size_t i = 0; i < m_vertices.size(); ++i){
-                const auto dx = static_cast<long double>(m_vertices.at(i).position.x) - center.x;
-                const auto dy = static_cast<long double>(m_vertices.at(i).position.y) - center.y;
-                if((dx * dx + dy * dy) <= (tol * tol)){
-                    for(const auto site : sites){
-                        if(std::find(m_vertices.at(i).incident_sites.begin(),
-                                     m_vertices.at(i).incident_sites.end(),
-                                     site) == m_vertices.at(i).incident_sites.end()){
-                            m_vertices.at(i).incident_sites.push_back(site);
+            const auto base_cell = vertex_cell_key_for(center, tol);
+
+            for(int64_t dy = -1; dy <= 1; ++dy){
+                for(int64_t dx = -1; dx <= 1; ++dx){
+                    const VertexCellKey key{base_cell.x + dx, base_cell.y + dy};
+                    const auto grid_it = m_vertex_grid.find(key);
+                    if(grid_it == m_vertex_grid.end()){
+                        continue;
+                    }
+
+                    for(const auto idx : grid_it->second){
+                        const auto ddx = static_cast<long double>(m_vertices.at(idx).position.x) - center.x;
+                        const auto ddy = static_cast<long double>(m_vertices.at(idx).position.y) - center.y;
+                        if((ddx * ddx + ddy * ddy) <= (tol * tol)){
+                            merge_vertex_sites(m_vertices.at(idx), sites);
+                            return idx;
                         }
                     }
-                    std::sort(m_vertices.at(i).incident_sites.begin(), m_vertices.at(i).incident_sites.end());
-                    return i;
                 }
             }
 
@@ -570,7 +707,9 @@ class FortuneVoronoiBuilder {
             vert.incident_sites.erase(std::unique(vert.incident_sites.begin(), vert.incident_sites.end()),
                                       vert.incident_sites.end());
             m_vertices.push_back(vert);
-            return m_vertices.size() - 1;
+            const auto index = m_vertices.size() - 1;
+            m_vertex_grid[base_cell].push_back(index);
+            return index;
         }
 
         void finish_edge(size_t edge_index, size_t vertex_index){
@@ -601,7 +740,7 @@ class FortuneVoronoiBuilder {
             const auto sign = orient_sign(m_sites.at(arc->prev->site_index),
                                           m_sites.at(arc->site_index),
                                           m_sites.at(arc->next->site_index));
-            if(sign >= 0){
+            if(sign == 0){
                 return;
             }
 
@@ -612,6 +751,14 @@ class FortuneVoronoiBuilder {
                                      m_sites.at(arc->next->site_index),
                                      center,
                                      radius)){
+                return;
+            }
+            const auto center_point = vec2<T>(static_cast<T>(center.x), static_cast<T>(center.y));
+            if(!is_finite_2d(center_point)
+            || (incircle_sign(m_sites.at(arc->prev->site_index),
+                              m_sites.at(arc->site_index),
+                              m_sites.at(arc->next->site_index),
+                              center_point) <= 0)){
                 return;
             }
 
@@ -632,8 +779,129 @@ class FortuneVoronoiBuilder {
             m_events.push(event);
         }
 
-        // Insert a new site by splitting the arc directly above it into three leaves: old-left, new-site, old-right.
-        // The two breakpoints initially trace the same bisector edge, exactly as in Fortune's original tree update.
+        bool same_level_sites(size_t lhs, size_t rhs) const {
+            return std::abs(static_cast<long double>(m_sites.at(lhs).y) - static_cast<long double>(m_sites.at(rhs).y))
+                <= event_tolerance();
+        }
+
+        long double site_breakpoint_tolerance() const {
+            return ray_sample_guard_factor
+                 * std::sqrt(static_cast<long double>(std::numeric_limits<T>::epsilon()));
+        }
+
+        void handle_breakpoint_site_event(Node *left_arc,
+                                          Node *right_arc,
+                                          size_t site_index,
+                                          long double directrix){
+            if((left_arc == nullptr) || (right_arc == nullptr) || !right_arc->left_edge_index.has_value()){
+                throw std::runtime_error("Voronoi sweep-line could not split a site event that landed on a breakpoint.");
+            }
+
+            auto *outer_left = left_arc->prev;
+            auto *outer_right = right_arc->next;
+            invalidate_circle_event(outer_left);
+            invalidate_circle_event(left_arc);
+            invalidate_circle_event(right_arc);
+            invalidate_circle_event(outer_right);
+
+            auto *mid_arc = make_arc(site_index);
+            mid_arc->left_edge_index = create_edge(left_arc->site_index, site_index);
+            mid_arc->pending_edge_index = right_arc->left_edge_index;
+            right_arc->left_edge_index = create_edge(site_index, right_arc->site_index);
+
+            mid_arc->prev = left_arc;
+            mid_arc->next = right_arc;
+            left_arc->next = mid_arc;
+            right_arc->prev = mid_arc;
+            insert_arc_before(right_arc, mid_arc);
+
+            PrecisePoint2 center;
+            long double radius = 0.0L;
+            if(compute_circumcenter(m_sites.at(left_arc->site_index),
+                                    m_sites.at(mid_arc->site_index),
+                                    m_sites.at(right_arc->site_index),
+                                    center,
+                                    radius)){
+                const auto center_point = vec2<T>(static_cast<T>(center.x), static_cast<T>(center.y));
+                const auto event_y = center.y - radius;
+                if(is_finite_2d(center_point)
+                && (incircle_sign(m_sites.at(left_arc->site_index),
+                                  m_sites.at(mid_arc->site_index),
+                                  m_sites.at(right_arc->site_index),
+                                  center_point) > 0)
+                && (std::abs(event_y - static_cast<long double>(m_sites.at(site_index).y))
+                    <= site_breakpoint_tolerance())){
+                    const auto vertex_index = add_vertex(center,
+                                                         {{ left_arc->site_index,
+                                                            mid_arc->site_index,
+                                                            right_arc->site_index }});
+                    finish_edge(mid_arc->pending_edge_index.value(), vertex_index);
+                    finish_edge(mid_arc->left_edge_index.value(), vertex_index);
+                    finish_edge(right_arc->left_edge_index.value(), vertex_index);
+
+                    left_arc->next = right_arc;
+                    right_arc->prev = left_arc;
+                    right_arc->left_edge_index = mid_arc->pending_edge_index;
+                    remove_arc(mid_arc);
+
+                    schedule_circle_event(outer_left, directrix);
+                    schedule_circle_event(left_arc, directrix);
+                    schedule_circle_event(right_arc, directrix);
+                    schedule_circle_event(outer_right, directrix);
+                    return;
+                }
+            }
+
+            schedule_circle_event(outer_left, directrix);
+            schedule_circle_event(left_arc, directrix);
+            schedule_circle_event(mid_arc, directrix);
+            schedule_circle_event(right_arc, directrix);
+            schedule_circle_event(outer_right, directrix);
+        }
+
+        void handle_same_level_site_event(Node *arc, size_t site_index, long double directrix){
+            auto *prev_arc = arc->prev;
+            auto *next_arc = arc->next;
+
+            invalidate_circle_event(prev_arc);
+            invalidate_circle_event(next_arc);
+
+            const bool insert_left = (m_sites.at(site_index).x < m_sites.at(arc->site_index).x);
+            auto *left_arc = make_arc(insert_left ? site_index : arc->site_index);
+            auto *right_arc = make_arc(insert_left ? arc->site_index : site_index);
+            right_arc->left_edge_index = create_edge(left_arc->site_index, right_arc->site_index);
+
+            left_arc->left_edge_index = arc->left_edge_index;
+            left_arc->prev = prev_arc;
+            if(prev_arc != nullptr){
+                prev_arc->next = left_arc;
+            }
+            left_arc->next = right_arc;
+
+            right_arc->prev = left_arc;
+            right_arc->next = next_arc;
+            if(next_arc != nullptr){
+                next_arc->prev = right_arc;
+            }
+
+            if(insert_left){
+                if((prev_arc != nullptr) && left_arc->left_edge_index.has_value()){
+                    retarget_active_edge(left_arc->left_edge_index.value(), prev_arc->site_index, left_arc->site_index);
+                }else{
+                    left_arc->left_edge_index.reset();
+                }
+            }else if((next_arc != nullptr) && next_arc->left_edge_index.has_value()){
+                retarget_active_edge(next_arc->left_edge_index.value(), right_arc->site_index, next_arc->site_index);
+            }
+
+            replace_arc(arc, { left_arc, right_arc });
+
+            schedule_circle_event(left_arc, directrix);
+            schedule_circle_event(right_arc, directrix);
+            schedule_circle_event(left_arc->prev, directrix);
+            schedule_circle_event(right_arc->next, directrix);
+        }
+
         void handle_site_event(size_t site_index){
             const auto directrix = std::nextafter(static_cast<long double>(m_sites.at(site_index).y),
                                                   -std::numeric_limits<long double>::infinity());
@@ -646,16 +914,39 @@ class FortuneVoronoiBuilder {
             if(arc == nullptr){
                 throw std::runtime_error("Voronoi sweep-line could not locate a beach-line arc for a site event.");
             }
+            auto *prev_arc = arc->prev;
+            auto *next_arc = arc->next;
             invalidate_circle_event(arc);
+            invalidate_circle_event(prev_arc);
+            invalidate_circle_event(next_arc);
+
+            const auto site_x = static_cast<long double>(m_sites.at(site_index).x);
+            const auto split_tol = site_breakpoint_tolerance();
+            if((prev_arc != nullptr) && arc->left_edge_index.has_value()
+            && (std::abs(site_x - breakpoint_x(prev_arc->site_index, arc->site_index, directrix)) <= split_tol)){
+                handle_breakpoint_site_event(prev_arc, arc, site_index, directrix);
+                return;
+            }
+            if((next_arc != nullptr) && next_arc->left_edge_index.has_value()
+            && (std::abs(site_x - breakpoint_x(arc->site_index, next_arc->site_index, directrix)) <= split_tol)){
+                handle_breakpoint_site_event(arc, next_arc, site_index, directrix);
+                return;
+            }
+
+            if(same_level_sites(arc->site_index, site_index)){
+                handle_same_level_site_event(arc, site_index, directrix);
+                return;
+            }
 
             const auto edge_index = create_edge(arc->site_index, site_index);
             auto *left_arc = make_arc(arc->site_index);
             auto *mid_arc = make_arc(site_index);
             auto *right_arc = make_arc(arc->site_index);
-            auto *right_bp = make_breakpoint(site_index, arc->site_index, edge_index);
-            auto *left_bp = make_breakpoint(arc->site_index, site_index, edge_index);
+            left_arc->left_edge_index = arc->left_edge_index;
+            mid_arc->left_edge_index = edge_index;
+            right_arc->left_edge_index = edge_index;
 
-            left_arc->prev = arc->prev;
+            left_arc->prev = prev_arc;
             if(left_arc->prev != nullptr){
                 left_arc->prev->next = left_arc;
             }
@@ -665,17 +956,17 @@ class FortuneVoronoiBuilder {
             mid_arc->next = right_arc;
 
             right_arc->prev = mid_arc;
-            right_arc->next = arc->next;
+            right_arc->next = next_arc;
             if(right_arc->next != nullptr){
                 right_arc->next->prev = right_arc;
             }
 
-            attach_children(right_bp, mid_arc, right_arc);
-            attach_children(left_bp, left_arc, right_bp);
-            replace_node(arc, left_bp);
+            replace_arc(arc, { left_arc, mid_arc, right_arc });
 
             schedule_circle_event(left_arc, directrix);
             schedule_circle_event(right_arc, directrix);
+            schedule_circle_event(left_arc->prev, directrix);
+            schedule_circle_event(right_arc->next, directrix);
         }
 
         // When the middle arc disappears, the two converging breakpoint traces meet at a Voronoi vertex and the
@@ -686,9 +977,8 @@ class FortuneVoronoiBuilder {
                 return;
             }
 
-            auto *left_bp = left_breakpoint(arc);
-            auto *right_bp = right_breakpoint(arc);
-            if((left_bp == nullptr) || (right_bp == nullptr) || (arc->prev == nullptr) || (arc->next == nullptr)){
+            if((arc->prev == nullptr) || (arc->next == nullptr) || !arc->left_edge_index.has_value()
+            || !arc->next->left_edge_index.has_value()){
                 arc->circle_event = nullptr;
                 return;
             }
@@ -703,42 +993,21 @@ class FortuneVoronoiBuilder {
                                                  {{ left_arc->site_index,
                                                     arc->site_index,
                                                     right_arc->site_index }});
-            finish_edge(left_bp->edge_index, vertex_index);
-            finish_edge(right_bp->edge_index, vertex_index);
-
-            auto *parent = arc->parent;
-            if(parent == nullptr){
-                throw std::runtime_error("Voronoi sweep-line encountered a malformed beach-line tree during a circle event.");
-            }
-            auto *higher = (parent == left_bp) ? right_bp : left_bp;
-            auto *sibling = (parent->left == arc) ? parent->right : parent->left;
-            replace_node(parent, sibling);
+            finish_edge(arc->left_edge_index.value(), vertex_index);
+            finish_edge(right_arc->left_edge_index.value(), vertex_index);
 
             left_arc->next = right_arc;
             right_arc->prev = left_arc;
 
-            const auto new_edge = create_edge(left_arc->site_index, right_arc->site_index);
-            finish_edge(new_edge, vertex_index);
-            higher->left_site = left_arc->site_index;
-            higher->right_site = right_arc->site_index;
-            higher->edge_index = new_edge;
+            auto continuing_edge = arc->pending_edge_index.has_value()
+                                 ? arc->pending_edge_index.value()
+                                 : create_edge(left_arc->site_index, right_arc->site_index);
+            finish_edge(continuing_edge, vertex_index);
+            right_arc->left_edge_index = continuing_edge;
+            remove_arc(arc);
 
             schedule_circle_event(left_arc, event->y);
             schedule_circle_event(right_arc, event->y);
-        }
-
-        void collect_active_breakpoints(Node *node,
-                                        long double final_y,
-                                        std::map<size_t, std::vector<vec2<T>>> &samples) const {
-            if(node == nullptr){
-                return;
-            }
-            if(node->type == NodeType::Breakpoint){
-                const auto sample = breakpoint_point(node->left_site, node->right_site, final_y);
-                samples[node->edge_index].emplace_back(static_cast<T>(sample.x), static_cast<T>(sample.y));
-                collect_active_breakpoints(node->left, final_y, samples);
-                collect_active_breakpoints(node->right, final_y, samples);
-            }
         }
 
         void finalize_active_edges(){
@@ -752,7 +1021,13 @@ class FortuneVoronoiBuilder {
             const auto final_y = static_cast<long double>(min_y - static_cast<T>(4) * span - static_cast<T>(4));
 
             std::map<size_t, std::vector<vec2<T>>> samples;
-            collect_active_breakpoints(m_root, final_y, samples);
+            for(auto *arc = leftmost_arc(m_root); arc != nullptr; arc = arc->next){
+                if((arc->prev != nullptr) && arc->left_edge_index.has_value()){
+                    const auto sample = breakpoint_point(arc->prev->site_index, arc->site_index, final_y);
+                    samples[arc->left_edge_index.value()].emplace_back(static_cast<T>(sample.x),
+                                                                        static_cast<T>(sample.y));
+                }
+            }
 
             for(size_t i = 0; i < m_edges.size(); ++i){
                 auto &edge = m_edges.at(i);
@@ -817,6 +1092,7 @@ class FortuneVoronoiBuilder {
         void finalize_output(){
             m_output.vertices.clear();
             m_output.vertices.reserve(m_vertices.size());
+            m_output.cell_edges.assign(m_input_sites.size(), {});
             for(const auto &vertex : m_vertices){
                 typename VoronoiDiagram2<T, I>::Vertex out_vertex;
                 out_vertex.position = denormalize_point(vertex.position, m_norm);

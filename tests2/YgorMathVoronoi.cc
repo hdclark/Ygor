@@ -111,6 +111,34 @@ TEST_CASE( "Voronoi_Diagram_2 function" ){
         }
     }
 
+    SUBCASE("two highest sites on a horizontal row still produce a valid three-ray vertex"){
+        std::vector<vec2<double>> sites {{
+            vec2<double>(0.0, 2.0),
+            vec2<double>(2.0, 2.0),
+            vec2<double>(1.0, 0.0) }};
+        const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
+
+        REQUIRE( diagram.vertices.size() == 1 );
+        REQUIRE( diagram.edges.size() == 3 );
+        REQUIRE( diagram.cell_edges.size() == 3 );
+        for(const auto &cell : diagram.cell_edges){
+            REQUIRE( cell.size() == 2 );
+        }
+
+        const auto &vertex = diagram.vertices.front();
+        const auto d0 = vertex.position.distance(sites[0]);
+        const auto d1 = vertex.position.distance(sites[1]);
+        const auto d2 = vertex.position.distance(sites[2]);
+        REQUIRE( d0 == doctest::Approx(d1).epsilon(eps * 16) );
+        REQUIRE( d0 == doctest::Approx(d2).epsilon(eps * 16) );
+
+        for(const auto &edge : diagram.edges){
+            const bool has_vertex = edge.vertex0.has_value() || edge.vertex1.has_value();
+            REQUIRE( has_vertex );
+            require_edge_bisects_sites(sites, diagram, edge, static_cast<double>(eps));
+        }
+    }
+
     SUBCASE("collinear sites produce only unbounded bisectors"){
         std::vector<vec2<double>> sites {{
             vec2<double>(-2.0, 0.0),
@@ -144,5 +172,26 @@ TEST_CASE( "Voronoi_Diagram_2 function" ){
         for(const auto &edge : diagram.edges){
             require_edge_bisects_sites(sites, diagram, edge, 1.0e-4);
         }
+    }
+
+    SUBCASE("four general-position sites produce a bounded Voronoi edge"){
+        std::vector<vec2<double>> sites {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(4.0, 0.0),
+            vec2<double>(0.0, 3.0),
+            vec2<double>(5.0, 4.0) }};
+        const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
+
+        REQUIRE( diagram.vertices.size() >= 2 );
+        REQUIRE( diagram.edges.size() >= 5 );
+
+        bool found_bounded_edge = false;
+        for(const auto &edge : diagram.edges){
+            require_edge_bisects_sites(sites, diagram, edge, static_cast<double>(eps));
+            if(edge.vertex0.has_value() && edge.vertex1.has_value()){
+                found_bounded_edge = true;
+            }
+        }
+        REQUIRE( found_bounded_edge );
     }
 }
