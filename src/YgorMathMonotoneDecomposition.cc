@@ -1355,6 +1355,7 @@ bool triangulate_monotone_piece(const std::vector<std::vector<vec2<T>>> &verts,
     }
 
     long double emitted_area = 0.0L;
+    constexpr long double area_eps_multiplier = 64.0L;
     std::vector<size_t> stack;
     stack.reserve(order.size());
     stack.push_back(order.at(0));
@@ -1386,6 +1387,8 @@ bool triangulate_monotone_piece(const std::vector<std::vector<vec2<T>>> &verts,
             const auto turn = orient_sign(monotone_piece_coord(verts, piece, cur),
                                           monotone_piece_coord(verts, piece, last),
                                           monotone_piece_coord(verts, piece, prev));
+            // Treat collinear triples as visible so zero-area bridge duplicates and normalized-but-still-collinear chain
+            // vertices are discarded by emitting/skipping a degenerate ear instead of stalling the stack walk.
             const bool visible = (cur_side == MonotoneChainSide::Left) ? (turn <= 0)
                                                                        : (turn >= 0);
             if(!visible){
@@ -1414,7 +1417,8 @@ bool triangulate_monotone_piece(const std::vector<std::vector<vec2<T>>> &verts,
 
     const auto area_eps = std::numeric_limits<long double>::epsilon()
                         * std::max<long double>(1.0L, std::abs(piece_area))
-                        * static_cast<long double>(piece.vertices.size() * 64);
+                        * static_cast<long double>(piece.vertices.size())
+                        * area_eps_multiplier;
     if(mesh.faces.empty() || (std::abs(emitted_area - piece_area) > area_eps)){
         return monotone_fail(diag, "Monotone triangulation failed to cover the monotone polygon with non-degenerate triangles.");
     }
