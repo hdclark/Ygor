@@ -1202,7 +1202,8 @@ Triangulate_Ear_Clipping_2(const std::vector<std::vector<vec2<T>>> &closed_polyg
 
     if(!mesh_index_type_can_represent_vertex_count<I>(verts.size())){
         const auto msg = "Ear-clipping triangulation produced " + std::to_string(verts.size())
-                       + " vertices, which exceeds the representable range of the requested mesh index type.";
+                       + " vertices, which exceeds the representable range of the requested mesh index type (max index "
+                       + std::to_string(static_cast<unsigned long long>(std::numeric_limits<I>::max())) + ").";
         YLOGWARN(msg);
         throw std::overflow_error(msg);
     }
