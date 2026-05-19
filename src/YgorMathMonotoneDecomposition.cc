@@ -1085,8 +1085,8 @@ bool build_region_boundary(const std::vector<std::vector<vec2<T>>> &verts,
 
 template <class T, class I>
 bool decompose_all_polygons(const std::vector<std::vector<vec2<T>>> &verts,
-                            std::vector<monotone_t<I>> &out,
-                            std::string *diag){
+                             std::vector<monotone_t<I>> &out,
+                             std::string *diag){
     out.clear();
     std::vector<NormalizedPolygon<T>> normalized;
     normalized.reserve(verts.size());
@@ -1135,6 +1135,289 @@ bool decompose_all_polygons(const std::vector<std::vector<vec2<T>>> &verts,
         }
     }
 
+    return true;
+}
+
+enum class MonotoneChainSide {
+    Left,
+    Right
+};
+
+template <class T, class I>
+const vec2<T> &
+monotone_piece_coord(const std::vector<std::vector<vec2<T>>> &verts,
+                     const monotone_t<I> &piece,
+                     size_t pos){
+    const auto &[poly_idx, vert_idx] = piece.vertices.at(pos);
+    return verts.at(static_cast<size_t>(poly_idx)).at(static_cast<size_t>(vert_idx));
+}
+
+template <class T, class I>
+long double monotone_piece_area_ld(const std::vector<std::vector<vec2<T>>> &verts,
+                                   const monotone_t<I> &piece){
+    long double area = 0.0L;
+    for(size_t i = 0; i < piece.vertices.size(); ++i){
+        const auto &a = monotone_piece_coord(verts, piece, i);
+        const auto &b = monotone_piece_coord(verts, piece, (i + 1) % piece.vertices.size());
+        area += (static_cast<long double>(a.x) * static_cast<long double>(b.y))
+              - (static_cast<long double>(b.x) * static_cast<long double>(a.y));
+    }
+    return area / 2.0L;
+}
+
+template <class T>
+long double triangle_area_abs_ld(const vec2<T> &a,
+                                 const vec2<T> &b,
+                                 const vec2<T> &c){
+    const auto twice_area = (static_cast<long double>(a.x) * static_cast<long double>(b.y))
+                          - (static_cast<long double>(b.x) * static_cast<long double>(a.y))
+                          + (static_cast<long double>(b.x) * static_cast<long double>(c.y))
+                          - (static_cast<long double>(c.x) * static_cast<long double>(b.y))
+                          + (static_cast<long double>(c.x) * static_cast<long double>(a.y))
+                          - (static_cast<long double>(a.x) * static_cast<long double>(c.y));
+    return std::abs(twice_area) / 2.0L;
+}
+
+template <class T, class I>
+bool build_monotone_vertex_order(const std::vector<std::vector<vec2<T>>> &verts,
+                                 const monotone_t<I> &piece,
+                                 std::vector<size_t> &order,
+                                 std::vector<MonotoneChainSide> &chain_side,
+                                 std::string *diag){
+    const auto n = piece.vertices.size();
+    order.clear();
+    chain_side.clear();
+    if(n < 3){
+        return monotone_fail(diag, "Monotone triangulation received a polygon with fewer than three vertices.");
+    }
+
+    size_t top = 0;
+    size_t bottom = 0;
+    for(size_t i = 1; i < n; ++i){
+        if(event_higher(monotone_piece_coord(verts, piece, i),
+                        monotone_piece_coord(verts, piece, top))){
+            top = i;
+        }
+        if(event_higher(monotone_piece_coord(verts, piece, bottom),
+                        monotone_piece_coord(verts, piece, i))){
+            bottom = i;
+        }
+    }
+    if(top == bottom){
+        return monotone_fail(diag, "Monotone triangulation could not distinguish the polygon's top and bottom vertices.");
+    }
+
+    std::vector<size_t> left_chain;
+    std::vector<size_t> right_chain;
+    left_chain.reserve(n);
+    right_chain.reserve(n);
+
+    for(size_t cur = top;; cur = (cur + 1) % n){
+        left_chain.push_back(cur);
+        if(cur == bottom){
+            break;
+        }
+    }
+    for(size_t cur = top;; cur = (cur + n - 1) % n){
+        right_chain.push_back(cur);
+        if(cur == bottom){
+            break;
+        }
+    }
+
+    chain_side.assign(n, MonotoneChainSide::Right);
+    for(const auto pos : left_chain){
+        chain_side.at(pos) = MonotoneChainSide::Left;
+    }
+
+    auto chain_is_monotone = [&](const std::vector<size_t> &chain) -> bool {
+        for(size_t i = 1; i < chain.size(); ++i){
+            if(event_higher(monotone_piece_coord(verts, piece, chain.at(i)),
+                            monotone_piece_coord(verts, piece, chain.at(i - 1)))){
+                return false;
+            }
+        }
+        return true;
+    };
+    if(!chain_is_monotone(left_chain) || !chain_is_monotone(right_chain)){
+        return monotone_fail(diag, "Monotone triangulation received a face whose chains are not y-monotone.");
+    }
+
+    order.reserve(n);
+    size_t li = 0;
+    size_t ri = 0;
+    while((li < left_chain.size()) || (ri < right_chain.size())){
+        if(li >= left_chain.size()){
+            order.push_back(right_chain.at(ri++));
+            continue;
+        }
+        if(ri >= right_chain.size()){
+            order.push_back(left_chain.at(li++));
+            continue;
+        }
+
+        const auto lpos = left_chain.at(li);
+        const auto rpos = right_chain.at(ri);
+        if(lpos == rpos){
+            order.push_back(lpos);
+            ++li;
+            ++ri;
+            continue;
+        }
+
+        const auto &l = monotone_piece_coord(verts, piece, lpos);
+        const auto &r = monotone_piece_coord(verts, piece, rpos);
+        if(event_higher(l, r)){
+            order.push_back(lpos);
+            ++li;
+        }else if(event_higher(r, l)){
+            order.push_back(rpos);
+            ++ri;
+        }else if(lpos < rpos){
+            order.push_back(lpos);
+            ++li;
+        }else{
+            order.push_back(rpos);
+            ++ri;
+        }
+    }
+
+    if(order.size() != n){
+        return monotone_fail(diag, "Monotone triangulation failed to merge the two polygon chains into a linear event order.");
+    }
+    return true;
+}
+
+template <class T, class I>
+bool emit_monotone_triangle(const std::vector<std::vector<vec2<T>>> &verts,
+                            const std::vector<size_t> &vertex_offsets,
+                            const monotone_t<I> &piece,
+                            size_t a_pos,
+                            size_t b_pos,
+                            size_t c_pos,
+                            fv_surface_mesh<T, I> &mesh,
+                            long double &emitted_area){
+    const auto &a = monotone_piece_coord(verts, piece, a_pos);
+    const auto &b = monotone_piece_coord(verts, piece, b_pos);
+    const auto &c = monotone_piece_coord(verts, piece, c_pos);
+
+    auto ia = vertex_offsets.at(static_cast<size_t>(piece.vertices.at(a_pos).first))
+            + static_cast<size_t>(piece.vertices.at(a_pos).second);
+    auto ib = vertex_offsets.at(static_cast<size_t>(piece.vertices.at(b_pos).first))
+            + static_cast<size_t>(piece.vertices.at(b_pos).second);
+    auto ic = vertex_offsets.at(static_cast<size_t>(piece.vertices.at(c_pos).first))
+            + static_cast<size_t>(piece.vertices.at(c_pos).second);
+    if((ia == ib) || (ib == ic) || (ia == ic)){
+        return true;
+    }
+
+    const auto sign = orient_sign(a, b, c);
+    if(sign == 0){
+        return true;
+    }
+    if(sign < 0){
+        std::swap(ib, ic);
+    }
+
+    mesh.faces.push_back({ static_cast<I>(ia),
+                           static_cast<I>(ib),
+                           static_cast<I>(ic) });
+    emitted_area += triangle_area_abs_ld(a, b, c);
+    return true;
+}
+
+template <class T, class I>
+bool triangulate_monotone_piece(const std::vector<std::vector<vec2<T>>> &verts,
+                                const std::vector<size_t> &vertex_offsets,
+                                const monotone_t<I> &piece,
+                                fv_surface_mesh<T, I> &mesh,
+                                std::string *diag){
+    // Triangulate each y-monotone face using the classic linear-time stack walk from de Berg et al. Chapter 3, which is
+    // itself a refinement of the optimal simple-polygon triangulation framework of Garey, Johnson, Preparata, and Tarjan
+    // (Inf Process Lett. 1978;7(4):175-179). The sweep already guarantees CCW monotone faces; here we preserve robustness
+    // by continuing to evaluate all turn tests with Shewchuk-backed adaptive orientation predicates.
+    if(piece.vertices.size() < 3){
+        return monotone_fail(diag, "Monotone triangulation received a face with fewer than three vertices.");
+    }
+
+    const auto piece_area = monotone_piece_area_ld(verts, piece);
+    if(piece_area <= 0.0L){
+        return monotone_fail(diag, "Monotone triangulation received a non-positive-area monotone polygon.");
+    }
+
+    std::vector<size_t> order;
+    std::vector<MonotoneChainSide> chain_side;
+    if(!build_monotone_vertex_order(verts, piece, order, chain_side, diag)){
+        return false;
+    }
+    if(order.size() < 3){
+        return monotone_fail(diag, "Monotone triangulation collapsed the event order below three vertices.");
+    }
+
+    long double emitted_area = 0.0L;
+    std::vector<size_t> stack;
+    stack.reserve(order.size());
+    stack.push_back(order.at(0));
+    stack.push_back(order.at(1));
+
+    for(size_t i = 2; i + 1 < order.size(); ++i){
+        const auto cur = order.at(i);
+        const auto cur_side = chain_side.at(cur);
+        const auto top_side = chain_side.at(stack.back());
+
+        if(cur_side != top_side){
+            for(size_t j = stack.size(); j > 1; --j){
+                if(!emit_monotone_triangle(verts, vertex_offsets, piece,
+                                           cur, stack.at(j - 1), stack.at(j - 2),
+                                           mesh, emitted_area)){
+                    return false;
+                }
+            }
+            stack.clear();
+            stack.push_back(order.at(i - 1));
+            stack.push_back(cur);
+            continue;
+        }
+
+        auto last = stack.back();
+        stack.pop_back();
+        while(!stack.empty()){
+            const auto prev = stack.back();
+            const auto turn = orient_sign(monotone_piece_coord(verts, piece, cur),
+                                          monotone_piece_coord(verts, piece, last),
+                                          monotone_piece_coord(verts, piece, prev));
+            const bool visible = (cur_side == MonotoneChainSide::Left) ? (turn <= 0)
+                                                                       : (turn >= 0);
+            if(!visible){
+                break;
+            }
+            if(!emit_monotone_triangle(verts, vertex_offsets, piece, cur, last, prev,
+                                       mesh, emitted_area)){
+                return false;
+            }
+            last = prev;
+            stack.pop_back();
+        }
+        stack.push_back(last);
+        stack.push_back(cur);
+    }
+
+    const auto bottom = order.back();
+    while(stack.size() > 1){
+        const auto last = stack.back();
+        stack.pop_back();
+        if(!emit_monotone_triangle(verts, vertex_offsets, piece, bottom, last, stack.back(),
+                                   mesh, emitted_area)){
+            return false;
+        }
+    }
+
+    const auto area_eps = std::numeric_limits<long double>::epsilon()
+                        * std::max<long double>(1.0L, std::abs(piece_area))
+                        * static_cast<long double>(piece.vertices.size() * 64);
+    if(mesh.faces.empty() || (std::abs(emitted_area - piece_area) > area_eps)){
+        return monotone_fail(diag, "Monotone triangulation failed to cover the monotone polygon with non-degenerate triangles.");
+    }
     return true;
 }
 
@@ -1211,9 +1494,58 @@ Triangulate_Monotone_Decomposition(const std::vector<std::vector<vec2<T>>> &vert
                                    const std::vector<monotone_t<I>> &decomposition,
                                    bool include_exterior_monotones){
     fv_surface_mesh<T, I> mesh;
+    std::vector<size_t> vertex_offsets;
+    vertex_offsets.reserve(verts.size() + 1);
 
-    // TODO.
-    throw std::runtime_error("Not yet implemented");
+    size_t total_vertices = 0;
+    const auto max_index = static_cast<size_t>(std::numeric_limits<I>::max());
+    for(const auto &poly : verts){
+        vertex_offsets.push_back(total_vertices);
+        total_vertices += poly.size();
+        if(total_vertices > max_index){
+            const auto msg = "Monotone triangulation vertex count exceeds the selected mesh index type.";
+            YLOGWARN(msg);
+            throw std::invalid_argument(msg);
+        }
+    }
+    vertex_offsets.push_back(total_vertices);
+
+    mesh.vertices.reserve(total_vertices);
+    for(const auto &poly : verts){
+        for(const auto &vert : poly){
+            mesh.vertices.emplace_back(vert.x, vert.y, static_cast<T>(0));
+        }
+    }
+
+    size_t reserve_faces = 0;
+    for(const auto &piece : decomposition){
+        if(piece.interior || include_exterior_monotones){
+            reserve_faces += (piece.vertices.size() > 2) ? (piece.vertices.size() - 2) : 0;
+        }
+    }
+    mesh.faces.reserve(reserve_faces);
+
+    for(size_t piece_index = 0; piece_index < decomposition.size(); ++piece_index){
+        const auto &piece = decomposition.at(piece_index);
+        if(!piece.interior && !include_exterior_monotones){
+            continue;
+        }
+
+        const auto faces_before = mesh.faces.size();
+        std::string diag;
+        if(!triangulate_monotone_piece(verts, vertex_offsets, piece, mesh, &diag)){
+            const auto msg = "Failed to triangulate monotone piece " + std::to_string(piece_index)
+                           + ": " + diag;
+            YLOGWARN(msg);
+            throw std::runtime_error(msg);
+        }
+        if(mesh.faces.size() == faces_before){
+            const auto msg = "Failed to triangulate monotone piece " + std::to_string(piece_index)
+                           + ": no non-degenerate triangles were produced.";
+            YLOGWARN(msg);
+            throw std::runtime_error(msg);
+        }
+    }
 
     return mesh;
 }
@@ -1232,4 +1564,3 @@ Triangulate_Monotone_Decomposition(const std::vector<std::vector<vec2<T>>> &vert
         Triangulate_Monotone_Decomposition(const std::vector<std::vector<vec2<double>>> &,
                                            const std::vector<monotone_t<uint64_t>> &, bool);
 #endif
-
