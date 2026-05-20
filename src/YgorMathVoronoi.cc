@@ -1112,9 +1112,11 @@ class FortuneVoronoiBuilder {
                     auto chosen = endpoint + canonical;
                     const auto it = samples.find(i);
                     if(it != samples.end()){
+                        const auto guard_distance = static_cast<T>(ray_sample_guard_factor)
+                                                  * std::numeric_limits<T>::epsilon();
+                        const auto guard_sq_distance = guard_distance * guard_distance;
                         for(const auto &candidate : it->second){
-                            if(sq_dist(candidate, endpoint) > static_cast<T>(ray_sample_guard_factor)
-                                                             * std::numeric_limits<T>::epsilon()){
+                            if(sq_dist(candidate, endpoint) > guard_sq_distance){
                                 chosen = candidate;
                                 break;
                             }
