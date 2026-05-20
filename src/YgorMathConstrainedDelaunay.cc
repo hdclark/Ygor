@@ -1346,6 +1346,121 @@ bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
+bool extract_constraint_strip(const std::vector<vec2<T>> &verts,
+                             size_t a,
+                             size_t b,
+                             const std::vector<CDT_Triangle> &triangles,
+                             const std::map<CDT_Edge, std::vector<size_t>> &edge_to_triangles,
+                             std::vector<size_t> &strip_triangles,
+                             std::vector<size_t> &left_chain,
+                             std::vector<size_t> &right_chain,
+                             std::string *diag){
+    strip_triangles.clear();
+    left_chain.clear();
+    right_chain.clear();
+
+    size_t current_triangle = CDT_INVALID_VERTEX_INDEX;
+    CDT_Edge crossed_edge{};
+    for(size_t i = 0; i < triangles.size(); ++i){
+        const auto &tri = triangles.at(i);
+        if(!triangle_has_vertex(tri, a) || triangle_has_edge(tri, make_edge(a, b))){
+            continue;
+        }
+
+        std::array<size_t, 2> others{};
+        size_t count = 0;
+        for(const auto vertex : std::array<size_t, 3>{{ tri.a, tri.b, tri.c }}){
+            if(vertex != a){
+                others[count++] = vertex;
+            }
+        }
+        if(count != 2U){
+            continue;
+        }
+
+        const auto side0 = orient_sign(verts.at(a), verts.at(b), verts.at(others[0]));
+        const auto side1 = orient_sign(verts.at(a), verts.at(b), verts.at(others[1]));
+        if((side0 == 0) || (side1 == 0) || (side0 == side1)){
+            continue;
+        }
+        if(!segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                       verts.at(others[0]), verts.at(others[1]))){
+            continue;
+        }
+
+        current_triangle = i;
+        crossed_edge = make_edge(others[0], others[1]);
+        if(side0 > 0){
+            left_chain.push_back(others[0]);
+            right_chain.push_back(others[1]);
+        }else{
+            left_chain.push_back(others[1]);
+            right_chain.push_back(others[0]);
+        }
+        strip_triangles.push_back(i);
+        break;
+    }
+
+    if(current_triangle == CDT_INVALID_VERTEX_INDEX){
+        return true;
+    }
+
+    std::set<size_t> visited{ current_triangle };
+    while(true){
+        const auto &tri = triangles.at(current_triangle);
+        if(triangle_has_vertex(tri, b)){
+            return true;
+        }
+
+        const auto incident_it = edge_to_triangles.find(crossed_edge);
+        if((incident_it == edge_to_triangles.end()) || (incident_it->second.size() != 2U)){
+            strip_triangles.clear();
+            left_chain.clear();
+            right_chain.clear();
+            return true;
+        }
+
+        size_t next_triangle = CDT_INVALID_VERTEX_INDEX;
+        for(const auto tri_idx : incident_it->second){
+            if(tri_idx != current_triangle){
+                next_triangle = tri_idx;
+                break;
+            }
+        }
+        if(next_triangle == CDT_INVALID_VERTEX_INDEX){
+            return cdt_fail(diag, "Constraint strip extraction could not advance to the next intersected triangle.");
+        }
+        if(!visited.insert(next_triangle).second){
+            return cdt_fail(diag, "Constraint strip extraction encountered a repeated triangle while walking the intersected strip.");
+        }
+
+        const auto new_vertex = opposite_vertex(triangles.at(next_triangle), crossed_edge);
+        const auto side = orient_sign(verts.at(a), verts.at(b), verts.at(new_vertex));
+        if(side == 0){
+            strip_triangles.clear();
+            left_chain.clear();
+            right_chain.clear();
+            return true;
+        }
+
+        if(side > 0){
+            if(left_chain.empty() || (left_chain.back() != new_vertex)){
+                left_chain.push_back(new_vertex);
+            }
+            crossed_edge = make_edge(new_vertex, right_chain.back());
+        }else{
+            if(right_chain.empty() || (right_chain.back() != new_vertex)){
+                right_chain.push_back(new_vertex);
+            }
+            crossed_edge = make_edge(left_chain.back(), new_vertex);
+        }
+
+        strip_triangles.push_back(next_triangle);
+        current_triangle = next_triangle;
+    }
+}
+
+template <class T>
 bool constrain_edge(const std::vector<vec2<T>> &verts,
                     size_t a,
                     size_t b,
@@ -1366,54 +1481,15 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
             }
         }
 
-        bool flipped_crossing_edge = false;
-        for(const auto &[edge, incident] : edge_to_triangles){
-            if((incident.size() != 2U)
-            || !segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
-                                                           verts.at(edge.a), verts.at(edge.b))){
-                continue;
-            }
-
-            const auto t0 = incident.at(0);
-            const auto t1 = incident.at(1);
-            const auto w = opposite_vertex(triangles.at(t0), edge);
-            const auto x = opposite_vertex(triangles.at(t1), edge);
-            if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
-                                                          verts.at(w), verts.at(x))){
-                continue;
-            }
-
-            CDT_Triangle first{};
-            CDT_Triangle second{};
-            if(!make_ccw_triangle(verts, w, x, edge.a, first)
-            || !make_ccw_triangle(verts, x, w, edge.b, second)){
-                continue;
-            }
-
-            triangles.at(t0) = first;
-            triangles.at(t1) = second;
-            prune_triangles(verts, triangles);
-            flipped_crossing_edge = true;
-            break;
-        }
-        if(flipped_crossing_edge){
-            continue;
+        std::vector<size_t> strip_triangles;
+        std::vector<size_t> left_chain;
+        std::vector<size_t> right_chain;
+        if(!extract_constraint_strip(verts, a, b, triangles, edge_to_triangles,
+                                     strip_triangles, left_chain, right_chain, diag)){
+            return false;
         }
 
-        std::set<size_t> removed;
-        for(size_t i = 0; i < triangles.size(); ++i){
-            const auto &tri = triangles.at(i);
-            const auto tri_edges = triangle_edges(tri);
-            for(const auto &edge : tri_edges){
-                if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
-                                                              verts.at(edge.a), verts.at(edge.b))){
-                    removed.insert(i);
-                    break;
-                }
-            }
-        }
-
-        if(removed.empty()){
+        if(strip_triangles.empty()){
             if(retriangulate_visible_face(verts, a, b, triangles, diag)){
                 continue;
             }
@@ -1424,66 +1500,42 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
             continue;
         }
 
-        std::map<CDT_Edge, size_t> boundary_counts;
-        for(const auto idx : removed){
-            for(const auto &edge : triangle_edges(triangles.at(idx))){
-                ++boundary_counts[edge];
-            }
-        }
-
         std::vector<CDT_Triangle> retained;
         retained.reserve(triangles.size());
+        const std::set<size_t> removed(strip_triangles.begin(), strip_triangles.end());
         for(size_t i = 0; i < triangles.size(); ++i){
             if(removed.count(i) == 0){
                 retained.push_back(triangles.at(i));
             }
         }
 
-        std::vector<CDT_Edge> cavity_edges;
-        cavity_edges.reserve(boundary_counts.size() + 1U);
-        for(const auto &[edge, count] : boundary_counts){
-            if(count != 1){
-                continue;
+        std::vector<size_t> left_polygon;
+        left_polygon.reserve(left_chain.size() + 2U);
+        left_polygon.push_back(a);
+        left_polygon.insert(left_polygon.end(), left_chain.begin(), left_chain.end());
+        left_polygon.push_back(b);
+
+        std::vector<size_t> right_polygon;
+        right_polygon.reserve(right_chain.size() + 2U);
+        right_polygon.push_back(b);
+        right_polygon.insert(right_polygon.end(), right_chain.rbegin(), right_chain.rend());
+        right_polygon.push_back(a);
+
+        const auto append_polygon = [&](const std::vector<size_t> &polygon) -> bool {
+            std::set<CDT_Edge> boundary_edges;
+            std::vector<CDT_Triangle> polygon_triangles;
+            if(!triangulate_polygon_ear_clip(verts, polygon, boundary_edges, polygon_triangles, diag)
+            || !legalize_polygon_triangulation(verts, polygon, boundary_edges, polygon_triangles, diag)){
+                return false;
             }
-            cavity_edges.push_back(edge);
-        }
+            retained.insert(retained.end(), polygon_triangles.begin(), polygon_triangles.end());
+            return true;
+        };
 
-        const auto constrained_edge = make_edge(a, b);
-        cavity_edges.push_back(constrained_edge);
-
-        std::vector<std::vector<size_t>> cavity_faces;
-        std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
-        if(!build_planar_edge_faces(verts, cavity_edges, cavity_faces, halfedge_to_face, diag)){
+        if(!append_polygon(left_polygon) || !append_polygon(right_polygon)){
             return false;
         }
 
-        std::vector<size_t> chain0;
-        std::vector<size_t> chain1;
-        const auto face0_it = halfedge_to_face.find(std::make_pair(a, b));
-        const auto face1_it = halfedge_to_face.find(std::make_pair(b, a));
-        if((face0_it == halfedge_to_face.end()) || (face1_it == halfedge_to_face.end())){
-            return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
-                                 + ") could not identify both faces incident to the constrained segment.");
-        }
-        if(!rotate_cycle_to_halfedge(cavity_faces.at(face0_it->second), a, b, chain0, diag)
-        || !rotate_cycle_to_halfedge(cavity_faces.at(face1_it->second), b, a, chain1, diag)){
-            return false;
-        }
-        std::vector<CDT_Triangle> tris0;
-        std::vector<CDT_Triangle> tris1;
-        if(!triangulate_pinched_polygon(verts, chain0, tris0, diag)){
-            return cdt_fail(diag, "Constraint cavity polygon for segment (" + std::to_string(a) + ", "
-                                  + std::to_string(b) + ") could not be ear-clipped on one side: "
-                                  + format_cycle(chain0));
-        }
-        if(!triangulate_pinched_polygon(verts, chain1, tris1, diag)){
-            return cdt_fail(diag, "Constraint cavity polygon for segment (" + std::to_string(a) + ", "
-                                  + std::to_string(b) + ") could not be ear-clipped on the opposite side: "
-                                  + format_cycle(chain1));
-        }
-
-        retained.insert(retained.end(), tris0.begin(), tris0.end());
-        retained.insert(retained.end(), tris1.begin(), tris1.end());
         prune_triangles(verts, retained);
         triangles.swap(retained);
     }
