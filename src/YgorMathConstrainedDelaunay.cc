@@ -1200,6 +1200,91 @@ bool retriangulate_visible_face(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
+bool retriangulate_crossed_visible_cavity(const std::vector<vec2<T>> &verts,
+                                          size_t a,
+                                          size_t b,
+                                          const std::map<CDT_Edge, std::vector<size_t>> &,
+                                          std::vector<CDT_Triangle> &triangles,
+                                          std::string *diag){
+    std::set<size_t> removed;
+    for(size_t i = 0; i < triangles.size(); ++i){
+        for(const auto &edge : triangle_edges(triangles.at(i))){
+            if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                          verts.at(edge.a), verts.at(edge.b))){
+                removed.insert(i);
+                break;
+            }
+        }
+    }
+    if(removed.empty()){
+        return true;
+    }
+
+    std::map<CDT_Edge, size_t> boundary_counts;
+    for(const auto idx : removed){
+        for(const auto &edge : triangle_edges(triangles.at(idx))){
+            ++boundary_counts[edge];
+        }
+    }
+
+    std::vector<CDT_Triangle> retained;
+    retained.reserve(triangles.size());
+    for(size_t i = 0; i < triangles.size(); ++i){
+        if(removed.count(i) == 0U){
+            retained.push_back(triangles.at(i));
+        }
+    }
+
+    std::vector<CDT_Edge> cavity_edges;
+    cavity_edges.reserve(boundary_counts.size() + 1U);
+    for(const auto &[edge, count] : boundary_counts){
+        if(count == 1U){
+            cavity_edges.push_back(edge);
+        }
+    }
+    cavity_edges.push_back(make_edge(a, b));
+
+    std::vector<std::vector<size_t>> cavity_faces;
+    std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
+    if(!build_planar_edge_faces(verts, cavity_edges, cavity_faces, halfedge_to_face, diag)){
+        return false;
+    }
+
+    const auto face_ab_it = halfedge_to_face.find(std::make_pair(a, b));
+    const auto face_ba_it = halfedge_to_face.find(std::make_pair(b, a));
+    if((face_ab_it == halfedge_to_face.end()) || (face_ba_it == halfedge_to_face.end())){
+        return cdt_fail(diag, "Crossed visible cavity for segment (" + std::to_string(a) + ", "
+                             + std::to_string(b) + ") could not identify both faces incident to the constrained segment.");
+    }
+
+    std::vector<size_t> chain0;
+    std::vector<size_t> chain1;
+    if(!rotate_cycle_to_halfedge(cavity_faces.at(face_ab_it->second), a, b, chain0, diag)
+    || !rotate_cycle_to_halfedge(cavity_faces.at(face_ba_it->second), b, a, chain1, diag)){
+        return false;
+    }
+
+    std::vector<CDT_Triangle> tris0;
+    std::vector<CDT_Triangle> tris1;
+    if(!triangulate_pinched_polygon(verts, chain0, tris0, diag)){
+        return cdt_fail(diag, "Crossed visible cavity polygon for segment (" + std::to_string(a) + ", "
+                             + std::to_string(b) + ") could not be ear-clipped on one side: "
+                             + format_cycle(chain0));
+    }
+    if(!triangulate_pinched_polygon(verts, chain1, tris1, diag)){
+        return cdt_fail(diag, "Crossed visible cavity polygon for segment (" + std::to_string(a) + ", "
+                             + std::to_string(b) + ") could not be ear-clipped on the opposite side: "
+                             + format_cycle(chain1));
+    }
+
+    retained.insert(retained.end(), tris0.begin(), tris0.end());
+    retained.insert(retained.end(), tris1.begin(), tris1.end());
+    prune_triangles(verts, retained);
+    triangles.swap(retained);
+    return true;
+}
+
+template <class T>
 bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
                                   size_t a,
                                   size_t b,
@@ -1490,6 +1575,18 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
         }
 
         if(strip_triangles.empty()){
+            const bool has_crossing_edge = std::any_of(edge_to_triangles.begin(), edge_to_triangles.end(),
+                                                       [&](const auto &entry){
+                                                           const auto &edge = entry.first;
+                                                           return segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                                                                             verts.at(edge.a), verts.at(edge.b));
+                                                       });
+            if(has_crossing_edge){
+                if(!retriangulate_crossed_visible_cavity(verts, a, b, edge_to_triangles, triangles, diag)){
+                    return false;
+                }
+                continue;
+            }
             if(retriangulate_visible_face(verts, a, b, triangles, diag)){
                 continue;
             }
