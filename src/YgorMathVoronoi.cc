@@ -127,6 +127,8 @@ vec2<T> representative_site_point(const std::vector<vec2<T>> &poly){
         }
     }
 
+    // Single-point and segment footprints already provide a natural dual-vertex placement without needing a polygon-area
+    // centroid estimate.
     if(poly.size() == 1){
         return poly.front();
     }
@@ -1250,16 +1252,24 @@ Triangulate_Voronoi(const std::vector<std::vector<vec2<T>>> &verts,
         }
         std::sort(sites.begin(), sites.end());
         sites.erase(std::unique(sites.begin(), sites.end()), sites.end());
-        std::sort(sites.begin(), sites.end(), [&](size_t lhs, size_t rhs){
-            const auto al = std::atan2(static_cast<long double>(representatives.at(lhs).y - vertex.position.y),
-                                       static_cast<long double>(representatives.at(lhs).x - vertex.position.x));
-            const auto ar = std::atan2(static_cast<long double>(representatives.at(rhs).y - vertex.position.y),
-                                       static_cast<long double>(representatives.at(rhs).x - vertex.position.x));
-            if(al != ar){
-                return al < ar;
+        std::vector<std::pair<long double, size_t>> ordered_sites;
+        ordered_sites.reserve(sites.size());
+        for(const auto site : sites){
+            ordered_sites.emplace_back(
+                std::atan2(static_cast<long double>(representatives.at(site).y - vertex.position.y),
+                           static_cast<long double>(representatives.at(site).x - vertex.position.x)),
+                site);
+        }
+        const auto angle_eps = 16.0L * std::numeric_limits<long double>::epsilon();
+        std::sort(ordered_sites.begin(), ordered_sites.end(), [&](const auto &lhs, const auto &rhs){
+            if(std::abs(lhs.first - rhs.first) > angle_eps){
+                return lhs.first < rhs.first;
             }
-            return lhs < rhs;
+            return lhs.second < rhs.second;
         });
+        for(size_t i = 0; i < sites.size(); ++i){
+            sites.at(i) = ordered_sites.at(i).second;
+        }
         if(sites.size() < 3){
             continue;
         }
