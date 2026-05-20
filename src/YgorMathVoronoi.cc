@@ -175,17 +175,20 @@ template <class T, class I>
 class FortuneVoronoiBuilder {
     public:
         explicit FortuneVoronoiBuilder(const std::vector<vec2<T>> &verts)
-            : m_input_sites(verts),
-              m_norm(compute_normalization(verts)){
-            m_sites.reserve(verts.size());
-            for(const auto &vert : verts){
-                m_sites.push_back(normalize_point(vert, m_norm));
-            }
+            : m_input_sites(verts){
             m_output.cell_edges.resize(verts.size());
         }
 
         VoronoiDiagram2<T, I> build(){
             validate_input();
+
+            m_norm = compute_normalization(m_input_sites);
+            m_sites.clear();
+            m_sites.reserve(m_input_sites.size());
+            for(const auto &vert : m_input_sites){
+                m_sites.push_back(normalize_point(vert, m_norm));
+            }
+
             if(all_sites_collinear()){
                 build_collinear_diagram();
                 finalize_output();
