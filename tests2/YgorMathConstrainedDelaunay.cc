@@ -20,6 +20,10 @@
 // Helper functions.
 namespace {
 
+constexpr double sketch_point_merge_tolerance = 1.0e-6;
+constexpr size_t sketch_curve_min_segments = 16U;
+constexpr size_t sketch_curve_max_segments = 1024U;
+
 template <class I>
 using edge_type = std::pair<I, I>;
 
@@ -145,7 +149,7 @@ struct sketch_primitive_spec {
 };
 
 inline bool coincident_2d(const vec2<double> &a, const vec2<double> &b){
-    return a.distance(b) <= 1.0e-6;
+    return a.distance(b) <= sketch_point_merge_tolerance;
 }
 
 inline double normalize_angle(double angle){
@@ -221,12 +225,12 @@ discretize_sketch_constraints(const std::string &sketch_text,
         return vec2<double>(plane_row_unit.Dot(rel), plane_col_unit.Dot(rel));
     };
 
-    size_t curve_segments = 16U;
+    size_t curve_segments = sketch_curve_min_segments;
     for(const auto &primitive : primitives){
         if(primitive.kind == "line"){
             continue;
         }
-        size_t primitive_segments = 16U;
+        size_t primitive_segments = sketch_curve_min_segments;
         if(primitive.kind == "circle"){
             const auto &centre = vertices_3d.at(primitive.vertices.at(0));
             const auto &radius_point = vertices_3d.at(primitive.vertices.at(1));
@@ -245,7 +249,9 @@ discretize_sketch_constraints(const std::string &sketch_text,
                                                                * std::sqrt(radius / (8.0 * max_error))));
         }
         curve_segments = std::max(curve_segments,
-                                  std::clamp(primitive_segments, size_t(16), size_t(1024)));
+                                  std::clamp(primitive_segments,
+                                             sketch_curve_min_segments,
+                                             sketch_curve_max_segments));
     }
 
     struct path_spec {
