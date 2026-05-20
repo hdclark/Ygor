@@ -40,7 +40,12 @@
 template <class T>
 class IncrementalConvexHull {
     public:
-        IncrementalConvexHull();
+        enum class PerturbationMode {
+            AllCoordinates,
+            ZOnly
+        };
+
+        explicit IncrementalConvexHull(PerturbationMode perturbation_mode = PerturbationMode::AllCoordinates);
 
         // Add a single vertex to the hull.  Returns the evaluation-order
         // index assigned to this vertex.
@@ -96,6 +101,7 @@ class IncrementalConvexHull {
 
         // RNG state for perturbation.
         uint64_t m_rng_state;
+        PerturbationMode m_perturbation_mode;
 
         // Pseudo-random number in [0, 1).
         T rng_uniform();

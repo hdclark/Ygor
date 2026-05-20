@@ -209,7 +209,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
         min_z = std::min(min_z, z);
     }
 
-    IncrementalConvexHull<T> hull;
+    IncrementalConvexHull<T> hull(typename IncrementalConvexHull<T>::PerturbationMode::ZOnly);
     hull.add_vertices(lifted_verts);
 
     const auto &hull_mesh = hull.get_mesh();

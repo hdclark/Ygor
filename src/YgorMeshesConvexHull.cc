@@ -28,12 +28,13 @@
 // ============================================================================
 
 template <class T>
-IncrementalConvexHull<T>::IncrementalConvexHull()
+IncrementalConvexHull<T>::IncrementalConvexHull(PerturbationMode perturbation_mode)
     // Perturbation magnitude: ~1024 machine-epsilon.  This is small enough to
     // be invisible at typical geometric scales, but large enough to reliably
     // break exact coplanar / collinear degeneracies.
     : m_eps(std::numeric_limits<T>::epsilon() * static_cast<T>(1024)),
-      m_rng_state(0x12345678ABCDEF01ULL){
+      m_rng_state(0x12345678ABCDEF01ULL),
+      m_perturbation_mode(perturbation_mode){
 }
 
 template <class T>
@@ -121,8 +122,10 @@ uint64_t IncrementalConvexHull<T>::build_initial_simplex(){
             // All points are coplanar.  Nudge all points by a tiny random
             // amount to break the degeneracy.
             for(uint64_t k = 0; k < N; ++k){
-                m_points[k].x += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
-                m_points[k].y += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+                if(m_perturbation_mode == PerturbationMode::AllCoordinates){
+                    m_points[k].x += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+                    m_points[k].y += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+                }
                 m_points[k].z += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
             }
             // Retry.
@@ -257,8 +260,10 @@ uint64_t IncrementalConvexHull<T>::add_vertex(const vec3<T> &v){
     // Store original and perturbed copies.
     m_original.push_back(v);
     vec3<T> perturbed = v;
-    perturbed.x += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
-    perturbed.y += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+    if(m_perturbation_mode == PerturbationMode::AllCoordinates){
+        perturbed.x += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+        perturbed.y += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
+    }
     perturbed.z += (rng_uniform() - static_cast<T>(0.5)) * m_eps;
     m_points.push_back(perturbed);
 
