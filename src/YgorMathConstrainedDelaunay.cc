@@ -903,13 +903,19 @@ bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
             const auto prev = simplified.at((i + simplified.size() - 1U) % simplified.size());
             const auto cur = simplified.at(i);
             const auto next = simplified.at((i + 1U) % simplified.size());
-            if((prev == cur) || (cur == next)
-            || (orient_sign(verts.at(prev), verts.at(cur), verts.at(next)) == 0)){
+            const bool removable = (cur != a) && (cur != b);
+            if(removable
+            && ((prev == cur) || (cur == next)
+            || (orient_sign(verts.at(prev), verts.at(cur), verts.at(next)) == 0))){
                 simplified.erase(simplified.begin() + static_cast<std::ptrdiff_t>(i));
                 changed = true;
                 break;
             }
         }
+    }
+    if((std::find(simplified.begin(), simplified.end(), a) == simplified.end())
+    || (std::find(simplified.begin(), simplified.end(), b) == simplified.end())){
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation removed a constrained endpoint from the replacement polygon.");
     }
     if(simplified.size() < 3U){
         return cdt_fail(diag, "Constraint boundary-strip retriangulation collapsed the replacement polygon below three vertices.");
