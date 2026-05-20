@@ -550,6 +550,17 @@ bool triangulation_has_edge(const std::vector<CDT_Triangle> &triangles,
                        [&](const CDT_Triangle &tri){ return triangle_has_edge(tri, edge); });
 }
 
+bool triangulation_is_manifold(const std::vector<CDT_Triangle> &triangles){
+    std::map<CDT_Edge, size_t> counts;
+    for(const auto &tri : triangles){
+        for(const auto &edge : triangle_edges(tri)){
+            ++counts[edge];
+        }
+    }
+    return std::all_of(counts.begin(), counts.end(),
+                       [](const auto &entry){ return entry.second <= 2U; });
+}
+
 template <class T>
 bool build_planar_edge_faces(const std::vector<vec2<T>> &verts,
                              const std::vector<CDT_Edge> &edges,
@@ -1121,28 +1132,6 @@ bool retriangulate_visible_face(const std::vector<vec2<T>> &verts,
         return false;
     }
 
-    std::vector<size_t> poly0;
-    std::vector<size_t> poly1;
-    if(!split_cycle_across_constrained_edge(cycle_ab, a, b, poly0, poly1)
-    && !split_cycle_across_constrained_edge(cycle_ba, b, a, poly0, poly1)){
-        return false;
-    }
-
-    std::vector<CDT_Triangle> retained;
-    retained.reserve(triangles.size());
-    for(const auto &tri : triangles){
-        const auto &pa = verts.at(tri.a);
-        const auto &pb = verts.at(tri.b);
-        const auto &pc = verts.at(tri.c);
-        const vec2<T> centroid((pa.x + pb.x + pc.x) / static_cast<T>(3),
-                               (pa.y + pb.y + pc.y) / static_cast<T>(3));
-        const auto in_poly0 = point_in_polygon_or_on_boundary(verts, poly0, centroid);
-        const auto in_poly1 = point_in_polygon_or_on_boundary(verts, poly1, centroid);
-        if(!(in_poly0 || in_poly1)){
-            retained.push_back(tri);
-        }
-    }
-
     const auto append_polygon = [&](const std::vector<size_t> &polygon,
                                     std::vector<CDT_Triangle> &out) -> bool {
         std::set<CDT_Edge> boundary_edges;
@@ -1155,20 +1144,59 @@ bool retriangulate_visible_face(const std::vector<vec2<T>> &verts,
         return true;
     };
 
-    std::vector<CDT_Triangle> replacement;
-    if(!append_polygon(poly0, replacement)
-    || !append_polygon(poly1, replacement)){
+    struct visible_face_candidate {
+        std::vector<size_t> poly0;
+        std::vector<size_t> poly1;
+        std::string source;
+    };
+
+    std::vector<visible_face_candidate> candidates;
+    visible_face_candidate from_ab;
+    if(split_cycle_across_constrained_edge(cycle_ab, a, b, from_ab.poly0, from_ab.poly1)){
+        from_ab.source = "a->b";
+        candidates.push_back(from_ab);
+    }
+    visible_face_candidate from_ba;
+    if(split_cycle_across_constrained_edge(cycle_ba, b, a, from_ba.poly0, from_ba.poly1)){
+        from_ba.source = "b->a";
+        candidates.push_back(from_ba);
+    }
+    if(candidates.empty()){
         return false;
     }
 
-    retained.insert(retained.end(), replacement.begin(), replacement.end());
-    prune_triangles(verts, retained);
-    if(!triangulation_has_edge(retained, a, b)){
-        return cdt_fail(diag, "Visible-face retriangulation did not recover constrained edge ("
-                             + std::to_string(a) + ", " + std::to_string(b) + ").");
+    for(const auto &candidate : candidates){
+        std::vector<CDT_Triangle> retained;
+        retained.reserve(triangles.size());
+        for(const auto &tri : triangles){
+            const auto &pa = verts.at(tri.a);
+            const auto &pb = verts.at(tri.b);
+            const auto &pc = verts.at(tri.c);
+            const vec2<T> centroid((pa.x + pb.x + pc.x) / static_cast<T>(3),
+                                   (pa.y + pb.y + pc.y) / static_cast<T>(3));
+            const auto in_poly0 = point_in_polygon_or_on_boundary(verts, candidate.poly0, centroid);
+            const auto in_poly1 = point_in_polygon_or_on_boundary(verts, candidate.poly1, centroid);
+            if(!(in_poly0 || in_poly1)){
+                retained.push_back(tri);
+            }
+        }
+
+        std::vector<CDT_Triangle> replacement;
+        if(!append_polygon(candidate.poly0, replacement)
+        || !append_polygon(candidate.poly1, replacement)){
+            continue;
+        }
+
+        retained.insert(retained.end(), replacement.begin(), replacement.end());
+        prune_triangles(verts, retained);
+        if(triangulation_has_edge(retained, a, b) && triangulation_is_manifold(retained)){
+            triangles.swap(retained);
+            return true;
+        }
     }
-    triangles.swap(retained);
-    return true;
+
+    return cdt_fail(diag, "Visible-face retriangulation could not find a manifold decomposition for constrained edge ("
+                         + std::to_string(a) + ", " + std::to_string(b) + ").");
 }
 
 template <class T>
