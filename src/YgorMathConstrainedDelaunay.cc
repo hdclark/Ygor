@@ -159,6 +159,9 @@ template <class T>
 bool is_lower_lifted_face(const vec3<T> &a,
                           const vec3<T> &b,
                           const vec3<T> &c){
+    // The convex-hull faces are wound consistently with outward normals, so the sign of the
+    // projected 2D orientation is the sign of the face normal's z-component. Lower-hull
+    // faces therefore have negative projected orientation.
     return orient_sign(vec2<T>(a.x, a.y),
                        vec2<T>(b.x, b.y),
                        vec2<T>(c.x, c.y)) < 0;
