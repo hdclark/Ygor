@@ -945,8 +945,7 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
     // Each retry either succeeds or replaces a boundary strip with a triangulation that exposes a
     // smaller cavity for the requested segment. A guard tied to the current triangle count prevents
     // accidental non-termination if a future change breaks that monotone progress.
-    const auto max_attempts = triangles.size() + CDT_LEGALIZATION_GUARD_BIAS;
-    for(size_t attempt = 0; attempt < max_attempts; ++attempt){
+    for(size_t attempt = 0; attempt < (triangles.size() + CDT_LEGALIZATION_GUARD_BIAS); ++attempt){
         if(triangulation_has_edge(triangles, a, b)){
             return true;
         }
