@@ -146,13 +146,10 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
 template <class T>
 bool is_lower_lifted_face(const vec3<T> &a,
                           const vec3<T> &b,
-                          const vec3<T> &c,
-                          const vec3<T> &below_point){
-    const std::array<T, 3> pa{{ a.x, a.y, a.z }};
-    const std::array<T, 3> pb{{ b.x, b.y, b.z }};
-    const std::array<T, 3> pc{{ c.x, c.y, c.z }};
-    const std::array<T, 3> pd{{ below_point.x, below_point.y, below_point.z }};
-    return adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()) < static_cast<T>(0);
+                          const vec3<T> &c){
+    return orient_sign(vec2<T>(a.x, a.y),
+                       vec2<T>(b.x, b.y),
+                       vec2<T>(c.x, c.y)) < 0;
 }
 
 template <class T>
@@ -198,7 +195,6 @@ std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>
     const auto lift_scale = std::max(max_x - min_x, max_y - min_y);
     const auto inv_lift_scale = (lift_scale > static_cast<T>(0)) ? (static_cast<T>(1) / lift_scale)
                                                                  : static_cast<T>(1);
-    T min_z = std::numeric_limits<T>::max();
     std::vector<vec3<T>> lifted_verts;
     lifted_verts.reserve(unique_verts.size());
     for(const auto &vert : unique_verts){
@@ -206,7 +202,6 @@ std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>
         const auto dy = (vert.y - lift_center_y) * inv_lift_scale;
         const auto z = dx * dx + dy * dy;
         lifted_verts.emplace_back(dx, dy, z);
-        min_z = std::min(min_z, z);
     }
 
     IncrementalConvexHull<T> hull;
@@ -214,10 +209,6 @@ std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>
 
     const auto &hull_mesh = hull.get_mesh();
     const auto &eval_order = hull.get_evaluation_order();
-    const auto below_z = min_z - static_cast<T>(2);
-    const vec3<T> below_point(static_cast<T>(0),
-                              static_cast<T>(0),
-                              below_z);
 
     triangles.reserve(hull_mesh.faces.size());
     for(const auto &face : hull_mesh.faces){
@@ -227,7 +218,7 @@ std::vector<DelaunayTriangle> build_delaunay_triangles(const std::vector<vec2<T>
         const auto ia = eval_order.at(face.at(0));
         const auto ib = eval_order.at(face.at(1));
         const auto ic = eval_order.at(face.at(2));
-        if(!is_lower_lifted_face(lifted_verts.at(ia), lifted_verts.at(ib), lifted_verts.at(ic), below_point)){
+        if(!is_lower_lifted_face(lifted_verts.at(ia), lifted_verts.at(ib), lifted_verts.at(ic))){
             continue;
         }
 

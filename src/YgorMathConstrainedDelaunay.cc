@@ -156,6 +156,15 @@ void prune_triangles(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
+bool is_lower_lifted_face(const vec3<T> &a,
+                          const vec3<T> &b,
+                          const vec3<T> &c){
+    return orient_sign(vec2<T>(a.x, a.y),
+                       vec2<T>(b.x, b.y),
+                       vec2<T>(c.x, c.y)) < 0;
+}
+
+template <class T>
 std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &verts){
     std::vector<CDT_Triangle> output;
     std::map<std::pair<T, T>, size_t> unique_to_original;
@@ -198,7 +207,6 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
     const auto lift_scale = std::max(max_x - min_x, max_y - min_y);
     const auto inv_lift_scale = (lift_scale > static_cast<T>(0)) ? (static_cast<T>(1) / lift_scale)
                                                                  : static_cast<T>(1);
-    T min_z = std::numeric_limits<T>::max();
     std::vector<vec3<T>> lifted_verts;
     lifted_verts.reserve(unique_verts.size());
     for(const auto &vert : unique_verts){
@@ -206,7 +214,6 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
         const auto dy = (vert.y - lift_center_y) * inv_lift_scale;
         const auto z = dx * dx + dy * dy;
         lifted_verts.emplace_back(dx, dy, z);
-        min_z = std::min(min_z, z);
     }
 
     IncrementalConvexHull<T> hull;
@@ -214,9 +221,6 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
 
     const auto &hull_mesh = hull.get_mesh();
     const auto &eval_order = hull.get_evaluation_order();
-    const vec3<T> below_point(static_cast<T>(0),
-                              static_cast<T>(0),
-                              min_z - static_cast<T>(2));
 
     for(const auto &face : hull_mesh.faces){
         if(face.size() != 3){
@@ -226,12 +230,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
         const auto ia = eval_order.at(face.at(0));
         const auto ib = eval_order.at(face.at(1));
         const auto ic = eval_order.at(face.at(2));
-
-        const std::array<T, 3> pa{{ lifted_verts.at(ia).x, lifted_verts.at(ia).y, lifted_verts.at(ia).z }};
-        const std::array<T, 3> pb{{ lifted_verts.at(ib).x, lifted_verts.at(ib).y, lifted_verts.at(ib).z }};
-        const std::array<T, 3> pc{{ lifted_verts.at(ic).x, lifted_verts.at(ic).y, lifted_verts.at(ic).z }};
-        const std::array<T, 3> pd{{ below_point.x, below_point.y, below_point.z }};
-        if(adaptive_predicate::orient3d(pa.data(), pb.data(), pc.data(), pd.data()) >= static_cast<T>(0)){
+        if(!is_lower_lifted_face(lifted_verts.at(ia), lifted_verts.at(ib), lifted_verts.at(ic))){
             continue;
         }
 
