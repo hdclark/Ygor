@@ -61,5 +61,16 @@ template <class T, class I>
 VoronoiDiagram2<T, I>
 Voronoi_Diagram_2(const std::vector<vec2<T>> &verts);
 
+// Extract the finite dual triangulation induced by a Voronoi diagram.
+//
+// Each entry in `verts` provides the geometry associated with one Voronoi site. A representative point is derived from
+// each site polygon and emitted as a mesh vertex at z=0. Single-point site polygons therefore recover the usual planar
+// Delaunay dual. Every finite Voronoi vertex contributes one dual polygon through its incident site list; polygons with
+// more than three sites are triangulated with a fan in the returned surface-mesh patch.
+template <class T, class I>
+fv_surface_mesh<T, I>
+Triangulate_Voronoi(const std::vector<std::vector<vec2<T>>> &verts,
+                    const VoronoiDiagram2<T, I> &diagram);
+
 
 #endif // YGOR_MATH_VORONOI_H_

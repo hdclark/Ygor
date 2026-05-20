@@ -37,6 +37,16 @@ void require_edge_bisects_sites(const std::vector<vec2<T>> &sites,
     }
 }
 
+template <class T>
+std::vector<std::vector<vec2<T>>> singleton_site_polygons(const std::vector<vec2<T>> &sites){
+    std::vector<std::vector<vec2<T>>> out;
+    out.reserve(sites.size());
+    for(const auto &site : sites){
+        out.push_back({ site });
+    }
+    return out;
+}
+
 } // namespace
 
 TEST_CASE( "Voronoi_Diagram_2 function" ){
@@ -193,5 +203,71 @@ TEST_CASE( "Voronoi_Diagram_2 function" ){
             }
         }
         REQUIRE( found_bounded_edge );
+    }
+}
+
+TEST_CASE( "Triangulate_Voronoi function" ){
+    const auto eps = static_cast<double>(std::sqrt(std::numeric_limits<double>::epsilon()));
+
+    SUBCASE("three Voronoi sites produce one dual triangle on z equals zero"){
+        const std::vector<vec2<double>> sites {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(1.0, 2.0) }};
+        const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
+        const auto mesh = Triangulate_Voronoi<double, uint32_t>(singleton_site_polygons(sites), diagram);
+
+        REQUIRE( mesh.vertices.size() == sites.size() );
+        REQUIRE( mesh.faces.size() == 1 );
+        REQUIRE( mesh.faces.front().size() == 3 );
+        for(size_t i = 0; i < sites.size(); ++i){
+            REQUIRE( mesh.vertices.at(i).x == doctest::Approx(sites.at(i).x) );
+            REQUIRE( mesh.vertices.at(i).y == doctest::Approx(sites.at(i).y) );
+            REQUIRE( mesh.vertices.at(i).z == doctest::Approx(0.0) );
+        }
+
+        const auto &face = mesh.faces.front();
+        const auto sign = orient_sign(vec2<double>(mesh.vertices.at(face.at(0)).x, mesh.vertices.at(face.at(0)).y),
+                                      vec2<double>(mesh.vertices.at(face.at(1)).x, mesh.vertices.at(face.at(1)).y),
+                                      vec2<double>(mesh.vertices.at(face.at(2)).x, mesh.vertices.at(face.at(2)).y));
+        REQUIRE( sign > 0 );
+    }
+
+    SUBCASE("multiple Voronoi vertices produce multiple dual triangles"){
+        const std::vector<vec2<double>> sites {{
+            vec2<double>(-2.0, -2.0),
+            vec2<double>(-2.0, -1.0),
+            vec2<double>(-2.0, 0.0),
+            vec2<double>(-1.0, -2.0) }};
+        const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
+        const auto mesh = Triangulate_Voronoi<double, uint32_t>(singleton_site_polygons(sites), diagram);
+
+        REQUIRE( mesh.vertices.size() == sites.size() );
+        REQUIRE( mesh.faces.size() == diagram.vertices.size() );
+        for(const auto &face : mesh.faces){
+            REQUIRE( face.size() == 3 );
+            for(const auto idx : face){
+                REQUIRE( static_cast<size_t>(idx) < mesh.vertices.size() );
+                REQUIRE( mesh.vertices.at(static_cast<size_t>(idx)).z == doctest::Approx(0.0).epsilon(eps) );
+            }
+            const auto sign = orient_sign(vec2<double>(mesh.vertices.at(face.at(0)).x, mesh.vertices.at(face.at(0)).y),
+                                          vec2<double>(mesh.vertices.at(face.at(1)).x, mesh.vertices.at(face.at(1)).y),
+                                          vec2<double>(mesh.vertices.at(face.at(2)).x, mesh.vertices.at(face.at(2)).y));
+            REQUIRE( sign > 0 );
+        }
+    }
+
+    SUBCASE("site polygon count must match the Voronoi site count"){
+        const std::vector<vec2<double>> sites {{
+            vec2<double>(0.0, 0.0),
+            vec2<double>(2.0, 0.0),
+            vec2<double>(1.0, 2.0) }};
+        const auto diagram = Voronoi_Diagram_2<double, uint32_t>(sites);
+
+        std::vector<std::vector<vec2<double>>> bad_polys{
+            { vec2<double>(0.0, 0.0) },
+            { vec2<double>(2.0, 0.0) }
+        };
+        REQUIRE_THROWS( Triangulate_Voronoi<double, uint32_t>(bad_polys, diagram) );
     }
 }

@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -114,6 +115,59 @@ struct VertexCellKeyHash {
         return hx ^ (hy + 0x9e3779b97f4a7c15ULL + (hx << 6U) + (hx >> 2U));
     }
 };
+
+template <class T>
+vec2<T> representative_site_point(const std::vector<vec2<T>> &poly){
+    if(poly.empty()){
+        throw std::invalid_argument("Triangulate_Voronoi requires every site polygon to contain at least one vertex.");
+    }
+    for(const auto &v : poly){
+        if(!is_finite_2d(v)){
+            throw std::invalid_argument("Triangulate_Voronoi requires every site polygon vertex to be finite.");
+        }
+    }
+
+    if(poly.size() == 1){
+        return poly.front();
+    }
+    if(poly.size() == 2){
+        return (poly.front() + poly.back()) / static_cast<T>(2);
+    }
+
+    const auto &origin = poly.front();
+    long double twice_area = 0.0L;
+    long double cx_times_area = 0.0L;
+    long double cy_times_area = 0.0L;
+    for(size_t i = 1; (i + 1) < poly.size(); ++i){
+        const auto &a = poly.at(i);
+        const auto &b = poly.at(i + 1);
+        if(orient_sign(origin, a, b) == 0){
+            continue;
+        }
+        const auto cross = (static_cast<long double>(a.x) - static_cast<long double>(origin.x))
+                         * (static_cast<long double>(b.y) - static_cast<long double>(origin.y))
+                         - (static_cast<long double>(a.y) - static_cast<long double>(origin.y))
+                         * (static_cast<long double>(b.x) - static_cast<long double>(origin.x));
+        twice_area += cross;
+        cx_times_area += (static_cast<long double>(origin.x)
+                       +  static_cast<long double>(a.x)
+                       +  static_cast<long double>(b.x)) * cross;
+        cy_times_area += (static_cast<long double>(origin.y)
+                       +  static_cast<long double>(a.y)
+                       +  static_cast<long double>(b.y)) * cross;
+    }
+    if(std::abs(twice_area) > std::numeric_limits<long double>::epsilon()){
+        const auto inv = 1.0L / (static_cast<long double>(3) * twice_area);
+        return vec2<T>(static_cast<T>(cx_times_area * inv),
+                       static_cast<T>(cy_times_area * inv));
+    }
+
+    vec2<T> mean(static_cast<T>(0), static_cast<T>(0));
+    for(const auto &v : poly){
+        mean += v;
+    }
+    return mean / static_cast<T>(poly.size());
+}
 
 template <class T, class I>
 class FortuneVoronoiBuilder {
@@ -1160,10 +1214,99 @@ Voronoi_Diagram_2(const std::vector<vec2<T>> &verts){
     return builder.build();
 }
 
+template <class T, class I>
+fv_surface_mesh<T, I>
+Triangulate_Voronoi(const std::vector<std::vector<vec2<T>>> &verts,
+                    const VoronoiDiagram2<T, I> &diagram){
+    if(verts.size() != diagram.cell_edges.size()){
+        throw std::invalid_argument("Triangulate_Voronoi requires one site polygon per Voronoi cell.");
+    }
+
+    fv_surface_mesh<T, I> mesh;
+    mesh.vertices.reserve(verts.size());
+
+    std::vector<vec2<T>> representatives;
+    representatives.reserve(verts.size());
+    for(const auto &poly : verts){
+        const auto rep = representative_site_point(poly);
+        representatives.push_back(rep);
+        mesh.vertices.emplace_back(rep.x, rep.y, static_cast<T>(0));
+    }
+
+    std::set<std::array<size_t, 3>> seen_faces;
+    for(const auto &vertex : diagram.vertices){
+        if(vertex.incident_sites.size() < 3){
+            continue;
+        }
+
+        std::vector<size_t> sites;
+        sites.reserve(vertex.incident_sites.size());
+        for(const auto site_index : vertex.incident_sites){
+            const auto idx = static_cast<size_t>(site_index);
+            if(idx >= representatives.size()){
+                throw std::runtime_error("Triangulate_Voronoi encountered a Voronoi vertex referencing an out-of-range site.");
+            }
+            sites.push_back(idx);
+        }
+        std::sort(sites.begin(), sites.end());
+        sites.erase(std::unique(sites.begin(), sites.end()), sites.end());
+        std::sort(sites.begin(), sites.end(), [&](size_t lhs, size_t rhs){
+            const auto al = std::atan2(static_cast<long double>(representatives.at(lhs).y - vertex.position.y),
+                                       static_cast<long double>(representatives.at(lhs).x - vertex.position.x));
+            const auto ar = std::atan2(static_cast<long double>(representatives.at(rhs).y - vertex.position.y),
+                                       static_cast<long double>(representatives.at(rhs).x - vertex.position.x));
+            if(al != ar){
+                return al < ar;
+            }
+            return lhs < rhs;
+        });
+        if(sites.size() < 3){
+            continue;
+        }
+
+        const auto anchor = sites.front();
+        for(size_t i = 1; (i + 1) < sites.size(); ++i){
+            const auto a = anchor;
+            const auto b = sites.at(i);
+            const auto c = sites.at(i + 1);
+            const auto sign = orient_sign(representatives.at(a),
+                                          representatives.at(b),
+                                          representatives.at(c));
+            if(sign == 0){
+                continue;
+            }
+
+            auto key = std::array<size_t, 3>{{ a, b, c }};
+            std::sort(key.begin(), key.end());
+            if(!seen_faces.insert(key).second){
+                continue;
+            }
+
+            if(sign > 0){
+                mesh.faces.push_back({ static_cast<I>(a), static_cast<I>(b), static_cast<I>(c) });
+            }else{
+                mesh.faces.push_back({ static_cast<I>(a), static_cast<I>(c), static_cast<I>(b) });
+            }
+        }
+    }
+
+    return mesh;
+}
+
 #ifndef YGOR_MATH_VORONOI_DISABLE_ALL_SPECIALIZATIONS
     template VoronoiDiagram2<float , uint32_t> Voronoi_Diagram_2(const std::vector<vec2<float >> &);
     template VoronoiDiagram2<float , uint64_t> Voronoi_Diagram_2(const std::vector<vec2<float >> &);
 
     template VoronoiDiagram2<double, uint32_t> Voronoi_Diagram_2(const std::vector<vec2<double>> &);
     template VoronoiDiagram2<double, uint64_t> Voronoi_Diagram_2(const std::vector<vec2<double>> &);
+
+    template fv_surface_mesh<float , uint32_t> Triangulate_Voronoi(const std::vector<std::vector<vec2<float >>> &,
+                                                                     const VoronoiDiagram2<float , uint32_t> &);
+    template fv_surface_mesh<float , uint64_t> Triangulate_Voronoi(const std::vector<std::vector<vec2<float >>> &,
+                                                                     const VoronoiDiagram2<float , uint64_t> &);
+
+    template fv_surface_mesh<double, uint32_t> Triangulate_Voronoi(const std::vector<std::vector<vec2<double>>> &,
+                                                                     const VoronoiDiagram2<double, uint32_t> &);
+    template fv_surface_mesh<double, uint64_t> Triangulate_Voronoi(const std::vector<std::vector<vec2<double>>> &,
+                                                                     const VoronoiDiagram2<double, uint64_t> &);
 #endif
