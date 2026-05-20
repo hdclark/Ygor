@@ -209,7 +209,7 @@ std::vector<CDT_Triangle> build_delaunay_triangles(const std::vector<vec2<T>> &v
         min_z = std::min(min_z, z);
     }
 
-    IncrementalConvexHull<T> hull(typename IncrementalConvexHull<T>::PerturbationMode::ZOnly);
+    IncrementalConvexHull<T> hull(IncrementalConvexHull<T>::PerturbationMode::ZOnly);
     hull.add_vertices(lifted_verts);
 
     const auto &hull_mesh = hull.get_mesh();
@@ -824,94 +824,209 @@ bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
-bool constrain_edge(const std::vector<vec2<T>> &verts,
-                    size_t a,
-                    size_t b,
-                    std::vector<CDT_Triangle> &triangles,
-                    std::string *diag){
-    if(triangulation_has_edge(triangles, a, b)){
-        return true;
+bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
+                                  size_t a,
+                                  size_t b,
+                                  std::vector<CDT_Triangle> &triangles,
+                                  std::string *diag){
+    std::map<CDT_Edge, std::vector<size_t>> edge_to_triangles;
+    for(size_t i = 0; i < triangles.size(); ++i){
+        for(const auto &edge : triangle_edges(triangles.at(i))){
+            edge_to_triangles[edge].push_back(i);
+        }
+    }
+
+    std::map<size_t, std::vector<size_t>> boundary_adjacency;
+    for(const auto &[edge, incident] : edge_to_triangles){
+        if(incident.size() != 1){
+            continue;
+        }
+        boundary_adjacency[edge.a].push_back(edge.b);
+        boundary_adjacency[edge.b].push_back(edge.a);
+    }
+
+    const auto it_a = boundary_adjacency.find(a);
+    const auto it_b = boundary_adjacency.find(b);
+    if((it_a == boundary_adjacency.end()) || (it_b == boundary_adjacency.end())
+    || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation could not locate both constrained endpoints on the triangulation boundary.");
+    }
+
+    std::vector<size_t> chain0;
+    std::vector<size_t> chain1;
+    if(!walk_boundary_chain(a, b, it_a->second.at(0), boundary_adjacency, chain0, diag)
+    || !walk_boundary_chain(a, b, it_a->second.at(1), boundary_adjacency, chain1, diag)){
+        return false;
+    }
+
+    const auto choose_chain = [&verts](const std::vector<size_t> &lhs,
+                                       const std::vector<size_t> &rhs) -> const std::vector<size_t>& {
+        const auto lhs_area = std::abs(polygon_signed_area_ld(verts, lhs));
+        const auto rhs_area = std::abs(polygon_signed_area_ld(verts, rhs));
+        return (lhs_area <= rhs_area) ? lhs : rhs;
+    };
+    const auto &boundary_chain = choose_chain(chain0, chain1);
+    if(boundary_chain.size() < 3U){
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation found a degenerate boundary chain.");
     }
 
     std::set<size_t> removed;
-    for(size_t i = 0; i < triangles.size(); ++i){
-        const auto &tri = triangles.at(i);
-        const auto tri_edges = triangle_edges(tri);
-        for(const auto &edge : tri_edges){
-            if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
-                                                          verts.at(edge.a), verts.at(edge.b))){
-                removed.insert(i);
+    std::vector<size_t> strip_polygon;
+    strip_polygon.reserve(boundary_chain.size() * 2U);
+    strip_polygon.push_back(boundary_chain.front());
+    for(size_t i = 0; (i + 1U) < boundary_chain.size(); ++i){
+        const auto edge = make_edge(boundary_chain.at(i), boundary_chain.at(i + 1U));
+        const auto incident_it = edge_to_triangles.find(edge);
+        if((incident_it == edge_to_triangles.end()) || (incident_it->second.size() != 1U)){
+            return cdt_fail(diag, "Constraint boundary-strip retriangulation lost a unique incident triangle on the triangulation boundary.");
+        }
+        const auto tri_idx = incident_it->second.front();
+        removed.insert(tri_idx);
+        strip_polygon.push_back(opposite_vertex(triangles.at(tri_idx), edge));
+        strip_polygon.push_back(boundary_chain.at(i + 1U));
+    }
+
+    std::vector<size_t> simplified;
+    simplified.reserve(strip_polygon.size());
+    for(const auto vertex : strip_polygon){
+        if(simplified.empty() || (simplified.back() != vertex)){
+            simplified.push_back(vertex);
+        }
+    }
+    if((simplified.size() >= 2U) && (simplified.front() == simplified.back())){
+        simplified.pop_back();
+    }
+    bool changed = true;
+    while(changed && (simplified.size() >= 3U)){
+        changed = false;
+        for(size_t i = 0; i < simplified.size(); ++i){
+            const auto prev = simplified.at((i + simplified.size() - 1U) % simplified.size());
+            const auto cur = simplified.at(i);
+            const auto next = simplified.at((i + 1U) % simplified.size());
+            if((prev == cur) || (cur == next)
+            || (orient_sign(verts.at(prev), verts.at(cur), verts.at(next)) == 0)){
+                simplified.erase(simplified.begin() + static_cast<std::ptrdiff_t>(i));
+                changed = true;
                 break;
             }
         }
     }
-
-    if(removed.empty()){
-        return cdt_fail(diag, "No triangles crossed constrained segment (" + std::to_string(a)
-                             + ", " + std::to_string(b) + "), but the segment was not present in the triangulation.");
-    }
-
-    std::map<CDT_Edge, size_t> boundary_counts;
-    for(const auto idx : removed){
-        for(const auto &edge : triangle_edges(triangles.at(idx))){
-            ++boundary_counts[edge];
-        }
+    if(simplified.size() < 3U){
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation collapsed the replacement polygon below three vertices.");
     }
 
     std::vector<CDT_Triangle> retained;
     retained.reserve(triangles.size());
     for(size_t i = 0; i < triangles.size(); ++i){
-        if(removed.count(i) == 0){
+        if(removed.count(i) == 0U){
             retained.push_back(triangles.at(i));
         }
     }
 
-    std::map<size_t, std::vector<size_t>> adjacency;
-    for(const auto &[edge, count] : boundary_counts){
-        if(count != 1){
-            continue;
-        }
-        adjacency[edge.a].push_back(edge.b);
-        adjacency[edge.b].push_back(edge.a);
-    }
-
-    const auto it_a = adjacency.find(a);
-    const auto it_b = adjacency.find(b);
-    if((it_a == adjacency.end()) || (it_b == adjacency.end())
-    || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
-        return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
-                             + ") does not expose the expected two boundary chains.");
-    }
-
-    std::vector<size_t> chain0;
-    std::vector<size_t> chain1;
-    if(!walk_boundary_chain(a, b, it_a->second.at(0), adjacency, chain0, diag)
-    || !walk_boundary_chain(a, b, it_a->second.at(1), adjacency, chain1, diag)){
+    std::set<CDT_Edge> boundary_edges;
+    std::vector<CDT_Triangle> strip_triangles;
+    if(!triangulate_polygon_ear_clip(verts, simplified, boundary_edges, strip_triangles, diag)
+    || !legalize_polygon_triangulation(verts, simplified, boundary_edges, strip_triangles, diag)){
         return false;
     }
 
-    std::set<CDT_Edge> boundary0;
-    std::set<CDT_Edge> boundary1;
-    std::vector<CDT_Triangle> tris0;
-    std::vector<CDT_Triangle> tris1;
-    if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0, diag)
-    || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1, diag)
-    || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0, diag)
-    || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1, diag)){
-        return false;
-    }
-
-    retained.insert(retained.end(), tris0.begin(), tris0.end());
-    retained.insert(retained.end(), tris1.begin(), tris1.end());
+    retained.insert(retained.end(), strip_triangles.begin(), strip_triangles.end());
     prune_triangles(verts, retained);
-
-    if(!triangulation_has_edge(retained, a, b)){
-        return cdt_fail(diag, "Constraint insertion for segment (" + std::to_string(a) + ", "
-                             + std::to_string(b) + ") completed without creating the requested constrained edge.");
-    }
-
     triangles.swap(retained);
     return true;
+}
+
+template <class T>
+bool constrain_edge(const std::vector<vec2<T>> &verts,
+                    size_t a,
+                    size_t b,
+                    std::vector<CDT_Triangle> &triangles,
+                    std::string *diag){
+    const auto max_attempts = triangles.size() + CDT_LEGALIZATION_GUARD_BIAS;
+    for(size_t attempt = 0; attempt < max_attempts; ++attempt){
+        if(triangulation_has_edge(triangles, a, b)){
+            return true;
+        }
+
+        std::set<size_t> removed;
+        for(size_t i = 0; i < triangles.size(); ++i){
+            const auto &tri = triangles.at(i);
+            const auto tri_edges = triangle_edges(tri);
+            for(const auto &edge : tri_edges){
+                if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                              verts.at(edge.a), verts.at(edge.b))){
+                    removed.insert(i);
+                    break;
+                }
+            }
+        }
+
+        if(removed.empty()){
+            if(!retriangulate_boundary_strip(verts, a, b, triangles, diag)){
+                return cdt_fail(diag, "No triangles crossed constrained segment (" + std::to_string(a)
+                                     + ", " + std::to_string(b) + "), but the segment was not present in the triangulation.");
+            }
+            continue;
+        }
+
+        std::map<CDT_Edge, size_t> boundary_counts;
+        for(const auto idx : removed){
+            for(const auto &edge : triangle_edges(triangles.at(idx))){
+                ++boundary_counts[edge];
+            }
+        }
+
+        std::vector<CDT_Triangle> retained;
+        retained.reserve(triangles.size());
+        for(size_t i = 0; i < triangles.size(); ++i){
+            if(removed.count(i) == 0){
+                retained.push_back(triangles.at(i));
+            }
+        }
+
+        std::map<size_t, std::vector<size_t>> adjacency;
+        for(const auto &[edge, count] : boundary_counts){
+            if(count != 1){
+                continue;
+            }
+            adjacency[edge.a].push_back(edge.b);
+            adjacency[edge.b].push_back(edge.a);
+        }
+
+        const auto it_a = adjacency.find(a);
+        const auto it_b = adjacency.find(b);
+        if((it_a == adjacency.end()) || (it_b == adjacency.end())
+        || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
+            return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
+                                 + ") does not expose the expected two boundary chains.");
+        }
+
+        std::vector<size_t> chain0;
+        std::vector<size_t> chain1;
+        if(!walk_boundary_chain(a, b, it_a->second.at(0), adjacency, chain0, diag)
+        || !walk_boundary_chain(a, b, it_a->second.at(1), adjacency, chain1, diag)){
+            return false;
+        }
+
+        std::set<CDT_Edge> boundary0;
+        std::set<CDT_Edge> boundary1;
+        std::vector<CDT_Triangle> tris0;
+        std::vector<CDT_Triangle> tris1;
+        if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0, diag)
+        || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1, diag)
+        || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0, diag)
+        || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1, diag)){
+            return false;
+        }
+
+        retained.insert(retained.end(), tris0.begin(), tris0.end());
+        retained.insert(retained.end(), tris1.begin(), tris1.end());
+        prune_triangles(verts, retained);
+        triangles.swap(retained);
+    }
+
+    return cdt_fail(diag, "Constraint insertion for segment (" + std::to_string(a) + ", "
+                         + std::to_string(b) + ") exceeded the insertion retry guard.");
 }
 
 } // namespace
