@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -543,48 +544,166 @@ bool triangulation_has_edge(const std::vector<CDT_Triangle> &triangles,
                        [&](const CDT_Triangle &tri){ return triangle_has_edge(tri, edge); });
 }
 
-bool walk_boundary_chain(size_t start,
-                         size_t stop,
-                         size_t first,
-                         const std::map<size_t, std::vector<size_t>> &adjacency,
-                         std::vector<size_t> &chain,
-                         std::string *diag){
-    chain.clear();
-    chain.push_back(start);
+template <class T>
+bool build_planar_edge_faces(const std::vector<vec2<T>> &verts,
+                             const std::vector<CDT_Edge> &edges,
+                             std::vector<std::vector<size_t>> &faces,
+                             std::map<std::pair<size_t, size_t>, size_t> &halfedge_to_face,
+                             std::string *diag){
+    faces.clear();
+    halfedge_to_face.clear();
 
-    size_t prev = start;
-    size_t cur = first;
-    std::set<size_t> visited;
-    visited.insert(start);
-
-    while(true){
-        if(!visited.insert(cur).second && (cur != stop)){
-            return cdt_fail(diag, "Constraint cavity boundary traversal encountered a repeated vertex before reaching the target endpoint.");
-        }
-        chain.push_back(cur);
-        if(cur == stop){
-            return true;
-        }
-
-        const auto it = adjacency.find(cur);
-        if((it == adjacency.end()) || (it->second.size() != 2)){
-            return cdt_fail(diag, "Constraint cavity boundary vertex " + std::to_string(cur)
-                                 + " does not have the expected degree 2.");
-        }
-
-        const auto &nbrs = it->second;
-        size_t next = CDT_INVALID_VERTEX_INDEX;
-        if(nbrs.at(0) != prev){
-            next = nbrs.at(0);
-        }else if(nbrs.at(1) != prev){
-            next = nbrs.at(1);
-        }
-        if((next == CDT_INVALID_VERTEX_INDEX) || (next == start)){
-            return cdt_fail(diag, "Constraint cavity boundary traversal could not determine the next boundary vertex.");
-        }
-        prev = cur;
-        cur = next;
+    std::map<size_t, std::vector<size_t>> adjacency;
+    for(const auto &edge : edges){
+        adjacency[edge.a].push_back(edge.b);
+        adjacency[edge.b].push_back(edge.a);
     }
+    if(adjacency.empty()){
+        return true;
+    }
+
+    for(auto &[vertex, nbrs] : adjacency){
+        std::sort(nbrs.begin(), nbrs.end(),
+                  [&](size_t lhs, size_t rhs){
+                      const auto &origin = verts.at(vertex);
+                      const auto &a = verts.at(lhs);
+                      const auto &b = verts.at(rhs);
+                      const auto angle_a = std::atan2(a.y - origin.y, a.x - origin.x);
+                      const auto angle_b = std::atan2(b.y - origin.y, b.x - origin.x);
+                      return angle_a < angle_b;
+                  });
+    }
+
+    std::set<std::pair<size_t, size_t>> visited_halfedges;
+    const auto max_face_steps = edges.size() * 2U + 1U;
+    for(const auto &[start, nbrs] : adjacency){
+        for(const auto first : nbrs){
+            const auto start_halfedge = std::make_pair(start, first);
+            if(visited_halfedges.count(start_halfedge) != 0U){
+                continue;
+            }
+
+            std::vector<size_t> face;
+            size_t prev = start;
+            size_t cur = first;
+            while(true){
+                const auto halfedge = std::make_pair(prev, cur);
+                visited_halfedges.insert(halfedge);
+                halfedge_to_face[halfedge] = faces.size();
+                face.push_back(prev);
+
+                const auto &ordered = adjacency.at(cur);
+                const auto it = std::find(ordered.begin(), ordered.end(), prev);
+                if(it == ordered.end()){
+                    return cdt_fail(diag, "Constraint cavity face reconstruction lost halfedge ordering at vertex "
+                                         + std::to_string(cur) + ".");
+                }
+
+                const auto idx = static_cast<size_t>(std::distance(ordered.begin(), it));
+                const auto next = ordered.at((idx + ordered.size() - 1U) % ordered.size());
+                prev = cur;
+                cur = next;
+
+                if((prev == start_halfedge.first) && (cur == start_halfedge.second)){
+                    break;
+                }
+                if(face.size() > max_face_steps){
+                    return cdt_fail(diag, "Constraint cavity face reconstruction exceeded the traversal guard while tracing a boundary cycle.");
+                }
+            }
+
+            faces.push_back(std::move(face));
+        }
+    }
+
+    return true;
+}
+
+inline bool rotate_cycle_to_halfedge(const std::vector<size_t> &cycle,
+                                     size_t a,
+                                     size_t b,
+                                     std::vector<size_t> &rotated,
+                                     std::string *diag){
+    if(cycle.size() < 2U){
+        return cdt_fail(diag, "Constraint cavity face reconstruction produced a degenerate cycle.");
+    }
+
+    for(size_t i = 0; i < cycle.size(); ++i){
+        if((cycle.at(i) != a) || (cycle.at((i + 1U) % cycle.size()) != b)){
+            continue;
+        }
+
+        rotated.clear();
+        rotated.reserve(cycle.size());
+        for(size_t j = 0; j < cycle.size(); ++j){
+            rotated.push_back(cycle.at((i + j) % cycle.size()));
+        }
+        return true;
+    }
+
+    return cdt_fail(diag, "Constraint cavity face reconstruction could not rotate a face to the requested constrained halfedge.");
+}
+
+inline std::string format_cycle(const std::vector<size_t> &cycle){
+    std::ostringstream out;
+    out << "[";
+    for(size_t i = 0; i < cycle.size(); ++i){
+        if(i != 0U){
+            out << ", ";
+        }
+        out << cycle.at(i);
+    }
+    out << "]";
+    return out.str();
+}
+
+inline std::vector<size_t> normalize_cycle_vertices(const std::vector<size_t> &cycle){
+    std::vector<size_t> normalized;
+    normalized.reserve(cycle.size());
+    for(const auto vertex : cycle){
+        if(normalized.empty() || (normalized.back() != vertex)){
+            normalized.push_back(vertex);
+        }
+    }
+    if((normalized.size() >= 2U) && (normalized.front() == normalized.back())){
+        normalized.pop_back();
+    }
+    return normalized;
+}
+
+void split_pinched_cycle(const std::vector<size_t> &cycle,
+                         std::vector<std::vector<size_t>> &pieces){
+    const auto normalized = normalize_cycle_vertices(cycle);
+    if(normalized.size() < 3U){
+        return;
+    }
+
+    std::map<size_t, size_t> first_position;
+    for(size_t i = 0; i < normalized.size(); ++i){
+        const auto vertex = normalized.at(i);
+        const auto inserted = first_position.emplace(vertex, i);
+        if(inserted.second){
+            continue;
+        }
+
+        const auto start = inserted.first->second;
+        std::vector<size_t> first_piece(normalized.begin() + static_cast<std::ptrdiff_t>(start),
+                                        normalized.begin() + static_cast<std::ptrdiff_t>(i));
+        std::vector<size_t> second_piece;
+        second_piece.reserve(normalized.size() - (i - start) + 1U);
+        second_piece.insert(second_piece.end(),
+                            normalized.begin(),
+                            normalized.begin() + static_cast<std::ptrdiff_t>(start + 1U));
+        second_piece.insert(second_piece.end(),
+                            normalized.begin() + static_cast<std::ptrdiff_t>(i),
+                            normalized.end());
+
+        split_pinched_cycle(first_piece, pieces);
+        split_pinched_cycle(second_piece, pieces);
+        return;
+    }
+
+    pieces.push_back(normalized);
 }
 
 template <class T>
@@ -824,6 +943,91 @@ bool legalize_polygon_triangulation(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
+bool triangulate_pinched_polygon(const std::vector<vec2<T>> &verts,
+                                 const std::vector<size_t> &polygon,
+                                 std::vector<CDT_Triangle> &triangles,
+                                 std::string *diag){
+    triangles.clear();
+
+    const auto normalized_polygon = normalize_cycle_vertices(polygon);
+    std::vector<std::vector<size_t>> pieces;
+    split_pinched_cycle(normalized_polygon, pieces);
+    if(pieces.empty()){
+        return cdt_fail(diag, "Constraint cavity polygon collapsed while splitting repeated boundary vertices.");
+    }
+
+    for(const auto &piece : pieces){
+        if(piece.size() < 3U){
+            continue;
+        }
+
+        std::set<CDT_Edge> boundary_edges;
+        std::vector<CDT_Triangle> piece_triangles;
+        if(!triangulate_polygon_ear_clip(verts, piece, boundary_edges, piece_triangles, diag)
+        || !legalize_polygon_triangulation(verts, piece, boundary_edges, piece_triangles, diag)){
+            return false;
+        }
+        triangles.insert(triangles.end(), piece_triangles.begin(), piece_triangles.end());
+    }
+
+    if((normalized_polygon.size() >= 2U)
+    && !triangulation_has_edge(triangles, normalized_polygon.at(0), normalized_polygon.at(1))){
+        const auto a = normalized_polygon.at(0);
+        const auto b = normalized_polygon.at(1);
+        std::map<size_t, size_t> counts;
+        for(const auto &piece : pieces){
+            for(const auto vertex : piece){
+                if((vertex != a) && (vertex != b)){
+                    ++counts[vertex];
+                }
+            }
+        }
+
+        size_t shared_bridge_vertex = CDT_INVALID_VERTEX_INDEX;
+        for(const auto vertex : normalized_polygon){
+            if((counts.count(vertex) != 0U) && (counts.at(vertex) > 1U)){
+                shared_bridge_vertex = vertex;
+                break;
+            }
+        }
+
+        const auto append_bridge_triangle = [&](size_t bridge_vertex){
+            CDT_Triangle bridge_triangle{};
+            if(make_ccw_triangle(verts, a, b, bridge_vertex, bridge_triangle)){
+                triangles.push_back(bridge_triangle);
+                return true;
+            }
+            return false;
+        };
+
+        if(shared_bridge_vertex != CDT_INVALID_VERTEX_INDEX){
+            append_bridge_triangle(shared_bridge_vertex);
+        }else{
+            for(const auto &piece : pieces){
+                const bool has_a = std::find(piece.begin(), piece.end(), a) != piece.end();
+                const bool has_b = std::find(piece.begin(), piece.end(), b) != piece.end();
+                if((piece.size() < 3U) || (has_a == has_b)){
+                    continue;
+                }
+
+                const auto endpoint = has_a ? a : b;
+                std::vector<size_t> rotated;
+                rotated.reserve(piece.size());
+                const auto it = std::find(piece.begin(), piece.end(), endpoint);
+                const auto offset = static_cast<size_t>(std::distance(piece.begin(), it));
+                for(size_t i = 0; i < piece.size(); ++i){
+                    rotated.push_back(piece.at((offset + i) % piece.size()));
+                }
+                append_bridge_triangle(rotated.at(1));
+            }
+        }
+    }
+
+    prune_triangles(verts, triangles);
+    return !triangles.empty();
+}
+
+template <class T>
 bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
                                   size_t a,
                                   size_t b,
@@ -836,38 +1040,65 @@ bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
         }
     }
 
-    std::map<size_t, std::vector<size_t>> boundary_adjacency;
+    std::vector<CDT_Edge> boundary_edges_list;
+    boundary_edges_list.reserve(edge_to_triangles.size() + 1U);
     for(const auto &[edge, incident] : edge_to_triangles){
         if(incident.size() != 1){
             continue;
         }
-        boundary_adjacency[edge.a].push_back(edge.b);
-        boundary_adjacency[edge.b].push_back(edge.a);
+        boundary_edges_list.push_back(edge);
     }
 
-    const auto it_a = boundary_adjacency.find(a);
-    const auto it_b = boundary_adjacency.find(b);
-    if((it_a == boundary_adjacency.end()) || (it_b == boundary_adjacency.end())
-    || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
-        return cdt_fail(diag, "Constraint boundary-strip retriangulation could not locate both constrained endpoints on the triangulation boundary.");
-    }
+    boundary_edges_list.push_back(make_edge(a, b));
 
-    std::vector<size_t> chain0;
-    std::vector<size_t> chain1;
-    if(!walk_boundary_chain(a, b, it_a->second.at(0), boundary_adjacency, chain0, diag)
-    || !walk_boundary_chain(a, b, it_a->second.at(1), boundary_adjacency, chain1, diag)){
+    std::vector<std::vector<size_t>> boundary_faces;
+    std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
+    if(!build_planar_edge_faces(verts, boundary_edges_list, boundary_faces, halfedge_to_face, diag)){
         return false;
     }
 
+    const auto face_ab_it = halfedge_to_face.find(std::make_pair(a, b));
+    const auto face_ba_it = halfedge_to_face.find(std::make_pair(b, a));
+    if((face_ab_it == halfedge_to_face.end()) || (face_ba_it == halfedge_to_face.end())){
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation could not identify both boundary faces incident to the constrained segment.");
+    }
+
+    std::vector<size_t> cycle0;
+    std::vector<size_t> cycle1;
+    if(!rotate_cycle_to_halfedge(boundary_faces.at(face_ab_it->second), a, b, cycle0, diag)
+    || !rotate_cycle_to_halfedge(boundary_faces.at(face_ba_it->second), b, a, cycle1, diag)){
+        return false;
+    }
+
+    const auto cycle_to_boundary_chain = [](const std::vector<size_t> &cycle) {
+        std::vector<size_t> chain;
+        chain.reserve(cycle.size());
+        chain.push_back(cycle.front());
+        for(size_t i = cycle.size(); i > 2U; --i){
+            chain.push_back(cycle.at(i - 1U));
+        }
+        chain.push_back(cycle.at(1));
+        return chain;
+    };
+
+    const auto chain0 = cycle_to_boundary_chain(cycle0);
+    const auto chain1 = cycle_to_boundary_chain(cycle1);
     const auto choose_chain = [&verts](const std::vector<size_t> &lhs,
                                        const std::vector<size_t> &rhs) -> const std::vector<size_t>& {
+        if(lhs.size() < 3U){
+            return rhs;
+        }
+        if(rhs.size() < 3U){
+            return lhs;
+        }
         const auto lhs_area = std::abs(polygon_signed_area_ld(verts, lhs));
         const auto rhs_area = std::abs(polygon_signed_area_ld(verts, rhs));
         return (lhs_area <= rhs_area) ? lhs : rhs;
     };
     const auto &boundary_chain = choose_chain(chain0, chain1);
     if(boundary_chain.size() < 3U){
-        return cdt_fail(diag, "Constraint boundary-strip retriangulation found a degenerate boundary chain.");
+        return cdt_fail(diag, "Constraint boundary-strip retriangulation found a degenerate boundary chain. chain0="
+                             + format_cycle(chain0) + " chain1=" + format_cycle(chain1));
     }
 
     std::set<size_t> removed;
@@ -956,6 +1187,47 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
             return true;
         }
 
+        std::map<CDT_Edge, std::vector<size_t>> edge_to_triangles;
+        for(size_t i = 0; i < triangles.size(); ++i){
+            for(const auto &edge : triangle_edges(triangles.at(i))){
+                edge_to_triangles[edge].push_back(i);
+            }
+        }
+
+        bool flipped_crossing_edge = false;
+        for(const auto &[edge, incident] : edge_to_triangles){
+            if((incident.size() != 2U)
+            || !segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                           verts.at(edge.a), verts.at(edge.b))){
+                continue;
+            }
+
+            const auto t0 = incident.at(0);
+            const auto t1 = incident.at(1);
+            const auto w = opposite_vertex(triangles.at(t0), edge);
+            const auto x = opposite_vertex(triangles.at(t1), edge);
+            if(segments_intersect_beyond_shared_endpoints(verts.at(a), verts.at(b),
+                                                          verts.at(w), verts.at(x))){
+                continue;
+            }
+
+            CDT_Triangle first{};
+            CDT_Triangle second{};
+            if(!make_ccw_triangle(verts, w, x, edge.a, first)
+            || !make_ccw_triangle(verts, x, w, edge.b, second)){
+                continue;
+            }
+
+            triangles.at(t0) = first;
+            triangles.at(t1) = second;
+            prune_triangles(verts, triangles);
+            flipped_crossing_edge = true;
+            break;
+        }
+        if(flipped_crossing_edge){
+            continue;
+        }
+
         std::set<size_t> removed;
         for(size_t i = 0; i < triangles.size(); ++i){
             const auto &tri = triangles.at(i);
@@ -992,39 +1264,47 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
             }
         }
 
-        std::map<size_t, std::vector<size_t>> adjacency;
+        std::vector<CDT_Edge> cavity_edges;
+        cavity_edges.reserve(boundary_counts.size() + 1U);
         for(const auto &[edge, count] : boundary_counts){
             if(count != 1){
                 continue;
             }
-            adjacency[edge.a].push_back(edge.b);
-            adjacency[edge.b].push_back(edge.a);
+            cavity_edges.push_back(edge);
         }
 
-        const auto it_a = adjacency.find(a);
-        const auto it_b = adjacency.find(b);
-        if((it_a == adjacency.end()) || (it_b == adjacency.end())
-        || (it_a->second.size() != 2) || (it_b->second.size() != 2)){
-            return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
-                                 + ") does not expose the expected two boundary chains.");
+        const auto constrained_edge = make_edge(a, b);
+        cavity_edges.push_back(constrained_edge);
+
+        std::vector<std::vector<size_t>> cavity_faces;
+        std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
+        if(!build_planar_edge_faces(verts, cavity_edges, cavity_faces, halfedge_to_face, diag)){
+            return false;
         }
 
         std::vector<size_t> chain0;
         std::vector<size_t> chain1;
-        if(!walk_boundary_chain(a, b, it_a->second.at(0), adjacency, chain0, diag)
-        || !walk_boundary_chain(a, b, it_a->second.at(1), adjacency, chain1, diag)){
+        const auto face0_it = halfedge_to_face.find(std::make_pair(a, b));
+        const auto face1_it = halfedge_to_face.find(std::make_pair(b, a));
+        if((face0_it == halfedge_to_face.end()) || (face1_it == halfedge_to_face.end())){
+            return cdt_fail(diag, "Constraint cavity for segment (" + std::to_string(a) + ", " + std::to_string(b)
+                                 + ") could not identify both faces incident to the constrained segment.");
+        }
+        if(!rotate_cycle_to_halfedge(cavity_faces.at(face0_it->second), a, b, chain0, diag)
+        || !rotate_cycle_to_halfedge(cavity_faces.at(face1_it->second), b, a, chain1, diag)){
             return false;
         }
-
-        std::set<CDT_Edge> boundary0;
-        std::set<CDT_Edge> boundary1;
         std::vector<CDT_Triangle> tris0;
         std::vector<CDT_Triangle> tris1;
-        if(!triangulate_polygon_ear_clip(verts, chain0, boundary0, tris0, diag)
-        || !triangulate_polygon_ear_clip(verts, chain1, boundary1, tris1, diag)
-        || !legalize_polygon_triangulation(verts, chain0, boundary0, tris0, diag)
-        || !legalize_polygon_triangulation(verts, chain1, boundary1, tris1, diag)){
-            return false;
+        if(!triangulate_pinched_polygon(verts, chain0, tris0, diag)){
+            return cdt_fail(diag, "Constraint cavity polygon for segment (" + std::to_string(a) + ", "
+                                  + std::to_string(b) + ") could not be ear-clipped on one side: "
+                                  + format_cycle(chain0));
+        }
+        if(!triangulate_pinched_polygon(verts, chain1, tris1, diag)){
+            return cdt_fail(diag, "Constraint cavity polygon for segment (" + std::to_string(a) + ", "
+                                  + std::to_string(b) + ") could not be ear-clipped on the opposite side: "
+                                  + format_cycle(chain1));
         }
 
         retained.insert(retained.end(), tris0.begin(), tris0.end());

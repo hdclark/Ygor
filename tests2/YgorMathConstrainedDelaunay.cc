@@ -2,6 +2,7 @@
 #include <array>
 #include <algorithm>
 #include <limits>
+#include <iterator>
 #include <map>
 #include <set>
 #include <sstream>
@@ -742,6 +743,87 @@ primitive line 43 normal 61 56
         require_all_faces_are_triangles(mesh);
         require_constraints_are_triangle_edges(mesh, constraints);
         require_edges_are_manifold(mesh);
+    }
+
+    SUBCASE("reported sketch with circle and arc loops remains triangulable"){
+        const auto sketch = std::string(R"SKETCH(sketch_format_version 1
+plane_origin 0 0 2
+plane_row_unit 0 1 0
+plane_col_unit 1 0 0
+vertex 0 201.642745971679688 195.182174682617188 2
+vertex 1 124.115928649902344 118.866722106933594 2
+vertex 2 162.475555419921875 178.626968383789062 2
+vertex 3 9.03706645965576172 8.63328075408935547 2
+vertex 4 10.6522083282470703 240.002365112304688 2
+vertex 5 245.655364990234375 235.56072998046875 2
+vertex 6 245.655364990234375 7.42192411422729492 2
+vertex 7 59.9140396118164062 122.097000122070312 2
+vertex 8 116.847793579101562 109.175865173339844 2
+vertex 9 84.544952392578125 73.2389602661132812 2
+vertex 10 138.248428344726562 99.485015869140625 2
+vertex 11 158.033905029296875 61.1253929138183594 2
+vertex 12 156.014984130859375 111.598579406738281 2
+vertex 13 189.5291748046875 120.481864929199219 2
+vertex 14 149.958206176757812 137.44085693359375 2
+vertex 15 147.535491943359375 180.645904541015625 2
+vertex 16 124.923500061035156 137.844635009765625 2
+vertex 17 82.5260238647460938 170.955047607421875 2
+vertex 18 116.04022216796875 127.75 2
+vertex 19 26.2784326348700716 81.8693446384012873 2
+vertex 20 25.5922718048095703 153.996063232421875 2
+vertex 21 61.1253929138183594 64.75946044921875 2
+vertex 22 50.2231864929199219 98.6774444580078125 2
+vertex 23 49.0118293762207031 144.305206298828125 2
+vertex 24 63.5481071472167969 167.724761962890625 2
+vertex 25 2.98028397560119629 3.78785467147827148 2
+vertex 26 4.19164037704467773 249.693222045898438 2
+vertex 27 250.904571533203125 244.847793579101562 2
+vertex 28 253.327285766601562 1.76892733573913574 2
+primitive circle 0 normal 1 2
+primitive line 1 normal 3 4
+primitive line 2 normal 4 5
+primitive line 3 normal 5 6
+primitive line 4 normal 6 3
+primitive line 5 normal 7 8
+primitive line 6 normal 8 9
+primitive line 7 normal 9 10
+primitive line 8 normal 10 11
+primitive line 9 normal 11 12
+primitive line 10 normal 12 13
+primitive line 11 normal 13 14
+primitive line 12 normal 14 15
+primitive line 13 normal 15 16
+primitive line 14 normal 16 17
+primitive line 15 normal 17 18
+primitive line 16 normal 18 7
+primitive arc 17 normal 1 20 19
+primitive line 18 normal 19 21
+primitive line 19 normal 21 22
+primitive line 20 normal 22 23
+primitive line 21 normal 23 24
+primitive line 22 normal 24 20
+primitive line 23 normal 25 26
+primitive line 24 normal 26 27
+primitive line 25 normal 27 28
+primitive line 26 normal 28 25
+)SKETCH");
+
+        const auto [verts, edges] = discretize_sketch_constraints(sketch, 0.1);
+        REQUIRE(verts.size() == 153);
+        REQUIRE(edges.size() == 153);
+
+        std::vector<edge_type<uint64_t>> constraints;
+        constraints.reserve(edges.size());
+        for(const auto &edge : edges){
+            REQUIRE(edge.size() == 2);
+            constraints.push_back(make_edge(edge.at(0), edge.at(1)));
+        }
+
+        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint64_t>(verts, edges);
+        REQUIRE(mesh.vertices.size() == verts.size());
+        REQUIRE_FALSE(mesh.faces.empty());
+        require_all_faces_are_triangles(mesh);
+        require_constraints_are_triangle_edges(mesh, constraints);
     }
 }
 
