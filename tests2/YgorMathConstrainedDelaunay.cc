@@ -824,6 +824,7 @@ primitive line 26 normal 28 25
         REQUIRE_FALSE(mesh.faces.empty());
         require_all_faces_are_triangles(mesh);
         require_constraints_are_triangle_edges(mesh, constraints);
+        require_edges_are_manifold(mesh);
     }
 }
 

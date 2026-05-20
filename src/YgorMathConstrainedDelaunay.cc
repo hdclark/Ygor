@@ -114,6 +114,8 @@ template <class T>
 long double polygon_signed_area_ld(const std::vector<vec2<T>> &verts,
                                    const std::vector<size_t> &poly);
 
+inline std::vector<size_t> normalize_cycle_vertices(const std::vector<size_t> &cycle);
+
 template <class T>
 bool make_ccw_triangle(const std::vector<vec2<T>> &verts,
                        size_t a,
@@ -530,6 +532,10 @@ inline bool triangle_has_edge(const CDT_Triangle &tri, const CDT_Edge &edge){
     return std::find(edges.begin(), edges.end(), edge) != edges.end();
 }
 
+inline bool triangle_has_vertex(const CDT_Triangle &tri, size_t vertex){
+    return (tri.a == vertex) || (tri.b == vertex) || (tri.c == vertex);
+}
+
 inline size_t opposite_vertex(const CDT_Triangle &tri, const CDT_Edge &edge){
     if((tri.a != edge.a) && (tri.a != edge.b)) return tri.a;
     if((tri.b != edge.a) && (tri.b != edge.b)) return tri.b;
@@ -655,6 +661,54 @@ inline std::string format_cycle(const std::vector<size_t> &cycle){
     }
     out << "]";
     return out.str();
+}
+
+inline bool split_cycle_across_constrained_edge(const std::vector<size_t> &cycle,
+                                                size_t a,
+                                                size_t b,
+                                                std::vector<size_t> &first,
+                                                std::vector<size_t> &second){
+    first.clear();
+    second.clear();
+
+    const auto normalized = normalize_cycle_vertices(cycle);
+    if(normalized.size() < 4U){
+        return false;
+    }
+
+    std::vector<size_t> oriented;
+    oriented.reserve(normalized.size());
+    for(size_t start = 0; start < normalized.size(); ++start){
+        if((normalized.at(start) != a) || (normalized.at((start + 1U) % normalized.size()) != b)){
+            continue;
+        }
+        for(size_t i = 0; i < normalized.size(); ++i){
+            oriented.push_back(normalized.at((start + i) % normalized.size()));
+        }
+        break;
+    }
+    if(oriented.empty()){
+        return false;
+    }
+
+    for(size_t i = 2U; (i + 1U) < oriented.size(); ++i){
+        if((oriented.at(i) != b) || (oriented.at(i + 1U) != a)){
+            continue;
+        }
+
+        first = { a, b };
+        first.insert(first.end(),
+                     oriented.begin() + static_cast<std::ptrdiff_t>(2U),
+                     oriented.begin() + static_cast<std::ptrdiff_t>(i));
+
+        second = { b, a };
+        second.insert(second.end(),
+                      oriented.begin() + static_cast<std::ptrdiff_t>(i + 2U),
+                      oriented.end());
+        return (first.size() >= 3U) && (second.size() >= 3U);
+    }
+
+    return false;
 }
 
 inline std::vector<size_t> normalize_cycle_vertices(const std::vector<size_t> &cycle){
@@ -1028,6 +1082,96 @@ bool triangulate_pinched_polygon(const std::vector<vec2<T>> &verts,
 }
 
 template <class T>
+bool retriangulate_visible_face(const std::vector<vec2<T>> &verts,
+                                size_t a,
+                                size_t b,
+                                std::vector<CDT_Triangle> &triangles,
+                                std::string *diag){
+    std::map<CDT_Edge, std::vector<size_t>> edge_to_triangles;
+    std::vector<CDT_Edge> edges;
+    edges.reserve(triangles.size() * 3U + 1U);
+    for(size_t i = 0; i < triangles.size(); ++i){
+        for(const auto &edge : triangle_edges(triangles.at(i))){
+            auto &incident = edge_to_triangles[edge];
+            if(incident.empty()){
+                edges.push_back(edge);
+            }
+            incident.push_back(i);
+        }
+    }
+
+    edges.push_back(make_edge(a, b));
+
+    std::vector<std::vector<size_t>> faces;
+    std::map<std::pair<size_t, size_t>, size_t> halfedge_to_face;
+    if(!build_planar_edge_faces(verts, edges, faces, halfedge_to_face, diag)){
+        return false;
+    }
+
+    const auto face_ab_it = halfedge_to_face.find(std::make_pair(a, b));
+    const auto face_ba_it = halfedge_to_face.find(std::make_pair(b, a));
+    if((face_ab_it == halfedge_to_face.end()) || (face_ba_it == halfedge_to_face.end())){
+        return cdt_fail(diag, "Visible-face retriangulation could not identify both halfedge faces incident to the constrained segment.");
+    }
+
+    std::vector<size_t> cycle_ab;
+    std::vector<size_t> cycle_ba;
+    if(!rotate_cycle_to_halfedge(faces.at(face_ab_it->second), a, b, cycle_ab, diag)
+    || !rotate_cycle_to_halfedge(faces.at(face_ba_it->second), b, a, cycle_ba, diag)){
+        return false;
+    }
+
+    std::vector<size_t> poly0;
+    std::vector<size_t> poly1;
+    if(!split_cycle_across_constrained_edge(cycle_ab, a, b, poly0, poly1)
+    && !split_cycle_across_constrained_edge(cycle_ba, b, a, poly0, poly1)){
+        return false;
+    }
+
+    std::vector<CDT_Triangle> retained;
+    retained.reserve(triangles.size());
+    for(const auto &tri : triangles){
+        const auto &pa = verts.at(tri.a);
+        const auto &pb = verts.at(tri.b);
+        const auto &pc = verts.at(tri.c);
+        const vec2<T> centroid((pa.x + pb.x + pc.x) / static_cast<T>(3),
+                               (pa.y + pb.y + pc.y) / static_cast<T>(3));
+        const auto in_poly0 = point_in_polygon_or_on_boundary(verts, poly0, centroid);
+        const auto in_poly1 = point_in_polygon_or_on_boundary(verts, poly1, centroid);
+        if(!(in_poly0 || in_poly1)){
+            retained.push_back(tri);
+        }
+    }
+
+    const auto append_polygon = [&](const std::vector<size_t> &polygon,
+                                    std::vector<CDT_Triangle> &out) -> bool {
+        std::set<CDT_Edge> boundary_edges;
+        std::vector<CDT_Triangle> polygon_triangles;
+        if(!triangulate_polygon_ear_clip(verts, polygon, boundary_edges, polygon_triangles, diag)
+        || !legalize_polygon_triangulation(verts, polygon, boundary_edges, polygon_triangles, diag)){
+            return false;
+        }
+        out.insert(out.end(), polygon_triangles.begin(), polygon_triangles.end());
+        return true;
+    };
+
+    std::vector<CDT_Triangle> replacement;
+    if(!append_polygon(poly0, replacement)
+    || !append_polygon(poly1, replacement)){
+        return false;
+    }
+
+    retained.insert(retained.end(), replacement.begin(), replacement.end());
+    prune_triangles(verts, retained);
+    if(!triangulation_has_edge(retained, a, b)){
+        return cdt_fail(diag, "Visible-face retriangulation did not recover constrained edge ("
+                             + std::to_string(a) + ", " + std::to_string(b) + ").");
+    }
+    triangles.swap(retained);
+    return true;
+}
+
+template <class T>
 bool retriangulate_boundary_strip(const std::vector<vec2<T>> &verts,
                                   size_t a,
                                   size_t b,
@@ -1242,6 +1386,9 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
         }
 
         if(removed.empty()){
+            if(retriangulate_visible_face(verts, a, b, triangles, diag)){
+                continue;
+            }
             if(!retriangulate_boundary_strip(verts, a, b, triangles, diag)){
                 return cdt_fail(diag, "No triangles crossed constrained segment (" + std::to_string(a)
                                      + ", " + std::to_string(b) + "), but the segment was not present in the triangulation.");
