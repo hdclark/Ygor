@@ -317,6 +317,46 @@ TEST_CASE( "Constrained_Delaunay_Triangulation_2 function" ){
         }
     }
 
+    SUBCASE("nested constrained polygons remain triangulable when the outer hull is cocircular"){
+        const std::vector<vec2<double>> verts{{
+            vec2<double>(-185.9, 73.7651), vec2<double>(-156.832, -124.111), vec2<double>(29.0675, -197.876),
+            vec2<double>(185.9, -73.7651), vec2<double>(156.832, 124.111), vec2<double>(-29.0675, 197.876),
+            vec2<double>(79.7543, -150.81), vec2<double>(106.854, -132.991), vec2<double>(130.092, -110.365),
+            vec2<double>(148.628, -83.7509), vec2<double>(161.792, -54.1095), vec2<double>(169.108, -22.5124),
+            vec2<double>(170.313, 9.89835), vec2<double>(165.362, 41.9513), vec2<double>(154.434, 72.4881),
+            vec2<double>(137.925, 100.405), vec2<double>(116.43, 124.693), vec2<double>(90.728, 144.474),
+            vec2<double>(61.7466, 159.034), vec2<double>(30.5334, 167.845), vec2<double>(-1.78334, 170.591),
+            vec2<double>(-34.0356, 167.17), vec2<double>(-65.0577, 157.708), vec2<double>(-93.7285, 142.546),
+            vec2<double>(-119.012, 122.232), vec2<double>(-139.994, 97.4996), vec2<double>(-155.916, 69.2437),
+            vec2<double>(-166.202, 38.4852), vec2<double>(-170.482, 6.33572), vec2<double>(-168.601, -26.0428),
+            vec2<double>(-160.625, -57.48), vec2<double>(-146.844, -86.8398), vec2<double>(-127.756, -113.061),
+            vec2<double>(-104.05, -135.196), vec2<double>(-76.5841, -152.444), vec2<double>(-46.3499, -164.183),
+            vec2<double>(-14.4404, -169.988), vec2<double>(17.9909, -169.649), vec2<double>(49.772, -163.178)
+        }};
+        std::vector<std::vector<uint32_t>> edges;
+        for(uint32_t i = 0; i < 6; ++i){
+            edges.push_back({ i, static_cast<uint32_t>((i + 1) % 6) });
+        }
+        for(uint32_t i = 6; i < verts.size(); ++i){
+            const auto next = (i + 1 < verts.size()) ? static_cast<uint32_t>(i + 1) : uint32_t{6};
+            edges.push_back({ i, next });
+        }
+
+        const auto mesh = Constrained_Delaunay_Triangulation_2<double, uint32_t>(verts, edges);
+
+        std::vector<edge_type<uint32_t>> constraints;
+        constraints.reserve(edges.size());
+        for(const auto &edge : edges){
+            constraints.push_back(make_edge(edge.at(0), edge.at(1)));
+        }
+
+        REQUIRE(mesh.vertices.size() == verts.size());
+        REQUIRE(mesh.faces.size() > 0);
+        require_all_faces_are_triangles(mesh);
+        require_edges_are_manifold(mesh);
+        require_constraints_are_triangle_edges(mesh, constraints);
+    }
+
     SUBCASE("crossing constraints are rejected"){
         const std::vector<vec2<double>> verts{{
             vec2<double>(0.0, 0.0),
