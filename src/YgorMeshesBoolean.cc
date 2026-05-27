@@ -575,22 +575,10 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
                 const auto cell_min = domain_min + vec3<T>(h * static_cast<T>(i),
                                                            h * static_cast<T>(j),
                                                            h * static_cast<T>(k));
-                const auto cell_max = cell_min + vec3<T>(h, h, h);
                 const auto centre_pt = cell_min + vec3<T>(h, h, h) * static_cast<T>(0.5);
 
-                bool inside_lhs = false;
-                bool inside_rhs = false;
-
-                const auto lhs_touches = cell_touches_mesh(cell_min, cell_max, lhs_prep);
-                const auto rhs_touches = cell_touches_mesh(cell_min, cell_max, rhs_prep);
-
-                if(lhs_touches || rhs_touches){
-                    inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
-                    inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
-                }else{
-                    inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
-                    inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
-                }
+                const auto inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
+                const auto inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
 
                 if(eval_boolean<T>(inside_lhs, inside_rhs, op)){
                     occupied.at(linear_index(i, j, k)) = 1U;
