@@ -535,13 +535,15 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
         if(op == MeshBooleanOperation::Intersection || op == MeshBooleanOperation::Subtraction){
             return fv_surface_mesh<T, I>();
         }
-        return copy_mesh_for_empty_case(rhs);
+        const auto rhs_prep = prepare_mesh(rhs, "rhs mesh");
+        return copy_mesh_for_empty_case(rhs_prep.mesh);
     }
     if(rhs.faces.empty()){
         if(op == MeshBooleanOperation::Intersection){
             return fv_surface_mesh<T, I>();
         }
-        return copy_mesh_for_empty_case(lhs);
+        const auto lhs_prep = prepare_mesh(lhs, "lhs mesh");
+        return copy_mesh_for_empty_case(lhs_prep.mesh);
     }
 
     const auto lhs_prep = prepare_mesh(lhs, "lhs mesh");
