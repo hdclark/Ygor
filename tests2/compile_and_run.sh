@@ -53,6 +53,7 @@ g++ \
   YgorMathIOCSV.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
+  YgorMeshesBoolean.cc \
   YgorMeshesOrient.cc \
   YgorMeshesRefinement.cc \
   YgorMeshesRemeshing.cc \
