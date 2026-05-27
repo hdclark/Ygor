@@ -24,18 +24,24 @@ TEST_CASE( "kdtree basic construction" ){
 TEST_CASE( "kdtree entry operations" ){
     SUBCASE("entry default constructor"){
         kdtree<double>::entry e;
-        REQUIRE(e.point.x == 0.0);
-        REQUIRE(e.point.y == 0.0);
-        REQUIRE(e.point.z == 0.0);
+        REQUIRE(e.box.min.x == 0.0);
+        REQUIRE(e.box.min.y == 0.0);
+        REQUIRE(e.box.min.z == 0.0);
+        REQUIRE(e.box.max.x == 0.0);
+        REQUIRE(e.box.max.y == 0.0);
+        REQUIRE(e.box.max.z == 0.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
     SUBCASE("entry with point only"){
         vec3<double> point(1.0, 2.0, 3.0);
         kdtree<double>::entry e(point);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
@@ -43,9 +49,12 @@ TEST_CASE( "kdtree entry operations" ){
         vec3<double> point(1.0, 2.0, 3.0);
         int aux_value = 42;
         kdtree<double>::entry e(point, aux_value);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(e.aux_data) == 42);
     }
@@ -104,6 +113,14 @@ TEST_CASE( "kdtree bbox operations" ){
         vec3<double> max_corner(2.0, 3.0, 4.0);
         kdtree<double>::bbox box(min_corner, max_corner);
         REQUIRE(box.margin() == 9.0);
+    }
+
+    SUBCASE("bbox has_extent"){
+        kdtree<double>::bbox point_box(vec3<double>(1.0, 2.0, 3.0), vec3<double>(1.0, 2.0, 3.0));
+        kdtree<double>::bbox volume_box(vec3<double>(1.0, 2.0, 3.0), vec3<double>(2.0, 3.0, 4.0));
+
+        REQUIRE(point_box.has_extent() == false);
+        REQUIRE(volume_box.has_extent() == true);
     }
     
     SUBCASE("bbox contains point"){
@@ -220,19 +237,48 @@ TEST_CASE( "kdtree insertion and search" ){
         }
     }
 
-    SUBCASE("contains tolerates numerically equivalent floating-point queries"){
+    SUBCASE("contains requires exact coordinate matches"){
         kdtree<double> tree;
         const double stored = 0.1 + 0.2;
         tree.insert(vec3<double>(stored, stored, stored));
 
         REQUIRE(tree.contains(vec3<double>(stored, stored, stored)) == true);
-        REQUIRE(tree.contains(vec3<double>(0.3, 0.3, 0.3)) == true);
+        REQUIRE(tree.contains(vec3<double>(0.3, 0.3, 0.3)) == false);
     }
     
     SUBCASE("insert non-finite point throws"){
         kdtree<double> tree;
         REQUIRE_THROWS(tree.insert(vec3<double>(std::numeric_limits<double>::infinity(), 0.0, 0.0)));
         REQUIRE_THROWS(tree.insert(vec3<double>(0.0, std::numeric_limits<double>::quiet_NaN(), 0.0)));
+    }
+
+    SUBCASE("insert bbox and query mixed entries"){
+        kdtree<double> tree;
+        const vec3<double> point(0.0, 0.0, 0.0);
+        const kdtree<double>::bbox bb(vec3<double>(1.0, 1.0, 1.0), vec3<double>(2.0, 2.0, 2.0));
+
+        tree.insert(point);
+        tree.insert(bb, std::string("box"));
+
+        REQUIRE(tree.get_size() == 2);
+        REQUIRE(tree.contains(point) == true);
+        REQUIRE(tree.contains(bb) == true);
+
+        const kdtree<double>::bbox query_box(vec3<double>(-0.5, -0.5, -0.5), vec3<double>(1.5, 1.5, 1.5));
+        REQUIRE(tree.search(query_box).size() == 2);
+        REQUIRE(tree.search_points(query_box).size() == 1);
+
+        const auto boxes = tree.search_bboxes(query_box);
+        REQUIRE(boxes.size() == 2);
+
+        const auto containing = tree.search_bboxes(vec3<double>(1.5, 1.5, 1.5));
+        REQUIRE(containing.size() == 1);
+        REQUIRE(containing.front() == bb);
+
+        REQUIRE(tree.search_radius_points(vec3<double>(1.5, 1.5, 1.5), 0.1).empty());
+        const auto nearest = tree.nearest_neighbors(vec3<double>(1.5, 1.5, 1.5), 1);
+        REQUIRE(nearest.size() == 1);
+        REQUIRE(nearest.front().box == bb);
     }
     
     SUBCASE("search by bounding box returns entries"){
@@ -250,8 +296,8 @@ TEST_CASE( "kdtree insertion and search" ){
         bool found_1 = false;
         bool found_2 = false;
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
-            if(r.point == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
+            if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
         }
         REQUIRE(found_1 == true);
         REQUIRE(found_2 == true);
@@ -315,8 +361,8 @@ TEST_CASE( "kdtree insertion and search" ){
         auto results = tree.nearest_neighbors(query, 2);
         
         REQUIRE(results.size() == 2);
-        REQUIRE(results[0].point == vec3<double>(1.0, 1.0, 1.0));
-        REQUIRE(results[1].point == vec3<double>(2.0, 2.0, 2.0));
+        REQUIRE(results[0].box.min == vec3<double>(1.0, 1.0, 1.0));
+        REQUIRE(results[1].box.min == vec3<double>(2.0, 2.0, 2.0));
     }
     
     SUBCASE("nearest_neighbors_points returns vec3 directly"){
@@ -383,7 +429,7 @@ TEST_CASE( "kdtree auxiliary data" ){
         auto results = tree.search(query_box);
         
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == point);
+        REQUIRE(results[0].box.min == point);
         REQUIRE(results[0].aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(results[0].aux_data) == 42);
     }
@@ -436,13 +482,13 @@ TEST_CASE( "kdtree auxiliary data" ){
         REQUIRE(results.size() == 4);
         
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) {
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) {
                 REQUIRE(std::any_cast<int>(r.aux_data) == 42);
-            } else if(r.point == vec3<double>(2.0, 2.0, 2.0)) {
+            } else if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) {
                 REQUIRE(std::any_cast<std::string>(r.aux_data) == "hello");
-            } else if(r.point == vec3<double>(3.0, 3.0, 3.0)) {
+            } else if(r.box.min == vec3<double>(3.0, 3.0, 3.0)) {
                 REQUIRE(std::any_cast<double>(r.aux_data) == doctest::Approx(3.14159));
-            } else if(r.point == vec3<double>(4.0, 4.0, 4.0)) {
+            } else if(r.box.min == vec3<double>(4.0, 4.0, 4.0)) {
                 REQUIRE(r.aux_data.has_value() == false);
             }
         }
@@ -609,7 +655,7 @@ TEST_CASE( "kdtree large dataset" ){
         auto results = tree.nearest_neighbors(query, 1);
         
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == vec3<double>(0.0, 0.0, 0.0));
+        REQUIRE(results[0].box.min == vec3<double>(0.0, 0.0, 0.0));
     }
     
     SUBCASE("large dataset radius search"){
@@ -659,7 +705,7 @@ TEST_CASE( "kdtree with negative coordinates" ){
         auto results = tree.nearest_neighbors(query, 1);
         
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == vec3<double>(-1.0, -1.0, -1.0));
+        REQUIRE(results[0].box.min == vec3<double>(-1.0, -1.0, -1.0));
     }
 }
 
@@ -676,7 +722,7 @@ TEST_CASE( "kdtree deferred build behavior" ){
         // First query triggers the build.
         auto results = tree.nearest_neighbors(vec3<double>(50.0, 0.0, 0.0), 3);
         REQUIRE(results.size() == 3);
-        REQUIRE(results[0].point == vec3<double>(50.0, 0.0, 0.0));
+        REQUIRE(results[0].box.min == vec3<double>(50.0, 0.0, 0.0));
     }
     
     SUBCASE("insert after query triggers rebuild"){
@@ -762,7 +808,7 @@ TEST_CASE( "kdtree with float type" ){
         
         auto results = tree.nearest_neighbors(vec3<float>(0.0f, 0.0f, 0.0f), 1);
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == vec3<float>(1.0f, 1.0f, 1.0f));
+        REQUIRE(results[0].box.min == vec3<float>(1.0f, 1.0f, 1.0f));
     }
 }
 
@@ -820,7 +866,7 @@ TEST_CASE( "kdtree collinear points" ){
         
         auto results = tree.nearest_neighbors(vec3<double>(5.0, 0.0, 0.0), 3);
         REQUIRE(results.size() == 3);
-        REQUIRE(results[0].point == vec3<double>(5.0, 0.0, 0.0));
+        REQUIRE(results[0].box.min == vec3<double>(5.0, 0.0, 0.0));
     }
     
     SUBCASE("all points at same location"){
@@ -872,7 +918,7 @@ TEST_CASE( "kdtree correctness cross-check" ){
         
         REQUIRE(kd_results.size() == k);
         for(size_t i = 0; i < k; ++i) {
-            REQUIRE(kd_results[i].point == brute[i].second);
+            REQUIRE(kd_results[i].box.min == brute[i].second);
         }
     }
     

@@ -23,19 +23,6 @@
 template <class T> struct index_node_base;
 template <class T> struct index_internal_node;
 template <class T> struct index_leaf_node;
-template <class T> struct index_bbox;
-
-// An entry in a spatial index consisting of a spatial point and optional auxiliary data.
-template <class T> struct index_entry {
-    vec3<T> point;
-    std::any aux_data;
-
-    index_entry();
-    index_entry(const vec3<T> &p);
-    index_entry(const vec3<T> &p, std::any data);
-
-    bool operator==(const index_entry &other) const;
-};
 
 // A bounding box in 3D space defined by min and max corners.
 template <class T> struct index_bbox {
@@ -53,6 +40,12 @@ template <class T> struct index_bbox {
 
     // Compute the margin (sum of edge lengths) of the bounding box.
     T margin() const;
+
+    // Check if this bbox has non-zero extent along at least one axis.
+    bool has_extent() const;
+
+    // Check if this bbox contains another bbox.
+    bool contains(const index_bbox &other) const;
 
     // Check if this bbox contains a point.
     bool contains(const vec3<T> &point) const;
@@ -74,6 +67,34 @@ template <class T> struct index_bbox {
 
     // Expand this bbox to include a point.
     void expand(const vec3<T> &point);
+
+    // Compute the center of the bounding box.
+    vec3<T> center() const;
+
+    // Clamp a point to this bbox.
+    vec3<T> closest_point(const vec3<T> &point) const;
+
+    // Compute the squared distance from a point to this bbox.
+    T squared_distance_to(const vec3<T> &point) const;
+
+    // Check if both corners are finite.
+    bool isfinite() const;
+
+    bool operator==(const index_bbox &other) const;
+};
+
+// An entry in a spatial index consisting of a spatial bounding box and optional auxiliary data.
+template <class T> struct index_entry {
+    index_bbox<T> box;
+    std::any aux_data;
+
+    index_entry();
+    index_entry(const index_bbox<T> &b);
+    index_entry(const index_bbox<T> &b, std::any data);
+    index_entry(const vec3<T> &p);
+    index_entry(const vec3<T> &p, std::any data);
+
+    bool operator==(const index_entry &other) const;
 };
 
 // Base class for all nodes in a spatial index.

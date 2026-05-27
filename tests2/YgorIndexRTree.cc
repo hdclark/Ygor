@@ -34,18 +34,24 @@ TEST_CASE( "rtree basic construction" ){
 TEST_CASE( "rtree entry operations" ){
     SUBCASE("entry default constructor"){
         rtree<double>::entry e;
-        REQUIRE(e.point.x == 0.0);
-        REQUIRE(e.point.y == 0.0);
-        REQUIRE(e.point.z == 0.0);
+        REQUIRE(e.box.min.x == 0.0);
+        REQUIRE(e.box.min.y == 0.0);
+        REQUIRE(e.box.min.z == 0.0);
+        REQUIRE(e.box.max.x == 0.0);
+        REQUIRE(e.box.max.y == 0.0);
+        REQUIRE(e.box.max.z == 0.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
     SUBCASE("entry with point only"){
         vec3<double> point(1.0, 2.0, 3.0);
         rtree<double>::entry e(point);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
@@ -53,9 +59,12 @@ TEST_CASE( "rtree entry operations" ){
         vec3<double> point(1.0, 2.0, 3.0);
         int aux_value = 42;
         rtree<double>::entry e(point, aux_value);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(e.aux_data) == 42);
     }
@@ -117,6 +126,14 @@ TEST_CASE( "rtree bbox operations" ){
         rtree<double>::bbox box(min_corner, max_corner);
         // Margin = 2 + 3 + 4 = 9
         REQUIRE(box.margin() == 9.0);
+    }
+
+    SUBCASE("bbox has_extent"){
+        rtree<double>::bbox point_box(vec3<double>(1.0, 2.0, 3.0), vec3<double>(1.0, 2.0, 3.0));
+        rtree<double>::bbox volume_box(vec3<double>(1.0, 2.0, 3.0), vec3<double>(2.0, 3.0, 4.0));
+
+        REQUIRE(point_box.has_extent() == false);
+        REQUIRE(volume_box.has_extent() == true);
     }
     
     SUBCASE("bbox contains point"){
@@ -232,6 +249,35 @@ TEST_CASE( "rtree insertion and search" ){
             REQUIRE(tree.contains(p) == true);
         }
     }
+
+    SUBCASE("insert bbox and query mixed entries"){
+        rtree<double> tree;
+        const vec3<double> point(0.0, 0.0, 0.0);
+        const rtree<double>::bbox bb(vec3<double>(1.0, 1.0, 1.0), vec3<double>(2.0, 2.0, 2.0));
+
+        tree.insert(point);
+        tree.insert(bb, std::string("box"));
+
+        REQUIRE(tree.get_size() == 2);
+        REQUIRE(tree.contains(point) == true);
+        REQUIRE(tree.contains(bb) == true);
+
+        const rtree<double>::bbox query_box(vec3<double>(-0.5, -0.5, -0.5), vec3<double>(1.5, 1.5, 1.5));
+        REQUIRE(tree.search(query_box).size() == 2);
+        REQUIRE(tree.search_points(query_box).size() == 1);
+
+        const auto boxes = tree.search_bboxes(query_box);
+        REQUIRE(boxes.size() == 2);
+
+        const auto containing = tree.search_bboxes(vec3<double>(1.5, 1.5, 1.5));
+        REQUIRE(containing.size() == 1);
+        REQUIRE(containing.front() == bb);
+
+        REQUIRE(tree.search_radius_points(vec3<double>(1.5, 1.5, 1.5), 0.1).empty());
+        const auto nearest = tree.nearest_neighbors(vec3<double>(1.5, 1.5, 1.5), 1);
+        REQUIRE(nearest.size() == 1);
+        REQUIRE(nearest.front().box == bb);
+    }
     
     SUBCASE("search by bounding box returns entries"){
         rtree<double> tree;
@@ -248,8 +294,8 @@ TEST_CASE( "rtree insertion and search" ){
         bool found_1 = false;
         bool found_2 = false;
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
-            if(r.point == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
+            if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
         }
         REQUIRE(found_1 == true);
         REQUIRE(found_2 == true);
@@ -313,8 +359,8 @@ TEST_CASE( "rtree insertion and search" ){
         auto results = tree.nearest_neighbors(query, 2);
         
         REQUIRE(results.size() == 2);
-        REQUIRE(results[0].point == vec3<double>(1.0, 1.0, 1.0));
-        REQUIRE(results[1].point == vec3<double>(2.0, 2.0, 2.0));
+        REQUIRE(results[0].box.min == vec3<double>(1.0, 1.0, 1.0));
+        REQUIRE(results[1].box.min == vec3<double>(2.0, 2.0, 2.0));
     }
     
     SUBCASE("nearest_neighbors_points returns vec3 directly"){
@@ -346,7 +392,7 @@ TEST_CASE( "rtree auxiliary data" ){
         auto results = tree.search(query_box);
         
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == point);
+        REQUIRE(results[0].box.min == point);
         REQUIRE(results[0].aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(results[0].aux_data) == 42);
     }
@@ -400,13 +446,13 @@ TEST_CASE( "rtree auxiliary data" ){
         
         // Find and verify each entry
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) {
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) {
                 REQUIRE(std::any_cast<int>(r.aux_data) == 42);
-            } else if(r.point == vec3<double>(2.0, 2.0, 2.0)) {
+            } else if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) {
                 REQUIRE(std::any_cast<std::string>(r.aux_data) == "hello");
-            } else if(r.point == vec3<double>(3.0, 3.0, 3.0)) {
+            } else if(r.box.min == vec3<double>(3.0, 3.0, 3.0)) {
                 REQUIRE(std::any_cast<double>(r.aux_data) == doctest::Approx(3.14159));
-            } else if(r.point == vec3<double>(4.0, 4.0, 4.0)) {
+            } else if(r.box.min == vec3<double>(4.0, 4.0, 4.0)) {
                 REQUIRE(r.aux_data.has_value() == false);
             }
         }

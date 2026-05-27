@@ -33,18 +33,24 @@ TEST_CASE( "cells_index basic construction" ){
 TEST_CASE( "cells_index entry operations" ){
     SUBCASE("entry default constructor"){
         cells_index<double>::entry e;
-        REQUIRE(e.point.x == 0.0);
-        REQUIRE(e.point.y == 0.0);
-        REQUIRE(e.point.z == 0.0);
+        REQUIRE(e.box.min.x == 0.0);
+        REQUIRE(e.box.min.y == 0.0);
+        REQUIRE(e.box.min.z == 0.0);
+        REQUIRE(e.box.max.x == 0.0);
+        REQUIRE(e.box.max.y == 0.0);
+        REQUIRE(e.box.max.z == 0.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
     SUBCASE("entry with point only"){
         vec3<double> point(1.0, 2.0, 3.0);
         cells_index<double>::entry e(point);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == false);
     }
     
@@ -52,9 +58,12 @@ TEST_CASE( "cells_index entry operations" ){
         vec3<double> point(1.0, 2.0, 3.0);
         int aux_value = 42;
         cells_index<double>::entry e(point, aux_value);
-        REQUIRE(e.point.x == 1.0);
-        REQUIRE(e.point.y == 2.0);
-        REQUIRE(e.point.z == 3.0);
+        REQUIRE(e.box.min.x == 1.0);
+        REQUIRE(e.box.min.y == 2.0);
+        REQUIRE(e.box.min.z == 3.0);
+        REQUIRE(e.box.max.x == 1.0);
+        REQUIRE(e.box.max.y == 2.0);
+        REQUIRE(e.box.max.z == 3.0);
         REQUIRE(e.aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(e.aux_data) == 42);
     }
@@ -176,8 +185,8 @@ TEST_CASE( "cells_index insertion and search" ){
         bool found_1 = false;
         bool found_2 = false;
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
-            if(r.point == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) found_1 = true;
+            if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) found_2 = true;
         }
         REQUIRE(found_1 == true);
         REQUIRE(found_2 == true);
@@ -241,8 +250,8 @@ TEST_CASE( "cells_index insertion and search" ){
         auto results = idx.nearest_neighbors(query, 2);
         
         REQUIRE(results.size() == 2);
-        REQUIRE(results[0].point == vec3<double>(1.0, 1.0, 1.0));
-        REQUIRE(results[1].point == vec3<double>(2.0, 2.0, 2.0));
+        REQUIRE(results[0].box.min == vec3<double>(1.0, 1.0, 1.0));
+        REQUIRE(results[1].box.min == vec3<double>(2.0, 2.0, 2.0));
     }
     
     SUBCASE("nearest_neighbors_points returns vec3 directly"){
@@ -274,7 +283,7 @@ TEST_CASE( "cells_index auxiliary data" ){
         auto results = idx.search(query_box);
         
         REQUIRE(results.size() == 1);
-        REQUIRE(results[0].point == point);
+        REQUIRE(results[0].box.min == point);
         REQUIRE(results[0].aux_data.has_value() == true);
         REQUIRE(std::any_cast<int>(results[0].aux_data) == 42);
     }
@@ -307,13 +316,13 @@ TEST_CASE( "cells_index auxiliary data" ){
         REQUIRE(results.size() == 4);
         
         for(const auto& r : results) {
-            if(r.point == vec3<double>(1.0, 1.0, 1.0)) {
+            if(r.box.min == vec3<double>(1.0, 1.0, 1.0)) {
                 REQUIRE(std::any_cast<int>(r.aux_data) == 42);
-            } else if(r.point == vec3<double>(2.0, 2.0, 2.0)) {
+            } else if(r.box.min == vec3<double>(2.0, 2.0, 2.0)) {
                 REQUIRE(std::any_cast<std::string>(r.aux_data) == "hello");
-            } else if(r.point == vec3<double>(3.0, 3.0, 3.0)) {
+            } else if(r.box.min == vec3<double>(3.0, 3.0, 3.0)) {
                 REQUIRE(std::any_cast<double>(r.aux_data) == doctest::Approx(3.14159));
-            } else if(r.point == vec3<double>(4.0, 4.0, 4.0)) {
+            } else if(r.box.min == vec3<double>(4.0, 4.0, 4.0)) {
                 REQUIRE(r.aux_data.has_value() == false);
             }
         }
@@ -472,4 +481,3 @@ TEST_CASE( "cells_index with float type" ){
         REQUIRE(std::any_cast<std::string>(results[0].aux_data) == "float_point");
     }
 }
-

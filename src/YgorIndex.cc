@@ -16,6 +16,85 @@
 //    #define YGOR_INDEX_DISABLE_ALL_SPECIALIZATIONS
 //#endif
 
+namespace {
+
+template <class T>
+int compare_x(const T &lhs, const T &rhs){
+    return orient_sign(vec3<T>(rhs, static_cast<T>(0), static_cast<T>(0)),
+                       vec3<T>(rhs, static_cast<T>(1), static_cast<T>(0)),
+                       vec3<T>(rhs, static_cast<T>(0), static_cast<T>(1)),
+                       vec3<T>(lhs, static_cast<T>(0), static_cast<T>(0)));
+}
+
+template <class T>
+int compare_y(const T &lhs, const T &rhs){
+    return orient_sign(vec3<T>(static_cast<T>(0), rhs, static_cast<T>(0)),
+                       vec3<T>(static_cast<T>(0), rhs, static_cast<T>(1)),
+                       vec3<T>(static_cast<T>(1), rhs, static_cast<T>(0)),
+                       vec3<T>(static_cast<T>(0), lhs, static_cast<T>(0)));
+}
+
+template <class T>
+int compare_z(const T &lhs, const T &rhs){
+    return orient_sign(vec3<T>(static_cast<T>(0), static_cast<T>(0), rhs),
+                       vec3<T>(static_cast<T>(1), static_cast<T>(0), rhs),
+                       vec3<T>(static_cast<T>(0), static_cast<T>(1), rhs),
+                       vec3<T>(static_cast<T>(0), static_cast<T>(0), lhs));
+}
+
+template <class T>
+int compare_coord(const T &lhs, const T &rhs, int axis){
+    if(axis == 0) return compare_x(lhs, rhs);
+    if(axis == 1) return compare_y(lhs, rhs);
+    return compare_z(lhs, rhs);
+}
+
+template <class T>
+bool coord_less(const T &lhs, const T &rhs, int axis){
+    return compare_coord(lhs, rhs, axis) > 0;
+}
+
+template <class T>
+bool coord_less_equal(const T &lhs, const T &rhs, int axis){
+    return compare_coord(lhs, rhs, axis) >= 0;
+}
+
+template <class T>
+bool coord_greater_equal(const T &lhs, const T &rhs, int axis){
+    return compare_coord(lhs, rhs, axis) <= 0;
+}
+
+template <class T>
+bool coord_equal(const T &lhs, const T &rhs, int axis){
+    return compare_coord(lhs, rhs, axis) == 0;
+}
+
+template <class T>
+T axis_min(const T &lhs, const T &rhs, int axis){
+    return coord_less(lhs, rhs, axis) ? lhs : rhs;
+}
+
+template <class T>
+T axis_max(const T &lhs, const T &rhs, int axis){
+    return coord_less(lhs, rhs, axis) ? rhs : lhs;
+}
+
+template <class T>
+vec3<T> canonical_min(const vec3<T> &a, const vec3<T> &b){
+    return vec3<T>(axis_min(a.x, b.x, 0),
+                   axis_min(a.y, b.y, 1),
+                   axis_min(a.z, b.z, 2));
+}
+
+template <class T>
+vec3<T> canonical_max(const vec3<T> &a, const vec3<T> &b){
+    return vec3<T>(axis_max(a.x, b.x, 0),
+                   axis_max(a.y, b.y, 1),
+                   axis_max(a.z, b.z, 2));
+}
+
+} // namespace
+
 //---------------------------------------------------------------------------------------------------------------------------
 //------------------------- Shared spatial index types for rtree, cells_index, and octree -----------------------------------
 //---------------------------------------------------------------------------------------------------------------------------
@@ -23,17 +102,23 @@
 //------------------------------------------------------ index_entry --------------------------------------------------------
 
 template <class T>
-index_entry<T>::index_entry() : point(), aux_data() { }
+index_entry<T>::index_entry() : box(), aux_data() { }
 
 template <class T>
-index_entry<T>::index_entry(const vec3<T> &p) : point(p), aux_data() { }
+index_entry<T>::index_entry(const index_bbox<T> &b) : box(b), aux_data() { }
 
 template <class T>
-index_entry<T>::index_entry(const vec3<T> &p, std::any data) : point(p), aux_data(std::move(data)) { }
+index_entry<T>::index_entry(const index_bbox<T> &b, std::any data) : box(b), aux_data(std::move(data)) { }
+
+template <class T>
+index_entry<T>::index_entry(const vec3<T> &p) : box(p, p), aux_data() { }
+
+template <class T>
+index_entry<T>::index_entry(const vec3<T> &p, std::any data) : box(p, p), aux_data(std::move(data)) { }
 
 template <class T>
 bool index_entry<T>::operator==(const index_entry &other) const {
-    return point == other.point;
+    return box == other.box;
 }
 
 //------------------------------------------------------ index_bbox ---------------------------------------------------------
@@ -44,7 +129,8 @@ index_bbox<T>::index_bbox() : min(vec3<T>(static_cast<T>(0), static_cast<T>(0), 
 
 template <class T>
 index_bbox<T>::index_bbox(const vec3<T> &min_corner, const vec3<T> &max_corner) 
-    : min(min_corner), max(max_corner) { }
+    : min(canonical_min(min_corner, max_corner)),
+      max(canonical_max(min_corner, max_corner)) { }
 
 template <class T>
 T index_bbox<T>::volume() const {
@@ -71,40 +157,63 @@ T index_bbox<T>::margin() const {
 }
 
 template <class T>
+bool index_bbox<T>::has_extent() const {
+    return !(coord_equal(min.x, max.x, 0) &&
+             coord_equal(min.y, max.y, 1) &&
+             coord_equal(min.z, max.z, 2));
+}
+
+template <class T>
+bool index_bbox<T>::contains(const index_bbox &other) const {
+    return coord_greater_equal(other.min.x, min.x, 0) &&
+           coord_less_equal(other.max.x, max.x, 0) &&
+           coord_greater_equal(other.min.y, min.y, 1) &&
+           coord_less_equal(other.max.y, max.y, 1) &&
+           coord_greater_equal(other.min.z, min.z, 2) &&
+           coord_less_equal(other.max.z, max.z, 2);
+}
+
+template <class T>
 bool index_bbox<T>::contains(const vec3<T> &point) const {
-    return (point.x >= min.x && point.x <= max.x &&
-            point.y >= min.y && point.y <= max.y &&
-            point.z >= min.z && point.z <= max.z);
+    return coord_greater_equal(point.x, min.x, 0) &&
+           coord_less_equal(point.x, max.x, 0) &&
+           coord_greater_equal(point.y, min.y, 1) &&
+           coord_less_equal(point.y, max.y, 1) &&
+           coord_greater_equal(point.z, min.z, 2) &&
+           coord_less_equal(point.z, max.z, 2);
 }
 
 template <class T>
 bool index_bbox<T>::intersects(const index_bbox &other) const {
-    return !(max.x < other.min.x || min.x > other.max.x ||
-             max.y < other.min.y || min.y > other.max.y ||
-             max.z < other.min.z || min.z > other.max.z);
+    return !(coord_less(max.x, other.min.x, 0) ||
+             coord_less(other.max.x, min.x, 0) ||
+             coord_less(max.y, other.min.y, 1) ||
+             coord_less(other.max.y, min.y, 1) ||
+             coord_less(max.z, other.min.z, 2) ||
+             coord_less(other.max.z, min.z, 2));
 }
 
 template <class T>
 index_bbox<T> index_bbox<T>::union_with(const index_bbox &other) const {
     index_bbox result;
-    result.min.x = std::min(min.x, other.min.x);
-    result.min.y = std::min(min.y, other.min.y);
-    result.min.z = std::min(min.z, other.min.z);
-    result.max.x = std::max(max.x, other.max.x);
-    result.max.y = std::max(max.y, other.max.y);
-    result.max.z = std::max(max.z, other.max.z);
+    result.min.x = axis_min(min.x, other.min.x, 0);
+    result.min.y = axis_min(min.y, other.min.y, 1);
+    result.min.z = axis_min(min.z, other.min.z, 2);
+    result.max.x = axis_max(max.x, other.max.x, 0);
+    result.max.y = axis_max(max.y, other.max.y, 1);
+    result.max.z = axis_max(max.z, other.max.z, 2);
     return result;
 }
 
 template <class T>
 index_bbox<T> index_bbox<T>::intersection_with(const index_bbox &other) const {
     index_bbox result;
-    result.min.x = std::max(min.x, other.min.x);
-    result.min.y = std::max(min.y, other.min.y);
-    result.min.z = std::max(min.z, other.min.z);
-    result.max.x = std::min(max.x, other.max.x);
-    result.max.y = std::min(max.y, other.max.y);
-    result.max.z = std::min(max.z, other.max.z);
+    result.min.x = axis_max(min.x, other.min.x, 0);
+    result.min.y = axis_max(min.y, other.min.y, 1);
+    result.min.z = axis_max(min.z, other.min.z, 2);
+    result.max.x = axis_min(max.x, other.max.x, 0);
+    result.max.y = axis_min(max.y, other.max.y, 1);
+    result.max.z = axis_min(max.z, other.max.z, 2);
     return result;
 }
 
@@ -116,22 +225,66 @@ T index_bbox<T>::volume_increase(const index_bbox &other) const {
 
 template <class T>
 void index_bbox<T>::expand(const index_bbox &other) {
-    min.x = std::min(min.x, other.min.x);
-    min.y = std::min(min.y, other.min.y);
-    min.z = std::min(min.z, other.min.z);
-    max.x = std::max(max.x, other.max.x);
-    max.y = std::max(max.y, other.max.y);
-    max.z = std::max(max.z, other.max.z);
+    min.x = axis_min(min.x, other.min.x, 0);
+    min.y = axis_min(min.y, other.min.y, 1);
+    min.z = axis_min(min.z, other.min.z, 2);
+    max.x = axis_max(max.x, other.max.x, 0);
+    max.y = axis_max(max.y, other.max.y, 1);
+    max.z = axis_max(max.z, other.max.z, 2);
 }
 
 template <class T>
 void index_bbox<T>::expand(const vec3<T> &point) {
-    min.x = std::min(min.x, point.x);
-    min.y = std::min(min.y, point.y);
-    min.z = std::min(min.z, point.z);
-    max.x = std::max(max.x, point.x);
-    max.y = std::max(max.y, point.y);
-    max.z = std::max(max.z, point.z);
+    min.x = axis_min(min.x, point.x, 0);
+    min.y = axis_min(min.y, point.y, 1);
+    min.z = axis_min(min.z, point.z, 2);
+    max.x = axis_max(max.x, point.x, 0);
+    max.y = axis_max(max.y, point.y, 1);
+    max.z = axis_max(max.z, point.z, 2);
+}
+
+template <class T>
+vec3<T> index_bbox<T>::center() const {
+    return vec3<T>((min.x + max.x) / static_cast<T>(2),
+                   (min.y + max.y) / static_cast<T>(2),
+                   (min.z + max.z) / static_cast<T>(2));
+}
+
+template <class T>
+vec3<T> index_bbox<T>::closest_point(const vec3<T> &point) const {
+    vec3<T> result = point;
+
+    if(coord_less(result.x, min.x, 0)) result.x = min.x;
+    else if(coord_less(max.x, result.x, 0)) result.x = max.x;
+
+    if(coord_less(result.y, min.y, 1)) result.y = min.y;
+    else if(coord_less(max.y, result.y, 1)) result.y = max.y;
+
+    if(coord_less(result.z, min.z, 2)) result.z = min.z;
+    else if(coord_less(max.z, result.z, 2)) result.z = max.z;
+
+    return result;
+}
+
+template <class T>
+T index_bbox<T>::squared_distance_to(const vec3<T> &point) const {
+    const auto closest = closest_point(point);
+    return (closest - point).sq_length();
+}
+
+template <class T>
+bool index_bbox<T>::isfinite() const {
+    return min.isfinite() && max.isfinite();
+}
+
+template <class T>
+bool index_bbox<T>::operator==(const index_bbox &other) const {
+    return coord_equal(min.x, other.min.x, 0) &&
+           coord_equal(min.y, other.min.y, 1) &&
+           coord_equal(min.z, other.min.z, 2) &&
+           coord_equal(max.x, other.max.x, 0) &&
+           coord_equal(max.y, other.max.y, 1) &&
+           coord_equal(max.z, other.max.z, 2);
 }
 
 //------------------------------------------------------ index_node_base ----------------------------------------------------
@@ -175,4 +328,3 @@ bool index_leaf_node<T>::is_leaf() const {
     template struct index_leaf_node<float>;
     template struct index_leaf_node<double>;
 #endif
-
