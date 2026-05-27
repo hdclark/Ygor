@@ -237,7 +237,7 @@ TEST_CASE( "kdtree insertion and search" ){
         }
     }
 
-    SUBCASE("contains uses exact coordinate comparisons"){
+    SUBCASE("contains requires exact coordinate matches"){
         kdtree<double> tree;
         const double stored = 0.1 + 0.2;
         tree.insert(vec3<double>(stored, stored, stored));
