@@ -405,7 +405,9 @@ copy_mesh_for_empty_case(const fv_surface_mesh<T, I> &input){
     if(!out.faces.empty()){
         const auto bounds = mesh_bbox(out);
         const auto orient_eps = mesh_coord_eps(bounds);
-        OrientFaces(out, orient_eps);
+        if(!OrientFaces(out, orient_eps)){
+            throw std::invalid_argument("empty-case mesh could not be consistently oriented.");
+        }
         out.recreate_involved_face_index();
         out.compute_vertex_normals();
     }
