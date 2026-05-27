@@ -97,7 +97,7 @@ std::vector<typename cells_index<T>::entry> cells_index<T>::search(const bbox &q
                 if(it == std::end(bins)) continue;
                 
                 for(const auto &e : it->second){
-                    if(query_box.contains(e.point)){
+                    if(e.box.intersects(query_box)){
                         results.push_back(e);
                     }
                 }
@@ -113,7 +113,9 @@ std::vector<vec3<T>> cells_index<T>::search_points(const bbox &query_box) const 
     std::vector<vec3<T>> results;
     results.reserve(entries.size());
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+        }
     }
     return results;
 }
@@ -128,7 +130,7 @@ std::vector<typename cells_index<T>::entry> cells_index<T>::search_radius(const 
     std::vector<entry> results;
     T radius_sq = radius * radius;
     for(const auto& e : candidates){
-        if((e.point - center).sq_length() <= radius_sq){
+        if(e.box.squared_distance_to(center) <= radius_sq){
             results.push_back(e);
         }
     }
@@ -141,7 +143,9 @@ std::vector<vec3<T>> cells_index<T>::search_radius_points(const vec3<T> &center,
     std::vector<vec3<T>> results;
     results.reserve(entries.size());
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+        }
     }
     return results;
 }
@@ -172,7 +176,7 @@ std::vector<typename cells_index<T>::entry> cells_index<T>::nearest_neighbors(co
                     if(it == std::end(bins)) continue;
                     
                     for(const auto &e : it->second){
-                        T dist_sq = (e.point - query_point).sq_length();
+                        T dist_sq = e.box.squared_distance_to(query_point);
                         candidates.emplace_back(dist_sq, e);
                     }
                 }
@@ -188,7 +192,7 @@ std::vector<typename cells_index<T>::entry> cells_index<T>::nearest_neighbors(co
         candidates.clear();
         for(const auto &bin : bins){
             for(const auto &e : bin.second){
-                T dist_sq = (e.point - query_point).sq_length();
+                T dist_sq = e.box.squared_distance_to(query_point);
                 candidates.emplace_back(dist_sq, e);
             }
         }
@@ -211,7 +215,9 @@ std::vector<vec3<T>> cells_index<T>::nearest_neighbors_points(const vec3<T> &que
     std::vector<vec3<T>> results;
     results.reserve(entries.size());
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+        }
     }
     return results;
 }
@@ -219,8 +225,6 @@ std::vector<vec3<T>> cells_index<T>::nearest_neighbors_points(const vec3<T> &que
 template <class T>
 bool cells_index<T>::contains(const vec3<T> &point) const {
     const auto c = make_cell(point);
-    
-    const T epsilon = std::numeric_limits<T>::epsilon() * static_cast<T>(10);
     
     // Scan 3x3x3 neighbourhood to handle boundary cases.
     for(int64_t dx = -1L; dx <= 1L; ++dx){
@@ -231,9 +235,7 @@ bool cells_index<T>::contains(const vec3<T> &point) const {
                 if(it == std::end(bins)) continue;
                 
                 for(const auto &e : it->second){
-                    if(std::abs(e.point.x - point.x) <= epsilon &&
-                       std::abs(e.point.y - point.y) <= epsilon &&
-                       std::abs(e.point.z - point.z) <= epsilon){
+                    if(e.box == bbox(point, point)){
                         return true;
                     }
                 }
@@ -265,4 +267,3 @@ typename cells_index<T>::bbox cells_index<T>::get_bounds() const {
     template class cells_index<float>;
     template class cells_index<double>;
 #endif
-

@@ -99,26 +99,47 @@ template <class T> class rtree {
         // Insert a point with auxiliary data into the tree.
         void insert(const vec3<T> &point, std::any aux_data);
         
-        // Search for all entries within a bounding box.
+        // Insert a bbox into the tree (without auxiliary data).
+        void insert(const bbox &bb);
+
+        // Insert a bbox with auxiliary data into the tree.
+        void insert(const bbox &bb, std::any aux_data);
+
+        // Search for all entries fully or partially within a bounding box.
         std::vector<entry> search(const bbox &query_box) const;
         
-        // Search for all points within a bounding box (returns points only, no aux data).
+        // Search for all points fully or partially within a bounding box (returns points only, no aux data).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> search_points(const bbox &query_box) const;
+
+        // Search for all bboxes fully or partially within a bounding box.
+        std::vector<bbox> search_bboxes(const bbox &query_box) const;
+
+        // Search for all bboxes that contain the query point.
+        std::vector<bbox> search_bboxes(const vec3<T> &query_point) const;
         
-        // Search for all entries within a given radius of a center point.
+        // Search for all entries fully or partially within a given radius of a center point.
         std::vector<entry> search_radius(const vec3<T> &center, T radius) const;
         
         // Search for all points within a given radius of a center point (returns points only).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> search_radius_points(const vec3<T> &center, T radius) const;
         
         // Find the k nearest neighbor entries to a query point.
         std::vector<entry> nearest_neighbors(const vec3<T> &query_point, size_t k) const;
         
         // Find the k nearest neighbor points to a query point (returns points only).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> nearest_neighbors_points(const vec3<T> &query_point, size_t k) const;
         
         // Check if the tree contains a specific point.
         bool contains(const vec3<T> &point) const;
+
+        // Check if the tree contains a specific bbox.
+        bool contains(const bbox &bb) const;
         
         // Remove all entries from the tree.
         void clear();
@@ -139,7 +160,7 @@ template <class T> class rtree {
         void insert_entry_at_leaf(const entry &e);
         
         // Choose the best leaf node to insert a new entry.
-        leaf_node* choose_leaf(const vec3<T> &point);
+        leaf_node* choose_leaf(const bbox &entry_box);
         
         // Choose the best subtree for insertion (used for internal nodes).
         node_base* choose_subtree(node_base* node, const bbox &entry_box, size_t target_level, size_t current_level);
@@ -175,9 +196,8 @@ template <class T> class rtree {
         // Compute the height of a subtree.
         size_t compute_height(const node_base* node) const;
         
-        // Compute the center of a bounding box.
-        vec3<T> bbox_center(const bbox &b) const;
+        // Compute the coordinate used to sort an entry along a split axis.
+        T bbox_axis_center(const bbox &b, int axis) const;
 };
 
 #endif // YGOR_INDEX_RTREE_H_
-

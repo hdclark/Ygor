@@ -10,6 +10,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -69,6 +70,9 @@ template <class T> class octree {
         
         // Determine which octant a point falls into within a given bounding box.
         int get_octant(const bbox &node_bounds, const vec3<T> &point) const;
+
+        // Determine whether a bbox fits entirely within a single octant.
+        std::optional<int> get_octant(const bbox &node_bounds, const bbox &entry_box) const;
         
         // Compute the bounding box for a specific octant of a parent box.
         bbox get_octant_bounds(const bbox &parent_bounds, int octant) const;
@@ -87,6 +91,10 @@ template <class T> class octree {
         
         // Update the overall bounding box.
         void update_bounds(const vec3<T> &point);
+        void update_bounds(const bbox &bb);
+
+        // Compute the squared distance from a point to a bbox.
+        static T point_to_bbox_sq_dist(const vec3<T> &point, const bbox &box);
         
     public:
         //--------------------------------------------------- Constructors -------------------------------------------------
@@ -106,27 +114,48 @@ template <class T> class octree {
         
         // Insert a point with auxiliary data into the tree.
         void insert(const vec3<T> &point, std::any aux_data);
+
+        // Insert a bbox into the tree (without auxiliary data).
+        void insert(const bbox &bb);
+
+        // Insert a bbox with auxiliary data into the tree.
+        void insert(const bbox &bb, std::any aux_data);
         
-        // Search for all entries within a bounding box.
+        // Search for all entries fully or partially within a bounding box.
         std::vector<entry> search(const bbox &query_box) const;
         
-        // Search for all points within a bounding box (returns points only, no aux data).
+        // Search for all points fully or partially within a bounding box (returns points only, no aux data).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> search_points(const bbox &query_box) const;
+
+        // Search for all bboxes fully or partially within a bounding box.
+        std::vector<bbox> search_bboxes(const bbox &query_box) const;
+
+        // Search for all bboxes that contain the query point.
+        std::vector<bbox> search_bboxes(const vec3<T> &query_point) const;
         
-        // Search for all entries within a given radius of a center point.
+        // Search for all entries fully or partially within a given radius of a center point.
         std::vector<entry> search_radius(const vec3<T> &center, T radius) const;
         
         // Search for all points within a given radius of a center point (returns points only).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> search_radius_points(const vec3<T> &center, T radius) const;
         
         // Find the k nearest neighbor entries to a query point.
         std::vector<entry> nearest_neighbors(const vec3<T> &query_point, size_t k) const;
         
         // Find the k nearest neighbor points to a query point (returns points only).
+        // This function will only return bboxes that represent a single point (i.e., no spatial extent),
+        // disregarding bboxes with a volume.
         std::vector<vec3<T>> nearest_neighbors_points(const vec3<T> &query_point, size_t k) const;
         
         // Check if the tree contains a specific point.
         bool contains(const vec3<T> &point) const;
+
+        // Check if the tree contains a specific bbox.
+        bool contains(const bbox &bb) const;
         
         // Remove all entries from the tree.
         void clear();
@@ -139,4 +168,3 @@ template <class T> class octree {
 };
 
 #endif // YGOR_INDEX_OCTREE_H_
-

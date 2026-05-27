@@ -41,136 +41,77 @@ T kdtree<T>::get_coord(const vec3<T> &point, int axis) {
 
 template <class T>
 T kdtree<T>::point_to_bbox_sq_dist(const vec3<T> &point, const bbox &box) {
-    T dist_sq = static_cast<T>(0);
-    
-    // X axis.
-    if(point.x < box.min.x){
-        T d = box.min.x - point.x;
-        dist_sq += d * d;
-    }else if(point.x > box.max.x){
-        T d = point.x - box.max.x;
-        dist_sq += d * d;
-    }
-    
-    // Y axis.
-    if(point.y < box.min.y){
-        T d = box.min.y - point.y;
-        dist_sq += d * d;
-    }else if(point.y > box.max.y){
-        T d = point.y - box.max.y;
-        dist_sq += d * d;
-    }
-    
-    // Z axis.
-    if(point.z < box.min.z){
-        T d = box.min.z - point.z;
-        dist_sq += d * d;
-    }else if(point.z > box.max.z){
-        T d = point.z - box.max.z;
-        dist_sq += d * d;
-    }
-    
-    return dist_sq;
+    return box.squared_distance_to(point);
 }
 
 template <class T>
 std::unique_ptr<typename kdtree<T>::kdtree_node>
 kdtree<T>::build(std::vector<entry> &entries, size_t begin, size_t end, int depth) const {
     if(begin >= end) return nullptr;
-    
+
     const int axis = depth % 3;
-    
-    // Use nth_element to partition around the median on the splitting axis.
     const size_t mid = begin + (end - begin) / 2;
     auto mid_it = entries.begin() + static_cast<std::ptrdiff_t>(mid);
     std::nth_element(entries.begin() + static_cast<std::ptrdiff_t>(begin),
                      mid_it,
                      entries.begin() + static_cast<std::ptrdiff_t>(end),
                      [axis](const entry &a, const entry &b){
-                         return get_coord(a.point, axis) < get_coord(b.point, axis);
+                         return get_coord(a.box.center(), axis) < get_coord(b.box.center(), axis);
                      });
-    
+
     auto node = std::make_unique<kdtree_node>(entries[mid], axis);
-    
-    // Compute the bounding box covering all entries in this subtree.
-    node->node_bounds = bbox(entries[begin].point, entries[begin].point);
+
+    node->node_bounds = entries[begin].box;
     for(size_t i = begin + 1; i < end; ++i){
-        node->node_bounds.expand(entries[i].point);
+        node->node_bounds.expand(entries[i].box);
     }
-    
+
     node->left  = build(entries, begin, mid, depth + 1);
     node->right = build(entries, mid + 1, end, depth + 1);
-    
+
     return node;
 }
 
 template <class T>
 void kdtree<T>::ensure_built() const {
     if(tree_built) return;
-    
+
     root.reset();
-    
+
     if(!pending_entries.empty()){
         root = build(pending_entries, 0, pending_entries.size(), 0);
     }
-    
+
     tree_built = true;
 }
 
 template <class T>
 void kdtree<T>::search_recursive(const kdtree_node* node, const bbox &query_box,
                                   std::vector<entry> &results) const {
-    if(node == nullptr) return;
-    
-    // Check if the current node's point is inside the query box.
-    if(query_box.contains(node->data.point)){
+    if((node == nullptr) || !node->node_bounds.intersects(query_box)) return;
+
+    if(node->data.box.intersects(query_box)){
         results.push_back(node->data);
     }
-    
-    const int axis = node->split_axis;
-    const T split_val = get_coord(node->data.point, axis);
-    
-    // Determine which subtrees may contain results.
-    T query_min, query_max;
-    if(axis == 0){
-        query_min = query_box.min.x;
-        query_max = query_box.max.x;
-    }else if(axis == 1){
-        query_min = query_box.min.y;
-        query_max = query_box.max.y;
-    }else{
-        query_min = query_box.min.z;
-        query_max = query_box.max.z;
-    }
-    
-    // Left subtree contains points from the partition's lower side.
-    if(query_min <= split_val){
-        search_recursive(node->left.get(), query_box, results);
-    }
-    // Right subtree contains points from the partition's upper side.
-    if(query_max >= split_val){
-        search_recursive(node->right.get(), query_box, results);
-    }
+
+    search_recursive(node->left.get(), query_box, results);
+    search_recursive(node->right.get(), query_box, results);
 }
 
 template <class T>
 void kdtree<T>::nearest_recursive(const kdtree_node* node, const vec3<T> &query_point, size_t k,
                                    std::vector<std::pair<T, entry>> &best) const {
     if(node == nullptr) return;
-    
-    // Prune: if the minimum distance from query to this node's bounding box
-    // exceeds the current worst distance, the entire subtree can be skipped.
+
     if(best.size() == k){
-        T min_dist_sq = point_to_bbox_sq_dist(query_point, node->node_bounds);
+        const T min_dist_sq = point_to_bbox_sq_dist(query_point, node->node_bounds);
         if(min_dist_sq >= best.front().first) return;
     }
-    
-    const T dist_sq = (node->data.point - query_point).sq_length();
-    
-    // Insert current node if it qualifies.
+
+    const T dist_sq = node->data.box.squared_distance_to(query_point);
+
     if(best.size() < k){
         best.emplace_back(dist_sq, node->data);
-        // Maintain a max-heap by distance so the farthest is at front.
         std::push_heap(best.begin(), best.end(),
                        [](const auto &a, const auto &b){ return a.first < b.first; });
     }else if(dist_sq < best.front().first){
@@ -180,19 +121,17 @@ void kdtree<T>::nearest_recursive(const kdtree_node* node, const vec3<T> &query_
         std::push_heap(best.begin(), best.end(),
                        [](const auto &a, const auto &b){ return a.first < b.first; });
     }
-    
+
     const int axis = node->split_axis;
-    const T split_val = get_coord(node->data.point, axis);
+    const T split_val = get_coord(node->data.box.center(), axis);
     const T query_val = get_coord(query_point, axis);
     const T diff = query_val - split_val;
-    
-    // Decide which subtree to search first (the one containing the query point).
+
     const kdtree_node* near_subtree = (diff <= static_cast<T>(0)) ? node->left.get() : node->right.get();
     const kdtree_node* far_subtree  = (diff <= static_cast<T>(0)) ? node->right.get() : node->left.get();
-    
+
     nearest_recursive(near_subtree, query_point, k, best);
-    
-    // Check if we need to search the far subtree.
+
     const T split_dist_sq = diff * diff;
     if(best.size() < k || split_dist_sq < best.front().first){
         nearest_recursive(far_subtree, query_point, k, best);
@@ -201,11 +140,16 @@ void kdtree<T>::nearest_recursive(const kdtree_node* node, const vec3<T> &query_
 
 template <class T>
 void kdtree<T>::update_bounds(const vec3<T> &point) {
+    update_bounds(bbox(point, point));
+}
+
+template <class T>
+void kdtree<T>::update_bounds(const bbox &bb) {
     if(!bounds_initialized){
-        bounds = bbox(point, point);
+        bounds = bb;
         bounds_initialized = true;
     }else{
-        bounds.expand(point);
+        bounds.expand(bb);
     }
 }
 
@@ -226,13 +170,22 @@ void kdtree<T>::insert(const vec3<T> &point) {
 
 template <class T>
 void kdtree<T>::insert(const vec3<T> &point, std::any aux_data) {
-    if(!point.isfinite()){
-        throw std::invalid_argument("Cannot insert non-finite point into kdtree");
+    insert(bbox(point, point), std::move(aux_data));
+}
+
+template <class T>
+void kdtree<T>::insert(const bbox &bb) {
+    insert(bb, std::any{});
+}
+
+template <class T>
+void kdtree<T>::insert(const bbox &bb, std::any aux_data) {
+    if(!bb.isfinite()){
+        throw std::invalid_argument("Cannot insert non-finite bbox into kdtree");
     }
-    entry e(point, std::move(aux_data));
-    
-    update_bounds(point);
-    pending_entries.push_back(std::move(e));
+
+    pending_entries.emplace_back(bb, std::move(aux_data));
+    update_bounds(bb);
     ++entry_count;
     tree_built = false;
 }
@@ -240,7 +193,7 @@ void kdtree<T>::insert(const vec3<T> &point, std::any aux_data) {
 template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::search(const bbox &query_box) const {
     ensure_built();
-    
+
     std::vector<entry> results;
     if(root != nullptr){
         search_recursive(root.get(), query_box, results);
@@ -254,7 +207,33 @@ std::vector<vec3<T>> kdtree<T>::search_points(const bbox &query_box) const {
     std::vector<vec3<T>> results;
     results.reserve(entries.size());
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+        }
+    }
+    return results;
+}
+
+template <class T>
+std::vector<typename kdtree<T>::bbox> kdtree<T>::search_bboxes(const bbox &query_box) const {
+    auto entries = search(query_box);
+    std::vector<bbox> results;
+    results.reserve(entries.size());
+    for(const auto &e : entries){
+        results.push_back(e.box);
+    }
+    return results;
+}
+
+template <class T>
+std::vector<typename kdtree<T>::bbox> kdtree<T>::search_bboxes(const vec3<T> &query_point) const {
+    auto entries = search(bbox(query_point, query_point));
+    std::vector<bbox> results;
+    results.reserve(entries.size());
+    for(const auto &e : entries){
+        if(e.box.contains(query_point)){
+            results.push_back(e.box);
+        }
     }
     return results;
 }
@@ -263,13 +242,13 @@ template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::search_radius(const vec3<T> &center, T radius) const {
     vec3<T> offset(radius, radius, radius);
     bbox query_box(center - offset, center + offset);
-    
+
     auto candidates = search(query_box);
-    
+
     std::vector<entry> results;
-    T radius_sq = radius * radius;
+    const T radius_sq = radius * radius;
     for(const auto& e : candidates){
-        if((e.point - center).sq_length() <= radius_sq){
+        if(e.box.squared_distance_to(center) <= radius_sq){
             results.push_back(e);
         }
     }
@@ -282,7 +261,9 @@ std::vector<vec3<T>> kdtree<T>::search_radius_points(const vec3<T> &center, T ra
     std::vector<vec3<T>> results;
     results.reserve(entries.size());
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+        }
     }
     return results;
 }
@@ -290,7 +271,7 @@ std::vector<vec3<T>> kdtree<T>::search_radius_points(const vec3<T> &center, T ra
 template <class T>
 std::vector<typename kdtree<T>::entry> kdtree<T>::nearest_neighbors(const vec3<T> &query_point, size_t k) const {
     ensure_built();
-    
+
     std::vector<std::pair<T, entry>> best;
 
     std::vector<entry> results;
@@ -301,10 +282,9 @@ std::vector<typename kdtree<T>::entry> kdtree<T>::nearest_neighbors(const vec3<T
     best.reserve(k + 1);
     nearest_recursive(root.get(), query_point, k, best);
 
-    // Sort the results by distance (ascending).
     std::sort(best.begin(), best.end(),
               [](const auto &a, const auto &b){ return a.first < b.first; });
-    
+
     results.reserve(best.size());
     for(const auto &pair : best){
         results.push_back(pair.second);
@@ -314,32 +294,29 @@ std::vector<typename kdtree<T>::entry> kdtree<T>::nearest_neighbors(const vec3<T
 
 template <class T>
 std::vector<vec3<T>> kdtree<T>::nearest_neighbors_points(const vec3<T> &query_point, size_t k) const {
-    auto entries = nearest_neighbors(query_point, k);
+    if(k == 0) return {};
+    auto entries = nearest_neighbors(query_point, entry_count);
     std::vector<vec3<T>> results;
-    results.reserve(entries.size());
+    results.reserve(std::min(k, entries.size()));
     for(const auto& e : entries){
-        results.push_back(e.point);
+        if(!e.box.has_extent()){
+            results.push_back(e.box.min);
+            if(results.size() == k) break;
+        }
     }
     return results;
 }
 
 template <class T>
 bool kdtree<T>::contains(const vec3<T> &point) const {
-    // A modest 10x epsilon margin captures common round-off mismatches (for example,
-    // 0.1 + 0.2 vs 0.3) while remaining many orders of magnitude smaller than typical
-    // geometric scales in this index.
-    constexpr T contains_tolerance_factor = static_cast<T>(10);
-    const T epsilon = std::numeric_limits<T>::epsilon() * contains_tolerance_factor;
-    const T scale = std::max({ static_cast<T>(1), std::abs(point.x), std::abs(point.y), std::abs(point.z) });
-    const T tolerance = epsilon * scale;
-    vec3<T> offset(tolerance, tolerance, tolerance);
-    bbox point_box(point - offset, point + offset);
-    auto results = search(point_box);
+    return contains(bbox(point, point));
+}
 
-    for(const auto& result : results){
-        if(std::abs(result.point.x - point.x) <= tolerance &&
-           std::abs(result.point.y - point.y) <= tolerance &&
-           std::abs(result.point.z - point.z) <= tolerance){
+template <class T>
+bool kdtree<T>::contains(const bbox &bb) const {
+    auto results = search(bb);
+    for(const auto &result : results){
+        if(result.box == bb){
             return true;
         }
     }
