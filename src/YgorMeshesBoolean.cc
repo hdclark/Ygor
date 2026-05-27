@@ -29,7 +29,7 @@ struct prepared_mesh {
     index_bbox<T> bounds;
 };
 
-template <class T, class I>
+template <class I>
 std::pair<I, I>
 make_undirected_edge(I a, I b){
     if(b < a){
