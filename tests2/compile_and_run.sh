@@ -16,6 +16,12 @@ if [ ! -d "${REPOROOT}" ] ; then
 fi
 cd "${REPOROOT}/tests2/"
 
+BUILD_DIR="${YGOR_BUILD_DIR:-${REPOROOT}/build}"
+if [ ! -d "${BUILD_DIR}/src" ] ; then
+    printf "Cannot access build directory '%s'. Set YGOR_BUILD_DIR to a configured CMake build tree.\n" "${BUILD_DIR}" 1>&2
+    exit 1
+fi
+
 rm -rf doctest/
 mkdir -p doctest/
 wget -q 'https://raw.githubusercontent.com/onqtam/doctest/master/doctest/doctest.h' -O doctest/doctest.h
@@ -28,6 +34,8 @@ g++ \
   -Wno-unused-variable \
   -Wno-unused-value \
   -I. \
+  -I"${REPOROOT}/src" \
+  -I"${BUILD_DIR}/src" \
   Main.cc \
   \
   YgorAlgorithms.cc \
@@ -71,6 +79,7 @@ g++ \
   YgorTime/*.cc \
   \
   -o run_tests \
+  -L"${BUILD_DIR}/lib" \
   -lygor
 
 rm -rf doctest/

@@ -25,7 +25,7 @@ namespace {
 template <class T, class I>
 struct prepared_mesh {
     fv_surface_mesh<T, I> mesh;
-    rtree<T> face_index;
+    std::unique_ptr<rtree<T>> face_index;
     index_bbox<T> bounds;
 };
 
@@ -220,7 +220,7 @@ template <class T, class I>
 bool
 point_on_mesh_boundary(const vec3<T> &p,
                        const prepared_mesh<T, I> &prep){
-    const auto candidates = prep.face_index.search(index_bbox<T>(p, p));
+    const auto candidates = prep.face_index->search(index_bbox<T>(p, p));
     for(const auto &entry : candidates){
         const auto face_idx = std::any_cast<size_t>(entry.aux_data);
         const auto &face = prep.mesh.faces.at(face_idx);
@@ -240,7 +240,7 @@ cast_parity_ray(const vec3<T> &p,
                 const vec3<T> &q,
                 const prepared_mesh<T, I> &prep){
     const auto query_box = index_bbox<T>(p, q);
-    const auto candidates = prep.face_index.search(query_box);
+    const auto candidates = prep.face_index->search(query_box);
 
     int64_t crossings = 0;
     for(const auto &entry : candidates){
@@ -350,7 +350,7 @@ bool
 cell_touches_mesh(const vec3<T> &cell_min,
                   const vec3<T> &cell_max,
                   const prepared_mesh<T, I> &prep){
-    const auto candidates = prep.face_index.search(index_bbox<T>(cell_min, cell_max));
+    const auto candidates = prep.face_index->search(index_bbox<T>(cell_min, cell_max));
     for(const auto &entry : candidates){
         const auto face_idx = std::any_cast<size_t>(entry.aux_data);
         const auto &face = prep.mesh.faces.at(face_idx);
@@ -373,6 +373,7 @@ prepare_mesh(const fv_surface_mesh<T, I> &input,
     out.mesh = input;
     out.mesh.convert_to_triangles();
     out.mesh.remove_degenerate_faces();
+    out.face_index = std::make_unique<rtree<T>>();
 
     if(out.mesh.faces.empty()){
         out.bounds = mesh_bbox(out.mesh);
@@ -389,7 +390,7 @@ prepare_mesh(const fv_surface_mesh<T, I> &input,
 
     out.mesh.recreate_involved_face_index();
     for(size_t face_idx = 0; face_idx < out.mesh.faces.size(); ++face_idx){
-        out.face_index.insert(triangle_bbox(out.mesh, face_idx), face_idx);
+        out.face_index->insert(triangle_bbox(out.mesh, face_idx), face_idx);
     }
     return out;
 }
