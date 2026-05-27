@@ -568,25 +568,131 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
     const auto far_distance = side * static_cast<T>(4);
 
     std::vector<uint8_t> occupied(resolution * resolution * resolution, 0U);
+    std::vector<uint8_t> touches_lhs(resolution * resolution * resolution, 0U);
+    std::vector<uint8_t> touches_rhs(resolution * resolution * resolution, 0U);
+    std::vector<uint8_t> visited(resolution * resolution * resolution, 0U);
 
     auto linear_index = [resolution](size_t i, size_t j, size_t k) -> size_t {
         return (k * resolution + j) * resolution + i;
     };
 
+    auto cell_min_for = [&](size_t i, size_t j, size_t k) -> vec3<T> {
+        return domain_min + vec3<T>(h * static_cast<T>(i),
+                                    h * static_cast<T>(j),
+                                    h * static_cast<T>(k));
+    };
+
+    auto cell_centre_for = [&](size_t i, size_t j, size_t k) -> vec3<T> {
+        return cell_min_for(i, j, k) + vec3<T>(h, h, h) * static_cast<T>(0.5);
+    };
+
+    auto unpack_index = [resolution](size_t idx, size_t &i, size_t &j, size_t &k) {
+        i = idx % resolution;
+        const auto plane = idx / resolution;
+        j = plane % resolution;
+        k = plane / resolution;
+    };
+
     for(size_t k = 0; k < resolution; ++k){
         for(size_t j = 0; j < resolution; ++j){
             for(size_t i = 0; i < resolution; ++i){
-                const auto cell_min = domain_min + vec3<T>(h * static_cast<T>(i),
-                                                           h * static_cast<T>(j),
-                                                           h * static_cast<T>(k));
-                const auto centre_pt = cell_min + vec3<T>(h, h, h) * static_cast<T>(0.5);
+                const auto cell_min = cell_min_for(i, j, k);
+                const auto cell_max = cell_min + vec3<T>(h, h, h);
+                const auto idx = linear_index(i, j, k);
 
-                const auto inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
-                const auto inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
-
-                if(eval_boolean<T>(inside_lhs, inside_rhs, op)){
-                    occupied.at(linear_index(i, j, k)) = 1U;
+                if(cell_touches_mesh(cell_min, cell_max, lhs_prep)){
+                    touches_lhs.at(idx) = 1U;
                 }
+                if(cell_touches_mesh(cell_min, cell_max, rhs_prep)){
+                    touches_rhs.at(idx) = 1U;
+                }
+            }
+        }
+    }
+
+    std::vector<size_t> stack;
+    std::vector<size_t> component;
+
+    for(size_t seed = 0; seed < occupied.size(); ++seed){
+        if(visited.at(seed) != 0U){
+            continue;
+        }
+
+        const bool touches_any_mesh = (touches_lhs.at(seed) != 0U) || (touches_rhs.at(seed) != 0U);
+        if(touches_any_mesh){
+            visited.at(seed) = 1U;
+
+            size_t i = 0;
+            size_t j = 0;
+            size_t k = 0;
+            unpack_index(seed, i, j, k);
+            const auto centre_pt = cell_centre_for(i, j, k);
+
+            const auto inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
+            const auto inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
+
+            if(eval_boolean<T>(inside_lhs, inside_rhs, op)){
+                occupied.at(seed) = 1U;
+            }
+            continue;
+        }
+
+        stack.clear();
+        component.clear();
+        stack.push_back(seed);
+        visited.at(seed) = 1U;
+
+        while(!stack.empty()){
+            const auto current = stack.back();
+            stack.pop_back();
+            component.push_back(current);
+
+            size_t i = 0;
+            size_t j = 0;
+            size_t k = 0;
+            unpack_index(current, i, j, k);
+
+            const auto try_push = [&](size_t ni, size_t nj, size_t nk) {
+                const auto nidx = linear_index(ni, nj, nk);
+                if((visited.at(nidx) == 0U) &&
+                   (touches_lhs.at(nidx) == 0U) &&
+                   (touches_rhs.at(nidx) == 0U)){
+                    visited.at(nidx) = 1U;
+                    stack.push_back(nidx);
+                }
+            };
+
+            if(i > 0){
+                try_push(i - 1, j, k);
+            }
+            if((i + 1) < resolution){
+                try_push(i + 1, j, k);
+            }
+            if(j > 0){
+                try_push(i, j - 1, k);
+            }
+            if((j + 1) < resolution){
+                try_push(i, j + 1, k);
+            }
+            if(k > 0){
+                try_push(i, j, k - 1);
+            }
+            if((k + 1) < resolution){
+                try_push(i, j, k + 1);
+            }
+        }
+
+        size_t rep_i = 0;
+        size_t rep_j = 0;
+        size_t rep_k = 0;
+        unpack_index(component.front(), rep_i, rep_j, rep_k);
+        const auto centre_pt = cell_centre_for(rep_i, rep_j, rep_k);
+        const auto inside_lhs = point_inside_mesh(centre_pt, lhs_prep, far_distance);
+        const auto inside_rhs = point_inside_mesh(centre_pt, rhs_prep, far_distance);
+
+        if(eval_boolean<T>(inside_lhs, inside_rhs, op)){
+            for(const auto idx : component){
+                occupied.at(idx) = 1U;
             }
         }
     }
