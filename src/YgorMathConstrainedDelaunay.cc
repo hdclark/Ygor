@@ -922,7 +922,8 @@ bool constrain_edge(const std::vector<vec2<T>> &verts,
 template <class T, class I>
 fv_surface_mesh<T, I>
 Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
-                                     const std::vector<std::vector<I>> &edges){
+                                     const std::vector<std::vector<I>> &edges,
+                                     bool retain_only_constraint_faces){
     fv_surface_mesh<T, I> mesh;
     if(verts.empty() && edges.empty()){
         YLOGDEBUG("Constrained Delaunay triangulation received empty input");
@@ -1008,11 +1009,13 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
     }
 
     prune_triangles(verts, triangles);
-    if(!retain_triangles_in_constraint_faces(verts, constraints, triangles, &diag)){
-        YLOGWARN(diag);
-        throw std::runtime_error(diag);
+    if(retain_only_constraint_faces){
+        if(!retain_triangles_in_constraint_faces(verts, constraints, triangles, &diag)){
+            YLOGWARN(diag);
+            throw std::runtime_error(diag);
+        }
+        prune_triangles(verts, triangles);
     }
-    prune_triangles(verts, triangles);
 
     if(has_closed_region && triangles.empty()){
         const auto msg = "Constrained Delaunay triangulation produced no interior triangles for a closed constrained region.";
@@ -1029,9 +1032,9 @@ Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
 }
 
 #ifndef YGOR_MATH_CONSTRAINED_DELAUNAY_DISABLE_ALL_SPECIALIZATIONS
-    template fv_surface_mesh<float , uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint32_t>> &);
-    template fv_surface_mesh<float , uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint64_t>> &);
+    template fv_surface_mesh<float , uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint32_t>> &, bool);
+    template fv_surface_mesh<float , uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<float >> &, const std::vector<std::vector<uint64_t>> &, bool);
 
-    template fv_surface_mesh<double, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint32_t>> &);
-    template fv_surface_mesh<double, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint64_t>> &);
+    template fv_surface_mesh<double, uint32_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint32_t>> &, bool);
+    template fv_surface_mesh<double, uint64_t> Constrained_Delaunay_Triangulation_2(const std::vector<vec2<double>> &, const std::vector<std::vector<uint64_t>> &, bool);
 #endif

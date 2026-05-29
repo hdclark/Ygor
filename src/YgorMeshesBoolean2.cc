@@ -19,8 +19,10 @@
 #include "YgorDefinitions.h"
 #include "YgorIndex.h"
 #include "YgorIndexRTree.h"
+#include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
+#include "YgorMeshesBoolean.h"
 #include "YgorMeshesBoolean2.h"
 #include "YgorMeshesOrient.h"
 
@@ -1078,7 +1080,7 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
 
     fv_surface_mesh<T, size_t> tri_mesh;
     try{
-        tri_mesh = Constrained_Delaunay_Triangulation_2<T, size_t>(verts2, edges);
+        tri_mesh = Constrained_Delaunay_Triangulation_2<T, size_t>(verts2, edges, false);
     }catch(const std::exception &e){
         std::ostringstream oss;
         oss << "Constrained triangulation failed for BooleanMeshOp2 face: " << e.what() << " points=";
@@ -1171,6 +1173,24 @@ append_triangle(fv_surface_mesh<T, I> &mesh,
     mesh.vertices.push_back(tri.at(1));
     mesh.vertices.push_back(tri.at(2));
     mesh.faces.push_back({ base, static_cast<I>(base + 1), static_cast<I>(base + 2) });
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+fallback_boolean_mesh_op(const fv_surface_mesh<T, I> &lhs,
+                         const fv_surface_mesh<T, I> &rhs,
+                         MeshBooleanOperation2 op){
+    switch(op){
+        case MeshBooleanOperation2::Union:
+            return BooleanUnion(lhs, rhs, 5, static_cast<T>(0));
+        case MeshBooleanOperation2::Intersection:
+            return BooleanIntersection(lhs, rhs, 5, static_cast<T>(0));
+        case MeshBooleanOperation2::Exclusion:
+            return BooleanExclusion(lhs, rhs, 5, static_cast<T>(0));
+        case MeshBooleanOperation2::Subtraction:
+            return BooleanSubtraction(lhs, rhs, 5, static_cast<T>(0));
+    }
+    throw std::logic_error("Unrecognized MeshBooleanOperation2.");
 }
 
 template <class T, class I>
@@ -1388,45 +1408,51 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
                                                     op);
     }
 
-    std::vector<face_arrangement<T>> arr_a;
-    std::vector<face_arrangement<T>> arr_b;
-    build_face_arrangements(prep_a, prep_b, arr_a, arr_b, eps);
+    try{
+        std::vector<face_arrangement<T>> arr_a;
+        std::vector<face_arrangement<T>> arr_b;
+        build_face_arrangements(prep_a, prep_b, arr_a, arr_b, eps);
 
-    const auto extent = all_bounds.max - all_bounds.min;
-    const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
+        const auto extent = all_bounds.max - all_bounds.min;
+        const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
 
-    fv_surface_mesh<T, I> out;
-    for(const auto &arr : arr_a){
-        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_b, far_distance);
-        for(const auto &piece : pieces){
-            if(include_face_from_a<T>(piece.relation, op)){
-                append_triangle(out, piece.verts);
+        fv_surface_mesh<T, I> out;
+        for(const auto &arr : arr_a){
+            const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_b, far_distance);
+            for(const auto &piece : pieces){
+                if(include_face_from_a<T>(piece.relation, op)){
+                    append_triangle(out, piece.verts);
+                }
             }
         }
-    }
-    for(const auto &arr : arr_b){
-        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance);
-        for(const auto &piece : pieces){
-            if(include_face_from_b<T>(piece.relation, op)){
-                append_triangle(out, piece.verts);
+        for(const auto &arr : arr_b){
+            const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance);
+            for(const auto &piece : pieces){
+                if(include_face_from_b<T>(piece.relation, op)){
+                    append_triangle(out, piece.verts);
+                }
             }
         }
-    }
 
-    if(out.faces.empty()){
+        if(out.faces.empty()){
+            return out;
+        }
+
+        out.merge_duplicate_vertices(eps * static_cast<T>(32));
+        deduplicate_faces(out);
+        out.remove_degenerate_faces();
+        out.remove_disconnected_vertices();
+        out.recreate_involved_face_index();
+        validate_closed_triangular_mesh(out, "BooleanMeshOp2 output");
+        if(!OrientFaces(out, eps * static_cast<T>(8))){
+            throw std::runtime_error("BooleanMeshOp2 produced an inconsistent boundary mesh.");
+        }
+        out.recreate_involved_face_index();
         return out;
+    }catch(const std::exception &e){
+        YLOGWARN("BooleanMeshOp2 falling back to legacy BooleanMeshOp: " << e.what());
+        return fallback_boolean_mesh_op(lhs, rhs, op);
     }
-
-    out.merge_duplicate_vertices(eps * static_cast<T>(4));
-    deduplicate_faces(out);
-    out.remove_degenerate_faces();
-    out.remove_disconnected_vertices();
-    out.recreate_involved_face_index();
-    if(!OrientFaces(out, eps * static_cast<T>(8))){
-        throw std::runtime_error("BooleanMeshOp2 produced an inconsistent boundary mesh.");
-    }
-    out.recreate_involved_face_index();
-    return out;
 }
 
 } // namespace

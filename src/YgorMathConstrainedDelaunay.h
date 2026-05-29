@@ -24,6 +24,10 @@
 //
 // Vertices are copied to the mesh, so no input vertices are modified.
 //
+// retain_only_constraint_faces controls whether triangles are filtered to the bounded regions enclosed by the
+// constraints. Most polygon-style callers should leave this enabled. Callers that use constraints only as interior
+// split lines inside some separate outer domain can disable it and apply their own domain filtering afterward.
+//
 // The implementation follows an approach inspired primarily by:
 //  - Edelsbrunner H, Seidel R. Voronoi diagrams and arrangements. In Proceedings of the first annual symposium on
 //    Computational geometry 1985 Jun 1 (pp. 251-262).
@@ -42,7 +46,8 @@
 template <class T, class I>
 fv_surface_mesh<T, I>
 Constrained_Delaunay_Triangulation_2(const std::vector<vec2<T>> &verts,
-                                     const std::vector<std::vector<I>> &edges);
+                                     const std::vector<std::vector<I>> &edges,
+                                     bool retain_only_constraint_faces = true);
 
 
 #endif // YGOR_MATH_CONSTRAINED_DELAUNAY_H_
