@@ -42,6 +42,28 @@ make_box_mesh(const vec3<T> &bb_min,
 }
 
 template <class T, class I>
+static fv_surface_mesh<T, I>
+make_tetra_mesh(){
+    fv_surface_mesh<T, I> mesh;
+    mesh.vertices = {
+        vec3<T>(0.2, 0.2, 0.2),
+        vec3<T>(0.8, 0.2, 0.2),
+        vec3<T>(0.2, 0.8, 0.2),
+        vec3<T>(0.2, 0.2, 0.8)
+    };
+    mesh.faces = {
+        { 0, 1, 2 },
+        { 0, 3, 1 },
+        { 0, 2, 3 },
+        { 1, 3, 2 }
+    };
+
+    REQUIRE(OrientFaces(mesh));
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+template <class T, class I>
 static double
 mesh_signed_volume(const fv_surface_mesh<T, I> &mesh){
     long double total = 0.0L;
@@ -142,6 +164,17 @@ TEST_CASE("YgorMeshesBoolean2"){
         REQUIRE(!out.faces.empty());
         check_closed_triangles(out);
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 2.0) < 1.0e-5);
+    }
+
+    SUBCASE("Union with a non-box closed mesh bypasses box fast path"){
+        const auto lhs = make_tetra_mesh<double, uint64_t>();
+        const auto rhs = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                                         vec3<double>(1.0, 1.0, 1.0));
+
+        const auto out = BooleanUnion2(lhs, rhs);
+        REQUIRE(!out.faces.empty());
+        check_closed_triangles(out);
+        CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 1.0) < 1.0e-5);
     }
 
     SUBCASE("Open meshes are rejected"){
