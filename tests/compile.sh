@@ -16,6 +16,7 @@ if [ ! -d "${REPOROOT}" ] ; then
 fi
 cd "${REPOROOT}/tests/"
 
+
 g++ -std=c++17 Report_Machine_Parameters.cc -o report_machine_parameters -lygor -pthread &
 g++ -std=c++17 Test_Algorithms_01.cc -o test_algorithms_01 -lygor -pthread &
 g++ -std=c++17 Test_Algorithms_02.cc -o test_algorithms_02 -lygor -pthread &
@@ -110,5 +111,6 @@ wait
 
 g++ -std=c++17 Test_MeshesRemeshing.cc -o test_meshesremeshing -lygor -pthread &
 g++ -std=c++17 Test_MeshesRefinement.cc -o test_meshesrefinement -lygor -pthread &
+g++ -std=c++17 Test_MeshesBoolean.cc -o test_meshesboolean -lygor -pthread &
 wait
 
