@@ -6593,10 +6593,6 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
                                 double);
 #endif                        
 
-//---------------------------------------------------------------------------------------------------------------------------
-namespace {
-
-} // namespace
 
 //---------------------------------------------------------------------------------------------------------------------------
 //--------------- fv_surface_mesh: a 2D surface mesh embedded in 3D with a straightforward data structure -------------------
