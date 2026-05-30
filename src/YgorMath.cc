@@ -1,6 +1,7 @@
 //YgorMath.cc.
 
 #include <algorithm>   //Needed for std::reverse.
+#include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <complex>
 #include <exception>
@@ -12,6 +13,7 @@
 #include <limits>      //Needed for std::numeric_limits::max().
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <numeric>
 #include <stdexcept>
@@ -6588,6 +6590,7 @@ Estimate_Contour_Separation(const std::list<std::reference_wrapper<contour_colle
                                 const vec3<double> &,
                                 double);
 #endif                        
+
 
 //---------------------------------------------------------------------------------------------------------------------------
 //--------------- fv_surface_mesh: a 2D surface mesh embedded in 3D with a straightforward data structure -------------------
