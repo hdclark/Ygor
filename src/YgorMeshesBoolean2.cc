@@ -286,12 +286,14 @@ triangle_nearly_degenerate(const vec2<T> &a,
                            const vec2<T> &b,
                            const vec2<T> &c,
                            T eps){
+    constexpr T min_reference_length = static_cast<T>(1);
+    constexpr T degeneracy_multiplier = static_cast<T>(16);
     const auto ab = b - a;
     const auto ac = c - a;
     const auto bc = c - b;
-    const auto max_len = std::max({ab.length(), ac.length(), bc.length(), static_cast<T>(1)});
+    const auto max_len = std::max({ab.length(), ac.length(), bc.length(), min_reference_length});
     const auto twice_area = std::abs(ab.x * ac.y - ab.y * ac.x);
-    return twice_area <= (max_len * eps * static_cast<T>(16));
+    return twice_area <= (max_len * eps * degeneracy_multiplier);
 }
 
 template <class T>
@@ -1377,7 +1379,10 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
 
     const auto extent = all_bounds.max - all_bounds.min;
     const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
-    const auto sample_offset = std::max(eps * static_cast<T>(16), mesh_coord_eps(all_bounds) * static_cast<T>(4));
+    constexpr T sample_offset_from_face_eps = static_cast<T>(16);
+    constexpr T sample_offset_from_bounds_eps = static_cast<T>(4);
+    const auto sample_offset = std::max(eps * sample_offset_from_face_eps,
+                                        mesh_coord_eps(all_bounds) * sample_offset_from_bounds_eps);
 
     fv_surface_mesh<T, I> out;
     for(const auto &arr : arr_a){
