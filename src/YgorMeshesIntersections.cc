@@ -623,16 +623,31 @@ mesh_intersection_eps(const fv_surface_mesh<T, I> &lhs,
         return snap_eps;
     }
 
-    T scale = static_cast<T>(1);
-    const auto accumulate_scale = [&scale](const std::vector<vec3<T>> &verts){
+    vec3<T> bb_min(std::numeric_limits<T>::infinity(),
+                   std::numeric_limits<T>::infinity(),
+                   std::numeric_limits<T>::infinity());
+    vec3<T> bb_max(-std::numeric_limits<T>::infinity(),
+                   -std::numeric_limits<T>::infinity(),
+                   -std::numeric_limits<T>::infinity());
+
+    const auto accumulate_bbox = [&](const std::vector<vec3<T>> &verts){
         for(const auto &v : verts){
-            scale = std::max(scale, std::abs(v.x));
-            scale = std::max(scale, std::abs(v.y));
-            scale = std::max(scale, std::abs(v.z));
+            bb_min.x = std::min(bb_min.x, v.x);
+            bb_min.y = std::min(bb_min.y, v.y);
+            bb_min.z = std::min(bb_min.z, v.z);
+            bb_max.x = std::max(bb_max.x, v.x);
+            bb_max.y = std::max(bb_max.y, v.y);
+            bb_max.z = std::max(bb_max.z, v.z);
         }
     };
-    accumulate_scale(lhs.vertices);
-    accumulate_scale(rhs.vertices);
+
+    accumulate_bbox(lhs.vertices);
+    accumulate_bbox(rhs.vertices);
+
+    const T scale = std::max({bb_max.x - bb_min.x,
+                              bb_max.y - bb_min.y,
+                              bb_max.z - bb_min.z,
+                              static_cast<T>(1)});
     return std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
 }
 
