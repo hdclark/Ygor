@@ -96,7 +96,8 @@ TEST_CASE("fv_surface_mesh::intersections_with"){
         CHECK(isect.lhs_geometry.vertices.at(0).distance(vec3<double>(0.5, 0.5, 0.0)) < 1.0e-8);
         CHECK(isect.lhs_geometry.vertices.at(1).distance(vec3<double>(1.5, 0.5, 0.0)) < 1.0e-8);
         CHECK(contains_primitive(isect.lhs_primitives, fv_surface_mesh_intersection_primitive_type::Edge, { 1, 2 }));
-        CHECK(contains_primitive(isect.rhs_primitives, fv_surface_mesh_intersection_primitive_type::Edge, { 0, 2 }));
+        CHECK(contains_primitive(isect.rhs_primitives, fv_surface_mesh_intersection_primitive_type::Edge, { 0, 1 }));
+        CHECK(contains_primitive(isect.rhs_primitives, fv_surface_mesh_intersection_primitive_type::Vertex, { 2 }));
     }
 
     SUBCASE("extracts a coplanar shared edge"){
