@@ -1,8 +1,11 @@
+
 #include <algorithm>
 #include <array>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
-#include <YgorMath.h>
+#include <YgorMeshesIntersections.h>
 
 #include "doctest/doctest.h"
 
@@ -29,10 +32,11 @@ contains_point(const std::vector<vec3<T>> &points,
     });
 }
 
+template <class I>
 bool
-contains_primitive(const std::vector<fv_surface_mesh_intersection_primitive> &primitives,
+contains_primitive(const std::vector<fv_surface_mesh_intersection_primitive<I>> &primitives,
                    fv_surface_mesh_intersection_primitive_type type,
-                   std::vector<size_t> indices){
+                   std::vector<I> indices){
     std::sort(indices.begin(), indices.end());
     return std::any_of(primitives.begin(), primitives.end(), [&](const auto &primitive){
         auto actual = primitive.indices;
@@ -43,7 +47,12 @@ contains_primitive(const std::vector<fv_surface_mesh_intersection_primitive> &pr
 
 } // namespace
 
-TEST_CASE("fv_surface_mesh::intersections_with"){
+TEST_CASE("YgorMeshesIntersections"){
+    using mesh_t = fv_surface_mesh<double, uint64_t>;
+    using intersections_t = decltype(FindIntersections(std::declval<const mesh_t &>(),
+                                                       std::declval<const mesh_t &>()));
+    static_assert(std::is_same_v<intersections_t, std::vector<fv_surface_mesh_intersection<double, uint64_t>>>);
+
     SUBCASE("extracts a point intersection at matching vertices"){
         const auto lhs = make_mesh<double, uint64_t>({
                 vec3<double>(0.0, 0.0, 0.0),
@@ -60,7 +69,7 @@ TEST_CASE("fv_surface_mesh::intersections_with"){
                 { 0, 1, 2 }
             });
 
-        const auto intersections = lhs.intersections_with(rhs);
+        const auto intersections = FindIntersections(lhs, rhs);
         REQUIRE(intersections.size() == 1UL);
         const auto &isect = intersections.front();
         CHECK(isect.lhs_geometry.type == fv_surface_mesh_intersection_geometry_type::Point);
@@ -88,7 +97,7 @@ TEST_CASE("fv_surface_mesh::intersections_with"){
                 { 0, 1, 2 }
             });
 
-        const auto intersections = lhs.intersections_with(rhs);
+        const auto intersections = FindIntersections(lhs, rhs);
         REQUIRE(intersections.size() == 1UL);
         const auto &isect = intersections.front();
         CHECK(isect.lhs_geometry.type == fv_surface_mesh_intersection_geometry_type::Segment);
@@ -116,7 +125,7 @@ TEST_CASE("fv_surface_mesh::intersections_with"){
                 { 0, 1, 2 }
             });
 
-        const auto intersections = lhs.intersections_with(rhs);
+        const auto intersections = FindIntersections(lhs, rhs);
         REQUIRE(intersections.size() == 1UL);
         const auto &isect = intersections.front();
         CHECK(isect.lhs_geometry.type == fv_surface_mesh_intersection_geometry_type::Segment);
@@ -137,7 +146,7 @@ TEST_CASE("fv_surface_mesh::intersections_with"){
             });
         const auto rhs = lhs;
 
-        const auto intersections = lhs.intersections_with(rhs);
+        const auto intersections = FindIntersections(lhs, rhs);
         REQUIRE(intersections.size() == 1UL);
         const auto &isect = intersections.front();
         CHECK(isect.lhs_geometry.type == fv_surface_mesh_intersection_geometry_type::Polygon);

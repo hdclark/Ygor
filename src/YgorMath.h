@@ -641,41 +641,6 @@ struct involved_face_index_diff {
 
 //---------------------------------------------------------------------------------------------------------------------------
 
-enum class fv_surface_mesh_intersection_primitive_type : uint8_t {
-    Vertex,
-    Edge,
-    Face
-};
-
-enum class fv_surface_mesh_intersection_geometry_type : uint8_t {
-    Point,
-    Segment,
-    Polygon
-};
-
-struct fv_surface_mesh_intersection_primitive {
-    fv_surface_mesh_intersection_primitive_type type = fv_surface_mesh_intersection_primitive_type::Vertex;
-    std::vector<size_t> indices;
-};
-
-template <class T>
-struct fv_surface_mesh_intersection_geometry {
-    fv_surface_mesh_intersection_geometry_type type = fv_surface_mesh_intersection_geometry_type::Point;
-    std::vector<vec3<T>> vertices;
-};
-
-template <class T>
-struct fv_surface_mesh_intersection {
-    size_t lhs_face_index = 0;
-    size_t rhs_face_index = 0;
-    std::vector<fv_surface_mesh_intersection_primitive> lhs_primitives;
-    std::vector<fv_surface_mesh_intersection_primitive> rhs_primitives;
-    fv_surface_mesh_intersection_geometry<T> lhs_geometry;
-    fv_surface_mesh_intersection_geometry<T> rhs_geometry;
-};
-
-//---------------------------------------------------------------------------------------------------------------------------
-
 //Simple, direct face-vertex list data structure representing a 3D surface mesh. Few constraints are imposed by this
 // data structure, and the meshes are not guaranteed to have many specific qualities. For example, multiple disconnected
 // meshes can be combined together without specifying whether they represent internal/external surfaces or are nested
@@ -791,19 +756,6 @@ template <class T, class I>   class fv_surface_mesh {
         // Note: Returns a contour_collection containing all contours from all planes.
         // Each contour's metadata will contain a key "PlaneIndex" indicating which plane it came from.
         contour_collection<T> slice_with_planes(const std::list<plane<T>> &planes) const;
-
-        // Extract an ordered list of pairwise surface intersections against another mesh.
-        //
-        // Each record links a face from this mesh with a face from the other mesh and reports the precise coincident
-        // point, segment, or polygon together with the participating vertices/edges/faces in both meshes.
-        //
-        // Throws std::invalid_argument if either mesh contains non-finite vertices or out-of-range face indices.
-        //
-        // The implementation uses adaptive predicates for orientation tests and automatically chooses a mesh-scale
-        // snapping tolerance when snap_eps <= 0.
-        std::vector<fv_surface_mesh_intersection<T>>
-        intersections_with(const fv_surface_mesh<T, I> &other,
-                           T snap_eps = static_cast<T>(0)) const;
 
         //Checks if the key is present without inspecting the value.
         bool MetadataKeyPresent(std::string key) const;
