@@ -1,7 +1,6 @@
 //YgorMath.cc.
 
 #include <algorithm>   //Needed for std::reverse.
-#include <any>
 #include <array>
 #include <cmath>       //Needed for fabs, signbit, sqrt, etc...
 #include <complex>
