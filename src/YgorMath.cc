@@ -29,7 +29,6 @@
 
 #include "YgorDefinitions.h"
 #include "YgorFilesDirs.h"  //Used in samples_1D<T>::Write_To_File(...).
-#include "YgorIndexRTree.h"
 #include "YgorMath.h"
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
 #include "YgorLog.h"
