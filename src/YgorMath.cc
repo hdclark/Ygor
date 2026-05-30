@@ -7279,7 +7279,34 @@ intersection_less(const fv_surface_mesh_intersection<T> &lhs,
     if(lhs.lhs_geometry.type != rhs.lhs_geometry.type){
         return static_cast<int>(lhs.lhs_geometry.type) < static_cast<int>(rhs.lhs_geometry.type);
     }
-    return lhs.lhs_geometry.vertices < rhs.lhs_geometry.vertices;
+    if(lhs.lhs_geometry.vertices != rhs.lhs_geometry.vertices){
+        return lhs.lhs_geometry.vertices < rhs.lhs_geometry.vertices;
+    }
+
+    const auto prim_equal = [](const fv_surface_mesh_intersection_primitive &a,
+                               const fv_surface_mesh_intersection_primitive &b){
+        return (a.type == b.type) && (a.indices == b.indices);
+    };
+    const auto prim_less = [](const fv_surface_mesh_intersection_primitive &a,
+                              const fv_surface_mesh_intersection_primitive &b){
+        if(a.type != b.type){
+            return static_cast<int>(a.type) < static_cast<int>(b.type);
+        }
+        return a.indices < b.indices;
+    };
+    const auto prims_equal = [&](const std::vector<fv_surface_mesh_intersection_primitive> &a,
+                                 const std::vector<fv_surface_mesh_intersection_primitive> &b){
+        return (a.size() == b.size()) && std::equal(a.begin(), a.end(), b.begin(), prim_equal);
+    };
+
+    if(!prims_equal(lhs.lhs_primitives, rhs.lhs_primitives)){
+        return std::lexicographical_compare(lhs.lhs_primitives.begin(), lhs.lhs_primitives.end(),
+                                            rhs.lhs_primitives.begin(), rhs.lhs_primitives.end(),
+                                            prim_less);
+    }
+    return std::lexicographical_compare(lhs.rhs_primitives.begin(), lhs.rhs_primitives.end(),
+                                        rhs.rhs_primitives.begin(), rhs.rhs_primitives.end(),
+                                        prim_less);
 }
 
 template <class T>
