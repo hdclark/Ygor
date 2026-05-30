@@ -815,17 +815,29 @@ f 61 59 120
 f 61 120 122
 )obj");
 
-        const auto legacy = BooleanSubtraction(mesh_B, mesh_A, 5, 0.0);
-        REQUIRE(!legacy.faces.empty());
-
         fv_surface_mesh<double, uint64_t> out;
         REQUIRE_NOTHROW(out = BooleanSubtraction2(mesh_B, mesh_A, 0.0));
         REQUIRE(!out.faces.empty());
         check_closed_triangles(out);
 
-        const auto legacy_volume = std::abs(mesh_signed_volume(legacy));
+        fv_surface_mesh<double, uint64_t> intersection;
+        REQUIRE_NOTHROW(intersection = BooleanIntersection2(mesh_B, mesh_A, 0.0));
+        REQUIRE(!intersection.faces.empty());
+        check_closed_triangles(intersection);
+
+        fv_surface_mesh<double, uint64_t> uni;
+        REQUIRE_NOTHROW(uni = BooleanUnion2(mesh_B, mesh_A, 0.0));
+        REQUIRE(!uni.faces.empty());
+        check_closed_triangles(uni);
+
+        const auto mesh_a_volume = std::abs(mesh_signed_volume(mesh_A));
+        const auto mesh_b_volume = std::abs(mesh_signed_volume(mesh_B));
         const auto out_volume = std::abs(mesh_signed_volume(out));
+        const auto intersection_volume = std::abs(mesh_signed_volume(intersection));
+        const auto union_volume = std::abs(mesh_signed_volume(uni));
         CHECK(out_volume > 0.0);
-        CHECK(std::abs(out_volume - legacy_volume) < 10.0);
+        CHECK(intersection_volume > 0.0);
+        CHECK(std::abs(out_volume - (mesh_b_volume - intersection_volume)) < 1.0e-3);
+        CHECK(std::abs(union_volume - (mesh_a_volume + mesh_b_volume - intersection_volume)) < 1.0e-3);
     }
 }

@@ -22,7 +22,6 @@
 #include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
-#include "YgorMeshesBoolean.h"
 #include "YgorMeshesBoolean2.h"
 #include "YgorMeshesOrient.h"
 
@@ -184,14 +183,35 @@ validate_closed_triangular_mesh(const fv_surface_mesh<T, I> &mesh,
     }
 
     const auto expected_edges = (mesh.faces.size() * 3ULL) / 2ULL;
-    if(edge_counts.size() != expected_edges){
-        throw std::invalid_argument(name + " is not a closed manifold mesh.");
-    }
-
+    size_t boundary_edges = 0UL;
+    size_t nonmanifold_edges = 0UL;
+    std::ostringstream detail;
+    size_t samples = 0UL;
     for(const auto &ep : edge_counts){
-        if(ep.second != 2UL){
-            throw std::invalid_argument(name + " contains a boundary or non-manifold edge.");
+        if(ep.second == 1UL){
+            ++boundary_edges;
+        }else if(ep.second != 2UL){
+            ++nonmanifold_edges;
         }
+        if((ep.second != 2UL) && (samples < 8UL)){
+            const auto &a = mesh.vertices.at(ep.first.first);
+            const auto &b = mesh.vertices.at(ep.first.second);
+            detail << " [" << ep.first.first << "," << ep.first.second << "]x" << ep.second
+                   << "@((" << a.x << "," << a.y << "," << a.z << "),("
+                   << b.x << "," << b.y << "," << b.z << "))";
+            ++samples;
+        }
+    }
+    if((edge_counts.size() != expected_edges) || (boundary_edges != 0UL) || (nonmanifold_edges != 0UL)){
+        std::ostringstream oss;
+        oss << name << " is not a closed manifold mesh"
+            << " (faces=" << mesh.faces.size()
+            << ", unique_edges=" << edge_counts.size()
+            << ", expected_edges=" << expected_edges
+            << ", boundary_edges=" << boundary_edges
+            << ", nonmanifold_edges=" << nonmanifold_edges
+            << ", samples:" << detail.str() << ").";
+        throw std::invalid_argument(oss.str());
     }
 }
 
@@ -258,6 +278,58 @@ point_near_segment(const vec3<T> &p,
     const auto ap = proj - a;
     const auto bp = proj - b;
     return (ap.Dot(ab) >= -eps) && (bp.Dot(ab) <= eps);
+}
+
+template <class T>
+bool
+triangle_nearly_degenerate(const vec2<T> &a,
+                           const vec2<T> &b,
+                           const vec2<T> &c,
+                           T eps){
+    const auto ab = b - a;
+    const auto ac = c - a;
+    const auto bc = c - b;
+    const auto max_len = std::max({ab.length(), ac.length(), bc.length(), static_cast<T>(1)});
+    const auto twice_area = std::abs(ab.x * ac.y - ab.y * ac.x);
+    return twice_area <= (max_len * eps * static_cast<T>(16));
+}
+
+template <class T>
+bool
+triangle_respects_original_boundary(const face_arrangement<T> &arr,
+                                    size_t ia,
+                                    size_t ib,
+                                    size_t ic,
+                                    T eps){
+    const std::array<std::array<size_t, 2>, 3> tri_edges = {{{{0UL, 1UL}}, {{1UL, 2UL}}, {{2UL, 0UL}}}};
+    const std::array<size_t, 3> tri_opp = {{2UL, 0UL, 1UL}};
+    const std::array<std::array<size_t, 3>, 3> candidate_edges = {{{{ia, ib, ic}}, {{ib, ic, ia}}, {{ic, ia, ib}}}};
+
+    for(const auto &edge_info : candidate_edges){
+        const auto u = edge_info.at(0);
+        const auto v = edge_info.at(1);
+        const auto w = edge_info.at(2);
+        for(size_t tri_edge_idx = 0; tri_edge_idx < tri_edges.size(); ++tri_edge_idx){
+            const auto e0 = tri_edges.at(tri_edge_idx).at(0);
+            const auto e1 = tri_edges.at(tri_edge_idx).at(1);
+            if(!point_near_segment(arr.points.at(u), arr.tri.at(e0), arr.tri.at(e1), eps)
+            || !point_near_segment(arr.points.at(v), arr.tri.at(e0), arr.tri.at(e1), eps)){
+                continue;
+            }
+
+            const auto axis = dominant_axis(triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2)));
+            const auto edge_a = project_drop_axis(arr.tri.at(e0), axis);
+            const auto edge_b = project_drop_axis(arr.tri.at(e1), axis);
+            const auto interior = project_drop_axis(arr.tri.at(tri_opp.at(tri_edge_idx)), axis);
+            const auto test = project_drop_axis(arr.points.at(w), axis);
+            const auto interior_sign = orient_sign(edge_a, edge_b, interior);
+            const auto test_sign = orient_sign(edge_a, edge_b, test);
+            if((interior_sign != 0) && (test_sign != 0) && (interior_sign != test_sign)){
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 template <class T>
@@ -888,7 +960,8 @@ boolean_face_relation
 classify_split_triangle(const face_arrangement<T> &arr,
                         const std::array<vec3<T>, 3> &tri,
                         const prepared_mesh<T, OtherI> &other_prep,
-                        T far_distance){
+                        T far_distance,
+                        T sample_offset){
     const auto normal = triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2));
     const auto axis = dominant_axis(normal);
     const auto centroid3 = triangle_centroid(tri);
@@ -907,7 +980,9 @@ classify_split_triangle(const face_arrangement<T> &arr,
         }
     }
 
-    const bool inside = point_inside_mesh(centroid3, other_prep, far_distance);
+    const auto unit_normal = normal.unit();
+    const auto sample_point = centroid3 + unit_normal * sample_offset;
+    const bool inside = point_inside_mesh(sample_point, other_prep, far_distance);
     return inside ? boolean_face_relation::Inside : boolean_face_relation::Outside;
 }
 
@@ -915,7 +990,9 @@ template <class T, class I, class OtherI>
 std::vector<split_triangle<T>>
 split_face_with_arrangement(const face_arrangement<T> &arr,
                             const prepared_mesh<T, OtherI> &other_prep,
-                            T far_distance){
+                            T far_distance,
+                            T sample_offset,
+                            T eps){
     const auto normal = triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2));
     const auto axis = dominant_axis(normal);
 
@@ -969,114 +1046,11 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
         edges.push_back({ seg.first, seg.second });
     }
 
-    auto build_boundary_chain = [&](size_t a_idx, size_t b_idx) -> std::vector<size_t> {
-        std::vector<size_t> chain = { a_idx, b_idx };
-        for(size_t i = 0; i < arr.points.size(); ++i){
-            if((i == a_idx) || (i == b_idx)){
-                continue;
-            }
-            if(point_near_segment(arr.points.at(i), arr.points.at(a_idx), arr.points.at(b_idx),
-                                  std::max(static_cast<T>(1), arr.points.at(a_idx).distance(arr.points.at(b_idx)))
-                                  * std::sqrt(std::numeric_limits<T>::epsilon()) * static_cast<T>(8))){
-                chain.push_back(i);
-            }
-        }
-        const auto origin = arr.points.at(a_idx);
-        const auto dir = arr.points.at(b_idx) - origin;
-        const auto dir_sq = dir.sq_length();
-        std::sort(chain.begin(), chain.end(), [&](size_t lhs, size_t rhs){
-            const auto lhs_t = (dir_sq > static_cast<T>(0))
-                ? (arr.points.at(lhs) - origin).Dot(dir) / dir_sq
-                : static_cast<T>(0);
-            const auto rhs_t = (dir_sq > static_cast<T>(0))
-                ? (arr.points.at(rhs) - origin).Dot(dir) / dir_sq
-                : static_cast<T>(0);
-            return lhs_t < rhs_t;
-        });
-        chain.erase(std::unique(chain.begin(), chain.end()), chain.end());
-        return chain;
-    };
-
-    const auto edge01 = build_boundary_chain(0UL, 1UL);
-    const auto edge12 = build_boundary_chain(1UL, 2UL);
-    const auto edge20 = build_boundary_chain(2UL, 0UL);
-    std::vector<size_t> boundary_cycle;
-    boundary_cycle.insert(boundary_cycle.end(), edge01.begin(), edge01.end() - 1);
-    boundary_cycle.insert(boundary_cycle.end(), edge12.begin(), edge12.end() - 1);
-    boundary_cycle.insert(boundary_cycle.end(), edge20.begin(), edge20.end() - 1);
     const std::array<vec2<T>, 3> tri2 = {{
         project_drop_axis(arr.tri.at(0), axis),
         project_drop_axis(arr.tri.at(1), axis),
         project_drop_axis(arr.tri.at(2), axis)
     }};
-
-    std::set<std::pair<size_t, size_t>> boundary_segments;
-    for(size_t i = 0; i < boundary_cycle.size(); ++i){
-        boundary_segments.insert(make_undirected_edge<T>(boundary_cycle.at(i),
-                                                         boundary_cycle.at((i + 1UL) % boundary_cycle.size())));
-    }
-
-    std::vector<std::pair<size_t, size_t>> internal_segments;
-    for(const auto &seg : refined_segments){
-        if(boundary_segments.count(seg) == 0UL){
-            internal_segments.push_back(seg);
-        }
-    }
-
-    auto emit_simple_polygons = [&](const std::vector<std::vector<size_t>> &polygons) -> std::vector<split_triangle<T>> {
-        std::vector<split_triangle<T>> simple_out;
-        for(const auto &poly : polygons){
-            if(poly.size() < 3UL){
-                continue;
-            }
-            for(size_t i = 1; (i + 1UL) < poly.size(); ++i){
-                const auto ia = poly.at(0);
-                const auto ib = poly.at(i);
-                const auto ic = poly.at(i + 1UL);
-                const auto &a2 = verts2.at(ia);
-                const auto &b2 = verts2.at(ib);
-                const auto &c2 = verts2.at(ic);
-                if(orient_sign(a2, b2, c2) == 0){
-                    continue;
-                }
-                const auto centroid2 = (a2 + b2 + c2) / static_cast<T>(3);
-                if(!point_in_triangle_or_on_boundary(centroid2, tri2.at(0), tri2.at(1), tri2.at(2))){
-                    continue;
-                }
-                std::array<vec3<T>, 3> tri = {{ arr.points.at(ia), arr.points.at(ib), arr.points.at(ic) }};
-                split_triangle<T> st;
-                st.verts = tri;
-                st.relation = classify_split_triangle(arr, tri, other_prep, far_distance);
-                simple_out.push_back(st);
-            }
-        }
-        return simple_out;
-    };
-
-    if(internal_segments.empty()){
-        return emit_simple_polygons({ boundary_cycle });
-    }
-    if(internal_segments.size() == 1UL){
-        const auto u = internal_segments.front().first;
-        const auto v = internal_segments.front().second;
-        const auto it_u = std::find(boundary_cycle.begin(), boundary_cycle.end(), u);
-        const auto it_v = std::find(boundary_cycle.begin(), boundary_cycle.end(), v);
-        if((it_u != boundary_cycle.end()) && (it_v != boundary_cycle.end()) && (it_u != it_v)){
-            const auto pos_u = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_u));
-            const auto pos_v = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_v));
-            std::vector<size_t> poly1;
-            std::vector<size_t> poly2;
-            for(size_t i = pos_u;; i = (i + 1UL) % boundary_cycle.size()){
-                poly1.push_back(boundary_cycle.at(i));
-                if(i == pos_v) break;
-            }
-            for(size_t i = pos_v;; i = (i + 1UL) % boundary_cycle.size()){
-                poly2.push_back(boundary_cycle.at(i));
-                if(i == pos_u) break;
-            }
-            return emit_simple_polygons({ poly1, poly2 });
-        }
-    }
 
     fv_surface_mesh<T, size_t> tri_mesh;
     try{
@@ -1110,6 +1084,13 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
         if(orient_sign(a2, b2, c2) == 0){
             continue;
         }
+        if(triangle_nearly_degenerate(a2, b2, c2, eps)
+        || point_near_segment(arr.points.at(ia), arr.points.at(ib), arr.points.at(ic), eps)
+        || point_near_segment(arr.points.at(ib), arr.points.at(ic), arr.points.at(ia), eps)
+        || point_near_segment(arr.points.at(ic), arr.points.at(ia), arr.points.at(ib), eps)
+        || !triangle_respects_original_boundary(arr, ia, ib, ic, eps)){
+            continue;
+        }
 
         const auto centroid2 = (a2 + b2 + c2) / static_cast<T>(3);
         if(!point_in_triangle_or_on_boundary(centroid2, tri2.at(0), tri2.at(1), tri2.at(2))){
@@ -1119,7 +1100,7 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
         std::array<vec3<T>, 3> tri = {{ arr.points.at(ia), arr.points.at(ib), arr.points.at(ic) }};
         split_triangle<T> st;
         st.verts = tri;
-        st.relation = classify_split_triangle(arr, tri, other_prep, far_distance);
+        st.relation = classify_split_triangle(arr, tri, other_prep, far_distance, sample_offset);
         out.push_back(st);
     }
     return out;
@@ -1173,24 +1154,6 @@ append_triangle(fv_surface_mesh<T, I> &mesh,
     mesh.vertices.push_back(tri.at(1));
     mesh.vertices.push_back(tri.at(2));
     mesh.faces.push_back({ base, static_cast<I>(base + 1), static_cast<I>(base + 2) });
-}
-
-template <class T, class I>
-fv_surface_mesh<T, I>
-fallback_boolean_mesh_op(const fv_surface_mesh<T, I> &lhs,
-                         const fv_surface_mesh<T, I> &rhs,
-                         MeshBooleanOperation2 op){
-    switch(op){
-        case MeshBooleanOperation2::Union:
-            return BooleanUnion(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Intersection:
-            return BooleanIntersection(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Exclusion:
-            return BooleanExclusion(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Subtraction:
-            return BooleanSubtraction(lhs, rhs, 5, static_cast<T>(0));
-    }
-    throw std::logic_error("Unrecognized MeshBooleanOperation2.");
 }
 
 template <class T, class I>
@@ -1408,51 +1371,47 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
                                                     op);
     }
 
-    try{
-        std::vector<face_arrangement<T>> arr_a;
-        std::vector<face_arrangement<T>> arr_b;
-        build_face_arrangements(prep_a, prep_b, arr_a, arr_b, eps);
+    std::vector<face_arrangement<T>> arr_a;
+    std::vector<face_arrangement<T>> arr_b;
+    build_face_arrangements(prep_a, prep_b, arr_a, arr_b, eps);
 
-        const auto extent = all_bounds.max - all_bounds.min;
-        const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
+    const auto extent = all_bounds.max - all_bounds.min;
+    const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
+    const auto sample_offset = std::max(eps * static_cast<T>(16), mesh_coord_eps(all_bounds) * static_cast<T>(4));
 
-        fv_surface_mesh<T, I> out;
-        for(const auto &arr : arr_a){
-            const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_b, far_distance);
-            for(const auto &piece : pieces){
-                if(include_face_from_a<T>(piece.relation, op)){
-                    append_triangle(out, piece.verts);
-                }
+    fv_surface_mesh<T, I> out;
+    for(const auto &arr : arr_a){
+        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_b, far_distance, sample_offset, eps);
+        for(const auto &piece : pieces){
+            if(include_face_from_a<T>(piece.relation, op)){
+                append_triangle(out, piece.verts);
             }
         }
-        for(const auto &arr : arr_b){
-            const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance);
-            for(const auto &piece : pieces){
-                if(include_face_from_b<T>(piece.relation, op)){
-                    append_triangle(out, piece.verts);
-                }
-            }
-        }
-
-        if(out.faces.empty()){
-            return out;
-        }
-
-        out.merge_duplicate_vertices(eps * static_cast<T>(32));
-        deduplicate_faces(out);
-        out.remove_degenerate_faces();
-        out.remove_disconnected_vertices();
-        out.recreate_involved_face_index();
-        validate_closed_triangular_mesh(out, "BooleanMeshOp2 output");
-        if(!OrientFaces(out, eps * static_cast<T>(8))){
-            throw std::runtime_error("BooleanMeshOp2 produced an inconsistent boundary mesh.");
-        }
-        out.recreate_involved_face_index();
-        return out;
-    }catch(const std::exception &e){
-        YLOGWARN("BooleanMeshOp2 falling back to legacy BooleanMeshOp: " << e.what());
-        return fallback_boolean_mesh_op(lhs, rhs, op);
     }
+    for(const auto &arr : arr_b){
+        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance, sample_offset, eps);
+        for(const auto &piece : pieces){
+            if(include_face_from_b<T>(piece.relation, op)){
+                append_triangle(out, piece.verts);
+            }
+        }
+    }
+
+    if(out.faces.empty()){
+        return out;
+    }
+
+    out.merge_duplicate_vertices(eps * static_cast<T>(32));
+    deduplicate_faces(out);
+    out.remove_degenerate_faces();
+    out.remove_disconnected_vertices();
+    out.recreate_involved_face_index();
+    validate_closed_triangular_mesh(out, "BooleanMeshOp2 output");
+    if(!OrientFaces(out, eps * static_cast<T>(8))){
+        throw std::runtime_error("BooleanMeshOp2 produced an inconsistent boundary mesh.");
+    }
+    out.recreate_involved_face_index();
+    return out;
 }
 
 } // namespace
