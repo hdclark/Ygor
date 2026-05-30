@@ -797,6 +797,8 @@ template <class T, class I>   class fv_surface_mesh {
         // Each record links a face from this mesh with a face from the other mesh and reports the precise coincident
         // point, segment, or polygon together with the participating vertices/edges/faces in both meshes.
         //
+        // Throws std::invalid_argument if either mesh contains non-finite vertices or out-of-range face indices.
+        //
         // The implementation uses adaptive predicates for orientation tests and automatically chooses a mesh-scale
         // snapping tolerance when snap_eps <= 0.
         std::vector<fv_surface_mesh_intersection<T>>
