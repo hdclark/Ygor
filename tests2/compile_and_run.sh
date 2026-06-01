@@ -55,6 +55,7 @@ g++ \
   YgorMeshesHoles.cc \
   YgorMeshesBoolean.cc \
   YgorMeshesBoolean2.cc \
+  YgorMeshesBoolean3.cc \
   YgorMeshesOrient.cc \
   YgorMeshesRefinement.cc \
   YgorMeshesRemeshing.cc \
