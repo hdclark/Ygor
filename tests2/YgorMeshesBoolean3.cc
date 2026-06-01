@@ -63,6 +63,51 @@ make_tetra_mesh3(){
     return mesh;
 }
 
+template <class T>
+static vec3<T>
+rotate_x3(const vec3<T> &v,
+          T angle){
+    return vec3<T>(v.x,
+                   std::cos(angle) * v.y - std::sin(angle) * v.z,
+                   std::sin(angle) * v.y + std::cos(angle) * v.z);
+}
+
+template <class T>
+static vec3<T>
+rotate_y3(const vec3<T> &v,
+          T angle){
+    return vec3<T>(std::cos(angle) * v.x + std::sin(angle) * v.z,
+                   v.y,
+                  -std::sin(angle) * v.x + std::cos(angle) * v.z);
+}
+
+template <class T>
+static vec3<T>
+rotate_z3(const vec3<T> &v,
+          T angle){
+    return vec3<T>(std::cos(angle) * v.x - std::sin(angle) * v.y,
+                   std::sin(angle) * v.x + std::cos(angle) * v.y,
+                   v.z);
+}
+
+template <class T, class I>
+static fv_surface_mesh<T, I>
+transform_mesh3(fv_surface_mesh<T, I> mesh,
+                const vec3<T> &centre,
+                const vec3<T> &translation,
+                const vec3<T> &angles){
+    for(auto &v : mesh.vertices){
+        auto p = v - centre;
+        p = rotate_x3(p, angles.x);
+        p = rotate_y3(p, angles.y);
+        p = rotate_z3(p, angles.z);
+        v = p + centre + translation;
+    }
+    REQUIRE(OrientFaces(mesh));
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
 template <class T, class I>
 static double
 mesh_signed_volume3(const fv_surface_mesh<T, I> &mesh){
@@ -196,6 +241,31 @@ TEST_CASE("YgorMeshesBoolean3"){
         REQUIRE(!out.faces.empty());
         check_closed_triangles3(out);
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 1.0) < 1.0e-5);
+    }
+
+    SUBCASE("Rotated box overlap stays closed through flood-filled classification"){
+        const auto lhs = make_box_mesh3<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                                           vec3<double>(1.0, 1.0, 1.0));
+        const auto rhs = transform_mesh3(
+            make_box_mesh3<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                             vec3<double>(0.79056770333667536,
+                                                          0.61638930571214234,
+                                                          0.86877650931814832)),
+            vec3<double>(0.5, 0.5, 0.5),
+            vec3<double>(-0.71375438444731121,
+                         0.09331071326240159,
+                         0.22327482635719553),
+            vec3<double>(0.85458411866745732,
+                         0.63179573031704728,
+                         0.16916079591411626));
+
+        const auto union_out = BooleanUnion3(lhs, rhs);
+        REQUIRE(!union_out.faces.empty());
+        check_closed_triangles3(union_out);
+
+        const auto subtraction_out = BooleanSubtraction3(lhs, rhs);
+        REQUIRE(!subtraction_out.faces.empty());
+        check_closed_triangles3(subtraction_out);
     }
 
     SUBCASE("Float specialization compiles for disjoint inputs"){

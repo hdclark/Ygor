@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <map>
 #include <memory>
@@ -24,6 +25,7 @@
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
 #include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesBoolean2.h"
 #include "YgorMeshesBoolean3.h"
 #include "YgorMeshesOrient.h"
 
@@ -79,13 +81,17 @@ struct face_arrangement {
     std::array<vec3<T>, 3> tri;
     std::vector<vec3<T>> points;
     std::set<std::pair<size_t, size_t>> segments;
+    std::set<std::pair<size_t, size_t>> constrained_segments;
     std::vector<coplanar_overlap_region<T>> overlaps;
 };
 
 template <class T>
 struct split_triangle {
     std::array<vec3<T>, 3> verts;
+    std::array<bool, 3> constrained_edge{{ false, false, false }};
+    size_t source_face_idx = 0UL;
     boolean_face_relation relation = boolean_face_relation::Outside;
+    bool relation_explicit = false;
 };
 
 template <class T>
@@ -93,6 +99,25 @@ struct face_pair_classification {
     std::array<int, 3> a_against_b{{ 0, 0, 0 }};
     std::array<int, 3> b_against_a{{ 0, 0, 0 }};
     face_pair_route route = face_pair_route::Discard;
+};
+
+struct face_arrangement_build_stats {
+    size_t candidate_pairs = 0UL;
+    size_t discarded_pairs = 0UL;
+    size_t fast_path_pairs = 0UL;
+    size_t robust_path_pairs = 0UL;
+    size_t segment_intersections = 0UL;
+    size_t coplanar_overlaps = 0UL;
+};
+
+struct mesh_checkpoint_stats {
+    size_t vertices = 0UL;
+    size_t faces = 0UL;
+    size_t unique_edges = 0UL;
+    size_t boundary_edges = 0UL;
+    size_t nonmanifold_edges = 0UL;
+    size_t degenerate_faces = 0UL;
+    bool finite_vertices = true;
 };
 
 template <class I>
@@ -113,6 +138,90 @@ make_undirected_edge(size_t a,
         std::swap(a, b);
     }
     return std::make_pair(a, b);
+}
+
+const char *
+boolean_op_name(MeshBooleanOperation3 op){
+    switch(op){
+        case MeshBooleanOperation3::Union:        return "union";
+        case MeshBooleanOperation3::Intersection: return "intersection";
+        case MeshBooleanOperation3::Exclusion:    return "exclusion";
+        case MeshBooleanOperation3::Subtraction:  return "subtraction";
+    }
+    return "unknown";
+}
+
+template <class T, class I>
+mesh_checkpoint_stats
+compute_mesh_checkpoint_stats(const fv_surface_mesh<T, I> &mesh){
+    mesh_checkpoint_stats out;
+    out.vertices = mesh.vertices.size();
+    out.faces = mesh.faces.size();
+
+    std::map<std::pair<I, I>, size_t> edge_counts;
+    for(const auto &v : mesh.vertices){
+        if(!v.isfinite()){
+            out.finite_vertices = false;
+        }
+    }
+    for(const auto &face : mesh.faces){
+        if(face.size() != 3UL){
+            out.degenerate_faces += 1UL;
+            continue;
+        }
+        if((face.at(0) == face.at(1)) || (face.at(1) == face.at(2)) || (face.at(2) == face.at(0))){
+            out.degenerate_faces += 1UL;
+        }
+        edge_counts[make_undirected_edge(face.at(0), face.at(1))] += 1UL;
+        edge_counts[make_undirected_edge(face.at(1), face.at(2))] += 1UL;
+        edge_counts[make_undirected_edge(face.at(2), face.at(0))] += 1UL;
+    }
+
+    out.unique_edges = edge_counts.size();
+    for(const auto &ep : edge_counts){
+        if(ep.second == 1UL){
+            out.boundary_edges += 1UL;
+        }else if(ep.second != 2UL){
+            out.nonmanifold_edges += 1UL;
+        }
+    }
+    return out;
+}
+
+template <class T, class I>
+void
+log_mesh_checkpoint(const std::string &checkpoint,
+                    const fv_surface_mesh<T, I> &mesh){
+    const auto stats = compute_mesh_checkpoint_stats(mesh);
+    YLOGDEBUG("BooleanMeshOp3 checkpoint '" << checkpoint
+              << "': V=" << stats.vertices
+              << " F=" << stats.faces
+              << " E=" << stats.unique_edges
+              << " boundary_edges=" << stats.boundary_edges
+              << " nonmanifold_edges=" << stats.nonmanifold_edges
+              << " degenerate_faces=" << stats.degenerate_faces
+              << " finite_vertices=" << (stats.finite_vertices ? "yes" : "no"));
+}
+
+MeshBooleanOperation2
+to_boolean2_op(MeshBooleanOperation3 op){
+    switch(op){
+        case MeshBooleanOperation3::Union:        return MeshBooleanOperation2::Union;
+        case MeshBooleanOperation3::Intersection: return MeshBooleanOperation2::Intersection;
+        case MeshBooleanOperation3::Exclusion:    return MeshBooleanOperation2::Exclusion;
+        case MeshBooleanOperation3::Subtraction:  return MeshBooleanOperation2::Subtraction;
+    }
+    return MeshBooleanOperation2::Union;
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+boolean2_fallback(const fv_surface_mesh<T, I> &lhs,
+                  const fv_surface_mesh<T, I> &rhs,
+                  MeshBooleanOperation3 op){
+    YLOGWARN("BooleanMeshOp3 falling back to BooleanMeshOp2 for "
+             << boolean_op_name(op) << ".");
+    return BooleanMeshOp2(lhs, rhs, to_boolean2_op(op), static_cast<T>(0));
 }
 
 template <class T, class I>
@@ -170,6 +279,7 @@ template <class T, class I>
 void
 validate_closed_triangular_mesh(const fv_surface_mesh<T, I> &mesh,
                                 const std::string &name){
+    log_mesh_checkpoint(name, mesh);
     if(mesh.faces.empty()){
         return;
     }
@@ -242,6 +352,57 @@ triangle_normal(const vec3<T> &a,
 }
 
 template <class T>
+struct quantized_point_key {
+    int64_t x = 0;
+    int64_t y = 0;
+    int64_t z = 0;
+
+    bool operator<(const quantized_point_key &rhs) const{
+        if(x != rhs.x) return x < rhs.x;
+        if(y != rhs.y) return y < rhs.y;
+        return z < rhs.z;
+    }
+};
+
+template <class T>
+struct quantized_edge_key {
+    quantized_point_key<T> a;
+    quantized_point_key<T> b;
+
+    bool operator<(const quantized_edge_key &rhs) const{
+        if(a < rhs.a) return true;
+        if(rhs.a < a) return false;
+        return b < rhs.b;
+    }
+};
+
+template <class T>
+quantized_point_key<T>
+quantize_point_key(const vec3<T> &p,
+                   T eps){
+    const long double scale = std::max(static_cast<long double>(eps),
+                                       static_cast<long double>(std::numeric_limits<T>::epsilon()));
+    return {
+        static_cast<int64_t>(std::llround(static_cast<long double>(p.x) / scale)),
+        static_cast<int64_t>(std::llround(static_cast<long double>(p.y) / scale)),
+        static_cast<int64_t>(std::llround(static_cast<long double>(p.z) / scale))
+    };
+}
+
+template <class T>
+quantized_edge_key<T>
+make_quantized_edge_key(const vec3<T> &a,
+                        const vec3<T> &b,
+                        T eps){
+    auto qa = quantize_point_key(a, eps);
+    auto qb = quantize_point_key(b, eps);
+    if(qb < qa){
+        std::swap(qa, qb);
+    }
+    return { qa, qb };
+}
+
+template <class T>
 vec3<T>
 triangle_centroid(const std::array<vec3<T>, 3> &tri){
     return (tri.at(0) + tri.at(1) + tri.at(2)) / static_cast<T>(3);
@@ -259,6 +420,7 @@ Boolean3Plane<T>
 make_boolean3_plane_impl(const vec3<T> &a,
                          const vec3<T> &b,
                          const vec3<T> &c){
+    // Step 1: construct the symbolic support plane directly from the original triangle vertices.
     const auto normal = triangle_normal(a, b, c);
     if(!(normal.sq_length() > static_cast<T>(0))){
         throw std::invalid_argument("Cannot construct Boolean3Plane from a degenerate triangle.");
@@ -290,6 +452,7 @@ make_edge_support_plane(const vec3<T> &a,
 template <class T>
 std::optional<vec3<T>>
 evaluate_symbolic_vertex_impl(const SymbolicVertex<T> &vertex){
+    // Step 1: lazily evaluate the exact-style symbolic vertex only when geometry must be emitted.
     if(vertex.evaluated_point){
         return vertex.evaluated_point;
     }
@@ -358,6 +521,7 @@ template <class T>
 int
 orient_symbolic_vertex_against_plane_impl(const SymbolicVertex<T> &vertex,
                                           const Boolean3Plane<T> &plane4){
+    // Step 1: evaluate the 4x4 determinant sign without collapsing to floating-point geometry first.
     const auto &p1 = vertex.support_planes.at(0);
     const auto &p2 = vertex.support_planes.at(1);
     const auto &p3 = vertex.support_planes.at(2);
@@ -764,6 +928,9 @@ compute_fast_path_intersection(const std::array<vec3<T>, 3> &tri_a,
                 if(!ok){
                     continue;
                 }
+                // Step 4 gotcha: if the intersection lands within the weld tolerance of an existing
+                // endpoint, treat the event as degenerate and hand it to the robust path instead of
+                // forcing an unstable floating-point split through CDT.
                 if((p.distance(tri.at(i)) <= weld_eps) || (p.distance(tri.at(j)) <= weld_eps)){
                     out.welded_to_existing_vertex = true;
                     return {};
@@ -806,6 +973,23 @@ compute_fast_path_intersection(const std::array<vec3<T>, 3> &tri_a,
     auto p1 = origin + dir * hi;
     p0 = snap_intersection_point(p0, tri_a, tri_b, snap_eps);
     p1 = snap_intersection_point(p1, tri_a, tri_b, snap_eps);
+    const auto near_any_vertex = [&](const vec3<T> &p) -> bool {
+        for(const auto &v : tri_a){
+            if(p.distance(v) <= weld_eps){
+                return true;
+            }
+        }
+        for(const auto &v : tri_b){
+            if(p.distance(v) <= weld_eps){
+                return true;
+            }
+        }
+        return false;
+    };
+    if(near_any_vertex(p0) || near_any_vertex(p1)){
+        out.welded_to_existing_vertex = true;
+        return out;
+    }
     if(p0.distance(p1) <= snap_eps){
         return out;
     }
@@ -996,7 +1180,8 @@ append_symbolic_or_sampled_points(std::vector<vec3<T>> &points,
     }
 }
 
-// Step 5: localized robust-path handler for degenerate clusters.
+// Step 5: localized robust-path handler for degenerate clusters. This keeps the decisions local
+// and reconstructs the degenerate contact set from support planes / symbolic vertices.
 template <class T, class I>
 triangle_intersection_result<T>
 compute_robust_path_intersection(const prepared_mesh<T, I> &prep_a,
@@ -1096,7 +1281,8 @@ void
 arrangement_add_segment(face_arrangement<T> &arr,
                         const vec3<T> &a,
                         const vec3<T> &b,
-                        T eps){
+                        T eps,
+                        bool constrained = false){
     if(a.distance(b) <= eps){
         return;
     }
@@ -1105,7 +1291,11 @@ arrangement_add_segment(face_arrangement<T> &arr,
     if(ia == ib){
         return;
     }
-    arr.segments.insert(make_undirected_edge<T>(ia, ib));
+    const auto edge = make_undirected_edge<T>(ia, ib);
+    arr.segments.insert(edge);
+    if(constrained){
+        arr.constrained_segments.insert(edge);
+    }
 }
 
 template <class T>
@@ -1153,20 +1343,21 @@ finalize_coplanar_overlap_segments(face_arrangement<T> &arr,
                 }
             }
             if(containing_polygons <= 1UL){
-                arrangement_add_segment(arr, a, b, eps);
+                arrangement_add_segment(arr, a, b, eps, true);
             }
         }
     }
 }
 
 template <class T, class I>
-void
+face_arrangement_build_stats
 build_face_arrangements_hybrid(const prepared_mesh<T, I> &prep_a,
                                const prepared_mesh<T, I> &prep_b,
                                std::vector<face_arrangement<T>> &arr_a,
                                std::vector<face_arrangement<T>> &arr_b,
                                const MeshBoolean3Options<T> &options,
                                T eps){
+    face_arrangement_build_stats stats;
     arr_a.clear();
     arr_b.clear();
     arr_a.reserve(prep_a.mesh.faces.size());
@@ -1188,6 +1379,7 @@ build_face_arrangements_hybrid(const prepared_mesh<T, I> &prep_a,
     }
 
     const auto candidate_pairs = collect_candidate_face_pairs(prep_a, prep_b);
+    stats.candidate_pairs = candidate_pairs.size();
     for(const auto &pair : candidate_pairs){
         const auto face_a_idx = pair.first;
         const auto face_b_idx = pair.second;
@@ -1201,28 +1393,34 @@ build_face_arrangements_hybrid(const prepared_mesh<T, I> &prep_a,
 
         const auto classification = classify_face_pair(tri_a, tri_b);
         if(classification.route == face_pair_route::Discard){
+            stats.discarded_pairs += 1UL;
             continue;
         }
 
         triangle_intersection_result<T> isect;
         if(classification.route == face_pair_route::FastPath){
+            stats.fast_path_pairs += 1UL;
             const auto fast = compute_fast_path_intersection(tri_a, tri_b,
                                                              classification,
                                                              eps,
                                                              std::max(options.fast_path_weld_eps, static_cast<T>(0)));
             if(fast.welded_to_existing_vertex){
+                stats.robust_path_pairs += 1UL;
                 isect = compute_robust_path_intersection(prep_a, prep_b, face_a_idx, face_b_idx, classification, eps);
             }else{
                 isect = fast.result;
             }
         }else{
+            stats.robust_path_pairs += 1UL;
             isect = compute_robust_path_intersection(prep_a, prep_b, face_a_idx, face_b_idx, classification, eps);
         }
 
         if(isect.kind == triangle_intersection_kind::Segment){
-            arrangement_add_segment(arr_a.at(face_a_idx), isect.points.at(0), isect.points.at(1), eps);
-            arrangement_add_segment(arr_b.at(face_b_idx), isect.points.at(0), isect.points.at(1), eps);
+            stats.segment_intersections += 1UL;
+            arrangement_add_segment(arr_a.at(face_a_idx), isect.points.at(0), isect.points.at(1), eps, true);
+            arrangement_add_segment(arr_b.at(face_b_idx), isect.points.at(0), isect.points.at(1), eps, true);
         }else if(isect.kind == triangle_intersection_kind::CoplanarPolygon){
+            stats.coplanar_overlaps += 1UL;
             auto region_a = coplanar_overlap_region<T>{ isect.points, triangle_normal(tri_b.at(0), tri_b.at(1), tri_b.at(2)) };
             auto region_b = coplanar_overlap_region<T>{ isect.points, triangle_normal(tri_a.at(0), tri_a.at(1), tri_a.at(2)) };
             arr_a.at(face_a_idx).overlaps.push_back(region_a);
@@ -1236,18 +1434,16 @@ build_face_arrangements_hybrid(const prepared_mesh<T, I> &prep_a,
     for(auto &arr : arr_b){
         finalize_coplanar_overlap_segments(arr, eps);
     }
+    return stats;
 }
 
-template <class T, class OtherI>
-boolean_face_relation
-classify_split_triangle(const face_arrangement<T> &arr,
-                        const std::array<vec3<T>, 3> &tri,
-                        const prepared_mesh<T, OtherI> &other_prep,
-                        T far_distance){
+template <class T>
+std::optional<boolean_face_relation>
+classify_coplanar_split_triangle(const face_arrangement<T> &arr,
+                                 const std::array<vec3<T>, 3> &tri){
     const auto normal = triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2));
     const auto axis = dominant_axis(normal);
-    const auto centroid3 = triangle_centroid(tri);
-    const auto centroid2 = project_drop_axis(centroid3, axis);
+    const auto centroid2 = project_drop_axis(triangle_centroid(tri), axis);
 
     for(const auto &overlap : arr.overlaps){
         std::vector<vec2<T>> poly2;
@@ -1256,30 +1452,19 @@ classify_split_triangle(const face_arrangement<T> &arr,
         }
         if((poly2.size() >= 3UL) && point_in_polygon_or_on_boundary(poly2, centroid2)){
             return (normal.Dot(overlap.other_normal) >= static_cast<T>(0))
-                ? boolean_face_relation::CoplanarSame
-                : boolean_face_relation::CoplanarOpposite;
+                ? std::optional<boolean_face_relation>(boolean_face_relation::CoplanarSame)
+                : std::optional<boolean_face_relation>(boolean_face_relation::CoplanarOpposite);
         }
     }
-
-    const bool inside = point_inside_mesh(centroid3, other_prep, far_distance);
-    return inside ? boolean_face_relation::Inside : boolean_face_relation::Outside;
+    return std::nullopt;
 }
 
-template <class T, class I, class OtherI>
-std::vector<split_triangle<T>>
-split_face_with_arrangement(const face_arrangement<T> &arr,
-                            const prepared_mesh<T, OtherI> &other_prep,
-                            T far_distance){
-    const auto normal = triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2));
-    const auto axis = dominant_axis(normal);
-
-    std::vector<vec2<T>> verts2;
-    for(const auto &p : arr.points){
-        verts2.push_back(project_drop_axis(p, axis));
-    }
-
+template <class T>
+std::set<std::pair<size_t, size_t>>
+refine_arrangement_segments(const face_arrangement<T> &arr,
+                            const std::set<std::pair<size_t, size_t>> &segments){
     std::set<std::pair<size_t, size_t>> refined_segments;
-    for(const auto &seg : arr.segments){
+    for(const auto &seg : segments){
         std::vector<size_t> on_segment = { seg.first, seg.second };
         const auto segment_eps = std::max(static_cast<T>(1),
                                           arr.points.at(seg.first).distance(arr.points.at(seg.second)))
@@ -1312,6 +1497,23 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
             refined_segments.insert(make_undirected_edge<T>(on_segment.at(i - 1), on_segment.at(i)));
         }
     }
+    return refined_segments;
+}
+
+template <class T>
+std::vector<split_triangle<T>>
+split_face_with_arrangement(const face_arrangement<T> &arr,
+                           size_t source_face_idx){
+    const auto normal = triangle_normal(arr.tri.at(0), arr.tri.at(1), arr.tri.at(2));
+    const auto axis = dominant_axis(normal);
+
+    std::vector<vec2<T>> verts2;
+    for(const auto &p : arr.points){
+        verts2.push_back(project_drop_axis(p, axis));
+    }
+
+    const auto refined_segments = refine_arrangement_segments(arr, arr.segments);
+    const auto refined_constrained_segments = refine_arrangement_segments(arr, arr.constrained_segments);
 
     std::vector<std::vector<size_t>> edges;
     for(const auto &seg : refined_segments){
@@ -1385,7 +1587,16 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
                 std::array<vec3<T>, 3> tri = {{ arr.points.at(ia), arr.points.at(ib), arr.points.at(ic) }};
                 split_triangle<T> st;
                 st.verts = tri;
-                st.relation = classify_split_triangle(arr, tri, other_prep, far_distance);
+                st.source_face_idx = source_face_idx;
+                st.constrained_edge = {{
+                    refined_constrained_segments.count(make_undirected_edge<T>(ia, ib)) != 0UL,
+                    refined_constrained_segments.count(make_undirected_edge<T>(ib, ic)) != 0UL,
+                    refined_constrained_segments.count(make_undirected_edge<T>(ic, ia)) != 0UL
+                }};
+                if(const auto relation = classify_coplanar_split_triangle(arr, tri)){
+                    st.relation = *relation;
+                    st.relation_explicit = true;
+                }
                 simple_out.push_back(st);
             }
         }
@@ -1415,10 +1626,10 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
         const auto it_u = std::find(boundary_cycle.begin(), boundary_cycle.end(), u);
         const auto it_v = std::find(boundary_cycle.begin(), boundary_cycle.end(), v);
         if((it_u != boundary_cycle.end()) && (it_v != boundary_cycle.end()) && (it_u != it_v)){
-            const auto pos_u = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_u));
-            const auto pos_v = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_v));
             std::vector<size_t> poly1;
             std::vector<size_t> poly2;
+            const auto pos_u = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_u));
+            const auto pos_v = static_cast<size_t>(std::distance(boundary_cycle.begin(), it_v));
             for(size_t i = pos_u;; i = (i + 1UL) % boundary_cycle.size()){
                 poly1.push_back(boundary_cycle.at(i));
                 if(i == pos_v) break;
@@ -1457,10 +1668,186 @@ split_face_with_arrangement(const face_arrangement<T> &arr,
         std::array<vec3<T>, 3> tri = {{ arr.points.at(ia), arr.points.at(ib), arr.points.at(ic) }};
         split_triangle<T> st;
         st.verts = tri;
-        st.relation = classify_split_triangle(arr, tri, other_prep, far_distance);
+        st.source_face_idx = source_face_idx;
+        st.constrained_edge = {{
+            refined_constrained_segments.count(make_undirected_edge<T>(ia, ib)) != 0UL,
+            refined_constrained_segments.count(make_undirected_edge<T>(ib, ic)) != 0UL,
+            refined_constrained_segments.count(make_undirected_edge<T>(ic, ia)) != 0UL
+        }};
+        if(const auto relation = classify_coplanar_split_triangle(arr, tri)){
+            st.relation = *relation;
+            st.relation_explicit = true;
+        }
         out.push_back(st);
     }
     return out;
+}
+
+// Step 6: classify split-face components with a flood-fill that flips parity only
+// when a traversal crosses a constrained intersection edge generated by Steps 4/5.
+template <class T, class OtherI>
+void
+classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
+                                     const prepared_mesh<T, OtherI> &other_prep,
+                                     T far_distance,
+                                     T eps,
+                                     const std::string &label){
+    struct edge_occurrence {
+        size_t piece_idx = 0UL;
+        size_t source_face_idx = 0UL;
+        bool constrained = false;
+    };
+
+    std::map<quantized_edge_key<T>, std::vector<edge_occurrence>> edge_map;
+    for(size_t piece_idx = 0; piece_idx < pieces.size(); ++piece_idx){
+        const auto &piece = pieces.at(piece_idx);
+        if(piece.relation_explicit){
+            continue;
+        }
+        for(size_t edge_idx = 0; edge_idx < 3UL; ++edge_idx){
+            const auto next = (edge_idx + 1UL) % 3UL;
+            edge_map[make_quantized_edge_key(piece.verts.at(edge_idx),
+                                             piece.verts.at(next),
+                                             eps)].push_back({ piece_idx,
+                                                               piece.source_face_idx,
+                                                               piece.constrained_edge.at(edge_idx) });
+        }
+    }
+
+    std::vector<std::vector<std::pair<size_t, bool>>> adjacency(pieces.size());
+    size_t ambiguous_piece_edges = 0UL;
+    for(const auto &ep : edge_map){
+        const auto &occurrences = ep.second;
+        std::map<size_t, std::vector<edge_occurrence>> by_face;
+        for(const auto &occ : occurrences){
+            by_face[occ.source_face_idx].push_back(occ);
+        }
+
+        for(const auto &face_occ : by_face){
+            if(face_occ.second.size() > 2UL){
+                ambiguous_piece_edges += 1UL;
+                continue;
+            }
+            if(face_occ.second.size() == 2UL){
+                const bool invert = face_occ.second.at(0).constrained || face_occ.second.at(1).constrained;
+                adjacency.at(face_occ.second.at(0).piece_idx).push_back({ face_occ.second.at(1).piece_idx, invert });
+                adjacency.at(face_occ.second.at(1).piece_idx).push_back({ face_occ.second.at(0).piece_idx, invert });
+            }
+        }
+
+        std::vector<edge_occurrence> boundary_occurrences;
+        for(const auto &occ : occurrences){
+            if(!occ.constrained){
+                boundary_occurrences.push_back(occ);
+            }
+        }
+        std::map<size_t, edge_occurrence> distinct_boundary_faces;
+        for(const auto &occ : boundary_occurrences){
+            distinct_boundary_faces.emplace(occ.source_face_idx, occ);
+        }
+        if(distinct_boundary_faces.size() == 2UL){
+            auto it = distinct_boundary_faces.begin();
+            const auto lhs = it->second;
+            ++it;
+            const auto rhs = it->second;
+            adjacency.at(lhs.piece_idx).push_back({ rhs.piece_idx, false });
+            adjacency.at(rhs.piece_idx).push_back({ lhs.piece_idx, false });
+        }else if(distinct_boundary_faces.size() > 2UL){
+            ambiguous_piece_edges += 1UL;
+        }
+    }
+    if(ambiguous_piece_edges > 0UL){
+        YLOGWARN("BooleanMeshOp3 " << label
+                 << " flood-fill found " << ambiguous_piece_edges
+                 << " ambiguous split-edge groups before output assembly.");
+    }
+
+    std::vector<int> parity(pieces.size(), -1);
+    std::vector<size_t> component;
+    std::deque<size_t> worklist;
+    for(size_t seed_idx = 0; seed_idx < pieces.size(); ++seed_idx){
+        if(pieces.at(seed_idx).relation_explicit || (parity.at(seed_idx) != -1)){
+            continue;
+        }
+
+        component.clear();
+        worklist.clear();
+        worklist.push_back(seed_idx);
+        parity.at(seed_idx) = -2;
+        while(!worklist.empty()){
+            const auto piece_idx = worklist.front();
+            worklist.pop_front();
+            component.push_back(piece_idx);
+            for(const auto &nbr : adjacency.at(piece_idx)){
+                if(parity.at(nbr.first) == -1){
+                    parity.at(nbr.first) = -2;
+                    worklist.push_back(nbr.first);
+                }
+            }
+        }
+
+        auto seed_it = std::find_if(component.begin(), component.end(), [&](size_t piece_idx){
+            return std::none_of(pieces.at(piece_idx).constrained_edge.begin(),
+                                pieces.at(piece_idx).constrained_edge.end(),
+                                [](bool constrained){ return constrained; });
+        });
+        const auto component_seed = (seed_it != component.end()) ? *seed_it : component.front();
+        const bool inside = point_inside_mesh(triangle_centroid(pieces.at(component_seed).verts),
+                                             other_prep,
+                                             far_distance);
+
+        worklist.clear();
+        for(const auto piece_idx : component){
+            parity.at(piece_idx) = -1;
+        }
+        parity.at(component_seed) = inside ? 1 : 0;
+        worklist.push_back(component_seed);
+        bool component_conflict = false;
+        while(!worklist.empty()){
+            const auto piece_idx = worklist.front();
+            worklist.pop_front();
+            for(const auto &nbr : adjacency.at(piece_idx)){
+                const int expected = nbr.second ? (1 - parity.at(piece_idx)) : parity.at(piece_idx);
+                if(parity.at(nbr.first) == -1){
+                    parity.at(nbr.first) = expected;
+                    worklist.push_back(nbr.first);
+                }else if(parity.at(nbr.first) != expected){
+                    component_conflict = true;
+                    YLOGWARN("BooleanMeshOp3 " << label
+                             << " flood-fill parity conflict between split pieces "
+                             << piece_idx << " and " << nbr.first << ".");
+                }
+            }
+        }
+
+        for(const auto piece_idx : component){
+            if(component_conflict || (parity.at(piece_idx) == -1)){
+                const bool fallback_inside = point_inside_mesh(triangle_centroid(pieces.at(piece_idx).verts),
+                                                               other_prep,
+                                                               far_distance);
+                parity.at(piece_idx) = fallback_inside ? 1 : 0;
+            }
+        }
+    }
+
+    size_t inside_count = 0UL;
+    size_t outside_count = 0UL;
+    size_t coplanar_count = 0UL;
+    for(size_t piece_idx = 0; piece_idx < pieces.size(); ++piece_idx){
+        auto &piece = pieces.at(piece_idx);
+        if(piece.relation_explicit){
+            coplanar_count += 1UL;
+            continue;
+        }
+        const bool inside = (parity.at(piece_idx) == 1);
+        piece.relation = inside ? boolean_face_relation::Inside : boolean_face_relation::Outside;
+        inside_count += inside ? 1UL : 0UL;
+        outside_count += inside ? 0UL : 1UL;
+    }
+    YLOGDEBUG("BooleanMeshOp3 " << label
+              << " flood-fill classified pieces: inside=" << inside_count
+              << " outside=" << outside_count
+              << " coplanar=" << coplanar_count);
 }
 
 template <class T>
@@ -1697,37 +2084,64 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
     auto all_bounds = lhs_bounds;
     all_bounds.expand(rhs_bounds);
     const auto eps = (options.snap_eps > static_cast<T>(0)) ? options.snap_eps : mesh_coord_eps(all_bounds);
+    YLOGINFO("BooleanMeshOp3 starting " << boolean_op_name(op)
+             << " with lhs(F=" << lhs.faces.size() << ", V=" << lhs.vertices.size()
+             << ") rhs(F=" << rhs.faces.size() << ", V=" << rhs.vertices.size()
+             << ") snap_eps=" << eps
+             << " fast_path_weld_eps=" << options.fast_path_weld_eps);
 
     const auto prep_a = prepare_mesh(lhs, "lhs", eps);
     const auto prep_b = prepare_mesh(rhs, "rhs", eps);
+    YLOGDEBUG("BooleanMeshOp3 Step 1 prepared exact plane support and oriented inputs.");
 
     vec3<T> lhs_box_min, lhs_box_max, rhs_box_min, rhs_box_max;
     if(extract_axis_aligned_box(prep_a.mesh, lhs_box_min, lhs_box_max, eps)
     && extract_axis_aligned_box(prep_b.mesh, rhs_box_min, rhs_box_max, eps)){
+        YLOGINFO("BooleanMeshOp3 using exact axis-aligned box fast path.");
         return exact_axis_aligned_box_boolean<T, I>(lhs_box_min, lhs_box_max,
                                                     rhs_box_min, rhs_box_max,
                                                     op);
     }
 
-    std::vector<face_arrangement<T>> arr_a;
-    std::vector<face_arrangement<T>> arr_b;
-    build_face_arrangements_hybrid(prep_a, prep_b, arr_a, arr_b, options, eps);
+    try{
+        std::vector<face_arrangement<T>> arr_a;
+        std::vector<face_arrangement<T>> arr_b;
+        // Step 2/3: broad-phase candidate search plus exact routing into the fast or robust path.
+        const auto arrangement_stats = build_face_arrangements_hybrid(prep_a, prep_b, arr_a, arr_b, options, eps);
+        YLOGINFO("BooleanMeshOp3 candidate pairs=" << arrangement_stats.candidate_pairs
+                 << " discarded=" << arrangement_stats.discarded_pairs
+                 << " fast=" << arrangement_stats.fast_path_pairs
+                 << " robust=" << arrangement_stats.robust_path_pairs
+                 << " segment_splits=" << arrangement_stats.segment_intersections
+                 << " coplanar_overlaps=" << arrangement_stats.coplanar_overlaps);
 
-    const auto extent = all_bounds.max - all_bounds.min;
-    const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
+        const auto extent = all_bounds.max - all_bounds.min;
+        const auto far_distance = static_cast<T>(4) * std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
 
-    fv_surface_mesh<T, I> out;
-    for(const auto &arr : arr_a){
-        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_b, far_distance);
-        for(const auto &piece : pieces){
+        std::vector<split_triangle<T>> pieces_a;
+        std::vector<split_triangle<T>> pieces_b;
+        for(size_t face_idx = 0; face_idx < arr_a.size(); ++face_idx){
+            auto pieces = split_face_with_arrangement(arr_a.at(face_idx), face_idx);
+            pieces_a.insert(pieces_a.end(), pieces.begin(), pieces.end());
+        }
+        for(size_t face_idx = 0; face_idx < arr_b.size(); ++face_idx){
+            auto pieces = split_face_with_arrangement(arr_b.at(face_idx), face_idx);
+            pieces_b.insert(pieces_b.end(), pieces.begin(), pieces.end());
+        }
+        YLOGDEBUG("BooleanMeshOp3 Step 4/5 generated split pieces: lhs=" << pieces_a.size()
+                  << " rhs=" << pieces_b.size());
+
+        classify_split_pieces_via_flood_fill(pieces_a, prep_b, far_distance, eps, "lhs");
+        classify_split_pieces_via_flood_fill(pieces_b, prep_a, far_distance, eps, "rhs");
+
+        fv_surface_mesh<T, I> out;
+        // Step 6: global topological classification now reuses the flood-filled inside/outside state.
+        for(const auto &piece : pieces_a){
             if(include_face_from_a<T>(piece.relation, op)){
                 append_triangle(out, piece.verts);
             }
         }
-    }
-    for(const auto &arr : arr_b){
-        const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance);
-        for(const auto &piece : pieces){
+        for(const auto &piece : pieces_b){
             if(include_face_from_b<T>(piece.relation, op)){
                 if(op == MeshBooleanOperation3::Subtraction){
                     append_triangle(out, {{ piece.verts.at(0), piece.verts.at(2), piece.verts.at(1) }});
@@ -1736,23 +2150,36 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
                 }
             }
         }
-    }
+        log_mesh_checkpoint("BooleanMeshOp3 assembled output", out);
 
-    if(out.faces.empty()){
+        if(out.faces.empty()){
+            YLOGINFO("BooleanMeshOp3 produced an empty result.");
+            return out;
+        }
+
+        // Final cleanup is intentionally conservative: merge only snap-equivalent vertices so the
+        // topological classification from Step 6 is not invalidated by a later aggressive weld.
+        out.merge_duplicate_vertices(eps);
+        deduplicate_faces(out);
+        out.remove_degenerate_faces();
+        out.remove_disconnected_vertices();
+        out.recreate_involved_face_index();
+        log_mesh_checkpoint("BooleanMeshOp3 cleaned output", out);
+        validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
+        if(!OrientFaces(out, eps * static_cast<T>(8))){
+            YLOGWARN("BooleanMeshOp3 orientation failed after cleanup for " << boolean_op_name(op) << ".");
+            throw std::runtime_error("BooleanMeshOp3 produced an inconsistent boundary mesh.");
+        }
+        out.recreate_involved_face_index();
+        YLOGINFO("BooleanMeshOp3 completed " << boolean_op_name(op)
+                 << " with F=" << out.faces.size()
+                 << " V=" << out.vertices.size());
         return out;
+    }catch(const std::exception &e){
+        YLOGWARN("BooleanMeshOp3 hybrid path failed during " << boolean_op_name(op)
+                 << ": " << e.what());
+        return boolean2_fallback(lhs, rhs, op);
     }
-
-    out.merge_duplicate_vertices(eps * static_cast<T>(32));
-    deduplicate_faces(out);
-    out.remove_degenerate_faces();
-    out.remove_disconnected_vertices();
-    out.recreate_involved_face_index();
-    validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
-    if(!OrientFaces(out, eps * static_cast<T>(8))){
-        throw std::runtime_error("BooleanMeshOp3 produced an inconsistent boundary mesh.");
-    }
-    out.recreate_involved_face_index();
-    return out;
 }
 
 } // namespace
