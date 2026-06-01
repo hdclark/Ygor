@@ -1,6 +1,7 @@
 
 
 build
+build*
 doctest
 
 *.swp
@@ -24,6 +25,7 @@ twot*
 regex*
 report_machine_parameters
 run_tests
+run_*
 
 # CodeQL build artifacts
 _codeql_build_dir
