@@ -1680,7 +1680,11 @@ exact_axis_aligned_box_boolean(const vec3<T> &lhs_min,
         }
     }
     if(!out.faces.empty()){
-        OrientFaces(out, std::sqrt(std::numeric_limits<T>::epsilon()) * static_cast<T>(8));
+        const auto orient_eps = std::sqrt(std::numeric_limits<T>::epsilon()) * static_cast<T>(8);
+        if(!OrientFaces(out, orient_eps)){
+            throw std::runtime_error("axis-aligned box boolean produced an inconsistent boundary mesh.");
+        }
+        validate_closed_triangular_mesh(out, "axis-aligned box boolean output");
     }
     out.recreate_involved_face_index();
     return out;
