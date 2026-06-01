@@ -1,4 +1,4 @@
-//YgorMeshesBoolean2.h - Written by GitHub Copilot in 2026.
+//YgorMeshesBoolean2.h - Written by hal clark 2026.
 
 #pragma once
 #ifndef YGOR_MESHES_BOOLEAN2_H_

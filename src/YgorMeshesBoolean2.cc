@@ -1,4 +1,4 @@
-//YgorMeshesBoolean2.cc - Written by GitHub Copilot in 2026.
+//YgorMeshesBoolean2.cc - Written by hal clark 2026.
 
 #include <algorithm>
 #include <any>
