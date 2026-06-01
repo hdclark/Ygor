@@ -764,7 +764,7 @@ compute_fast_path_intersection(const std::array<vec3<T>, 3> &tri_a,
                 if(!ok){
                     continue;
                 }
-                if((t < weld_eps) || ((static_cast<T>(1) - t) < weld_eps)){
+                if((p.distance(tri.at(i)) <= weld_eps) || (p.distance(tri.at(j)) <= weld_eps)){
                     out.welded_to_existing_vertex = true;
                     return {};
                 }
