@@ -1026,10 +1026,6 @@ compute_robust_path_intersection(const prepared_mesh<T, I> &prep_a,
         return compute_coplanar_intersection(tri_a, tri_b, eps);
     }
 
-    const auto cluster_a = collect_local_cluster_faces(prep_a, face_a_idx);
-    const auto cluster_b = collect_local_cluster_faces(prep_b, face_b_idx);
-    (void)cluster_a;
-    (void)cluster_b;
 
     append_symbolic_or_sampled_points(out.points, tri_a, tri_b,
                                       prep_a.face_planes.at(face_a_idx),
