@@ -900,6 +900,7 @@ compute_fast_path_intersection(const std::array<vec3<T>, 3> &tri_a,
     const auto n_b = triangle_normal(tri_b.at(0), tri_b.at(1), tri_b.at(2));
     const auto line_dir = n_a.Cross(n_b);
     if(line_dir.sq_length() <= snap_eps * snap_eps){
+        out.welded_to_existing_vertex = true; // route nearly-parallel / degenerate cases to the robust path
         return out;
     }
 
