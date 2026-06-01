@@ -1741,6 +1741,18 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
                   << " ambiguous split-edge groups before output assembly.");
     }
 
+    std::vector<int> direct_relation(pieces.size(), -1);
+    for(size_t piece_idx = 0; piece_idx < pieces.size(); ++piece_idx){
+        if(pieces.at(piece_idx).relation_explicit){
+            continue;
+        }
+        direct_relation.at(piece_idx) = point_inside_mesh(triangle_centroid(pieces.at(piece_idx).verts),
+                                                          other_prep,
+                                                          far_distance)
+            ? 1
+            : 0;
+    }
+
     std::vector<int> parity(pieces.size(), -1);
     std::vector<size_t> component;
     std::deque<size_t> worklist;
@@ -1771,15 +1783,11 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
                                 [](bool constrained){ return constrained; });
         });
         const auto component_seed = (seed_it != component.end()) ? *seed_it : component.front();
-        const bool inside = point_inside_mesh(triangle_centroid(pieces.at(component_seed).verts),
-                                             other_prep,
-                                             far_distance);
-
         worklist.clear();
         for(const auto piece_idx : component){
             parity.at(piece_idx) = -1;
         }
-        parity.at(component_seed) = inside ? 1 : 0;
+        parity.at(component_seed) = direct_relation.at(component_seed);
         worklist.push_back(component_seed);
         bool component_conflict = false;
         while(!worklist.empty()){
@@ -1799,12 +1807,19 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
             }
         }
 
+        bool component_mismatch = false;
         for(const auto piece_idx : component){
-            if(component_conflict || (parity.at(piece_idx) == -1)){
-                const bool fallback_inside = point_inside_mesh(triangle_centroid(pieces.at(piece_idx).verts),
-                                                               other_prep,
-                                                               far_distance);
-                parity.at(piece_idx) = fallback_inside ? 1 : 0;
+            if((parity.at(piece_idx) != -1) && (parity.at(piece_idx) != direct_relation.at(piece_idx))){
+                component_mismatch = true;
+                YLOGDEBUG("BooleanMeshOp3 " << label
+                          << " flood-fill/direct classification mismatch on split piece "
+                          << piece_idx << ".");
+            }
+        }
+
+        for(const auto piece_idx : component){
+            if(component_conflict || component_mismatch || (parity.at(piece_idx) == -1)){
+                parity.at(piece_idx) = direct_relation.at(piece_idx);
             }
         }
     }
