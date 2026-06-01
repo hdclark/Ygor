@@ -1,4 +1,4 @@
-//YgorMeshesBoolean2.cc - Written by hal clark 2026.
+//YgorMeshesBoolean2.cc - Written by hal clark in 2026.
 
 #include <algorithm>
 #include <any>
@@ -22,7 +22,6 @@
 #include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
-#include "YgorMeshesBoolean.h"
 #include "YgorMeshesBoolean2.h"
 #include "YgorMeshesOrient.h"
 
@@ -1176,24 +1175,6 @@ append_triangle(fv_surface_mesh<T, I> &mesh,
 }
 
 template <class T, class I>
-fv_surface_mesh<T, I>
-fallback_boolean_mesh_op(const fv_surface_mesh<T, I> &lhs,
-                         const fv_surface_mesh<T, I> &rhs,
-                         MeshBooleanOperation2 op){
-    switch(op){
-        case MeshBooleanOperation2::Union:
-            return BooleanUnion(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Intersection:
-            return BooleanIntersection(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Exclusion:
-            return BooleanExclusion(lhs, rhs, 5, static_cast<T>(0));
-        case MeshBooleanOperation2::Subtraction:
-            return BooleanSubtraction(lhs, rhs, 5, static_cast<T>(0));
-    }
-    throw std::logic_error("Unrecognized MeshBooleanOperation2.");
-}
-
-template <class T, class I>
 void
 deduplicate_faces(fv_surface_mesh<T, I> &mesh){
     std::set<std::array<I, 3>> seen;
@@ -1451,7 +1432,7 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
         return out;
     }catch(const std::exception &e){
         YLOGWARN("BooleanMeshOp2 falling back to legacy BooleanMeshOp: " << e.what());
-        return fallback_boolean_mesh_op(lhs, rhs, op);
+        throw;
     }
 }
 
