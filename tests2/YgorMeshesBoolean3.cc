@@ -3,8 +3,10 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <sstream>
 
 #include <YgorMath.h>
+#include <YgorMathIOOBJ.h>
 #include <YgorMeshesBoolean3.h>
 #include <YgorMeshesOrient.h>
 
@@ -120,6 +122,19 @@ mesh_signed_volume3(const fv_surface_mesh<T, I> &mesh){
         total += static_cast<long double>(a.Dot(b.Cross(c))) / 6.0L;
     }
     return static_cast<double>(total);
+}
+
+template <class T, class I>
+static fv_surface_mesh<T, I>
+read_obj_mesh3(const std::string &obj){
+    fv_surface_mesh<T, I> mesh;
+    std::stringstream ss(obj);
+    REQUIRE(ReadFVSMeshFromOBJ(mesh, ss));
+    REQUIRE(!mesh.vertices.empty());
+    REQUIRE(!mesh.faces.empty());
+    REQUIRE(OrientFaces(mesh));
+    mesh.recreate_involved_face_index();
+    return mesh;
 }
 
 template <class T, class I>
@@ -262,6 +277,69 @@ TEST_CASE("YgorMeshesBoolean3"){
         const auto union_out = BooleanUnion3(lhs, rhs);
         REQUIRE(!union_out.faces.empty());
         check_closed_triangles3(union_out);
+
+        const auto subtraction_out = BooleanSubtraction3(lhs, rhs);
+        REQUIRE(!subtraction_out.faces.empty());
+        check_closed_triangles3(subtraction_out);
+    }
+
+    SUBCASE("Provided skewed box regression succeeds for all Boolean operations"){
+        const auto lhs = read_obj_mesh3<double, uint64_t>(R"obj(# Wavefront OBJ file.
+v -58.991596638655466 -64.159663865546236 -10
+v 67.058823529411768 -65.924369747899163 -10
+v -53.69747899159664 58.613445378151262 -10
+v 62.521008403361336 69.70588235294116 -10
+v -58.991596638655466 -64.159663865546236 10
+v 67.058823529411768 -65.924369747899163 10
+v -53.69747899159664 58.613445378151262 10
+v 62.521008403361336 69.70588235294116 10
+f 5 6 7
+f 1 3 2
+f 7 6 8
+f 3 4 2
+f 1 2 6
+f 1 6 5
+f 3 1 5
+f 3 5 7
+f 2 4 8
+f 2 8 6
+f 4 3 7
+f 4 7 8
+)obj");
+        const auto rhs = read_obj_mesh3<double, uint64_t>(R"obj(# Wavefront OBJ file.
+v -29.747899159663863 -22.310924369747902 -24.5
+v 29.495798319327729 -21.30252100840336 -24.5
+v -27.731092436974787 31.638655462184872 -24.5
+v 25.966386554621849 33.655462184873947 -24.5
+v -29.747899159663863 -22.310924369747902 17.5
+v 29.495798319327729 -21.30252100840336 17.5
+v -27.731092436974787 31.638655462184872 17.5
+v 25.966386554621849 33.655462184873947 17.5
+f 5 6 7
+f 1 3 2
+f 7 6 8
+f 3 4 2
+f 1 2 6
+f 1 6 5
+f 3 1 5
+f 3 5 7
+f 2 4 8
+f 2 8 6
+f 4 3 7
+f 4 7 8
+)obj");
+
+        const auto union_out = BooleanUnion3(lhs, rhs);
+        REQUIRE(!union_out.faces.empty());
+        check_closed_triangles3(union_out);
+
+        const auto intersection_out = BooleanIntersection3(lhs, rhs);
+        REQUIRE(!intersection_out.faces.empty());
+        check_closed_triangles3(intersection_out);
+
+        const auto exclusion_out = BooleanExclusion3(lhs, rhs);
+        REQUIRE(!exclusion_out.faces.empty());
+        check_closed_triangles3(exclusion_out);
 
         const auto subtraction_out = BooleanSubtraction3(lhs, rhs);
         REQUIRE(!subtraction_out.faces.empty());
