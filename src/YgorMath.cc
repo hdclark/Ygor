@@ -6950,7 +6950,7 @@ fv_surface_mesh<T,I>::merge_duplicate_vertices( T distance_eps ){
             // Determine the range of candidate vertices that need to be searched.
             //
             // This is done to limit the number of full-distance calculations.
-            const auto adj_end = std::find_if_not(std::next(i_it), end, [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= sq_dist_eps; });
+            const auto adj_end = std::find_if_not(std::next(i_it), end, [&](const I &n){ return std::abs(this->vertices[n].z - v_i.z) <= distance_eps; });
 
             // Find all vertices that can be considered duplicates by searching through all candidates.
             for(auto a_it = std::next(i_it); a_it != adj_end; ++a_it){
