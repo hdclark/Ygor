@@ -51,6 +51,7 @@ g++ \
   YgorMathIOSTL.cc \
   YgorMathIOXYZ.cc \
   YgorMathIOCSV.cc \
+  YgorMeshesBSPTree.cc \
   YgorMeshesConvexHull.cc \
   YgorMeshesHoles.cc \
   YgorMeshesBoolean.cc \

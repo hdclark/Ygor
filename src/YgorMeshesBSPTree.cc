@@ -1,0 +1,863 @@
+//YgorMeshesBSPTree.cc - Written by hal clark in 2026.
+//
+// Binary Space Partitioning tree for 3D solid volume representation.
+// Uses Shewchuk-style adaptive predicates for robust geometric decisions.
+// Boolean operations follow Naylor's BSP merge algorithm.
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <list>
+#include <map>
+#include <memory>
+#include <set>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "YgorDefinitions.h"
+#include "YgorMath.h"
+#include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesBSPTree.h"
+
+
+namespace {
+
+template <class T>
+constexpr T plane_threshold() {
+    return std::numeric_limits<T>::epsilon() * static_cast<T>(1024);
+}
+
+template <class T>
+void plane_anchors(const plane<T> &P, T *pa, T *pb, T *pc) {
+    vec3<T> u;
+    const vec3<T> x_axis(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+    const vec3<T> y_axis(static_cast<T>(0), static_cast<T>(1), static_cast<T>(0));
+    if(std::abs(P.N_0.Dot(x_axis)) < static_cast<T>(0.9)) {
+        u = P.N_0.Cross(x_axis).unit();
+    } else {
+        u = P.N_0.Cross(y_axis).unit();
+    }
+    const vec3<T> v = P.N_0.Cross(u);
+
+    pa[0] = P.R_0.x;          pa[1] = P.R_0.y;          pa[2] = P.R_0.z;
+    pb[0] = P.R_0.x + u.x;    pb[1] = P.R_0.y + u.y;    pb[2] = P.R_0.z + u.z;
+    pc[0] = P.R_0.x + v.x;    pc[1] = P.R_0.y + v.y;    pc[2] = P.R_0.z + v.z;
+}
+
+template <class T>
+int classify_point(const plane<T> &P, const vec3<T> &v) {
+    T pa[3], pb[3], pc[3];
+    plane_anchors(P, pa, pb, pc);
+    const T pd[3] = { v.x, v.y, v.z };
+    const double s = adaptive_predicate::orient3d(pa, pb, pc, pd);
+    return (s > 0.0) ? +1 : ((s < 0.0) ? -1 : 0);
+}
+
+enum class TriClass : uint8_t {
+    Front    = 0,
+    Back     = 1,
+    Coplanar = 2,
+    Spanning = 3
+};
+
+template <class T>
+TriClass classify_triangle(const plane<T> &P,
+                           const vec3<T> &a,
+                           const vec3<T> &b,
+                           const vec3<T> &c) {
+    const int s[3] = {
+        classify_point(P, a),
+        classify_point(P, b),
+        classify_point(P, c)
+    };
+    if(s[0] == 0 && s[1] == 0 && s[2] == 0) return TriClass::Coplanar;
+    bool has_pos = false, has_neg = false;
+    for(int i = 0; i < 3; ++i) {
+        if(s[i] > 0) has_pos = true;
+        if(s[i] < 0) has_neg = true;
+    }
+    if(has_pos && has_neg) return TriClass::Spanning;
+    if(has_neg) return TriClass::Back;
+    return TriClass::Front;
+}
+
+template <class T>
+vec3<T> intersect_edge_with_plane(const plane<T> &P,
+                                  const vec3<T> &a,
+                                  const vec3<T> &b) {
+    const T d0 = P.Get_Signed_Distance_To_Point(a);
+    const T d1 = P.Get_Signed_Distance_To_Point(b);
+    const T denom = d0 - d1;
+    if(std::abs(denom) < plane_threshold<T>()) {
+        return (a + b) * static_cast<T>(0.5);
+    }
+    const T t = d0 / denom;
+    return a + (b - a) * t;
+}
+
+template <class T>
+void split_triangle(const plane<T> &P,
+                    const vec3<T> &a,
+                    const vec3<T> &b,
+                    const vec3<T> &c,
+                    std::vector<std::array<vec3<T>, 3>> &front,
+                    std::vector<std::array<vec3<T>, 3>> &back) {
+    const int sgn[3] = {
+        classify_point(P, a),
+        classify_point(P, b),
+        classify_point(P, c)
+    };
+    if(sgn[0] >= 0 && sgn[1] >= 0 && sgn[2] >= 0) {
+        if(sgn[0] > 0 || sgn[1] > 0 || sgn[2] > 0)
+            front.push_back({{a, b, c}});
+        return;
+    }
+    if(sgn[0] <= 0 && sgn[1] <= 0 && sgn[2] <= 0) {
+        if(sgn[0] < 0 || sgn[1] < 0 || sgn[2] < 0)
+            back.push_back({{a, b, c}});
+        return;
+    }
+    std::vector<vec3<T>> pos, neg;
+    if(sgn[0] >= 0) pos.push_back(a); else neg.push_back(a);
+    if(sgn[1] >= 0) pos.push_back(b); else neg.push_back(b);
+    if(sgn[2] >= 0) pos.push_back(c); else neg.push_back(c);
+    if(pos.size() == 1u && neg.size() == 2u) {
+        const vec3<T> i0 = intersect_edge_with_plane(P, pos[0], neg[0]);
+        const vec3<T> i1 = intersect_edge_with_plane(P, pos[0], neg[1]);
+        front.push_back({{pos[0], i0, i1}});
+        back.push_back({{neg[0], neg[1], i1}});
+        back.push_back({{neg[0], i1, i0}});
+    } else {
+        const vec3<T> i0 = intersect_edge_with_plane(P, neg[0], pos[0]);
+        const vec3<T> i1 = intersect_edge_with_plane(P, neg[0], pos[1]);
+        front.push_back({{pos[0], pos[1], i1}});
+        front.push_back({{pos[0], i1, i0}});
+        back.push_back({{neg[0], i0, i1}});
+    }
+}
+
+template <class T>
+plane<T> plane_from_triangle(const vec3<T> &a,
+                             const vec3<T> &b,
+                             const vec3<T> &c) {
+    const vec3<T> edge1 = b - a;
+    const vec3<T> edge2 = c - a;
+    const vec3<T> N = edge1.Cross(edge2).unit();
+    return plane<T>(N, (a + b + c) * (static_cast<T>(1) / static_cast<T>(3)));
+}
+
+// ---- Ray-casting for IN/OUT classification ----
+
+template <class T>
+bool ray_intersects_triangle(const vec3<T> &origin,
+                             const vec3<T> &direction,
+                             const vec3<T> &v0,
+                             const vec3<T> &v1,
+                             const vec3<T> &v2) {
+    const vec3<T> e1 = v1 - v0;
+    const vec3<T> e2 = v2 - v0;
+    const vec3<T> h = direction.Cross(e2);
+    const T a = e1.Dot(h);
+    if(std::abs(a) < plane_threshold<T>()) return false;
+    const T f = static_cast<T>(1) / a;
+    const vec3<T> s = origin - v0;
+    const T u = f * s.Dot(h);
+    if(u < static_cast<T>(0) || u > static_cast<T>(1)) return false;
+    const vec3<T> q = s.Cross(e1);
+    const T v = f * direction.Dot(q);
+    if(v < static_cast<T>(0) || (u + v) > static_cast<T>(1)) return false;
+    const T t = f * e2.Dot(q);
+    return (t > plane_threshold<T>());
+}
+
+template <class T>
+int64_t count_ray_intersections(
+    const std::vector<std::array<vec3<T>, 3>> &tris,
+    const vec3<T> &origin,
+    const vec3<T> &direction) {
+    int64_t count = 0;
+    for(const auto &tri : tris) {
+        if(ray_intersects_triangle(origin, direction,
+                                   tri[0], tri[1], tri[2])) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+template <class T>
+bool point_is_inside_mesh(
+    const std::vector<std::array<vec3<T>, 3>> &tris,
+    const vec3<T> &pt) {
+    const vec3<T> dir(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+    const int64_t cnt = count_ray_intersections(tris, pt, dir);
+    return (cnt % 2) == 1;
+}
+
+// ---- BSP Tree: clone and complement ----
+
+template <class T, class I>
+using NodePtr = std::unique_ptr<typename bsp_tree_volume<T, I>::Node>;
+template <class T, class I>
+using NodeType = typename bsp_tree_volume<T, I>::NodeType;
+
+template <class T, class I>
+NodePtr<T, I> clone_node(const typename bsp_tree_volume<T, I>::Node *n) {
+    if(!n) return nullptr;
+    return NodePtr<T, I>(n->clone());
+}
+
+template <class T, class I>
+NodePtr<T, I> complement_tree(NodePtr<T, I> node) {
+    if(!node) return nullptr;
+    if(node->type == NodeType<T, I>::In)
+        return std::make_unique<typename bsp_tree_volume<T, I>::Node>(NodeType<T, I>::Out);
+    if(node->type == NodeType<T, I>::Out)
+        return std::make_unique<typename bsp_tree_volume<T, I>::Node>(NodeType<T, I>::In);
+    return std::make_unique<typename bsp_tree_volume<T, I>::Node>(
+        node->partition_plane,
+        complement_tree<T, I>(std::move(node->front)),
+        complement_tree<T, I>(std::move(node->back))
+    );
+}
+
+// Partition a BSP tree by a plane.
+// Returns (front_fragment, back_fragment).
+template <class T, class I>
+std::pair<NodePtr<T, I>, NodePtr<T, I>>
+partition_tree(const plane<T> &P, NodePtr<T, I> node) {
+    using Node = typename bsp_tree_volume<T, I>::Node;
+    using NT = NodeType<T, I>;
+
+    if(!node) {
+        return {nullptr, nullptr};
+    }
+    if(node->type != NT::Partition) {
+        // IN or OUT leaf: both fragments inherit the leaf type.
+        auto nt = node->type;
+        return {std::make_unique<Node>(nt), std::make_unique<Node>(nt)};
+    }
+
+    const plane<T> &Q = node->partition_plane;
+
+    auto [ff, fb] = partition_tree<T, I>(P, std::move(node->front));
+    auto [bf, bb] = partition_tree<T, I>(P, std::move(node->back));
+
+    // Build front fragment: Q with front=ff, back=bf
+    NodePtr<T, I> front_result;
+    if(ff && bf &&
+       ff->type != NT::Partition && bf->type != NT::Partition &&
+       ff->type == bf->type) {
+        front_result = std::move(ff);
+    } else {
+        front_result = std::make_unique<Node>(Q, std::move(ff), std::move(bf));
+    }
+
+    // Build back fragment: Q with front=fb, back=bb
+    NodePtr<T, I> back_result;
+    if(fb && bb &&
+       fb->type != NT::Partition && bb->type != NT::Partition &&
+       fb->type == bb->type) {
+        back_result = std::move(fb);
+    } else {
+        back_result = std::make_unique<Node>(Q, std::move(fb), std::move(bb));
+    }
+
+    return {std::move(front_result), std::move(back_result)};
+}
+
+// Merge two BSP trees with a boolean operation.
+// op: 0 = union, 1 = intersection, 2 = subtraction (A-B)
+template <class T, class I>
+NodePtr<T, I> merge_bsp(NodePtr<T, I> A, NodePtr<T, I> B, int op) {
+    using Node = typename bsp_tree_volume<T, I>::Node;
+    using NT = NodeType<T, I>;
+
+    // Handle leaf cases for A.
+    if(!A || A->type != NT::Partition) {
+        const bool a_in = (A && A->type == NT::In);
+        switch(op) {
+            case 0: // union: IN ∪ B = IN, OUT ∪ B = B
+                return a_in ? std::make_unique<Node>(NT::In)
+                            : (B ? clone_node<T, I>(B.get()) : nullptr);
+            case 1: // intersection: IN ∩ B = B, OUT ∩ B = OUT
+                return a_in ? (B ? clone_node<T, I>(B.get()) : nullptr)
+                            : std::make_unique<Node>(NT::Out);
+            case 2: // subtraction A-B: IN - B = !B, OUT - B = OUT
+                return a_in ? complement_tree<T, I>(std::move(B))
+                            : std::make_unique<Node>(NT::Out);
+        }
+    }
+
+    // Handle leaf cases for B.
+    if(!B || B->type != NT::Partition) {
+        const bool b_in = (B && B->type == NT::In);
+        switch(op) {
+            case 0: // union: A ∪ IN = IN
+                return b_in ? std::make_unique<Node>(NT::In)
+                            : (A ? clone_node<T, I>(A.get()) : nullptr);
+            case 1: // intersection: A ∩ IN = A
+                return b_in ? (A ? clone_node<T, I>(A.get()) : nullptr)
+                            : std::make_unique<Node>(NT::Out);
+            case 2: // subtraction A-B: A - IN = OUT, A - OUT = A
+                return b_in ? std::make_unique<Node>(NT::Out)
+                            : (A ? clone_node<T, I>(A.get()) : nullptr);
+        }
+    }
+
+    // Both are partition nodes. Use A's plane to partition B.
+    const plane<T> &P = A->partition_plane;
+    auto [B_front, B_back] = partition_tree<T, I>(P, std::move(B));
+
+    auto new_front = merge_bsp<T, I>(clone_node<T, I>(A->front.get()),
+                                     std::move(B_front), op);
+    auto new_back  = merge_bsp<T, I>(clone_node<T, I>(A->back.get()),
+                                     std::move(B_back), op);
+
+    // Collapse redundant partitions.
+    if(new_front && new_back &&
+       new_front->type != NT::Partition &&
+       new_back->type != NT::Partition &&
+       new_front->type == new_back->type) {
+        return new_front;
+    }
+
+    return std::make_unique<Node>(P, std::move(new_front), std::move(new_back));
+}
+
+
+// ---- Mesh -> BSP conversion helpers ----
+
+template <class T>
+struct TriangleRec {
+    std::array<vec3<T>, 3> v;
+    plane<T> pl;
+};
+
+template <class T, class I>
+NodePtr<T, I> build_bsp_from_triangles(
+    std::vector<TriangleRec<T>> tris,
+    const std::vector<std::array<vec3<T>, 3>> &all_tris,
+    size_t depth);
+
+template <class T, class I>
+NodePtr<T, I> build_bsp_from_triangles(
+    std::vector<TriangleRec<T>> tris,
+    const std::vector<std::array<vec3<T>, 3>> &all_tris,
+    size_t depth) {
+    using Node = typename bsp_tree_volume<T, I>::Node;
+    using NT = NodeType<T, I>;
+
+    constexpr size_t max_depth = 64;
+
+    if(tris.empty() || depth > max_depth) {
+        return std::make_unique<Node>(NT::Out);
+    }
+
+    // Use the first triangle's plane as partition plane.
+    const plane<T> P = tris[0].pl;
+
+    std::vector<TriangleRec<T>> front_tris, back_tris;
+
+    for(const auto &tri : tris) {
+        const TriClass tc = classify_triangle(P, tri.v[0], tri.v[1], tri.v[2]);
+        switch(tc) {
+            case TriClass::Front:
+                front_tris.push_back(tri);
+                break;
+            case TriClass::Back:
+                back_tris.push_back(tri);
+                break;
+            case TriClass::Coplanar:
+                front_tris.push_back(tri);
+                break;
+            case TriClass::Spanning: {
+                std::vector<std::array<vec3<T>, 3>> front_parts, back_parts;
+                split_triangle(P, tri.v[0], tri.v[1], tri.v[2],
+                               front_parts, back_parts);
+                for(auto &fp : front_parts) {
+                    TriangleRec<T> r;
+                    r.v = fp;
+                    r.pl = plane_from_triangle(fp[0], fp[1], fp[2]);
+                    front_tris.push_back(r);
+                }
+                for(auto &bp : back_parts) {
+                    TriangleRec<T> r;
+                    r.v = bp;
+                    r.pl = plane_from_triangle(bp[0], bp[1], bp[2]);
+                    back_tris.push_back(r);
+                }
+                break;
+            }
+        }
+    }
+
+    // Count coplanar triangles to detect all-coplanar case.
+    size_t coplanar_cnt = 0;
+    for(const auto &tri : tris) {
+        if(classify_triangle(P, tri.v[0], tri.v[1], tri.v[2]) == TriClass::Coplanar) {
+            ++coplanar_cnt;
+        }
+    }
+
+    // All triangles are coplanar with the partition plane: degenerate case.
+    // The mesh lies entirely in this plane. Create a Partition node with
+    // classified IN/OUT leaves on each side.
+    if(coplanar_cnt == tris.size()) {
+        const vec3<T> front_pt = P.R_0 + P.N_0 * plane_threshold<T>() * static_cast<T>(2);
+        const vec3<T> back_pt  = P.R_0 - P.N_0 * plane_threshold<T>() * static_cast<T>(2);
+        const bool front_inside = point_is_inside_mesh(all_tris, front_pt);
+        const bool back_inside  = point_is_inside_mesh(all_tris, back_pt);
+
+        auto fc = front_inside ? std::make_unique<Node>(NT::In)
+                               : std::make_unique<Node>(NT::Out);
+        auto bc = back_inside ? std::make_unique<Node>(NT::In)
+                              : std::make_unique<Node>(NT::Out);
+
+        if(fc->type == bc->type) {
+            return fc;
+        }
+        return std::make_unique<Node>(P, std::move(fc), std::move(bc));
+    }
+
+    // All non-coplanar triangles are on the front side.
+    // Recurse on front; classify back as leaf.
+    if(back_tris.empty()) {
+        auto f_child = build_bsp_from_triangles<T, I>(
+            std::move(front_tris), all_tris, depth + 1);
+        const vec3<T> back_pt = P.R_0 - P.N_0 * plane_threshold<T>() * static_cast<T>(2);
+        const bool back_inside = point_is_inside_mesh(all_tris, back_pt);
+        auto b_child = back_inside ? std::make_unique<Node>(NT::In)
+                                   : std::make_unique<Node>(NT::Out);
+
+        if(f_child->type != NT::Partition && f_child->type == b_child->type) {
+            return f_child;
+        }
+        return std::make_unique<Node>(P, std::move(f_child), std::move(b_child));
+    }
+
+    // All non-coplanar triangles are on the back side.
+    if(front_tris.empty()) {
+        auto b_child = build_bsp_from_triangles<T, I>(
+            std::move(back_tris), all_tris, depth + 1);
+        const vec3<T> front_pt = P.R_0 + P.N_0 * plane_threshold<T>() * static_cast<T>(2);
+        const bool front_inside = point_is_inside_mesh(all_tris, front_pt);
+        auto f_child = front_inside ? std::make_unique<Node>(NT::In)
+                                    : std::make_unique<Node>(NT::Out);
+
+        if(b_child->type != NT::Partition && b_child->type == f_child->type) {
+            return b_child;
+        }
+        return std::make_unique<Node>(P, std::move(f_child), std::move(b_child));
+    }
+
+    // Both sides have non-coplanar triangles - recurse on both.
+    auto f_child = build_bsp_from_triangles<T, I>(
+        std::move(front_tris), all_tris, depth + 1);
+    auto b_child = build_bsp_from_triangles<T, I>(
+        std::move(back_tris), all_tris, depth + 1);
+
+    if(f_child && b_child &&
+       f_child->type != NT::Partition &&
+       b_child->type != NT::Partition &&
+       f_child->type == b_child->type) {
+        return f_child;
+    }
+
+    return std::make_unique<Node>(P, std::move(f_child), std::move(b_child));
+}
+
+
+// ---- BSP -> Mesh conversion helpers ----
+
+template <class T>
+struct PolyFace {
+    std::vector<vec3<T>> vertices;
+    vec3<T> normal;
+};
+
+template <class T>
+void clip_polygon_by_plane(const plane<T> &P,
+                           const std::vector<vec3<T>> &poly,
+                           std::vector<vec3<T>> &front,
+                           std::vector<vec3<T>> &back) {
+    if(poly.size() < 3) return;
+    const size_t n = poly.size();
+    for(size_t i = 0; i < n; ++i) {
+        const vec3<T> &curr = poly[i];
+        const vec3<T> &next = poly[(i + 1) % n];
+        const int sc = classify_point(P, curr);
+        const int sn = classify_point(P, next);
+        if(sc >= 0) front.push_back(curr);
+        if(sc <= 0) back.push_back(curr);
+        if((sc > 0 && sn < 0) || (sc < 0 && sn > 0)) {
+            const vec3<T> x = intersect_edge_with_plane(P, curr, next);
+            front.push_back(x);
+            back.push_back(x);
+        }
+    }
+}
+
+template <class T>
+void triangulate_fan(const std::vector<vec3<T>> &poly,
+                     std::vector<std::array<vec3<T>, 3>> &out) {
+    if(poly.size() < 3) return;
+    for(size_t i = 1; i + 1 < poly.size(); ++i) {
+        out.push_back({{poly[0], poly[i], poly[i + 1]}});
+    }
+}
+
+template <class T, class I>
+T compute_tree_bbox_margin(const typename bsp_tree_volume<T, I>::Node *node) {
+    T maxc = static_cast<T>(0);
+    if(!node) return maxc;
+    if(node->type == bsp_tree_volume<T, I>::NodeType::Partition) {
+        const auto &p = node->partition_plane.R_0;
+        maxc = std::max({maxc, std::abs(p.x), std::abs(p.y), std::abs(p.z)});
+        maxc = std::max(maxc, compute_tree_bbox_margin<T, I>(node->front.get()));
+        maxc = std::max(maxc, compute_tree_bbox_margin<T, I>(node->back.get()));
+    }
+    return maxc;
+}
+
+template <class T>
+std::vector<vec3<T>> make_initial_polygon(const plane<T> &P, T size) {
+    vec3<T> u;
+    const vec3<T> x_axis(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+    const vec3<T> y_axis(static_cast<T>(0), static_cast<T>(1), static_cast<T>(0));
+    if(std::abs(P.N_0.Dot(x_axis)) < static_cast<T>(0.9)) {
+        u = P.N_0.Cross(x_axis).unit();
+    } else {
+        u = P.N_0.Cross(y_axis).unit();
+    }
+    const vec3<T> v = P.N_0.Cross(u);
+    const vec3<T> c = P.R_0;
+    return {
+        c + u * size + v * size,
+        c + u * size - v * size,
+        c - u * size - v * size,
+        c - u * size + v * size
+    };
+}
+
+template <class T, class I>
+void extract_boundary_faces(
+    const typename bsp_tree_volume<T, I>::Node *node,
+    const std::vector<const typename bsp_tree_volume<T, I>::Node *> &ancestors,
+    const std::vector<bool> &side_stack,
+    T bbox_size,
+    std::vector<PolyFace<T>> &faces) {
+    using NT = NodeType<T, I>;
+
+    if(!node) return;
+    if(node->type != NT::Partition) return;
+
+    const bool front_in = (node->front
+        && node->front->type == NT::In);
+    const bool back_in  = (node->back
+        && node->back->type == NT::In);
+
+    if(front_in != back_in) {
+        auto poly = make_initial_polygon<T>(node->partition_plane, bbox_size);
+
+        for(size_t i = 0; i < ancestors.size(); ++i) {
+            const plane<T> &anc_plane = ancestors[i]->partition_plane;
+            const bool went_front = side_stack[i];
+            std::vector<vec3<T>> keep, discard;
+            clip_polygon_by_plane(anc_plane, poly, keep, discard);
+            poly = went_front ? std::move(keep) : std::move(discard);
+            if(poly.size() < 3) break;
+        }
+
+        if(poly.size() >= 3) {
+            const vec3<T> face_normal = front_in
+                ? node->partition_plane.N_0
+                : node->partition_plane.N_0 * static_cast<T>(-1);
+            faces.push_back({std::move(poly), face_normal});
+        }
+    }
+
+    // Recurse front.
+    {
+        auto a2 = ancestors;
+        auto s2 = side_stack;
+        a2.push_back(node);
+        s2.push_back(true);
+        extract_boundary_faces<T, I>(node->front.get(), a2, s2,
+                                      bbox_size, faces);
+    }
+    // Recurse back.
+    {
+        auto a2 = ancestors;
+        auto s2 = side_stack;
+        a2.push_back(node);
+        s2.push_back(false);
+        extract_boundary_faces<T, I>(node->back.get(), a2, s2,
+                                      bbox_size, faces);
+    }
+}
+
+} // anonymous namespace
+
+
+// ============================================================================
+// Node implementation
+// ============================================================================
+template <class T, class I>
+bsp_tree_volume<T, I>::Node::Node()
+    : type(NodeType::Out) {}
+
+template <class T, class I>
+bsp_tree_volume<T, I>::Node::Node(NodeType t)
+    : type(t) {}
+
+template <class T, class I>
+bsp_tree_volume<T, I>::Node::Node(const plane<T> &p,
+                                   std::unique_ptr<Node> f,
+                                   std::unique_ptr<Node> b)
+    : type(NodeType::Partition),
+      partition_plane(p),
+      front(std::move(f)),
+      back(std::move(b)) {}
+
+template <class T, class I>
+typename bsp_tree_volume<T, I>::Node *
+bsp_tree_volume<T, I>::Node::clone() const {
+    auto *n = new Node(type);
+    if(type == NodeType::Partition) {
+        n->partition_plane = partition_plane;
+        n->front.reset(front ? front->clone() : nullptr);
+        n->back.reset(back ? back->clone() : nullptr);
+    }
+    return n;
+}
+
+
+// ============================================================================
+// bsp_tree_volume implementation
+// ============================================================================
+template <class T, class I>
+bsp_tree_volume<T, I>::bsp_tree_volume()
+    : root(nullptr) {}
+
+template <class T, class I>
+bsp_tree_volume<T, I>::bsp_tree_volume(std::unique_ptr<Node> r)
+    : root(std::move(r)) {}
+
+template <class T, class I>
+bsp_tree_volume<T, I>::bsp_tree_volume(const bsp_tree_volume &other)
+    : root(other.root ? other.root->clone() : nullptr) {}
+
+template <class T, class I>
+bsp_tree_volume<T, I> &
+bsp_tree_volume<T, I>::operator=(const bsp_tree_volume &other) {
+    if(this != &other) {
+        root.reset(other.root ? other.root->clone() : nullptr);
+    }
+    return *this;
+}
+
+template <class T, class I>
+bool bsp_tree_volume<T, I>::empty() const {
+    return (root == nullptr);
+}
+
+template <class T, class I>
+const typename bsp_tree_volume<T, I>::Node *
+bsp_tree_volume<T, I>::get_root() const {
+    return root.get();
+}
+
+
+// ---- Boolean operations ----
+
+template <class T, class I>
+bsp_tree_volume<T, I>
+bsp_tree_volume<T, I>::boolean_union(const bsp_tree_volume &other) const {
+    if(!root) return other;
+    if(!other.root) return *this;
+    auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
+                             clone_node<T, I>(other.root.get()), 0);
+    return bsp_tree_volume(std::move(r));
+}
+
+template <class T, class I>
+bsp_tree_volume<T, I>
+bsp_tree_volume<T, I>::boolean_intersection(const bsp_tree_volume &other) const {
+    if(!root || !other.root)
+        return bsp_tree_volume();
+    auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
+                             clone_node<T, I>(other.root.get()), 1);
+    return bsp_tree_volume(std::move(r));
+}
+
+template <class T, class I>
+bsp_tree_volume<T, I>
+bsp_tree_volume<T, I>::boolean_subtraction(const bsp_tree_volume &other) const {
+    if(!root) return bsp_tree_volume();
+    if(!other.root) return *this;
+    auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
+                             clone_node<T, I>(other.root.get()), 2);
+    return bsp_tree_volume(std::move(r));
+}
+
+template <class T, class I>
+bsp_tree_volume<T, I>
+bsp_tree_volume<T, I>::boolean_exclusion(const bsp_tree_volume &other) const {
+    if(!root) return other;
+    if(!other.root) return *this;
+    // A XOR B = (A - B) ∪ (B - A) = (A ∪ B) - (A ∩ B)
+    auto a_sub_b = merge_bsp<T, I>(clone_node<T, I>(root.get()),
+                                   clone_node<T, I>(other.root.get()), 2);
+    auto b_sub_a = merge_bsp<T, I>(clone_node<T, I>(other.root.get()),
+                                   clone_node<T, I>(root.get()), 2);
+    auto r = merge_bsp<T, I>(std::move(a_sub_b), std::move(b_sub_a), 0);
+    return bsp_tree_volume(std::move(r));
+}
+
+
+// ---- Conversion: fv_surface_mesh -> bsp_tree_volume ----
+
+template <class T, class I>
+bsp_tree_volume<T, I>
+bsp_tree_volume<T, I>::from_fv_surface_mesh(
+    const fv_surface_mesh<T, I> &mesh) {
+
+    if(mesh.faces.empty() || mesh.vertices.empty())
+        return bsp_tree_volume();
+
+    std::vector<TriangleRec<T>> tri_recs;
+    std::vector<std::array<vec3<T>, 3>> all_tris;
+
+    tri_recs.reserve(mesh.faces.size());
+    all_tris.reserve(mesh.faces.size());
+
+    for(size_t fi = 0; fi < mesh.faces.size(); ++fi) {
+        const auto &f = mesh.faces[fi];
+        if(f.size() < 3) continue;
+
+        for(size_t vi = 2; vi < f.size(); ++vi) {
+            const I i0 = f[0], i1 = f[vi - 1], i2 = f[vi];
+            if(i0 >= static_cast<I>(mesh.vertices.size())
+               || i1 >= static_cast<I>(mesh.vertices.size())
+               || i2 >= static_cast<I>(mesh.vertices.size()))
+                continue;
+
+            const vec3<T> &v0 = mesh.vertices[i0];
+            const vec3<T> &v1 = mesh.vertices[i1];
+            const vec3<T> &v2 = mesh.vertices[i2];
+
+            const vec3<T> edge1 = v1 - v0;
+            const vec3<T> edge2 = v2 - v0;
+            const vec3<T> normal = edge1.Cross(edge2);
+            if(normal.sq_length() < plane_threshold<T>()) continue;
+
+            all_tris.push_back({{v0, v1, v2}});
+
+            TriangleRec<T> rec;
+            rec.v = {{v0, v1, v2}};
+            rec.pl = plane_from_triangle(v0, v1, v2);
+            tri_recs.push_back(rec);
+        }
+    }
+
+    if(tri_recs.empty())
+        return bsp_tree_volume();
+
+    auto root = build_bsp_from_triangles<T, I>(
+        std::move(tri_recs), all_tris, 0);
+
+    return bsp_tree_volume<T, I>(std::move(root));
+}
+
+
+// ---- Conversion: bsp_tree_volume -> fv_surface_mesh ----
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+bsp_tree_volume<T, I>::to_fv_surface_mesh() const {
+    fv_surface_mesh<T, I> mesh;
+    if(!root || root->type != NodeType::Partition) return mesh;
+
+    T max_extent = compute_tree_bbox_margin<T, I>(root.get());
+    if(max_extent < static_cast<T>(1)) {
+        max_extent = static_cast<T>(1);
+    }
+    T bbox_size = max_extent
+                + std::max(max_extent * static_cast<T>(0.1),
+                           static_cast<T>(100));
+
+    std::vector<const Node *> ancestors;
+    std::vector<bool> side_stack;
+    std::vector<PolyFace<T>> faces;
+    extract_boundary_faces<T, I>(root.get(), ancestors, side_stack,
+                                  bbox_size, faces);
+
+    std::vector<std::array<vec3<T>, 3>> tris;
+    for(auto &face : faces) {
+        triangulate_fan(face.vertices, tris);
+    }
+
+    std::map<std::tuple<T, T, T>, I> vert_map;
+    {
+        vec3<T> bb_min = vec3<T>( std::numeric_limits<T>::max(),
+                                   std::numeric_limits<T>::max(),
+                                   std::numeric_limits<T>::max());
+        vec3<T> bb_max = vec3<T>(-std::numeric_limits<T>::max(),
+                                  -std::numeric_limits<T>::max(),
+                                  -std::numeric_limits<T>::max());
+        for(const auto &tri : tris) {
+            for(const auto &v : tri) {
+                bb_min.x = std::min(bb_min.x, v.x);
+                bb_min.y = std::min(bb_min.y, v.y);
+                bb_min.z = std::min(bb_min.z, v.z);
+                bb_max.x = std::max(bb_max.x, v.x);
+                bb_max.y = std::max(bb_max.y, v.y);
+                bb_max.z = std::max(bb_max.z, v.z);
+            }
+        }
+        const vec3<T> extent = bb_max - bb_min;
+        const T scale = std::max({extent.x, extent.y, extent.z, static_cast<T>(1)});
+        const T weld_eps = std::sqrt(std::numeric_limits<T>::epsilon()) * scale;
+
+        const auto get_or_add_vertex = [&](const vec3<T> &v) -> I {
+            auto key = std::make_tuple(
+                std::round(v.x / weld_eps) * weld_eps,
+                std::round(v.y / weld_eps) * weld_eps,
+                std::round(v.z / weld_eps) * weld_eps);
+            auto it = vert_map.find(key);
+            if(it != vert_map.end()) return it->second;
+            I idx = static_cast<I>(mesh.vertices.size());
+            mesh.vertices.push_back(v);
+            vert_map[key] = idx;
+            return idx;
+        };
+
+        for(const auto &tri : tris) {
+            std::vector<I> face;
+            face.push_back(get_or_add_vertex(tri[0]));
+            face.push_back(get_or_add_vertex(tri[1]));
+            face.push_back(get_or_add_vertex(tri[2]));
+            mesh.faces.push_back(std::move(face));
+        }
+    }
+
+    return mesh;
+}
+
+
+// ============================================================================
+// Explicit template instantiations
+// ============================================================================
+
+#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
+
+template class bsp_tree_volume<float,  uint32_t>;
+template class bsp_tree_volume<float,  uint64_t>;
+template class bsp_tree_volume<double, uint32_t>;
+template class bsp_tree_volume<double, uint64_t>;
+
+#endif // YGORMATH_DISABLE_ALL_SPECIALIZATIONS
