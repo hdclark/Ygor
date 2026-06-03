@@ -678,6 +678,35 @@ point_inside_mesh(const vec3<T> &p,
     return inside_votes >= 2;
 }
 
+template <class T, class OtherI>
+int
+classify_split_piece_directly(const split_triangle<T> &piece,
+                              const prepared_mesh<T, OtherI> &other_prep,
+                              T far_distance,
+                              T eps){
+    const auto centroid = triangle_centroid(piece.verts);
+    const std::array<vec3<T>, 4> samples = {{
+        centroid,
+        (centroid * static_cast<T>(2) + piece.verts.at(0)) / static_cast<T>(3),
+        (centroid * static_cast<T>(2) + piece.verts.at(1)) / static_cast<T>(3),
+        (centroid * static_cast<T>(2) + piece.verts.at(2)) / static_cast<T>(3)
+    }};
+
+    int inside_votes = 0;
+    int considered_samples = 0;
+    for(const auto &sample : samples){
+        if(point_on_mesh_boundary(sample, other_prep)){
+            continue;
+        }
+        ++considered_samples;
+        inside_votes += point_inside_mesh(sample, other_prep, far_distance) ? 1 : 0;
+    }
+    if(considered_samples == 0){
+        return point_inside_mesh(centroid, other_prep, far_distance) ? 1 : 0;
+    }
+    return (inside_votes * 2 >= considered_samples) ? 1 : 0;
+}
+
 template <class T, class I>
 prepared_mesh<T, I>
 prepare_mesh(const fv_surface_mesh<T, I> &mesh,
@@ -1714,31 +1743,22 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
             }
         }
 
-        std::vector<edge_occurrence> boundary_occurrences;
-        for(const auto &occ : occurrences){
-            if(!occ.constrained){
-                boundary_occurrences.push_back(occ);
-            }
-        }
-        std::map<size_t, edge_occurrence> distinct_boundary_faces;
-        for(const auto &occ : boundary_occurrences){
-            distinct_boundary_faces.emplace(occ.source_face_idx, occ);
-        }
-        if(distinct_boundary_faces.size() == 2UL){
-            auto it = distinct_boundary_faces.begin();
-            const auto lhs = it->second;
-            ++it;
-            const auto rhs = it->second;
-            adjacency.at(lhs.piece_idx).push_back({ rhs.piece_idx, false });
-            adjacency.at(rhs.piece_idx).push_back({ lhs.piece_idx, false });
-        }else if(distinct_boundary_faces.size() > 2UL){
-            ambiguous_piece_edges += 1UL;
-        }
     }
     if(ambiguous_piece_edges > 0UL){
         YLOGDEBUG("BooleanMeshOp3 " << label
                   << " flood-fill found " << ambiguous_piece_edges
                   << " ambiguous split-edge groups before output assembly.");
+    }
+
+    std::vector<int> direct_relation(pieces.size(), -1);
+    for(size_t piece_idx = 0; piece_idx < pieces.size(); ++piece_idx){
+        if(pieces.at(piece_idx).relation_explicit){
+            continue;
+        }
+        direct_relation.at(piece_idx) = classify_split_piece_directly(pieces.at(piece_idx),
+                                                                      other_prep,
+                                                                      far_distance,
+                                                                      eps);
     }
 
     std::vector<int> parity(pieces.size(), -1);
@@ -1771,15 +1791,11 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
                                 [](bool constrained){ return constrained; });
         });
         const auto component_seed = (seed_it != component.end()) ? *seed_it : component.front();
-        const bool inside = point_inside_mesh(triangle_centroid(pieces.at(component_seed).verts),
-                                             other_prep,
-                                             far_distance);
-
         worklist.clear();
         for(const auto piece_idx : component){
             parity.at(piece_idx) = -1;
         }
-        parity.at(component_seed) = inside ? 1 : 0;
+        parity.at(component_seed) = direct_relation.at(component_seed);
         worklist.push_back(component_seed);
         bool component_conflict = false;
         while(!worklist.empty()){
@@ -1799,12 +1815,19 @@ classify_split_pieces_via_flood_fill(std::vector<split_triangle<T>> &pieces,
             }
         }
 
+        bool component_mismatch = false;
         for(const auto piece_idx : component){
-            if(component_conflict || (parity.at(piece_idx) == -1)){
-                const bool fallback_inside = point_inside_mesh(triangle_centroid(pieces.at(piece_idx).verts),
-                                                               other_prep,
-                                                               far_distance);
-                parity.at(piece_idx) = fallback_inside ? 1 : 0;
+            if((parity.at(piece_idx) != -1) && (parity.at(piece_idx) != direct_relation.at(piece_idx))){
+                component_mismatch = true;
+                YLOGDEBUG("BooleanMeshOp3 " << label
+                          << " flood-fill/direct classification mismatch on split piece "
+                          << piece_idx << ".");
+            }
+        }
+
+        for(const auto piece_idx : component){
+            if(component_mismatch || (parity.at(piece_idx) == -1)){
+                parity.at(piece_idx) = direct_relation.at(piece_idx);
             }
         }
     }
