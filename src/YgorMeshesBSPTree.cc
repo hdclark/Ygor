@@ -292,6 +292,31 @@ partition_tree(const plane<T> &P, NodePtr<T, I> node) {
     return {std::move(front_result), std::move(back_result)};
 }
 
+// Collapse partition nodes where both subtrees evaluate to the same leaf type.
+template <class T, class I>
+NodePtr<T, I> collapse_uniform(NodePtr<T, I> node) {
+    using Node = typename bsp_tree_volume<T, I>::Node;
+    using NT = NodeType<T, I>;
+
+    if(!node) return nullptr;
+    if(node->type != NT::Partition) return node;
+
+    node->front = collapse_uniform<T, I>(std::move(node->front));
+    node->back  = collapse_uniform<T, I>(std::move(node->back));
+
+    const bool front_part = node->front && node->front->type == NT::Partition;
+    const bool back_part  = node->back  && node->back->type  == NT::Partition;
+    const bool front_is_out = !node->front || node->front->type == NT::Out;
+    const bool back_is_out  = !node->back  || node->back->type  == NT::Out;
+
+    if(!front_part && !back_part && front_is_out == back_is_out) {
+        auto result = (node->front ? std::move(node->front) : std::move(node->back));
+        if(!result) result = std::make_unique<Node>(NT::Out);
+        return result;
+    }
+    return node;
+}
+
 // Merge two BSP trees with a boolean operation.
 // op: 0 = union, 1 = intersection, 2 = subtraction (A-B)
 template <class T, class I>
@@ -589,16 +614,27 @@ void extract_boundary_faces(
     T bbox_size,
     std::vector<PolyFace<T>> &faces) {
     using NT = NodeType<T, I>;
+    enum class Eval : uint8_t { Out = 0, In = 1, Mixed = 2 };
 
     if(!node) return;
     if(node->type != NT::Partition) return;
 
-    const bool front_in = (node->front
-        && node->front->type == NT::In);
-    const bool back_in  = (node->back
-        && node->back->type == NT::In);
+    const auto eval_subtree = [](const typename bsp_tree_volume<T, I>::Node *n,
+                                  auto &&recurse) -> Eval {
+        if(!n) return Eval::Out;
+        if(n->type == NT::In) return Eval::In;
+        if(n->type == NT::Out) return Eval::Out;
+        const Eval fe = recurse(n->front.get(), recurse);
+        const Eval be = recurse(n->back.get(), recurse);
+        if(fe == be) return fe;
+        return Eval::Mixed;
+    };
 
-    if(front_in != back_in) {
+    const Eval front_eval = eval_subtree(node->front.get(), eval_subtree);
+    const Eval back_eval  = eval_subtree(node->back.get(), eval_subtree);
+
+    if((front_eval == Eval::In  && back_eval == Eval::Out)
+    || (front_eval == Eval::Out && back_eval == Eval::In)) {
         auto poly = make_initial_polygon<T>(node->partition_plane, bbox_size);
 
         for(size_t i = 0; i < ancestors.size(); ++i) {
@@ -611,7 +647,7 @@ void extract_boundary_faces(
         }
 
         if(poly.size() >= 3) {
-            const vec3<T> face_normal = front_in
+            const vec3<T> face_normal = (front_eval == Eval::In)
                 ? node->partition_plane.N_0
                 : node->partition_plane.N_0 * static_cast<T>(-1);
             faces.push_back({std::move(poly), face_normal});
@@ -719,6 +755,7 @@ bsp_tree_volume<T, I>::boolean_union(const bsp_tree_volume &other) const {
     if(!other.root) return *this;
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 0);
+    r = collapse_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -729,6 +766,7 @@ bsp_tree_volume<T, I>::boolean_intersection(const bsp_tree_volume &other) const 
         return bsp_tree_volume();
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 1);
+    r = collapse_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -739,6 +777,7 @@ bsp_tree_volume<T, I>::boolean_subtraction(const bsp_tree_volume &other) const {
     if(!other.root) return *this;
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 2);
+    r = collapse_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -753,6 +792,7 @@ bsp_tree_volume<T, I>::boolean_exclusion(const bsp_tree_volume &other) const {
     auto b_sub_a = merge_bsp<T, I>(clone_node<T, I>(other.root.get()),
                                    clone_node<T, I>(root.get()), 2);
     auto r = merge_bsp<T, I>(std::move(a_sub_b), std::move(b_sub_a), 0);
+    r = collapse_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -770,6 +810,9 @@ bsp_tree_volume<T, I>::from_fv_surface_mesh(
     fv_surface_mesh<T, I> working_mesh = mesh;
     working_mesh.convert_to_triangles();
     working_mesh.remove_degenerate_faces();
+
+    if(working_mesh.faces.empty())
+        return bsp_tree_volume();
 
     if(!HasOnlyFiniteVertices(working_mesh))
         throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains non-finite vertices.");

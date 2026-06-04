@@ -7054,7 +7054,7 @@ fv_surface_mesh<T,I>::convert_to_triangles(){
             // arbitrarily.
             was_already_triangles_only = false;
             for(size_t i = 0; i <= (N_f-3); ++i){
-                new_faces.push_back( {{ fv[i+0], fv[i+1], fv[i+2] }} );
+                new_faces.push_back( {{ fv[0], fv[i+1], fv[i+2] }} );
             }
         }
     }
@@ -7153,8 +7153,18 @@ fv_surface_mesh<T,I>::remove_degenerate_faces(){
     this->involved_faces.clear();
 
     this->faces.erase( std::remove_if( std::begin(this->faces), std::end(this->faces),
-                                       [](const std::vector<I> &fiv){
-                                           return (fiv.size() < 3UL);
+                                       [this](const std::vector<I> &fiv){
+                                           if(fiv.size() < 3UL) return true;
+                                           const I i0 = fiv[0];
+                                           const I i1 = fiv[1];
+                                           const I i2 = fiv[2];
+                                           if(i0 == i1 || i1 == i2 || i2 == i0) return true;
+                                           const auto &v0 = this->vertices.at(i0);
+                                           const auto &v1 = this->vertices.at(i1);
+                                           const auto &v2 = this->vertices.at(i2);
+                                           const auto N = (v1 - v0).Cross(v2 - v0);
+                                           if(N.sq_length() <= static_cast<T>(0)) return true;
+                                           return false;
                                        }),
                        std::end(this->faces) );
 

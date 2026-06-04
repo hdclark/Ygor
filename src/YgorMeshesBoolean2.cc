@@ -1184,8 +1184,14 @@ deduplicate_faces(fv_surface_mesh<T, I> &mesh){
         if(face.size() != 3UL){
             continue;
         }
-        auto key = std::array<I, 3>{{ face.at(0), face.at(1), face.at(2) }};
-        std::sort(key.begin(), key.end());
+        const I i0 = face.at(0);
+        const I i1 = face.at(1);
+        const I i2 = face.at(2);
+        auto key = [=]() -> std::array<I, 3> {
+            if(i0 <= i1 && i0 <= i2) return {{ i0, i1, i2 }};
+            if(i1 <= i0 && i1 <= i2) return {{ i1, i2, i0 }};
+            return {{ i2, i0, i1 }};
+        }();
         if(seen.insert(key).second){
             filtered.push_back(face);
         }
