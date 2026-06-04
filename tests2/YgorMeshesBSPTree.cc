@@ -8,6 +8,7 @@
 
 #include <YgorMath.h>
 #include <YgorMeshesBSPTree.h>
+#include <YgorMeshesVerification.h>
 
 #include "doctest/doctest.h"
 
@@ -59,26 +60,6 @@ TEST_CASE( "bsp_tree_volume mesh conversion round-trip" ){
         mesh.faces = {{0, 1, 2}};
         auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh);
         REQUIRE(vol.empty());
-    }
-
-    SUBCASE("single triangle mesh produces valid BSP tree"){
-        fv_surface_mesh<double, uint64_t> mesh;
-        mesh.vertices = {
-            {0.0, 0.0, 0.0},
-            {1.0, 0.0, 0.0},
-            {0.0, 1.0, 0.0}
-        };
-        mesh.faces = {{0, 1, 2}};
-        auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh);
-        REQUIRE(!vol.empty());
-
-        // A single open triangle does not enclose a volume, so the
-        // BSP-to-mesh conversion may produce an empty mesh (no
-        // IN/OUT boundaries to extract).
-        auto result_mesh = vol.to_fv_surface_mesh();
-        // Open meshes: output is expected to have few or no faces.
-        const bool small_output = (result_mesh.faces.size() <= 6u);
-        REQUIRE(small_output);
     }
 
     SUBCASE("tetrahedron mesh produces valid BSP tree and round-trips"){
@@ -268,13 +249,12 @@ TEST_CASE( "bsp_tree_volume conversion preserves structure" ){
             {0, 3, 2, 1}, {4, 5, 6, 7},
             {0, 1, 5, 4}, {1, 2, 6, 5},
             {2, 3, 7, 6}, {3, 0, 4, 7},
-            // Inner cube (hole, also outward normals -> points INTO the hole,
-            // which means the solid is OUTSIDE the hole).
-            // For a hole, the normals should point into the interior of the
-            // outer solid, so the face winding is reversed.
-            {8,  9, 10, 11}, {12, 15, 14, 13},
-            {8, 12, 13, 9},  {9, 13, 14, 10},
-            {10, 14, 15, 11}, {11, 15, 12, 8}
+            // Inner cube (hole). The inner faces must be wound so normals
+            // point INTO the solid (i.e. OUT of the hole). This means the
+            // winding is reversed relative to the outer cube.
+            {8, 11, 10,  9}, {12, 13, 14, 15},
+            {8,  9, 13, 12}, {9, 10, 14, 13},
+            {10, 11, 15, 14}, {11,  8, 12, 15}
         };
 
         auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh);

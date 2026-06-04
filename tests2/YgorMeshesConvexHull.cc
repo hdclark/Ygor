@@ -9,6 +9,7 @@
 
 #include <YgorMath.h>
 #include <YgorMeshesConvexHull.h>
+#include <YgorMeshesVerification.h>
 
 #include "doctest/doctest.h"
 
@@ -21,30 +22,6 @@ static void check_mesh_valid(const fv_surface_mesh<T, uint64_t> &mesh) {
         for(auto vi : f){
             REQUIRE(vi < mesh.vertices.size());
         }
-    }
-}
-
-// Helper: verify that the mesh is a closed manifold (every directed edge
-// appears exactly once, and every undirected edge is shared by exactly 2 faces).
-template <class T>
-static void check_closed_manifold(const fv_surface_mesh<T, uint64_t> &mesh) {
-    std::map<std::pair<uint64_t,uint64_t>, int> edge_count;
-    for(const auto &f : mesh.faces){
-        for(size_t i = 0; i < f.size(); ++i){
-            uint64_t a = f[i];
-            uint64_t b = f[(i + 1) % f.size()];
-            edge_count[{a, b}]++;
-        }
-    }
-    // Every directed edge (a,b) should appear exactly once.
-    for(const auto &[e, cnt] : edge_count){
-        REQUIRE(cnt == 1);
-    }
-    // For every directed edge (a,b), the reverse (b,a) should also exist.
-    for(const auto &[e, cnt] : edge_count){
-        auto it = edge_count.find({e.second, e.first});
-        REQUIRE(it != edge_count.end());
-        REQUIRE(it->second == 1);
     }
 }
 
@@ -98,7 +75,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -118,7 +96,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         REQUIRE(mesh.vertices.size() == 8UL);
         // A triangulated cube has 12 triangles (6 faces * 2).
         REQUIRE(mesh.faces.size() == 12UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -137,7 +116,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         // The interior point should not add any vertices to the hull.
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -153,7 +133,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         // Should have 5 vertices.
         REQUIRE(mesh.vertices.size() == 5UL);
@@ -171,7 +152,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -186,7 +168,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         // Should not throw; nudging resolves the degeneracy.
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
@@ -205,7 +188,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 6UL);
         REQUIRE(mesh.faces.size() == 8UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -223,7 +207,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("Online construction: add points one by one"){
@@ -242,14 +227,16 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         ch.add_vertex(vec3<T>(2.0, 2.0, 0.0));
         const auto &mesh2 = ch.get_mesh();
         REQUIRE(mesh2.vertices.size() == 5UL);
-        check_closed_manifold(mesh2);
+        REQUIRE(IsClosedManifold(mesh2));
+        REQUIRE(HasConsistentOrientation(mesh2));
         check_euler(mesh2);
 
         // Add another exterior point.
         ch.add_vertex(vec3<T>(0.0, 0.0, 3.0));
         const auto &mesh3 = ch.get_mesh();
         REQUIRE(mesh3.vertices.size() == 6UL);
-        check_closed_manifold(mesh3);
+        REQUIRE(IsClosedManifold(mesh3));
+        REQUIRE(HasConsistentOrientation(mesh3));
         check_euler(mesh3);
     }
 
@@ -291,7 +278,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         // The hull should have fewer vertices than all the points.
         REQUIRE(mesh.vertices.size() <= 100UL);
@@ -322,7 +310,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 12UL);
         REQUIRE(mesh.faces.size() == 20UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -370,7 +359,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
         check_mesh_valid(mesh);
         // Duplicates get slight perturbation and may end up on the hull,
         // but the mesh must remain a valid closed manifold.
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() >= 4UL);
         REQUIRE(mesh.vertices.size() <= 6UL);
@@ -409,7 +399,8 @@ TEST_CASE( "YgorMeshesConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         // The convex hull of a cube grid has at least the 8 corners.
         // Perturbation causes some face / edge points to also appear on
@@ -509,7 +500,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -531,7 +523,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 8UL);
         REQUIRE(mesh.faces.size() == 12UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -550,7 +543,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 4UL);
         REQUIRE(mesh.faces.size() == 4UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -570,7 +564,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 6UL);
         REQUIRE(mesh.faces.size() == 8UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -591,7 +586,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() <= 200UL);
         REQUIRE(mesh.vertices.size() >= 4UL);
@@ -635,7 +631,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
         check_mesh_valid(mesh);
         REQUIRE(mesh.vertices.size() == 12UL);
         REQUIRE(mesh.faces.size() == 20UL);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
     }
 
@@ -667,7 +664,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() == 5UL);
     }
@@ -690,7 +688,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() >= 8UL);
 
@@ -725,7 +724,8 @@ TEST_CASE( "DivideAndConquerConvexHull" ){
 
         const auto &mesh = ch.get_mesh();
         check_mesh_valid(mesh);
-        check_closed_manifold(mesh);
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
         check_euler(mesh);
         REQUIRE(mesh.vertices.size() >= 4UL);
         REQUIRE(mesh.vertices.size() <= 6UL);

@@ -8,6 +8,7 @@
 #include <YgorMath.h>
 #include <YgorMathIOOBJ.h>
 #include <YgorMeshesBoolean3.h>
+#include <YgorMeshesVerification.h>
 #include <YgorMeshesOrient.h>
 
 #include "doctest/doctest.h"
@@ -137,23 +138,6 @@ read_obj_mesh3(const std::string &obj){
     return mesh;
 }
 
-template <class T, class I>
-static void
-check_closed_triangles3(const fv_surface_mesh<T, I> &mesh){
-    std::map<std::pair<I, I>, int> edge_counts;
-    for(const auto &face : mesh.faces){
-        REQUIRE(face.size() == 3UL);
-        for(size_t i = 0; i < 3UL; ++i){
-            const auto a = face.at(i);
-            const auto b = face.at((i + 1UL) % 3UL);
-            edge_counts[{ std::min(a, b), std::max(a, b) }] += 1;
-        }
-    }
-    for(const auto &ep : edge_counts){
-        REQUIRE(ep.second == 2);
-    }
-}
-
 TEST_CASE("YgorMeshesBoolean3 symbolic support"){
     const auto px = MakeBoolean3Plane(vec3<double>(0.0, 0.0, 0.0),
                                       vec3<double>(0.0, 1.0, 0.0),
@@ -195,7 +179,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanUnion3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 1.5) < 1.0e-5);
     }
 
@@ -207,7 +191,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanIntersection3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 0.5) < 1.0e-5);
     }
 
@@ -219,7 +203,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanSubtraction3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 7.0) < 1.0e-5);
     }
 
@@ -231,7 +215,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanExclusion3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 1.0) < 1.0e-5);
     }
 
@@ -243,7 +227,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanUnion3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 2.0) < 1.0e-5);
     }
 
@@ -254,7 +238,7 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto out = BooleanUnion3(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles3(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume3(out)) - 1.0) < 1.0e-5);
     }
 
@@ -276,11 +260,11 @@ TEST_CASE("YgorMeshesBoolean3"){
 
         const auto union_out = BooleanUnion3(lhs, rhs);
         REQUIRE(!union_out.faces.empty());
-        check_closed_triangles3(union_out);
+        REQUIRE(IsClosedManifold(union_out));
 
         const auto subtraction_out = BooleanSubtraction3(lhs, rhs);
         REQUIRE(!subtraction_out.faces.empty());
-        check_closed_triangles3(subtraction_out);
+        REQUIRE(IsClosedManifold(subtraction_out));
     }
 
     SUBCASE("Provided skewed box regression succeeds for all Boolean operations"){
@@ -331,19 +315,19 @@ f 4 7 8
 
         const auto union_out = BooleanUnion3(lhs, rhs);
         REQUIRE(!union_out.faces.empty());
-        check_closed_triangles3(union_out);
+        REQUIRE(IsClosedManifold(union_out));
 
         const auto intersection_out = BooleanIntersection3(lhs, rhs);
         REQUIRE(!intersection_out.faces.empty());
-        check_closed_triangles3(intersection_out);
+        REQUIRE(IsClosedManifold(intersection_out));
 
         const auto exclusion_out = BooleanExclusion3(lhs, rhs);
         REQUIRE(!exclusion_out.faces.empty());
-        check_closed_triangles3(exclusion_out);
+        REQUIRE(IsClosedManifold(exclusion_out));
 
         const auto subtraction_out = BooleanSubtraction3(lhs, rhs);
         REQUIRE(!subtraction_out.faces.empty());
-        check_closed_triangles3(subtraction_out);
+        REQUIRE(IsClosedManifold(subtraction_out));
     }
 
     SUBCASE("Float specialization compiles for disjoint inputs"){

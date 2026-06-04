@@ -12,6 +12,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <random>
 #include <set>
 #include <tuple>
 #include <utility>
@@ -21,6 +22,8 @@
 #include "YgorMath.h"
 #include "YgorMeshesAdaptivePredicates.h"
 #include "YgorMeshesBSPTree.h"
+#include "YgorMeshesOrient.h"
+#include "YgorMeshesVerification.h"
 
 
 namespace {
@@ -217,10 +220,20 @@ NodePtr<T, I> complement_tree(NodePtr<T, I> node) {
         return std::make_unique<typename bsp_tree_volume<T, I>::Node>(NodeType<T, I>::Out);
     if(node->type == NodeType<T, I>::Out)
         return std::make_unique<typename bsp_tree_volume<T, I>::Node>(NodeType<T, I>::In);
+
+    auto fc = complement_tree<T, I>(std::move(node->front));
+    auto bc = complement_tree<T, I>(std::move(node->back));
+
+    if(fc && bc &&
+       fc->type != NodeType<T, I>::Partition &&
+       bc->type != NodeType<T, I>::Partition &&
+       fc->type == bc->type) {
+        return fc;
+    }
     return std::make_unique<typename bsp_tree_volume<T, I>::Node>(
         node->partition_plane,
-        complement_tree<T, I>(std::move(node->front)),
-        complement_tree<T, I>(std::move(node->back))
+        std::move(fc),
+        std::move(bc)
     );
 }
 
@@ -248,22 +261,32 @@ partition_tree(const plane<T> &P, NodePtr<T, I> node) {
 
     // Build front fragment: Q with front=ff, back=bf
     NodePtr<T, I> front_result;
-    if(ff && bf &&
-       ff->type != NT::Partition && bf->type != NT::Partition &&
-       ff->type == bf->type) {
-        front_result = std::move(ff);
-    } else {
-        front_result = std::make_unique<Node>(Q, std::move(ff), std::move(bf));
+    {
+        const bool ff_partition = ff && ff->type == NT::Partition;
+        const bool bf_partition = bf && bf->type == NT::Partition;
+        const bool ff_is_out = !ff || ff->type == NT::Out;
+        const bool bf_is_out = !bf || bf->type == NT::Out;
+        if(!ff_partition && !bf_partition && ff_is_out == bf_is_out) {
+            front_result = (ff ? std::move(ff) : std::move(bf));
+            if(!front_result) front_result = std::make_unique<Node>(NT::Out);
+        } else {
+            front_result = std::make_unique<Node>(Q, std::move(ff), std::move(bf));
+        }
     }
 
     // Build back fragment: Q with front=fb, back=bb
     NodePtr<T, I> back_result;
-    if(fb && bb &&
-       fb->type != NT::Partition && bb->type != NT::Partition &&
-       fb->type == bb->type) {
-        back_result = std::move(fb);
-    } else {
-        back_result = std::make_unique<Node>(Q, std::move(fb), std::move(bb));
+    {
+        const bool fb_partition = fb && fb->type == NT::Partition;
+        const bool bb_partition = bb && bb->type == NT::Partition;
+        const bool fb_is_out = !fb || fb->type == NT::Out;
+        const bool bb_is_out = !bb || bb->type == NT::Out;
+        if(!fb_partition && !bb_partition && fb_is_out == bb_is_out) {
+            back_result = (fb ? std::move(fb) : std::move(bb));
+            if(!back_result) back_result = std::make_unique<Node>(NT::Out);
+        } else {
+            back_result = std::make_unique<Node>(Q, std::move(fb), std::move(bb));
+        }
     }
 
     return {std::move(front_result), std::move(back_result)};
@@ -318,11 +341,16 @@ NodePtr<T, I> merge_bsp(NodePtr<T, I> A, NodePtr<T, I> B, int op) {
                                      std::move(B_back), op);
 
     // Collapse redundant partitions.
-    if(new_front && new_back &&
-       new_front->type != NT::Partition &&
-       new_back->type != NT::Partition &&
-       new_front->type == new_back->type) {
-        return new_front;
+    {
+        const bool nf_partition = new_front && new_front->type == NT::Partition;
+        const bool nb_partition = new_back && new_back->type == NT::Partition;
+        const bool nf_is_out = !new_front || new_front->type == NT::Out;
+        const bool nb_is_out = !new_back || new_back->type == NT::Out;
+        if(!nf_partition && !nb_partition && nf_is_out == nb_is_out) {
+            auto result = (new_front ? std::move(new_front) : std::move(new_back));
+            if(!result) result = std::make_unique<Node>(NT::Out);
+            return result;
+        }
     }
 
     return std::make_unique<Node>(P, std::move(new_front), std::move(new_back));
@@ -357,7 +385,12 @@ NodePtr<T, I> build_bsp_from_triangles(
         return std::make_unique<Node>(NT::Out);
     }
 
-    // Use the first triangle's plane as partition plane.
+    if(depth == 0) {
+        std::random_device rd;
+        std::mt19937_64 gen(rd());
+        std::shuffle(tris.begin(), tris.end(), gen);
+    }
+
     const plane<T> P = tris[0].pl;
 
     std::vector<TriangleRec<T>> front_tris, back_tris;
@@ -506,7 +539,12 @@ void triangulate_fan(const std::vector<vec3<T>> &poly,
                      std::vector<std::array<vec3<T>, 3>> &out) {
     if(poly.size() < 3) return;
     for(size_t i = 1; i + 1 < poly.size(); ++i) {
-        out.push_back({{poly[0], poly[i], poly[i + 1]}});
+        const vec3<T> &a = poly[0];
+        const vec3<T> &b = poly[i];
+        const vec3<T> &c = poly[i + 1];
+        const vec3<T> N = (b - a).Cross(c - a);
+        if(N.sq_length() < plane_threshold<T>()) continue;
+        out.push_back({{a, b, c}});
     }
 }
 
@@ -729,39 +767,61 @@ bsp_tree_volume<T, I>::from_fv_surface_mesh(
     if(mesh.faces.empty() || mesh.vertices.empty())
         return bsp_tree_volume();
 
+    fv_surface_mesh<T, I> working_mesh = mesh;
+    working_mesh.convert_to_triangles();
+    working_mesh.remove_degenerate_faces();
+
+    if(!HasOnlyFiniteVertices(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains non-finite vertices.");
+    if(!IsTriangularMesh(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh must contain only triangular faces.");
+    if(!HasValidFaceIndices(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains out-of-range face indices.");
+    if(!HasNoDegenerateFaces(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains degenerate faces.");
+    if(!IsClosedManifold(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh is not a closed manifold.");
+    if(!HasConsistentOrientation(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh faces do not have a consistent orientation.");
+
     std::vector<TriangleRec<T>> tri_recs;
     std::vector<std::array<vec3<T>, 3>> all_tris;
 
-    tri_recs.reserve(mesh.faces.size());
-    all_tris.reserve(mesh.faces.size());
+    tri_recs.reserve(working_mesh.faces.size());
+    all_tris.reserve(working_mesh.faces.size());
 
-    for(size_t fi = 0; fi < mesh.faces.size(); ++fi) {
-        const auto &f = mesh.faces[fi];
-        if(f.size() < 3) continue;
+    for(size_t fi = 0; fi < working_mesh.faces.size(); ++fi) {
+        const auto &f = working_mesh.faces[fi];
+        if(f.size() != 3) continue;
 
-        for(size_t vi = 2; vi < f.size(); ++vi) {
-            const I i0 = f[0], i1 = f[vi - 1], i2 = f[vi];
-            if(i0 >= static_cast<I>(mesh.vertices.size())
-               || i1 >= static_cast<I>(mesh.vertices.size())
-               || i2 >= static_cast<I>(mesh.vertices.size()))
-                continue;
+        const I i0 = f[0], i1 = f[1], i2 = f[2];
 
-            const vec3<T> &v0 = mesh.vertices[i0];
-            const vec3<T> &v1 = mesh.vertices[i1];
-            const vec3<T> &v2 = mesh.vertices[i2];
+        const vec3<T> &v0 = working_mesh.vertices[i0];
+        const vec3<T> &v1 = working_mesh.vertices[i1];
+        const vec3<T> &v2 = working_mesh.vertices[i2];
 
-            const vec3<T> edge1 = v1 - v0;
-            const vec3<T> edge2 = v2 - v0;
-            const vec3<T> normal = edge1.Cross(edge2);
-            if(normal.sq_length() < plane_threshold<T>()) continue;
-
-            all_tris.push_back({{v0, v1, v2}});
-
-            TriangleRec<T> rec;
-            rec.v = {{v0, v1, v2}};
-            rec.pl = plane_from_triangle(v0, v1, v2);
-            tri_recs.push_back(rec);
+        const vec3<T> edge1 = v1 - v0;
+        const vec3<T> edge2 = v2 - v0;
+        const vec3<T> normal = edge1.Cross(edge2);
+        const T sqlen = normal.sq_length();
+        if(sqlen < plane_threshold<T>()) {
+            const T pa[3] = { v0.x, v0.y, v0.z };
+            const T pb[3] = { v1.x, v1.y, v1.z };
+            const T pc[3] = { v2.x, v2.y, v2.z };
+            vec3<T> dir = normal;
+            if(dir.sq_length() < plane_threshold<T>()) {
+                dir = vec3<T>(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+            }
+            const T pd[3] = { v0.x + dir.x, v0.y + dir.y, v0.z + dir.z };
+            if(adaptive_predicate::orient3d(pa, pb, pc, pd) == static_cast<T>(0)) continue;
         }
+
+        all_tris.push_back({{v0, v1, v2}});
+
+        TriangleRec<T> rec;
+        rec.v = {{v0, v1, v2}};
+        rec.pl = plane_from_triangle(v0, v1, v2);
+        tri_recs.push_back(rec);
     }
 
     if(tri_recs.empty())
@@ -780,7 +840,30 @@ template <class T, class I>
 fv_surface_mesh<T, I>
 bsp_tree_volume<T, I>::to_fv_surface_mesh() const {
     fv_surface_mesh<T, I> mesh;
-    if(!root || root->type != NodeType::Partition) return mesh;
+    if(!root) return mesh;
+
+    if(root->type == NodeType::Out) return mesh;
+
+    if(root->type == NodeType::In) {
+        const T s = static_cast<T>(1);
+        mesh.vertices = {
+            vec3<T>(-s, -s, -s), vec3<T>( s, -s, -s),
+            vec3<T>( s,  s, -s), vec3<T>(-s,  s, -s),
+            vec3<T>(-s, -s,  s), vec3<T>( s, -s,  s),
+            vec3<T>( s,  s,  s), vec3<T>(-s,  s,  s)
+        };
+        mesh.faces = {
+            { 0, 2, 1 }, { 0, 3, 2 },
+            { 4, 5, 6 }, { 4, 6, 7 },
+            { 0, 1, 5 }, { 0, 5, 4 },
+            { 2, 3, 7 }, { 2, 7, 6 },
+            { 0, 4, 7 }, { 0, 7, 3 },
+            { 1, 2, 6 }, { 1, 6, 5 }
+        };
+        OrientFaces(mesh);
+        mesh.recreate_involved_face_index();
+        return mesh;
+    }
 
     T max_extent = compute_tree_bbox_margin<T, I>(root.get());
     if(max_extent < static_cast<T>(1)) {
@@ -800,6 +883,8 @@ bsp_tree_volume<T, I>::to_fv_surface_mesh() const {
     for(auto &face : faces) {
         triangulate_fan(face.vertices, tris);
     }
+
+    if(tris.empty()) return mesh;
 
     std::map<std::tuple<T, T, T>, I> vert_map;
     {
@@ -845,6 +930,8 @@ bsp_tree_volume<T, I>::to_fv_surface_mesh() const {
         }
     }
 
+    OrientFaces(mesh);
+    mesh.recreate_involved_face_index();
     return mesh;
 }
 

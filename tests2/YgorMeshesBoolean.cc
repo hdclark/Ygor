@@ -8,6 +8,7 @@
 
 #include <YgorMath.h>
 #include <YgorMeshesBoolean.h>
+#include <YgorMeshesVerification.h>
 #include <YgorMeshesOrient.h>
 
 #include "doctest/doctest.h"
@@ -57,28 +58,6 @@ mesh_signed_volume(const fv_surface_mesh<T, I> &mesh){
     return static_cast<double>(total);
 }
 
-template <class T, class I>
-static void
-check_closed_triangles(const fv_surface_mesh<T, I> &mesh){
-    std::map<std::pair<I, I>, int> edge_counts;
-    for(const auto &face : mesh.faces){
-        REQUIRE(face.size() == 3UL);
-        for(const auto vi : face){
-            REQUIRE(vi < mesh.vertices.size());
-        }
-        for(size_t i = 0; i < 3UL; ++i){
-            const auto a = face.at(i);
-            const auto b = face.at((i + 1UL) % 3UL);
-            edge_counts[{ std::min(a, b), std::max(a, b) }] += 1;
-        }
-    }
-
-    for(const auto &ep : edge_counts){
-        REQUIRE(ep.second == 2);
-    }
-}
-
-
 TEST_CASE("YgorMeshesBoolean"){
     SUBCASE("Intersection of disjoint boxes is empty"){
         const auto lhs = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
@@ -100,7 +79,7 @@ TEST_CASE("YgorMeshesBoolean"){
         const auto out = BooleanUnion(lhs, rhs, 5, 0.0);
         REQUIRE(!out.faces.empty());
         REQUIRE(out.involved_faces.size() == out.vertices.size());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
 
         const auto volume = std::abs(mesh_signed_volume(out));
         REQUIRE(volume > 1.1);
@@ -115,7 +94,7 @@ TEST_CASE("YgorMeshesBoolean"){
 
         const auto out = BooleanIntersection(lhs, rhs, 5, 0.0);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
 
         const auto volume = std::abs(mesh_signed_volume(out));
         REQUIRE(volume > 0.30);
@@ -130,7 +109,7 @@ TEST_CASE("YgorMeshesBoolean"){
 
         const auto out = BooleanSubtraction(lhs, rhs, 5, 0.0);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
 
         const auto volume = std::abs(mesh_signed_volume(out));
         REQUIRE(volume > 6.0);
@@ -145,7 +124,7 @@ TEST_CASE("YgorMeshesBoolean"){
 
         const auto out = BooleanExclusion(lhs, rhs, 5, 0.0);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
 
         const auto volume = std::abs(mesh_signed_volume(out));
         REQUIRE(volume > 0.7);

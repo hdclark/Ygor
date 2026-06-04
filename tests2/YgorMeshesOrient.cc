@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <YgorMath.h>
+#include <YgorMeshesVerification.h>
 #include <YgorMeshesOrient.h>
 
 #include "doctest/doctest.h"
@@ -25,43 +26,6 @@ static void check_mesh_valid(const fv_surface_mesh<T, I> &mesh) {
         }
     }
 }
-
-// Helper: verify that every shared (manifold) edge is traversed in opposite
-// directions by its two adjacent faces — the hallmark of consistent orientation.
-template <class T, class I>
-static void check_consistent_orientation(const fv_surface_mesh<T, I> &mesh) {
-    // Build directed-edge -> list of faces map so we don't overwrite entries
-    // when the same directed edge appears in multiple faces.
-    std::map<std::pair<I,I>, std::vector<I>> directed;
-    for(I f = 0; f < static_cast<I>(mesh.faces.size()); ++f){
-        const auto &face = mesh.faces[f];
-        for(size_t i = 0; i < face.size(); ++i){
-            const auto a = face[i];
-            const auto b = face[(i + 1UL) % face.size()];
-            directed[{a, b}].push_back(f);
-        }
-    }
-    // For each undirected edge shared by exactly two faces, the two directed
-    // half-edges should go in opposite directions ((a,b) and (b,a)).
-    std::map<std::pair<I,I>, std::vector<std::pair<I,I>>> undirected;
-    for(const auto &entry : directed){
-        const auto &edge = entry.first;
-        const auto &face_indices = entry.second;
-        auto key = std::make_pair(std::min(edge.first, edge.second),
-                                  std::max(edge.first, edge.second));
-        // Insert one half-edge per incident face to preserve multiplicity.
-        for(const auto &f_idx : face_indices){
-            undirected[key].push_back(edge);
-        }
-    }
-    for(const auto &[key, edges] : undirected){
-        if(edges.size() != 2UL) continue; // boundary or non-manifold
-        // Consistent: (a,b) and (b,a) → directions differ.
-        REQUIRE(edges[0].first != edges[1].first);
-        REQUIRE(edges[0].second != edges[1].second);
-    }
-}
-
 
 TEST_CASE( "YgorMeshesOrient" ){
 
@@ -99,7 +63,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: all faces already consistent"){
@@ -115,7 +79,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: two disconnected triangles"){
@@ -167,7 +131,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: degenerate (zero-area) face is tolerated"){
@@ -203,7 +167,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: float specialization"){
@@ -223,7 +187,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: octahedron with several flipped faces"){
@@ -250,7 +214,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 
     SUBCASE("OrientFaces: large icosphere-like mesh completes promptly"){
@@ -295,7 +259,7 @@ TEST_CASE( "YgorMeshesOrient" ){
 
         REQUIRE(OrientFaces(mesh) == true);
         check_mesh_valid(mesh);
-        check_consistent_orientation(mesh);
+        REQUIRE(HasConsistentOrientation(mesh));
     }
 }
 

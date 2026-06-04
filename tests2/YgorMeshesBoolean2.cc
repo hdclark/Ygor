@@ -9,6 +9,7 @@
 #include <YgorMathIOOBJ.h>
 #include <YgorMeshesBoolean.h>
 #include <YgorMeshesBoolean2.h>
+#include <YgorMeshesVerification.h>
 #include <YgorMeshesOrient.h>
 
 #include "doctest/doctest.h"
@@ -81,23 +82,6 @@ mesh_signed_volume(const fv_surface_mesh<T, I> &mesh){
 }
 
 template <class T, class I>
-static void
-check_closed_triangles(const fv_surface_mesh<T, I> &mesh){
-    std::map<std::pair<I, I>, int> edge_counts;
-    for(const auto &face : mesh.faces){
-        REQUIRE(face.size() == 3UL);
-        for(size_t i = 0; i < 3UL; ++i){
-            const auto a = face.at(i);
-            const auto b = face.at((i + 1UL) % 3UL);
-            edge_counts[{ std::min(a, b), std::max(a, b) }] += 1;
-        }
-    }
-    for(const auto &ep : edge_counts){
-        REQUIRE(ep.second == 2);
-    }
-}
-
-template <class T, class I>
 static fv_surface_mesh<T, I>
 read_obj_mesh(const std::string &obj){
     fv_surface_mesh<T, I> mesh;
@@ -129,7 +113,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanUnion2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 1.5) < 1.0e-5);
     }
 
@@ -141,7 +125,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanIntersection2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 0.5) < 1.0e-5);
     }
 
@@ -153,7 +137,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanSubtraction2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 7.0) < 1.0e-5);
     }
 
@@ -165,7 +149,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanExclusion2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 1.0) < 1.0e-5);
     }
 
@@ -177,7 +161,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanUnion2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 2.0) < 1.0e-5);
     }
 
@@ -188,7 +172,7 @@ TEST_CASE("YgorMeshesBoolean2"){
 
         const auto out = BooleanUnion2(lhs, rhs);
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
         CHECK(std::abs(std::abs(mesh_signed_volume(out)) - 1.0) < 1.0e-5);
     }
 
@@ -821,7 +805,7 @@ f 61 120 122
         fv_surface_mesh<double, uint64_t> out;
         REQUIRE_NOTHROW(out = BooleanSubtraction2(mesh_B, mesh_A, 0.0));
         REQUIRE(!out.faces.empty());
-        check_closed_triangles(out);
+        REQUIRE(IsClosedManifold(out));
 
         const auto legacy_volume = std::abs(mesh_signed_volume(legacy));
         const auto out_volume = std::abs(mesh_signed_volume(out));
