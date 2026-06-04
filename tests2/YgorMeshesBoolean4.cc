@@ -172,7 +172,7 @@ TEST_CASE("YgorMeshesBoolean4 -- BSP boolean operations"){
         REQUIRE(!result.empty());
     }
 
-    SUBCASE("Intersection of overlapping boxes is not empty"){
+    SUBCASE("Intersection of overlapping boxes produces valid non-empty mesh"){
         const auto lhs = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
                                                           vec3<double>(1.0, 1.0, 1.0));
         const auto rhs = make_box_mesh<double, uint64_t>(vec3<double>(0.5, 0.0, 0.0),
@@ -181,6 +181,13 @@ TEST_CASE("YgorMeshesBoolean4 -- BSP boolean operations"){
         const auto rt = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs);
         const auto result = lt.boolean_intersection(rt);
         REQUIRE(!result.empty());
+        const auto mesh = result.to_fv_surface_mesh();
+        REQUIRE(!mesh.faces.empty());
+        REQUIRE(IsTriangularMesh(mesh));
+        REQUIRE(IsClosedManifold(mesh));
+        REQUIRE(HasConsistentOrientation(mesh));
+        const auto vol = mesh_signed_volume(mesh);
+        REQUIRE(vol > 0.0);
     }
 
     SUBCASE("Subtraction of overlapping boxes is not empty"){
