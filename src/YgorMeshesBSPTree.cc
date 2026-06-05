@@ -304,6 +304,47 @@ NodePtr<T, I> collapse_uniform(NodePtr<T, I> node) {
     return node;
 }
 
+// Evaluate the subtree rooted at |n| to determine if it is uniformly IN,
+// uniformly OUT, or mixed.  Returns In/Out for uniform subtrees, or
+// Partition for non-uniform ones.
+template <class T, class I>
+typename bsp_tree_volume<T, I>::NodeType
+subtree_uniform_eval(const typename bsp_tree_volume<T, I>::Node *n) {
+    using NT = typename bsp_tree_volume<T, I>::NodeType;
+    if(!n) return NT::Out;
+    if(n->type == NT::In || n->type == NT::Out) return n->type;
+    const NT fe = subtree_uniform_eval<T, I>(n->front.get());
+    if(fe == NT::Partition) return NT::Partition;
+    const NT be = subtree_uniform_eval<T, I>(n->back.get());
+    if(be == NT::Partition) return NT::Partition;
+    return (fe == be) ? fe : NT::Partition;
+}
+
+// Deep collapse: collapse a partition node when BOTH children evaluate
+// to the same uniform leaf type, even if the children themselves are
+// still partition nodes.
+template <class T, class I>
+NodePtr<T, I> collapse_deep_uniform(NodePtr<T, I> node) {
+    using Node = typename bsp_tree_volume<T, I>::Node;
+    using NT = NodeType<T, I>;
+
+    if(!node) return nullptr;
+    if(node->type != NT::Partition) return node;
+
+    node->front = collapse_deep_uniform<T, I>(std::move(node->front));
+    node->back  = collapse_deep_uniform<T, I>(std::move(node->back));
+
+    const NT fe = subtree_uniform_eval<T, I>(node->front.get());
+    if(fe == NT::Partition) return node;
+    const NT be = subtree_uniform_eval<T, I>(node->back.get());
+    if(be == NT::Partition) return node;
+    if(fe != be) return node;
+
+    auto result = (node->front ? std::move(node->front) : std::move(node->back));
+    if(!result) result = std::make_unique<Node>(NT::Out);
+    return result;
+}
+
 // Merge two BSP trees with a boolean operation.
 // op: 0 = union, 1 = intersection, 2 = subtraction (A-B)
 template <class T, class I>
@@ -376,6 +417,31 @@ struct TriangleRec {
     std::array<vec3<T>, 3> v;
     bsp_plane<T> pl;
 };
+
+// Compute an approximate extent of all input triangles, used to derive
+// a mesh-scale-tuned offset for ray-cast test points so that they are not
+// placed within machine epsilon of a boundary face.
+template <class T>
+T compute_all_tris_extent(const std::vector<std::array<vec3<T>, 3>> &tris) {
+    vec3<T> bb_min( std::numeric_limits<T>::max(),
+                     std::numeric_limits<T>::max(),
+                     std::numeric_limits<T>::max());
+    vec3<T> bb_max(-std::numeric_limits<T>::max(),
+                   -std::numeric_limits<T>::max(),
+                   -std::numeric_limits<T>::max());
+    for(const auto &tri : tris) {
+        for(const auto &v : tri) {
+            bb_min.x = std::min(bb_min.x, v.x);
+            bb_min.y = std::min(bb_min.y, v.y);
+            bb_min.z = std::min(bb_min.z, v.z);
+            bb_max.x = std::max(bb_max.x, v.x);
+            bb_max.y = std::max(bb_max.y, v.y);
+            bb_max.z = std::max(bb_max.z, v.z);
+        }
+    }
+    const vec3<T> extent = bb_max - bb_min;
+    return std::max({std::abs(extent.x), std::abs(extent.y), std::abs(extent.z), static_cast<T>(1)});
+}
 
 template <class T, class I>
 NodePtr<T, I> build_bsp_from_triangles(
@@ -489,8 +555,15 @@ NodePtr<T, I> build_bsp_from_triangles(
 
     // Front side has only coplanar triangles. Ray-cast front as leaf, recurse back.
     if(front_non_coplanar == 0) {
-        auto b_child = build_bsp_from_triangles<T, I>(
-            std::move(back_tris), all_tris, depth + 1);
+        auto b_child = [&]() -> NodePtr<T, I> {
+            if(back_tris.empty()) {
+                const vec3<T> back_pt = P.centroid() - P.unit_normal() * plane_threshold<T>() * static_cast<T>(2);
+                const bool back_inside = point_is_inside_mesh(all_tris, back_pt);
+                return std::make_unique<Node>(back_inside ? NT::In : NT::Out);
+            }
+            return build_bsp_from_triangles<T, I>(
+                std::move(back_tris), all_tris, depth + 1);
+        }();
         const vec3<T> front_pt = P.centroid() + P.unit_normal() * plane_threshold<T>() * static_cast<T>(2);
         const bool front_inside = point_is_inside_mesh(all_tris, front_pt);
         auto f_child = front_inside ? std::make_unique<Node>(NT::In)
@@ -519,8 +592,15 @@ NodePtr<T, I> build_bsp_from_triangles(
                 }),
             front_tris.end());
 
-        auto f_child = build_bsp_from_triangles<T, I>(
-            std::move(front_tris), all_tris, depth + 1);
+        auto f_child = [&]() -> NodePtr<T, I> {
+            if(front_tris.empty()) {
+                const vec3<T> front_pt = P.centroid() + P.unit_normal() * plane_threshold<T>() * static_cast<T>(2);
+                const bool front_inside = point_is_inside_mesh(all_tris, front_pt);
+                return std::make_unique<Node>(front_inside ? NT::In : NT::Out);
+            }
+            return build_bsp_from_triangles<T, I>(
+                std::move(front_tris), all_tris, depth + 1);
+        }();
 
         if(f_child->type != NT::Partition && f_child->type == b_child->type) {
             return f_child;
@@ -623,6 +703,109 @@ std::vector<vec3<T>> make_initial_polygon(const bsp_plane<T> &P, T size) {
     };
 }
 
+// ============================================================================
+// Helper: check whether a subtree contains the given leaf type.
+// ============================================================================
+template <class T, class I>
+bool bsp_subtree_contains(const typename bsp_tree_volume<T, I>::Node *n,
+                          typename bsp_tree_volume<T, I>::NodeType t) {
+    using NT = typename bsp_tree_volume<T, I>::NodeType;
+    if(!n) return (t == NT::Out);
+    if(n->type == t) return true;
+    if(n->type != NT::Partition) return false;
+    return bsp_subtree_contains<T, I>(n->front.get(), t)
+        || bsp_subtree_contains<T, I>(n->back.get(), t);
+}
+
+// Clip a polygon against a BSP subtree, keeping only the region where
+// the subtree evaluates to |target|.
+//
+// Recursively walks the tree, clipping the polygon against each partition
+// plane.  When the polygon lies on only one side of a plane the recursion
+// follows that side, but the polygon is also clipped against the *
+// sibling's* planes so that bounds from the opposite side are honoured.
+template <class T, class I>
+void clip_polygon_to_leaf(const typename bsp_tree_volume<T, I>::Node *sub,
+                          std::vector<vec3<T>> &poly,
+                          typename bsp_tree_volume<T, I>::NodeType target) {
+    using NT = typename bsp_tree_volume<T, I>::NodeType;
+    if(!sub || poly.size() < 3) return;
+    if(sub->type == target) return;
+    if(sub->type != NT::Partition) {
+        poly.clear();
+        return;
+    }
+    std::vector<vec3<T>> front_poly, back_poly;
+    clip_polygon_by_plane(sub->partition_plane, poly, front_poly, back_poly);
+    const bool front_valid = (front_poly.size() >= 3);
+    const bool back_valid  = (back_poly.size() >= 3);
+
+    if(front_valid && back_valid) {
+        clip_polygon_to_leaf<T, I>(sub->front.get(), front_poly, target);
+        clip_polygon_to_leaf<T, I>(sub->back.get(), back_poly, target);
+        if(front_poly.size() >= 3 && back_poly.size() >= 3) {
+            poly = (front_poly.size() >= back_poly.size())
+                 ? std::move(front_poly)
+                 : std::move(back_poly);
+        } else if(front_poly.size() >= 3) {
+            poly = std::move(front_poly);
+        } else if(back_poly.size() >= 3) {
+            poly = std::move(back_poly);
+        } else {
+            poly.clear();
+        }
+    } else if(front_valid) {
+        poly = std::move(front_poly);
+        clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+    } else if(back_valid) {
+        poly = std::move(back_poly);
+        clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+    } else {
+        bool all_front = true, all_back = true;
+        for(const auto &v : poly) {
+            const int s = classify_point(sub->partition_plane, v);
+            if(s < 0) all_front = false;
+            if(s > 0) all_back  = false;
+        }
+        if(all_front && !all_back) {
+            clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+        } else if(all_back && !all_front) {
+            clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+        } else {
+            const bool f_contains = bsp_subtree_contains<T, I>(sub->front.get(), target);
+            const bool b_contains = bsp_subtree_contains<T, I>(sub->back.get(), target);
+            if(f_contains && b_contains) {
+                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+            } else if(f_contains) {
+                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+            } else if(b_contains) {
+                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+            } else {
+                poly.clear();
+            }
+        }
+    }
+}
+
+
+// ============================================================================
+// Classify a 3D point against a BSP subtree: return In/Out based on the
+// leaf that is reached.
+// ============================================================================
+template <class T, class I>
+typename bsp_tree_volume<T, I>::NodeType
+classify_point_in_subtree(const typename bsp_tree_volume<T, I>::Node *n,
+                          const vec3<T> &pt) {
+    using NT = typename bsp_tree_volume<T, I>::NodeType;
+    if(!n) return NT::Out;
+    if(n->type != NT::Partition) return n->type;
+    const int s = classify_point(n->partition_plane, pt);
+    if(s >= 0) return classify_point_in_subtree<T, I>(n->front.get(), pt);
+    return classify_point_in_subtree<T, I>(n->back.get(), pt);
+}
+
+
 template <class T, class I>
 void extract_boundary_faces(
     const typename bsp_tree_volume<T, I>::Node *node,
@@ -650,10 +833,20 @@ void extract_boundary_faces(
     const Eval front_eval = eval_subtree(node->front.get(), eval_subtree);
     const Eval back_eval  = eval_subtree(node->back.get(), eval_subtree);
 
+    // Extract a boundary face whenever the two sides differ in their
+    // IN/OUT classification.  This includes the classical IN-vs-OUT case
+    // as well as Mixed-vs-leaf cases where part of the plane is a true
+    // boundary of the solid.
     if((front_eval == Eval::In  && back_eval == Eval::Out)
-    || (front_eval == Eval::Out && back_eval == Eval::In)) {
+    || (front_eval == Eval::Out && back_eval == Eval::In)
+    || (front_eval == Eval::In  && back_eval == Eval::Mixed)
+    || (front_eval == Eval::Out && back_eval == Eval::Mixed)
+    || (front_eval == Eval::Mixed && back_eval == Eval::In)
+    || (front_eval == Eval::Mixed && back_eval == Eval::Out)) {
+
         auto poly = make_initial_polygon<T>(node->partition_plane, bbox_size);
 
+        // Clip against ancestor planes.
         for(size_t i = 0; i < ancestors.size(); ++i) {
             const bsp_plane<T> &anc_plane = ancestors[i]->partition_plane;
             const bool went_front = side_stack[i];
@@ -661,6 +854,21 @@ void extract_boundary_faces(
             clip_polygon_by_plane(anc_plane, poly, keep, discard);
             poly = went_front ? std::move(keep) : std::move(discard);
             if(poly.size() < 3) break;
+        }
+
+        // When one child is a leaf and the other is Mixed we also need to
+        // clip the face polygon against the Mixed descendant planes so that
+        // the face is bounded to the region where it really is a boundary.
+        if(poly.size() >= 3) {
+            if(front_eval == Eval::In && back_eval == Eval::Mixed) {
+                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::Out);
+            } else if(front_eval == Eval::Out && back_eval == Eval::Mixed) {
+                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::In);
+            } else if(front_eval == Eval::Mixed && back_eval == Eval::In) {
+                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::Out);
+            } else if(front_eval == Eval::Mixed && back_eval == Eval::Out) {
+                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::In);
+            }
         }
 
         if(poly.size() >= 3) {
@@ -826,13 +1034,15 @@ bsp_tree_volume<T, I>::from_fv_surface_mesh(
 
     fv_surface_mesh<T, I> working_mesh = mesh;
     working_mesh.convert_to_triangles();
+
+    if(!HasOnlyFiniteVertices(working_mesh))
+        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains non-finite vertices.");
+
     working_mesh.remove_degenerate_faces();
 
     if(working_mesh.faces.empty())
         return bsp_tree_volume();
 
-    if(!HasOnlyFiniteVertices(working_mesh))
-        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains non-finite vertices.");
     if(!IsTriangularMesh(working_mesh))
         throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh must contain only triangular faces.");
     if(!HasValidFaceIndices(working_mesh))

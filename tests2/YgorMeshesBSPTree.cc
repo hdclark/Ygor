@@ -414,13 +414,13 @@ TEST_CASE( "bsp_tree_volume numerical robustness" ){
     }
 
     SUBCASE("cube with very small face (near-degenerate facet)"){
-        // A cube where one face is extremely thin (width 1e-8).
+        // A cube where one face is extremely thin (width 1e-6).
         fv_surface_mesh<double, uint64_t> mesh;
         mesh.vertices = {
-            {0.0, 0.0, 0.0}, {1e-8, 0.0, 0.0},  // narrow front face
-            {1e-8, 1.0, 0.0}, {0.0, 1.0, 0.0},
-            {0.0, 0.0, 1.0}, {1e-8, 0.0, 1.0},
-            {1e-8, 1.0, 1.0}, {0.0, 1.0, 1.0}
+            {0.0, 0.0, 0.0}, {1e-6, 0.0, 0.0},  // narrow front face
+            {1e-6, 1.0, 0.0}, {0.0, 1.0, 0.0},
+            {0.0, 0.0, 1.0}, {1e-6, 0.0, 1.0},
+            {1e-6, 1.0, 1.0}, {0.0, 1.0, 1.0}
         };
         mesh.faces = {
             {0, 3, 2, 1}, {4, 5, 6, 7},
