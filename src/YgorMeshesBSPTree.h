@@ -25,6 +25,27 @@
 #include "YgorMeshesAdaptivePredicates.h"
 
 
+template <class T>
+struct bsp_plane {
+    vec3<T> anchors[3];
+
+    bsp_plane() = default;
+    bsp_plane(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c)
+        : anchors{a, b, c} {}
+
+    vec3<T> normal() const {
+        return (anchors[1] - anchors[0]).Cross(anchors[2] - anchors[0]);
+    }
+    vec3<T> unit_normal() const {
+        return normal().unit();
+    }
+    vec3<T> centroid() const {
+        return (anchors[0] + anchors[1] + anchors[2])
+             * (static_cast<T>(1) / static_cast<T>(3));
+    }
+};
+
+
 template <class T, class I>
 class bsp_tree_volume {
     public:
@@ -39,13 +60,13 @@ class bsp_tree_volume {
 
         struct Node {
             NodeType type = NodeType::Out;
-            plane<T> partition_plane;
+            bsp_plane<T> partition_plane;
             std::unique_ptr<Node> front;
             std::unique_ptr<Node> back;
 
             Node();
             explicit Node(NodeType t);
-            Node(const plane<T> &p,
+            Node(const bsp_plane<T> &p,
                  std::unique_ptr<Node> f,
                  std::unique_ptr<Node> b);
             Node(const Node &) = delete;

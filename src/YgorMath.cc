@@ -37,6 +37,7 @@
 
 #include "YgorMathIOOBJ.h"
 #include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesVerification.h"
 
 //#ifndef YGORMATH_DISABLE_ALL_SPECIALIZATIONS
 //    #define YGORMATH_DISABLE_ALL_SPECIALIZATIONS
@@ -7152,18 +7153,31 @@ void
 fv_surface_mesh<T,I>::remove_degenerate_faces(){
     this->involved_faces.clear();
 
+    if(this->faces.empty() || this->vertices.empty()){
+        return;
+    }
+
     this->faces.erase( std::remove_if( std::begin(this->faces), std::end(this->faces),
                                        [this](const std::vector<I> &fiv){
+
+                                           // Remove faces with fewer than three verts.
                                            if(fiv.size() < 3UL) return true;
+
+                                           // Remove faces that share one or more vertices.
                                            const I i0 = fiv[0];
                                            const I i1 = fiv[1];
                                            const I i2 = fiv[2];
                                            if(i0 == i1 || i1 == i2 || i2 == i0) return true;
-                                           const auto &v0 = this->vertices.at(i0);
-                                           const auto &v1 = this->vertices.at(i1);
-                                           const auto &v2 = this->vertices.at(i2);
-                                           const auto N = (v1 - v0).Cross(v2 - v0);
-                                           if(N.sq_length() <= static_cast<T>(0)) return true;
+
+                                           // Use an adaptive predicate to test for numerically zero-area faces.
+                                           const vec3<T> &v0 = this->vertices[i0];
+                                           const vec3<T> &v1 = this->vertices[i1];
+                                           const vec3<T> &v2 = this->vertices[i2];
+                                           if(TriangleIsDegenerate(v0, v1, v2)){
+                                               return true;
+                                           }
+
+                                           // Otherwise, keep the face.
                                            return false;
                                        }),
                        std::end(this->faces) );

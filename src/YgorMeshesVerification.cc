@@ -14,6 +14,31 @@
 #include "YgorMath.h"
 #include "YgorMeshesVerification.h"
 
+template <class T>
+bool
+TriangleIsDegenerate(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c){
+    // Project the face onto the YZ, ZX, and XY planes, checking the x-component, y-component, and z-component of the
+    // cross product separately.
+    //
+    // If any projection has non-zero area, the 3D triangle has non-zero area.
+    const auto a_yz = vec2<T>(a.y, a.z);
+    const auto b_yz = vec2<T>(b.y, b.z);
+    const auto c_yz = vec2<T>(c.y, c.z);
+    
+    const auto a_zx = vec2<T>(a.z, a.x);
+    const auto b_zx = vec2<T>(b.z, b.x);
+    const auto c_zx = vec2<T>(c.z, c.x);
+    
+    const auto a_xy = vec2<T>(a.x, a.y);
+    const auto b_xy = vec2<T>(b.x, b.y);
+    const auto c_xy = vec2<T>(c.x, c.y);
+    
+    // Only if all three planar projections are strictly zero, the vertices are perfectly collinear and the triangle
+    // is degenerate.
+    return (orient_sign(a_yz, b_yz, c_yz) == static_cast<T>(0)) 
+        && (orient_sign(a_zx, b_zx, c_zx) == static_cast<T>(0))
+        && (orient_sign(a_xy, b_xy, c_xy) == static_cast<T>(0));
+}
 
 template <class T, class I>
 bool
@@ -51,16 +76,22 @@ template <class T, class I>
 bool
 HasNoDegenerateFaces(const fv_surface_mesh<T, I> &mesh,
                      bool allow_zero_area) {
-    for(const auto &face : mesh.faces) {
+
+
+    for(const auto &face : mesh.faces){
         if(face.size() < 3UL) return false;
+
         const auto &v0 = mesh.vertices.at(face.at(0));
         const auto &v1 = mesh.vertices.at(face.at(1));
         const auto &v2 = mesh.vertices.at(face.at(2));
-        if(face[0] == face[1] || face[1] == face[2] || face[2] == face[0])
+        if(face[0] == face[1] || face[1] == face[2] || face[2] == face[0]){
             return false;
-        if(!allow_zero_area) {
-            const auto N = (v1 - v0).Cross(v2 - v0);
-            if(N.sq_length() <= static_cast<T>(0)) return false;
+        }
+
+        if(!allow_zero_area){
+            if(TriangleIsDegenerate(v0, v1, v2)){
+                return false;
+            }
         }
     }
     return true;

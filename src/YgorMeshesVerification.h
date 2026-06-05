@@ -25,6 +25,9 @@ make_undirected_edge(I a, I b) {
     return { std::min<I>(a, b), std::max<I>(a, b) };
 }
 
+template <class T>
+bool
+TriangleIsDegenerate(const vec3<T> &a, const vec3<T> &b, const vec3<T> &c);
 
 template <class T, class I>
 bool
