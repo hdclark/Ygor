@@ -226,6 +226,11 @@ NodePtr<T, I> complement_tree(NodePtr<T, I> node) {
 
 // Partition a BSP tree by a plane.
 // Returns (front_fragment, back_fragment).
+//
+// When the tree being partitioned contains a plane coplanar with the
+// partition plane, that coplanar plane is collapsed (flattened) so it
+// does not appear duplicated in the output.  Its subtrees are placed
+// directly into the appropriate half-space fragments.
 template <class T, class I>
 std::pair<NodePtr<T, I>, NodePtr<T, I>>
 partition_tree(const bsp_plane<T> &P, NodePtr<T, I> node) {
@@ -236,12 +241,50 @@ partition_tree(const bsp_plane<T> &P, NodePtr<T, I> node) {
         return {nullptr, nullptr};
     }
     if(node->type != NT::Partition) {
-        // IN or OUT leaf: both fragments inherit the leaf type.
         auto nt = node->type;
         return {std::make_unique<Node>(nt), std::make_unique<Node>(nt)};
     }
 
     const bsp_plane<T> &Q = node->partition_plane;
+
+    // Detect coplanar planes to avoid duplication in the merged tree.
+    {
+        const vec3<T> nP = P.unit_normal();
+        const vec3<T> nQ = Q.unit_normal();
+        const T dot = nP.Dot(nQ);
+        const bool parallel = (std::abs(dot) > (static_cast<T>(1) - std::numeric_limits<T>::epsilon() * static_cast<T>(128)));
+        if(parallel) {
+            const int cp = classify_point(P, Q.centroid());
+            if(cp == 0) {
+                // Q is coplanar with P.  Partition the children by P, then
+                // place each child directly into the appropriate fragment so
+                // that Q does not appear duplicated in the merged tree.
+                auto [ff, fb] = partition_tree<T, I>(P, std::move(node->front));
+                auto [bf, bb] = partition_tree<T, I>(P, std::move(node->back));
+
+                // When normals are aligned, Q's front child is in P's front.
+                // When anti-aligned, Q's back child is in P's front.
+                // Flatten Q by combining the appropriate children without
+                // introducing a new partition node at Q.
+                NodePtr<T, I> front_result;
+                NodePtr<T, I> back_result;
+
+                if(dot > static_cast<T>(0)) {
+                    // Normals aligned: front -> front, back -> back.
+                    front_result = (ff ? std::move(ff) : std::move(bf));
+                    back_result  = (bb ? std::move(bb) : std::move(fb));
+                } else {
+                    // Normals anti-aligned: back -> front, front -> back.
+                    front_result = (bf ? std::move(bf) : std::move(ff));
+                    back_result  = (fb ? std::move(fb) : std::move(bb));
+                }
+                if(!front_result) front_result = std::make_unique<Node>(NT::Out);
+                if(!back_result)  back_result  = std::make_unique<Node>(NT::Out);
+
+                return {std::move(front_result), std::move(back_result)};
+            }
+        }
+    }
 
     auto [ff, fb] = partition_tree<T, I>(P, std::move(node->front));
     auto [bf, bb] = partition_tree<T, I>(P, std::move(node->back));
@@ -717,49 +760,39 @@ bool bsp_subtree_contains(const typename bsp_tree_volume<T, I>::Node *n,
         || bsp_subtree_contains<T, I>(n->back.get(), t);
 }
 
-// Clip a polygon against a BSP subtree, keeping only the region where
-// the subtree evaluates to |target|.
+// Clip a polygon against a BSP subtree, keeping only regions where the
+// subtree evaluates to |target|.
 //
 // Recursively walks the tree, clipping the polygon against each partition
-// plane.  When the polygon lies on only one side of a plane the recursion
-// follows that side, but the polygon is also clipped against the *
-// sibling's* planes so that bounds from the opposite side are honoured.
+// plane.  When both sides contain the target region the polygon is split
+// and each fragment is processed independently.
+//
+// Accumulates surviving polygons into |out|.
 template <class T, class I>
 void clip_polygon_to_leaf(const typename bsp_tree_volume<T, I>::Node *sub,
-                          std::vector<vec3<T>> &poly,
-                          typename bsp_tree_volume<T, I>::NodeType target) {
+                          const std::vector<vec3<T>> &poly,
+                          typename bsp_tree_volume<T, I>::NodeType target,
+                          std::vector<std::vector<vec3<T>>> &out) {
     using NT = typename bsp_tree_volume<T, I>::NodeType;
     if(!sub || poly.size() < 3) return;
-    if(sub->type == target) return;
-    if(sub->type != NT::Partition) {
-        poly.clear();
+    if(sub->type == target) {
+        out.push_back(poly);
         return;
     }
+    if(sub->type != NT::Partition) return;
+
     std::vector<vec3<T>> front_poly, back_poly;
     clip_polygon_by_plane(sub->partition_plane, poly, front_poly, back_poly);
     const bool front_valid = (front_poly.size() >= 3);
     const bool back_valid  = (back_poly.size() >= 3);
 
     if(front_valid && back_valid) {
-        clip_polygon_to_leaf<T, I>(sub->front.get(), front_poly, target);
-        clip_polygon_to_leaf<T, I>(sub->back.get(), back_poly, target);
-        if(front_poly.size() >= 3 && back_poly.size() >= 3) {
-            poly = (front_poly.size() >= back_poly.size())
-                 ? std::move(front_poly)
-                 : std::move(back_poly);
-        } else if(front_poly.size() >= 3) {
-            poly = std::move(front_poly);
-        } else if(back_poly.size() >= 3) {
-            poly = std::move(back_poly);
-        } else {
-            poly.clear();
-        }
+        clip_polygon_to_leaf<T, I>(sub->front.get(), front_poly, target, out);
+        clip_polygon_to_leaf<T, I>(sub->back.get(), back_poly, target, out);
     } else if(front_valid) {
-        poly = std::move(front_poly);
-        clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+        clip_polygon_to_leaf<T, I>(sub->front.get(), front_poly, target, out);
     } else if(back_valid) {
-        poly = std::move(back_poly);
-        clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+        clip_polygon_to_leaf<T, I>(sub->back.get(), back_poly, target, out);
     } else {
         bool all_front = true, all_back = true;
         for(const auto &v : poly) {
@@ -768,21 +801,19 @@ void clip_polygon_to_leaf(const typename bsp_tree_volume<T, I>::Node *sub,
             if(s > 0) all_back  = false;
         }
         if(all_front && !all_back) {
-            clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+            clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target, out);
         } else if(all_back && !all_front) {
-            clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+            clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target, out);
         } else {
             const bool f_contains = bsp_subtree_contains<T, I>(sub->front.get(), target);
             const bool b_contains = bsp_subtree_contains<T, I>(sub->back.get(), target);
             if(f_contains && b_contains) {
-                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
-                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
+                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target, out);
+                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target, out);
             } else if(f_contains) {
-                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target);
+                clip_polygon_to_leaf<T, I>(sub->front.get(), poly, target, out);
             } else if(b_contains) {
-                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target);
-            } else {
-                poly.clear();
+                clip_polygon_to_leaf<T, I>(sub->back.get(), poly, target, out);
             }
         }
     }
@@ -842,7 +873,8 @@ void extract_boundary_faces(
     || (front_eval == Eval::In  && back_eval == Eval::Mixed)
     || (front_eval == Eval::Out && back_eval == Eval::Mixed)
     || (front_eval == Eval::Mixed && back_eval == Eval::In)
-    || (front_eval == Eval::Mixed && back_eval == Eval::Out)) {
+    || (front_eval == Eval::Mixed && back_eval == Eval::Out)
+    || (front_eval == Eval::Mixed && back_eval == Eval::Mixed)) {
 
         auto poly = make_initial_polygon<T>(node->partition_plane, bbox_size);
 
@@ -859,23 +891,53 @@ void extract_boundary_faces(
         // When one child is a leaf and the other is Mixed we also need to
         // clip the face polygon against the Mixed descendant planes so that
         // the face is bounded to the region where it really is a boundary.
+        //
+        // Accumulate all surviving fragments — a boundary plane may be split
+        // into multiple disjoint patches.
+        std::vector<std::vector<vec3<T>>> fragments;
+        fragments.reserve(4);
+
         if(poly.size() >= 3) {
-            if(front_eval == Eval::In && back_eval == Eval::Mixed) {
-                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::Out);
+            if(front_eval == Eval::In && back_eval == Eval::Out) {
+                fragments.push_back(std::move(poly));
+            } else if(front_eval == Eval::Out && back_eval == Eval::In) {
+                fragments.push_back(std::move(poly));
+            } else if(front_eval == Eval::In && back_eval == Eval::Mixed) {
+                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::Out, fragments);
             } else if(front_eval == Eval::Out && back_eval == Eval::Mixed) {
-                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::In);
+                clip_polygon_to_leaf<T, I>(node->back.get(), poly, NT::In, fragments);
             } else if(front_eval == Eval::Mixed && back_eval == Eval::In) {
-                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::Out);
+                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::Out, fragments);
             } else if(front_eval == Eval::Mixed && back_eval == Eval::Out) {
-                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::In);
+                clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::In, fragments);
+            } else if(front_eval == Eval::Mixed && back_eval == Eval::Mixed) {
+                // IN-on-front / OUT-on-back
+                {
+                    std::vector<std::vector<vec3<T>>> in_front;
+                    clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::In, in_front);
+                    for(auto &fp : in_front) {
+                        clip_polygon_to_leaf<T, I>(node->back.get(), fp, NT::Out, fragments);
+                    }
+                }
+                // OUT-on-front / IN-on-back
+                {
+                    std::vector<std::vector<vec3<T>>> out_front;
+                    clip_polygon_to_leaf<T, I>(node->front.get(), poly, NT::Out, out_front);
+                    for(auto &fp : out_front) {
+                        clip_polygon_to_leaf<T, I>(node->back.get(), fp, NT::In, fragments);
+                    }
+                }
             }
         }
 
-        if(poly.size() >= 3) {
-            const vec3<T> face_normal = (front_eval == Eval::In)
-                ? node->partition_plane.unit_normal()
-                : node->partition_plane.unit_normal() * static_cast<T>(-1);
-            faces.push_back({std::move(poly), face_normal});
+        for(auto &frag : fragments) {
+            if(frag.size() >= 3) {
+                const vec3<T> face_normal = (front_eval == Eval::In
+                                             || front_eval == Eval::Mixed)
+                    ? node->partition_plane.unit_normal()
+                    : node->partition_plane.unit_normal() * static_cast<T>(-1);
+                faces.push_back({std::move(frag), face_normal});
+            }
         }
     }
 
@@ -980,7 +1042,7 @@ bsp_tree_volume<T, I>::boolean_union(const bsp_tree_volume &other) const {
     if(!other.root) return *this;
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 0);
-    r = collapse_uniform<T, I>(std::move(r));
+    r = collapse_deep_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -991,7 +1053,7 @@ bsp_tree_volume<T, I>::boolean_intersection(const bsp_tree_volume &other) const 
         return bsp_tree_volume();
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 1);
-    r = collapse_uniform<T, I>(std::move(r));
+    r = collapse_deep_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -1002,7 +1064,7 @@ bsp_tree_volume<T, I>::boolean_subtraction(const bsp_tree_volume &other) const {
     if(!other.root) return *this;
     auto r = merge_bsp<T, I>(clone_node<T, I>(root.get()),
                              clone_node<T, I>(other.root.get()), 2);
-    r = collapse_uniform<T, I>(std::move(r));
+    r = collapse_deep_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
@@ -1017,7 +1079,7 @@ bsp_tree_volume<T, I>::boolean_exclusion(const bsp_tree_volume &other) const {
     auto b_sub_a = merge_bsp<T, I>(clone_node<T, I>(other.root.get()),
                                    clone_node<T, I>(root.get()), 2);
     auto r = merge_bsp<T, I>(std::move(a_sub_b), std::move(b_sub_a), 0);
-    r = collapse_uniform<T, I>(std::move(r));
+    r = collapse_deep_uniform<T, I>(std::move(r));
     return bsp_tree_volume(std::move(r));
 }
 
