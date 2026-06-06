@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "YgorDefinitions.h"
@@ -98,7 +99,8 @@ class bsp_tree_volume {
         bsp_tree_volume boolean_exclusion(const bsp_tree_volume &other) const;
 
         // ---- Conversions ----
-        static bsp_tree_volume from_fv_surface_mesh(const fv_surface_mesh<T, I> &mesh);
+        static bsp_tree_volume from_fv_surface_mesh(const fv_surface_mesh<T, I> &mesh,
+                                                     std::optional<uint64_t> seed = std::nullopt);
         fv_surface_mesh<T, I> to_fv_surface_mesh() const;
 };
 

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <list>
 #include <memory>
+#include <optional>
 #include <random>        //Needed for std::random_device.
 #include <string>
 #include <tuple>
@@ -332,10 +333,8 @@ template<typename T> void shuffle_list_consistently( std::list<T> &mylist ){
 template<typename T> void shuffle_list_randomly( std::list<T> &mylist ){
     //Uses a ("truly random") random device to shuffle. The shuffling will be different upon repeated calls.
     std::random_device rd;
-    auto shuffle_func = [&rd](ptrdiff_t i){ return rd()%i; };  //This *may* not be suitable for large lists. See rd.max() for upper bound.
-
     std::vector<T> v( mylist.begin(), mylist.end() );
-    std::shuffle( v.begin(), v.end(), std::mt19937(std::random_device()()));
+    std::shuffle( v.begin(), v.end(), std::mt19937_64(rd()));
     mylist.assign( v.begin(), v.end() );
     return;
 }
@@ -508,7 +507,8 @@ Ygor_Fit_LMS(bool *wasOK,
 std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
          const std::list<std::list<double>> &data,  const std::list<double> &vars,  uint32_t fitflags,
-         int64_t N,  double char_len,  int max_iters,  double ftol);
+         int64_t N,  double char_len,  int max_iters,  double ftol,
+         std::optional<uint64_t> seed = std::nullopt);
 
 std::list<std::list<double>> Ygor_Fit_Bootstrap_LSS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
@@ -516,7 +516,8 @@ std::list<std::list<double>> Ygor_Fit_Bootstrap_LSS(bool *wasOK,
          int64_t N = 5000,
          double char_len = 0.6,
          int max_iters = 1500,
-         double ftol = 1E-6);
+         double ftol = 1E-6,
+         std::optional<uint64_t> seed = std::nullopt);
 
 std::list<std::list<double>> Ygor_Fit_Bootstrap_LMS(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
@@ -524,7 +525,8 @@ std::list<std::list<double>> Ygor_Fit_Bootstrap_LMS(bool *wasOK,
          int64_t N = 5000,
          double char_len = 0.6,
          int max_iters = 2500,
-         double ftol = 1E-6);
+         double ftol = 1E-6,
+         std::optional<uint64_t> seed = std::nullopt);
 
 
 #endif 

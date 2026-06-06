@@ -12,6 +12,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
 #include <set>
 #include <tuple>
@@ -490,13 +491,15 @@ template <class T, class I>
 NodePtr<T, I> build_bsp_from_triangles(
     std::vector<TriangleRec<T>> tris,
     const std::vector<std::array<vec3<T>, 3>> &all_tris,
-    size_t depth);
+    size_t depth,
+    std::optional<uint64_t> seed);
 
 template <class T, class I>
 NodePtr<T, I> build_bsp_from_triangles(
     std::vector<TriangleRec<T>> tris,
     const std::vector<std::array<vec3<T>, 3>> &all_tris,
-    size_t depth) {
+    size_t depth,
+    std::optional<uint64_t> seed) {
     using Node = typename bsp_tree_volume<T, I>::Node;
     using NT = NodeType<T, I>;
 
@@ -507,8 +510,8 @@ NodePtr<T, I> build_bsp_from_triangles(
     }
 
     if(depth == 0) {
-        std::random_device rd;
-        std::mt19937_64 gen(rd());
+        const uint64_t s = (seed) ? seed.value() : std::random_device{}();
+        std::mt19937_64 gen(s);
         std::shuffle(tris.begin(), tris.end(), gen);
     }
 
@@ -605,7 +608,7 @@ NodePtr<T, I> build_bsp_from_triangles(
                 return std::make_unique<Node>(back_inside ? NT::In : NT::Out);
             }
             return build_bsp_from_triangles<T, I>(
-                std::move(back_tris), all_tris, depth + 1);
+                std::move(back_tris), all_tris, depth + 1, seed);
         }();
         const vec3<T> front_pt = P.centroid() + P.unit_normal() * plane_threshold<T>() * static_cast<T>(2);
         const bool front_inside = point_is_inside_mesh(all_tris, front_pt);
@@ -642,7 +645,7 @@ NodePtr<T, I> build_bsp_from_triangles(
                 return std::make_unique<Node>(front_inside ? NT::In : NT::Out);
             }
             return build_bsp_from_triangles<T, I>(
-                std::move(front_tris), all_tris, depth + 1);
+                std::move(front_tris), all_tris, depth + 1, seed);
         }();
 
         if(f_child->type != NT::Partition && f_child->type == b_child->type) {
@@ -653,9 +656,9 @@ NodePtr<T, I> build_bsp_from_triangles(
 
     // Both sides have non-coplanar triangles - recurse on both.
     auto f_child = build_bsp_from_triangles<T, I>(
-        std::move(front_tris), all_tris, depth + 1);
+        std::move(front_tris), all_tris, depth + 1, seed);
     auto b_child = build_bsp_from_triangles<T, I>(
-        std::move(back_tris), all_tris, depth + 1);
+        std::move(back_tris), all_tris, depth + 1, seed);
 
     if(f_child && b_child &&
        f_child->type != NT::Partition &&
@@ -1089,7 +1092,8 @@ bsp_tree_volume<T, I>::boolean_exclusion(const bsp_tree_volume &other) const {
 template <class T, class I>
 bsp_tree_volume<T, I>
 bsp_tree_volume<T, I>::from_fv_surface_mesh(
-    const fv_surface_mesh<T, I> &mesh) {
+    const fv_surface_mesh<T, I> &mesh,
+    std::optional<uint64_t> seed) {
 
     if(mesh.faces.empty() || mesh.vertices.empty())
         return bsp_tree_volume();
@@ -1160,7 +1164,7 @@ bsp_tree_volume<T, I>::from_fv_surface_mesh(
         return bsp_tree_volume();
 
     auto root = build_bsp_from_triangles<T, I>(
-        std::move(tri_recs), all_tris, 0);
+        std::move(tri_recs), all_tris, 0, seed);
 
     return bsp_tree_volume<T, I>(std::move(root));
 }

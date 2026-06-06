@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <numeric>   //For std::accumulate(...).
+#include <optional>
 #include <random>
 #include <string>
 #include <tuple>
@@ -902,7 +903,8 @@ Ygor_Fit_LMS(bool *wasOK,
 std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
          const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
          const std::list<std::list<double>> &data,  const std::list<double> &vars, uint32_t fitflags,
-         int64_t N,   double char_len,   int max_iters,    double ftol){
+         int64_t N,   double char_len,   int max_iters,    double ftol,
+         std::optional<uint64_t> seed){
 
     *wasOK = false;
     std::list<std::list<double>> out;
@@ -911,8 +913,7 @@ std::list<std::list<double>> Ygor_Fit_Bootstrap_Driver(bool *wasOK,
     int64_t MAX_N_ERRS = 100*N;  //Will happen if single row is picked or some other unreasonable scenario.
     int64_t N_ERRS = 0;
 
-    std::random_device rdev;
-    std::mt19937 re( rdev() ); //Random engine.
+    std::mt19937 re( (seed) ? seed.value() : std::random_device{}() ); //Random engine.
     std::uniform_int_distribution<> rd(0, data.size()-1); //Random distribution.
 
     //Fill up the substitute data buffer with randomly-chosen values.
@@ -1003,7 +1004,8 @@ std::list<std::list<double>>
 Ygor_Fit_Bootstrap_LSS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
              const std::list<std::list<double>> &data,  const std::list<double> &vars, int64_t dim, 
-             int64_t N,  double char_len,  int max_iters, double ftol){
+             int64_t N,  double char_len,  int max_iters, double ftol,
+             std::optional<uint64_t> seed){
 
     uint32_t fitflags(0);
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
@@ -1014,14 +1016,15 @@ Ygor_Fit_Bootstrap_LSS(bool *wasOK,
     fitflags |= YGORFIT::LSS;
     fitflags |= YGORFIT::NON_CONVERG_IS_ERR;  //We want to ensure our stats aren't messed up by default params.
 
-    return Ygor_Fit_Bootstrap_Driver(wasOK,f,data,vars,fitflags,N,char_len,max_iters,ftol);
+    return Ygor_Fit_Bootstrap_Driver(wasOK,f,data,vars,fitflags,N,char_len,max_iters,ftol,seed);
 }
 
 std::list<std::list<double>>
 Ygor_Fit_Bootstrap_LMS(bool *wasOK,
              const std::function<double (const std::list<double> &X, const std::list<double> &Vars)> &f,
              const std::list<std::list<double>> &data,  const std::list<double> &vars, int64_t dim, 
-             int64_t N,  double char_len,  int max_iters, double ftol){
+             int64_t N,  double char_len,  int max_iters, double ftol,
+             std::optional<uint64_t> seed){
 
     uint32_t fitflags(0);
     if(dim == 2){        fitflags |= YGORFIT::DIM2;
@@ -1032,7 +1035,7 @@ Ygor_Fit_Bootstrap_LMS(bool *wasOK,
     fitflags |= YGORFIT::LMS;
     fitflags |= YGORFIT::NON_CONVERG_IS_ERR;  //We want to ensure our stats aren't messed up by default params.
 
-    return Ygor_Fit_Bootstrap_Driver(wasOK,f,data,vars,fitflags,N,char_len,max_iters,ftol);
+    return Ygor_Fit_Bootstrap_Driver(wasOK,f,data,vars,fitflags,N,char_len,max_iters,ftol,seed);
 }
 
 

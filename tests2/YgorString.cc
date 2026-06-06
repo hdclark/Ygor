@@ -178,17 +178,17 @@ TEST_CASE( "Get_Parent_Directory" ){
 TEST_CASE( "Generate_Random_String_of_Length" ){
 
     SUBCASE("returns correct length"){
-        const auto s = Generate_Random_String_of_Length(100);
+        const auto s = Generate_Random_String_of_Length(100, 0x12345);
         REQUIRE( s.size() == 100 );
     }
 
     SUBCASE("returns non-empty string"){
-        const auto s = Generate_Random_String_of_Length(1);
+        const auto s = Generate_Random_String_of_Length(1, 0x12345);
         REQUIRE( !s.empty() );
     }
 
     SUBCASE("zero-length string"){
-        const auto s = Generate_Random_String_of_Length(0);
+        const auto s = Generate_Random_String_of_Length(0, 0x12345);
         REQUIRE( s.empty() );
     }
 
