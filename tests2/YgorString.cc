@@ -192,18 +192,27 @@ TEST_CASE( "Generate_Random_String_of_Length" ){
         REQUIRE( s.empty() );
     }
 
-    SUBCASE("different strings are generated"){
-        // Generate several strings and verify they are not all identical.
-        const size_t N = 20;
-        std::string first = Generate_Random_String_of_Length(50);
+    SUBCASE("different seeds produce different strings"){
+        const std::string first = Generate_Random_String_of_Length(50, 0x1);
         bool found_different = false;
-        for(size_t i = 1; i < N; ++i){
-            if(Generate_Random_String_of_Length(50) != first){
+        for(uint64_t seed = 0x2UL; seed <= 0x20UL; ++seed){
+            if(Generate_Random_String_of_Length(50, seed) != first){
                 found_different = true;
                 break;
             }
         }
         REQUIRE( found_different );
+    }
+
+    SUBCASE("same seed produces same string"){
+        const std::string first = Generate_Random_String_of_Length(50, 0xABCDEF);
+        const std::string second = Generate_Random_String_of_Length(50, 0xABCDEF);
+        REQUIRE( first == second );
+    }
+
+    SUBCASE("seeded version returns correct length"){
+        const auto s = Generate_Random_String_of_Length(100, 0x42);
+        REQUIRE( s.size() == 100 );
     }
 }
 

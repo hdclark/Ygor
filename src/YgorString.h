@@ -137,6 +137,7 @@ std::string encode_metadata_kv_pair( const std::pair<std::string,std::string> &k
 //----------------------------------------------- Generic String-related Routines -----------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
 std::string Generate_Random_String_of_Length(int64_t len);
+std::string Generate_Random_String_of_Length(int64_t len, uint64_t seed);
 
 std::string Lineate_Vector(const std::vector<std::string> &in, const std::string &separator);
 

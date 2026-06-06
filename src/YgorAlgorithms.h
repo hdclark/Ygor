@@ -340,6 +340,14 @@ template<typename T> void shuffle_list_randomly( std::list<T> &mylist ){
     return;
 }
 
+template<typename T> void shuffle_list_randomly( std::list<T> &mylist, uint64_t seed ){
+    //Uses the provided seed for deterministic, reproducible shuffling.
+    std::vector<T> v( mylist.begin(), mylist.end() );
+    std::shuffle( v.begin(), v.end(), std::mt19937_64(seed));
+    mylist.assign( v.begin(), v.end() );
+    return;
+}
+
 template<typename T> void shuffle_list( std::list<T> &mylist ){
     //Default 'shuffle' is a consistent one. It is not a true random shuffle, but is reproducable with repeated calls.
     //

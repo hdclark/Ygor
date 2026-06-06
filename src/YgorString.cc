@@ -1052,33 +1052,23 @@ encode_metadata_kv_pair( const std::pair<std::string,std::string> &kvp ){
 //-------------------------------------------------------------------------------------------------------------------------------
 
 //This function looks very similar to one in YgorMisc.h/cc. It should replace it eventually.
-std::string Generate_Random_String_of_Length(int64_t len){
+std::string Generate_Random_String_of_Length(int64_t len, uint64_t seed){
     std::string out;
     static const std::string alphanum(R"***(0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz)***");
-    std::default_random_engine gen;
-
-    //Seed the generator. It would be best to be able to pass in an optional std::seed_sequence. Also, to ensure the
-    // quality is sufficient, incorporating the entropy() might be useful (read some issues about the implementation at
-    // the moment, though...).
-    try{
-        std::random_device rd;  //Constructor can fail if many threads create instances (maybe limited fd's?).
-        gen.seed(rd()); //Seed with a true random number.
-    }catch(const std::exception &){
-        // --- Maybe we should issue a warning now? ---
-        // Is it necessary for this routine? Do we need truly random? Can we just say 'write your own' if you need
-        // something more robust?
-        //
-        // Not sure that issuing a warning would be good, especially if this routine is mostly failing due to many
-        // concurrent threads.
-
-        //unsigned timeseed = std::chrono::system_clock::now().time_since_epoch().count();
-        const auto timeseed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        gen.seed(timeseed); //Seed with time. 
-    }
-
+    std::mt19937_64 gen(seed);
     std::uniform_int_distribution<int> dist(0,alphanum.length()-1);
     for(int i=0; i<len; ++i) out += alphanum[dist(gen)];
     return out;
+}
+
+std::string Generate_Random_String_of_Length(int64_t len){
+    try{
+        std::random_device rd;
+        return Generate_Random_String_of_Length(len, rd());
+    }catch(const std::exception &){
+        const auto timeseed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        return Generate_Random_String_of_Length(len, timeseed);
+    }
 }
 
 //This function will taken a vector of strings (typically, a tokenized string) and lineate it into a single string.
