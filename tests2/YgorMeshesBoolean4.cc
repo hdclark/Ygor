@@ -301,6 +301,17 @@ TEST_CASE("YgorMeshesBoolean4 -- BooleanMeshOp4 integration"){
         REQUIRE(out.faces.empty());
     }
 
+    SUBCASE("Empty mesh subtraction keeps left mesh"){
+        const auto box = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                                          vec3<double>(1.0, 1.0, 1.0));
+        fv_surface_mesh<double, uint64_t> empty;
+        const auto out = BooleanMeshOp4(box, empty, MeshBooleanOperation4::Subtraction);
+        REQUIRE(!out.faces.empty());
+        REQUIRE(IsTriangularMesh(out));
+        REQUIRE(IsClosedManifold(out));
+        REQUIRE(HasConsistentOrientation(out));
+    }
+
     SUBCASE("Float specialization compiles and runs"){
         const auto lhs = make_box_mesh<float, uint32_t>(vec3<float>(0.0f, 0.0f, 0.0f),
                                                          vec3<float>(1.0f, 1.0f, 1.0f));

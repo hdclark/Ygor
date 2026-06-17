@@ -31,8 +31,8 @@ BooleanMeshOp4(const fv_surface_mesh<T, I> &lhs,
             case MeshBooleanOperation4::Union:
                 return lhs;
             case MeshBooleanOperation4::Intersection:
-            case MeshBooleanOperation4::Subtraction:
                 return fv_surface_mesh<T, I>();
+            case MeshBooleanOperation4::Subtraction:
             case MeshBooleanOperation4::Exclusion:
                 return lhs;
         }
