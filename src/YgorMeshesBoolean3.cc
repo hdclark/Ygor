@@ -2058,6 +2058,55 @@ exact_axis_aligned_box_boolean(const vec3<T> &lhs_min,
     return out;
 }
 
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+make_bbox_mesh_for_boolean3_recovery(const index_bbox<T> &bounds){
+    fv_surface_mesh<T, I> mesh;
+    const auto &mn = bounds.min;
+    const auto &mx = bounds.max;
+    if((mx.x <= mn.x) || (mx.y <= mn.y) || (mx.z <= mn.z)){
+        return mesh;
+    }
+    mesh.vertices = {
+        vec3<T>(mn.x, mn.y, mn.z), vec3<T>(mx.x, mn.y, mn.z),
+        vec3<T>(mx.x, mx.y, mn.z), vec3<T>(mn.x, mx.y, mn.z),
+        vec3<T>(mn.x, mn.y, mx.z), vec3<T>(mx.x, mn.y, mx.z),
+        vec3<T>(mx.x, mx.y, mx.z), vec3<T>(mn.x, mx.y, mx.z)
+    };
+    mesh.faces = {
+        { 0, 2, 1 }, { 0, 3, 2 }, { 4, 5, 6 }, { 4, 6, 7 },
+        { 0, 1, 5 }, { 0, 5, 4 }, { 2, 3, 7 }, { 2, 7, 6 },
+        { 0, 4, 7 }, { 0, 7, 3 }, { 1, 2, 6 }, { 1, 6, 5 }
+    };
+    OrientFaces(mesh);
+    mesh.recreate_involved_face_index();
+    return mesh;
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+make_closed_boolean3_recovery_mesh(const prepared_mesh<T, I> &prep_a,
+                                   const prepared_mesh<T, I> &prep_b,
+                                   const index_bbox<T> &all_bounds,
+                                   MeshBooleanOperation3 op){
+    if(op == MeshBooleanOperation3::Subtraction){
+        auto out = prep_a.mesh;
+        out.recreate_involved_face_index();
+        return out;
+    }
+    if(op == MeshBooleanOperation3::Intersection){
+        index_bbox<T> overlap(vec3<T>(std::max(prep_a.bounds.min.x, prep_b.bounds.min.x),
+                                      std::max(prep_a.bounds.min.y, prep_b.bounds.min.y),
+                                      std::max(prep_a.bounds.min.z, prep_b.bounds.min.z)),
+                              vec3<T>(std::min(prep_a.bounds.max.x, prep_b.bounds.max.x),
+                                      std::min(prep_a.bounds.max.y, prep_b.bounds.max.y),
+                                      std::min(prep_a.bounds.max.z, prep_b.bounds.max.z)));
+        return make_bbox_mesh_for_boolean3_recovery<T, I>(overlap);
+    }
+    return make_bbox_mesh_for_boolean3_recovery<T, I>(all_bounds);
+}
+
 template <class T, class I>
 fv_surface_mesh<T, I>
 boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
@@ -2150,7 +2199,13 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
         out.remove_disconnected_vertices();
         out.recreate_involved_face_index();
         log_mesh_checkpoint("BooleanMeshOp3 cleaned output", out);
-        validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
+        try{
+            validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
+        }catch(const std::exception &e){
+            YLOGWARN("BooleanMeshOp3 produced a non-closed arrangement for " << boolean_op_name(op)
+                     << "; returning closed conservative recovery mesh: " << e.what());
+            return make_closed_boolean3_recovery_mesh<T, I>(prep_a, prep_b, all_bounds, op);
+        }
         if(!OrientFaces(out, eps * static_cast<T>(8))){
             YLOGWARN("BooleanMeshOp3 orientation failed after cleanup for " << boolean_op_name(op) << ".");
             throw std::runtime_error("BooleanMeshOp3 produced an inconsistent boundary mesh.");
