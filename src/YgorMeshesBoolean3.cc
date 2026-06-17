@@ -1882,8 +1882,12 @@ append_triangle(fv_surface_mesh<T, I> &mesh,
 template <class T, class I>
 void
 deduplicate_faces(fv_surface_mesh<T, I> &mesh){
-    std::set<std::array<I, 3>> seen;
-    std::vector<std::vector<I>> filtered;
+    struct face_record {
+        std::vector<I> face;
+        int orientation = 1;
+    };
+
+    std::map<std::array<I, 3>, std::vector<face_record>> groups;
     for(const auto &face : mesh.faces){
         if(face.size() != 3UL){
             continue;
@@ -1891,13 +1895,48 @@ deduplicate_faces(fv_surface_mesh<T, I> &mesh){
         const I i0 = face.at(0);
         const I i1 = face.at(1);
         const I i2 = face.at(2);
-        auto key = [=]() -> std::array<I, 3> {
-            if(i0 <= i1 && i0 <= i2) return {{ i0, i1, i2 }};
-            if(i1 <= i0 && i1 <= i2) return {{ i1, i2, i0 }};
-            return {{ i2, i0, i1 }};
-        }();
-        if(seen.insert(key).second){
-            filtered.push_back(face);
+        if((i0 == i1) || (i1 == i2) || (i2 == i0)){
+            continue;
+        }
+
+        std::array<I, 3> key{{ i0, i1, i2 }};
+        std::sort(key.begin(), key.end());
+
+        const std::array<I, 3> cyc{{ i0, i1, i2 }};
+        const bool positive = (cyc == key)
+                           || ((i1 == key.at(0)) && (i2 == key.at(1)) && (i0 == key.at(2)))
+                           || ((i2 == key.at(0)) && (i0 == key.at(1)) && (i1 == key.at(2)));
+        groups[key].push_back({ face, positive ? 1 : -1 });
+    }
+
+    std::vector<std::vector<I>> filtered;
+    filtered.reserve(groups.size());
+    for(const auto &gp : groups){
+        const auto &records = gp.second;
+        if(records.size() == 1UL){
+            filtered.push_back(records.front().face);
+            continue;
+        }
+
+        // Coincident faces with opposite winding are internal cancellation
+        // artifacts produced when two split arrangements meet exactly.  Removing
+        // paired opposite windings preserves the boundary-of-a-volume contract;
+        // retaining one same-winding representative handles duplicate triangles
+        // emitted by adjacent constrained triangulation paths.
+        int winding_sum = 0;
+        for(const auto &rec : records){
+            winding_sum += rec.orientation;
+        }
+        if(winding_sum == 0){
+            continue;
+        }
+
+        const int keep_orientation = (winding_sum > 0) ? 1 : -1;
+        const auto keep_it = std::find_if(records.begin(), records.end(), [&](const face_record &rec){
+            return rec.orientation == keep_orientation;
+        });
+        if(keep_it != records.end()){
+            filtered.push_back(keep_it->face);
         }
     }
     mesh.faces.swap(filtered);
