@@ -1869,15 +1869,53 @@ include_face_from_b(boolean_face_relation relation,
 }
 
 template <class T, class I>
-void
-append_triangle(fv_surface_mesh<T, I> &mesh,
-                const std::array<vec3<T>, 3> &tri){
-    const auto base = static_cast<I>(mesh.vertices.size());
-    mesh.vertices.push_back(tri.at(0));
-    mesh.vertices.push_back(tri.at(1));
-    mesh.vertices.push_back(tri.at(2));
-    mesh.faces.push_back({ base, static_cast<I>(base + 1), static_cast<I>(base + 2) });
-}
+struct output_mesh_builder {
+    fv_surface_mesh<T, I> mesh;
+    T eps;
+    std::map<std::tuple<int64_t, int64_t, int64_t>, I> vertices;
+    std::set<std::array<I, 3>> faces;
+
+    explicit output_mesh_builder(T in_eps) : eps(in_eps) {}
+
+    std::tuple<int64_t, int64_t, int64_t>
+    key_for(const vec3<T> &v) const {
+        const auto scale = (eps > static_cast<T>(0)) ? eps : std::numeric_limits<T>::epsilon();
+        return std::make_tuple(static_cast<int64_t>(std::llround(v.x / scale)),
+                               static_cast<int64_t>(std::llround(v.y / scale)),
+                               static_cast<int64_t>(std::llround(v.z / scale)));
+    }
+
+    I
+    vertex_index(const vec3<T> &v){
+        const auto key = key_for(v);
+        const auto it = vertices.find(key);
+        if(it != vertices.end()){
+            return it->second;
+        }
+        const auto idx = static_cast<I>(mesh.vertices.size());
+        vertices.emplace(key, idx);
+        mesh.vertices.push_back(v);
+        return idx;
+    }
+
+    void
+    append_triangle(const std::array<vec3<T>, 3> &tri){
+        const I i0 = vertex_index(tri.at(0));
+        const I i1 = vertex_index(tri.at(1));
+        const I i2 = vertex_index(tri.at(2));
+        if((i0 == i1) || (i1 == i2) || (i2 == i0)){
+            return;
+        }
+        auto key = [=]() -> std::array<I, 3> {
+            if(i0 <= i1 && i0 <= i2) return {{ i0, i1, i2 }};
+            if(i1 <= i0 && i1 <= i2) return {{ i1, i2, i0 }};
+            return {{ i2, i0, i1 }};
+        }();
+        if(faces.insert(key).second){
+            mesh.faces.push_back({ i0, i1, i2 });
+        }
+    }
+};
 
 template <class T, class I>
 void
@@ -2061,54 +2099,6 @@ exact_axis_aligned_box_boolean(const vec3<T> &lhs_min,
 
 template <class T, class I>
 fv_surface_mesh<T, I>
-make_bbox_mesh_for_boolean3_recovery(const index_bbox<T> &bounds){
-    fv_surface_mesh<T, I> mesh;
-    const auto &mn = bounds.min;
-    const auto &mx = bounds.max;
-    if((mx.x <= mn.x) || (mx.y <= mn.y) || (mx.z <= mn.z)){
-        return mesh;
-    }
-    mesh.vertices = {
-        vec3<T>(mn.x, mn.y, mn.z), vec3<T>(mx.x, mn.y, mn.z),
-        vec3<T>(mx.x, mx.y, mn.z), vec3<T>(mn.x, mx.y, mn.z),
-        vec3<T>(mn.x, mn.y, mx.z), vec3<T>(mx.x, mn.y, mx.z),
-        vec3<T>(mx.x, mx.y, mx.z), vec3<T>(mn.x, mx.y, mx.z)
-    };
-    mesh.faces = {
-        { 0, 2, 1 }, { 0, 3, 2 }, { 4, 5, 6 }, { 4, 6, 7 },
-        { 0, 1, 5 }, { 0, 5, 4 }, { 2, 3, 7 }, { 2, 7, 6 },
-        { 0, 4, 7 }, { 0, 7, 3 }, { 1, 2, 6 }, { 1, 6, 5 }
-    };
-    OrientFaces(mesh);
-    mesh.recreate_involved_face_index();
-    return mesh;
-}
-
-template <class T, class I>
-fv_surface_mesh<T, I>
-make_closed_boolean3_recovery_mesh(const prepared_mesh<T, I> &prep_a,
-                                   const prepared_mesh<T, I> &prep_b,
-                                   const index_bbox<T> &all_bounds,
-                                   MeshBooleanOperation3 op){
-    if(op == MeshBooleanOperation3::Subtraction){
-        auto out = prep_a.mesh;
-        out.recreate_involved_face_index();
-        return out;
-    }
-    if(op == MeshBooleanOperation3::Intersection){
-        index_bbox<T> overlap(vec3<T>(std::max(prep_a.bounds.min.x, prep_b.bounds.min.x),
-                                      std::max(prep_a.bounds.min.y, prep_b.bounds.min.y),
-                                      std::max(prep_a.bounds.min.z, prep_b.bounds.min.z)),
-                              vec3<T>(std::min(prep_a.bounds.max.x, prep_b.bounds.max.x),
-                                      std::min(prep_a.bounds.max.y, prep_b.bounds.max.y),
-                                      std::min(prep_a.bounds.max.z, prep_b.bounds.max.z)));
-        return make_bbox_mesh_for_boolean3_recovery<T, I>(overlap);
-    }
-    return make_bbox_mesh_for_boolean3_recovery<T, I>(all_bounds);
-}
-
-template <class T, class I>
-fv_surface_mesh<T, I>
 boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
                      const fv_surface_mesh<T, I> &rhs,
                      MeshBooleanOperation3 op,
@@ -2168,22 +2158,23 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
         classify_split_pieces_via_flood_fill(pieces_a, prep_b, far_distance, eps, "lhs");
         classify_split_pieces_via_flood_fill(pieces_b, prep_a, far_distance, eps, "rhs");
 
-        fv_surface_mesh<T, I> out;
+        output_mesh_builder<T, I> out_builder(eps);
         // Step 6: global topological classification now reuses the flood-filled inside/outside state.
         for(const auto &piece : pieces_a){
             if(include_face_from_a<T>(piece.relation, op)){
-                append_triangle(out, piece.verts);
+                out_builder.append_triangle(piece.verts);
             }
         }
         for(const auto &piece : pieces_b){
             if(include_face_from_b<T>(piece.relation, op)){
                 if(op == MeshBooleanOperation3::Subtraction){
-                    append_triangle(out, {{ piece.verts.at(0), piece.verts.at(2), piece.verts.at(1) }});
+                    out_builder.append_triangle({{ piece.verts.at(0), piece.verts.at(2), piece.verts.at(1) }});
                 }else{
-                    append_triangle(out, piece.verts);
+                    out_builder.append_triangle(piece.verts);
                 }
             }
         }
+        auto out = std::move(out_builder.mesh);
         log_mesh_checkpoint("BooleanMeshOp3 assembled output", out);
 
         if(out.faces.empty()){
@@ -2191,21 +2182,14 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
             return out;
         }
 
-        // Final cleanup is intentionally conservative: merge only snap-equivalent vertices so the
-        // topological classification from Step 6 is not invalidated by a later aggressive weld.
-        out.merge_duplicate_vertices(eps);
-        deduplicate_faces(out);
+        // The builder snaps vertices and deduplicates faces while emitting the selected boundary
+        // triangles, so the final mesh shares topological vertices by construction instead of
+        // substituting a fabricated closed mesh after validation fails.
         out.remove_degenerate_faces();
         out.remove_disconnected_vertices();
         out.recreate_involved_face_index();
         log_mesh_checkpoint("BooleanMeshOp3 cleaned output", out);
-        try{
-            validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
-        }catch(const std::exception &e){
-            YLOGWARN("BooleanMeshOp3 produced a non-closed arrangement for " << boolean_op_name(op)
-                     << "; returning closed conservative recovery mesh: " << e.what());
-            return make_closed_boolean3_recovery_mesh<T, I>(prep_a, prep_b, all_bounds, op);
-        }
+        validate_closed_triangular_mesh(out, "BooleanMeshOp3 output");
         if(!OrientFaces(out, eps * static_cast<T>(8))){
             YLOGWARN("BooleanMeshOp3 orientation failed after cleanup for " << boolean_op_name(op) << ".");
             throw std::runtime_error("BooleanMeshOp3 produced an inconsistent boundary mesh.");
