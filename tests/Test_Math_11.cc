@@ -296,12 +296,13 @@ int main(int , char** ){
         std::vector<bool> bools_out;
 
         std::stringstream ss;
-        ss << std::hex << std::boolalpha;
+        ss << std::hex << std::boolalpha << std::left << std::setfill('0') << std::setw(10);
         {
             ys::xml_oarchive ar(ss);
             ar & ys::make_nvp("values", values_in);
             ar & ys::make_nvp("bools", bools_in);
         }
+        ss >> std::noskipws;
         {
             ys::xml_iarchive ar(ss);
             ar & ys::make_nvp("values", values_out);

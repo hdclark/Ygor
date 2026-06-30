@@ -26,16 +26,20 @@ namespace detail {
 class ostream_token_format_guard {
 public:
     explicit ostream_token_format_guard(std::ostream &out)
-        : out_(out), flags_(out.flags()), precision_(out.precision()), fill_(out.fill()), locale_(out.getloc()) {
+        : out_(out), flags_(out.flags()), precision_(out.precision()), width_(out.width()), fill_(out.fill()), locale_(out.getloc()) {
         out_.imbue(std::locale::classic());
         out_.setf(std::ios::dec, std::ios::basefield);
         out_.setf(std::ios::fmtflags(0), std::ios::floatfield);
+        out_.setf(std::ios::right, std::ios::adjustfield);
         out_.unsetf(std::ios::boolalpha);
+        out_.width(0);
+        out_.fill(' ');
     }
 
     ~ostream_token_format_guard(){
         out_.flags(flags_);
         out_.precision(precision_);
+        out_.width(width_);
         out_.fill(fill_);
         out_.imbue(locale_);
     }
@@ -44,6 +48,7 @@ private:
     std::ostream &out_;
     std::ios::fmtflags flags_;
     std::streamsize precision_;
+    std::streamsize width_;
     char fill_;
     std::locale locale_;
 };
@@ -54,6 +59,7 @@ public:
         : in_(in), flags_(in.flags()), locale_(in.getloc()) {
         in_.imbue(std::locale::classic());
         in_.setf(std::ios::dec, std::ios::basefield);
+        in_.setf(std::ios::skipws);
         in_.unsetf(std::ios::boolalpha);
     }
 
