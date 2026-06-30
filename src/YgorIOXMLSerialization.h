@@ -121,7 +121,8 @@ private:
 
 class xml_iarchive {
 public:
-    explicit xml_iarchive(std::istream &in) : in_(in) {}
+    explicit xml_iarchive(std::istream &in, bool strict_field_names = false)
+        : in_(in), strict_field_names_(strict_field_names) {}
 
     template <class T>
     xml_iarchive &operator&(nvp<T> v){
@@ -140,7 +141,7 @@ public:
         std::string serialized_name;
         in_ >> std::quoted(serialized_name);
         if(!in_) throw std::runtime_error("Failed to read serialized archive field name.");
-        if(serialized_name != name){
+        if(strict_field_names_ && serialized_name != name){
             throw std::runtime_error("Serialized archive field name mismatch: expected '"
                                      + std::string(name) + "' but found '" + serialized_name + "'.");
         }
@@ -155,6 +156,7 @@ public:
 
 private:
     std::istream &in_;
+    bool strict_field_names_;
 
     template <class T> friend std::enable_if_t<std::is_floating_point<T>::value, void> load_scalar(xml_iarchive &, T &);
     template <class T> friend std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void> load_scalar(xml_iarchive &, T &);
@@ -248,6 +250,11 @@ load_scalar(xml_iarchive &a, T &value){
     a.in_ >> token;
     if(!a.in_) return;
 
+    if(std::is_unsigned<T>::value && !token.empty() && token.front() == '-'){
+        a.in_.setstate(std::ios::failbit);
+        return;
+    }
+
     promoted_t promoted = 0;
     std::istringstream ss(token);
     ss.imbue(std::locale::classic());
@@ -267,7 +274,20 @@ load_scalar(xml_iarchive &a, T &value){
 }
 
 inline void load_scalar(xml_iarchive &a, bool &value){
-    a.in_ >> value;
+    std::string token;
+    a.in_ >> token;
+    if(!a.in_) return;
+
+    if(token == "0" || token == "false"){
+        value = false;
+        return;
+    }
+    if(token == "1" || token == "true"){
+        value = true;
+        return;
+    }
+
+    a.in_.setstate(std::ios::failbit);
 }
 
 inline void save_scalar(xml_oarchive &a, const std::string &value){

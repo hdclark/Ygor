@@ -40,10 +40,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_vec3");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("vec3double", A);
             YLOGINFO("Deserialized vec3 to " << A);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize vec3 file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize vec3 file. It is not valid: " << e.what());
+            throw;
         }
     }
 
@@ -61,10 +62,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_line");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("linedouble", A);
             YLOGINFO("Deserialized line to " << A.R_0 << "  " << A.U_0);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize line file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize line file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -85,10 +87,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_line_segment");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("line_segmentdouble", A);
             YLOGINFO("Deserialized line_segment to " << A.R_0 << "  " << A.U_0 << "   " << A.t_0 << "   " << A.t_1);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize line_segment file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize line_segment file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -108,10 +111,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_plane");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("planedouble", A);
             YLOGINFO("Deserialized plane to " << A.N_0 << "  " << A.R_0);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize plane file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize plane file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -137,10 +141,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_contour_of_points");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("contour_of_pointsdouble", A);
             YLOGINFO("Deserialized contour_of_points to " << A.points.size() << " points and " << A.metadata.size() << " metadata");
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize contour_of_points file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize contour_of_points file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -165,10 +170,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_samples_1D");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", A);
+            ar & ys::make_nvp("samples_1Ddouble", A);
             YLOGINFO("Deserialized samples_1D to " << A.samples.size() << " samples and " << A.metadata.size() << " metadata");
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize samples_1D file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize samples_1D file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -234,10 +240,11 @@ int main(int , char** ){
         std::ifstream ifs("/tmp/serial_fv_surface_mesh");
         try{
             ys::xml_iarchive ar(ifs);
-            ar & ys::make_nvp("not used", smesh);
+            ar & ys::make_nvp("fv_surface_mesh", smesh);
             YLOGINFO("Deserialized fv_surface_mesh has surface area " << smesh.surface_area());
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize fv_surface_mesh file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize fv_surface_mesh file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -327,7 +334,7 @@ int main(int , char** ){
         rejected = false;
         try{
             int renamed_value = 0;
-            ys::xml_iarchive ar(renamed);
+            ys::xml_iarchive ar(renamed, true);
             ar & ys::make_nvp("value", renamed_value);
         }catch(const std::exception &){
             rejected = true;
@@ -348,6 +355,45 @@ int main(int , char** ){
         }
         if(!rejected){
             throw std::runtime_error("Integral archive token with trailing junk was not rejected.");
+        }
+
+        std::stringstream renamed_compat;
+        renamed_compat << "\"wrong_value\" 42\n";
+        int compat_value = 0;
+        {
+            ys::xml_iarchive ar(renamed_compat);
+            ar & ys::make_nvp("value", compat_value);
+        }
+        if(compat_value != 42){
+            throw std::runtime_error("Default archive field-name compatibility load failed.");
+        }
+
+        std::stringstream negative_unsigned;
+        negative_unsigned << "\"value\" -1\n";
+        rejected = false;
+        try{
+            uint64_t malformed = 0;
+            ys::xml_iarchive ar(negative_unsigned);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Negative archive token for unsigned value was not rejected.");
+        }
+
+        std::stringstream bool_junk;
+        bool_junk << "\"flag\" 1oops\n";
+        rejected = false;
+        try{
+            bool malformed = false;
+            ys::xml_iarchive ar(bool_junk);
+            ar & ys::make_nvp("flag", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Boolean archive token with trailing junk was not rejected.");
         }
 
         std::stringstream wrong_array_size;
