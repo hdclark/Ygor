@@ -321,6 +321,52 @@ int main(int , char** ){
         if(!rejected){
             throw std::runtime_error("Malformed archive field was not rejected.");
         }
+
+        std::stringstream renamed;
+        renamed << "\"wrong_value\" 42\n";
+        rejected = false;
+        try{
+            int renamed_value = 0;
+            ys::xml_iarchive ar(renamed);
+            ar & ys::make_nvp("value", renamed_value);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Mismatched archive field name was not rejected.");
+        }
+
+        std::stringstream trailing_junk;
+        trailing_junk << "\"value\" 12abc\n";
+        rejected = false;
+        try{
+            int malformed = 0;
+            ys::xml_iarchive ar(trailing_junk);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Integral archive token with trailing junk was not rejected.");
+        }
+
+        std::stringstream wrong_array_size;
+        wrong_array_size << "\"array\" ";
+        wrong_array_size << "\"size\" 3\n";
+        wrong_array_size << "\"item\" 1\n";
+        wrong_array_size << "\"item\" 2\n";
+        wrong_array_size << "\"item\" 3\n";
+        rejected = false;
+        try{
+            std::array<int, 2> values;
+            ys::xml_iarchive ar(wrong_array_size);
+            ar & ys::make_nvp("array", values);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Mismatched serialized array size was not rejected.");
+        }
     }
 
 

@@ -125,7 +125,7 @@ public:
 
     template <class T>
     xml_iarchive &operator&(nvp<T> v){
-        load_named(v.value);
+        load_named(v.name, v.value);
         return *this;
     }
 
@@ -135,11 +135,15 @@ public:
     }
 
     template <class T>
-    void load_named(T &value){
+    void load_named(const char *name, T &value){
         detail::istream_token_format_guard guard(in_);
-        std::string unused_name;
-        in_ >> std::quoted(unused_name);
+        std::string serialized_name;
+        in_ >> std::quoted(serialized_name);
         if(!in_) throw std::runtime_error("Failed to read serialized archive field name.");
+        if(serialized_name != name){
+            throw std::runtime_error("Serialized archive field name mismatch: expected '"
+                                     + std::string(name) + "' but found '" + serialized_name + "'.");
+        }
         load(value);
         if(!in_) throw std::runtime_error("Failed to read serialized archive field value.");
     }
@@ -240,9 +244,26 @@ template <class T>
 std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void>
 load_scalar(xml_iarchive &a, T &value){
     using promoted_t = std::conditional_t<std::is_signed<T>::value, long long, unsigned long long>;
+    std::string token;
+    a.in_ >> token;
+    if(!a.in_) return;
+
     promoted_t promoted = 0;
-    a.in_ >> promoted;
-    if(a.in_) value = static_cast<T>(promoted);
+    std::istringstream ss(token);
+    ss.imbue(std::locale::classic());
+    ss >> promoted;
+    if(!ss || !ss.eof()){
+        a.in_.setstate(std::ios::failbit);
+        return;
+    }
+
+    if((promoted < static_cast<promoted_t>(std::numeric_limits<T>::lowest()))
+    || (static_cast<promoted_t>(std::numeric_limits<T>::max()) < promoted)){
+        a.in_.setstate(std::ios::failbit);
+        return;
+    }
+
+    value = static_cast<T>(promoted);
 }
 
 inline void load_scalar(xml_iarchive &a, bool &value){
@@ -292,12 +313,12 @@ inline void serialize(xml_oarchive &a, const std::vector<bool> &value){
 
 inline void serialize(xml_iarchive &a, std::vector<bool> &value){
     size_t size = 0;
-    a.load_named(size);
+    a.load_named("size", size);
     value.clear();
     value.resize(size);
     for(size_t i = 0; i < size; ++i){
         bool v = false;
-        a.load_named(v);
+        a.load_named("item", v);
         value[i] = v;
     }
 }
@@ -305,10 +326,10 @@ inline void serialize(xml_iarchive &a, std::vector<bool> &value){
 template <class T>
 void serialize(xml_iarchive &a, std::vector<T> &value){
     size_t size = 0;
-    a.load_named(size);
+    a.load_named("size", size);
     value.clear();
     value.resize(size);
-    for(auto &v : value) a.load_named(v);
+    for(auto &v : value) a.load_named("item", v);
 }
 
 template <class T>
@@ -321,11 +342,11 @@ void serialize(xml_oarchive &a, const std::list<T> &value){
 template <class T>
 void serialize(xml_iarchive &a, std::list<T> &value){
     size_t size = 0;
-    a.load_named(size);
+    a.load_named("size", size);
     value.clear();
     for(size_t i = 0; i < size; ++i){
         T v;
-        a.load_named(v);
+        a.load_named("item", v);
         value.push_back(v);
     }
 }
@@ -340,8 +361,9 @@ void serialize(xml_oarchive &a, const std::array<T,N> &value){
 template <class T, size_t N>
 void serialize(xml_iarchive &a, std::array<T,N> &value){
     size_t size = 0;
-    a.load_named(size);
-    for(size_t i = 0; i < N; ++i) a.load_named(value[i]);
+    a.load_named("size", size);
+    if(size != N) throw std::runtime_error("Serialized array size does not match target array size.");
+    for(size_t i = 0; i < N; ++i) a.load_named("item", value[i]);
 }
 
 template <class K, class V>
@@ -358,13 +380,13 @@ void serialize(xml_oarchive &a, const std::map<K,V> &value){
 template <class K, class V>
 void serialize(xml_iarchive &a, std::map<K,V> &value){
     size_t size = 0;
-    a.load_named(size);
+    a.load_named("size", size);
     value.clear();
     for(size_t i = 0; i < size; ++i){
         K key;
         V mapped;
-        a.load_named(key);
-        a.load_named(mapped);
+        a.load_named("key", key);
+        a.load_named("value", mapped);
         value.emplace(std::move(key), std::move(mapped));
     }
 }
