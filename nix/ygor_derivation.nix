@@ -44,7 +44,8 @@ stdenv.mkDerivation rec {
   cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Release"
                  "-DWITH_LINUX_SYS=ON"
                  "-DWITH_EIGEN=ON"
-                 "-DWITH_GNU_GSL=ON" ];
+                 "-DWITH_GNU_GSL=ON"
+                 "-DWITH_BOOST=OFF" ];
 
   enableParallelBuilding = true;
 

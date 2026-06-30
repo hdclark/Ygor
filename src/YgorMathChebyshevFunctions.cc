@@ -291,9 +291,12 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     const auto pi = static_cast<T>(3.14159265358979323846264338328);
 
     T sum = static_cast<T>(0);
+    const T abs_Aprime = std::abs(Aprime);
+    const bool reflect_odd_orders = (Aprime < static_cast<T>(0));
     for(size_t j = 0; j < N; ++j){
         try{
-            c[j] = static_cast<T>(2) * std::cyl_bessel_i(static_cast<T>(j), Aprime);
+            c[j] = static_cast<T>(2) * std::cyl_bessel_i(static_cast<T>(j), abs_Aprime);
+            if(reflect_odd_orders && ((j % 2U) == 1U)) c[j] = -c[j];
         }catch(const std::overflow_error &e){
             c[j] = std::numeric_limits<T>::infinity();
 

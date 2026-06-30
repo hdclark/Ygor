@@ -3,12 +3,16 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <iomanip>
 #include <istream>
+#include <limits>
+#include <locale>
 #include <list>
 #include <map>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -56,9 +60,10 @@ public:
 private:
     std::ostream &out_;
 
-    template <class T>
-    friend void save_scalar(xml_oarchive &, T &);
+    template <class T> friend std::enable_if_t<std::is_floating_point<T>::value, void> save_scalar(xml_oarchive &, T &);
+    template <class T> friend std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void> save_scalar(xml_oarchive &, T &);
     friend void save_scalar(xml_oarchive &, std::string &);
+    friend void save_scalar(xml_oarchive &, bool &);
 };
 
 class xml_iarchive {
@@ -91,18 +96,100 @@ public:
 private:
     std::istream &in_;
 
-    template <class T>
-    friend void load_scalar(xml_iarchive &, T &);
+    template <class T> friend std::enable_if_t<std::is_floating_point<T>::value, void> load_scalar(xml_iarchive &, T &);
+    template <class T> friend std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void> load_scalar(xml_iarchive &, T &);
     friend void load_scalar(xml_iarchive &, std::string &);
+    friend void load_scalar(xml_iarchive &, bool &);
 };
 
+namespace detail {
+
+class floating_point_text_facet : public std::locale::facet {
+public:
+    template <class T>
+    void put(std::ostream &out, T value) const {
+        static_assert(std::is_floating_point<T>::value, "floating-point type required");
+        if(std::isnan(value)){
+            out << (std::signbit(value) ? "-nan" : "nan");
+        }else if(std::isinf(value)){
+            out << (std::signbit(value) ? "-inf" : "inf");
+        }else{
+            out << std::setprecision(std::numeric_limits<T>::max_digits10) << value;
+        }
+    }
+
+    template <class T>
+    void get(std::istream &in, T &value) const {
+        static_assert(std::is_floating_point<T>::value, "floating-point type required");
+        std::string token;
+        in >> token;
+        if(!in) return;
+
+        if(token == "inf" || token == "+inf" || token == "infinity" || token == "+infinity"){
+            value = std::numeric_limits<T>::infinity();
+            return;
+        }
+        if(token == "-inf" || token == "-infinity"){
+            value = -std::numeric_limits<T>::infinity();
+            return;
+        }
+        if(token == "nan" || token == "+nan"){
+            value = std::numeric_limits<T>::quiet_NaN();
+            return;
+        }
+        if(token == "-nan"){
+            value = -std::numeric_limits<T>::quiet_NaN();
+            return;
+        }
+
+        std::istringstream ss(token);
+        ss.imbue(std::locale::classic());
+        ss >> value;
+        if(!ss || !ss.eof()) in.setstate(std::ios::failbit);
+    }
+};
+
+inline const floating_point_text_facet &floating_point_facet(){
+    static const floating_point_text_facet facet;
+    return facet;
+}
+
+} // namespace detail
+
 template <class T>
-void save_scalar(xml_oarchive &a, T &value){
-    a.out_ << std::setprecision(17) << value << '\n';
+std::enable_if_t<std::is_floating_point<T>::value, void>
+save_scalar(xml_oarchive &a, T &value){
+    detail::floating_point_facet().put(a.out_, value);
+    a.out_ << '\n';
 }
 
 template <class T>
-void load_scalar(xml_iarchive &a, T &value){
+std::enable_if_t<std::is_floating_point<T>::value, void>
+load_scalar(xml_iarchive &a, T &value){
+    detail::floating_point_facet().get(a.in_, value);
+}
+
+template <class T>
+std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void>
+save_scalar(xml_oarchive &a, T &value){
+    using promoted_t = std::conditional_t<std::is_signed<T>::value, long long, unsigned long long>;
+    a.out_ << static_cast<promoted_t>(value) << '\n';
+}
+
+inline void save_scalar(xml_oarchive &a, bool &value){
+    a.out_ << value << '\n';
+}
+
+template <class T>
+std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void>
+load_scalar(xml_iarchive &a, T &value){
+    using promoted_t = std::conditional_t<std::is_signed<T>::value, long long, unsigned long long>;
+    promoted_t promoted = 0;
+    a.in_ >> promoted;
+    if(a.in_) value = static_cast<T>(promoted);
+}
+
+inline void load_scalar(xml_iarchive &a, bool &value){
     a.in_ >> value;
 }
 

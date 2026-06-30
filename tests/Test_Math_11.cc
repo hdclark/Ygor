@@ -16,6 +16,7 @@
 #include <mutex>
 #include <limits>
 #include <cmath>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
@@ -240,6 +241,47 @@ int main(int , char** ){
         }
 
     }
+
+    {
+        std::vector<uint8_t> bytes_in{1U, 10U, 32U, 255U};
+        std::vector<uint8_t> bytes_out;
+        double finite_min_in = std::numeric_limits<double>::denorm_min();
+        double finite_min_out = 0.0;
+        double nan_in = std::numeric_limits<double>::quiet_NaN();
+        double nan_out = 0.0;
+        double inf_in = std::numeric_limits<double>::infinity();
+        double inf_out = 0.0;
+
+        std::stringstream ss;
+        {
+            ys::xml_oarchive ar(ss);
+            ar & ys::make_nvp("bytes", bytes_in);
+            ar & ys::make_nvp("finite_min", finite_min_in);
+            ar & ys::make_nvp("nan", nan_in);
+            ar & ys::make_nvp("inf", inf_in);
+        }
+        {
+            ys::xml_iarchive ar(ss);
+            ar & ys::make_nvp("bytes", bytes_out);
+            ar & ys::make_nvp("finite_min", finite_min_out);
+            ar & ys::make_nvp("nan", nan_out);
+            ar & ys::make_nvp("inf", inf_out);
+        }
+
+        if(bytes_out != bytes_in){
+            throw std::runtime_error("Byte-vector serialization failed to round trip.");
+        }
+        if(finite_min_out != finite_min_in){
+            throw std::runtime_error("Subnormal floating-point serialization failed to round trip.");
+        }
+        if(!std::isnan(nan_out)){
+            throw std::runtime_error("NaN serialization failed to round trip.");
+        }
+        if(!std::isinf(inf_out) || (std::signbit(inf_out) != std::signbit(inf_in))){
+            throw std::runtime_error("Infinity serialization failed to round trip.");
+        }
+    }
+
 
     return 0;
 }
