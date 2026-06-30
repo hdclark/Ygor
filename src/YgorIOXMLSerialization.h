@@ -13,12 +13,62 @@
 #include <map>
 #include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 namespace ygor {
 namespace serialization {
+
+namespace detail {
+
+class ostream_token_format_guard {
+public:
+    explicit ostream_token_format_guard(std::ostream &out)
+        : out_(out), flags_(out.flags()), precision_(out.precision()), fill_(out.fill()), locale_(out.getloc()) {
+        out_.imbue(std::locale::classic());
+        out_.setf(std::ios::dec, std::ios::basefield);
+        out_.setf(std::ios::fmtflags(0), std::ios::floatfield);
+        out_.unsetf(std::ios::boolalpha);
+    }
+
+    ~ostream_token_format_guard(){
+        out_.flags(flags_);
+        out_.precision(precision_);
+        out_.fill(fill_);
+        out_.imbue(locale_);
+    }
+
+private:
+    std::ostream &out_;
+    std::ios::fmtflags flags_;
+    std::streamsize precision_;
+    char fill_;
+    std::locale locale_;
+};
+
+class istream_token_format_guard {
+public:
+    explicit istream_token_format_guard(std::istream &in)
+        : in_(in), flags_(in.flags()), locale_(in.getloc()) {
+        in_.imbue(std::locale::classic());
+        in_.setf(std::ios::dec, std::ios::basefield);
+        in_.unsetf(std::ios::boolalpha);
+    }
+
+    ~istream_token_format_guard(){
+        in_.flags(flags_);
+        in_.imbue(locale_);
+    }
+
+private:
+    std::istream &in_;
+    std::ios::fmtflags flags_;
+    std::locale locale_;
+};
+
+} // namespace detail
 
 template <class T>
 struct nvp {
@@ -47,23 +97,26 @@ public:
     }
 
     template <class T>
-    void save_named(const char *name, T &value){
+    void save_named(const char *name, const T &value){
+        detail::ostream_token_format_guard guard(out_);
         out_ << std::quoted(std::string(name)) << ' ';
         save(value);
+        if(!out_) throw std::runtime_error("Failed to write serialized archive field.");
     }
 
     template <class T>
-    void save(T &value){
-        serialize(*this, value);
+    void save(const T &value){
+        auto &serializable_value = const_cast<std::remove_const_t<T> &>(value);
+        serialize(*this, serializable_value);
     }
 
 private:
     std::ostream &out_;
 
-    template <class T> friend std::enable_if_t<std::is_floating_point<T>::value, void> save_scalar(xml_oarchive &, T &);
-    template <class T> friend std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void> save_scalar(xml_oarchive &, T &);
-    friend void save_scalar(xml_oarchive &, std::string &);
-    friend void save_scalar(xml_oarchive &, bool &);
+    template <class T> friend std::enable_if_t<std::is_floating_point<T>::value, void> save_scalar(xml_oarchive &, const T &);
+    template <class T> friend std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void> save_scalar(xml_oarchive &, const T &);
+    friend void save_scalar(xml_oarchive &, const std::string &);
+    friend void save_scalar(xml_oarchive &, const bool &);
 };
 
 class xml_iarchive {
@@ -83,9 +136,12 @@ public:
 
     template <class T>
     void load_named(T &value){
+        detail::istream_token_format_guard guard(in_);
         std::string unused_name;
         in_ >> std::quoted(unused_name);
+        if(!in_) throw std::runtime_error("Failed to read serialized archive field name.");
         load(value);
+        if(!in_) throw std::runtime_error("Failed to read serialized archive field value.");
     }
 
     template <class T>
@@ -158,7 +214,7 @@ inline const floating_point_text_facet &floating_point_facet(){
 
 template <class T>
 std::enable_if_t<std::is_floating_point<T>::value, void>
-save_scalar(xml_oarchive &a, T &value){
+save_scalar(xml_oarchive &a, const T &value){
     detail::floating_point_facet().put(a.out_, value);
     a.out_ << '\n';
 }
@@ -171,12 +227,12 @@ load_scalar(xml_iarchive &a, T &value){
 
 template <class T>
 std::enable_if_t<std::is_integral<T>::value && !std::is_same<T, bool>::value, void>
-save_scalar(xml_oarchive &a, T &value){
+save_scalar(xml_oarchive &a, const T &value){
     using promoted_t = std::conditional_t<std::is_signed<T>::value, long long, unsigned long long>;
     a.out_ << static_cast<promoted_t>(value) << '\n';
 }
 
-inline void save_scalar(xml_oarchive &a, bool &value){
+inline void save_scalar(xml_oarchive &a, const bool &value){
     a.out_ << value << '\n';
 }
 
@@ -193,7 +249,7 @@ inline void load_scalar(xml_iarchive &a, bool &value){
     a.in_ >> value;
 }
 
-inline void save_scalar(xml_oarchive &a, std::string &value){
+inline void save_scalar(xml_oarchive &a, const std::string &value){
     a.out_ << std::quoted(value) << '\n';
 }
 
@@ -203,7 +259,7 @@ inline void load_scalar(xml_iarchive &a, std::string &value){
 
 template <class T>
 std::enable_if_t<std::is_arithmetic<T>::value, void>
-serialize(xml_oarchive &a, T &value){
+serialize(xml_oarchive &a, const T &value){
     save_scalar(a, value);
 }
 
@@ -213,7 +269,7 @@ serialize(xml_iarchive &a, T &value){
     load_scalar(a, value);
 }
 
-inline void serialize(xml_oarchive &a, std::string &value){
+inline void serialize(xml_oarchive &a, const std::string &value){
     save_scalar(a, value);
 }
 
@@ -222,10 +278,28 @@ inline void serialize(xml_iarchive &a, std::string &value){
 }
 
 template <class T>
-void serialize(xml_oarchive &a, std::vector<T> &value){
+void serialize(xml_oarchive &a, const std::vector<T> &value){
     auto size = value.size();
     a.save_named("size", size);
-    for(auto &v : value) a.save_named("item", v);
+    for(const auto &v : value) a.save_named("item", v);
+}
+
+inline void serialize(xml_oarchive &a, const std::vector<bool> &value){
+    auto size = value.size();
+    a.save_named("size", size);
+    for(bool v : value) a.save_named("item", v);
+}
+
+inline void serialize(xml_iarchive &a, std::vector<bool> &value){
+    size_t size = 0;
+    a.load_named(size);
+    value.clear();
+    value.resize(size);
+    for(size_t i = 0; i < size; ++i){
+        bool v = false;
+        a.load_named(v);
+        value[i] = v;
+    }
 }
 
 template <class T>
@@ -238,7 +312,7 @@ void serialize(xml_iarchive &a, std::vector<T> &value){
 }
 
 template <class T>
-void serialize(xml_oarchive &a, std::list<T> &value){
+void serialize(xml_oarchive &a, const std::list<T> &value){
     auto size = value.size();
     a.save_named("size", size);
     for(auto &v : value) a.save_named("item", v);
@@ -257,7 +331,7 @@ void serialize(xml_iarchive &a, std::list<T> &value){
 }
 
 template <class T, size_t N>
-void serialize(xml_oarchive &a, std::array<T,N> &value){
+void serialize(xml_oarchive &a, const std::array<T,N> &value){
     auto size = value.size();
     a.save_named("size", size);
     for(auto &v : value) a.save_named("item", v);
@@ -271,7 +345,7 @@ void serialize(xml_iarchive &a, std::array<T,N> &value){
 }
 
 template <class K, class V>
-void serialize(xml_oarchive &a, std::map<K,V> &value){
+void serialize(xml_oarchive &a, const std::map<K,V> &value){
     auto size = value.size();
     a.save_named("size", size);
     for(auto &kv : value){

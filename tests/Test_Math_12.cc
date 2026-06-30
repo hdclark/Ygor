@@ -140,5 +140,10 @@ int main(int , char** ){
 
     PlotTimeCourses("Comparison of multiplication methods", stc, ctc, "X", "Y", 500);
 
+    {
+        auto approx = Chebyshev_Basis_Approx_Exp_Analytic1<double>(8, 1000.0, 0.0, 1.0, 0.0, 10.0);
+        (void)approx;
+    }
+
     return 0;
 }

@@ -282,6 +282,47 @@ int main(int , char** ){
         }
     }
 
+    {
+        const std::vector<int> values_in{10, 11, 12};
+        std::vector<int> values_out;
+        const std::vector<bool> bools_in{true, false, true};
+        std::vector<bool> bools_out;
+
+        std::stringstream ss;
+        ss << std::hex << std::boolalpha;
+        {
+            ys::xml_oarchive ar(ss);
+            ar & ys::make_nvp("values", values_in);
+            ar & ys::make_nvp("bools", bools_in);
+        }
+        {
+            ys::xml_iarchive ar(ss);
+            ar & ys::make_nvp("values", values_out);
+            ar & ys::make_nvp("bools", bools_out);
+        }
+
+        if(values_out != values_in){
+            throw std::runtime_error("Const vector serialization with caller formatting failed to round trip.");
+        }
+        if(bools_out != bools_in){
+            throw std::runtime_error("vector<bool> serialization failed to round trip.");
+        }
+
+        std::stringstream truncated;
+        truncated << "\"value\" not_an_int\n";
+        bool rejected = false;
+        try{
+            int malformed = 0;
+            ys::xml_iarchive ar(truncated);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Malformed archive field was not rejected.");
+        }
+    }
+
 
     return 0;
 }

@@ -296,6 +296,7 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     for(size_t j = 0; j < N; ++j){
         try{
             c[j] = static_cast<T>(2) * std::cyl_bessel_i(static_cast<T>(j), abs_Aprime);
+            if(!std::isfinite(c[j])) throw std::overflow_error("Bessel coefficient is not finite");
             if(reflect_odd_orders && ((j % 2U) == 1U)) c[j] = -c[j];
         }catch(const std::overflow_error &e){
             c[j] = std::numeric_limits<T>::infinity();
