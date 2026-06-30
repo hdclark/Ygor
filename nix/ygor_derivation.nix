@@ -3,14 +3,13 @@
 , fetchFromGitHub
 , cmake
 , pkg-config
-, boost
 , gsl
 , eigen
 , gnuplot
 , ... }:
 
 #{ stdenv, lib, fetchFromGitHub, cmake, pkgconfig
-#, boost, eigen, expat, glew, 
+#, eigen, expat, glew, 
 #, nlopt, xorg,
 #, cgal_5, gmp, mpfr
 #}:
@@ -37,7 +36,6 @@ stdenv.mkDerivation rec {
   ];
 
   buildInputs = [ 
-    boost
     gsl
     eigen
     gnuplot
@@ -46,8 +44,7 @@ stdenv.mkDerivation rec {
   cmakeFlags = [ "-DCMAKE_BUILD_TYPE=Release"
                  "-DWITH_LINUX_SYS=ON"
                  "-DWITH_EIGEN=ON"
-                 "-DWITH_GNU_GSL=ON"
-                 "-DWITH_BOOST=ON" ];
+                 "-DWITH_GNU_GSL=ON" ];
 
   enableParallelBuilding = true;
 
@@ -64,11 +61,10 @@ stdenv.mkDerivation rec {
       applications. These routines will grow, be replaced, be updated, and may even
       disappear when their functionality is superceded by new features in the
       language/better libraries/etc. However, many of these routines are not broadly
-      useful enough for a project like Boost to include, and many are not
+      useful enough for larger libraries to include, and many are not
       comprehensive enough to be submitted to more mature projects. The routines in
       this library were all developed for specific projects with specific needs, but
       which may (have) become useful for other projects.
     '';
   };
 }
-

@@ -3,10 +3,6 @@
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
 
-if(@WITH_BOOST@)
-    find_dependency(Boost)
-endif()
-
 if(@WITH_EIGEN@)
     find_dependency(PkgConfig)
     pkg_check_modules(EIGEN3 REQUIRED eigen3)

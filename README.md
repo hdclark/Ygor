@@ -53,7 +53,6 @@ See [PKGBUILD](PKGBUILD) for a up-to-date list of dependencies.
 As of writing, various bits of `Ygor` rely on:
 
 - `STL`/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
-- `Boost`: various.
 - `Eigen`: a few YgorMath routines, optionally.
 - `spookyhash`: YgorAlgorithms. Very little - one function at time of writing.
 - `GNU Scientific Library`: YgorStats and YgorMathBasisSplines.
@@ -216,7 +215,7 @@ can be invoked as:
 - December 2020
   - Added basic ASCII PLY read and write support for surface meshes.
   - Added vec2 and vec3 layout checks and cast operators to and from std::array.
-  - Support for Boost::Serialization 1.74 and earlier versions.
+  - Support for serializing several math and image types.
   - Created endian-aware binary IO routines.
   - Added binary PLY support.
   - Improved test portability by removing non-standard math constants (e.g.,
@@ -294,4 +293,3 @@ can be invoked as:
     writer with support for arbitrary key-value metadata.
   - FITS images: replaced single-image reader and writer with multi-image
     reader and writer using the FITSv4.0 IMAGE extension.
-

@@ -17,7 +17,6 @@ option(WITH_MSAN                "Compile using MemorySanitizer."                
 option(WITH_LINUX_SYS "Compile assuming Linux-specific sys interfaces are available." ON)
 option(WITH_EIGEN     "Compile assuming Eigen is available." ON)
 option(WITH_GNU_GSL   "Compile assuming the GNU GSL is available." ON)
-option(WITH_BOOST     "Compile assuming Boost is available (note: won't impact header-only parts)." ON)
 
 option(USE_LTO "Use link-time optimization when available." OFF)
 
@@ -64,15 +63,6 @@ endif()
 # Note: Dependencies are listed in CPACK list below.
 
 find_package(Threads REQUIRED)
-
-if(WITH_BOOST)
-    if(NOT BUILD_SHARED_LIBS)
-        set(Boost_USE_STATIC_RUNTIME ON)
-        set(Boost_USE_STATIC_LIBS ON)
-    endif()
-    find_package(Boost REQUIRED)
-    include_directories(${Boost_INCLUDE_DIRS})
-endif()
 
 if(WITH_EIGEN)
     find_package(PkgConfig REQUIRED)
@@ -256,12 +246,6 @@ if(WITH_GNU_GSL)
     message(STATUS "Assuming GNU GSL is available.")
     set(YGOR_USE_GNU_GSL 1)
 endif()
-if(WITH_BOOST)
-    message(STATUS "Assuming Boost libraries are available.")
-    set(YGOR_USE_BOOST 1)
-endif()
-
-
 # Use the directory where CMakeLists.txt is for inclusions.
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -328,9 +312,6 @@ set(CPACK_DEBIAN_PACKAGE_SECTION "Science")
 
 # Ygor build dependencies, e.g., "libc6 (>= 2.3.1-6), libgcc1 (>= 1:3.4.2-12)"
 set(BUILD_DEPENDENCY_PACKAGES "")
-if(WITH_BOOST)
-    list(APPEND BUILD_DEPENDENCY_PACKAGES "libboost-dev")
-endif()
 if(WITH_GNU_GSL)
     list(APPEND BUILD_DEPENDENCY_PACKAGES "libgsl-dev")
 endif()
@@ -346,4 +327,3 @@ list(APPEND RECOMMENDED_PACKAGES "plotutils")
 list(JOIN RECOMMENDED_PACKAGES ", " CPACK_DEBIAN_PACKAGE_RECOMMENDS)
 
 include(CPack)
-

@@ -10,7 +10,5 @@
 #cmakedefine YGOR_USE_LINUX_SYS 1
 #cmakedefine YGOR_USE_EIGEN 1
 #cmakedefine YGOR_USE_GNU_GSL 1
-#cmakedefine YGOR_USE_BOOST 1
 
 #endif // YGOR_DEFINITIONS_HDR_GRD_H
-

@@ -11,17 +11,14 @@ url="http://www.halclark.ca"
 arch=('x86_64' 'i686' 'armv7h')
 license=('unknown')
 depends=(
-   'boost'   # If enabled (see below).
    'gsl'     # If enabled (see below).
 )
 makedepends=(
    'cmake'
    'eigen'   # If enabled (see below).
-   'boost'   # Library dependency, if enabled (see below).
 )
 optdepends=(
    'gnuplot'   # Runtime optional dependency.
-   'boost'     # User build header-only AND/OR library optional dependency.
    'plotutils' # Runtime optional dependency.
 )
 # conflicts=()
@@ -49,7 +46,6 @@ build() {
     -DWITH_LINUX_SYS=ON \
     -DWITH_EIGEN=ON \
     -DWITH_GNU_GSL=ON \
-    -DWITH_BOOST=ON \
     ../
   make -j 4 VERBOSE=1
 }

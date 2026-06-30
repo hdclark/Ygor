@@ -25,10 +25,7 @@
 #include <cstdint>
 //#include <locale>      //Needed for std::toupper() along with following line.
 //const std::locale loc; // The current locale. 
-//#include <boost/algorithm/string.hpp> //A faster way to get a toupper() function (boost::to_upper).
-
 #include <regex>
-//#include <boost/regex.hpp>
 
                       //--------------------------------------------
                       //--------------      NOTE       -------------
@@ -48,7 +45,7 @@
 
 
 //From: http://daringfireball.net/2010/07/improved_regex_for_matching_urls .
-// NOTE: Originally defined, these are PCRE and are not compatible with std::regex (i.e., ECMAscript or POSIX). PCRE works with boost regex.
+// NOTE: Originally defined, these are PCRE and are not compatible with std::regex (i.e., ECMAscript or POSIX).
 // (?i)\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>??????~@~\?~@~]?~@~X?~@~Y]))
 // but note that some characters (inconveniently) need to be escaped in the source.
 //const std::regex regex_all_urls( "\(\?i)\\b\(\(\?:\[a-z]\[\\w-]+:\(\?:/{1,3}|\[a-z0-9%])|www\\d{0,3}\[.]|\[a-z0-9.-]+\[.]\[a-z]{2,4}/)\(\?:\[^\\s\()<>]+|\\\(\(\[^\\s\()<>]+|\(\\\(\[^\\s\()<>]+\\)))*\\))+\(\?:\\\(\(\[^\\s\()<>]+|\(\\\(\[^\\s\()<>]+\\)))*\\)|\[^\\s`!\()\\\[\\]{};:'\\\".,<>\??????~@~\?~@~]?~@~X?~@~Y]))" , std::regex::icase );
@@ -345,8 +342,6 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
         //Using the C++ <locale> way. (Requires a specific locale.)
         //for (size_t i=0; i<in.length(); ++i) in[i] = toupper(in[i],loc);
 
-        //Using Boost. This way is fairly fast.
-        //boost::to_upper(in);
     }
 
     //Transform to all lower case.
@@ -359,8 +354,6 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
         //Using the C++ <locale> way. (Requires a specific locale.)
         //for (size_t i=0; i<in.length(); ++i) in[i] = tolower(in[i],loc);
 
-        //Using Boost. This way is fairly fast.
-        //boost::to_lower(in);
     }
 
     //Whitespace filter. Works for beginning, end, and interim whitespaces.
@@ -1682,4 +1675,3 @@ std::string Reflow_Line_Align_Center(const std::string &in, int64_t W){
     int64_t space = (W - static_cast<int64_t>(in.size()))/2; //+-1 !  :)
     return std::string(space, ' ') + in;
 }
-

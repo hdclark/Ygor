@@ -26,8 +26,7 @@
 // Bimap - A bi-directional map. Useful for describing a set of items which relate to one another with one-to-one correspondance.
 // This implementation 'piggybacks' on some simple STL containers to give a very crippled (but useable) container.
 //
-// This container is a poor-man's version of the Boost::Bimap library. Q: Why not just use Boost? A: To increase portability, this 
-// will only depend on the C++ compiler's support of the STL. If performance or flexibility are desired, simply switch to Boost.
+// This container is a poor-man's bimap. To increase portability, it only depends on STL support.
 //
 //Notes:
 //   1) For simplicity in this implementation, please do NOT use this container with TA == TB.

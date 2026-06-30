@@ -35,7 +35,7 @@ g++ -std=c++17 Test_FilesDirs_04.cc -o test_filesdirs_04 -lygor -pthread &
 wait
 
 g++ -std=c++17 Test_Images_01.cc -o test_images_01 -lygor -pthread &
-g++ -std=c++17 Test_Images_02.cc -o test_images_02 -lygor -pthread -lboost_serialization -lboost_iostreams &
+g++ -std=c++17 Test_Images_02.cc -o test_images_02 -lygor -pthread &
 wait
 
 g++ -std=c++17 Test_Math_01.cc -o test_math_01 -lygor -pthread &
@@ -49,7 +49,7 @@ g++ -std=c++17 Test_Math_09.cc -o test_math_09 -lygor -pthread &
 g++ -std=c++17 Test_Math_10.cc -o test_math_10 -lygor -pthread &
 wait
 
-g++ -std=c++17 Test_Math_11.cc -o test_math_11 -lygor -pthread -lboost_serialization -lboost_iostreams &
+g++ -std=c++17 Test_Math_11.cc -o test_math_11 -lygor -pthread &
 g++ -std=c++17 Test_Math_12.cc -o test_math_12 -lygor -pthread &
 g++ -std=c++17 Test_Math_13.cc -o test_math_13 -lygor -pthread &
 g++ -std=c++17 Test_Math_15.cc -o test_math_15 -lygor -pthread &
@@ -85,4 +85,3 @@ wait
 
 g++ -std=c++17 Test_MeshesBoolean.cc -o test_meshesboolean -lygor -pthread &
 wait
-

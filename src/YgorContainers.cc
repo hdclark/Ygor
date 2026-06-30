@@ -15,7 +15,7 @@
 //----------------------------------------------------------------------------------------------------------------------------
 //These are helper templates used for type deduction for use *within this file.*
 //
-//---- Are two types equal? ----   (ala boost::is_same(..)  and adapted from
+//---- Are two types equal? ----   (adapted from
 //  http://stackoverflow.com/questions/1708867/check-type-of-element-in-stl-container-c .
 template<class UA, class UB> struct ARE_THESE_TYPES_EQUAL      { static const bool value = false; };
 //Specialization for the case when UA == UB.
@@ -906,5 +906,4 @@ yspan<T>::swap(yspan<T> &rhs){
     template void yspan<const uint32_t>::swap(yspan<const uint32_t>&);
     template void yspan<const uint64_t>::swap(yspan<const uint64_t>&);
 #endif
-
 
