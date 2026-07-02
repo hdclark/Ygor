@@ -24,7 +24,7 @@ build_ci_debian_stable:
     # Build requirements.
     - "apt-get install --yes --no-install-recommends git cmake make g++ rsync wget ca-certificates"
     # Binary requirements.
-    - "apt-get install --yes --no-install-recommends libboost-dev libgsl-dev libeigen3-dev"
+    - "apt-get install --yes --no-install-recommends libgsl-dev libeigen3-dev"
   script:
     - |
       ./compile_and_install.sh
@@ -50,11 +50,10 @@ build_ci_arch:
     # Build requirements.
     - "pacman -Syu --noconfirm --needed base-devel git cmake gcc rsync wget ca-certificates"
     # Binary requirements.
-    - "pacman -Syu --noconfirm --needed boost gsl eigen"
+    - "pacman -Syu --noconfirm --needed gsl eigen"
   script:
     - |
       su - builduser -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
       ./tests2/compile_and_run.sh
       ./tests/compile.sh
       for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
-

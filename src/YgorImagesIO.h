@@ -1,4 +1,6 @@
-//YgorImagesIO.h - Self-contained routines for writing and reading images.
+//YgorImagesIO.h - Written by hal clark in 2026.
+//
+//Self-contained routines for writing and reading images.
 
 #pragma once
 #ifndef YGOR_IMAGES_IO_HDR_GRD_H
@@ -140,11 +142,11 @@ WriteToFITS(const std::list<std::reference_wrapper<const planar_image<T,R>>> &im
 //       This routine was written with very basic data interchange between identical instances
 //       of the same program in mind. So the image types T and R were known before reading was
 //       attempted. Because it is hard to have compile-time templated code react at run-time,
-//       it may be possible to return an arbitrary planar_image<T,R> stuffed into a boost::any
-//       or std::any. This logic is how Boost.Gil does it. Alternatively, you 
-//       could merely assume the largest format possible (T=long double, R=long double), read 
-//       the file, and convert after-the-fact. Regardless, this functionality was simply not 
-//       needed at the time of writing. 
+//       it may be possible to return an arbitrary planar_image<T,R> stuffed into std::any.
+//       This logic is how Boost.Gil does it. Alternatively, you could merely assume the
+//       largest format possible (T=long double, R=long double), read the file, and convert
+//       after-the-fact. Regardless, this functionality was simply not needed at the time of
+//       writing. 
 //
 template <class T, class R>
 planar_image_collection<T,R> 

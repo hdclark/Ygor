@@ -1,4 +1,4 @@
-//YgorMathChebyshevFunctions.h.
+//YgorMathChebyshevFunctions.h - Written by hal clark in 2026.
 
 #ifndef YGOR_MATH_CHEBYSHEV_FUNCTIONS_H_
 #define YGOR_MATH_CHEBYSHEV_FUNCTIONS_H_
@@ -77,7 +77,6 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
                                        T B = static_cast<T>(0), 
                                        T C = static_cast<T>(1) );
 
-#ifdef YGOR_USE_BOOST
 //Returns an approximation of $C\exp(Ax+B)$ in the Chebyshev polynomial basis over the given domain.
 //
 // This routine uses an analytic expression for the coefficients based on the modified Bessel function
@@ -116,9 +115,8 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
                                       T xmin_in,
                                       T xmax_in,
                                       T A,
-                                      T B = static_cast<T>(0),
-                                      T C = static_cast<T>(1) );
-#endif // YGOR_USE_BOOST
+                                       T B = static_cast<T>(0),
+                                       T C = static_cast<T>(1) );
 
 
 //Returns an approximation of $C\exp(Ax+B)$ in the Chebyshev polynomial basis over the given domain.

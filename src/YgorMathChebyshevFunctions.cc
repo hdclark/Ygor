@@ -9,10 +9,6 @@
 #include <vector>
 //#include <optional>
 
-#ifdef YGOR_USE_BOOST
-#include <boost/math/special_functions/bessel.hpp>
-#endif // YGOR_USE_BOOST
-
 #include "YgorMathChebyshev.h"
 #include "YgorMathChebyshevFunctions.h"
 #include "YgorMisc.h"    //For the FUNC* and PERCENT_ERR macro functions.
@@ -236,7 +232,6 @@ Chebyshev_Basis_Approx_Exp_Recurrence( size_t numb_of_c_in,
 #endif
 
 
-#ifdef YGOR_USE_BOOST
 template <class T>
 cheby_approx<T>
 Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
@@ -296,10 +291,14 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     const auto pi = static_cast<T>(3.14159265358979323846264338328);
 
     T sum = static_cast<T>(0);
+    const T abs_Aprime = std::abs(Aprime);
+    const bool reflect_odd_orders = (Aprime < static_cast<T>(0));
     for(size_t j = 0; j < N; ++j){
         try{
-            c[j] = static_cast<T>(2) * boost::math::cyl_bessel_i(j,Aprime);
-        }catch(const std::overflow_error &e){
+            c[j] = static_cast<T>(2) * std::cyl_bessel_i(static_cast<T>(j), abs_Aprime);
+            if(!std::isfinite(c[j])) throw std::overflow_error("Bessel coefficient is not finite");
+            if(reflect_odd_orders && ((j % 2U) == 1U)) c[j] = -c[j];
+        }catch(const std::runtime_error &e){
             c[j] = std::numeric_limits<T>::infinity();
 
             //Abort the rest of the computation to save some time.
@@ -321,9 +320,6 @@ Chebyshev_Basis_Approx_Exp_Analytic1( size_t numb_of_c_in,
     template cheby_approx<float > Chebyshev_Basis_Approx_Exp_Analytic1<float >(size_t, float , float , float , float , float );
     template cheby_approx<double> Chebyshev_Basis_Approx_Exp_Analytic1<double>(size_t, double, double, double, double, double);
 #endif
-
-#endif // YGOR_USE_BOOST
-
 
 //Static support functions for the following routine.
 template <class T>
@@ -495,4 +491,3 @@ Chebyshev_Basis_Approx_Exp_Analytic2( size_t numb_of_c_in,
     template cheby_approx<float > Chebyshev_Basis_Approx_Exp_Analytic2<float >(size_t, float , float , float , float , float );
     template cheby_approx<double> Chebyshev_Basis_Approx_Exp_Analytic2<double>(size_t, double, double, double, double, double);
 #endif
-

@@ -16,42 +16,35 @@
 #include <mutex>
 #include <limits>
 #include <cmath>
-
-#include <boost/serialization/nvp.hpp>
-
-//For plain-text archives.
-//#include <boost/archive/text_iarchive.hpp>
-//#include <boost/archive/text_oarchive.hpp>
-
-//For XML archives.
-#include <boost/archive/xml_iarchive.hpp>
-#include <boost/archive/xml_oarchive.hpp>
+#include <cstdint>
 
 #include "YgorMisc.h"
 #include "YgorLog.h"
 #include "YgorMath.h"
 #include "YgorMathIOOFF.h"
-#include "YgorMathIOBoostSerialization.h"
+#include "YgorMathIOSerialization.h"
 
 
 int main(int , char** ){
     //This program serializes and then deserializes instances of classes defined in YgorMath.h.
+    namespace ys = ygor::serialization;
 
     {
         vec3<double> A(1.0, 2.0, 3.0);
         std::ofstream ofs("/tmp/serial_vec3", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("vec3double", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("vec3double", A);
     }
     {
         vec3<double> A(100.0, 200.0, 300.0);
         std::ifstream ifs("/tmp/serial_vec3");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("vec3double", A);
             YLOGINFO("Deserialized vec3 to " << A);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize vec3 file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize vec3 file. It is not valid: " << e.what());
+            throw;
         }
     }
 
@@ -61,18 +54,19 @@ int main(int , char** ){
     {
         line<double> A;
         std::ofstream ofs("/tmp/serial_line", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("linedouble", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("linedouble", A);
     }
     {
         line<double> A;
         std::ifstream ifs("/tmp/serial_line");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("linedouble", A);
             YLOGINFO("Deserialized line to " << A.R_0 << "  " << A.U_0);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize line file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize line file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -85,18 +79,19 @@ int main(int , char** ){
         A.t_0 = 2.3;
         A.t_1 = 3.2;
         std::ofstream ofs("/tmp/serial_line_segment", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("line_segmentdouble", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("line_segmentdouble", A);
     }
     {
         line_segment<double> A;
         std::ifstream ifs("/tmp/serial_line_segment");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("line_segmentdouble", A);
             YLOGINFO("Deserialized line_segment to " << A.R_0 << "  " << A.U_0 << "   " << A.t_0 << "   " << A.t_1);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize line_segment file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize line_segment file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -108,18 +103,19 @@ int main(int , char** ){
     {
         plane<double> A;
         std::ofstream ofs("/tmp/serial_plane", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("planedouble", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("planedouble", A);
     }
     {
         plane<double> A;
         std::ifstream ifs("/tmp/serial_plane");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("planedouble", A);
             YLOGINFO("Deserialized plane to " << A.N_0 << "  " << A.R_0);
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize plane file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize plane file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -137,18 +133,19 @@ int main(int , char** ){
         A.metadata["keyB"] = "valueB";
 
         std::ofstream ofs("/tmp/serial_contour_of_points", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("contour_of_pointsdouble", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("contour_of_pointsdouble", A);
     }
     {
         contour_of_points<double> A;
         std::ifstream ifs("/tmp/serial_contour_of_points");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("contour_of_pointsdouble", A);
             YLOGINFO("Deserialized contour_of_points to " << A.points.size() << " points and " << A.metadata.size() << " metadata");
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize contour_of_points file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize contour_of_points file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -165,18 +162,19 @@ int main(int , char** ){
         A.metadata["keyA"] = "valueA";
         A.metadata["keyB"] = "valueB";
         std::ofstream ofs("/tmp/serial_samples_1D", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("samples_1Ddouble", A);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("samples_1Ddouble", A);
     }
     {
         samples_1D<double> A;
         std::ifstream ifs("/tmp/serial_samples_1D");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", A);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("samples_1Ddouble", A);
             YLOGINFO("Deserialized samples_1D to " << A.samples.size() << " samples and " << A.metadata.size() << " metadata");
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize samples_1D file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize samples_1D file. It is not valid: " << e.what());
+            throw;
         }
 
     }
@@ -234,21 +232,190 @@ int main(int , char** ){
         smesh.metadata["keyB"] = "valueB";
 
         std::ofstream ofs("/tmp/serial_fv_surface_mesh", std::ios::trunc);
-        boost::archive::xml_oarchive ar(ofs);
-        ar & boost::serialization::make_nvp("fv_surface_mesh", smesh);
+        ys::xml_oarchive ar(ofs);
+        ar & ys::make_nvp("fv_surface_mesh", smesh);
     }
     {
         fv_surface_mesh<double, uint64_t> smesh;
         std::ifstream ifs("/tmp/serial_fv_surface_mesh");
         try{
-            boost::archive::xml_iarchive ar(ifs);
-            ar & boost::serialization::make_nvp("not used", smesh);
+            ys::xml_iarchive ar(ifs);
+            ar & ys::make_nvp("fv_surface_mesh", smesh);
             YLOGINFO("Deserialized fv_surface_mesh has surface area " << smesh.surface_area());
-        }catch(const std::exception &){
-            YLOGINFO("Unable to deserialize fv_surface_mesh file. It is not valid");
+        }catch(const std::exception &e){
+            YLOGINFO("Unable to deserialize fv_surface_mesh file. It is not valid: " << e.what());
+            throw;
         }
 
     }
+
+    {
+        std::vector<uint8_t> bytes_in{1U, 10U, 32U, 255U};
+        std::vector<uint8_t> bytes_out;
+        double finite_min_in = std::numeric_limits<double>::denorm_min();
+        double finite_min_out = 0.0;
+        double nan_in = std::numeric_limits<double>::quiet_NaN();
+        double nan_out = 0.0;
+        double inf_in = std::numeric_limits<double>::infinity();
+        double inf_out = 0.0;
+
+        std::stringstream ss;
+        {
+            ys::xml_oarchive ar(ss);
+            ar & ys::make_nvp("bytes", bytes_in);
+            ar & ys::make_nvp("finite_min", finite_min_in);
+            ar & ys::make_nvp("nan", nan_in);
+            ar & ys::make_nvp("inf", inf_in);
+        }
+        {
+            ys::xml_iarchive ar(ss);
+            ar & ys::make_nvp("bytes", bytes_out);
+            ar & ys::make_nvp("finite_min", finite_min_out);
+            ar & ys::make_nvp("nan", nan_out);
+            ar & ys::make_nvp("inf", inf_out);
+        }
+
+        if(bytes_out != bytes_in){
+            throw std::runtime_error("Byte-vector serialization failed to round trip.");
+        }
+        if(finite_min_out != finite_min_in){
+            throw std::runtime_error("Subnormal floating-point serialization failed to round trip.");
+        }
+        if(!std::isnan(nan_out)){
+            throw std::runtime_error("NaN serialization failed to round trip.");
+        }
+        if(!std::isinf(inf_out) || (std::signbit(inf_out) != std::signbit(inf_in))){
+            throw std::runtime_error("Infinity serialization failed to round trip.");
+        }
+    }
+
+    {
+        const std::vector<int> values_in{10, 11, 12};
+        std::vector<int> values_out;
+        const std::vector<bool> bools_in{true, false, true};
+        std::vector<bool> bools_out;
+
+        std::stringstream ss;
+        ss << std::hex << std::boolalpha << std::left << std::setfill('0') << std::setw(10);
+        {
+            ys::xml_oarchive ar(ss);
+            ar & ys::make_nvp("values", values_in);
+            ar & ys::make_nvp("bools", bools_in);
+        }
+        ss >> std::noskipws;
+        {
+            ys::xml_iarchive ar(ss);
+            ar & ys::make_nvp("values", values_out);
+            ar & ys::make_nvp("bools", bools_out);
+        }
+
+        if(values_out != values_in){
+            throw std::runtime_error("Const vector serialization with caller formatting failed to round trip.");
+        }
+        if(bools_out != bools_in){
+            throw std::runtime_error("vector<bool> serialization failed to round trip.");
+        }
+
+        std::stringstream truncated;
+        truncated << "\"value\" not_an_int\n";
+        bool rejected = false;
+        try{
+            int malformed = 0;
+            ys::xml_iarchive ar(truncated);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Malformed archive field was not rejected.");
+        }
+
+        std::stringstream renamed;
+        renamed << "\"wrong_value\" 42\n";
+        rejected = false;
+        try{
+            int renamed_value = 0;
+            ys::xml_iarchive ar(renamed, true);
+            ar & ys::make_nvp("value", renamed_value);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Mismatched archive field name was not rejected.");
+        }
+
+        std::stringstream trailing_junk;
+        trailing_junk << "\"value\" 12abc\n";
+        rejected = false;
+        try{
+            int malformed = 0;
+            ys::xml_iarchive ar(trailing_junk);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Integral archive token with trailing junk was not rejected.");
+        }
+
+        std::stringstream renamed_compat;
+        renamed_compat << "\"wrong_value\" 42\n";
+        int compat_value = 0;
+        {
+            ys::xml_iarchive ar(renamed_compat);
+            ar & ys::make_nvp("value", compat_value);
+        }
+        if(compat_value != 42){
+            throw std::runtime_error("Default archive field-name compatibility load failed.");
+        }
+
+        std::stringstream negative_unsigned;
+        negative_unsigned << "\"value\" -1\n";
+        rejected = false;
+        try{
+            uint64_t malformed = 0;
+            ys::xml_iarchive ar(negative_unsigned);
+            ar & ys::make_nvp("value", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Negative archive token for unsigned value was not rejected.");
+        }
+
+        std::stringstream bool_junk;
+        bool_junk << "\"flag\" 1oops\n";
+        rejected = false;
+        try{
+            bool malformed = false;
+            ys::xml_iarchive ar(bool_junk);
+            ar & ys::make_nvp("flag", malformed);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Boolean archive token with trailing junk was not rejected.");
+        }
+
+        std::stringstream wrong_array_size;
+        wrong_array_size << "\"array\" ";
+        wrong_array_size << "\"size\" 3\n";
+        wrong_array_size << "\"item\" 1\n";
+        wrong_array_size << "\"item\" 2\n";
+        wrong_array_size << "\"item\" 3\n";
+        rejected = false;
+        try{
+            std::array<int, 2> values;
+            ys::xml_iarchive ar(wrong_array_size);
+            ar & ys::make_nvp("array", values);
+        }catch(const std::exception &){
+            rejected = true;
+        }
+        if(!rejected){
+            throw std::runtime_error("Mismatched serialized array size was not rejected.");
+        }
+    }
+
 
     return 0;
 }

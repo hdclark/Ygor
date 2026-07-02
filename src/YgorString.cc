@@ -25,10 +25,7 @@
 #include <cstdint>
 //#include <locale>      //Needed for std::toupper() along with following line.
 //const std::locale loc; // The current locale. 
-//#include <boost/algorithm/string.hpp> //A faster way to get a toupper() function (boost::to_upper).
-
 #include <regex>
-//#include <boost/regex.hpp>
 
                       //--------------------------------------------
                       //--------------      NOTE       -------------
@@ -345,8 +342,6 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
         //Using the C++ <locale> way. (Requires a specific locale.)
         //for (size_t i=0; i<in.length(); ++i) in[i] = toupper(in[i],loc);
 
-        //Using Boost. This way is fairly fast.
-        //boost::to_upper(in);
     }
 
     //Transform to all lower case.
@@ -359,8 +354,6 @@ void Canonicalize_String(std::string &in, const unsigned char &opts){
         //Using the C++ <locale> way. (Requires a specific locale.)
         //for (size_t i=0; i<in.length(); ++i) in[i] = tolower(in[i],loc);
 
-        //Using Boost. This way is fairly fast.
-        //boost::to_lower(in);
     }
 
     //Whitespace filter. Works for beginning, end, and interim whitespaces.
@@ -1682,4 +1675,3 @@ std::string Reflow_Line_Align_Center(const std::string &in, int64_t W){
     int64_t space = (W - static_cast<int64_t>(in.size()))/2; //+-1 !  :)
     return std::string(space, ' ') + in;
 }
-

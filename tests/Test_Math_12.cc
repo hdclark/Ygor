@@ -1,4 +1,6 @@
-//Test_Math12.cc - Chebyshev polynomial approximation fast multiplication tests.
+//Test_Math12.cc - Written by hal clark in 2026.
+//
+//Chebyshev polynomial approximation fast multiplication tests.
 
 #include <iostream>
 #include <sstream>
@@ -139,6 +141,14 @@ int main(int , char** ){
 
 
     PlotTimeCourses("Comparison of multiplication methods", stc, ctc, "X", "Y", 500);
+
+    {
+        auto approx = Chebyshev_Basis_Approx_Exp_Analytic1<double>(8, 1000.0, 0.0, 1.0, 0.0, 10.0);
+        (void)approx;
+
+        auto large_domain_approx = Chebyshev_Basis_Approx_Exp_Analytic1<double>(8, 1.0, 0.0, 1.0, 0.0, 2.0E8);
+        (void)large_domain_approx;
+    }
 
     return 0;
 }
