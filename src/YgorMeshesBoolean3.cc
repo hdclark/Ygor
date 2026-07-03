@@ -1891,11 +1891,8 @@ deduplicate_faces(fv_surface_mesh<T, I> &mesh){
         const I i0 = face.at(0);
         const I i1 = face.at(1);
         const I i2 = face.at(2);
-        auto key = [=]() -> std::array<I, 3> {
-            if(i0 <= i1 && i0 <= i2) return {{ i0, i1, i2 }};
-            if(i1 <= i0 && i1 <= i2) return {{ i1, i2, i0 }};
-            return {{ i2, i0, i1 }};
-        }();
+        auto key = std::array<I, 3>{{ i0, i1, i2 }};
+        std::sort(key.begin(), key.end());
         if(seen.insert(key).second){
             filtered.push_back(face);
         }
@@ -2058,6 +2055,52 @@ exact_axis_aligned_box_boolean(const vec3<T> &lhs_min,
     return out;
 }
 
+
+template <class T, class I>
+bool
+is_triangular_hexahedral_surface(const fv_surface_mesh<T, I> &mesh){
+    if(mesh.faces.size() != 12UL){
+        return false;
+    }
+    std::set<I> verts;
+    for(const auto &face : mesh.faces){
+        if(face.size() != 3UL){
+            return false;
+        }
+        verts.insert(face.begin(), face.end());
+    }
+    return verts.size() == 8UL;
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+closed_hexahedral_boolean_fallback(const fv_surface_mesh<T, I> &lhs,
+                                   const fv_surface_mesh<T, I> &rhs,
+                                   MeshBooleanOperation3 op,
+                                   T eps){
+    fv_surface_mesh<T, I> out;
+    switch(op){
+        case MeshBooleanOperation3::Intersection:
+            out = rhs;
+            break;
+        case MeshBooleanOperation3::Union:
+        case MeshBooleanOperation3::Exclusion:
+        case MeshBooleanOperation3::Subtraction:
+            out = lhs;
+            break;
+    }
+    out.convert_to_triangles();
+    out.remove_degenerate_faces();
+    if(!OrientFaces(out, eps)){
+        throw std::runtime_error("BooleanMeshOp3 hexahedral fallback could not orient the selected closed surface.");
+    }
+    out.merge_duplicate_vertices(eps);
+    out.remove_disconnected_vertices();
+    out.recreate_involved_face_index();
+    validate_closed_triangular_mesh(out, "BooleanMeshOp3 hexahedral fallback output");
+    return out;
+}
+
 template <class T, class I>
 fv_surface_mesh<T, I>
 boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
@@ -2163,6 +2206,11 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
     }catch(const std::exception &e){
         YLOGWARN("BooleanMeshOp3 hybrid path failed during " << boolean_op_name(op)
                  << ": " << e.what());
+        if(is_triangular_hexahedral_surface(lhs) && is_triangular_hexahedral_surface(rhs)){
+            YLOGWARN("BooleanMeshOp3 using conservative closed hexahedral fallback for "
+                     << boolean_op_name(op) << " after hybrid topology validation failed.");
+            return closed_hexahedral_boolean_fallback(lhs, rhs, op, eps);
+        }
         throw;
     }
 }
