@@ -53,7 +53,6 @@ See [PKGBUILD](PKGBUILD) for a up-to-date list of dependencies.
 As of writing, various bits of `Ygor` rely on:
 
 - `STL`/C++17: heavily, throughout; mostly C++11 but some C++14 and C++17.
-- `Boost`: various.
 - `Eigen`: a few YgorMath routines, optionally.
 - `spookyhash`: YgorAlgorithms. Very little - one function at time of writing.
 - `GNU Scientific Library`: YgorStats and YgorMathBasisSplines.
