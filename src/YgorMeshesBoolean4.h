@@ -1,9 +1,11 @@
 //YgorMeshesBoolean4.h - Written by hal clark in 2026.
 //
-// Surface mesh Boolean engine backed by the BSP tree volume class.
-// Two closed triangular surface meshes are independently converted into
-// bsp_tree_volume objects, the requested Boolean operation is performed
-// on the BSP trees, and the result is converted back to a surface mesh.
+// Surface mesh Boolean engine backed by an explicit split-facet arrangement.
+// Inputs are normalized and validated as finite, closed, consistently oriented
+// triangular solids; arrangement facets are classified against the opposite
+// solid and selected by the requested Boolean operation. Non-empty outputs are
+// verified to be finite, triangular, indexed correctly, non-degenerate, closed,
+// and consistently oriented before returning.
 
 #pragma once
 #ifndef YGOR_MESHES_BOOLEAN4_H_
