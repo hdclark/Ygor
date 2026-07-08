@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -59,6 +60,21 @@ mesh_signed_volume(const fv_surface_mesh<T, I> &mesh){
         total += static_cast<long double>(a.Dot(b.Cross(c))) / 6.0L;
     }
     return static_cast<double>(total);
+}
+
+
+template <class T, class I>
+static bool
+mesh_has_identical_vertices_and_faces(const fv_surface_mesh<T, I> &lhs,
+                                      const fv_surface_mesh<T, I> &rhs){
+    if(lhs.faces != rhs.faces) return false;
+    if(lhs.vertices.size() != rhs.vertices.size()) return false;
+    for(size_t i = 0; i < lhs.vertices.size(); ++i){
+        if(lhs.vertices.at(i).x != rhs.vertices.at(i).x) return false;
+        if(lhs.vertices.at(i).y != rhs.vertices.at(i).y) return false;
+        if(lhs.vertices.at(i).z != rhs.vertices.at(i).z) return false;
+    }
+    return true;
 }
 
 
@@ -215,14 +231,12 @@ TEST_CASE("YgorMeshesBoolean4 -- BSP boolean operations"){
 
 
 TEST_CASE("YgorMeshesBoolean4 -- all-IN / all-OUT edge cases"){
-    SUBCASE("All-IN BSP tree converts to unit bounding box mesh"){
+    SUBCASE("All-IN BSP tree rejects bounded mesh emission"){
         auto root = std::make_unique<typename bsp_tree_volume<double, uint64_t>::Node>(
             bsp_tree_volume<double, uint64_t>::NodeType::In);
         bsp_tree_volume<double, uint64_t> vt(std::move(root));
 
-        const auto mesh = vt.to_fv_surface_mesh();
-        REQUIRE(!mesh.faces.empty());
-        REQUIRE(IsTriangularMesh(mesh));
+        REQUIRE_THROWS_AS(vt.to_fv_surface_mesh(), std::runtime_error);
     }
 
     SUBCASE("All-OUT BSP tree converts to empty mesh"){
@@ -307,6 +321,37 @@ TEST_CASE("YgorMeshesBoolean4 -- BooleanMeshOp4 integration"){
         const auto rhs = make_box_mesh<float, uint32_t>(vec3<float>(0.5f, 0.0f, 0.0f),
                                                          vec3<float>(1.5f, 1.0f, 1.0f));
         REQUIRE(!BooleanUnion4(lhs, rhs).faces.empty());
+    }
+
+    SUBCASE("BooleanMeshOp4 is deterministic without caller-supplied seeds"){
+        const auto lhs = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                                          vec3<double>(1.0, 1.0, 1.0));
+        const auto rhs = make_box_mesh<double, uint64_t>(vec3<double>(0.5, 0.25, 0.0),
+                                                          vec3<double>(1.5, 1.25, 1.0));
+        const auto expected = BooleanMeshOp4(lhs, rhs, MeshBooleanOperation4::Union);
+        REQUIRE(!expected.faces.empty());
+
+        for(size_t i = 0; i < 8UL; ++i){
+            const auto actual = BooleanMeshOp4(lhs, rhs, MeshBooleanOperation4::Union);
+            REQUIRE(mesh_has_identical_vertices_and_faces(actual, expected));
+        }
+    }
+
+    SUBCASE("Invalid non-empty operands propagate invalid_argument"){
+        const auto box = make_box_mesh<double, uint64_t>(vec3<double>(0.0, 0.0, 0.0),
+                                                          vec3<double>(1.0, 1.0, 1.0));
+        fv_surface_mesh<double, uint64_t> open_mesh;
+        open_mesh.vertices = {
+            vec3<double>(0.0, 0.0, 0.0),
+            vec3<double>(1.0, 0.0, 0.0),
+            vec3<double>(0.0, 1.0, 0.0)
+        };
+        open_mesh.faces = {{ 0, 1, 2 }};
+
+        REQUIRE_THROWS_AS(BooleanMeshOp4(open_mesh, box, MeshBooleanOperation4::Union),
+                          std::invalid_argument);
+        REQUIRE_THROWS_AS(BooleanMeshOp4(box, open_mesh, MeshBooleanOperation4::Intersection),
+                          std::invalid_argument);
     }
 }
 
