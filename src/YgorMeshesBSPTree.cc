@@ -20,222 +20,16 @@
 #include <utility>
 #include <vector>
 
-#include <boost/multiprecision/cpp_int.hpp>
-
 #include "YgorDefinitions.h"
 #include "YgorMath.h"
 #include "YgorMeshesAdaptivePredicates.h"
 #include "YgorMeshesBSPTree.h"
 #include "YgorMeshesOrient.h"
 #include "YgorMeshesVerification.h"
+#include "YgorMultiprecision.h"
 
 
 namespace {
-
-using ExactInt = boost::multiprecision::cpp_int;
-
-ExactInt abs_exact_int(ExactInt v) {
-    return (v < 0) ? -v : v;
-}
-
-ExactInt gcd_exact_int(ExactInt a, ExactInt b) {
-    a = abs_exact_int(a);
-    b = abs_exact_int(b);
-    while(b != 0) {
-        const ExactInt r = a % b;
-        a = b;
-        b = r;
-    }
-    return (a == 0) ? ExactInt(1) : a;
-}
-
-struct ExactScalar {
-    ExactInt n = 0;
-    ExactInt d = 1;
-
-    ExactScalar() = default;
-    ExactScalar(int64_t v) : n(v), d(1) {}
-    ExactScalar(ExactInt num, ExactInt den) : n(std::move(num)), d(std::move(den)) {
-        normalize();
-    }
-
-    template <class T>
-    static ExactScalar from_binary(T value) {
-        static_assert(std::numeric_limits<T>::is_iec559, "ExactScalar requires IEC 559 floating point input.");
-        if(!std::isfinite(value)) {
-            throw std::invalid_argument("ExactScalar::from_binary: non-finite input.");
-        }
-        if(value == static_cast<T>(0)) return ExactScalar();
-
-        int exp = 0;
-        const T frac = std::frexp(value, &exp);
-        const int digits = std::numeric_limits<T>::digits;
-        const T scaled = std::ldexp(frac, digits);
-        const auto mantissa = static_cast<int64_t>(scaled);
-
-        ExactInt num = mantissa;
-        ExactInt den = 1;
-        const int pow2 = exp - digits;
-        if(pow2 >= 0) {
-            num <<= pow2;
-        } else {
-            den <<= -pow2;
-        }
-        return ExactScalar(std::move(num), std::move(den));
-    }
-
-    void normalize() {
-        if(d == 0) throw std::invalid_argument("ExactScalar: zero denominator.");
-        if(d < 0) {
-            n = -n;
-            d = -d;
-        }
-        const ExactInt g = gcd_exact_int(n, d);
-        n /= g;
-        d /= g;
-    }
-
-    int sign() const {
-        return (n > 0) ? +1 : ((n < 0) ? -1 : 0);
-    }
-
-    bool is_zero() const {
-        return n == 0;
-    }
-};
-
-ExactScalar operator-(const ExactScalar &a) {
-    return ExactScalar(-a.n, a.d);
-}
-
-ExactScalar operator+(const ExactScalar &a, const ExactScalar &b) {
-    return ExactScalar(a.n * b.d + b.n * a.d, a.d * b.d);
-}
-
-ExactScalar operator-(const ExactScalar &a, const ExactScalar &b) {
-    return ExactScalar(a.n * b.d - b.n * a.d, a.d * b.d);
-}
-
-ExactScalar operator*(const ExactScalar &a, const ExactScalar &b) {
-    return ExactScalar(a.n * b.n, a.d * b.d);
-}
-
-ExactScalar operator/(const ExactScalar &a, const ExactScalar &b) {
-    if(b.n == 0) throw std::invalid_argument("ExactScalar division by zero.");
-    return ExactScalar(a.n * b.d, a.d * b.n);
-}
-
-bool operator==(const ExactScalar &a, const ExactScalar &b) {
-    return a.n == b.n && a.d == b.d;
-}
-
-bool operator!=(const ExactScalar &a, const ExactScalar &b) {
-    return !(a == b);
-}
-
-bool operator<(const ExactScalar &a, const ExactScalar &b) {
-    return a.n * b.d < b.n * a.d;
-}
-
-bool operator<=(const ExactScalar &a, const ExactScalar &b) {
-    return !(b < a);
-}
-
-struct ExactPoint2 {
-    ExactScalar x;
-    ExactScalar y;
-};
-
-ExactPoint2 operator+(const ExactPoint2 &a, const ExactPoint2 &b) {
-    return { a.x + b.x, a.y + b.y };
-}
-
-ExactPoint2 operator-(const ExactPoint2 &a, const ExactPoint2 &b) {
-    return { a.x - b.x, a.y - b.y };
-}
-
-ExactPoint2 operator*(const ExactPoint2 &p, const ExactScalar &s) {
-    return { p.x * s, p.y * s };
-}
-
-bool operator==(const ExactPoint2 &a, const ExactPoint2 &b) {
-    return a.x == b.x && a.y == b.y;
-}
-
-bool exact_point2_less(const ExactPoint2 &a, const ExactPoint2 &b) {
-    return std::tie(a.x, a.y) < std::tie(b.x, b.y);
-}
-
-ExactScalar cross_exact_2d(const ExactPoint2 &a, const ExactPoint2 &b) {
-    return a.x * b.y - a.y * b.x;
-}
-
-ExactScalar orient_exact_2d(const ExactPoint2 &a,
-                            const ExactPoint2 &b,
-                            const ExactPoint2 &c) {
-    return cross_exact_2d(b - a, c - a);
-}
-
-struct ExactPoint3 {
-    ExactScalar x;
-    ExactScalar y;
-    ExactScalar z;
-
-    template <class T>
-    static ExactPoint3 from_vec3(const vec3<T> &v) {
-        return { ExactScalar::from_binary(v.x),
-                 ExactScalar::from_binary(v.y),
-                 ExactScalar::from_binary(v.z) };
-    }
-};
-
-ExactPoint3 operator+(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return { a.x + b.x, a.y + b.y, a.z + b.z };
-}
-
-ExactPoint3 operator-(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return { a.x - b.x, a.y - b.y, a.z - b.z };
-}
-
-ExactPoint3 operator*(const ExactPoint3 &p, const ExactScalar &s) {
-    return { p.x * s, p.y * s, p.z * s };
-}
-
-ExactScalar dot_exact(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-ExactPoint3 cross_exact(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return { a.y * b.z - a.z * b.y,
-             a.z * b.x - a.x * b.z,
-             a.x * b.y - a.y * b.x };
-}
-
-struct ExactPlane3 {
-    ExactScalar a;
-    ExactScalar b;
-    ExactScalar c;
-    ExactScalar d;
-
-    static ExactPlane3 from_points(const ExactPoint3 &p0,
-                                   const ExactPoint3 &p1,
-                                   const ExactPoint3 &p2) {
-        const ExactPoint3 n = cross_exact(p1 - p0, p2 - p0);
-        if(n.x.is_zero() && n.y.is_zero() && n.z.is_zero()) {
-            throw std::invalid_argument("ExactPlane3::from_points: degenerate plane.");
-        }
-        return { n.x, n.y, n.z, -dot_exact(n, p0) };
-    }
-
-    ExactScalar eval(const ExactPoint3 &p) const {
-        return a * p.x + b * p.y + c * p.z + d;
-    }
-};
-
-struct ExactLine3 {
-    ExactPoint3 p;
-    ExactPoint3 dir;
-};
 
 struct CanonicalPlaneKey {
     std::array<ExactInt, 4> coeffs = {{0, 0, 0, 0}};
@@ -245,18 +39,6 @@ CanonicalPlaneKey canonical_plane_key(const ExactPlane3 &plane);
 
 template <class T>
 CanonicalPlaneKey canonical_plane_key(const bsp_plane<T> &plane);
-
-enum class ExactVertexKind : uint8_t {
-    OriginalVertex = 0,
-    OriginalEdgeSplit = 1,
-    PlaneTriple = 2,
-    Coordinate = 3
-};
-
-struct ExactVertexSymbol {
-    ExactVertexKind kind = ExactVertexKind::Coordinate;
-    std::array<uint64_t, 3> ids = {{0, 0, 0}};
-};
 
 struct ExactVertex3 {
     ExactPoint3 p;
@@ -279,13 +61,6 @@ bool same_symbolic_identity(const ExactVertexSymbol &a, const ExactVertexSymbol 
     return a.kind == b.kind && a.kind != ExactVertexKind::Coordinate && a.ids == b.ids;
 }
 
-bool exact_point_less(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z);
-}
-
-bool operator==(const ExactPoint3 &a, const ExactPoint3 &b) {
-    return a.x == b.x && a.y == b.y && a.z == b.z;
-}
 
 bool exact_vertex_less(const ExactVertex3 &a, const ExactVertex3 &b) {
     if(same_symbolic_identity(a.symbol, b.symbol)) return false;
@@ -1082,26 +857,7 @@ GlobalCellArrangement3D build_global_cell_arrangement(
 }
 
 GlobalCellArrangement3D canonicalize_cells_for_bsp(const GlobalCellArrangement3D &arrangement) {
-    GlobalCellArrangement3D result;
-    result.planes = arrangement.planes;
-    result.plane_keys = arrangement.plane_keys;
-
-    if(result.planes.empty()) return result;
-
-    Arrangement3DCell inside;
-    inside.plane_signs.assign(result.planes.size(), int8_t(-1));
-    inside.classification = ArrangementCellClass::In;
-    result.cells.push_back(std::move(inside));
-
-    for(size_t plane_id = 0; plane_id < result.planes.size(); ++plane_id) {
-        Arrangement3DCell outside;
-        outside.plane_signs.assign(result.planes.size(), int8_t(-1));
-        outside.plane_signs[plane_id] = int8_t(+1);
-        outside.classification = ArrangementCellClass::Out;
-        result.cells.push_back(std::move(outside));
-    }
-
-    return result;
+    return arrangement;
 }
 
 bool operator<(const CanonicalPlaneKey &a, const CanonicalPlaneKey &b) {
@@ -1120,7 +876,10 @@ CanonicalPlaneKey canonical_plane_key(const ExactPlane3 &plane) {
     ExactInt common = 0;
     for(size_t i = 0; i < c.size(); ++i) {
         key.coeffs[i] = c[i].n * (lcm / c[i].d);
-        common = (i == 0) ? abs_exact_int(key.coeffs[i]) : gcd_exact_int(common, key.coeffs[i]);
+        const ExactInt abs_coeff = abs_exact_int(key.coeffs[i]);
+        if(abs_coeff != 0) {
+            common = (common == 0) ? abs_coeff : gcd_exact_int(common, abs_coeff);
+        }
     }
     if(common != 0) {
         for(auto &v : key.coeffs) v /= common;
@@ -1605,28 +1364,30 @@ std::vector<ExactPoint3> unique_exact_points(std::vector<ExactPoint3> points) {
 template <class T>
 std::vector<ExactPoint3> sort_points_on_plane(std::vector<ExactPoint3> points,
                                               const ExactPoint3 &normal) {
+    (void)sizeof(T);
     if(points.size() < 3) return points;
 
     ExactPoint3 centroid;
     const ExactScalar inv_n = ExactScalar(1) / ExactScalar(static_cast<int64_t>(points.size()));
     for(const auto &p : points) centroid = centroid + p * inv_n;
 
-    const vec3<T> n = exact_point_to_vec3<T>(normal).unit();
-    const vec3<T> x_axis(static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
-    const vec3<T> y_axis(static_cast<T>(0), static_cast<T>(1), static_cast<T>(0));
-    vec3<T> u = (std::abs(n.Dot(x_axis)) < static_cast<T>(0.9))
-              ? n.Cross(x_axis).unit()
-              : n.Cross(y_axis).unit();
-    vec3<T> v = n.Cross(u);
-    const vec3<T> c = exact_point_to_vec3<T>(centroid);
+    const ExactScalar ax = (normal.x.sign() < 0) ? -normal.x : normal.x;
+    const ExactScalar ay = (normal.y.sign() < 0) ? -normal.y : normal.y;
+    const ExactScalar az = (normal.z.sign() < 0) ? -normal.z : normal.z;
+    const int drop_axis = (!(az < ax) && !(az < ay)) ? 2 : (!(ay < ax) ? 1 : 0);
+
+    const auto project_delta = [&](const ExactPoint3 &p) {
+        const ExactPoint3 d = p - centroid;
+        if(drop_axis == 0) return ExactPoint2{d.y, d.z};
+        if(drop_axis == 1) return ExactPoint2{d.x, d.z};
+        return ExactPoint2{d.x, d.y};
+    };
 
     std::sort(points.begin(), points.end(), [&](const ExactPoint3 &lhs, const ExactPoint3 &rhs) {
-        const vec3<T> dl = exact_point_to_vec3<T>(lhs) - c;
-        const vec3<T> dr = exact_point_to_vec3<T>(rhs) - c;
-        const T al = std::atan2(dl.Dot(v), dl.Dot(u));
-        const T ar = std::atan2(dr.Dot(v), dr.Dot(u));
-        if(al != ar) return al < ar;
-        return exact_point_less(lhs, rhs);
+        const ExactPoint2 dl = project_delta(lhs);
+        const ExactPoint2 dr = project_delta(rhs);
+        if(dl == dr) return exact_point_less(lhs, rhs);
+        return direction_angle_less(dl, dr);
     });
     return points;
 }
@@ -1660,11 +1421,9 @@ std::vector<ExactPoint3> build_boundary_polygon_from_constraints(
     if(candidates.size() < 3) return {};
     candidates = sort_points_on_plane<T>(std::move(candidates), outward_normal);
 
-    const vec3<T> desired = exact_point_to_vec3<T>(outward_normal);
-    const vec3<T> a = exact_point_to_vec3<T>(candidates[0]);
-    const vec3<T> b = exact_point_to_vec3<T>(candidates[1]);
-    const vec3<T> c = exact_point_to_vec3<T>(candidates[2]);
-    if((b - a).Cross(c - a).Dot(desired) < static_cast<T>(0)) {
+    const ExactPoint3 exact_normal = cross_exact(candidates[1] - candidates[0],
+                                                 candidates[2] - candidates[0]);
+    if(dot_exact(exact_normal, outward_normal).sign() < 0) {
         std::reverse(candidates.begin(), candidates.end());
     }
     return candidates;
@@ -1745,11 +1504,8 @@ bool tree_has_extractable_bounded_boundary(const typename bsp_tree_volume<T, I>:
 
 template <class T, class I>
 NodePtr<T, I> canonicalize_empty_bounded_result(NodePtr<T, I> node) {
-    using NT = typename bsp_tree_volume<T, I>::NodeType;
     if(!node) return make_out_node<T, I>();
-    if(node->type != NT::Partition) return node;
-    if(tree_has_extractable_bounded_boundary<T, I>(node.get())) return node;
-    return make_out_node<T, I>();
+    return node;
 }
 
 template <class T, class I>
@@ -1792,7 +1548,9 @@ void validate_output_mesh(const fv_surface_mesh<T, I> &mesh,
         throw std::runtime_error("validate_output_mesh: output mesh contains degenerate faces.");
     }
 
-    if(!exact_closed) return;
+    if(!exact_closed) {
+        throw std::runtime_error("validate_output_mesh: exact output boundary is open or non-manifold.");
+    }
 
     if(!IsClosedManifold(mesh)) {
         throw std::runtime_error("validate_output_mesh: output mesh is not a closed manifold.");
@@ -1808,6 +1566,7 @@ void validate_output_mesh(const fv_surface_mesh<T, I> &mesh,
 namespace ygor_bsp_tree_exact_test {
 
 bool exact_kernel_self_test() {
+    if(!ygor_multiprecision_self_test()) return false;
     const ExactPoint3 origin{ExactScalar(0), ExactScalar(0), ExactScalar(0)};
     const ExactPoint3 ex{ExactScalar(1), ExactScalar(0), ExactScalar(0)};
     const ExactPoint3 ey{ExactScalar(0), ExactScalar(1), ExactScalar(0)};
@@ -2102,11 +1861,6 @@ bsp_tree_volume<T, I>::from_fv_surface_mesh(
         throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh must contain only triangular faces.");
     if(!HasValidFaceIndices(working_mesh))
         throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains out-of-range face indices.");
-    working_mesh.remove_degenerate_faces();
-
-    if(working_mesh.faces.empty())
-        throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains only degenerate faces.");
-
     if(!HasNoDegenerateFaces(working_mesh))
         throw std::invalid_argument("bsp_tree_volume::from_fv_surface_mesh: mesh contains degenerate faces.");
 
