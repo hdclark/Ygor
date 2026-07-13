@@ -10,4 +10,6 @@
 - [x] Component 9 classification, then Component 10 selection.
 - [x] Component 11 checked realization and impossibility reporting.
 - [x] Component 12 output assembly and canonicalization.
+- [ ] Resolve the contract and algorithm gaps captured in `tests/MeshBooleanPlanGapCases.md`.
+- [ ] Convert every plan-gap case into an executable CI test with an explicit success or typed-failure expectation.
 - [ ] Full Component 14 adversarial, randomized, metamorphic, replay, and performance suites.
