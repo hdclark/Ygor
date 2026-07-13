@@ -12,6 +12,36 @@ add_library(ygor
     External/SpookyHash/SpookyV2.cpp
     External/MD5/md5.cc
 )
+
+# Predicate-bearing Boolean sources must override repository-wide fast-math flags.
+set(ygor_boolean_strict_arithmetic_sources
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactArithmetic.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactKernel.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactKernelFilters.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanVerification.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanInputTopology.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanBroadPhase.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanIntersectionEvents.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSymbolicRegistry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanLocalRefinement.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanGlobalArrangement.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanCellClassification.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSelection.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealization.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanOutput.cc
+)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(${ygor_boolean_strict_arithmetic_sources} PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-frounding-math;-ffp-contract=off")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-ffp-model=strict" YGOR_HAS_STRICT_FP_MODEL)
+    if(YGOR_HAS_STRICT_FP_MODEL)
+        set_source_files_properties(${ygor_boolean_strict_arithmetic_sources} PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-model=strict;-ffp-contract=off")
+    else()
+        set_source_files_properties(${ygor_boolean_strict_arithmetic_sources} PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
+    endif()
+endif()
 #set_target_properties(ygor PROPERTIES
 #    POSITION_INDEPENDENT_CODE TRUE
 #)
@@ -47,4 +77,3 @@ install(TARGETS ygor
 install(FILES ${ygor_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-

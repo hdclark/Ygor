@@ -335,7 +335,9 @@ bool build_constraint_faces(const std::vector<vec2<T>> &verts,
         return true;
     }
 
-    for(auto &[vertex, nbrs] : adjacency){
+    for(auto &entry : adjacency){
+        const auto vertex = entry.first;
+        auto &nbrs = entry.second;
         std::sort(nbrs.begin(), nbrs.end(),
                   [&](size_t lhs, size_t rhs){
                       const auto &origin = verts.at(vertex);

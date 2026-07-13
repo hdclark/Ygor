@@ -25,7 +25,7 @@ struct Context {
 };
 
 extern void Init(Context *c);
-extern void Update(Context *c, void *data, unsigned long size);
+extern void Update(Context *c, const void *data, unsigned long size);
 extern void Final(unsigned char *result, Context *ctx);
 
 } //namespace MD5

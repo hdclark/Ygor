@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
 
 STRING(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
 project(Ygor VERSION ${INVOCATION_TIMESTAMP} LANGUAGES CXX)
+include(CTest)
 
 ####################################################################################
 #                                  User Options
@@ -261,6 +262,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(src)
 add_subdirectory(binaries)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 
 ####################################################################################
