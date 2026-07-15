@@ -272,12 +272,13 @@ Define `platform_facts` and populate it without undefined behavior. Record at le
 - coordinate radix, digits, minimum/maximum exponents, IEC 60559 status, and subnormal support;
 - whether the compilation unit reports fast-math or finite-math-only assumptions;
 - the initial floating-point rounding mode observed at context setup.
+- whether runtime arithmetic preserves subnormal inputs and results rather than operating with denormals-are-zero or flush-to-zero modes.
 
 Make schema-v1 fields concrete and ordered: engine major/minor/patch (`u16` each), replay schema (`u16`), coordinate tag (`binary32`/`binary64`), index tag (`uint32`/`uint64`), coordinate/index byte widths (`u8`), `CHAR_BIT` (`u16`), endian enum, `uint32_t`/`uint64_t` widths (`u8`), radix/digits (`u32`), signed min/max exponents encoded as sign byte plus `u32` magnitude, IEC-60559/subnormal booleans, fast-math/finite-math-only booleans, and rounding-mode enum. Add canonical signed-integer encoding as sign byte plus unsigned magnitude with negative zero forbidden. Do not serialize compiler names/versions as compatibility facts unless they are separately noncanonical diagnostics.
 
 Accept exactly `float`/`double` coordinate C++ types and exactly `std::uint32_t`/`std::uint64_t` index C++ types in the first implementation. Enforce that type set through `is_supported_boolean_types<T,I>` and SFINAE/deleted overloads, so unsupported C++ types fail at compile time rather than link time. For those four accepted pairs, return `unsupported_platform` for runtime/compiler representation facts such as non-IEC layout, non-binary radix, non-eight-bit bytes, unsafe arithmetic flags, or unsupported rounding mode.
 
-The context must either require round-to-nearest at setup or preserve/restore a required rounding environment around filtered arithmetic in Component 3. For Component 1, record and validate the selected rule and reject unsupported modes. Do not claim that `std::numeric_limits<T>::is_iec559` alone defeats compiler fast-math; include the build guard described in Section 3.
+The context must either require round-to-nearest at setup or preserve/restore a required rounding environment around filtered arithmetic in Component 3. For Component 1, record and validate the selected rule and reject unsupported modes. Validate runtime subnormal arithmetic explicitly because `fegetround()` and `std::numeric_limits<T>::has_denorm` do not detect process-level flush-to-zero or denormals-are-zero modes. Do not claim that `std::numeric_limits<T>::is_iec559` alone defeats compiler fast-math; include the build guard described in Section 3.
 
 Use a stable manually maintained Boolean engine version constant. Do not use the timestamp-derived CMake project version as replay compatibility.
 

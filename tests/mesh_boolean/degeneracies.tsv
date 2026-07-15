@@ -1,0 +1,6 @@
+# id	category	operation	operand_order	types	test_id	status
+C14-DEG-001	disjoint	all	AB+BA	all	C14.E2E.disjoint.float.u32	covered
+C14-DEG-002	equal	all	AB+BA	double-u32	C14.E2E.equal.identities	covered
+C14-DEG-003	strict_containment	all	AB+BA	double-u32	C14.META.directed.swap	covered
+C14-DEG-004	empty_result	intersection+difference+symdiff	AB+BA	all	C14.E2E.disjoint.double.u64	covered
+C14-DEG-005	nonmanifold_symmetric_difference	symmetric_difference	AB+BA	all	plan-gap-G1	not_applicable:tracked_plan_gap_G1

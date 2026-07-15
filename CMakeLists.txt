@@ -22,6 +22,12 @@ option(WITH_GNU_GSL   "Compile assuming the GNU GSL is available." ON)
 option(USE_LTO "Use link-time optimization when available." OFF)
 
 option(BUILD_SHARED_LIBS "Build shared-object/dynamically-loaded binaries." ON)
+option(YGOR_BUILD_BOOLEAN_TESTS "Build authoritative mesh Boolean tests." ON)
+option(YGOR_BOOLEAN_STRICT_FP "Use strict floating point for mesh Boolean code." ON)
+option(YGOR_BUILD_BOOLEAN_BENCHMARKS "Build mesh Boolean performance tools." OFF)
+set(YGOR_BOOLEAN_TEST_TIER "continuous" CACHE STRING
+    "Mesh Boolean test tier: continuous, extended, or qualification")
+set_property(CACHE YGOR_BOOLEAN_TEST_TIER PROPERTY STRINGS continuous extended qualification)
 
 ####################################################################################
 #                                  Configuration
@@ -264,6 +270,9 @@ add_subdirectory(src)
 add_subdirectory(binaries)
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+if(BUILD_TESTING AND YGOR_BUILD_BOOLEAN_TESTS AND YGOR_BUILD_BOOLEAN_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 

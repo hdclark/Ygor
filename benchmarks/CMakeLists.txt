@@ -1,0 +1,5 @@
+add_executable(MeshBooleanBenchmark MeshBooleanBenchmark.cc)
+target_link_libraries(MeshBooleanBenchmark PRIVATE mesh_boolean_test_support)
+target_include_directories(MeshBooleanBenchmark PRIVATE ${PROJECT_SOURCE_DIR}/tests)
+target_compile_features(MeshBooleanBenchmark PRIVATE cxx_std_17)
+mesh_boolean_strict_fp(MeshBooleanBenchmark)

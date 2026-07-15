@@ -1,0 +1,4 @@
+# id	record_kind	schema	category	expectation	test_id
+C14-CORPUS-001	boolean_case	1	disjoint_boxes	closed_boundary	C14.E2E.disjoint.double.u32
+C14-CORPUS-002	boolean_case	1	equal_boxes	identity_or_empty	C14.E2E.equal.identities
+C14-CORPUS-003	codec_golden	1	replay_archive	canonical_roundtrip	C14.REPLAY.archive.codec

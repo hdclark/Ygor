@@ -31,9 +31,13 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealization.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanOutput.cc
 )
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set_source_files_properties(${ygor_boolean_strict_arithmetic_sources} PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-frounding-math;-ffp-contract=off")
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # CMAKE_CXX_FLAGS also reaches the compiler-driver link invocation.  A final
+    # -ffast-math there links GCC's crtfastmath startup object, enabling FTZ/DAZ
+    # process-wide even though the Boolean translation units compile strictly.
+    set_property(TARGET ygor APPEND_STRING PROPERTY LINK_FLAGS " -fno-fast-math")
+elseif(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag("-ffp-model=strict" YGOR_HAS_STRICT_FP_MODEL)
     if(YGOR_HAS_STRICT_FP_MODEL)

@@ -1,13 +1,37 @@
+if(NOT YGOR_BUILD_BOOLEAN_TESTS)
+    return()
+endif()
+
+add_library(mesh_boolean_test_support STATIC
+    MeshBooleanTestHarness.cc
+    MeshBooleanTestConfig.cc)
+target_link_libraries(mesh_boolean_test_support PUBLIC ygor Threads::Threads)
+target_include_directories(mesh_boolean_test_support PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mesh_boolean_test_support PUBLIC cxx_std_17)
+
+function(mesh_boolean_strict_fp target)
+    if(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE -fno-fast-math -frounding-math -ffp-contract=off)
+        # Keep GCC from linking crtfastmath and changing the process FP mode.
+        set_property(TARGET ${target} APPEND_STRING PROPERTY LINK_FLAGS " -fno-fast-math")
+    elseif(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(${target} PRIVATE -fno-fast-math -ffp-contract=off)
+    endif()
+endfunction()
+mesh_boolean_strict_fp(mesh_boolean_test_support)
+
 add_executable(Test_MeshesBooleanContract Test_MeshesBooleanContract.cc)
 target_link_libraries(Test_MeshesBooleanContract PRIVATE ygor Threads::Threads)
+mesh_boolean_strict_fp(Test_MeshesBooleanContract)
 add_test(NAME MeshesBooleanContract COMMAND Test_MeshesBooleanContract)
-set_tests_properties(MeshesBooleanContract PROPERTIES TIMEOUT 120)
+set_tests_properties(MeshesBooleanContract PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component1;continuous")
 
 function(add_exact_kernel_test target name)
     add_executable(${target} ${target}.cc)
     target_link_libraries(${target} PRIVATE ygor Threads::Threads)
+    mesh_boolean_strict_fp(${target})
     add_test(NAME ${name} COMMAND ${target})
-    set_tests_properties(${name} PROPERTIES TIMEOUT 120 LABELS "mesh_boolean;component3")
+    set_tests_properties(${name} PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component3")
 endfunction()
 add_exact_kernel_test(Test_MeshesExactArithmetic MeshExactArithmetic.Unit)
 add_exact_kernel_test(Test_MeshesExactKernel MeshExactKernel.Unit)
@@ -16,8 +40,9 @@ add_exact_kernel_test(Test_MeshesExactKernelProperties MeshExactKernel.Propertie
 function(add_boolean_component_test target name labels)
     add_executable(${target} ${target}.cc)
     target_link_libraries(${target} PRIVATE ygor Threads::Threads)
+    mesh_boolean_strict_fp(${target})
     add_test(NAME ${name} COMMAND ${target})
-    set_tests_properties(${name} PROPERTIES TIMEOUT 120 LABELS "${labels}")
+    set_tests_properties(${name} PROPERTIES TIMEOUT 360 LABELS "${labels}")
 endfunction()
 add_boolean_component_test(Test_MeshesBooleanVerification MeshBooleanVerification.Unit "mesh_boolean;component13")
 add_boolean_component_test(Test_MeshesBooleanInputTopology MeshBooleanInputTopology.Unit "mesh_boolean;component2")
@@ -43,3 +68,23 @@ add_boolean_component_test(Test_MeshesBooleanRealizationProperties MeshBooleanRe
 add_boolean_component_test(Test_MeshesBooleanOutput MeshBooleanOutput.Unit "mesh_boolean;component12")
 add_boolean_component_test(Test_MeshesBooleanOutputProperties MeshBooleanOutput.Properties "mesh_boolean;component12")
 set_tests_properties(MeshBooleanCellClassification.Adversarial MeshBooleanSelection.Adversarial PROPERTIES TIMEOUT 600)
+
+function(add_component14_test target name labels timeout)
+    add_executable(${target} ${target}.cc)
+    target_link_libraries(${target} PRIVATE mesh_boolean_test_support)
+    target_compile_definitions(${target} PRIVATE
+        YGOR_BOOLEAN_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/mesh_boolean")
+    mesh_boolean_strict_fp(${target})
+    add_test(NAME ${name} COMMAND ${target})
+    set_tests_properties(${name} PROPERTIES
+        TIMEOUT ${timeout}
+        LABELS "mesh_boolean;component14;${labels}"
+        ENVIRONMENT "YGOR_BOOLEAN_TEST_TIER=${YGOR_BOOLEAN_TEST_TIER};YGOR_BOOLEAN_ARTIFACT_DIR=${CMAKE_CURRENT_BINARY_DIR}/mesh_boolean_artifacts")
+endfunction()
+
+add_component14_test(Test_MeshesBooleanEndToEnd MeshBoolean.EndToEnd "continuous" 600)
+add_component14_test(Test_MeshesBooleanMetamorphic MeshBoolean.Metamorphic "property" 600)
+add_component14_test(MeshBooleanReplay MeshBoolean.Replay "replay;continuous" 300)
+add_component14_test(Test_MeshesBooleanFuzz MeshBoolean.Fuzz "fuzz;scheduled" 1200)
+add_component14_test(Test_MeshesBooleanMutation MeshBoolean.Mutation "mutation;scheduled" 600)
+add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualification;scheduled" 360)

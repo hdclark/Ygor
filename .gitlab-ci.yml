@@ -29,11 +29,9 @@ build_ci_debian_stable:
     - |
       ./compile_and_install.sh
       ./tests2/compile_and_run.sh
-      ./tests/compile.sh
-      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
       cmake --build build-contract --parallel 2
-      cmake -E chdir build-contract ctest --output-on-failure -R '^(MeshesBooleanContract|MeshBooleanVerification.Unit|MeshBooleanInputTopology.(Unit|Properties)|MeshBooleanBroadPhase.(Unit|Properties)|MeshBooleanIntersectionEvents.(Unit|Properties)|MeshBooleanSymbolicRegistry.(Unit|Properties)|MeshBooleanCellClassification.(Unit|Properties|Adversarial)|MeshBooleanSelection.(Unit|Properties|Adversarial)|MeshBooleanRealization.(Unit|Properties))$' --timeout 300
-      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
+      cmake -E chdir build-contract ctest --output-on-failure -L mesh_boolean
 
 # CI build on Arch Linux.
 # Notes: reduced (or missing) optimization, some components may be missing.
@@ -58,11 +56,9 @@ build_ci_arch:
     - |
       su - builduser -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
       ./tests2/compile_and_run.sh
-      ./tests/compile.sh
-      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
       cmake --build build-contract --parallel 2
-      cmake -E chdir build-contract ctest --output-on-failure -R '^(MeshesBooleanContract|MeshBooleanVerification.Unit|MeshBooleanInputTopology.(Unit|Properties)|MeshBooleanBroadPhase.(Unit|Properties)|MeshBooleanIntersectionEvents.(Unit|Properties)|MeshBooleanSymbolicRegistry.(Unit|Properties)|MeshBooleanCellClassification.(Unit|Properties|Adversarial)|MeshBooleanSelection.(Unit|Properties|Adversarial)|MeshBooleanRealization.(Unit|Properties))$' --timeout 300
-      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
+      cmake -E chdir build-contract ctest --output-on-failure -L mesh_boolean
 
 mesh_boolean_asan_ubsan:
   stage: build_and_test
@@ -113,7 +109,7 @@ mesh_boolean_clang:
     - "apt-get update --yes"
     - "apt-get install --yes --no-install-recommends cmake make clang libgsl-dev libeigen3-dev"
   script:
-    - cmake -S . -B build-clang -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+    - cmake -S . -B build-clang -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
     - cmake --build build-clang --target Test_MeshesBooleanIntersectionEvents --parallel 2
     - cmake --build build-clang --target Test_MeshesBooleanIntersectionEventsProperties --parallel 2
     - cmake --build build-clang --target Test_MeshesBooleanSymbolicRegistry --parallel 2

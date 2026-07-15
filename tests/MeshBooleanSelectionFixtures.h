@@ -103,7 +103,7 @@ template<class T,class I>void run_analytic_selection_case(std::shared_ptr<verifi
     T a_lo,T a_hi,T b_lo,T b_hi,operation op){
   auto a=input_test::box<T,I>(a_lo,a_hi),b=input_test::box<T,I>(b_lo,b_hi);
   auto c=classification_test::context(a,b,std::move(r),op,boolean_options{});auto result=select_boolean_boundary(*c);
-  if(!result.has_value())throw std::runtime_error("analytic selection case op="+std::to_string(static_cast<unsigned>(op))+" bounds="+std::to_string(a_lo)+","+std::to_string(a_hi)+","+std::to_string(b_lo)+","+std::to_string(b_hi)+": "+render_error(result.error()));
+  if(!result.has_value())throw std::runtime_error("analytic selection case op="+std::to_string(static_cast<unsigned>(op))+" bound_bits="+coordinate_diagnostic(a_lo)+","+coordinate_diagnostic(a_hi)+","+coordinate_diagnostic(b_lo)+","+coordinate_diagnostic(b_hi)+": "+render_error(result.error()));
   selection_oracle(*result.value()->payload);require(result.value()->report.passed(),"selection verified");
 }
 template<class T,class I>void run_nonmanifold_selection_case(std::shared_ptr<verifier_registry> r,

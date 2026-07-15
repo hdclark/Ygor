@@ -5,6 +5,7 @@
 #include <cfenv>
 #include <climits>
 #include <cmath>
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 
@@ -528,6 +529,25 @@ void resource_reservation::rollback() noexcept {
   accountant_ = nullptr;
 }
 
+template <class T> static bool runtime_preserves_subnormals() noexcept {
+  using bits_type = typename std::conditional<std::is_same<T, float>::value,
+                                               std::uint32_t,
+                                               std::uint64_t>::type;
+  volatile T smallest_normal = std::numeric_limits<T>::min();
+  volatile T smallest_subnormal = std::numeric_limits<T>::denorm_min();
+  volatile T two = T(2);
+  volatile T half_normal = smallest_normal / two;
+  volatile T twice_subnormal = smallest_subnormal * two;
+  const T half_copy = half_normal;
+  const T twice_copy = twice_subnormal;
+  bits_type half_bits = 0, twice_bits = 0;
+  std::memcpy(&half_bits, &half_copy, sizeof(T));
+  std::memcpy(&twice_bits, &twice_copy, sizeof(T));
+  const bits_type expected_half = bits_type(1)
+                                  << (std::numeric_limits<T>::digits - 2);
+  return half_bits == expected_half && twice_bits == bits_type(2);
+}
+
 template <class T, class I> static platform_facts capture_platform() {
   std::uint16_t x = 1;
   platform_facts p{};
@@ -616,6 +636,9 @@ make_boolean_context(const fv_surface_mesh<T, I> &a,
       std::fegetround() != FE_TONEAREST)
     return make_error(boolean_error_code::unsupported_platform,
                       boolean_stage::context_setup, "platform");
+  if (!p.has_subnormals || !runtime_preserves_subnormals<T>())
+    return make_error(boolean_error_code::unsupported_platform,
+                      boolean_stage::context_setup, "subnormal_mode");
   if (k->coordinate_type() != p.coordinate)
     return make_error(boolean_error_code::internal_invariant_error,
                       boolean_stage::context_setup, "kernel_type");

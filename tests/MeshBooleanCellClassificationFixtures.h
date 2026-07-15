@@ -1,6 +1,8 @@
 #pragma once
 #include "MeshBooleanGlobalArrangementFixtures.h"
 #include <YgorMeshesBooleanCellClassification.h>
+#include <iomanip>
+#include <sstream>
 namespace classification_test {
 using namespace arrangement_test;
 template<class T>constexpr coordinate_tag coordinate_type(){return std::is_same<T,float>::value?coordinate_tag::binary32:coordinate_tag::binary64;}
@@ -44,6 +46,10 @@ void mutation_rejected(verifier_registry&r,boolean_context<T,I>&c,
 template<class T,class I>
 std::array<std::uint64_t,4> label_histogram(const labeled_arrangement<T,I>&a){
   std::array<std::uint64_t,4> result{{}};for(const auto&r:a.regions)++result[(r.label.in_a?2U:0U)+(r.label.in_b?1U:0U)];return result;
+}
+template<class T>std::string coordinate_diagnostic(T value){
+  const auto bits=bits_of(value).bits;std::ostringstream out;
+  out<<"0x"<<std::hex<<std::setfill('0')<<std::setw(sizeof(T)*2)<<bits;return out.str();
 }
 template<class T,class I>
 verification_replay_archive replay_archive(const published_artifact<labeled_arrangement<T,I>>&a,
@@ -120,7 +126,7 @@ template<class T,class I>std::vector<std::uint8_t> run_analytic_classification_c
     operation op=operation::regularized_union){
   auto a=input_test::box<T,I>(a_lo,a_hi),b=input_test::box<T,I>(b_lo,b_hi);
   auto c=context(a,b,std::move(r),op);auto result=classify_arrangement_cells(*c);
-  if(!result.has_value())throw std::runtime_error("analytic classification case op="+std::to_string(static_cast<unsigned>(op))+" bounds="+std::to_string(a_lo)+","+std::to_string(a_hi)+","+std::to_string(b_lo)+","+std::to_string(b_hi)+": "+render_error(result.error()));
+  if(!result.has_value())throw std::runtime_error("analytic classification case op="+std::to_string(static_cast<unsigned>(op))+" bound_bits="+coordinate_diagnostic(a_lo)+","+coordinate_diagnostic(a_hi)+","+coordinate_diagnostic(b_lo)+","+coordinate_diagnostic(b_hi)+": "+render_error(result.error()));
   classification_oracle(*result.value()->payload);require(result.value()->report.passed(),"classification verified");
   return result.value()->payload->canonical_bytes;
 }
