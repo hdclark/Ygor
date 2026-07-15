@@ -6,7 +6,7 @@ Convert a certified realized boundary into the public `fv_surface_mesh<T, I>`, p
 
 ## 1. Input contract
 
-Accept a verified `realized_boundary<T>`, exact selected-boundary provenance, target index type `I`, context output policy, and final verifier.
+Own an early topology preflight over the verified selected boundary, then accept a topology-authorized verified `realized_boundary<T>`, exact selected-boundary provenance, target index type `I`, context output policy, and final verifier.
 
 All coordinates and topology are already certified. This component must not alter coordinates or connectivity heuristically to make checks pass.
 
@@ -18,6 +18,8 @@ All coordinates and topology are already certified. This component must not alte
 - Check vertex/facet/ring counts and every conversion against `numeric_limits<I>` before publication.
 - Emit polygon rings or baseline certified triangles according to realization/output policy.
 - Preserve outward orientation and omit unused vertices.
+
+Before Component 11, accept empty and `closed_embedded_two_manifold` selections under the initial public policy. Reject `closed_stratified_nonmanifold` with `result_topology_not_supported` and canonical obstruction records; do not invoke realization or report a coordinate failure. Final assembly rechecks the authorization binding.
 
 ### Exact-proof simplification
 
@@ -57,7 +59,7 @@ Invariants:
 - Output is subdivision/homeomorphism-equivalent to the selected exact boundary and passes realization constraints.
 - Serialization is deterministic.
 
-Failure conditions are index overflow, resource exhaustion, failed final certificate, or internal invariant error. Assembly cannot downgrade these to warnings.
+Failure conditions are result topology not supported, index overflow, resource exhaustion, failed final certificate, or internal invariant error. Assembly cannot downgrade these to warnings.
 
 ## 4. Verification and definition of done
 

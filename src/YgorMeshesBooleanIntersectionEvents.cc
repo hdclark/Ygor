@@ -142,7 +142,7 @@ void freeze_constructions(raw_event_set<T, I> &a) {
   auto storage = std::make_shared<construction_storage>();
   storage->owner = a.owner;
   std::vector<std::vector<std::uint8_t>> keys;
-  auto freeze = [&](raw_derivation &d) {
+  auto freeze = [&](raw_derivation &d, const exact_point3 *result_point) {
     canonical_encoder e;
     e.byte(static_cast<std::uint8_t>(construction_kind::exact_relation));
     e.u64(d.defining_sources.size());
@@ -159,11 +159,45 @@ void freeze_constructions(raw_event_set<T, I> &a) {
       storage->nodes.push_back(std::move(node));
     }
     d.construction = construction_node_id::from_canonical_value(index);
+    auto &node = storage->nodes[index];
+    if (result_point && node.defining_relations.empty()) {
+      const std::array<exact_scalar, 3> target{{result_point->x, result_point->y,
+                                                result_point->z}};
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        defining_relation relation;
+        relation.id = defining_relation_id::from_canonical_value(storage->relations.size());
+        relation.construction = node.id;
+        relation.defining_sources = node.defining_sources;
+        relation.coefficients[axis] = exact_scalar(1);
+        relation.coefficients[3] = target[axis].negated();
+        node.defining_relations.push_back(relation.id);
+        storage->relations.push_back(std::move(relation));
+      }
+      const auto &validated = *a.candidates->payload->validated->payload;
+      for (const auto &source : node.defining_sources) {
+        const auto *facet_source = std::get_if<facet_id>(&source);
+        if (!facet_source ||
+            facet_source->value_for_debug() >= validated.facets.size())
+          continue;
+        const auto &plane = validated.facets[facet_source->value_for_debug()].plane;
+        defining_relation relation;
+        relation.id = defining_relation_id::from_canonical_value(storage->relations.size());
+        relation.kind = defining_relation_kind::point_on_plane;
+        relation.construction = node.id;
+        relation.defining_sources = {*facet_source};
+        relation.coefficients = {{exact_scalar(plane.a, big_uint(1)),
+                                  exact_scalar(plane.b, big_uint(1)),
+                                  exact_scalar(plane.c, big_uint(1)),
+                                  exact_scalar(plane.d, big_uint(1))}};
+        node.defining_relations.push_back(relation.id);
+        storage->relations.push_back(std::move(relation));
+      }
+    }
   };
-  for (auto &point : a.points) for (auto &d : point.derivations) freeze(d);
-  for (auto &interval : a.intervals) for (auto &d : interval.derivations) freeze(d);
-  for (auto &region : a.regions) for (auto &d : region.derivations) freeze(d);
-  for (auto &carrier : a.carriers) for (auto &d : carrier.derivations) freeze(d);
+  for (auto &point : a.points) for (auto &d : point.derivations) freeze(d, &point.point);
+  for (auto &interval : a.intervals) for (auto &d : interval.derivations) freeze(d, nullptr);
+  for (auto &region : a.regions) for (auto &d : region.derivations) freeze(d, nullptr);
+  for (auto &carrier : a.carriers) for (auto &d : carrier.derivations) freeze(d, nullptr);
   a.constructions = std::move(storage);
 }
 std::vector<std::uint8_t> point_payload(const exact_point3 &p) {
@@ -816,7 +850,20 @@ std::vector<std::uint8_t> semantic(const raw_event_set<T, I> &a) {
     e.u64(node.children.size()); for (auto child : node.children) e.id(child);
     e.u64(node.defining_sources.size());
     for (const auto &source : node.defining_sources) enc_feature(e, source);
+    e.u64(node.defining_relations.size());
+    for (auto relation : node.defining_relations) e.id(relation);
     e.byte_string(node.exact_result);
+  }
+  e.u64(a.constructions->relations.size());
+  for (const auto &relation : a.constructions->relations) {
+    e.id(relation.id); e.byte(static_cast<std::uint8_t>(relation.kind));
+    e.u16(relation.formula_version); e.id(relation.construction);
+    e.u64(relation.operand_nodes.size());
+    for (auto operand : relation.operand_nodes) e.id(operand);
+    e.u64(relation.defining_sources.size());
+    for (const auto &source : relation.defining_sources) enc_feature(e, source);
+    for (const auto &coefficient : relation.coefficients) encode(e, coefficient);
+    e.byte(static_cast<std::uint8_t>(relation.expected));
   }
   return e.bytes();
 }
@@ -856,6 +903,26 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
         node.kind != construction_kind::exact_relation) return false;
     for (auto child : node.children)
       if (!child.valid() || child.value_for_debug() >= i) return false;
+    for (auto relation : node.defining_relations)
+      if (!relation.valid() || relation.value_for_debug() >= a.constructions->relations.size() ||
+          a.constructions->relations[relation.value_for_debug()].construction != node.id)
+        return false;
+  }
+  for (std::size_t i = 0; i < a.constructions->relations.size(); ++i) {
+    const auto &relation = a.constructions->relations[i];
+    if (relation.id.value_for_debug() != i || relation.formula_version != 1 ||
+        relation.construction.value_for_debug() >= a.constructions->nodes.size() ||
+        static_cast<unsigned>(relation.kind) >
+            static_cast<unsigned>(defining_relation_kind::ordered_on_carrier) ||
+        (relation.expected != exact_sign::negative &&
+         relation.expected != exact_sign::zero &&
+         relation.expected != exact_sign::positive))
+      return false;
+    if (relation.kind == defining_relation_kind::coordinate_equality &&
+        relation.defining_sources !=
+            a.constructions->nodes[relation.construction.value_for_debug()]
+                .defining_sources)
+      return false;
   }
   auto valid_derivations = [&](const auto &records) {
     for (const auto &record : records) for (const auto &d : record.derivations) {
@@ -873,6 +940,16 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
   };
   if (!valid_derivations(a.points) || !valid_derivations(a.intervals) ||
       !valid_derivations(a.regions) || !valid_derivations(a.carriers)) return false;
+  for (const auto &point : a.points)
+    for (const auto &derivation : point.derivations) {
+      const auto &node = a.constructions->nodes[
+          derivation.construction.value_for_debug()];
+      for (auto relation : node.defining_relations)
+        if (!defining_relation_satisfied(
+                a.constructions->relations[relation.value_for_debug()],
+                point.point))
+          return false;
+    }
   std::uint64_t next = 0;
   std::vector<bool> seen;
   for (std::size_t i = 0; i < a.classifications.size(); ++i) {

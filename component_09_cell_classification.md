@@ -12,9 +12,9 @@ Input operands already satisfy the embedded regular-closed-solid contract. Arran
 
 ## 2. Required behavior
 
-### Cell model
+### Frozen classification model
 
-Either construct explicit 3D arrangement cells or maintain an equivalent graph of open side/seam sectors. The model must distinguish all local regions around transverse and coincident sheets and support label propagation without crossing an unrecorded boundary.
+Schema v1 uses only `classification_strategy::independent_patch_side_v1`. Every atomic patch side has its own certified open probe and direct `(inside_A, inside_B)` classification. Region IDs denote conservative arrangement fragments, not proven maximal 3D cells. Preserving/crossing transitions and propagation remain mandatory consistency audits but are never the proof that supplies a missing side label.
 
 ### Exact seed classification
 
@@ -25,11 +25,11 @@ Either construct explicit 3D arrangement cells or maintain an equivalent graph o
 
 ### Propagation
 
-- Propagate occupancy through cell adjacency.
+- Audit direct occupancy through arrangement adjacency.
 - Crossing an oriented non-coincident operand sheet toggles/updates only that operand according to the solid policy.
 - Crossing coincident sheet groups applies the net oriented boundary contribution and sector order, not an arbitrary facet count.
 - Tangential contact that does not cross occupied volume leaves the appropriate label unchanged.
-- If two propagation paths reach one region, require identical labels; disagreement is an invariant error with both paths recorded.
+- If an audited transition or propagation path disagrees with either directly classified endpoint, require an invariant error with both proofs recorded.
 
 ### Side labels
 
@@ -37,7 +37,7 @@ For every atomic patch representative, record exact occupancy vectors on its neg
 
 ## 3. Output contract
 
-Produce a `labeled_arrangement` containing cell/sector IDs, `(inside_A, inside_B)` labels, both-side labels for every patch, seed certificates, and propagation provenance.
+Produce a `labeled_arrangement` containing the frozen strategy/version, conservative fragment IDs, one direct certificate per patch side, both-side labels for every patch, and separate transition-audit provenance.
 
 Invariants:
 
@@ -57,3 +57,4 @@ Failure conditions are resource exhaustion, incomplete arrangement adjacency, co
 - Propagation around every closed adjacency cycle returns to the starting label.
 - Operand swap swaps label components only.
 - Random interior/exterior exact probes agree with their containing cell labels.
+- Hybrid artifacts that claim complete-cell propagation while carrying per-side seeds, or omit any direct side certificate, are rejected.

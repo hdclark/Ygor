@@ -24,7 +24,7 @@ namespace mesh_boolean {
 
 constexpr std::uint16_t engine_version_major = 1, engine_version_minor = 0,
                         engine_version_patch = 0;
-constexpr std::uint16_t replay_schema_version = 1;
+constexpr std::uint16_t replay_schema_version = 2;
 enum class operation : std::uint8_t {
   regularized_union,
   regularized_intersection,
@@ -82,22 +82,32 @@ enum class solid_policy : std::uint8_t { outward_oriented_nested_shells };
 enum class verification_level : std::uint8_t { mandatory, exhaustive };
 enum class trace_level : std::uint8_t { off, failures, stages, full };
 enum class determinism_policy : std::uint8_t { strict };
+enum class classification_strategy : std::uint8_t {
+  independent_patch_side_v1
+};
 enum class realization_strategy : std::uint8_t {
   nearest_only,
   neighboring_values
 };
+enum class realization_semantics : std::uint8_t { exact_in_T };
 enum class original_coordinate_policy : std::uint8_t { preserve_bits };
 enum class realization_topology_policy : std::uint8_t { triangulated_v1 };
-enum class pair_certification_policy : std::uint8_t { exhaustive };
+enum class pair_certification_policy : std::uint8_t {
+  conservative_domain_aabb_v1
+};
 enum class realization_certificate_level : std::uint8_t { full };
 enum class output_topology_policy : std::uint8_t {
   triangulated_v1_no_simplification
+};
+enum class result_topology_policy : std::uint8_t {
+  closed_embedded_two_manifold
 };
 enum class boolean_error_code : std::uint8_t {
   input_contract_error,
   unsupported_platform,
   resource_limit,
   index_overflow,
+  result_topology_not_supported,
   output_not_representable,
   internal_invariant_error
 };
@@ -111,6 +121,7 @@ enum class boolean_stage : std::uint8_t {
   global_arrangement,
   cell_classification,
   boolean_selection,
+  result_topology_preflight,
   geometry_realization,
   output_assembly,
   final_verification
@@ -144,7 +155,11 @@ enum class resource_kind : std::uint8_t {
   source_edge_sectors,
   coincident_memberships,
   side_nodes,
+  vertex_occurrences,
   vertex_sectors,
+  link_rays,
+  link_arcs,
+  link_regions,
   side_transitions,
   probe_descriptors,
   mapping_entries,
@@ -163,6 +178,8 @@ enum class resource_kind : std::uint8_t {
   selected_halfedges,
   selected_edges,
   selected_vertices,
+  selected_vertex_occurrences,
+  topology_obstructions,
   selection_provenance,
   exact_number_bits,
   diagnostic_records,
@@ -170,6 +187,15 @@ enum class resource_kind : std::uint8_t {
   trace_records,
   trace_bytes,
   realization_attempts,
+  realization_graph_nodes,
+  realization_graph_edges,
+  realization_components,
+  realization_pair_boxes,
+  realization_pair_candidates,
+  realization_pair_checks,
+  realization_solver_trail,
+  realization_component_transcripts,
+  realization_verifier_witnesses,
   output_vertices,
   output_faces,
   output_face_indices,
@@ -251,6 +277,7 @@ YGOR_MB_ID(facet_id);
 YGOR_MB_ID(candidate_id);
 YGOR_MB_ID(raw_event_id);
 YGOR_MB_ID(construction_node_id);
+YGOR_MB_ID(defining_relation_id);
 YGOR_MB_ID(symbolic_vertex_id);
 YGOR_MB_ID(symbolic_curve_id);
 YGOR_MB_ID(local_vertex_id);
@@ -262,6 +289,7 @@ YGOR_MB_ID(local_face_id);
 YGOR_MB_ID(local_patch_id);
 YGOR_MB_ID(global_halfedge_id);
 YGOR_MB_ID(global_vertex_id);
+YGOR_MB_ID(vertex_occurrence_id);
 YGOR_MB_ID(global_atomic_edge_id);
 YGOR_MB_ID(global_patch_id);
 YGOR_MB_ID(source_sheet_member_id);
@@ -272,6 +300,9 @@ YGOR_MB_ID(source_edge_sector_id);
 YGOR_MB_ID(coincident_group_id);
 YGOR_MB_ID(patch_side_id);
 YGOR_MB_ID(vertex_sector_id);
+YGOR_MB_ID(link_ray_id);
+YGOR_MB_ID(link_arc_id);
+YGOR_MB_ID(link_region_id);
 YGOR_MB_ID(side_transition_id);
 YGOR_MB_ID(open_region_component_id);
 YGOR_MB_ID(cell_id);
@@ -286,11 +317,14 @@ YGOR_MB_ID(selected_cycle_id);
 YGOR_MB_ID(selected_halfedge_id);
 YGOR_MB_ID(selected_edge_id);
 YGOR_MB_ID(selected_vertex_id);
+YGOR_MB_ID(selected_vertex_occurrence_id);
+YGOR_MB_ID(topology_obstruction_id);
 YGOR_MB_ID(selection_certificate_id);
 YGOR_MB_ID(realization_vertex_id);
 YGOR_MB_ID(realization_triangle_id);
 YGOR_MB_ID(realization_halfedge_id);
 YGOR_MB_ID(realization_obligation_id);
+YGOR_MB_ID(realization_constraint_component_id);
 YGOR_MB_ID(candidate_value_id);
 YGOR_MB_ID(candidate_assignment_id);
 YGOR_MB_ID(realization_certificate_id);
@@ -321,19 +355,23 @@ using feature_ref = std::variant<
     facet_id, candidate_id, raw_event_id, symbolic_vertex_id, symbolic_curve_id,
     local_vertex_id, shared_atomic_edge_id, local_atomic_edge_id,
     local_halfedge_id, local_boundary_walk_id, local_face_id, local_patch_id,
-    global_vertex_id, global_atomic_edge_id, global_halfedge_id,
+    global_vertex_id, vertex_occurrence_id, global_atomic_edge_id,
+    global_halfedge_id,
     global_patch_id, source_sheet_member_id, sheet_use_id, seam_id,
     seam_sector_id, source_edge_sector_id, coincident_group_id, patch_side_id,
-    vertex_sector_id, side_transition_id, open_region_component_id, cell_id,
+    vertex_sector_id, link_ray_id, link_arc_id, link_region_id,
+    side_transition_id, open_region_component_id, cell_id,
     classification_region_id, classification_transition_id, seed_certificate_id,
     propagation_path_id, patch_side_label_id, patch_selection_decision_id,
     selected_patch_id, selected_cycle_id, selected_halfedge_id,
-    selected_edge_id, selected_vertex_id, selection_certificate_id,
+    selected_edge_id, selected_vertex_id, selected_vertex_occurrence_id,
+    topology_obstruction_id, selection_certificate_id,
     realization_vertex_id, realization_triangle_id, realization_halfedge_id,
-    realization_obligation_id, candidate_value_id, candidate_assignment_id,
+    realization_obligation_id, realization_constraint_component_id,
+    candidate_value_id, candidate_assignment_id,
     realization_certificate_id, output_vertex_id, output_face_id,
     output_component_id, output_assembly_certificate_id, original_vertex_ref,
-    facet_ref>;
+    facet_ref, defining_relation_id>;
 
 struct digest {
   std::array<std::uint8_t, 16> bytes{{}};
@@ -450,15 +488,22 @@ struct tracing_policy {
   trace_level level = trace_level::failures;
   bool collect_noncanonical_timings = false;
 };
+struct classification_policy {
+  std::uint16_t schema = 1;
+  std::uint16_t probe_formula_version = 1;
+  classification_strategy strategy =
+      classification_strategy::independent_patch_side_v1;
+};
 struct realization_policy {
-  std::uint16_t schema = 1, solver_version = 1;
+  std::uint16_t schema = 2, solver_version = 2;
+  realization_semantics semantics = realization_semantics::exact_in_T;
   realization_strategy strategy = realization_strategy::nearest_only;
   original_coordinate_policy original_coordinates =
       original_coordinate_policy::preserve_bits;
   realization_topology_policy topology =
       realization_topology_policy::triangulated_v1;
   pair_certification_policy pair_certification =
-      pair_certification_policy::exhaustive;
+      pair_certification_policy::conservative_domain_aabb_v1;
   realization_certificate_level certificate_level =
       realization_certificate_level::full;
   std::uint32_t neighboring_value_radius = 0;
@@ -484,15 +529,22 @@ struct resource_policy {
       local_certificate_entries, reconciliation_requests, successor_generations,
       global_vertices, global_atomic_edges, global_halfedges, global_patches,
       source_sheet_members, sheet_uses, seams, seam_sectors,
-      source_edge_sectors, coincident_memberships, side_nodes, vertex_sectors,
+      source_edge_sectors, coincident_memberships, side_nodes,
+      vertex_occurrences, vertex_sectors, link_rays, link_arcs, link_regions,
       side_transitions, probe_descriptors, mapping_entries,
       arrangement_certificate_entries, planar_scratch, radial_scratch,
       link_scratch, cells, classification_transitions, seed_certificates,
       patch_side_labels, propagation_records, selection_decisions,
       selected_patches, selected_cycles, selected_halfedges, selected_edges,
-      selected_vertices, selection_provenance, exact_number_bits,
+      selected_vertices, selected_vertex_occurrences, topology_obstructions,
+      selection_provenance, exact_number_bits,
       diagnostic_records, diagnostic_bytes, trace_records, trace_bytes,
-      realization_attempts, output_vertices, output_faces, output_face_indices,
+       realization_attempts, realization_graph_nodes, realization_graph_edges,
+       realization_components, realization_pair_boxes,
+       realization_pair_candidates, realization_pair_checks,
+       realization_solver_trail, realization_component_transcripts,
+       realization_verifier_witnesses, output_vertices, output_faces,
+       output_face_indices,
       output_involved_entries, output_components, output_mappings,
       output_certificate_entries, output_canonical_bytes, verifier_work,
       verifier_scratch_bytes, evidence_records, evidence_bytes, report_bytes,
@@ -504,7 +556,10 @@ struct boolean_options {
   verification_level verification = verification_level::mandatory;
   execution_policy execution;
   tracing_policy tracing;
+  classification_policy classification;
   realization_policy realization;
+  result_topology_policy result_topology =
+      result_topology_policy::closed_embedded_two_manifold;
   output_policy output;
   diagnostic_policy diagnostics;
   resource_policy resources;
@@ -669,6 +724,9 @@ enum class invariant_code : std::uint32_t {
   arrangement_coincidence = 0x080005,
   arrangement_side_graph = 0x080006,
   arrangement_canonical_encoding = 0x080007,
+  arrangement_occurrences = 0x080008,
+  arrangement_vertex_links = 0x080009,
+  arrangement_open_probes = 0x08000a,
   classification_binding = 0x090001,
   classification_regions = 0x090002,
   classification_transfers = 0x090003,

@@ -63,6 +63,7 @@ Invariants:
 - A zero result means exact degeneracy, not numerical uncertainty.
 - Filter and fallback paths are observationally identical.
 - Every construction carries sufficient provenance to recompute and audit it.
+- Every construction publishes canonical executable defining relations, not only opaque provenance, so a verifier can substitute accepted coordinates independently.
 
 Failure conditions are limited to unsupported scalar representation, resource exhaustion, invalid kernel API preconditions, or internal defects. "Nearly degenerate" is never a failure.
 
@@ -74,3 +75,5 @@ Failure conditions are limited to unsupported scalar representation, resource ex
 - Permutation identities for orientation and incidence hold exactly.
 - Construction substitution proves each result lies on all defining carriers.
 - Random tests serialize failures as exact bit patterns, not decimal strings.
+
+Defining relations use closed versioned kinds for coordinate equality, point-on-plane, point-on-line/carrier, affine parameter, equal point, and order on carrier. Each record binds its construction, operands, source features, canonical exact coefficients, and expected relation. Exact replay must accept an independently supplied point and return the substituted exact relation without calling a realization helper.

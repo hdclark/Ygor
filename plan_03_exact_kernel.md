@@ -607,3 +607,9 @@ Component 3 is complete only when:
 - canonical values and semantic outputs are independent of host endian, internal limb capacity, filter path, cache state, scheduling, and pointer identity;
 - exact-only verifier, mutation, adversarial, compiler, Release, sanitizer, and deterministic replay suites pass without external dependencies;
 - Component 2 can implement every exact validation, construction, triangulation-support, shell-location, and open-side operation in `plan_02_input_topology.md` solely through this kernel.
+
+## 22. Plan-gap amendment: executable defining relations
+
+Construction storage must publish sorted, versioned `defining_relation` records with closed kinds for coordinate equality, point-on-plane, point-on-line/carrier, affine parameter, equal point, and ordered-on-carrier. Each record binds its construction node, operand nodes, source features, canonical exact coefficient payload, expected relation, and formula version.
+
+Expose an exact-only substitution API that evaluates a relation against independently supplied exact dyadic coordinates. Component 11 and its verifier consume these immutable records; neither may infer defining equations from producer-owned realization obligations. Mutation tests change coefficients, operands, kinds, expected relations, or relation membership while rebuilding enclosing metadata and require independent substitution to fail.

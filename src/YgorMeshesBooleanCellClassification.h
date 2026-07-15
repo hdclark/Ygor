@@ -59,6 +59,7 @@ struct operand_ray_evidence {
 };
 struct seed_classification_certificate {
   seed_certificate_id id;
+  patch_side_id source_side;
   open_region_component_id source_component;
   probe_base_stratum_kind base_kind = probe_base_stratum_kind::universe;
   std::uint64_t base_id = 0;
@@ -142,6 +143,8 @@ template<class T, class I> struct labeled_arrangement {
   std::shared_ptr<const published_artifact<arrangement_complex<T,I>>> arrangement;
   std::shared_ptr<const published_artifact<validated_operands<T,I>>> validated;
   std::shared_ptr<const construction_storage> constructions;
+  classification_strategy classification =
+      classification_strategy::independent_patch_side_v1;
   std::vector<classification_region> regions;
   std::vector<seed_classification_certificate> seeds;
   std::vector<classification_transition> transitions;

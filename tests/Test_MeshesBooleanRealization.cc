@@ -29,6 +29,8 @@ int main() {
     mutation_rejected(*r, *c, x, [](auto &v) { v.halfedges.front().next = v.halfedges.front().id; }, "topology mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.obligations.front().actual = realization_relation::disjoint; }, "obligation mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.search.complete_assignments = 0; }, "search mutation rejected");
+    mutation_rejected(*r, *c, x, [](auto &v) { v.component_transcripts.front().visited_nodes++; }, "component transcript mutation rejected");
+    mutation_rejected(*r, *c, x, [](auto &v) { v.pair_boxes.front().upper.x = exact_scalar(-1); }, "pair box mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.canonical_bytes.push_back(0); }, "canonical mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.artifact_bytes.push_back(0); }, "artifact mutation rejected");
 

@@ -67,6 +67,7 @@ digest realization_policy_digest(const realization_policy &p) {
   canonical_encoder e;
   e.u16(p.schema);
   e.u16(p.solver_version);
+  e.byte(static_cast<std::uint8_t>(p.semantics));
   e.byte(static_cast<std::uint8_t>(p.strategy));
   e.byte(static_cast<std::uint8_t>(p.original_coordinates));
   e.byte(static_cast<std::uint8_t>(p.topology));
@@ -711,10 +712,43 @@ std::vector<std::uint8_t> semantic(const realized_boundary<T, I> &a) {
     e.byte(static_cast<std::uint8_t>(o.expected));
     e.byte(static_cast<std::uint8_t>(o.actual));
     e.byte_string(o.witness);
+    e.boolean(bool(o.defining_relation));
+    if (o.defining_relation)
+      e.id(*o.defining_relation);
+  }
+  e.u64(a.pair_boxes.size());
+  for (const auto &box : a.pair_boxes) {
+    e.id(box.triangle);
+    point(e, box.lower);
+    point(e, box.upper);
+  }
+  e.u64(a.pair_candidates.size());
+  for (const auto &pair : a.pair_candidates) {
+    e.id(pair.lower);
+    e.id(pair.upper);
+  }
+  e.u64(a.components.size());
+  for (const auto &component : a.components) {
+    e.id(component.id);
+    ids(e, component.variables);
+    ids(e, component.obligations);
+    e.raw(component.graph_digest.bytes.data(), 16);
+  }
+  e.u64(a.component_transcripts.size());
+  for (const auto &transcript : a.component_transcripts) {
+    e.id(transcript.component);
+    e.u64(transcript.accepted_ranks.size());
+    for (auto rank : transcript.accepted_ranks)
+      e.u64(rank);
+    ids(e, transcript.rejected_prefix_witnesses);
+    e.u64(transcript.visited_nodes);
+    e.u64(transcript.complete_assignments);
+    e.raw(transcript.transcript_digest.bytes.data(), 16);
   }
   e.raw(a.search.domain_digest.bytes.data(), 16);
   e.u64(a.search.visited_nodes);
   e.u64(a.search.complete_assignments);
+  e.u64(a.search.pair_checks);
   e.boolean(bool(a.search.accepted_assignment));
   if (a.search.accepted_assignment)
     e.id(*a.search.accepted_assignment);
@@ -730,10 +764,14 @@ std::vector<std::uint8_t> semantic(const realized_boundary<T, I> &a) {
   e.u64(c.halfedges);
   e.u64(c.obligations);
   e.u64(c.witnesses);
+  e.u64(c.components);
+  e.u64(c.pair_boxes);
+  e.u64(c.pair_candidates);
   e.raw(a.selected->payload->certificate.semantic_digest.bytes.data(), 16);
   for (const auto *d :
        {&c.kernel_policy_digest, &c.policy_digest, &c.triangulation_digest,
-        &c.obligation_digest, &c.assignment_digest})
+         &c.obligation_digest, &c.assignment_digest, &c.component_digest,
+         &c.pair_digest})
     e.raw(d->bytes.data(), 16);
   return e.bytes();
 }
@@ -781,6 +819,8 @@ bool assignment_valid(const realized_boundary<T, I> &a) {
       unique;
   std::vector<exact_point3> p;
   for (const auto &v : a.vertices) {
+    if (!(accepted_point(v) == v.exact_coordinate))
+      return false;
     if (!unique
              .emplace(v.accepted_bits[0].bits, v.accepted_bits[1].bits,
                       v.accepted_bits[2].bits)
@@ -794,9 +834,9 @@ bool assignment_valid(const realized_boundary<T, I> &a) {
                  project(p[t.vertices[2].value_for_debug()], t.projection)) !=
         t.exact_orientation)
       return false;
-  for (std::size_t i = 0; i < a.triangles.size(); ++i)
-    for (std::size_t j = i + 1; j < a.triangles.size(); ++j) {
-      const auto &x = a.triangles[i], &y = a.triangles[j];
+  for (const auto &pair : a.pair_candidates) {
+      const auto &x = a.triangles[pair.lower.value_for_debug()];
+      const auto &y = a.triangles[pair.upper.value_for_debug()];
       std::size_t shared = 0;
       for (auto xv : x.vertices)
         for (auto yv : y.vertices)
@@ -813,7 +853,7 @@ bool assignment_valid(const realized_boundary<T, I> &a) {
           (shared == 2 && relation != polygon_intersection_kind::segment) ||
           shared > 2)
         return false;
-    }
+  }
   return true;
 }
 
@@ -828,6 +868,34 @@ void append_obligations(realized_boundary<T, I> &a) {
     a.obligations.push_back(std::move(o));
   };
   for (const auto &v : a.vertices) {
+    add({{},
+         realization_obligation_kind::exact_target_equality,
+         1,
+         {v.id},
+         {},
+         {},
+         {},
+         realization_relation::exact_equal,
+         accepted_point(v) == v.exact_coordinate
+             ? realization_relation::exact_equal
+             : realization_relation::distinct,
+         {}});
+    for (auto node_id : v.derivations) {
+      const auto &node = a.constructions->nodes[node_id.value_for_debug()];
+      for (auto relation_id : node.defining_relations) {
+        const auto &relation =
+            a.constructions->relations[relation_id.value_for_debug()];
+        realization_obligation obligation{
+            {}, realization_obligation_kind::defining_relation, 1, {v.id},
+            {}, {}, {}, realization_relation::exact_equal,
+            defining_relation_satisfied(relation, accepted_point(v))
+                ? realization_relation::exact_equal
+                : realization_relation::distinct,
+            {}};
+        obligation.defining_relation = relation_id;
+        add(std::move(obligation));
+      }
+    }
     add({{},
          realization_obligation_kind::finite_coordinate,
          1,
@@ -850,18 +918,6 @@ void append_obligations(realized_boundary<T, I> &a) {
            realization_relation::equal_bits,
            {}});
   }
-  for (std::size_t i = 0; i < a.vertices.size(); ++i)
-    for (std::size_t j = i + 1; j < a.vertices.size(); ++j)
-      add({{},
-           realization_obligation_kind::distinct_vertices,
-           1,
-           {a.vertices[i].id, a.vertices[j].id},
-           {},
-           {},
-           {},
-           realization_relation::distinct,
-           realization_relation::distinct,
-           {}});
   for (const auto &t : a.triangles)
     add({{},
          realization_obligation_kind::triangle_orientation,
@@ -897,9 +953,9 @@ void append_obligations(realized_boundary<T, I> &a) {
       p.push_back(accepted_point(v));
     return p;
   }();
-  for (std::size_t i = 0; i < a.triangles.size(); ++i)
-    for (std::size_t j = i + 1; j < a.triangles.size(); ++j) {
-      const auto &x = a.triangles[i], &y = a.triangles[j];
+  for (const auto &pair : a.pair_candidates) {
+      const auto &x = a.triangles[pair.lower.value_for_debug()];
+      const auto &y = a.triangles[pair.upper.value_for_debug()];
       std::vector<realization_vertex_id> shared;
       for (auto xv : x.vertices)
         for (auto yv : y.vertices)
@@ -916,6 +972,12 @@ void append_obligations(realized_boundary<T, I> &a) {
           shared.empty() ? realization_relation::disjoint
                          : shared.size() == 1 ? realization_relation::point
                                               : realization_relation::segment;
+      std::vector<realization_vertex_id> participants(x.vertices.begin(),
+                                                       x.vertices.end());
+      participants.insert(participants.end(), y.vertices.begin(), y.vertices.end());
+      std::sort(participants.begin(), participants.end());
+      participants.erase(std::unique(participants.begin(), participants.end()),
+                         participants.end());
       add({{},
            shared.empty()
                ? realization_obligation_kind::nonadjacent_disjointness
@@ -923,14 +985,14 @@ void append_obligations(realized_boundary<T, I> &a) {
                      ? realization_obligation_kind::shared_vertex_relation
                      : realization_obligation_kind::shared_edge_relation,
            1,
-           shared,
+            participants,
            {x.id, y.id},
            {},
            {x.patch, y.patch},
            expected,
            rel,
            {}});
-    }
+  }
   for (const auto &patch : a.selected->payload->patches)
     add({{},
          realization_obligation_kind::patch_embedding,
@@ -975,8 +1037,11 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
       a.certificate.id.value_for_debug() != 0 ||
       a.certificate.vertices != a.vertices.size() ||
       a.certificate.triangles != a.triangles.size() ||
-      a.certificate.halfedges != a.halfedges.size() ||
-      a.certificate.obligations != a.obligations.size() ||
+       a.certificate.halfedges != a.halfedges.size() ||
+       a.certificate.obligations != a.obligations.size() ||
+       a.certificate.components != a.components.size() ||
+       a.certificate.pair_boxes != a.pair_boxes.size() ||
+       a.certificate.pair_candidates != a.pair_candidates.size() ||
       a.certificate.triangulation_version != 1 ||
       a.certificate.obligation_version != 1 ||
       a.certificate.selected_digest != a.selected_digest ||
@@ -1009,6 +1074,12 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
           node.kind != construction_kind::exact_relation ||
           node.exact_result.empty())
         return false;
+      for (auto relation_id : node.defining_relations)
+        if (!relation_id.valid() ||
+            relation_id.value_for_debug() >= a.constructions->relations.size() ||
+            a.constructions->relations[relation_id.value_for_debug()].construction !=
+                node.id)
+          return false;
     }
     std::optional<std::array<coordinate_bits<T>, 3>> preserved;
     if (!sv.original_vertices.empty()) {
@@ -1164,54 +1235,87 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
                     a.halfedges[h.twin->value_for_debug()].twin != h.id)))
       return false;
   }
-  if (!assignment_valid(a) || !a.search.accepted_assignment ||
-      a.search.complete_assignments == 0 || a.search.exhausted)
+  if (!verify_realization_exact_substitution(a) ||
+      !verify_realization_constraint_evidence(a) || !assignment_valid(a) ||
+      !a.search.accepted_assignment || a.search.exhausted)
     return false;
-  realized_boundary<T, I> replay = a;
-  bool replay_accepted = false;
-  std::uint64_t replay_assignment = 0, replay_nodes = 0, replay_complete = 0;
-  const auto replay_order = solver_vertex_order(replay);
-  std::function<void(std::size_t)> replay_dfs = [&](std::size_t depth) {
-    if (replay_accepted)
-      return;
-    ++replay_nodes;
-    if (depth == replay.vertices.size()) {
-      ++replay_complete;
-      for (auto &v : replay.vertices)
-        v.coordinate = {value_of_bits<T>(v.accepted_bits[0]),
-                        value_of_bits<T>(v.accepted_bits[1]),
-                        value_of_bits<T>(v.accepted_bits[2])};
-      if (assignment_valid(replay))
-        replay_accepted = true;
-      else
-        ++replay_assignment;
-      return;
-    }
-    const auto vi = replay_order[depth];
-    auto &vertex = replay.vertices[vi];
-    const auto candidates = point_candidates(replay.axis_domains[3 * vi],
-                                             replay.axis_domains[3 * vi + 1],
-                                             replay.axis_domains[3 * vi + 2]);
-    for (const auto &candidate : candidates) {
-      vertex.accepted_bits = candidate.bits;
-      vertex.accepted_axis_rank = candidate.axis_rank;
-      vertex.accepted_point_rank = candidate.rank;
-      replay_dfs(depth + 1);
-      if (replay_accepted)
-        return;
-    }
-  };
-  replay_dfs(0);
-  if (!replay_accepted ||
-      replay_assignment != a.search.accepted_assignment->value_for_debug() ||
-      replay_complete != a.search.complete_assignments ||
-      replay_nodes != a.search.visited_nodes ||
-      a.search.nearest_passed != (replay_assignment == 0))
+  if (a.components.size() != a.component_transcripts.size())
     return false;
-  for (std::size_t i = 0; i < a.vertices.size(); ++i)
-    if (!same_bits(replay.vertices[i].accepted_bits,
-                   a.vertices[i].accepted_bits))
+  std::vector<int> vertex_component(a.vertices.size(), -1);
+  std::vector<int> obligation_component(a.obligations.size(), -1);
+  std::uint64_t replay_nodes = 0, replay_complete = 0;
+  for (std::size_t ci = 0; ci < a.components.size(); ++ci) {
+    const auto &component = a.components[ci];
+    const auto &transcript = a.component_transcripts[ci];
+    if (component.id.value_for_debug() != ci ||
+        transcript.component != component.id ||
+        transcript.accepted_ranks.size() != component.variables.size() ||
+        !std::is_sorted(component.variables.begin(), component.variables.end()) ||
+        !std::is_sorted(component.obligations.begin(), component.obligations.end()))
       return false;
+    canonical_encoder graph;
+    ids(graph, component.variables);
+    ids(graph, component.obligations);
+    if (component.graph_digest != domain_digest(
+            {{'Y', 'G', 'B', 'G', 'R', 'F', '1', '1'}}, graph.bytes()))
+      return false;
+    canonical_encoder encoded;
+    encoded.id(transcript.component);
+    for (auto rank : transcript.accepted_ranks)
+      encoded.u64(rank);
+    ids(encoded, transcript.rejected_prefix_witnesses);
+    encoded.u64(transcript.visited_nodes);
+    encoded.u64(transcript.complete_assignments);
+    if (transcript.transcript_digest != domain_digest(
+            {{'Y', 'G', 'B', 'T', 'R', 'N', '1', '1'}}, encoded.bytes()))
+      return false;
+    replay_nodes += transcript.visited_nodes;
+    replay_complete += transcript.complete_assignments;
+    for (std::size_t n = 0; n < component.variables.size(); ++n) {
+      const auto vi = component.variables[n].value_for_debug();
+      if (vi >= a.vertices.size() || vertex_component[vi] != -1 ||
+          transcript.accepted_ranks[n] != a.vertices[vi].accepted_point_rank)
+        return false;
+      vertex_component[vi] = static_cast<int>(ci);
+    }
+    for (auto obligation_id : component.obligations) {
+      const auto oi = obligation_id.value_for_debug();
+      if (oi >= a.obligations.size() || obligation_component[oi] != -1)
+        return false;
+      obligation_component[oi] = static_cast<int>(ci);
+      for (auto vertex : a.obligations[oi].vertices)
+        if (vertex.value_for_debug() >= vertex_component.size() ||
+            vertex_component[vertex.value_for_debug()] != static_cast<int>(ci))
+          return false;
+    }
+    for (auto witness : transcript.rejected_prefix_witnesses)
+      if (witness.value_for_debug() >= a.obligations.size() ||
+          obligation_component[witness.value_for_debug()] != static_cast<int>(ci))
+        return false;
+  }
+  if (std::any_of(vertex_component.begin(), vertex_component.end(),
+                  [](int component) { return component < 0; }) ||
+      replay_nodes != a.search.visited_nodes ||
+      replay_complete != a.search.complete_assignments ||
+      !a.search.nearest_passed)
+    return false;
+  for (std::size_t oi = 0; oi < a.obligations.size(); ++oi)
+    if (!a.obligations[oi].vertices.empty() && obligation_component[oi] < 0)
+      return false;
+  if (a.pair_boxes.size() != a.triangles.size())
+    return false;
+  for (std::size_t i = 0; i < a.pair_boxes.size(); ++i) {
+    const auto &box = a.pair_boxes[i];
+    if (box.triangle.value_for_debug() != i || box.upper.x < box.lower.x ||
+        box.upper.y < box.lower.y || box.upper.z < box.lower.z)
+      return false;
+  }
+  std::uint64_t verifier_pair_overlap_checks = 0;
+  if (detail::conservative_realization_triangle_pairs(
+          a.pair_boxes, &verifier_pair_overlap_checks) != a.pair_candidates ||
+      a.search.pair_checks !=
+          verifier_pair_overlap_checks + a.pair_candidates.size())
+    return false;
   auto expected_obligations = a;
   expected_obligations.obligations.clear();
   for (auto &v : expected_obligations.vertices)
@@ -1226,7 +1330,8 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
         x.version != y.version || x.vertices != y.vertices ||
         x.triangles != y.triangles || x.selected_edges != y.selected_edges ||
         x.selected_patches != y.selected_patches || x.expected != y.expected ||
-        x.actual != y.actual || x.witness != y.witness)
+        x.actual != y.actual || x.witness != y.witness ||
+        x.defining_relation != y.defining_relation)
       return false;
   }
   for (std::size_t i = 0; i < a.vertices.size(); ++i)
@@ -1270,6 +1375,26 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
       a.certificate.assignment_digest !=
           domain_digest({{'Y', 'G', 'B', 'A', 'S', 'N', '1', '1'}},
                         assignment.bytes()))
+    return false;
+  canonical_encoder components;
+  for (const auto &component : a.components)
+    components.raw(component.graph_digest.bytes.data(), 16);
+  for (const auto &transcript : a.component_transcripts)
+    components.raw(transcript.transcript_digest.bytes.data(), 16);
+  canonical_encoder pairs;
+  for (const auto &box : a.pair_boxes) {
+    pairs.id(box.triangle);
+    point(pairs, box.lower);
+    point(pairs, box.upper);
+  }
+  for (const auto &pair : a.pair_candidates) {
+    pairs.id(pair.lower);
+    pairs.id(pair.upper);
+  }
+  if (a.certificate.component_digest != domain_digest(
+          {{'Y', 'G', 'B', 'C', 'M', 'P', '1', '1'}}, components.bytes()) ||
+      a.certificate.pair_digest != domain_digest(
+          {{'Y', 'G', 'B', 'P', 'A', 'R', '1', '1'}}, pairs.bytes()))
     return false;
   return semantic(a) == a.canonical_bytes &&
          invocation(a) == a.artifact_bytes &&
@@ -1575,6 +1700,20 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
           return make_error(boolean_error_code::output_not_representable,
                             boolean_stage::geometry_realization,
                             "coordinate_out_of_range");
+        if (!d.values.front().absolute_error.is_zero()) {
+          auto error = make_error(boolean_error_code::output_not_representable,
+                                  boolean_stage::geometry_realization,
+                                  "exact_target_not_representable");
+          error.features.push_back(v.symbolic);
+          canonical_encoder diagnostic;
+          diagnostic.id(v.symbolic);
+          diagnostic.byte(static_cast<std::uint8_t>(axis));
+          encode(diagnostic, target[axis]);
+          bits(diagnostic, d.values.front().bits);
+          encode(diagnostic, d.values.front().absolute_error);
+          error.replay_payload = diagnostic.bytes();
+          return error;
+        }
         auto sum = checked_add(candidate_count, d.values.size(),
                                boolean_stage::geometry_realization);
         if (!sum.has_value())
@@ -1612,75 +1751,285 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         bits(domains, v.bits);
     a.search.domain_digest = domain_digest(
         {{'Y', 'G', 'B', 'D', 'O', 'M', '1', '1'}}, domains.bytes());
-    bool accepted = false, cancelled = false, limited = false;
-    std::uint64_t assignment_number = 0;
-    const auto variable_order = solver_vertex_order(a);
-    std::function<void(std::size_t)> dfs = [&](std::size_t depth) {
-      if (accepted || cancelled || limited)
-        return;
-      if (ctx.cancelled()) {
-        cancelled = true;
-        return;
-      }
-      auto node = ctx.accountant().reserve_scoped(
-          resource_kind::realization_attempts, 1,
-          boolean_stage::geometry_realization);
-      if (!node.has_value()) {
-        limited = true;
-        return;
-      }
-      realization_charges.push_back(std::move(node.value()));
-      ++a.search.visited_nodes;
-      if (depth == a.vertices.size()) {
-        ++a.search.complete_assignments;
-        for (auto &v : a.vertices)
-          v.coordinate = {value_of_bits<T>(v.accepted_bits[0]),
-                          value_of_bits<T>(v.accepted_bits[1]),
-                          value_of_bits<T>(v.accepted_bits[2])};
-        if (assignment_valid(a)) {
-          accepted = true;
-          a.search.accepted_assignment =
-              candidate_assignment_id::from_canonical_value(assignment_number);
-          a.search.nearest_passed = assignment_number == 0;
-        }
-        ++assignment_number;
-        return;
-      }
-      const auto vi = variable_order[depth];
-      auto &v = a.vertices[vi];
-      const auto candidates =
-          point_candidates(a.axis_domains[3 * vi], a.axis_domains[3 * vi + 1],
-                           a.axis_domains[3 * vi + 2]);
-      for (const auto &candidate : candidates) {
-        v.accepted_bits = candidate.bits;
-        v.accepted_axis_rank = candidate.axis_rank;
-        v.accepted_point_rank = candidate.rank;
-        dfs(depth + 1);
-        if (accepted || cancelled || limited)
-          return;
-      }
+    for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+      const auto candidates = point_candidates(a.axis_domains[3 * i],
+                                               a.axis_domains[3 * i + 1],
+                                               a.axis_domains[3 * i + 2]);
+      a.vertices[i].accepted_bits = candidates.front().bits;
+      a.vertices[i].accepted_axis_rank = candidates.front().axis_rank;
+      a.vertices[i].accepted_point_rank = 0;
+    }
+    auto reserve = [&](resource_kind kind, std::uint64_t count) {
+      auto charge = ctx.accountant().reserve_scoped(
+          kind, count, boolean_stage::geometry_realization);
+      if (charge.has_value())
+        realization_charges.push_back(std::move(charge.value()));
+      return charge.has_value();
     };
-    dfs(0);
-    if (cancelled)
+    if (!reserve(resource_kind::realization_pair_boxes, a.triangles.size()))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_box_limit");
+    auto axis_bounds = [&](realization_vertex_id vertex, std::size_t axis) {
+      const auto &domain = a.axis_domains[3 * vertex.value_for_debug() + axis];
+      auto first = decode_coordinate<T>(domain.values.front().bits,
+                                        boolean_stage::geometry_realization)
+                       .value()
+                       .value;
+      auto lower = first, upper = first;
+      for (const auto &candidate : domain.values) {
+        const auto value = decode_coordinate<T>(candidate.bits,
+                                                boolean_stage::geometry_realization)
+                               .value()
+                               .value;
+        if (value < lower)
+          lower = value;
+        if (upper < value)
+          upper = value;
+      }
+      return std::make_pair(lower, upper);
+    };
+    for (const auto &triangle : a.triangles) {
+      realization_domain_box box;
+      box.triangle = triangle.id;
+      std::array<exact_scalar, 3> lower, upper;
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        auto bounds = axis_bounds(triangle.vertices.front(), axis);
+        lower[axis] = bounds.first;
+        upper[axis] = bounds.second;
+        for (std::size_t n = 1; n < triangle.vertices.size(); ++n) {
+          bounds = axis_bounds(triangle.vertices[n], axis);
+          if (bounds.first < lower[axis])
+            lower[axis] = bounds.first;
+          if (upper[axis] < bounds.second)
+            upper[axis] = bounds.second;
+        }
+      }
+      box.lower = {lower[0], lower[1], lower[2]};
+      box.upper = {upper[0], upper[1], upper[2]};
+      a.pair_boxes.push_back(std::move(box));
+    }
+    const auto pair_check_limit =
+        ctx.options().resources.realization_pair_checks;
+    const auto pair_candidate_limit =
+        ctx.options().resources.realization_pair_candidates;
+    std::uint64_t box_overlap_checks = 0;
+    bool pair_limited = false;
+    a.pair_candidates = detail::conservative_realization_triangle_pairs(
+        a.pair_boxes, &box_overlap_checks,
+        pair_check_limit.unlimited
+            ? std::numeric_limits<std::uint64_t>::max()
+            : pair_check_limit.value,
+        pair_candidate_limit.unlimited
+            ? std::numeric_limits<std::uint64_t>::max()
+            : pair_candidate_limit.value,
+        &pair_limited);
+    if (pair_limited)
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_generation_limit");
+    auto pair_checks = checked_add(box_overlap_checks, a.pair_candidates.size(),
+                                   boolean_stage::geometry_realization);
+    if (!pair_checks.has_value() ||
+        (!pair_check_limit.unlimited &&
+         pair_checks.value() > pair_check_limit.value))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_check_limit");
+    a.search.pair_checks = pair_checks.value();
+    if (!reserve(resource_kind::realization_pair_candidates,
+                 a.pair_candidates.size()) ||
+        !reserve(resource_kind::realization_pair_checks, a.search.pair_checks))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_limit");
+    append_obligations(a);
+
+    std::uint64_t graph_edges = 0;
+    for (const auto &obligation : a.obligations) {
+      graph_edges += obligation.vertices.size();
+    }
+    if (!reserve(resource_kind::realization_graph_nodes,
+                 a.vertices.size() + a.obligations.size()) ||
+        !reserve(resource_kind::realization_graph_edges, graph_edges))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_graph_limit");
+    std::vector<detail::realization_solver_variable> solver_variables;
+    for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+      const auto candidates = point_candidates(a.axis_domains[3 * i],
+                                               a.axis_domains[3 * i + 1],
+                                               a.axis_domains[3 * i + 2]);
+      solver_variables.push_back({i, candidates.size()});
+    }
+    std::vector<detail::realization_solver_constraint> solver_constraints;
+    for (const auto &obligation : a.obligations) {
+      std::vector<std::uint64_t> variables;
+      for (auto vertex : obligation.vertices)
+        variables.push_back(vertex.value_for_debug());
+      solver_constraints.push_back({obligation.id.value_for_debug(),
+                                    std::move(variables)});
+    }
+    auto evaluator = [&](std::uint64_t obligation_id,
+                         const std::vector<std::pair<std::uint64_t,
+                                                     std::uint64_t>> &values) {
+      const auto &obligation = a.obligations[obligation_id];
+      std::map<std::uint64_t, exact_point3> points;
+      for (const auto &value : values) {
+        const auto candidates = point_candidates(a.axis_domains[3 * value.first],
+                                                 a.axis_domains[3 * value.first + 1],
+                                                 a.axis_domains[3 * value.first + 2]);
+        if (value.second >= candidates.size())
+          return false;
+        points[value.first] = decoded_point(candidates[value.second].bits);
+      }
+      auto point_for = [&](realization_vertex_id id) -> const exact_point3 & {
+        return points.at(id.value_for_debug());
+      };
+      if (obligation.kind == realization_obligation_kind::exact_target_equality)
+        return point_for(obligation.vertices.front()) ==
+               a.vertices[obligation.vertices.front().value_for_debug()].exact_coordinate;
+      if (obligation.kind == realization_obligation_kind::defining_relation)
+        return obligation.defining_relation &&
+               defining_relation_satisfied(
+                   a.constructions->relations[obligation.defining_relation->value_for_debug()],
+                   point_for(obligation.vertices.front()));
+      if (obligation.kind == realization_obligation_kind::distinct_vertices ||
+          obligation.kind == realization_obligation_kind::selected_edge_order)
+        return !(point_for(obligation.vertices[0]) ==
+                 point_for(obligation.vertices[1]));
+      if (obligation.kind == realization_obligation_kind::triangle_orientation) {
+        const auto &triangle = a.triangles[obligation.triangles.front().value_for_debug()];
+        return orient2d(project(point_for(triangle.vertices[0]), triangle.projection),
+                        project(point_for(triangle.vertices[1]), triangle.projection),
+                        project(point_for(triangle.vertices[2]), triangle.projection)) ==
+               triangle.exact_orientation;
+      }
+      if (obligation.triangles.size() == 2) {
+        const auto &x = a.triangles[obligation.triangles[0].value_for_debug()];
+        const auto &y = a.triangles[obligation.triangles[1].value_for_debug()];
+        const auto relation = relation_for(relate_triangles(
+            {point_for(x.vertices[0]), point_for(x.vertices[1]), point_for(x.vertices[2])},
+            {point_for(y.vertices[0]), point_for(y.vertices[1]), point_for(y.vertices[2])}));
+        return relation == obligation.expected;
+      }
+      return obligation.expected == obligation.actual;
+    };
+    const auto attempt_limit = ctx.options().resources.realization_attempts;
+    const auto component_limit = ctx.options().resources.realization_components;
+    const auto transcript_limit =
+        ctx.options().resources.realization_component_transcripts;
+    const auto trail_limit = ctx.options().resources.realization_solver_trail;
+    const auto bounded_components = [&] {
+      const auto component_max = component_limit.unlimited
+                                     ? std::numeric_limits<std::uint64_t>::max()
+                                     : component_limit.value;
+      const auto transcript_max = transcript_limit.unlimited
+                                      ? std::numeric_limits<std::uint64_t>::max()
+                                      : transcript_limit.value;
+      return std::min(component_max, transcript_max);
+    }();
+    const auto solved = detail::solve_realization_constraint_components(
+        std::move(solver_variables), std::move(solver_constraints), evaluator,
+        attempt_limit.unlimited ? std::numeric_limits<std::uint64_t>::max()
+                                : attempt_limit.value,
+        bounded_components,
+        trail_limit.unlimited ? std::numeric_limits<std::uint64_t>::max()
+                              : trail_limit.value,
+        [&] { return ctx.cancelled(); });
+    if (ctx.cancelled())
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization, "cancelled");
-    if (limited)
+    if (solved.limited)
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization,
                         "realization_search_limit");
-    if (!accepted) {
+    if (!reserve(resource_kind::realization_attempts, solved.visited_nodes) ||
+        !reserve(resource_kind::realization_components, solved.components.size()) ||
+        !reserve(resource_kind::realization_solver_trail, a.vertices.size()) ||
+        !reserve(resource_kind::realization_component_transcripts,
+                 solved.components.size()))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_search_limit");
+    std::uint64_t verifier_witnesses = 0;
+    for (const auto &component : solved.components)
+      verifier_witnesses += component.rejected_prefix_witnesses.size();
+    if (!reserve(resource_kind::realization_verifier_witnesses,
+                 verifier_witnesses))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_verifier_witness_limit");
+    a.search.visited_nodes = solved.visited_nodes;
+    a.search.complete_assignments = solved.complete_assignments;
+    if (!solved.accepted) {
       a.search.exhausted = true;
       return make_error(boolean_error_code::output_not_representable,
                         boolean_stage::geometry_realization,
                         "candidate_domain_exhausted");
     }
-    append_obligations(a);
+    for (std::size_t ci = 0; ci < solved.components.size(); ++ci) {
+      const auto &source = solved.components[ci];
+      realization_constraint_component component;
+      component.id = realization_constraint_component_id::from_canonical_value(ci);
+      for (auto id : source.variables)
+        component.variables.push_back(realization_vertex_id::from_canonical_value(id));
+      for (auto id : source.constraints)
+        component.obligations.push_back(realization_obligation_id::from_canonical_value(id));
+      canonical_encoder graph;
+      ids(graph, component.variables);
+      ids(graph, component.obligations);
+      component.graph_digest = domain_digest(
+          {{'Y', 'G', 'B', 'G', 'R', 'F', '1', '1'}}, graph.bytes());
+      realization_component_transcript transcript;
+      transcript.component = component.id;
+      transcript.accepted_ranks = source.accepted_ranks;
+      for (auto id : source.rejected_prefix_witnesses)
+        transcript.rejected_prefix_witnesses.push_back(
+            realization_obligation_id::from_canonical_value(id));
+      transcript.visited_nodes = source.visited_nodes;
+      transcript.complete_assignments = source.complete_assignments;
+      canonical_encoder encoded;
+      encoded.id(transcript.component);
+      for (auto rank : transcript.accepted_ranks)
+        encoded.u64(rank);
+      ids(encoded, transcript.rejected_prefix_witnesses);
+      encoded.u64(transcript.visited_nodes);
+      encoded.u64(transcript.complete_assignments);
+      transcript.transcript_digest = domain_digest(
+          {{'Y', 'G', 'B', 'T', 'R', 'N', '1', '1'}}, encoded.bytes());
+      for (std::size_t i = 0; i < source.variables.size(); ++i) {
+        const auto vi = source.variables[i];
+        const auto candidates = point_candidates(a.axis_domains[3 * vi],
+                                                 a.axis_domains[3 * vi + 1],
+                                                 a.axis_domains[3 * vi + 2]);
+        const auto &candidate = candidates[source.accepted_ranks[i]];
+        a.vertices[vi].accepted_bits = candidate.bits;
+        a.vertices[vi].accepted_axis_rank = candidate.axis_rank;
+        a.vertices[vi].accepted_point_rank = candidate.rank;
+      }
+      a.components.push_back(std::move(component));
+      a.component_transcripts.push_back(std::move(transcript));
+    }
+    for (auto &vertex : a.vertices)
+      vertex.coordinate = {value_of_bits<T>(vertex.accepted_bits[0]),
+                           value_of_bits<T>(vertex.accepted_bits[1]),
+                           value_of_bits<T>(vertex.accepted_bits[2])};
+    if (!assignment_valid(a))
+      return make_error(boolean_error_code::output_not_representable,
+                        boolean_stage::geometry_realization,
+                        "candidate_domain_exhausted");
+    a.search.accepted_assignment = candidate_assignment_id::from_canonical_value(0);
+    a.search.nearest_passed = true;
     a.certificate.id = realization_certificate_id::from_canonical_value(0);
     a.certificate.solver_version = ctx.options().realization.solver_version;
     a.certificate.vertices = a.vertices.size();
     a.certificate.triangles = a.triangles.size();
     a.certificate.halfedges = a.halfedges.size();
     a.certificate.obligations = a.obligations.size();
+    a.certificate.components = a.components.size();
+    a.certificate.pair_boxes = a.pair_boxes.size();
+    a.certificate.pair_candidates = a.pair_candidates.size();
     for (const auto &o : a.obligations)
       a.certificate.witnesses += !o.witness.empty();
     a.certificate.selected_digest = a.selected_digest;
@@ -1707,6 +2056,25 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         bits(assignment, b);
     a.certificate.assignment_digest = domain_digest(
         {{'Y', 'G', 'B', 'A', 'S', 'N', '1', '1'}}, assignment.bytes());
+    canonical_encoder components;
+    for (const auto &component : a.components)
+      components.raw(component.graph_digest.bytes.data(), 16);
+    for (const auto &transcript : a.component_transcripts)
+      components.raw(transcript.transcript_digest.bytes.data(), 16);
+    a.certificate.component_digest = domain_digest(
+        {{'Y', 'G', 'B', 'C', 'M', 'P', '1', '1'}}, components.bytes());
+    canonical_encoder pairs;
+    for (const auto &box : a.pair_boxes) {
+      pairs.id(box.triangle);
+      point(pairs, box.lower);
+      point(pairs, box.upper);
+    }
+    for (const auto &pair : a.pair_candidates) {
+      pairs.id(pair.lower);
+      pairs.id(pair.upper);
+    }
+    a.certificate.pair_digest = domain_digest(
+        {{'Y', 'G', 'B', 'P', 'A', 'R', '1', '1'}}, pairs.bytes());
     a.canonical_bytes = semantic(a);
     a.certificate.semantic_digest = domain_digest(
         {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}}, a.canonical_bytes);

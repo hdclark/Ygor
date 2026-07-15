@@ -18,9 +18,9 @@ inline std::shared_ptr<verifier_registry> registry(){
 template<class T,class I>void structural_oracle(const arrangement_complex<T,I>&a){
   require(a.patch_sides.size()==2*a.patches.size(),"two sides per patch");
   require(a.transitions.size()>=a.patches.size(),"crossings and preserving transitions");
-  require(a.vertex_sectors.size()==a.vertices.size(),"complete vertex sectors");
+  require(a.vertex_sectors.size()==a.vertex_occurrences.size(),"complete occurrence-owned vertex links");
   require(a.probes.size()==a.patch_sides.size(),"one formal probe per side component");
-  for(const auto&h:a.halfedges){const auto&m=a.halfedges[h.sheet_mate.value_for_debug()];require(m.sheet_mate==h.id&&m.origin==h.destination&&m.destination==h.origin,"mate involution");}
+  for(const auto&h:a.halfedges){const auto&m=a.halfedges[h.sheet_mate.value_for_debug()];require(m.sheet_mate==h.id&&m.origin_occurrence==h.destination_occurrence&&m.destination_occurrence==h.origin_occurrence,"mate involution");}
   for(const auto&p:a.patches)require(!p.uses.empty(),"patch coverage");
   require(a.certificate.local_patches==a.sheet_uses.size(),"total patch map");
 }

@@ -108,6 +108,7 @@ std::vector<std::uint8_t> semantic(const labeled_arrangement<T, I> &a) {
   e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
   e.u16(labeled_arrangement_schema);
   e.raw(a.arrangement_semantic_digest.bytes.data(), 16);
+  e.byte(static_cast<std::uint8_t>(a.classification));
   e.u64(a.regions.size());
   for (const auto &r : a.regions) {
     e.id(r.id);
@@ -119,6 +120,7 @@ std::vector<std::uint8_t> semantic(const labeled_arrangement<T, I> &a) {
   e.u64(a.seeds.size());
   for (const auto &s : a.seeds) {
     e.id(s.id);
+    e.id(s.source_side);
     e.id(s.source_component);
     e.byte(static_cast<std::uint8_t>(s.base_kind));
     e.u64(s.base_id);
@@ -297,9 +299,14 @@ formal_probe(const arrangement_complex<T, I> &a,
              const open_probe_descriptor &p) {
   formal_open_point_view q;
   q.infinitesimal_direction = p.direction;
-  q.key.domain = perturbation_domain::generic_ray;
+  q.key.domain = p.base_kind == probe_base_stratum_kind::patch_side
+                     ? perturbation_domain::open_side
+                     : perturbation_domain::generic_ray;
   q.key.local_rank = p.formula_version;
-  if (p.base_vertex) {
+  if (p.exact_base) {
+    q.base = *p.exact_base;
+    q.key.stable_features.push_back(p.side);
+  } else if (p.base_vertex) {
     const auto i = p.base_vertex->value_for_debug();
     if (i >= a.symbolic->payload->vertices.size())
       return make_error(boolean_error_code::internal_invariant_error,
@@ -817,6 +824,9 @@ exterior_attachment(const arrangement_complex<T, I> &g,
 template <class T, class I>
 bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
   const auto &g = *a.arrangement->payload;
+  if (a.classification != classification_strategy::independent_patch_side_v1 ||
+      g.classification != a.classification)
+    return false;
   const auto ta = operand_triangles(*a.validated->payload, operand_a());
   const auto tb = operand_triangles(*a.validated->payload, operand_b());
   if (a.seeds.size() != g.probes.size())
@@ -916,7 +926,10 @@ template <class T, class I> bool valid(const labeled_arrangement<T, I> &a) {
   for (std::size_t i = 0; i < a.regions.size(); ++i) {
     const auto &r = a.regions[i];
     if (r.id.value_for_debug() != i || r.seed.value_for_debug() != i ||
-        a.seeds[i].source_component != r.source_component)
+        a.seeds[i].source_component != r.source_component ||
+        (!g.patch_sides.empty() &&
+         (a.seeds[i].source_side.value_for_debug() >= g.patch_sides.size() ||
+          g.probes[i].side != a.seeds[i].source_side)))
       return false;
   }
   for (std::size_t i = 0; i < a.propagation.size(); ++i) {
@@ -939,7 +952,12 @@ template <class T, class I> bool valid(const labeled_arrangement<T, I> &a) {
         s.region.value_for_debug() >= a.regions.size())
       return false;
     const auto &r = a.regions[s.region.value_for_debug()];
-    if (s.occupancy != r.label)
+    const auto &direct = a.seeds[r.seed.value_for_debug()];
+    const occupancy_pair direct_label{
+        direct.operand_a.location == operand_location_kind::inside,
+        direct.operand_b.location == operand_location_kind::inside};
+    if (direct.source_side != s.source_side || s.occupancy != direct_label ||
+        s.occupancy != r.label)
       return false;
   }
   for (std::size_t i = 0; i < a.patch_labels.size(); ++i) {
@@ -1133,6 +1151,12 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
     a.arrangement = arrangement;
     a.validated = g.validated;
     a.constructions = g.constructions;
+    a.classification = ctx.options().classification.strategy;
+    if (a.classification != classification_strategy::independent_patch_side_v1 ||
+        g.classification != a.classification)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::cell_classification,
+                        "classification_strategy_mismatch");
     const auto triangles_a =
                    operand_triangles(*g.validated->payload, operand_a()),
                triangles_b =
@@ -1187,6 +1211,7 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
           lb.value().location == formal_operand_location_kind::inside};
       seed_classification_certificate seed;
       seed.id = seed_certificate_id::from_canonical_value(i);
+      seed.source_side = p.side;
       seed.source_component = p.component;
       seed.base_kind = p.base_kind;
       seed.base_id = p.base_id;

@@ -215,8 +215,10 @@ if(ARCH_IS_ARM OR ARCH_IS_ARM64)
 endif()
 
 
-# Workaround for GCCv8 std::filesystem sidecar library -- can be removed when GCCv8 no longer relevant.
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+# Workaround for GCCv8 libstdc++'s std::filesystem sidecar library. Clang can
+# use the same libstdc++, so detect the library independently of the compiler.
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+   "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     foreach(lib_dir ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES})
         #message("Searching directory ${lib_dir}")
         file(GLOB_RECURSE STD_FS_LIB "${lib_dir}*stdc++fs*")

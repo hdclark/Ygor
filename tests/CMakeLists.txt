@@ -88,3 +88,14 @@ add_component14_test(MeshBooleanReplay MeshBoolean.Replay "replay;continuous" 30
 add_component14_test(Test_MeshesBooleanFuzz MeshBoolean.Fuzz "fuzz;scheduled" 1200)
 add_component14_test(Test_MeshesBooleanMutation MeshBoolean.Mutation "mutation;scheduled" 600)
 add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualification;scheduled" 360)
+
+add_executable(Test_MeshesBooleanPlanGaps Test_MeshesBooleanPlanGaps.cc)
+target_link_libraries(Test_MeshesBooleanPlanGaps PRIVATE mesh_boolean_test_support)
+mesh_boolean_strict_fp(Test_MeshesBooleanPlanGaps)
+foreach(case_id IN ITEMS G1a G1b G2a G3 G4a G4b G5a G6 G7a G7b G8solver G8pairs G9a G9b G9c G9d)
+    add_test(NAME MeshBoolean.PlanGap.${case_id}
+        COMMAND Test_MeshesBooleanPlanGaps ${case_id})
+    set_tests_properties(MeshBoolean.PlanGap.${case_id} PROPERTIES
+        TIMEOUT 600
+        LABELS "mesh_boolean;component14;plan_gap;continuous")
+endforeach()

@@ -23,5 +23,10 @@
 
 Additional items as determined through plan and implementation peer-review:
 
-- [ ] Convert every plan-gap case from `tests/MeshBooleanPlanGapCases.md` into an executable CI test with an explicit success or typed-failure expectation. These tests are expected to compile, but are not expected to pass until the broad plan and implementation components are updated.
-- [ ] Resolve the contract and algorithm gaps documented in `tests/MeshBooleanPlanGapCases.md`, ensuring the tests pass.
+- [x] Convert every plan-gap case from `tests/MeshBooleanPlanGapCases.md` into an executable CI test with an explicit success or typed-failure expectation. These tests are expected to compile, but are not expected to pass until the broad plan and implementation components are updated.
+- [x] Resolve the contract and algorithm gaps documented in `tests/MeshBooleanPlanGapCases.md`. The broad plan and Components 1, 3, 6, and 8-14 now distinguish exact geometry from topological occurrences, stratified selection from manifold publication, direct side classification from transition auditing, and exact-in-`T` semantics from future approximate output.
+- [x] Components 1, 8, 9, and 13: implement topological occurrence IDs, complete spherical vertex links, certified open patch-side probes, frozen `independent_patch_side_v1` classification, independent arrangement reconstruction, and G3-G6/G9a/G9b/G9d gates.
+- [x] Components 1, 10, 12, 13, and 14: implement stratified selected-boundary occurrences and topology classification, manifold-result preflight, `result_topology_not_supported`, and the complete G1 operation/type matrix.
+- [x] Components 1, 3, 11, 13, and 14: implement `exact_in_T`, executable defining relations and exact substitution obligations, independent realization verification, and G2/G7/G9c gates.
+- [x] Components 1, 11, 13, and 14: implement realization constraint-component decomposition, canonical component transcripts, conservative candidate-domain triangle broad phase, bounded exhaustive oracles, and G8 scalability gates.
+- [x] Component 14: remove the plan-gap red-test label only after all G1-G9 tests pass in required Debug/Release, compiler, type, permutation, and replay matrices; retain the touching-cube and one-third fixtures permanently in the regression corpus.

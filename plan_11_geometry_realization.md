@@ -40,7 +40,7 @@ All implementation must be self-contained in Ygor, portable C++17, and free of e
 - Do not round the same symbolic vertex independently for different facets or provenance paths. Do not merge distinct symbolic IDs whose candidates have equal bits, and do not split one symbol into several candidates.
 - Do not drop a tiny triangle, edge, patch, hole, seam, or connected component to make a candidate pass.
 - Do not infer that a polygon remains planar after independently rounding its vertices. Baseline realization emits an exact-domain triangulation; polygon-preserving realization is a future separately versioned policy.
-- Do not classify search exhaustion as mathematical impossibility. `output_not_representable` states that no assignment exists in the complete configured candidate domain and must identify that policy/domain.
+- Do not classify bounded search exhaustion as mathematical impossibility. Under schema-v1 `exact_in_T`, exact coordinate inequality to every `T` dyadic is definitive; any future approximate bounded-domain failure must identify that policy/domain.
 - Do not let hash order, pointer order, worker completion, native floating environment, or a predicate filter path affect candidate order, first conflict, accepted assignment, certificate, or bytes.
 
 No existing Ygor component implements globally coupled exact-bit assignment and certification. The reusable pieces are containers, structural traversal patterns, and the planned Components 1, 3, 7, and 10 contracts.
@@ -171,9 +171,9 @@ For fixed original vertices, the sole candidate is the preserved source bit patt
 
 Perform fallible exact-error comparisons in a pre-ranking pass; solver comparators inspect only immutable ranks. The Cartesian product of the three axis domains is the complete candidate point domain for that symbolic vertex. Check product/count limits before materializing it. A radius of zero is nearest-only.
 
-### 6.2 Global assignment solver
+### 6.2 Constraint-component assignment solver
 
-Constraints are coupled: choosing a point for one vertex can affect several triangles. Implement a deterministic finite constraint solver that is complete over the frozen Cartesian candidate domains:
+Generate the complete obligation universe first, construct its bipartite variable-obligation graph, and solve each canonical connected component independently. Choosing a point can affect several triangles within a component, but no obligation may cross published components. Implement a deterministic finite constraint solver complete over each component's frozen Cartesian candidate domains:
 
 1. Build obligation incidence and statically validate unary/fixed constraints. Choose the next unassigned vertex by smallest remaining point-domain size, then highest unassigned-obligation degree, then realization vertex ID.
 2. Enumerate its candidate triples by `(max axis step, sum axis step, pre-ranked exact squared error, x rank, y rank, z rank, raw bits)`. Do not use native squared distance.
@@ -290,7 +290,7 @@ Mutation tests alter every owner/ID/range, symbolic/exact handle, derivation, so
 ### 11.3 Realizable and unrepresentable embeddings
 
 - Exactly representable disjoint/nested/intersecting solids retain original and constructed coordinates and pass nearest-only certification.
-- Rational intersections not exactly representable in `T` but safely nearest-rounded pass with exact dyadic certificate.
+- Rational intersections not exactly representable in `T`, including `1/3`, fail under `exact_in_T` even when nearest rounding preserves embedding. They may pass only under a future explicitly approximate result schema.
 - Two distinct exact vertices that nearest-round together: a neighboring assignment succeeds when available; nearest-only fails; a radius whose complete domains cannot separate them returns `output_not_representable`.
 - Rounding-induced zero-area triangles, edge-order inversions, triangle fold-through, new non-adjacent intersection, lost shared-feature relation, and vertex-fan/radial inversion.
 - Tiny features near zero, huge dynamic range, subnormal constructions, one-ULP separations, overflow-adjacent coordinates, and mixed fixed-original/constructed constraints.
@@ -355,3 +355,15 @@ Component 11 is complete only when:
 - empty selection succeeds, all failures are typed and transactional, and canonical bytes are schedule/filter/compiler stable;
 - independent exact-only verification and mutation tests pass in Release as well as Debug;
 - Component 12 can serialize the certified triangles and coordinates without making a geometric decision.
+
+## 14. Plan-gap amendment: exact targets, scalable constraints, and independent replay
+
+Schema v1 supports only `realization_semantics::exact_in_T`. For each axis, software-round to obtain diagnostic nearest bits, decode them exactly, and require equality with the symbolic rational before coupled search. On mismatch return `output_not_representable` with symbol, axis, exact target, nearest bits, and exact difference. Neighboring candidates cannot satisfy exact semantics. A future `certified_approximate_embedding` requires new public/artifact schemas, explicit moved-vertex records and exact displacement bounds, and cannot claim exact set geometry.
+
+Add obligation kinds for exact target equality, every Component 3 defining relation, source plane/carrier incidence, affine parameter, and carrier order. Generate obligations from immutable selected topology and construction records before solving. Candidate evaluation substitutes decoded dyadics into each relation exactly; producer-populated `actual=embedded` is not evidence.
+
+Build canonical constraint components by sorted graph traversal, solve each independently, and publish per-component variables, obligations, accepted ranks, rejected-prefix contradiction witnesses, `visited_nodes`, `complete_assignments`, and digests. Combining first component solutions must equal the first global assignment under the documented variable order. The G8 twenty-unary-variable fixture must use twenty components and bounded linear work under a limit that a monolithic DFS would exceed.
+
+Replace production all-pairs triangle generation with `conservative_domain_aabb_v1`: compute exact interval boxes over complete candidate domains, sweep exact X endpoints, retain equality/uncertainty, test Y/Z overlap, and emit sorted unique pairs. Exact-check every emitted pair; limits return `resource_limit`. Keep exhaustive all-pairs as a bounded differential oracle.
+
+Move verification to a standalone implementation family that cannot link producer triangulation, obligation, pair-generation, solver, assignment-validation, certificate, or encoding helpers. It independently reconstructs defining relations, obligations, constraint components, broad-phase candidates, and accepted component assignments, and validates rejected-prefix witnesses without repeating global exponential DFS. One-ULP construction mutations with rebuilt producer metadata must fail exact substitution.

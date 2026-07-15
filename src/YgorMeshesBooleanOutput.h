@@ -8,7 +8,13 @@ namespace ygor {
 namespace mesh_boolean {
 
 constexpr std::uint64_t assembled_output_type_tag = 0x5947424f55543132ULL;
-constexpr std::uint16_t assembled_output_schema = 1;
+constexpr std::uint16_t assembled_output_schema = 2;
+
+struct result_topology_authorization {
+  context_owner_token owner;
+  digest selected_digest, topology_certificate_digest, policy_digest;
+  selected_boundary_topology topology = selected_boundary_topology::empty;
+};
 
 template <class I> struct output_vertex_record {
   output_vertex_id id;
@@ -48,6 +54,7 @@ template <class T, class I> struct assembled_output {
   digest setup_digest, input_a_digest, input_b_digest, selected_digest,
       realized_digest, policy_digest, artifact_digest;
   output_policy policy;
+  result_topology_authorization topology_authorization;
   std::shared_ptr<const published_artifact<realized_boundary<T, I>>> realized;
   fv_surface_mesh<T, I> mesh;
   std::vector<output_vertex_record<I>> vertices;
@@ -59,7 +66,11 @@ template <class T, class I> struct assembled_output {
 };
 
 status_or<bool> register_boolean_output_verifier(verifier_registry &,
-                                                 coordinate_tag, index_tag);
+                                                  coordinate_tag, index_tag);
+
+template <class T, class I>
+status_or<result_topology_authorization>
+authorize_result_topology(boolean_context<T, I> &);
 
 template <class T, class I>
 status_or<std::shared_ptr<const published_artifact<assembled_output<T, I>>>>
@@ -69,6 +80,8 @@ template <class T, class I>
 boolean_result<T, I> assemble_boolean_output(boolean_context<T, I> &);
 
 #define YGOR_OUTPUT_EXTERN(T, I)                                               \
+  extern template status_or<result_topology_authorization>                    \
+  authorize_result_topology(boolean_context<T, I> &);                         \
   extern template status_or<                                                   \
       std::shared_ptr<const published_artifact<assembled_output<T, I>>>>       \
   assemble_boolean_output_artifact(boolean_context<T, I> &);                   \

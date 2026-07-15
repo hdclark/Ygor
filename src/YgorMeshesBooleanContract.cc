@@ -124,7 +124,11 @@ resource_limits(const resource_policy &r) {
           &r.source_edge_sectors,
           &r.coincident_memberships,
           &r.side_nodes,
+          &r.vertex_occurrences,
           &r.vertex_sectors,
+          &r.link_rays,
+          &r.link_arcs,
+          &r.link_regions,
           &r.side_transitions,
           &r.probe_descriptors,
           &r.mapping_entries,
@@ -143,13 +147,24 @@ resource_limits(const resource_policy &r) {
           &r.selected_halfedges,
           &r.selected_edges,
           &r.selected_vertices,
+          &r.selected_vertex_occurrences,
+          &r.topology_obstructions,
           &r.selection_provenance,
           &r.exact_number_bits,
           &r.diagnostic_records,
           &r.diagnostic_bytes,
           &r.trace_records,
-          &r.trace_bytes,
-          &r.realization_attempts,
+           &r.trace_bytes,
+           &r.realization_attempts,
+           &r.realization_graph_nodes,
+           &r.realization_graph_edges,
+           &r.realization_components,
+           &r.realization_pair_boxes,
+           &r.realization_pair_candidates,
+           &r.realization_pair_checks,
+           &r.realization_solver_trail,
+           &r.realization_component_transcripts,
+           &r.realization_verifier_witnesses,
           &r.output_vertices,
           &r.output_faces,
           &r.output_face_indices,
@@ -177,13 +192,18 @@ status_or<bool> validate_options(const boolean_options &o) {
       static_cast<unsigned>(o.determinism) > 0 ||
       static_cast<unsigned>(o.verification) > 1 ||
       static_cast<unsigned>(o.tracing.level) > 3 ||
+      static_cast<unsigned>(o.classification.strategy) > 0 ||
+      o.classification.schema != 1 ||
+      o.classification.probe_formula_version != 1 ||
+      static_cast<unsigned>(o.realization.semantics) > 0 ||
       static_cast<unsigned>(o.realization.strategy) > 1 ||
       static_cast<unsigned>(o.realization.original_coordinates) > 0 ||
       static_cast<unsigned>(o.realization.topology) > 0 ||
       static_cast<unsigned>(o.realization.pair_certification) > 0 ||
       static_cast<unsigned>(o.realization.certificate_level) > 0 ||
-      o.realization.schema != 1 || o.realization.solver_version != 1 ||
-      static_cast<unsigned>(o.output.topology) > 0 || o.output.schema != 1 ||
+        o.realization.schema != 2 || o.realization.solver_version != 2 ||
+       static_cast<unsigned>(o.result_topology) > 0 ||
+       static_cast<unsigned>(o.output.topology) > 0 || o.output.schema != 1 ||
       o.output.ordering_version != 1 || o.output.encoding_version != 1)
     return bad("unknown_option_enum");
   if (o.output.include_compact_provenance)
@@ -220,14 +240,19 @@ status_or<std::vector<std::uint8_t>> encode_options(const boolean_options &o) {
   e.u32(o.execution.max_queued_tasks);
   e.byte(static_cast<std::uint8_t>(o.tracing.level));
   e.boolean(o.tracing.collect_noncanonical_timings);
+  e.u16(o.classification.schema);
+  e.u16(o.classification.probe_formula_version);
+  e.byte(static_cast<std::uint8_t>(o.classification.strategy));
   e.u16(o.realization.schema);
   e.u16(o.realization.solver_version);
+  e.byte(static_cast<std::uint8_t>(o.realization.semantics));
   e.byte(static_cast<std::uint8_t>(o.realization.strategy));
   e.byte(static_cast<std::uint8_t>(o.realization.original_coordinates));
   e.byte(static_cast<std::uint8_t>(o.realization.topology));
   e.byte(static_cast<std::uint8_t>(o.realization.pair_certification));
   e.byte(static_cast<std::uint8_t>(o.realization.certificate_level));
   e.u32(o.realization.neighboring_value_radius);
+  e.byte(static_cast<std::uint8_t>(o.result_topology));
   e.u16(o.output.schema);
   e.u16(o.output.ordering_version);
   e.u16(o.output.encoding_version);
@@ -306,6 +331,10 @@ resource_limit resource_accountant::limit_for(resource_kind k) const {
     return limits_.selected_edges;
   case resource_kind::selected_vertices:
     return limits_.selected_vertices;
+  case resource_kind::selected_vertex_occurrences:
+    return limits_.selected_vertex_occurrences;
+  case resource_kind::topology_obstructions:
+    return limits_.topology_obstructions;
   case resource_kind::selection_provenance:
     return limits_.selection_provenance;
   case resource_kind::exact_number_bits:
@@ -320,6 +349,24 @@ resource_limit resource_accountant::limit_for(resource_kind k) const {
     return limits_.trace_bytes;
   case resource_kind::realization_attempts:
     return limits_.realization_attempts;
+  case resource_kind::realization_graph_nodes:
+    return limits_.realization_graph_nodes;
+  case resource_kind::realization_graph_edges:
+    return limits_.realization_graph_edges;
+  case resource_kind::realization_components:
+    return limits_.realization_components;
+  case resource_kind::realization_pair_boxes:
+    return limits_.realization_pair_boxes;
+  case resource_kind::realization_pair_candidates:
+    return limits_.realization_pair_candidates;
+  case resource_kind::realization_pair_checks:
+    return limits_.realization_pair_checks;
+  case resource_kind::realization_solver_trail:
+    return limits_.realization_solver_trail;
+  case resource_kind::realization_component_transcripts:
+    return limits_.realization_component_transcripts;
+  case resource_kind::realization_verifier_witnesses:
+    return limits_.realization_verifier_witnesses;
   case resource_kind::output_vertices:
     return limits_.output_vertices;
   case resource_kind::output_faces:
@@ -418,8 +465,20 @@ status_or<bool> resource_accountant::reserve(resource_kind k, std::uint64_t n,
   case resource_kind::side_nodes:
     lim = limits_.side_nodes;
     break;
+  case resource_kind::vertex_occurrences:
+    lim = limits_.vertex_occurrences;
+    break;
   case resource_kind::vertex_sectors:
     lim = limits_.vertex_sectors;
+    break;
+  case resource_kind::link_rays:
+    lim = limits_.link_rays;
+    break;
+  case resource_kind::link_arcs:
+    lim = limits_.link_arcs;
+    break;
+  case resource_kind::link_regions:
+    lim = limits_.link_regions;
     break;
   case resource_kind::side_transitions:
     lim = limits_.side_transitions;

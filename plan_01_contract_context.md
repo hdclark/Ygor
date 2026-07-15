@@ -341,7 +341,7 @@ Implement an in-tree C++17 `status_or<Value>` using `std::variant<Value, boolean
 
 `value()` and `error()` have programmer-precondition semantics: assert in debug and throw `std::logic_error` in release when the wrong alternative is requested. Also provide nonthrowing `value_if()`/`error_if()` pointer accessors. No expected Boolean failure uses these exceptions.
 
-Define the final public shape now so later components do not redesign errors:
+Define the initial public shape; schema-v2 amendments below add explicit topology and geometry semantics without changing `status_or` discipline:
 
 ```cpp
 template<class T, class I>
@@ -358,12 +358,13 @@ Define `boolean_error_code` with all required categories:
 - `unsupported_platform`;
 - `resource_limit`;
 - `index_overflow`;
+- `result_topology_not_supported`;
 - `output_not_representable`;
 - `internal_invariant_error`.
 
-Represent cooperative caller cancellation as `resource_limit` with `resource_kind::cancellation`, preserving the six-category external contract while providing an unambiguous structured subcode. Cancellation is not reported as malformed input and never publishes partial state.
+Represent cooperative caller cancellation as `resource_limit` with `resource_kind::cancellation`, preserving the closed external contract while providing an unambiguous structured subcode. Cancellation is not reported as malformed input and never publishes partial state.
 
-Define this closed schema-v1 `boolean_stage : uint8_t` mapping: `context_setup=0`, `input_validation=1`, `broad_phase=2`, `intersection_events=3`, `symbolic_registry=4`, `local_refinement=5`, `global_arrangement=6`, `cell_classification=7`, `boolean_selection=8`, `geometry_realization=9`, `output_assembly=10`, and `final_verification=11`. Exact-kernel failures use the stage whose work requested the predicate/construction. Diagnostic flushing uses its owning stage. Define `feature_ref` as a tagged variant over all strong ID/reference types; never flatten unlike ID types to a bare integer.
+Define the schema-v2 `boolean_stage : uint8_t` mapping with `result_topology_preflight` between `boolean_selection` and `geometry_realization`; bump later numeric values and replay/error schemas together. Exact-kernel failures use the stage whose work requested the predicate/construction. Diagnostic flushing uses its owning stage. Define `feature_ref` as a tagged variant over all strong ID/reference types; never flatten unlike ID types to a bare integer.
 
 Every `boolean_error` contains:
 
@@ -614,3 +615,15 @@ Component 1 is complete only when all of the following hold:
 - the context's borrowed-input and service lifetimes are documented and tested;
 - tests pass for all four supported `<T,I>` combinations, strict C++17 compilation, release checks, and sanitizer configurations;
 - public headers contain concise contract documentation sufficient for later component teams to use the APIs without consulting legacy Boolean implementations.
+
+## 14. Plan-gap amendment: topology and geometry policy axes
+
+This section supersedes schema-v1 policy/error text above where it conflicts.
+
+- Freeze `result_topology_policy::closed_embedded_two_manifold`, `realization_semantics::exact_in_T`, and `classification_strategy::independent_patch_side_v1`. Search strategy is independent and cannot change the result's semantic kind.
+- Add `selected_boundary_topology::{empty, closed_embedded_two_manifold, closed_stratified_nonmanifold}` and canonical topology-obstruction records. Add `result_topology_not_supported`; topology preflight returns it for a valid exact result outside the public topology policy.
+- `exact_in_T` requires exact rational equality between every symbolic coordinate and the dyadic decoded from accepted bits. A future approximate mode requires new result/artifact schemas, an explicit non-exact result kind, per-vertex exact displacement, and a verified bound.
+- Add strong IDs and feature references for topological occurrences, link entities, defining relations, realization constraint components, and topology obstructions. Bind all new policies to options, setup, replay, artifact, report, and error encodings.
+- Add independent limits for occurrence/link/probe records, defining relations, realization graph nodes/edges/components, pair boxes/candidates/checks, solver nodes/trail, component transcripts, and verifier witnesses.
+
+Failure precedence is: malformed exact selection is `internal_invariant_error`; valid but disallowed selected topology is `result_topology_not_supported`; permitted topology with a nonrepresentable exact coordinate is `output_not_representable`; incomplete work is `resource_limit`; public ordinal overflow is `index_overflow`.

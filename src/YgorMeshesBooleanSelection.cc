@@ -63,6 +63,12 @@ std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
     e.id(v.source);
     e.id(v.symbolic);
   }
+  e.u64(a.vertex_occurrences.size());
+  for (const auto &v : a.vertex_occurrences) {
+    e.id(v.id);
+    e.id(v.vertex);
+    ids(e, v.incident_halfedges);
+  }
   e.u64(a.edges.size());
   for (const auto &x : a.edges) {
     e.id(x.id);
@@ -79,6 +85,8 @@ std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
     e.id(h.edge);
     e.id(h.origin);
     e.id(h.destination);
+    e.id(h.origin_occurrence);
+    e.id(h.destination_occurrence);
     e.id(h.next);
     e.id(h.previous);
   }
@@ -98,6 +106,21 @@ std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
     e.id(p.representative);
     ids(e, p.provenance);
   }
+  e.byte(static_cast<std::uint8_t>(a.topology));
+  e.u64(a.topology_obstructions.size());
+  for (const auto &o : a.topology_obstructions) {
+    e.id(o.id);
+    e.byte(static_cast<std::uint8_t>(o.kind));
+    e.boolean(bool(o.vertex));
+    if (o.vertex)
+      e.id(*o.vertex);
+    e.boolean(bool(o.edge));
+    if (o.edge)
+      e.id(*o.edge);
+    e.u64(o.occurrences.size());
+    for (auto occurrence : o.occurrences)
+      e.u64(occurrence);
+  }
   e.id(a.certificate.id);
   e.u64(a.certificate.decisions);
   e.u64(a.certificate.discard_exterior);
@@ -109,8 +132,11 @@ std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
   e.u64(a.certificate.selected_halfedges);
   e.u64(a.certificate.selected_edges);
   e.u64(a.certificate.selected_vertices);
+  e.u64(a.certificate.selected_vertex_occurrences);
+  e.u64(a.certificate.topology_obstructions);
   e.u64(a.certificate.provenance_uses);
   e.u64(a.certificate.connected_components);
+  e.byte(static_cast<std::uint8_t>(a.certificate.topology));
   return e.bytes();
 }
 template <class T, class I>
@@ -279,14 +305,25 @@ bool independently_reconstruct_topology(const selected_exact_boundary<T, I> &a) 
         return false;
     }
   }
-  if (expected_selected != a.patches.size() ||
-      expected_edge_uses.size() != a.edges.size())
+  if (expected_selected != a.patches.size())
     return false;
-  for (const auto &entry : expected_edge_uses)
-    if (entry.second.size() != 2 ||
-        entry.second[0].first != entry.second[1].second ||
-        entry.second[0].second != entry.second[1].first)
+  std::uint64_t expected_uses = 0;
+  for (const auto &entry : expected_edge_uses) {
+    if (entry.second.size() % 2 != 0)
       return false;
+    expected_uses += entry.second.size();
+  }
+  if (expected_uses != a.halfedges.size())
+    return false;
+  for (const auto &edge : a.edges) {
+    if (edge.uses.size() != 2)
+      return false;
+    const auto &first = a.halfedges[edge.uses[0].value_for_debug()];
+    const auto &second = a.halfedges[edge.uses[1].value_for_debug()];
+    if (first.origin != second.destination ||
+        first.destination != second.origin)
+      return false;
+  }
   return true;
 }
 template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
@@ -303,9 +340,9 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
   operation_contract op(a.selected_operation);
   std::vector<unsigned> edge_uses(a.edges.size());
   std::vector<unsigned> vertex_uses(a.vertices.size());
+  std::vector<unsigned> occurrence_uses(a.vertex_occurrences.size());
   std::vector<unsigned> selected_patch_uses(a.patches.size());
   std::set<global_vertex_id> selected_sources;
-  std::set<global_atomic_edge_id> selected_edge_sources;
   std::set<global_patch_id> selected_patch_sources;
   for (std::size_t i = 0; i < a.decisions.size(); ++i) {
     const auto &d = a.decisions[i];
@@ -364,6 +401,16 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
         !selected_sources.insert(a.vertices[i].source).second ||
         a.vertices[i].symbolic != g.vertices[a.vertices[i].source.value_for_debug()].symbolic)
       return false;
+  for (std::size_t i = 0; i < a.vertex_occurrences.size(); ++i) {
+    const auto &occurrence = a.vertex_occurrences[i];
+    if (occurrence.id.value_for_debug() != i ||
+        occurrence.vertex.value_for_debug() >= a.vertices.size() ||
+        occurrence.incident_halfedges.empty())
+      return false;
+    for (auto halfedge : occurrence.incident_halfedges)
+      if (halfedge.value_for_debug() >= a.halfedges.size())
+        return false;
+  }
   for (auto n : selected_patch_uses)
     if (n != 1)
       return false;
@@ -371,7 +418,7 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
     const auto &x = a.edges[i];
     if (x.id.value_for_debug() != i ||
         x.source.value_for_debug() >= g.edges.size() || x.uses.size() != 2 ||
-        !selected_edge_sources.insert(x.source).second || x.uses[0] == x.uses[1])
+        x.uses[0] == x.uses[1])
       return false;
     if (x.uses[0].value_for_debug() >= a.halfedges.size() ||
         x.uses[1].value_for_debug() >= a.halfedges.size())
@@ -397,14 +444,19 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
         h.next.value_for_debug() >= a.halfedges.size() ||
         h.previous.value_for_debug() >= a.halfedges.size() ||
         h.patch.value_for_debug() >= a.patches.size() ||
-        h.cycle.value_for_debug() >= a.cycles.size() ||
-        h.origin.value_for_debug() >= a.vertices.size() ||
-        h.destination.value_for_debug() >= a.vertices.size() ||
+         h.cycle.value_for_debug() >= a.cycles.size() ||
+         h.origin.value_for_debug() >= a.vertices.size() ||
+         h.destination.value_for_debug() >= a.vertices.size() ||
+         h.origin_occurrence.value_for_debug() >= a.vertex_occurrences.size() ||
+         h.destination_occurrence.value_for_debug() >= a.vertex_occurrences.size() ||
+         a.vertex_occurrences[h.origin_occurrence.value_for_debug()].vertex != h.origin ||
+         a.vertex_occurrences[h.destination_occurrence.value_for_debug()].vertex != h.destination ||
         a.halfedges[h.next.value_for_debug()].previous != h.id ||
         a.halfedges[h.previous.value_for_debug()].next != h.id)
       return false;
     ++edge_uses[h.edge.value_for_debug()];
     ++vertex_uses[h.origin.value_for_debug()];
+    ++occurrence_uses[h.origin_occurrence.value_for_debug()];
   }
   for (auto n : edge_uses)
     if (n != 2)
@@ -412,6 +464,21 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
   for (auto n : vertex_uses)
     if (n == 0)
       return false;
+  for (auto n : occurrence_uses)
+    if (n == 0)
+      return false;
+  for (const auto &occurrence : a.vertex_occurrences) {
+    std::vector<selected_halfedge_id> expected;
+    for (const auto &halfedge : a.halfedges) {
+      if (halfedge.origin_occurrence == occurrence.id ||
+          halfedge.destination_occurrence == occurrence.id)
+        expected.push_back(halfedge.id);
+    }
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    if (expected != occurrence.incident_halfedges)
+      return false;
+  }
   for (std::size_t i = 0; i < a.cycles.size(); ++i) {
     const auto &c = a.cycles[i];
     if (c.id.value_for_debug() != i || c.patch.value_for_debug() >= a.patches.size() ||
@@ -444,8 +511,53 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
       a.certificate.selected_patches != a.patches.size() ||
       a.certificate.selected_cycles != a.cycles.size() ||
       a.certificate.selected_halfedges != a.halfedges.size() ||
-      a.certificate.selected_edges != a.edges.size() ||
-      a.certificate.selected_vertices != a.vertices.size())
+       a.certificate.selected_edges != a.edges.size() ||
+       a.certificate.selected_vertices != a.vertices.size() ||
+       a.certificate.selected_vertex_occurrences != a.vertex_occurrences.size() ||
+       a.certificate.topology_obstructions != a.topology_obstructions.size() ||
+       a.certificate.topology != a.topology ||
+       (a.patches.empty() != (a.topology == selected_boundary_topology::empty)) ||
+       (a.topology_obstructions.empty() !=
+        (a.topology != selected_boundary_topology::closed_stratified_nonmanifold)))
+    return false;
+  for (std::size_t i = 0; i < a.topology_obstructions.size(); ++i) {
+    const auto &obstruction = a.topology_obstructions[i];
+    if (obstruction.id.value_for_debug() != i ||
+        obstruction.kind > topology_obstruction_kind::nonembedded_stratum_contact ||
+        obstruction.occurrences.size() < 2 ||
+        (obstruction.vertex && obstruction.vertex->value_for_debug() >= a.vertices.size()) ||
+        (obstruction.edge && obstruction.edge->value_for_debug() >= g.edges.size()))
+      return false;
+  }
+  std::map<selected_vertex_id, std::vector<std::uint64_t>> vertex_occurrences;
+  for (const auto &occurrence : a.vertex_occurrences)
+    vertex_occurrences[occurrence.vertex].push_back(occurrence.id.value_for_debug());
+  std::map<global_atomic_edge_id, std::vector<std::uint64_t>> edge_occurrences;
+  for (const auto &edge : a.edges)
+    edge_occurrences[edge.source].push_back(edge.id.value_for_debug());
+  std::size_t expected_obstructions = 0;
+  for (const auto &entry : vertex_occurrences)
+    if (entry.second.size() > 1) {
+      if (expected_obstructions >= a.topology_obstructions.size())
+        return false;
+      const auto &obstruction = a.topology_obstructions[expected_obstructions++];
+      if (obstruction.kind !=
+              topology_obstruction_kind::disconnected_geometric_vertex_link ||
+          obstruction.vertex != entry.first || obstruction.edge ||
+          obstruction.occurrences != entry.second)
+        return false;
+    }
+  for (const auto &entry : edge_occurrences)
+    if (entry.second.size() > 1) {
+      if (expected_obstructions >= a.topology_obstructions.size())
+        return false;
+      const auto &obstruction = a.topology_obstructions[expected_obstructions++];
+      if (obstruction.kind != topology_obstruction_kind::multiple_edge_occurrences ||
+          obstruction.vertex || obstruction.edge != entry.first ||
+          obstruction.occurrences != entry.second)
+        return false;
+    }
+  if (expected_obstructions != a.topology_obstructions.size())
     return false;
   std::uint64_t discard_exterior = 0, discard_internal = 0,
                 select_preserved = 0, select_reversed = 0,
@@ -660,10 +772,11 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
       a.decisions.push_back(std::move(d));
     }
     std::map<global_vertex_id, selected_vertex_id> vertex_map;
-    std::map<global_atomic_edge_id, selected_edge_id> edge_map;
     std::map<std::pair<global_vertex_id, global_vertex_id>,
-             global_atomic_edge_id>
+              global_atomic_edge_id>
         source_edges;
+    std::vector<std::pair<vertex_occurrence_id, vertex_occurrence_id>>
+        source_occurrence_endpoints;
     for (const auto &e : g.edges)
       if (!source_edges.emplace(std::make_pair(e.lower, e.upper), e.id).second)
         return make_error(boolean_error_code::internal_invariant_error,
@@ -679,6 +792,37 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
         throw std::logic_error("selected vertex source out of range");
       a.vertices.push_back({id, source, g.vertices[source.value_for_debug()].symbolic});
       return id;
+    };
+    auto source_occurrences = [&](const selected_patch &patch,
+                                  global_atomic_edge_id edge,
+                                  global_vertex_id origin,
+                                  global_vertex_id destination)
+        -> status_or<std::pair<vertex_occurrence_id, vertex_occurrence_id>> {
+      const auto &global_patch = g.patches[patch.source.value_for_debug()];
+      std::vector<sheet_use_id> uses{patch.representative};
+      for (auto use : global_patch.uses)
+        if (use != patch.representative)
+          uses.push_back(use);
+      for (auto use_id : uses) {
+        if (use_id.value_for_debug() >= g.sheet_uses.size())
+          continue;
+        for (auto halfedge_id : g.sheet_uses[use_id.value_for_debug()].boundary) {
+          if (halfedge_id.value_for_debug() >= g.halfedges.size())
+            continue;
+          const auto &halfedge = g.halfedges[halfedge_id.value_for_debug()];
+          if (halfedge.edge != edge)
+            continue;
+          if (halfedge.origin == origin && halfedge.destination == destination)
+            return std::make_pair(halfedge.origin_occurrence,
+                                  halfedge.destination_occurrence);
+          if (halfedge.origin == destination && halfedge.destination == origin)
+            return std::make_pair(halfedge.destination_occurrence,
+                                  halfedge.origin_occurrence);
+        }
+      }
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::boolean_selection,
+                        "missing_cycle_occurrence");
     };
     for (auto &sp : a.patches) {
       if (ctx.cancelled())
@@ -710,24 +854,14 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
             return make_error(boolean_error_code::internal_invariant_error,
                               boolean_stage::boolean_selection,
                               "missing_cycle_edge");
-          auto ei = edge_map.find(ge->second);
-          selected_edge_id eid;
-          if (ei == edge_map.end()) {
-            eid = selected_edge_id::from_canonical_value(a.edges.size());
-            edge_map[ge->second] = eid;
-            const auto &source = g.edges[ge->second.value_for_debug()];
-            a.edges.push_back({eid,
-                               ge->second,
-                               vertex(source.lower),
-                               vertex(source.upper),
-                               {}});
-          } else
-            eid = ei->second;
+          auto occurrences = source_occurrences(sp, ge->second, gv0, gv1);
+          if (!occurrences.has_value())
+            return occurrences.error();
           auto hid =
               selected_halfedge_id::from_canonical_value(a.halfedges.size());
-          a.halfedges.push_back(
-              {hid, sp.id, cycle.id, eid, vertex(gv0), vertex(gv1), {}, {}});
-          a.edges[eid.value_for_debug()].uses.push_back(hid);
+          a.halfedges.push_back({hid, sp.id, cycle.id, {}, vertex(gv0),
+                                 vertex(gv1), {}, {}, {}, {}});
+          source_occurrence_endpoints.push_back(occurrences.value());
           cycle.halfedges.push_back(hid);
         }
         for (std::size_t i = 0; i < cycle.halfedges.size(); ++i) {
@@ -740,20 +874,150 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
         a.cycles.push_back(std::move(cycle));
       }
     }
-    for (const auto &e : a.edges) {
-      if (ctx.cancelled())
-        return make_error(boolean_error_code::resource_limit,
-                          boolean_stage::boolean_selection, "cancelled");
-      if (e.uses.size() != 2)
+    std::map<global_atomic_edge_id, std::vector<selected_halfedge_id>> edge_uses;
+    for (const auto &halfedge : a.halfedges) {
+      const auto source_origin = a.vertices[halfedge.origin.value_for_debug()].source;
+      const auto source_destination =
+          a.vertices[halfedge.destination.value_for_debug()].source;
+      const auto found = source_edges.find(std::minmax(source_origin, source_destination));
+      if (found == source_edges.end())
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::boolean_selection,
-                          "nonmanifold_selected_edge");
-      const auto &h0 = a.halfedges[e.uses[0].value_for_debug()];
-      const auto &h1 = a.halfedges[e.uses[1].value_for_debug()];
-      if (h0.origin != h1.destination || h0.destination != h1.origin)
-        return make_error(boolean_error_code::internal_invariant_error,
-                          boolean_stage::boolean_selection,
-                          "same_direction_selected_edge");
+                          "missing_selected_edge_source");
+      edge_uses[found->second].push_back(halfedge.id);
+    }
+    for (const auto &entry : edge_uses) {
+      std::vector<std::vector<selected_halfedge_id>> occurrences;
+      if (entry.second.size() == 2) {
+        occurrences.push_back(entry.second);
+      } else {
+        std::map<std::pair<vertex_occurrence_id, vertex_occurrence_id>,
+                 std::vector<selected_halfedge_id>> grouped;
+        const auto &source = g.edges[entry.first.value_for_debug()];
+        for (auto halfedge_id : entry.second) {
+          const auto &halfedge = a.halfedges[halfedge_id.value_for_debug()];
+          const auto &ends =
+              source_occurrence_endpoints[halfedge_id.value_for_debug()];
+          const auto source_origin =
+              a.vertices[halfedge.origin.value_for_debug()].source;
+          const auto key = source_origin == source.lower
+                               ? ends
+                               : std::make_pair(ends.second, ends.first);
+          grouped[key].push_back(halfedge_id);
+        }
+        for (auto &group : grouped)
+          occurrences.push_back(std::move(group.second));
+        const auto groups_are_closed = std::all_of(
+            occurrences.begin(), occurrences.end(), [&](const auto &uses) {
+              if (uses.size() != 2)
+                return false;
+              const auto &first = a.halfedges[uses[0].value_for_debug()];
+              const auto &second = a.halfedges[uses[1].value_for_debug()];
+              return first.origin == second.destination &&
+                     first.destination == second.origin;
+            });
+        if (!groups_are_closed) {
+          occurrences.clear();
+          std::vector<selected_halfedge_id> forward, reverse;
+          const auto &source = g.edges[entry.first.value_for_debug()];
+          const auto lower = vertex(source.lower);
+          for (auto halfedge_id : entry.second) {
+            const auto &halfedge = a.halfedges[halfedge_id.value_for_debug()];
+            (halfedge.origin == lower ? forward : reverse).push_back(halfedge_id);
+          }
+          std::sort(forward.begin(), forward.end());
+          std::sort(reverse.begin(), reverse.end());
+          if (forward.size() != reverse.size())
+            return make_error(boolean_error_code::internal_invariant_error,
+                              boolean_stage::boolean_selection,
+                              "unbalanced_selected_edge_occurrence");
+          for (std::size_t i = 0; i < forward.size(); ++i)
+            occurrences.push_back({forward[i], reverse[i]});
+        }
+      }
+      for (auto &uses : occurrences) {
+        std::sort(uses.begin(), uses.end());
+        if (uses.size() != 2)
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::boolean_selection,
+                            "open_selected_edge_occurrence");
+        const auto &first = a.halfedges[uses[0].value_for_debug()];
+        const auto &second = a.halfedges[uses[1].value_for_debug()];
+        if (first.origin != second.destination ||
+            first.destination != second.origin)
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::boolean_selection,
+                            "same_direction_selected_edge");
+        const auto id = selected_edge_id::from_canonical_value(a.edges.size());
+        const auto &source = g.edges[entry.first.value_for_debug()];
+        a.edges.push_back({id, entry.first, vertex(source.lower),
+                           vertex(source.upper), uses});
+        for (auto halfedge_id : uses)
+          a.halfedges[halfedge_id.value_for_debug()].edge = id;
+      }
+    }
+
+    // Link endpoint germs through patch corners and paired surface-edge uses.
+    std::vector<std::size_t> parent(a.halfedges.size() * 2);
+    for (std::size_t i = 0; i < parent.size(); ++i)
+      parent[i] = i;
+    auto root = [&](std::size_t x) {
+      while (parent[x] != x) {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
+      }
+      return x;
+    };
+    auto join = [&](std::size_t x, std::size_t y) {
+      x = root(x);
+      y = root(y);
+      if (x != y)
+        parent[std::max(x, y)] = std::min(x, y);
+    };
+    for (const auto &halfedge : a.halfedges)
+      join(halfedge.id.value_for_debug() * 2 + 1,
+           halfedge.next.value_for_debug() * 2);
+    for (const auto &edge : a.edges) {
+      const auto &first = a.halfedges[edge.uses[0].value_for_debug()];
+      const auto &second = a.halfedges[edge.uses[1].value_for_debug()];
+      join(first.id.value_for_debug() * 2,
+           second.id.value_for_debug() * 2 + 1);
+      join(first.id.value_for_debug() * 2 + 1,
+           second.id.value_for_debug() * 2);
+    }
+    std::map<std::pair<selected_vertex_id, std::size_t>,
+             selected_vertex_occurrence_id> occurrence_map;
+    for (const auto &halfedge : a.halfedges) {
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+        const auto selected_vertex = endpoint ? halfedge.destination : halfedge.origin;
+        const auto key = std::make_pair(
+            selected_vertex,
+            root(halfedge.id.value_for_debug() * 2 + endpoint));
+        if (!occurrence_map.count(key)) {
+          const auto id = selected_vertex_occurrence_id::from_canonical_value(
+              a.vertex_occurrences.size());
+          occurrence_map.emplace(key, id);
+          a.vertex_occurrences.push_back({id, selected_vertex, {}});
+        }
+      }
+    }
+    for (auto &halfedge : a.halfedges) {
+      halfedge.origin_occurrence = occurrence_map.at(
+          {halfedge.origin, root(halfedge.id.value_for_debug() * 2)});
+      halfedge.destination_occurrence = occurrence_map.at(
+          {halfedge.destination, root(halfedge.id.value_for_debug() * 2 + 1)});
+      a.vertex_occurrences[halfedge.origin_occurrence.value_for_debug()]
+          .incident_halfedges.push_back(halfedge.id);
+      a.vertex_occurrences[halfedge.destination_occurrence.value_for_debug()]
+          .incident_halfedges.push_back(halfedge.id);
+    }
+    for (auto &occurrence : a.vertex_occurrences) {
+      std::sort(occurrence.incident_halfedges.begin(),
+                occurrence.incident_halfedges.end());
+      occurrence.incident_halfedges.erase(
+          std::unique(occurrence.incident_halfedges.begin(),
+                      occurrence.incident_halfedges.end()),
+          occurrence.incident_halfedges.end());
     }
     std::vector<std::set<selected_patch_id>> adj(a.patches.size());
     for (const auto &e : a.edges) {
@@ -779,8 +1043,60 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
               seen[y.value_for_debug()] = true;
               q.push_back(y);
             }
-        }
+          }
       }
+    std::map<selected_vertex_id, std::vector<selected_vertex_occurrence_id>>
+        occurrences_by_vertex;
+    for (const auto &occurrence : a.vertex_occurrences)
+      occurrences_by_vertex[occurrence.vertex].push_back(occurrence.id);
+    std::map<global_atomic_edge_id, std::vector<selected_edge_id>>
+        occurrences_by_edge;
+    for (const auto &edge : a.edges)
+      occurrences_by_edge[edge.source].push_back(edge.id);
+    struct obstruction_draft {
+      topology_obstruction_kind kind;
+      std::optional<selected_vertex_id> vertex;
+      std::optional<global_atomic_edge_id> edge;
+      std::vector<std::uint64_t> occurrences;
+    };
+    std::vector<obstruction_draft> obstruction_drafts;
+    for (const auto &entry : occurrences_by_vertex)
+      if (entry.second.size() > 1) {
+        obstruction_draft draft{
+            topology_obstruction_kind::disconnected_geometric_vertex_link,
+            entry.first, {}, {}};
+        for (auto occurrence : entry.second)
+          draft.occurrences.push_back(occurrence.value_for_debug());
+        obstruction_drafts.push_back(std::move(draft));
+      }
+    for (const auto &entry : occurrences_by_edge)
+      if (entry.second.size() > 1) {
+        obstruction_draft draft{
+            topology_obstruction_kind::multiple_edge_occurrences, {},
+            entry.first, {}};
+        for (auto occurrence : entry.second)
+          draft.occurrences.push_back(occurrence.value_for_debug());
+        obstruction_drafts.push_back(std::move(draft));
+      }
+    std::sort(obstruction_drafts.begin(), obstruction_drafts.end(),
+              [](const auto &left, const auto &right) {
+                return std::make_tuple(left.kind, left.vertex, left.edge,
+                                       left.occurrences) <
+                       std::make_tuple(right.kind, right.vertex, right.edge,
+                                       right.occurrences);
+              });
+    for (auto &draft : obstruction_drafts) {
+      const auto id = topology_obstruction_id::from_canonical_value(
+          a.topology_obstructions.size());
+      a.topology_obstructions.push_back(
+          {id, draft.kind, draft.vertex, draft.edge,
+           std::move(draft.occurrences)});
+    }
+    a.topology = a.patches.empty()
+                     ? selected_boundary_topology::empty
+                     : a.topology_obstructions.empty()
+                           ? selected_boundary_topology::closed_embedded_two_manifold
+                           : selected_boundary_topology::closed_stratified_nonmanifold;
     if (ctx.cancelled())
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::boolean_selection, "cancelled");
@@ -791,6 +1107,9 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
     a.certificate.selected_halfedges = a.halfedges.size();
     a.certificate.selected_edges = a.edges.size();
     a.certificate.selected_vertices = a.vertices.size();
+    a.certificate.selected_vertex_occurrences = a.vertex_occurrences.size();
+    a.certificate.topology_obstructions = a.topology_obstructions.size();
+    a.certificate.topology = a.topology;
     for (const auto &decision : a.decisions) {
       a.certificate.provenance_uses += decision.provenance.size();
       switch (decision.kind) {
@@ -832,9 +1151,13 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
                                   std::uint64_t(a.halfedges.size())),
                    std::make_pair(resource_kind::selected_edges,
                                   std::uint64_t(a.edges.size())),
-                   std::make_pair(resource_kind::selected_vertices,
-                                  std::uint64_t(a.vertices.size())),
-                   std::make_pair(resource_kind::selection_provenance,
+                    std::make_pair(resource_kind::selected_vertices,
+                                   std::uint64_t(a.vertices.size())),
+                    std::make_pair(resource_kind::selected_vertex_occurrences,
+                                   std::uint64_t(a.vertex_occurrences.size())),
+                    std::make_pair(resource_kind::topology_obstructions,
+                                   std::uint64_t(a.topology_obstructions.size())),
+                    std::make_pair(resource_kind::selection_provenance,
                                   a.certificate.provenance_uses)}) {
       auto ok = reserve(q.first, q.second);
       if (!ok.has_value())

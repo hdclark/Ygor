@@ -424,3 +424,11 @@ Component 14 is complete only when:
 - dependency-free GCC/Clang jobs pass with Eigen/GSL disabled and prove normative Boolean targets have no prohibited transitive dependency;
 - qualification emits a canonical versioned corpus, platform matrix, oracle/mutation/coverage/documentation results, minimized regressions, and report with zero unexplained disagreement or missing required cell;
 - benchmarks are reproducible and separate from correctness, and no performance policy weakens exactness, verification, or failure behavior.
+
+## 18. Plan-gap qualification amendment
+
+`tests/MeshBooleanPlanGapCases.md` is a release gate. G1-G9 remain individually registered and cease being red tests only when their exact success or typed-failure assertions pass for all applicable operations, operand orders, policies, and `<T, I>` combinations.
+
+Add bounded independent oracles for geometric-point occurrence partitioning, complete spherical links, open-probe substitution, exact-target/defining-relation replay, decomposed assignment, and exhaustive triangle pairs. Add self-consistent artifact rebuilders for occurrence weld, radial swap, missing continuation, one-ULP defining-incidence violation, hybrid classification claim, and forged realization obligation. Add standalone Component 8/11 verifier link tests that cannot resolve producer-only symbols.
+
+The permanent corpus includes vertex-touching cubes, edge-touching cubes, and the one-third prism. Qualification distinguishes `result_topology_not_supported`, `output_not_representable`, `resource_limit`, and `internal_invariant_error`, verifies topology-before-realization precedence, and requires schema/version rejection for stale policy and artifact encodings.

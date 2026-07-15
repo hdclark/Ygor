@@ -38,6 +38,53 @@ digest policy_digest(const output_policy &p) {
   return domain_digest({{'Y', 'G', 'B', 'O', 'P', 'L', '1', '2'}}, e.bytes());
 }
 
+digest topology_policy_digest(result_topology_policy policy) {
+  canonical_encoder e;
+  e.u16(1);
+  e.byte(static_cast<std::uint8_t>(policy));
+  return domain_digest({{'Y', 'G', 'B', 'T', 'P', 'L', '1', '2'}}, e.bytes());
+}
+
+template <class T, class I>
+bool independently_classify_selected(const selected_exact_boundary<T, I> &s,
+                                     selected_boundary_topology &topology) {
+  if (s.patches.empty()) {
+    topology = selected_boundary_topology::empty;
+    return s.vertices.empty() && s.vertex_occurrences.empty() && s.edges.empty() &&
+           s.halfedges.empty() && s.cycles.empty() &&
+           s.topology_obstructions.empty();
+  }
+  std::map<selected_vertex_id, std::uint64_t> vertex_occurrences;
+  std::map<global_atomic_edge_id, std::uint64_t> edge_occurrences;
+  for (const auto &occurrence : s.vertex_occurrences) {
+    if (occurrence.vertex.value_for_debug() >= s.vertices.size() ||
+        occurrence.incident_halfedges.empty())
+      return false;
+    ++vertex_occurrences[occurrence.vertex];
+  }
+  for (const auto &edge : s.edges) {
+    if (edge.uses.size() != 2 || edge.source.value_for_debug() >=
+                                     s.arrangement->payload->edges.size())
+      return false;
+    const auto &first = s.halfedges[edge.uses[0].value_for_debug()];
+    const auto &second = s.halfedges[edge.uses[1].value_for_debug()];
+    if (first.origin != second.destination ||
+        first.destination != second.origin)
+      return false;
+    ++edge_occurrences[edge.source];
+  }
+  bool obstructed = false;
+  for (const auto &entry : vertex_occurrences)
+    obstructed = obstructed || entry.second > 1;
+  for (const auto &entry : edge_occurrences)
+    obstructed = obstructed || entry.second > 1;
+  topology = obstructed
+                 ? selected_boundary_topology::closed_stratified_nonmanifold
+                 : selected_boundary_topology::closed_embedded_two_manifold;
+  return topology == s.topology &&
+         (obstructed == !s.topology_obstructions.empty());
+}
+
 template <class T> auto raw_bits(T v) {
   typename std::conditional<sizeof(T) == 4, std::uint32_t, std::uint64_t>::type
       b = 0;
@@ -268,6 +315,9 @@ std::vector<std::uint8_t> semantic(const assembled_output<T, I> &a) {
   e.u16(a.policy.ordering_version);
   e.u16(a.policy.encoding_version);
   e.byte(static_cast<std::uint8_t>(a.policy.topology));
+  e.byte(static_cast<std::uint8_t>(a.topology_authorization.topology));
+  e.raw(a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
+  e.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
   e.raw(a.realized->payload->certificate.semantic_digest.bytes.data(), 16);
   e.raw(a.realized->payload->policy_digest.bytes.data(), 16);
   e.u64(a.components.size());
@@ -346,6 +396,9 @@ std::vector<std::uint8_t> invocation(const assembled_output<T, I> &a) {
   e.raw(a.selected_digest.bytes.data(), 16);
   e.raw(a.realized_digest.bytes.data(), 16);
   e.raw(a.policy_digest.bytes.data(), 16);
+  e.raw(a.topology_authorization.selected_digest.bytes.data(), 16);
+  e.raw(a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
+  e.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
   e.u64(a.realized->payload->selected->generation);
   e.u64(a.realized->generation);
   e.raw(a.realized->payload->selected->report.report_digest.bytes.data(), 16);
@@ -425,6 +478,16 @@ bool independently_valid(const assembled_output<T, I> &a,
       a.selected_digest != a.realized->payload->selected_digest ||
       a.realized_digest != a.realized->artifact_digest ||
       a.policy_digest != policy_digest(a.policy) ||
+      a.topology_authorization.owner != a.owner ||
+      a.topology_authorization.selected_digest != a.selected_digest ||
+      a.topology_authorization.topology_certificate_digest !=
+          a.realized->payload->selected->payload->certificate.semantic_digest ||
+      a.topology_authorization.policy_digest !=
+          topology_policy_digest(env.options->result_topology) ||
+      a.topology_authorization.topology !=
+          a.realized->payload->selected->payload->topology ||
+      a.topology_authorization.topology ==
+          selected_boundary_topology::closed_stratified_nonmanifold ||
       !a.realized->report.passed() ||
       a.policy.topology !=
           output_topology_policy::triangulated_v1_no_simplification ||
@@ -782,7 +845,7 @@ bool independently_valid(const assembled_output<T, I> &a,
     }
   }
   const auto &c = a.certificate;
-  if (c.id.value_for_debug() != 0 || c.schema != 1 ||
+  if (c.id.value_for_debug() != 0 || c.schema != assembled_output_schema ||
       c.ordering_version != a.policy.ordering_version ||
       c.encoding_version != a.policy.encoding_version ||
       c.vertices != a.mesh.vertices.size() || c.faces != a.mesh.faces.size() ||
@@ -828,6 +891,11 @@ bool independently_valid(const assembled_output<T, I> &a,
   semantic_check.u16(a.policy.ordering_version);
   semantic_check.u16(a.policy.encoding_version);
   semantic_check.byte(static_cast<std::uint8_t>(a.policy.topology));
+  semantic_check.byte(
+      static_cast<std::uint8_t>(a.topology_authorization.topology));
+  semantic_check.raw(
+      a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
+  semantic_check.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
   semantic_check.raw(r.certificate.semantic_digest.bytes.data(), 16);
   semantic_check.raw(r.policy_digest.bytes.data(), 16);
   semantic_check.u64(a.components.size());
@@ -903,6 +971,11 @@ bool independently_valid(const assembled_output<T, I> &a,
   invocation_check.raw(a.selected_digest.bytes.data(), 16);
   invocation_check.raw(a.realized_digest.bytes.data(), 16);
   invocation_check.raw(a.policy_digest.bytes.data(), 16);
+  invocation_check.raw(a.topology_authorization.selected_digest.bytes.data(),
+                       16);
+  invocation_check.raw(
+      a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
+  invocation_check.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
   invocation_check.u64(r.selected->generation);
   invocation_check.u64(a.realized->generation);
   invocation_check.raw(r.selected->report.report_digest.bytes.data(), 16);
@@ -1071,6 +1144,55 @@ status_or<bool> register_boolean_output_verifier(verifier_registry &r,
 }
 
 template <class T, class I>
+status_or<result_topology_authorization>
+authorize_result_topology(boolean_context<T, I> &ctx) {
+  if (ctx.cancelled())
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::result_topology_preflight, "cancelled");
+  auto selected_result = select_boolean_boundary(ctx);
+  if (!selected_result.has_value())
+    return selected_result.error();
+  const auto selected = selected_result.value();
+  if (!selected || !selected->payload || selected->owner != ctx.owner() ||
+      selected->stage != boolean_stage::boolean_selection ||
+      selected->slot != artifact_slot::selected_exact_boundary ||
+      !selected->report.passed() || selected->payload->owner != ctx.owner() ||
+      selected->payload->setup_digest != ctx.replay().setup ||
+      selected->payload->artifact_digest != selected->artifact_digest)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::result_topology_preflight,
+                      "selected_topology_binding");
+  selected_boundary_topology reconstructed = selected_boundary_topology::empty;
+  if (!independently_classify_selected(*selected->payload, reconstructed))
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::result_topology_preflight,
+                      "selected_topology_classification");
+  if (ctx.options().result_topology !=
+      result_topology_policy::closed_embedded_two_manifold)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::result_topology_preflight,
+                      "unknown_result_topology_policy");
+  if (reconstructed ==
+      selected_boundary_topology::closed_stratified_nonmanifold) {
+    auto error = make_error(boolean_error_code::result_topology_not_supported,
+                            boolean_stage::result_topology_preflight,
+                            "closed_stratified_nonmanifold");
+    for (const auto &obstruction : selected->payload->topology_obstructions)
+      error.features.emplace_back(obstruction.id);
+    return error;
+  }
+  result_topology_authorization authorization;
+  authorization.owner = ctx.owner();
+  authorization.selected_digest = selected->artifact_digest;
+  authorization.topology_certificate_digest =
+      selected->payload->certificate.semantic_digest;
+  authorization.policy_digest =
+      topology_policy_digest(ctx.options().result_topology);
+  authorization.topology = reconstructed;
+  return authorization;
+}
+
+template <class T, class I>
 status_or<std::shared_ptr<const published_artifact<assembled_output<T, I>>>>
 assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
   try {
@@ -1094,6 +1216,9 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
                           "cached_output_binding");
       return typed;
     }
+    auto topology_authorization = authorize_result_topology(ctx);
+    if (!topology_authorization.has_value())
+      return topology_authorization.error();
     auto realized_result = realize_selected_boundary(ctx);
     if (!realized_result.has_value())
       return realized_result.error();
@@ -1118,10 +1243,20 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
         r.certificate.selected_digest != r.selected_digest ||
         r.certificate.policy_digest != r.policy_digest ||
         r.certificate.triangulation_version != 1 ||
-        r.certificate.obligation_version != 1)
+         r.certificate.obligation_version != 1)
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::output_assembly,
                         "realized_payload_binding");
+    if (topology_authorization.value().owner != ctx.owner() ||
+        topology_authorization.value().selected_digest != r.selected_digest ||
+        topology_authorization.value().topology_certificate_digest !=
+            r.selected->payload->certificate.semantic_digest ||
+        topology_authorization.value().policy_digest !=
+            topology_policy_digest(ctx.options().result_topology) ||
+        topology_authorization.value().topology != r.selected->payload->topology)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::output_assembly,
+                        "result_topology_authorization_binding");
     const auto expected_realization_type =
         realized_boundary_type_tag +
         (static_cast<std::uint64_t>(ctx.platform().coordinate) << 8) +
@@ -1242,6 +1377,7 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
     a.realized_digest = realized->artifact_digest;
     a.policy = ctx.options().output;
     a.policy_digest = policy_digest(a.policy);
+    a.topology_authorization = topology_authorization.value();
     a.realized = realized;
     std::vector<std::vector<std::uint8_t>> tokens(r.vertices.size());
     std::set<std::vector<std::uint8_t>> unique;
@@ -1461,6 +1597,8 @@ boolean_result<T, I> assemble_boolean_output(boolean_context<T, I> &ctx) {
 }
 
 #define INST(T, I)                                                             \
+  template status_or<result_topology_authorization>                            \
+  authorize_result_topology(boolean_context<T, I> &);                         \
   template status_or<                                                          \
       std::shared_ptr<const published_artifact<assembled_output<T, I>>>>       \
   assemble_boolean_output_artifact(boolean_context<T, I> &);                   \

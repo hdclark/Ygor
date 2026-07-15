@@ -2,7 +2,7 @@
 
 ## 0. Overall goal
 
-Build a portable C++17 engine for regularized union, intersection, difference, and symmetric difference of closed, orientable polygonal B-rep solids represented by `fv_surface_mesh<T, I>`. The engine must derive every topological decision from exact predicates or exact constructions, assign stable identities to all constructed entities, and either return a certified manifold boundary of the mathematically defined result or return a precise failure. It must never guess, repair an ambiguous result heuristically, or silently emit a plausible but incorrect mesh.
+Build a portable C++17 engine for regularized union, intersection, difference, and symmetric difference of closed, orientable polygonal B-rep solids represented by `fv_surface_mesh<T, I>`. The engine must derive every topological decision from exact predicates or exact constructions, assign stable identities to all constructed entities, and compute a certified closed oriented stratified boundary of the mathematically defined result. Publication as `fv_surface_mesh<T, I>` additionally requires that exact boundary to satisfy the frozen manifold-result and realization policies; otherwise the engine returns a precise typed failure. It must never guess, repair an ambiguous result heuristically, or silently emit a plausible but incorrect mesh.
 
 "Exact result" has three distinct meanings:
 
@@ -18,7 +18,7 @@ boolean_result<T, I> boolean_operation(...);
 // failure: input_contract_error, resource_limit, or output_not_representable
 ```
 
-Internally, an exact/symbolic result remains available so that a future exact-coordinate output type can avoid the last failure class. Returning a wrong `T` mesh is never an allowed fallback.
+Internally, an exact/symbolic stratified result remains available so that future non-manifold or exact-coordinate output types can avoid publication failures. Schema v1 supports only `exact_in_T`: every emitted coordinate must equal its exact symbolic target when decoded as a dyadic. A future `certified_approximate_embedding` mode must use an explicit result kind and displacement certificate and must not claim that its mesh point set is the exact Boolean set. Returning a wrong or semantically mislabelled `T` mesh is never an allowed fallback.
 
 ## 1. Domain and semantics
 
@@ -39,7 +39,7 @@ If callers want a broader notion of input, a separate normalization API must con
 1. **Correctness before performance.** Optimize only after invariants and differential tests survive the change.
 2. **Exact decisions.** Floating-point filters may accelerate a predicate, but an uncertain filter always falls back to exact arithmetic. No epsilon, snapping tolerance, or float equality controls topology.
 3. **Topology first.** Discover symbolic events, establish exact order and incidence, build arrangements, classify cells, and only then realize coordinates.
-4. **One identity per mathematical entity.** Original features and constructed intersections have canonical, stable keys. Coincident derivations are interned, not independently rounded.
+4. **Separate geometric and topological identity.** Original features and constructed geometric points have canonical, stable keys, and coincident derivations are interned. A geometric point or segment may own several distinct topological surface occurrences; equality of coordinates never creates adjacency or welding.
 5. **Degeneracies are ordinary cases.** Coplanar overlap, coincident edges/faces, vertex-on-edge/face, tangency, containment, equal operands, and empty/full results have specified outcomes.
 6. **Determinism.** Results do not depend on pointer values, hash iteration order, thread scheduling, BVH shape, predicate filter path, or input facet traversal order. Canonical ordering resolves all ties.
 7. **Conservative acceleration.** Broad-phase code may add false candidates but may never remove a true candidate.
@@ -65,8 +65,8 @@ If callers want a broader notion of input, a separate normalization API must con
 | 7 | `component_07_local_refinement.md` | Build exact constrained arrangements on input facets | refined facet patches |
 | 8 | `component_08_global_arrangement.md` | Stitch patches into a globally consistent oriented arrangement | arrangement complex |
 | 9 | `component_09_cell_classification.md` | Label both sides/cells by exact operand occupancy | labeled arrangement |
-| 10 | `component_10_boolean_selection.md` | Apply the Boolean truth table and select oriented boundary patches | selected exact boundary |
-| 11 | `component_11_geometry_realization.md` | Realize each symbolic vertex once and certify conversion to `T` | realized vertices or failure |
+| 10 | `component_10_boolean_selection.md` | Apply the Boolean truth table and select an oriented stratified boundary | selected exact boundary plus topology class |
+| 11 | `component_11_geometry_realization.md` | Realize each symbolic vertex once under explicit geometry semantics | realized vertices or failure |
 | 12 | `component_12_output_assembly.md` | Assemble, simplify safely, orient, and canonically serialize output | `fv_surface_mesh<T, I>` |
 | 13 | `component_13_verification.md` | Verify stage invariants and produce diagnostic certificates | verification reports |
 | 14 | `component_14_testing.md` | Unit, property, metamorphic, adversarial, and end-to-end testing | reproducible test corpus |
@@ -82,11 +82,12 @@ Components 1, 3, 13, and 14 are infrastructure used throughout. Verification is 
 5. Intern mathematically identical events and derive exact total orders along edges and within overlap carriers.
 6. Construct a constrained planar arrangement on every affected source facet. Subdivide source edges and facet interiors using symbolic vertices and curves.
 7. Stitch local patches through canonical edge/event identities into a global arrangement. Verify twin, cycle, and orientation invariants.
-8. Classify arrangement cells, or equivalently both sides of every patch, as inside/outside each operand. Seed classification with exact point location and propagate labels through oriented surfaces.
-9. Evaluate the requested regularized Boolean truth table. Keep exactly those patches separating selected and unselected volume, oriented with result interior on the prescribed side.
-10. Realize exact symbolic coordinates once per canonical vertex. Find `T` representatives and certify all signs, orders, incidences, and non-incidences needed by the selected boundary. Return `output_not_representable` if no certified representation is found under the API policy.
-11. Assemble indexed facets, perform only exact-proof simplifications, canonicalize output ordering, and check index capacity.
-12. Run final topology, geometry, orientation, set-membership, determinism, and serialization checks. Publish only after all mandatory checks pass.
+8. Under the frozen `independent_patch_side_v1` strategy, classify every atomic patch side directly with a certified open 3D formal probe. Use arrangement transitions and propagation only as consistency audits, not as the proof of labels or complete 3D-cell connectivity.
+9. Evaluate the requested regularized Boolean truth table. Keep exactly those patches separating selected and unselected volume, oriented with result interior on the prescribed side, preserve distinct topological occurrences over shared geometry, and classify the selected boundary as empty, manifold, or stratified non-manifold.
+10. Apply the public result-topology policy. Under the initial manifold-only `fv_surface_mesh` policy, a valid stratified non-manifold result returns `result_topology_not_supported` before coordinate realization.
+11. Realize exact symbolic coordinates once per canonical vertex. Under `exact_in_T`, require every accepted `T` value to equal its exact symbolic coordinate and replay all defining incidences and orders. Return `output_not_representable` when an exact target has no `T` representation.
+12. Assemble indexed facets, perform only exact-proof simplifications, canonicalize output ordering, and check index capacity.
+13. Run final topology, geometry, orientation, set-membership, determinism, and serialization checks. Publish only after all mandatory checks pass.
 
 An empty selected boundary is a successful representation of the empty regularized solid. A "whole universe" result is outside the finite closed-solid API and is prevented by the supported operation/domain contract.
 
@@ -111,15 +112,16 @@ No later component begins production integration until the previous artifact's c
 ## 6. Global invariants
 
 - Every handle refers to exactly one immutable entity in its owning context.
+- Every symbolic vertex identifies one exact geometric point; Component 8 separately partitions all incident sheet germs into topological vertex occurrences and complete spherical-link components.
 - Every topological comparison is explained by an exact predicate result plus a deterministic tie rule.
 - Every constructed vertex has exact provenance and one canonical registry entry.
 - All event lists are strictly ordered by exact parameter; equal parameters are merged by proof.
 - Local refinements cover each source facet exactly, without gaps or positive-area overlap.
 - Global halfedges have valid twins; local cycles close; patch orientations agree with source provenance.
-- Each arrangement patch has well-defined occupancy labels on both sides for both operands.
+- Each arrangement patch has two independently classified open-side labels for both operands; transition propagation is a consistency audit only.
 - Selected patches are exactly those across which the Boolean result occupancy changes.
-- The selected exact boundary is closed and orientable before coordinate rounding.
-- Realization preserves every predicate sign in the stage's explicit certificate set.
+- The selected exact boundary is closed and orientable as a stratified complex before coordinate realization, and its manifold topology class is explicit.
+- Under `exact_in_T`, every emitted dyadic coordinate equals its exact target and satisfies every defining construction relation; any future approximate mode is separately tagged and cannot claim exact set geometry.
 - The final indexed mesh is closed, embedded, consistently outward-oriented, and has no duplicate positive-area facets.
 - Re-running with different thread counts, BVH construction choices, or enabled filters yields byte-identical canonical output and equivalent diagnostics.
 
@@ -131,6 +133,7 @@ Expected failures are typed and carry stage, operand/feature IDs, predicate/even
 - `unsupported_platform`: `T` is not supported by exact bit-level conversion or required integer assumptions are false.
 - `resource_limit`: caller-declared memory, exact-number size, event count, or work limit reached. Unlimited correctness mode has no artificial arithmetic cap.
 - `index_overflow`: result cannot be indexed by `I`.
+- `result_topology_not_supported`: the verified exact selected boundary is valid but does not satisfy the requested public output-topology policy.
 - `output_not_representable`: exact result exists, but no emitted `T` realization has been certified under the chosen realization policy.
 - `internal_invariant_error`: implementation defect; includes a minimized/replayable trace whenever possible.
 

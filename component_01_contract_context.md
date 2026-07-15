@@ -12,7 +12,7 @@ Accept:
 - One operation: regularized union, intersection, `A - B`, `B - A`, or symmetric difference.
 - A documented solid policy. The default interprets consistently outward-oriented shells as boundaries of regular closed solids and uses nesting/orientation for cavities.
 - Determinism options, mandatory verification level, tracing controls, execution/thread budget, and resource limits.
-- A realization policy that is always certified. It may choose nearest `T`, search neighboring `T` values, or decline realization; it may not accept an uncertified mesh.
+- A result-topology policy and a realization-semantics policy. Schema v1 supports `closed_embedded_two_manifold` output and `exact_in_T` geometry; search strategy is separate from semantic meaning and may not weaken either policy.
 
 Preconditions:
 
@@ -64,7 +64,7 @@ Produce:
 - A frozen operation contract and truth table.
 - Stable-ID factories and canonical comparison functions.
 - A stage transaction/publication interface.
-- Typed errors: input contract, unsupported platform, resource limit, index overflow, output not representable, and internal invariant error.
+- Typed errors: input contract, unsupported platform, resource limit, index overflow, result topology not supported, output not representable, and internal invariant error.
 - A complete replay descriptor sufficient to reproduce deterministic behavior.
 
 Invariants:
@@ -89,3 +89,11 @@ Failure conditions:
 - Transaction fault injection proves failed stages cannot leak partial artifacts.
 - Every public failure contains stage and replay metadata.
 - Context APIs contain no geometry-specific tolerance.
+
+## 5. Plan-gap contract amendment
+
+Freeze `result_topology_policy::closed_embedded_two_manifold`, `realization_semantics::exact_in_T`, and `classification_strategy::independent_patch_side_v1` in the options and canonical policy digest. Search strategy controls only how a permitted semantic mode is solved. Under `exact_in_T`, neighboring movement cannot turn an unequal dyadic into success.
+
+Add strong domains for topological vertex/edge occurrences, spherical-link entities, defining relations, realization constraint components, and topology obstructions. Add `boolean_error_code::result_topology_not_supported` and a `result_topology_preflight` stage between selection and realization. A valid stratified result rejected by the public manifold policy is not malformed input, unrepresentable geometry, or an internal defect.
+
+Schema changes must bump option, artifact, error, and replay versions. Resource policy must separately bound occurrence/link construction, probe constraints, defining relations, realization graph nodes/edges/components, broad-phase pair candidates/checks, solver nodes, component transcripts, verifier witnesses, and canonical bytes.

@@ -300,3 +300,7 @@ Component 6 is complete only when:
 - IDs and encodings are independent of hashes, DSU roots, input permutations, partitions, schedules, threads, pointers, approximations, and Boolean operation;
 - independent exact verification, oracle comparison, mutation detection, resource/cancellation rollback, replay, Debug/Release, GCC/Clang, ASan/UBSan, and TSan suites pass;
 - Component 7 can build every facet constraint and shared source-boundary chain solely from the immutable symbolic complex without recomputing identity, recovering omitted provenance, or inventing private split points.
+
+## 14. Plan-gap amendment: geometric identity only
+
+`symbolic_vertex_id` denotes one exact geometric point and nothing stronger. Equal symbols may participate in several disconnected surface-sheet germs. Components 8-12 must represent those with separate topological occurrence IDs and must never create adjacency, mate, continuation, classification transition, or output welding solely from symbolic or coordinate equality. Component 6 verifies point equality and incidence provenance but does not group topological occurrences.

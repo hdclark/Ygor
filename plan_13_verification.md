@@ -293,19 +293,19 @@ Reconstruct source boundaries from registry splits; verify all point/curve const
 
 ### 9.7 Global arrangement
 
-Check total local/global mappings and reverse coverage, global cycles and sheet mates, exact source facet/shell reconstruction, seam atomization, complete incidence, radial layers/sectors, spherical vertex links, coincidence domains and area, transparent artificial cuts, side-transition completeness, formal probe constraints, and canonical encoding. Independent bounded oracles reconstruct planar overlays, radial orders, links, and source sheets without producer grouping helpers.
+Check total local/global mappings and reverse coverage, geometric-point/topological-occurrence partitions, occurrence-ended cycles and sheet mates, exact source facet/shell reconstruction, seam atomization, complete incidence, radial layers/sectors, complete spherical vertex links, coincidence domains and area, transparent artificial cuts, side-transition completeness, formal probe constraints, and canonical encoding. Independent bounded oracles reconstruct occurrence partitions, planar overlays, radial orders, links, probes, and source sheets without producer grouping helpers.
 
 ### 9.8 Cell classification
 
-Reconstruct classification regions and validate formal probes; independently evaluate exact signed degree against both operands; use alternate deterministic directions/formal paths under the mandatory registered policy; check shell-polarity agreement, sheet and coincidence transfers, tangent transparency, seed/propagation agreement, reverse transitions, every fundamental cycle, patch-side labels, and the exterior-at-infinity label.
+Require `independent_patch_side_v1`, validate one open probe and direct certificate per patch side, independently evaluate exact signed degree against both operands, and reject hybrid complete-cell claims. Check shell-polarity agreement, sheet and coincidence transfers, tangent transparency, transition-audit agreement, reverse transitions, every stored cycle, patch-side labels, and the exterior-at-infinity label.
 
 ### 9.9 Boolean selection
 
-Re-evaluate the frozen truth table for every patch-side occupancy pair; require selection exactly when result occupancy changes; check preserve/reverse orientation, one decision per patch, coincidence representative independence, provenance completeness, lower-dimensional exclusion, selected cycles, exactly two opposite edge uses, vertex links, closure, orientability, manifoldness, and successful empty selection. Do not duplicate operation logic outside Component 1's frozen truth function.
+Re-evaluate the frozen truth table for every patch-side occupancy pair; require selection exactly when result occupancy changes; check preserve/reverse orientation, one decision per patch, coincidence representative independence, provenance completeness, lower-dimensional exclusion, selected cycles, exactly two opposite uses per surface-edge occurrence, spherical occurrence links, closed stratified incidence, topology classification, and successful empty selection. Multiple occurrences over one geometric stratum are retained rather than treated as artifact failure. Do not duplicate operation logic outside Component 1's frozen truth function.
 
 ### 9.10 Geometry realization
 
-Replay exact coordinates/constructions; decode candidate raw bits to exact dyadics; verify candidate-domain membership and rank, vertex distinctness, edge order, triangle signs/orientation, incidences/non-incidences, link/radial order, and global embedding obligations. Reconstruct the complete obligation universe independently and verify every witness. Bounded fixtures compare solver conclusions with brute-force assignment; resource exhaustion must never be mislabeled `output_not_representable`.
+Replay exact coordinates/constructions and executable defining relations; decode candidate raw bits to exact dyadics; under `exact_in_T` require equality to every target; verify candidate-domain membership and rank, vertex distinction, edge order, triangle signs/orientation, incidences/non-incidences, link/radial order, and global embedding obligations. Independently reconstruct obligations, constraint components, conservative triangle pairs, component transcripts, and every witness. Bounded fixtures compare component conclusions with brute-force assignment; resource exhaustion must never be mislabeled `output_not_representable`.
 
 ### 9.11 Output assembly and final result
 
@@ -417,3 +417,9 @@ Component 13 is complete only when:
 - every prepublication fault rolls back with no artifact/final marker/public mesh or leaked committed charge;
 - final verification alone authorizes public result return and is not recursively verified;
 - all four `<T, I>` combinations pass GCC/Clang Debug/Release, deterministic replay, CTest, and applicable sanitizer suites under strict C++17 compilation.
+
+## 15. Plan-gap amendment: architectural verifier independence
+
+Components 8 and 11 mandatory checkers live in separate translation units and standalone link targets containing schemas, immutable prerequisite views, and exact primitives but no producer objects. Forbidden references to producer grouping, radial/link construction, triangulation, obligation generation, pair generation, solver/assignment validation, certificate generation, or canonical encoding fail to link. A link-map or undefined-symbol audit enforces the allowed dependency set.
+
+Mutation qualification rebuilds producer-shaped IDs, counts, certificates, canonical bytes, and digests before checking occurrence welds, radial swaps, missing spherical continuations, defining-incidence violations, component transcript corruption, and forged `actual=embedded` records. Detection must come from independently reconstructed semantics and identify the intended invariant/subcode.

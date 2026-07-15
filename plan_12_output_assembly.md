@@ -505,6 +505,7 @@ Before publication, prove:
 
 Failure classification:
 
+- Return `result_topology_not_supported` during preflight when a valid selected exact boundary does not satisfy `result_topology_policy::closed_embedded_two_manifold`. Bind canonical topology obstructions and do not invoke Component 11.
 - Return `index_overflow` only when a logically required public vertex or face ordinal cannot be represented by `I`.
 - Return `resource_limit` for declared count/byte/work/verifier limits, `size_t` or container limits, cancellation, allocation failure, or inability to complete mandatory verification.
 - Return `internal_invariant_error` for malformed/stale dependencies, failed Component 11 certificate binding, duplicate semantic tokens, invalid triangles, inconsistent orientation, open/non-manifold incidence, mapping disagreement, coordinate-bit changes, invalid public fields, verifier disagreement, or encoding corruption.
@@ -831,3 +832,9 @@ Component 12 is complete only when:
 - all malformed-artifact, mutation, capacity, cancellation, allocation, rollback, replay, compiler, sanitizer, and schedule tests pass in Release as well as Debug;
 - equivalent execution schedules over one Component 11 semantic artifact produce byte-identical public vectors and canonical encodings;
 - failure returns no public mesh and successful publication is atomic.
+
+## 18. Plan-gap amendment: result-topology preflight
+
+Component 12 owns `authorize_result_topology(...)` before Component 11 and repeats its binding check during final assembly. The authorization binds owner, selected-boundary identity/digest, selected topology class and certificate, and output-topology policy digest. Empty and `closed_embedded_two_manifold` are authorized by the initial policy. `closed_stratified_nonmanifold` returns `result_topology_not_supported` with sorted exact obstruction records and no realization attempt.
+
+The preflight independently verifies Component 10's topology classification from its occurrence/link records. It never rounds coordinates, welds occurrences, drops contact strata, or reclassifies valid stratified topology as malformed. This establishes topology-failure precedence over coordinate representability. G1 vertex- and edge-touching union/xor cases must reach this typed failure; their intersection and difference cases remain successful.

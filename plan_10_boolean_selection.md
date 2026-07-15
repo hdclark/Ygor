@@ -12,7 +12,7 @@ The completed component must provide:
 - deterministic representative selection for coincident source sheets without operand priority;
 - oriented selected patch domains, cycles, edges, vertices, adjacency, and complete source/event provenance;
 - exact removal of internal interfaces and regularized lower-dimensional-only contacts;
-- proof that selected incidence is a closed orientable two-manifold before realization;
+- proof that selected incidence is a closed orientable stratified boundary, plus an exact manifold topology classification before realization;
 - an empty artifact as successful output when no positive-area result boundary exists;
 - canonical encoding, diagnostics, accounting, cancellation, replay, independent verification, and transactional publication.
 
@@ -41,7 +41,7 @@ No current Ygor implementation provides exact truth-table projection over two-si
 - Do not toggle or cancel by source-sheet count, signed multiplicity, parity, operand role, operation-specific preference, or source normal. Side truth values alone determine whether the geometric domain is part of the result and which side is interior.
 - Do not preserve an edge, curve, or point solely because an input event exists. Lower-dimensional contact is absent from a regularized boundary unless incident to retained positive-area patches as required topology.
 - Do not merge adjacent selected patches in the baseline. Component 12 may perform optional exact-proof simplification. Keeping transparent subdivision edges is correct when their selected incidence is valid.
-- Do not repair a non-manifold selected edge, duplicate domain, open cycle, contradictory label, or missing adjacency by dropping a patch or changing orientation. Fail closed as an upstream/internal invariant defect.
+- Do not repair an open or contradictory selected occurrence, duplicate domain, broken cycle, contradictory label, or missing adjacency by dropping a patch or changing orientation. A complete non-manifold stratified result is valid and must be classified, not treated as an upstream defect.
 
 ## 3. Files, namespace, and integration
 
@@ -178,11 +178,11 @@ Truth-table evaluation is constant work per patch and should initially be serial
 1. Enumerate selected decisions in canonical source-domain order and derive all oriented cycle uses according to preserve/reverse status.
 2. Collect referenced global vertices and edges, pre-rank complete immutable remapping keys, and assign dense selected IDs. Never sort with a fallible exact comparison; all needed geometric ranks already come from Component 8.
 3. Rewrite cycles and halfedges to selected IDs, canonicalize cycle rotations, and verify endpoints, directions, next/previous involution, outer/hole role, and source-domain coverage.
-4. Group directed uses by source `global_atomic_edge_id`. Require exactly two uses, opposite endpoint order, compatible exact carrier/domain incidence, and opposite induced boundary orientation.
+4. Group directed uses first into topological surface-edge occurrences using Component 8 occurrence/link continuation. Require exactly two opposite uses per occurrence. Several occurrences may reference one `global_atomic_edge_id`; geometric equality alone never merges them.
 5. Build patch adjacency and connected components. Require every patch reachable through its recorded cycles, every selected vertex incident to selected edges/patches, and no selected topology record lacking positive-area support.
 6. Cross-check every selected edge against Component 8 seam/source-edge/transparent topology and every omitted lower-dimensional feature against zero selected patch incidence.
 
-If an exact regularized result should be closed, any edge use count other than two, orientation mismatch, non-closing cycle, duplicate positive-area patch domain, or isolated selected record is `internal_invariant_error`. Do not classify it as an output representability problem; no rounding has occurred.
+An edge-occurrence use count other than two, orientation mismatch, non-closing cycle, incomplete occurrence/link partition, duplicate positive-area patch domain, or isolated selected record is `internal_invariant_error`. Multiple complete surface occurrences over one geometric point or edge are valid stratified topology and are recorded as topology obstructions for the public manifold policy.
 
 ### 6.3 Certificate, verification, and publication
 
@@ -203,13 +203,13 @@ Before a draft can succeed, prove:
 3. A patch is selected if and only if its two result bits differ; orientation places `true` on the selected patch's negative side.
 4. Every positive-area geometric domain occurs at most once in selected topology regardless of source-use or coincidence multiplicity.
 5. Representative choice occurs only after selection, uses a complete deterministic semantic key, has no geometric effect, and preserves all alternate provenance.
-6. Every selected cycle is an orientation-correct projection of one Component 8 exact domain cycle; every selected edge has exactly two opposite directed uses and every selected vertex/edge has positive-area patch incidence.
+6. Every selected cycle is an orientation-correct projection of one Component 8 exact domain cycle; every selected surface-edge occurrence has exactly two opposite directed uses and every selected occurrence has positive-area patch incidence.
 7. No discarded-only seam, isolated contact curve, or point appears in selected topology, while every edge/vertex needed by a selected patch remains present.
-8. Selected connected components are closed and orientable before coordinate realization; no operation-dependent repair or simplification occurred.
+8. Selected connected components are closed and orientable as a stratified complex before coordinate realization; their topology class and every obstruction are explicit, and no operation-dependent repair or simplification occurred.
 9. Empty selection is valid and complete.
 10. IDs, decisions, representative records, selected topology, canonical bytes, selected first failure, diagnostics, and certificates are independent of hash behavior, allocation, worker completion, thread count, and exact filter/cache state for one frozen context.
 
-Return `resource_limit` for declared bytes/work/entity/certificate/verifier limits, cancellation, allocation failure, or verifier exhaustion. Return `internal_invariant_error` for stale/malformed dependencies, missing or contradictory labels, unknown operation/schema values, incomplete source-use coverage, duplicate domains, invalid cycles, non-manifold selected incidence, orientation contradiction, producer/verifier disagreement, or encoding mismatch. Component 10 does not return `input_contract_error`, `index_overflow`, or `output_not_representable`.
+Return `resource_limit` for declared bytes/work/entity/certificate/verifier limits, cancellation, allocation failure, or verifier exhaustion. Return `internal_invariant_error` for stale/malformed dependencies, missing or contradictory labels, unknown operation/schema values, incomplete source-use coverage, duplicate domains, invalid cycles, open occurrence incidence, orientation contradiction, producer/verifier disagreement, or encoding mismatch. A valid closed stratified non-manifold selection is successful. Component 10 does not return `input_contract_error`, `result_topology_not_supported`, `index_overflow`, or `output_not_representable`.
 
 Before work, use checked arithmetic to bound decisions, representative candidates, selected patch/cycle/halfedge/edge/vertex mappings, adjacency, provenance references, certificate entries, canonical bytes, and verifier duplication. Reserve conservative accounting envelopes before constructing shards. Never omit a decision, source provenance item, topology use, or verification check to fit a limit.
 
@@ -328,3 +328,11 @@ Component 10 is complete only when:
 - independent truth, representative, topology, incidence, certificate, and encoding verification passes in Release as well as Debug;
 - exhaustive truth-table, coincidence, Boolean-identity, mutation, resource/cancellation rollback, replay, compiler, sanitizer, and schedule-determinism suites pass;
 - Component 11 can construct all realization obligations from the immutable selected exact boundary without revisiting selection semantics.
+
+## 13. Plan-gap amendment: stratified selection and topology class
+
+Selected topology separates geometric strata from surface occurrences. A selected geometric vertex references one symbol; a selected vertex occurrence references one connected selected surface-germ component in its exact spherical link. A selected geometric edge references one global segment; each selected surface-edge occurrence has exactly two opposite patch uses. Patch cycles reference occurrence IDs. Equality of coordinates, symbols, carriers, or geometric edge IDs never welds occurrences.
+
+Publish `selected_boundary_topology::{empty, closed_embedded_two_manifold, closed_stratified_nonmanifold}` and sorted obstruction records such as disconnected geometric-vertex link, multiple edge occurrences over one geometric segment, noncircular surface link, and nonembedded stratum contact. Component 10 verifies closed stratified incidence and reports this class but does not apply the public output policy. Component 12 topology preflight owns `result_topology_not_supported`.
+
+The independent verifier reconstructs occurrence partitions and spherical selected links from Component 8 plus retained decisions. G1 vertex- and edge-touching unions/xors must publish valid stratified selections; intersections remain empty and differences retain the untouched operand. A self-consistent occurrence-welding mutation must fail independently.

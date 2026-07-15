@@ -13,6 +13,22 @@ add_library(ygor
     External/MD5/md5.cc
 )
 
+# This target intentionally contains no Component 8 producer object. It keeps
+# verifier compilation isolated so producer-private helpers cannot be resolved.
+add_library(ygor_mesh_boolean_arrangement_verifier_isolation OBJECT
+    YgorMeshesBooleanGlobalArrangementVerifier.cc)
+target_include_directories(ygor_mesh_boolean_arrangement_verifier_isolation
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_arrangement_verifier_isolation PRIVATE cxx_std_17)
+
+# This checker decodes and substitutes accepted bits without Component 11
+# producer helpers.
+add_library(ygor_mesh_boolean_realization_verifier_isolation OBJECT
+    YgorMeshesBooleanRealizationVerifier.cc)
+target_include_directories(ygor_mesh_boolean_realization_verifier_isolation
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_realization_verifier_isolation PRIVATE cxx_std_17)
+
 # Predicate-bearing Boolean sources must override repository-wide fast-math flags.
 set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc
@@ -26,9 +42,11 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSymbolicRegistry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanLocalRefinement.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanGlobalArrangement.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanGlobalArrangementVerifier.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanCellClassification.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSelection.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealization.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealizationVerifier.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanOutput.cc
 )
 if(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

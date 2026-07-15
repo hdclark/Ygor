@@ -6,7 +6,7 @@ Realize each selected symbolic vertex once, convert exact coordinates to `vec3<T
 
 ## 1. Input contract
 
-Accept verified selected exact boundary, canonical symbolic registry, exact kernel, target `T`, realization policy/search limits, and all predicate-sign obligations required to certify the embedding.
+Accept a topology-authorized verified selected exact boundary, canonical symbolic registry, exact kernel, target `T`, explicit realization semantics, search limits, and all defining-relation and embedding obligations.
 
 Original vertices normally retain their exact input `T` bit patterns. Constructed vertices have exact rational coordinates/provenance. One symbolic ID must map to one output vertex candidate globally.
 
@@ -18,9 +18,9 @@ Original vertices normally retain their exact input `T` bit patterns. Constructe
 - Memoize one exact coordinate and one eventual `T` coordinate per canonical symbolic ID.
 - Prove construction consistency when multiple provenance paths define the same vertex.
 
-### Candidate conversion
+### Candidate conversion and semantics
 
-- Start with correctly rounded `T` coordinates under a software-defined deterministic rounding rule independent of ambient rounding mode.
+- Under schema-v1 `exact_in_T`, decode the correctly rounded candidate and require exact equality to the symbolic rational on every axis. A mismatch is `output_not_representable`; neighboring search cannot alter this semantic requirement.
 - If certification fails, optionally search a deterministic finite neighborhood of representable values or solve a constrained rounding assignment.
 - Shared vertices are moved only as one global variable; facets cannot realize the same symbol differently.
 - Never snap distinct symbols together or split one symbol to satisfy local consumers.
@@ -34,6 +34,7 @@ Build an explicit finite set of exact sign/order constraints sufficient for the 
 - Vertex order along every selected edge/carrier is preserved.
 - Adjacent facets share bit-identical indexed vertices and compatible edges.
 - Required incidences remain incidences, and prohibited non-adjacent intersections are not introduced.
+- Accepted bits satisfy every source-plane, carrier, affine-parameter, equality, and carrier-order defining relation by exact substitution.
 - Local radial/seam ordering and selected patch side orientation are preserved.
 - The realized boundary remains embedded and subdivision-equivalent to the exact selected boundary.
 
@@ -43,7 +44,7 @@ Polygonal facets create an additional constraint: independently rounded vertices
 
 ### Impossibility behavior
 
-If no candidate is found within the configured complete policy/search domain, return `output_not_representable` with exact conflicting symbols/constraints. Do not drop features, widen tolerances, or claim exact success. A future exact-coordinate output path may publish the internal exact boundary instead.
+If an exact coordinate is not representable in `T`, return `output_not_representable` with the symbol, axis, exact target, nearest bits, and nonzero difference. Search exhaustion may be called policy-relative only for a future separately tagged approximate mode. Do not drop features, widen tolerances, or claim exact success.
 
 ## 3. Output contract
 
@@ -69,3 +70,7 @@ Resource-limit failure is distinct from a proven or policy-relative representabi
 - Every emitted certificate is independently replayed from serialized `T` bit patterns.
 - Different expression/provenance paths for one symbol emit bit-identical coordinates.
 - Ambient rounding-mode and thread-count changes do not affect output.
+
+Generate the complete obligation universe before solving. Build the bipartite variable-obligation graph, solve each connected component independently in canonical least-variable order, and compose the lexicographically first component assignments. Publish per-component variables, obligations, accepted ranks, rejected-prefix witnesses, `visited_nodes`, and `complete_assignments`; the verifier replays those certificates without a global DFS.
+
+Generate triangle-pair obligations through a deterministic conservative broad phase over exact candidate-domain AABBs. Equality counts as overlap; uncertain pairs are retained. Production uses `conservative_domain_aabb_v1`, exhaustive all-pairs remains a bounded oracle, and limits return `resource_limit` rather than incomplete pruning. The verifier independently reconstructs candidates with a different implementation family.

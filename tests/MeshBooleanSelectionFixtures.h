@@ -72,6 +72,9 @@ template<class T,class I>void selection_oracle(const selected_exact_boundary<T,I
   require(a.certificate.selected_halfedges==a.halfedges.size(),"halfedge certificate count");
   require(a.certificate.selected_edges==a.edges.size(),"edge certificate count");
   require(a.certificate.selected_vertices==a.vertices.size(),"vertex certificate count");
+  require(a.certificate.selected_vertex_occurrences==a.vertex_occurrences.size(),"vertex occurrence certificate count");
+  require(a.certificate.topology_obstructions==a.topology_obstructions.size(),"topology obstruction certificate count");
+  require(a.certificate.topology==a.topology,"topology class certificate");
   require(a.certificate.provenance_uses==provenance,"provenance certificate count");
   for(const auto&p:a.patches){
     require(p.source.value_for_debug()<a.arrangement->payload->patches.size(),"selected source patch");
@@ -110,9 +113,10 @@ template<class T,class I>void run_nonmanifold_selection_case(std::shared_ptr<ver
     T a_lo,T a_hi,T b_lo,T b_hi,operation op){
   auto a=input_test::box<T,I>(a_lo,a_hi),b=input_test::box<T,I>(b_lo,b_hi);
   auto c=classification_test::context(a,b,std::move(r),op,boolean_options{});auto result=select_boolean_boundary(*c);
-  require(!result.has_value(),"nonmanifold selection must fail closed");
-  require(result.error().code==boolean_error_code::internal_invariant_error,"nonmanifold selection error category");
-  require(result.error().message_key=="nonmanifold_selected_edge","nonmanifold selection invariant");
-  require(c->artifacts().latest_generation(artifact_slot::selected_exact_boundary)==0,"failed selection not published");
+  if(!result.has_value())throw std::runtime_error(std::string("stratified selection publishes: ")+render_error(result.error()));
+  selection_oracle(*result.value()->payload);
+  require(result.value()->payload->topology==selected_boundary_topology::closed_stratified_nonmanifold,"stratified topology class");
+  require(!result.value()->payload->topology_obstructions.empty(),"stratified topology obstruction");
+  require(c->artifacts().latest_generation(artifact_slot::selected_exact_boundary)==1,"stratified selection published");
 }
 }

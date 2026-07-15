@@ -57,11 +57,19 @@ void realization_oracle(const realized_boundary<T, I> &a) {
   require(a.certificate.vertices == a.vertices.size(), "vertex certificate count");
   require(a.certificate.triangles == a.triangles.size(), "triangle certificate count");
   require(a.certificate.obligations == a.obligations.size(), "obligation certificate count");
+  require(a.certificate.components == a.components.size(),
+          "component certificate count");
+  require(a.certificate.pair_boxes == a.pair_boxes.size() &&
+              a.certificate.pair_candidates == a.pair_candidates.size(),
+          "pair certificate counts");
+  require(verify_realization_constraint_evidence(a),
+          "standalone constraint evidence replay");
   for (const auto &v : a.vertices) {
     require(v.symbolic == a.selected->payload->vertices[v.selected.value_for_debug()].symbolic,
             "direct selected symbolic binding");
     const auto &symbolic = a.symbolic->payload->vertices[v.symbolic.value_for_debug()];
     require(v.exact_coordinate == symbolic.point, "exact coordinate binding");
+    std::array<exact_scalar, 3> accepted;
     for (std::size_t axis = 0; axis < 3; ++axis) {
       const auto &domain = a.axis_domains[3 * v.id.value_for_debug() + axis];
       require(domain.vertex == v.id && domain.axis == axis && !domain.values.empty(),
@@ -69,7 +77,13 @@ void realization_oracle(const realized_boundary<T, I> &a) {
       require(v.accepted_axis_rank[axis] < domain.values.size(), "accepted rank range");
       require(v.accepted_bits[axis].bits == domain.values[v.accepted_axis_rank[axis]].bits.bits,
               "accepted domain member");
+      const auto decoded = decode_coordinate<T>(v.accepted_bits[axis]);
+      require(decoded.has_value(), "accepted coordinate decodes");
+      accepted[axis] = decoded.value().value;
     }
+    require(exact_point3{accepted[0], accepted[1], accepted[2]} ==
+                v.exact_coordinate,
+            "exact-in-T target equality");
     if (v.preserved_source_bits)
       for (std::size_t axis = 0; axis < 3; ++axis)
         require(v.accepted_bits[axis].bits == (*v.preserved_source_bits)[axis].bits,

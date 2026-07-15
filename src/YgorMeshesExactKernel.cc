@@ -8,6 +8,13 @@
 #error "Exact kernel must not assume finite-only arithmetic"
 #endif
 namespace ygor { namespace mesh_boolean {
+exact_sign substitute_defining_relation(const defining_relation&r,const exact_point3&p){
+  return (r.coefficients[0]*p.x+r.coefficients[1]*p.y+
+          r.coefficients[2]*p.z+r.coefficients[3]).sign();
+}
+bool defining_relation_satisfied(const defining_relation&r,const exact_point3&p){
+  return r.formula_version==1&&substitute_defining_relation(r,p)==r.expected;
+}
 namespace{exact_sign sg(const exact_scalar&x){return x.sign();}exact_scalar ri(const big_int&x){return exact_rational(x,big_uint(1));}exact_scalar eval(const exact_plane3&p,const exact_point3&q){auto v=ri(p.a)*q.x+ri(p.b)*q.y+ri(p.c)*q.z+ri(p.d);return p.oriented==orientation_parity::agree?v:v.negated();}bool z(const exact_vector2&v){return v.x.is_zero()&&v.y.is_zero();}bool z(const exact_vector3&v){return v.x.is_zero()&&v.y.is_zero()&&v.z.is_zero();}exact_scalar parameter(const exact_point2&p,const exact_segment2&s){auto d=s.destination-s.origin;return !d.x.is_zero()?(p.x-s.origin.x)/d.x:(p.y-s.origin.y)/d.y;}exact_scalar parameter(const exact_point3&p,const exact_segment3&s){auto d=s.destination-s.origin;return !d.x.is_zero()?(p.x-s.origin.x)/d.x:!d.y.is_zero()?(p.y-s.origin.y)/d.y:(p.z-s.origin.z)/d.z;}int cmp0(const exact_scalar&x){return x.compare(exact_scalar(0));}bool in01(const exact_scalar&t){return cmp0(t)>=0&&t.compare(exact_scalar(1))<=0;}}
 exact_vector2 operator-(const exact_point2&a,const exact_point2&b){return{a.x-b.x,a.y-b.y};}exact_vector3 operator-(const exact_point3&a,const exact_point3&b){return{a.x-b.x,a.y-b.y,a.z-b.z};}exact_point2 operator+(const exact_point2&p,const exact_vector2&v){return{p.x+v.x,p.y+v.y};}exact_point3 operator+(const exact_point3&p,const exact_vector3&v){return{p.x+v.x,p.y+v.y,p.z+v.z};}exact_vector2 operator*(const exact_vector2&v,const exact_scalar&s){return{v.x*s,v.y*s};}exact_vector3 operator*(const exact_vector3&v,const exact_scalar&s){return{v.x*s,v.y*s,v.z*s};}
 exact_scalar dot(const exact_vector2&a,const exact_vector2&b){return a.x*b.x+a.y*b.y;}exact_scalar dot(const exact_vector3&a,const exact_vector3&b){return a.x*b.x+a.y*b.y+a.z*b.z;}exact_vector3 cross(const exact_vector3&a,const exact_vector3&b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}

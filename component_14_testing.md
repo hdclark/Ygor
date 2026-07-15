@@ -18,6 +18,7 @@ Tests must compare exact topology/set semantics or certified predicates, not ren
 - Test every predicate relation category, permutation law, filter acceptance path, and exact fallback.
 - Test each graph/registry/arrangement operation with hand-auditable fixtures.
 - Test all typed failures, resource boundaries, index overflow, and transaction rollback.
+- Test `result_topology_not_supported` separately from invalid input, representability, and invariant failures.
 
 ### Exact low-complexity oracles
 
@@ -26,6 +27,8 @@ Implement deliberately slow, structurally independent oracles for small inputs:
 - Exhaustive pair enumeration instead of broad-phase pruning.
 - Direct exact segment/polygon arrangements for simple facets.
 - Independent exact point classification using multiple symbolic rays.
+- Independent geometric-occurrence partitioning and spherical-link reconstruction.
+- Brute-force bounded realization assignments and exhaustive triangle pairs.
 - Voxel-free analytic solids and exact halfspace/polytope cases with known occupancy.
 
 An oracle may share the fundamental exact number type but should not reuse the production control flow being checked.
@@ -81,6 +84,7 @@ Invariants:
 - Expected outcomes are exact relations or explicit typed failures.
 - Test tolerances are used only for non-authoritative performance/diagnostic metrics.
 - A representability failure is accepted only when it follows the declared policy and exact internal boundary still verifies.
+- An exact-in-`T` success requires bit-decoded equality to every exact target; any future approximate success has a distinct result kind and nonzero displacement evidence.
 - No external geometry/Boolean dependency is required by the engine or normative tests.
 
 Failure of a test blocks the relevant component/release. Flaky scheduling or non-reproducible output is itself a deterministic-correctness defect.
@@ -92,3 +96,4 @@ Failure of a test blocks the relevant component/release. Flaky scheduling or non
 - Mutation testing shows the suite detects wrong predicate signs, omitted candidates/events, bad event merges, reversed patches, incorrect labels, unsafe rounding, and non-manifold assembly.
 - Continuous tests run bounded suites on each change; scheduled qualification runs broad fuzz/property/platform matrices.
 - A release has zero unexplained oracle disagreements, invariant failures, sanitizer failures, or nondeterministic replays.
+- Every G1-G9 case in `tests/MeshBooleanPlanGapCases.md` is executable and passes with its exact success or typed-failure expectation. Standalone verifier targets fail to link if they reference forbidden producer helpers.

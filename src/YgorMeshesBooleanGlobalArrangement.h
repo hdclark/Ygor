@@ -5,7 +5,7 @@
 
 namespace ygor { namespace mesh_boolean {
 constexpr std::uint64_t arrangement_complex_type_tag = 0x5947424152523038ULL;
-constexpr std::uint16_t arrangement_complex_schema = 1;
+constexpr std::uint16_t arrangement_complex_schema = 2;
 
 enum class global_edge_kind : std::uint8_t { source_edge, intersection_seam, coincidence_boundary, transparent_artificial };
 enum class patch_plane_side : std::uint8_t { negative, positive };
@@ -17,6 +17,16 @@ struct arrangement_vertex {
   symbolic_vertex_id symbolic;
   std::vector<local_vertex_ref> local_occurrences;
   std::vector<global_atomic_edge_id> incident_edges;
+  std::vector<vertex_occurrence_id> occurrences;
+};
+struct vertex_occurrence {
+  vertex_occurrence_id id;
+  global_vertex_id vertex;
+  operand_id operand;
+  shell_id shell;
+  std::vector<local_vertex_ref> local_germs;
+  std::vector<global_halfedge_id> incident_halfedges;
+  std::vector<vertex_sector_id> link_regions;
 };
 struct global_atomic_edge {
   global_atomic_edge_id id;
@@ -57,6 +67,7 @@ struct global_halfedge {
   sheet_use_id use;
   global_atomic_edge_id edge;
   global_vertex_id origin, destination;
+  vertex_occurrence_id origin_occurrence, destination_occurrence;
   local_halfedge_ref local;
 };
 struct radial_layer { std::vector<sheet_use_id> uses; };
@@ -80,12 +91,25 @@ struct source_edge_sector {
   std::vector<sheet_use_id> incident_uses;
 };
 enum class vertex_germ_kind : std::uint8_t { full_circle, semicircle, convex_arc, reflex_arc, wedge, terminal_contact };
-struct directed_link_ray { exact_vector3 direction; std::uint64_t antipode = 0; };
+struct directed_link_ray {
+  link_ray_id id;
+  exact_vector3 direction;
+  link_ray_id antipode;
+};
+struct spherical_link_arc {
+  link_arc_id id;
+  vertex_occurrence_id occurrence;
+  link_ray_id origin, destination;
+  std::vector<sheet_use_id> layers;
+};
 struct vertex_sector {
   vertex_sector_id id;
   global_vertex_id vertex;
+  vertex_occurrence_id occurrence;
+  link_region_id region;
   vertex_germ_kind germ = vertex_germ_kind::wedge;
-  std::vector<directed_link_ray> boundary_rays;
+  std::vector<link_ray_id> boundary_rays;
+  std::vector<link_arc_id> boundary_arcs;
   exact_vector3 witness_direction;
   std::vector<exact_sign> witness_evidence;
   std::vector<seam_sector_id> seam_continuations;
@@ -94,10 +118,12 @@ struct vertex_sector {
 enum class probe_base_stratum_kind : std::uint8_t { universe, patch_side, seam_sector, source_edge_sector, vertex_sector };
 struct probe_constraint { exact_plane3 plane; exact_sign required = exact_sign::positive; };
 struct open_probe_descriptor {
+  patch_side_id side;
   open_region_component_id component;
   probe_base_stratum_kind base_kind = probe_base_stratum_kind::universe;
   std::uint64_t base_id = 0;
   std::optional<symbolic_vertex_id> base_vertex;
+  std::optional<exact_point3> exact_base;
   exact_vector3 direction;
   std::vector<probe_constraint> constraints;
   std::vector<exact_sign> evidence;
@@ -145,7 +171,10 @@ template<class T, class I> struct arrangement_complex {
   std::shared_ptr<const published_artifact<symbolic_complex<T,I>>> symbolic;
   std::shared_ptr<const published_artifact<validated_operands<T,I>>> validated;
   std::shared_ptr<const construction_storage> constructions;
+  classification_strategy classification =
+      classification_strategy::independent_patch_side_v1;
   std::vector<arrangement_vertex> vertices;
+  std::vector<vertex_occurrence> vertex_occurrences;
   std::vector<global_atomic_edge> edges;
   std::vector<source_sheet_member> sheet_members;
   std::vector<global_patch> patches;
@@ -154,6 +183,8 @@ template<class T, class I> struct arrangement_complex {
   std::vector<seam_record> seams;
   std::vector<seam_sector> seam_sectors;
   std::vector<source_edge_sector> source_edge_sectors;
+  std::vector<directed_link_ray> link_rays;
+  std::vector<spherical_link_arc> link_arcs;
   std::vector<vertex_sector> vertex_sectors;
   std::vector<coincident_group> coincident_groups;
   std::vector<patch_side> patch_sides;

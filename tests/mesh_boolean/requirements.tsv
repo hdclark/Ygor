@@ -4,6 +4,18 @@ C14-CODEC-001	plan14.5.1	canonical replay round trip and malformed trailing data
 C14-CONFIG-001	plan14.4.2	versioned deterministic seed derivation and fixed budgets	C14.QUAL.configuration	positive	continuous
 C14-E2E-001	plan14.11	exact analytic operations and fresh public mesh parsing	C14.E2E.disjoint.double.u32	oracle	continuous
 C14-FUZZ-001	plan14.10	deterministic constructive valid generated cases	C14.FUZZ.generated.disjoint_boxes	property	extended
+C14-GAP-G1	plan-gap.G1	valid operands producing stratified nonmanifold output receive a typed topology result	C14.PLANGAP.G1a	negative	continuous
+C14-GAP-G2	plan-gap.G2	exact set semantics are distinct from approximate finite-T embedding	C14.PLANGAP.G2a	negative	continuous
+C14-GAP-G3	plan-gap.G3	geometric points retain distinct topological link occurrences	C14.PLANGAP.G3	mutation	continuous
+C14-GAP-G4	plan-gap.G4	contact vertices have independently verified spherical links	C14.PLANGAP.G4b	oracle	continuous
+C14-GAP-G5	plan-gap.G5	patch-side probes denote open three-dimensional points	C14.PLANGAP.G5a	negative	continuous
+C14-GAP-G6	plan-gap.G6	classification artifacts bind one complete strategy	C14.PLANGAP.G6	negative	continuous
+C14-GAP-G7	plan-gap.G7	realization preserves defining exact incidences	C14.PLANGAP.G7a	negative	continuous
+C14-GAP-G7-MUT	plan-gap.G7	one-ULP defining-relation violations fail exact substitution	C14.PLANGAP.G7b	mutation	continuous
+C14-GAP-G8	plan-gap.G8	realization search decomposes constraints and broad-phases triangle pairs	C14.PLANGAP.G8solver	property	continuous
+C14-GAP-G8-PAIRS	plan-gap.G8	conservative realization triangle pairs match a bounded exhaustive oracle	C14.PLANGAP.G8pairs	oracle	continuous
+C14-GAP-G9	plan-gap.G9	independent verifiers reject self-consistent producer errors	C14.PLANGAP.G9a	mutation	continuous
+C14-GAP-G9C	plan-gap.G9c	standalone realization verification rejects producer-shaped relation claims	C14.PLANGAP.G9c	mutation	continuous
 C14-META-001	plan14.9	Boolean operand and exact transform relations	C14.META.commutative.geometry	property	continuous
 C14-MUT-001	plan14.12	independent output verifier rejects topology and evidence corruption	C14.MUT.output.detectors	mutation	extended
 C14-PERF-001	plan14.15	fixed correctness-preserving benchmark remains outside CTest	MeshBooleanBenchmark	qualification	qualification

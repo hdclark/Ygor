@@ -383,3 +383,11 @@ Component 9 is complete only when:
 - independent point-location, transfer, propagation, side-label, exterior, certificate, and encoding verification passes in Release as well as Debug;
 - analytic, random exact-probe, mutation, resource/cancellation rollback, replay, compiler, sanitizer, and schedule-determinism suites pass;
 - Component 10 can select and orient exact boundary patches solely from immutable side labels and Component 1's truth table, without geometric reclassification or topology repair.
+
+## 14. Plan-gap amendment: frozen independent-side classification
+
+This section supersedes authoritative seed-propagation language above. Schema v1 supports only `classification_strategy::independent_patch_side_v1`, bound into context, `YGBCAN08`, `YGBCAN09`, reports, and replay.
+
+Every `patch_side_id` owns exactly one certified open probe and one direct classification certificate against both operands. Labels are derived only from these direct certificates. `classification_region_id` denotes a conservative topology fragment and must not be described as a complete 3D cell. Preserving/crossing transitions, forests, and cycles remain mandatory consistency audits: preserving endpoints must have equal direct labels, crossing endpoints must satisfy source-side transfer, and cycles must compose. They cannot supply, merge, or replace a direct label.
+
+Reject a hybrid artifact that claims complete cell propagation, omits a side certificate, stores one seed for several sides, derives a label only through a predecessor, or binds another strategy/version. The mandatory verifier independently checks every probe's openness and directly classifies every side before auditing transitions.

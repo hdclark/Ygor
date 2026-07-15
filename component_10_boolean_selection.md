@@ -25,18 +25,18 @@ Operation-specific geometry code is prohibited. Union, intersection, differences
 
 ## 3. Output contract
 
-Produce a `selected_exact_boundary` containing oriented symbolic patches, cycles, adjacency, exact vertex/curve handles, complete operand/event provenance, and a selection certificate recording both side labels and truth-table values.
+Produce a `selected_exact_boundary` containing oriented symbolic patches, cycles, adjacency through topological occurrence IDs, exact geometric handles, complete operand/event provenance, both side truth values, and an explicit topology class: empty, closed embedded two-manifold, or closed stratified non-manifold.
 
 Invariants:
 
 - A patch is present if and only if result occupancy changes across its open domain.
 - Every selected patch has result interior on the prescribed side.
 - No positive-area domain appears more than once.
-- Every selected edge has the incidence required by a closed orientable boundary after regularization.
+- Every selected surface-edge occurrence has exactly two opposite patch uses. Several surface occurrences may reference one geometric edge, and several circular link occurrences may reference one geometric point.
 - Empty result is represented by an empty patch set, not an error.
 - Selection uses no floating-point coordinate or tolerance.
 
-Failure conditions are missing/contradictory labels, non-manifold selected incidence indicating an upstream defect or invalid domain assumption, resource exhaustion, or internal invariant failure.
+Failure conditions are missing/contradictory labels, an open or contradictory stratified incidence, resource exhaustion, or internal invariant failure. A complete valid non-manifold stratified boundary is classified and published internally; it is not an upstream defect. The manifold-only public policy rejects it later with `result_topology_not_supported`.
 
 ## 4. Verification and definition of done
 
@@ -45,3 +45,4 @@ Failure conditions are missing/contradictory labels, non-manifold selected incid
 - Equal and coincident operands produce the documented exact outputs for every operation.
 - Independent side reclassification confirms every selected and discarded patch decision.
 - Selected-boundary topology checks pass before realization.
+- Vertex- and edge-touching solids retain distinct surface occurrences over their common geometric strata, and occurrence-welding mutations are rejected.

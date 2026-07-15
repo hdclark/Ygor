@@ -18,6 +18,12 @@ template <class T, class I> void qualification() {
   require(y.has_value(), "multi-thread realization");
   require(x.value()->payload->canonical_bytes == y.value()->payload->canonical_bytes,
           "serial realization schedule determinism");
+  auto shrunk = *x.value()->payload;
+  if (!shrunk.pair_boxes.empty()) {
+    shrunk.pair_boxes.front().upper = shrunk.pair_boxes.front().lower;
+    require(!verify_realization_constraint_evidence(shrunk),
+            "independent verifier rejects a nonconservative domain box");
+  }
 
   boolean_options neighboring;
   neighboring.realization.strategy = realization_strategy::neighboring_values;
@@ -60,6 +66,54 @@ template <class T, class I> void qualification() {
   require(short_context->artifacts().latest_generation(artifact_slot::realized_boundary) == 0 &&
           short_context->accountant().used(resource_kind::realization_attempts) == 0,
           "realization resource rollback");
+
+  if constexpr (std::is_same<T, double>::value &&
+                std::is_same<I, std::uint32_t>::value) {
+    const auto pair_checks = x.value()->payload->search.pair_checks;
+    require(pair_checks > 0, "realization pair-check fixture");
+    boolean_options pair_exact;
+    pair_exact.resources.realization_pair_checks = {false, pair_checks};
+    auto pair_context = classification_test::context(
+        a, b, realization_test::registry(), operation::regularized_union,
+        pair_exact);
+    require(realize_selected_boundary(*pair_context).has_value(),
+            "exact realization pair-check limit");
+    boolean_options pair_short;
+    pair_short.resources.realization_pair_checks = {false, pair_checks - 1};
+    auto pair_short_context = classification_test::context(
+        a, b, realization_test::registry(), operation::regularized_union,
+        pair_short);
+    const auto pair_rejected = realize_selected_boundary(*pair_short_context);
+    require(!pair_rejected.has_value() &&
+                pair_rejected.error().code == boolean_error_code::resource_limit,
+            "one-under realization pair-check rejection");
+
+    const auto components = x.value()->payload->components.size();
+    const auto trail = std::max_element(
+        x.value()->payload->components.begin(),
+        x.value()->payload->components.end(), [](const auto &lhs, const auto &rhs) {
+          return lhs.variables.size() < rhs.variables.size();
+        })->variables.size();
+    boolean_options component_short;
+    component_short.resources.realization_components = {false, components - 1};
+    auto component_context = classification_test::context(
+        a, b, realization_test::registry(), operation::regularized_union,
+        component_short);
+    const auto component_rejected = realize_selected_boundary(*component_context);
+    require(!component_rejected.has_value() &&
+                component_rejected.error().code ==
+                    boolean_error_code::resource_limit,
+            "one-under realization component rejection");
+    boolean_options trail_short;
+    trail_short.resources.realization_solver_trail = {false, trail - 1};
+    auto trail_context = classification_test::context(
+        a, b, realization_test::registry(), operation::regularized_union,
+        trail_short);
+    const auto trail_rejected = realize_selected_boundary(*trail_context);
+    require(!trail_rejected.has_value() &&
+                trail_rejected.error().code == boolean_error_code::resource_limit,
+            "one-under realization trail rejection");
+  }
 }
 
 int main() {

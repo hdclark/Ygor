@@ -44,6 +44,7 @@ Produce a `symbolic_complex` containing canonical symbolic vertices, curves/inte
 Invariants:
 
 - One symbolic vertex exists per exact mathematical point represented by discovered events or original vertices.
+- Symbolic identity is geometric identity only. Downstream components may attach several topological surface occurrences to one symbolic point, and equality here never authorizes adjacency or welding.
 - Every source-edge sequence begins/ends at its original endpoints and is strictly increasing internally.
 - Incidence is symmetric: if an entity lists another as incident, the reverse relation is present where defined.
 - Every raw event maps to canonical entities without loss of relation kind or provenance.

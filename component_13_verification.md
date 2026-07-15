@@ -22,13 +22,13 @@ Implement independent checkers for:
 - Broad-phase bound containment and exhaustive no-false-negative comparison in test mode.
 - Raw-event incidence/completeness witnesses and registry equivalence/order.
 - Local arrangement planarity, cycles, constraint coverage, and exact source-facet coverage.
-- Global stitching, twins, seam radial order, coincidence domains, and source reconstruction.
-- Cell labels, propagation path independence, and side classifications.
-- Truth-table selection, orientation, closure, and exact selected-boundary manifoldness.
-- Realization sign/order/incidence obligations and realized embedding.
+- Global stitching, topological occurrence partitions, twins, seam radial order, complete spherical links, open probes, coincidence domains, and source reconstruction.
+- Frozen classification strategy, one direct certificate per patch side, transition-audit agreement, and side classifications.
+- Truth-table selection, orientation, closed stratified incidence, occurrence links, and independent topology classification.
+- Exact-target equality, defining relations, decomposed realization certificates, pair broad phase, sign/order/incidence obligations, and realized embedding.
 - Final output index, topology, geometry, orientation, canonical order, and re-ingestion.
 
-Where practical, checkers reconstruct facts from lower-level data rather than calling the same helper that produced them.
+Mandatory semantic checkers reconstruct facts from lower-level data and may not call the producer helper family for grouping, ordering, triangulation, assignment validation, obligation generation, pair generation, or canonical encoding. Standalone verifier-link targets enforce this separation for Components 8 and 11.
 
 ### Certificates
 
@@ -70,3 +70,4 @@ Failure conditions include a violated artifact invariant, malformed/stale certif
 - Reports replay identically across process runs and thread counts.
 - Certificate versioning and stale-artifact detection are tested.
 - Production mandatory checks have bounded documented cost or explicit resource accounting.
+- Self-consistent producer-shaped mutations are rejected after counts, IDs, certificates, bytes, and digests are rebuilt.

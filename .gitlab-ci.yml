@@ -104,22 +104,14 @@ mesh_boolean_tsan:
 mesh_boolean_clang:
   stage: build_and_test
   tags: [ygor, docker, linux]
+  parallel:
+    matrix:
+      - BUILD_TYPE: [Debug, Release]
   image: "debian:stable"
   before_script:
     - "apt-get update --yes"
     - "apt-get install --yes --no-install-recommends cmake make clang libgsl-dev libeigen3-dev"
   script:
-    - cmake -S . -B build-clang -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
-    - cmake --build build-clang --target Test_MeshesBooleanIntersectionEvents --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanIntersectionEventsProperties --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanSymbolicRegistry --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanSymbolicRegistryProperties --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanCellClassification --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanCellClassificationProperties --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanSelection --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanSelectionProperties --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanRealization --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanRealizationProperties --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanCellClassificationAdversarial --parallel 2
-    - cmake --build build-clang --target Test_MeshesBooleanSelectionAdversarial --parallel 2
-    - cmake -E chdir build-clang ctest --output-on-failure -R '^(MeshBooleanIntersectionEvents.(Unit|Properties)|MeshBooleanSymbolicRegistry.(Unit|Properties)|MeshBooleanCellClassification.(Unit|Properties|Adversarial)|MeshBooleanSelection.(Unit|Properties|Adversarial)|MeshBooleanRealization.(Unit|Properties))$' --timeout 300
+    - cmake -S . -B "build-clang-${BUILD_TYPE}" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+    - cmake --build "build-clang-${BUILD_TYPE}" --parallel 2
+    - cmake -E chdir "build-clang-${BUILD_TYPE}" ctest --output-on-failure -R '^(MeshBoolean\.PlanGap\.|MeshBoolean\.(Replay|Qualification)$|MeshBooleanIntersectionEvents\.(Unit|Properties)|MeshBooleanSymbolicRegistry\.(Unit|Properties)|MeshBooleanCellClassification\.(Unit|Properties|Adversarial)|MeshBooleanSelection\.(Unit|Properties|Adversarial)|MeshBooleanRealization\.(Unit|Properties))$' --timeout 600

@@ -13,13 +13,14 @@ static void qualification(){
   cancellation_source stop;auto cancelled_context=context(a,b,selection_test::registry(),operation::regularized_union,boolean_options{},&stop);stop.cancel();auto cancelled=select_boolean_boundary(*cancelled_context);require(!cancelled.has_value()&&cancelled.error().code==boolean_error_code::resource_limit,"selection cancellation category");require(cancelled_context->artifacts().latest_generation(artifact_slot::selected_exact_boundary)==0,"selection cancellation rollback");
 
   const auto&base=*x.value()->payload;using member=resource_limit resource_policy::*;
-  const std::array<std::tuple<member,resource_kind,std::uint64_t>,7> limits{{
+  const std::array<std::tuple<member,resource_kind,std::uint64_t>,8> limits{{
     {&resource_policy::selection_decisions,resource_kind::selection_decisions,base.decisions.size()},
     {&resource_policy::selected_patches,resource_kind::selected_patches,base.patches.size()},
     {&resource_policy::selected_cycles,resource_kind::selected_cycles,base.cycles.size()},
     {&resource_policy::selected_halfedges,resource_kind::selected_halfedges,base.halfedges.size()},
     {&resource_policy::selected_edges,resource_kind::selected_edges,base.edges.size()},
     {&resource_policy::selected_vertices,resource_kind::selected_vertices,base.vertices.size()},
+    {&resource_policy::selected_vertex_occurrences,resource_kind::selected_vertex_occurrences,base.vertex_occurrences.size()},
     {&resource_policy::selection_provenance,resource_kind::selection_provenance,base.certificate.provenance_uses}}};
   for(const auto&entry:limits){const auto field=std::get<0>(entry);const auto kind=std::get<1>(entry);const auto required=std::get<2>(entry);require(required>0,"selection resource fixture");boolean_options exact;exact.resources.*field={false,required};auto exact_context=context(a,b,selection_test::registry(),operation::regularized_union,exact);auto accepted=select_boolean_boundary(*exact_context);require(accepted.has_value(),"selection exact resource limit");require(exact_context->accountant().used(kind)==required,"selection exact resource charge");boolean_options short_limit;short_limit.resources.*field={false,required-1};auto short_context=context(a,b,selection_test::registry(),operation::regularized_union,short_limit);auto rejected=select_boolean_boundary(*short_context);require(!rejected.has_value()&&rejected.error().code==boolean_error_code::resource_limit,"selection one-under resource rejection");require(short_context->artifacts().latest_generation(artifact_slot::selected_exact_boundary)==0&&short_context->accountant().used(kind)==0,"selection resource rollback");}
 

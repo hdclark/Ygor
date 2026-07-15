@@ -18,17 +18,36 @@ struct exact_box2{exact_point2 minimum,maximum;};struct exact_box3{exact_point3 
 struct exact_plane3{big_int a,b,c,d;orientation_parity oriented=orientation_parity::agree;};
 
 enum class construction_kind:std::uint8_t{exact_relation};
+enum class defining_relation_kind:std::uint8_t{
+    coordinate_equality,point_on_plane,point_on_line_or_carrier,
+    affine_parameter,equal_point,ordered_on_carrier
+};
+struct defining_relation {
+    defining_relation_id id;
+    defining_relation_kind kind=defining_relation_kind::coordinate_equality;
+    std::uint16_t formula_version=1;
+    construction_node_id construction;
+    std::vector<construction_node_id> operand_nodes;
+    std::vector<feature_ref> defining_sources;
+    // Schema-v1 relations use a canonical affine polynomial ax+by+cz+d.
+    std::array<exact_scalar,4> coefficients{{exact_scalar(0),exact_scalar(0),exact_scalar(0),exact_scalar(0)}};
+    exact_sign expected=exact_sign::zero;
+};
 struct construction_node {
     construction_node_id id;
     construction_kind kind=construction_kind::exact_relation;
     std::vector<construction_node_id> children;
     std::vector<feature_ref> defining_sources;
+    std::vector<defining_relation_id> defining_relations;
     std::vector<std::uint8_t> exact_result;
 };
 struct construction_storage {
     context_owner_token owner;
     std::vector<construction_node> nodes;
+    std::vector<defining_relation> relations;
 };
+exact_sign substitute_defining_relation(const defining_relation&,const exact_point3&);
+bool defining_relation_satisfied(const defining_relation&,const exact_point3&);
 
 exact_vector2 operator-(const exact_point2&,const exact_point2&);exact_vector3 operator-(const exact_point3&,const exact_point3&);
 exact_point2 operator+(const exact_point2&,const exact_vector2&);exact_point3 operator+(const exact_point3&,const exact_vector3&);

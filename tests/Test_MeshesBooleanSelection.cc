@@ -16,6 +16,7 @@ int main(){try{
   mutation_rejected(*r,*c,x,[](auto&v){v.decisions.front().orientation=selected_orientation::none;},"orientation mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.decisions.front().representative=sheet_use_id::from_canonical_value(v.arrangement->payload->sheet_uses.size());},"representative mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.vertices.front().source=global_vertex_id::from_canonical_value(v.arrangement->payload->vertices.size());},"vertex mutation rejected");
+  mutation_rejected(*r,*c,x,[](auto&v){v.vertex_occurrences.front().incident_halfedges.pop_back();},"vertex occurrence mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.edges.front().uses.pop_back();},"edge incidence mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.halfedges.front().destination=v.halfedges.front().origin;},"halfedge mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.cycles.front().halfedges.pop_back();},"cycle mutation rejected");

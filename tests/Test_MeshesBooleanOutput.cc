@@ -65,6 +65,10 @@ int main() {
                       "certificate mutation rejected");
     mutation_rejected(
         *r, *c, x,
+        [](auto &v) { ++v.topology_authorization.policy_digest.bytes.front(); },
+        "topology authorization mutation rejected");
+    mutation_rejected(
+        *r, *c, x,
         [](auto &v) { ++v.certificate.topology_digest.bytes.front(); },
         "topology digest mutation rejected");
     mutation_rejected(
