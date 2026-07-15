@@ -89,6 +89,17 @@ add_component14_test(Test_MeshesBooleanFuzz MeshBoolean.Fuzz "fuzz;scheduled" 12
 add_component14_test(Test_MeshesBooleanMutation MeshBoolean.Mutation "mutation;scheduled" 600)
 add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualification;scheduled" 360)
 
+# Keep the documented end-user example independent of test-only support code.
+add_executable(MeshBooleanExample
+    ${PROJECT_SOURCE_DIR}/examples/MeshBooleanExample.cc)
+target_link_libraries(MeshBooleanExample PRIVATE ygor Threads::Threads)
+target_compile_features(MeshBooleanExample PRIVATE cxx_std_17)
+mesh_boolean_strict_fp(MeshBooleanExample)
+add_test(NAME MeshBoolean.Example COMMAND MeshBooleanExample)
+set_tests_properties(MeshBoolean.Example PROPERTIES
+    TIMEOUT 600
+    LABELS "mesh_boolean;component14;example;continuous")
+
 add_executable(Test_MeshesBooleanPlanGaps Test_MeshesBooleanPlanGaps.cc)
 target_link_libraries(Test_MeshesBooleanPlanGaps PRIVATE mesh_boolean_test_support)
 mesh_boolean_strict_fp(Test_MeshesBooleanPlanGaps)
