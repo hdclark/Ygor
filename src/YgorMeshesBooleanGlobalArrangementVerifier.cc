@@ -43,7 +43,20 @@ template<class T,class I>
 bool reconstruct_probes(const arrangement_complex<T,I>&a){
   if(a.classification!=classification_strategy::independent_patch_side_v1||a.probes.size()!=(a.patch_sides.empty()?1:a.patch_sides.size()))return false;
   std::vector<bool>seen(a.patch_sides.size());
-  for(const auto&p:a.probes){if(p.base_kind==probe_base_stratum_kind::universe)continue;if(p.side.value_for_debug()>=a.patch_sides.size()||seen[p.side.value_for_debug()]||!p.exact_base||p.base_id!=p.side.value_for_debug()||p.constraints.size()!=1||p.evidence.size()!=1)return false;seen[p.side.value_for_debug()]=true;const auto&s=a.patch_sides[p.side.value_for_debug()];if(s.component!=p.component||s.patch.value_for_debug()>=a.patches.size())return false;const auto&patch=a.patches[s.patch.value_for_debug()];const auto&constraint=p.constraints.front().plane;const bool same_plane=constraint.a==patch.plane.a&&constraint.b==patch.plane.b&&constraint.c==patch.plane.c&&constraint.d==patch.plane.d&&constraint.oriented==patch.plane.oriented;if(plane_side(patch.plane,*p.exact_base)!=exact_sign::zero||!same_plane)return false;const auto axis=dominant_projection(patch.plane);std::vector<exact_point2>ring;for(auto v:patch.outer)ring.push_back(project(a.symbolic->payload->vertices[a.vertices[v.value_for_debug()].symbolic.value_for_debug()].point,axis));auto relation=classify_point_polygon(project(*p.exact_base,axis),ring);if(!relation.has_value()||relation.value().kind!=point_region_kind::open_interior)return false;exact_vector3 n{exact_scalar(patch.plane.a,big_uint(1)),exact_scalar(patch.plane.b,big_uint(1)),exact_scalar(patch.plane.c,big_uint(1))};if(patch.plane.oriented==orientation_parity::opposite)n=n*exact_scalar(-1);const auto expected=s.side==patch_plane_side::positive?exact_sign::positive:exact_sign::negative;if(dot(n,p.direction).sign()!=expected||p.constraints.front().required!=expected||p.evidence.front()!=expected)return false;}
+  for(const auto&p:a.probes){if(p.base_kind==probe_base_stratum_kind::universe)continue;if(p.side.value_for_debug()>=a.patch_sides.size()||seen[p.side.value_for_debug()]||!p.exact_base||p.base_id!=p.side.value_for_debug()||p.constraints.size()!=1||p.evidence.size()!=1)return false;seen[p.side.value_for_debug()]=true;const auto&s=a.patch_sides[p.side.value_for_debug()];if(s.component!=p.component||s.patch.value_for_debug()>=a.patches.size())return false;const auto&patch=a.patches[s.patch.value_for_debug()];const auto&constraint=p.constraints.front().plane;const bool same_plane=constraint.a==patch.plane.a&&constraint.b==patch.plane.b&&constraint.c==patch.plane.c&&constraint.d==patch.plane.d&&constraint.oriented==patch.plane.oriented;if(plane_side(patch.plane,*p.exact_base)!=exact_sign::zero||!same_plane)return false;const auto axis=dominant_projection(patch.plane);std::vector<exact_point2>ring;
+  for(auto v:patch.outer)ring.push_back(project(a.symbolic->payload->vertices[a.vertices[v.value_for_debug()].symbolic.value_for_debug()].point,axis));
+  auto relation=classify_point_polygon(project(*p.exact_base,axis),ring);
+  if(!relation.has_value()||relation.value().kind!=point_region_kind::open_interior) return false;
+  for(const auto&hole:patch.holes){
+    std::vector<exact_point2> hole_ring;
+    for(auto v:hole)hole_ring.push_back(project(
+        a.symbolic->payload->vertices[
+            a.vertices[v.value_for_debug()].symbolic.value_for_debug()].point,
+        axis));
+    auto hole_relation=classify_point_polygon(project(*p.exact_base,axis),hole_ring);
+    if(!hole_relation.has_value()||hole_relation.value().kind!=point_region_kind::outside) return false;
+  }
+  exact_vector3 n{exact_scalar(patch.plane.a,big_uint(1)),exact_scalar(patch.plane.b,big_uint(1)),exact_scalar(patch.plane.c,big_uint(1))};if(patch.plane.oriented==orientation_parity::opposite)n=n*exact_scalar(-1);const auto expected=s.side==patch_plane_side::positive?exact_sign::positive:exact_sign::negative;if(dot(n,p.direction).sign()!=expected||p.constraints.front().required!=expected||p.evidence.front()!=expected)return false;}
   for(bool value:seen)if(!value)return false;
   return true;
 }

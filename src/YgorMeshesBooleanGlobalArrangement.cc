@@ -52,11 +52,56 @@ template<class T,class I>digest artifact_digest_for(const arrangement_complex<T,
 template<class T,class I> exact_point3 patch_interior(const arrangement_complex<T,I>&a,const global_patch&p){
   const auto axis=dominant_projection(p.plane);
   auto point=[&](global_vertex_id id)->const exact_point3&{return a.symbolic->payload->vertices[a.vertices[id.value_for_debug()].symbolic.value_for_debug()].point;};
-  const exact_scalar third=exact_scalar(1)/exact_scalar(3);
-  for(std::size_t i=0;i<p.outer.size();++i)for(std::size_t j=i+1;j<p.outer.size();++j)for(std::size_t k=j+1;k<p.outer.size();++k){
-    exact_point3 q{(point(p.outer[i]).x+point(p.outer[j]).x+point(p.outer[k]).x)*third,(point(p.outer[i]).y+point(p.outer[j]).y+point(p.outer[k]).y)*third,(point(p.outer[i]).z+point(p.outer[j]).z+point(p.outer[k]).z)*third};
-    std::vector<exact_point2> outer;for(auto v:p.outer)outer.push_back(project(point(v),axis));auto r=classify_point_polygon(project(q,axis),outer);if(!r.has_value()||r.value().kind!=point_region_kind::open_interior)continue;
-    bool in_hole=false;for(const auto&h:p.holes){std::vector<exact_point2> ring;for(auto v:h)ring.push_back(project(point(v),axis));auto x=classify_point_polygon(project(q,axis),ring);if(!x.has_value()||x.value().kind!=point_region_kind::outside){in_hole=true;break;}}if(!in_hole)return q;
+  std::vector<std::vector<exact_point2>> rings(1);
+  for(auto v:p.outer)rings.front().push_back(project(point(v),axis));
+  for(const auto&h:p.holes){
+    rings.push_back({});
+    for(auto v:h)rings.back().push_back(project(point(v),axis));
+  }
+  std::vector<exact_scalar> xs;
+  for(const auto&ring:rings)for(const auto&q:ring)xs.push_back(q.x);
+  std::sort(xs.begin(),xs.end());
+  xs.erase(std::unique(xs.begin(),xs.end()),xs.end());
+  const exact_scalar half=exact_scalar(1)/exact_scalar(2);
+  auto lift=[&](const exact_point2&q){
+    const exact_scalar A(p.plane.a,big_uint(1)),B(p.plane.b,big_uint(1));
+    const exact_scalar C(p.plane.c,big_uint(1)),D(p.plane.d,big_uint(1));
+    if(axis==projection_axis::drop_x){
+      const exact_scalar y=q.x,z=q.y;
+      return exact_point3{(B*y+C*z+D).negated()/A,y,z};
+    }
+    if(axis==projection_axis::drop_y){
+      const exact_scalar z=q.x,x=q.y;
+      return exact_point3{x,(A*x+C*z+D).negated()/B,z};
+    }
+    const exact_scalar x=q.x,y=q.y;
+    return exact_point3{x,y,(A*x+B*y+D).negated()/C};
+  };
+  for(std::size_t slab=1;slab<xs.size();++slab){
+    if(xs[slab-1]==xs[slab])continue;
+    const exact_scalar x=(xs[slab-1]+xs[slab])*half;
+    std::vector<exact_scalar> crossings;
+    for(const auto&ring:rings)for(std::size_t i=0;i<ring.size();++i){
+      const auto&u=ring[i];const auto&v=ring[(i+1)%ring.size()];
+      const bool spans=(u.x<x&&x<v.x)||(v.x<x&&x<u.x);
+      if(!spans)continue;
+      crossings.push_back(u.y+(v.y-u.y)*(x-u.x)/(v.x-u.x));
+    }
+    std::sort(crossings.begin(),crossings.end());
+    crossings.erase(std::unique(crossings.begin(),crossings.end()),crossings.end());
+    for(std::size_t interval=1;interval<crossings.size();++interval){
+      if(crossings[interval-1]==crossings[interval])continue;
+      const exact_point2 q{x,(crossings[interval-1]+crossings[interval])*half};
+      auto outer=classify_point_polygon(q,rings.front());
+      if(!outer.has_value()||outer.value().kind!=point_region_kind::open_interior)continue;
+      bool in_hole=false;
+      for(std::size_t h=1;h<rings.size();++h){
+        auto location=classify_point_polygon(q,rings[h]);
+        if(!location.has_value()||location.value().kind!=point_region_kind::outside){in_hole=true;break;}
+      }
+      if(!in_hole)return lift(q);
+    }
+
   }
   throw std::logic_error("global patch has no exact interior witness");
 }

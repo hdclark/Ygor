@@ -48,6 +48,16 @@ int main() {
     }
     auto hole_context = classification_test::context(
         shell, column, realization_test::registry(), operation::a_minus_b);
+    auto hole_arrangement = build_global_arrangement(*hole_context);
+    if (!hole_arrangement.has_value())
+      throw std::runtime_error(render_error(hole_arrangement.error()));
+    require(hole_arrangement.value()->report.passed(),
+            "annular global arrangement passes deep verification");
+    require(std::any_of(
+                hole_arrangement.value()->payload->patches.begin(),
+                hole_arrangement.value()->payload->patches.end(),
+                [](const auto &patch) { return !patch.holes.empty(); }),
+            "through-column subtraction constructs a global patch with a hole");
     auto with_holes = realize_selected_boundary(*hole_context);
     if (!with_holes.has_value())
       throw std::runtime_error(render_error(with_holes.error()));
