@@ -10,6 +10,36 @@
 
 namespace ygor {
 namespace mesh_boolean {
+int canonical_label_compare(const local_constraint_label &a,
+                            const local_constraint_label &b) noexcept {
+  if (a.source_kind != b.source_kind)
+    return static_cast<std::uint8_t>(a.source_kind) <
+                   static_cast<std::uint8_t>(b.source_kind)
+               ? -1
+               : 1;
+  int c = canonical_feature_compare(a.source, b.source);
+  if (c) return c;
+  if (a.curve.has_value() != b.curve.has_value()) return a.curve ? 1 : -1;
+  if (a.curve != b.curve) return *a.curve < *b.curve ? -1 : 1;
+  if (a.overlap_region.has_value() != b.overlap_region.has_value())
+    return a.overlap_region ? 1 : -1;
+  if (a.overlap_region != b.overlap_region)
+    return *a.overlap_region < *b.overlap_region ? -1 : 1;
+  if (a.direction != b.direction)
+    return static_cast<std::uint8_t>(a.direction) <
+                   static_cast<std::uint8_t>(b.direction)
+               ? -1
+               : 1;
+  if (a.multiplicity != b.multiplicity)
+    return a.multiplicity < b.multiplicity ? -1 : 1;
+  if (a.derivations.size() != b.derivations.size())
+    return a.derivations.size() < b.derivations.size() ? -1 : 1;
+  if (std::lexicographical_compare(a.derivations.begin(), a.derivations.end(),
+                                   b.derivations.begin(), b.derivations.end()))
+    return -1;
+  if (a.derivations != b.derivations) return 1;
+  return 0;
+}
 namespace {
 template <class T, class I> std::uint64_t type_tag() {
   return refined_facet_patches_type_tag +
@@ -53,6 +83,10 @@ void label(canonical_encoder &e, const local_constraint_label &l) {
   e.u64(l.derivations.size());
   for (auto x : l.derivations)
     e.id(x);
+}
+bool label_less(const local_constraint_label &a,
+                const local_constraint_label &b) {
+  return canonical_label_compare(a, b) < 0;
 }
 template <class T, class I>
 std::vector<std::uint8_t> semantic(const refined_facet_patches<T, I> &a) {
@@ -321,13 +355,9 @@ audit_crossings(const published_artifact<symbolic_complex<T, I>> &published) {
         requests.push_back(std::move(request));
       }
   }
-  std::sort(requests.begin(), requests.end(), [](const auto &a, const auto &b) {
-    return a.canonical_key < b.canonical_key;
-  });
+  std::sort(requests.begin(), requests.end(), reconciliation_request_less);
   requests.erase(std::unique(requests.begin(), requests.end(),
-                             [](const auto &a, const auto &b) {
-                               return a.canonical_key == b.canonical_key;
-                             }),
+                             reconciliation_request_equal),
                  requests.end());
   return requests;
 }
@@ -634,13 +664,7 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     i = j;
   }
   for (auto &edge : f.edges) {
-    std::sort(edge.labels.begin(), edge.labels.end(), [](const auto &a,
-                                                         const auto &b) {
-      canonical_encoder ea, eb;
-      label(ea, a);
-      label(eb, b);
-      return ea.bytes() < eb.bytes();
-    });
+    std::sort(edge.labels.begin(), edge.labels.end(), label_less);
   }
   for (auto &e : f.edges)
     for (const auto &l : e.labels) {

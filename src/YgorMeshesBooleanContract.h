@@ -481,6 +481,38 @@ using feature_ref = std::variant<
     output_component_id, output_assembly_certificate_id, original_vertex_ref,
     facet_ref, defining_relation_id>;
 
+// Compare feature references in the same field order used by their canonical
+// encoding, without allocating that encoding.
+inline int canonical_feature_compare(const feature_ref &a,
+                                     const feature_ref &b) {
+  if (a.index() != b.index())
+    return a.index() < b.index() ? -1 : 1;
+  return std::visit(
+      [&](const auto &x) {
+        using X = typename std::decay<decltype(x)>::type;
+        const auto &y = std::get<X>(b);
+        if constexpr (std::is_same<X, original_vertex_ref>::value) {
+          if (x.operand != y.operand)
+            return x.operand < y.operand ? -1 : 1;
+          if (x.vertex != y.vertex)
+            return x.vertex < y.vertex ? -1 : 1;
+        } else if constexpr (std::is_same<X, facet_ref>::value) {
+          if (x.operand != y.operand)
+            return x.operand < y.operand ? -1 : 1;
+          if (x.facet != y.facet)
+            return x.facet < y.facet ? -1 : 1;
+        } else if (x != y) {
+          return x < y ? -1 : 1;
+        }
+        return 0;
+      },
+      a);
+}
+inline bool canonical_feature_less(const feature_ref &a,
+                                   const feature_ref &b) {
+  return canonical_feature_compare(a, b) < 0;
+}
+
 struct digest {
   std::array<std::uint8_t, 16> bytes{{}};
   bool operator==(const digest &o) const { return bytes == o.bytes; }

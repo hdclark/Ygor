@@ -1,8 +1,57 @@
 #include "MeshBooleanLocalRefinementFixtures.h"
 #include <iostream>
 using namespace local_test;
+namespace {
+std::vector<std::uint8_t> encode_test_label(const local_constraint_label &l) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(l.source_kind));
+  e.u64(l.source.index());
+  std::visit([&](const auto &x) {
+    using X = typename std::decay<decltype(x)>::type;
+    if constexpr (std::is_same<X, original_vertex_ref>::value) {
+      e.id(x.operand); e.id(x.vertex);
+    } else if constexpr (std::is_same<X, facet_ref>::value) {
+      e.id(x.operand); e.id(x.facet);
+    } else e.id(x);
+  }, l.source);
+  e.boolean(l.curve.has_value()); if (l.curve) e.id(*l.curve);
+  e.boolean(l.overlap_region.has_value());
+  if (l.overlap_region) e.id(*l.overlap_region);
+  e.byte(static_cast<std::uint8_t>(l.direction)); e.u32(l.multiplicity);
+  e.u64(l.derivations.size()); for (auto id : l.derivations) e.id(id);
+  return e.bytes();
+}
+void label_comparator_equivalence() {
+  std::vector<local_constraint_label> labels;
+  for (std::size_t n : {0U, 1U, 2U, 4U}) {
+    local_constraint_label l;
+    l.source_kind = n & 1U ? local_constraint_source::source_boundary
+                           : local_constraint_source::intersection;
+    l.source = n & 1U ? feature_ref(edge_use_id::from_canonical_value(n + 1))
+                      : feature_ref(raw_event_id::from_canonical_value(n + 1));
+    if (n & 1U) l.curve = symbolic_curve_id::from_canonical_value(n);
+    if (n & 2U) l.overlap_region = raw_event_id::from_canonical_value(n + 2);
+    l.direction = n & 1U ? orientation_parity::opposite
+                         : orientation_parity::agree;
+    l.multiplicity = static_cast<std::uint32_t>(n + 1);
+    for (std::size_t i = 0; i < n; ++i)
+      l.derivations.push_back(construction_node_id::from_canonical_value(i));
+    labels.push_back(std::move(l));
+  }
+  labels.push_back(labels.back());
+  labels.back().derivations = {construction_node_id::from_canonical_value(9)};
+  for (const auto &a : labels) for (const auto &b : labels) {
+    const auto ea = encode_test_label(a), eb = encode_test_label(b);
+    require((canonical_label_compare(a, b) < 0) == (ea < eb),
+            "label structural ordering matches bytes");
+    require((canonical_label_compare(a, b) == 0) == (ea == eb),
+            "label structural equality matches bytes");
+  }
+}
+} // namespace
 int main() {
   try {
+    label_comparator_equivalence();
     auto r = local_test::registry();
     auto a = cube<double, std::uint32_t>(), b = cube<double, std::uint32_t>();
     translate(b, 3, 0, 0);

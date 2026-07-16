@@ -2,6 +2,7 @@
 #ifndef YGOR_MESHES_BOOLEAN_INTERSECTION_EVENTS_H_
 #define YGOR_MESHES_BOOLEAN_INTERSECTION_EVENTS_H_
 #include "YgorMeshesBooleanBroadPhase.h"
+#include <map>
 
 namespace ygor {
 namespace mesh_boolean {
@@ -82,6 +83,39 @@ struct raw_curve_ownership {
   orientation_parity direction = orientation_parity::agree;
   std::uint32_t multiplicity = 1;
 };
+int canonical_incidence_compare(const raw_source_incidence &,
+                                const raw_source_incidence &) noexcept;
+int canonical_ownership_compare(const raw_curve_ownership &,
+                                const raw_curve_ownership &) noexcept;
+inline bool canonical_incidence_less(const raw_source_incidence &a,
+                                     const raw_source_incidence &b) noexcept {
+  return canonical_incidence_compare(a, b) < 0;
+}
+inline bool canonical_incidence_equal(const raw_source_incidence &a,
+                                      const raw_source_incidence &b) noexcept {
+  return canonical_incidence_compare(a, b) == 0;
+}
+inline bool canonical_ownership_less(const raw_curve_ownership &a,
+                                     const raw_curve_ownership &b) noexcept {
+  return canonical_ownership_compare(a, b) < 0;
+}
+inline bool canonical_ownership_equal(const raw_curve_ownership &a,
+                                      const raw_curve_ownership &b) noexcept {
+  return canonical_ownership_compare(a, b) == 0;
+}
+
+namespace detail {
+class construction_key_index {
+  std::map<digest, std::vector<std::size_t>> buckets_;
+
+public:
+  std::optional<std::size_t>
+  find(const digest &, const construction_storage &,
+       const std::vector<feature_ref> &,
+       const std::vector<std::uint8_t> &) const;
+  void insert(const digest &, std::size_t);
+};
+} // namespace detail
 struct raw_interval_event {
   raw_event_id id;
   candidate_id candidate;

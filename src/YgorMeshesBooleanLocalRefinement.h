@@ -53,6 +53,8 @@ struct local_constraint_label {
   std::uint32_t multiplicity = 1;
   std::vector<construction_node_id> derivations;
 };
+int canonical_label_compare(const local_constraint_label &,
+                            const local_constraint_label &) noexcept;
 struct local_vertex {
   local_vertex_ref id;
   symbolic_vertex_id symbolic;

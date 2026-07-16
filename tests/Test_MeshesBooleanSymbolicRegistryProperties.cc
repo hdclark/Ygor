@@ -1,6 +1,22 @@
 #include "MeshBooleanSymbolicRegistryFixtures.h"
 #include <iostream>
 using namespace symbolic_test;
+void reconciliation_collision_property() {
+  symbolic_reconciliation_request a, b, equal;
+  a.facet = b.facet = facet_id::from_canonical_value(1);
+  a.first_curve = b.first_curve = symbolic_curve_id::from_canonical_value(2);
+  a.second_curve = b.second_curve = symbolic_curve_id::from_canonical_value(3);
+  a.point = {exact_scalar(1), exact_scalar(2), exact_scalar(3)};
+  b.point = {exact_scalar(1), exact_scalar(2), exact_scalar(4)};
+  a.canonical_key = b.canonical_key = digest{};
+  equal = a;
+  require(!reconciliation_request_equal(a, b),
+          "digest collision does not merge reconciliation requests");
+  require(reconciliation_request_less(a, b) != reconciliation_request_less(b, a),
+          "digest collision has deterministic structural order");
+  require(reconciliation_request_equal(a, equal),
+          "equal reconciliation requests merge structurally");
+}
 template <class T, class I> void run() {
   auto r = registry();
   auto a = cube<T, I>(), b = cube<T, I>();
@@ -42,6 +58,7 @@ template <class T, class I> void run() {
 }
 int main() {
   try {
+    reconciliation_collision_property();
     run<float, std::uint32_t>();
     run<float, std::uint64_t>();
     run<double, std::uint32_t>();

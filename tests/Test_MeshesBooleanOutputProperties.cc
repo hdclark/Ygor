@@ -2,6 +2,62 @@
 #include <iostream>
 using namespace output_test;
 
+namespace {
+std::vector<std::uint8_t> legacy_rotation(
+    const std::array<std::vector<std::uint8_t>, 3> &tokens,
+    std::size_t rotation) {
+  canonical_encoder e;
+  for (std::size_t n = 0; n < 3; ++n)
+    e.byte_string(tokens[(n + rotation) % 3]);
+  return e.bytes();
+}
+std::size_t structural_rotation(
+    const std::array<std::vector<std::uint8_t>, 3> &tokens) {
+  auto less = [&](std::size_t a, std::size_t b) {
+    for (std::size_t n = 0; n < 3; ++n) {
+      const auto &x = tokens[(n + a) % 3], &y = tokens[(n + b) % 3];
+      if (x.size() != y.size()) return x.size() < y.size();
+      if (x != y) return x < y;
+    }
+    return false;
+  };
+  std::size_t best = 0;
+  for (std::size_t candidate = 1; candidate < 3; ++candidate)
+    if (less(candidate, best)) best = candidate;
+  return best;
+}
+void rotation_equivalence() {
+  std::uint32_t state = 0x9e3779b9U;
+  for (std::size_t sample = 0; sample < 256; ++sample) {
+    std::array<std::vector<std::uint8_t>, 3> tokens;
+    for (auto &token : tokens) {
+      state = state * 1664525U + 1013904223U;
+      token.resize((state >> 27) + (sample % 3));
+      for (auto &byte : token) {
+        state = state * 1664525U + 1013904223U;
+        byte = static_cast<std::uint8_t>(state >> 24);
+      }
+    }
+    std::array<std::vector<std::uint8_t>, 3> encoded;
+    for (std::size_t rotation = 0; rotation < 3; ++rotation)
+      encoded[rotation] = legacy_rotation(tokens, rotation);
+    const auto legacy = static_cast<std::size_t>(
+        std::min_element(encoded.begin(), encoded.end()) - encoded.begin());
+    const auto structural = structural_rotation(tokens);
+    require(structural == legacy,
+            "structural face rotation matches canonical-byte ordering");
+    canonical_encoder direct;
+    direct.u64(encoded[structural].size());
+    for (std::size_t n = 0; n < 3; ++n)
+      direct.byte_string(tokens[(n + structural) % 3]);
+    canonical_encoder nested;
+    nested.byte_string(encoded[legacy]);
+    require(direct.bytes() == nested.bytes(),
+            "direct ring encoding matches legacy nested encoding");
+  }
+}
+} // namespace
+
 template <class T, class I> void qualification() {
   auto a = input_test::box<T, I>(T(0), T(1));
   auto b = input_test::box<T, I>(T(3), T(4));
@@ -59,6 +115,7 @@ template <class T, class I> void qualification() {
 
 int main() {
   try {
+    rotation_equivalence();
     boolean_options unsupported_provenance;
     unsupported_provenance.output.include_compact_provenance = true;
     require(!validate_options(unsupported_provenance).has_value(),

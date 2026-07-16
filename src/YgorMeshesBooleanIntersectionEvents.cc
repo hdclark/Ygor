@@ -11,6 +11,76 @@
 
 namespace ygor {
 namespace mesh_boolean {
+int canonical_incidence_compare(const raw_source_incidence &a,
+                                const raw_source_incidence &b) noexcept {
+  int c = canonical_feature_compare(a.source, b.source);
+  if (c) return c;
+  if (a.location != b.location)
+    return static_cast<std::uint8_t>(a.location) <
+                   static_cast<std::uint8_t>(b.location)
+               ? -1
+               : 1;
+  if (a.directed_edge_parameter.has_value() !=
+      b.directed_edge_parameter.has_value())
+    return a.directed_edge_parameter ? 1 : -1;
+  if (a.directed_edge_parameter) {
+    c = canonical_encoding_compare(*a.directed_edge_parameter,
+                                   *b.directed_edge_parameter);
+    if (c) return c;
+  }
+  if (a.local_side.has_value() != b.local_side.has_value())
+    return a.local_side ? 1 : -1;
+  if (a.local_side != b.local_side)
+    return static_cast<std::uint8_t>(*a.local_side) <
+                   static_cast<std::uint8_t>(*b.local_side)
+               ? -1
+               : 1;
+  if (a.orientation != b.orientation)
+    return static_cast<std::uint8_t>(a.orientation) <
+                   static_cast<std::uint8_t>(b.orientation)
+               ? -1
+               : 1;
+  return 0;
+}
+
+int canonical_ownership_compare(const raw_curve_ownership &a,
+                                const raw_curve_ownership &b) noexcept {
+  if (a.operand != b.operand) return a.operand < b.operand ? -1 : 1;
+  const int source = canonical_feature_compare(a.source, b.source);
+  if (source) return source;
+  if (a.direction != b.direction)
+    return static_cast<std::uint8_t>(a.direction) <
+                   static_cast<std::uint8_t>(b.direction)
+               ? -1
+               : 1;
+  if (a.multiplicity != b.multiplicity)
+    return a.multiplicity < b.multiplicity ? -1 : 1;
+  return 0;
+}
+
+std::optional<std::size_t> detail::construction_key_index::find(
+    const digest &key, const construction_storage &storage,
+    const std::vector<feature_ref> &sources,
+    const std::vector<std::uint8_t> &payload) const {
+  const auto bucket = buckets_.find(key);
+  if (bucket == buckets_.end()) return std::nullopt;
+  performance_count(performance_counter::hash_bucket_probes,
+                    bucket->second.size());
+  for (const auto index : bucket->second) {
+    performance_count(performance_counter::exact_equality_checks);
+    const auto &node = storage.nodes.at(index);
+    if (node.kind == construction_kind::exact_relation &&
+        node.defining_sources == sources && node.exact_result == payload)
+      return index;
+  }
+  return std::nullopt;
+}
+
+void detail::construction_key_index::insert(const digest &key,
+                                            std::size_t index) {
+  buckets_[key].push_back(index);
+}
+
 namespace {
 template <class T, class I> std::uint64_t type_tag() {
   return raw_event_set_type_tag +
@@ -50,17 +120,12 @@ void enc_incidence(canonical_encoder &e, const raw_source_incidence &x) {
 }
 bool incidence_less(const raw_source_incidence &a,
                     const raw_source_incidence &b) {
-  canonical_encoder ea, eb;
-  enc_incidence(ea, a); enc_incidence(eb, b);
-  return ea.bytes() < eb.bytes();
+  return canonical_incidence_less(a, b);
 }
 void normalize_incidences(std::vector<raw_source_incidence> &xs) {
   std::sort(xs.begin(), xs.end(), incidence_less);
-  xs.erase(std::unique(xs.begin(), xs.end(), [](const auto &a, const auto &b) {
-    canonical_encoder ea, eb;
-    enc_incidence(ea, a); enc_incidence(eb, b);
-    return ea.bytes() == eb.bytes();
-  }), xs.end());
+  xs.erase(std::unique(xs.begin(), xs.end(), canonical_incidence_equal),
+           xs.end());
 }
 void enc_ownership(canonical_encoder &e, const raw_curve_ownership &x) {
   e.id(x.operand);
@@ -85,17 +150,11 @@ curve_ownership(const std::vector<raw_source_incidence> &incidences,
     raw_curve_ownership owner{*operand, incidence.source,
                               incidence.orientation, 1};
     auto prior = std::find_if(out.begin(), out.end(), [&](const auto &x) {
-      canonical_encoder a, b;
-      enc_ownership(a, x); enc_ownership(b, owner);
-      return a.bytes() == b.bytes();
+      return canonical_ownership_equal(x, owner);
     });
     if (prior == out.end()) out.push_back(std::move(owner));
   }
-  std::sort(out.begin(), out.end(), [](const auto &x, const auto &y) {
-    canonical_encoder a, b;
-    enc_ownership(a, x); enc_ownership(b, y);
-    return a.bytes() < b.bytes();
-  });
+  std::sort(out.begin(), out.end(), canonical_ownership_less);
   return out;
 }
 void apply_source_directions(
@@ -109,11 +168,7 @@ void apply_source_directions(
         [&](const auto &x) { return x.edge_use == *edge_use; });
     if (mapping != source_intervals.end()) owner.direction = mapping->orientation;
   }
-  std::sort(ownership.begin(), ownership.end(), [](const auto &x, const auto &y) {
-    canonical_encoder a, b;
-    enc_ownership(a, x); enc_ownership(b, y);
-    return a.bytes() < b.bytes();
-  });
+  std::sort(ownership.begin(), ownership.end(), canonical_ownership_less);
 }
 raw_derivation exact_derivation(const std::vector<raw_source_incidence> &xs,
                                 std::vector<std::uint8_t> payload) {
@@ -121,15 +176,9 @@ raw_derivation exact_derivation(const std::vector<raw_source_incidence> &xs,
   d.incidences = xs;
   for (const auto &x : xs) d.defining_sources.push_back(x.source);
   std::sort(d.defining_sources.begin(), d.defining_sources.end(),
-            [](const auto &a, const auto &b) {
-              canonical_encoder ea, eb; enc_feature(ea, a); enc_feature(eb, b);
-              return ea.bytes() < eb.bytes();
-            });
+            canonical_feature_less);
   d.defining_sources.erase(std::unique(d.defining_sources.begin(),
-      d.defining_sources.end(), [](const auto &a, const auto &b) {
-        canonical_encoder ea, eb; enc_feature(ea, a); enc_feature(eb, b);
-        return ea.bytes() == eb.bytes();
-      }), d.defining_sources.end());
+      d.defining_sources.end()), d.defining_sources.end());
   d.evidence.kind = evidence_kind::exact_relation;
   d.evidence.invariant = invariant_code::event_geometry;
   d.evidence.entities = d.defining_sources;
@@ -141,22 +190,28 @@ template <class T, class I>
 void freeze_constructions(raw_event_set<T, I> &a) {
   auto storage = std::make_shared<construction_storage>();
   storage->owner = a.owner;
-  std::vector<std::vector<std::uint8_t>> keys;
+  detail::construction_key_index keys;
   auto freeze = [&](raw_derivation &d, const exact_point3 *result_point) {
     canonical_encoder e;
     e.byte(static_cast<std::uint8_t>(construction_kind::exact_relation));
     e.u64(d.defining_sources.size());
     for (const auto &source : d.defining_sources) enc_feature(e, source);
     e.byte_string(d.evidence.exact_payload);
-    auto it = std::find(keys.begin(), keys.end(), e.bytes());
-    std::size_t index = static_cast<std::size_t>(it - keys.begin());
-    if (it == keys.end()) {
-      keys.push_back(e.bytes());
+    performance_count(performance_counter::canonical_key_encodings);
+    const auto key = domain_digest({{'Y', 'G', 'B', 'C', 'K', 'E', 'Y', '1'}},
+                                   e.bytes());
+    auto prior = keys.find(key, *storage, d.defining_sources,
+                           d.evidence.exact_payload);
+    std::size_t index = prior.value_or(storage->nodes.size());
+    if (!prior) {
       construction_node node;
       node.id = construction_node_id::from_canonical_value(index);
       node.defining_sources = d.defining_sources;
       node.exact_result = d.evidence.exact_payload;
       storage->nodes.push_back(std::move(node));
+      keys.insert(key, index);
+    } else {
+      performance_count(performance_counter::duplicate_derivations);
     }
     d.construction = construction_node_id::from_canonical_value(index);
     auto &node = storage->nodes[index];
@@ -669,17 +724,10 @@ struct verifier_boundary_atom {
 };
 
 void verifier_normalize_ownership(std::vector<raw_curve_ownership> &owners) {
-  std::sort(owners.begin(), owners.end(), [](const auto &x, const auto &y) {
-    canonical_encoder a, b;
-    enc_ownership(a, x); enc_ownership(b, y);
-    return a.bytes() < b.bytes();
-  });
-  owners.erase(std::unique(owners.begin(), owners.end(), [](const auto &x,
-                                                            const auto &y) {
-    canonical_encoder a, b;
-    enc_ownership(a, x); enc_ownership(b, y);
-    return a.bytes() == b.bytes();
-  }), owners.end());
+  std::sort(owners.begin(), owners.end(), canonical_ownership_less);
+  owners.erase(
+      std::unique(owners.begin(), owners.end(), canonical_ownership_equal),
+      owners.end());
 }
 
 // Reconstruct overlap halfedges directly from source edges. This deliberately
@@ -930,10 +978,7 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
           d.construction.value_for_debug() >= a.constructions->nodes.size())
         return false;
       const auto &node = a.constructions->nodes[d.construction.value_for_debug()];
-      canonical_encoder node_sources, derivation_sources;
-      for (const auto &source : node.defining_sources) enc_feature(node_sources, source);
-      for (const auto &source : d.defining_sources) enc_feature(derivation_sources, source);
-      if (node_sources.bytes() != derivation_sources.bytes() ||
+      if (node.defining_sources != d.defining_sources ||
           node.exact_result != d.evidence.exact_payload) return false;
     }
     return true;
@@ -1093,10 +1138,10 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
     normalize_incidences(expected);
     auto actual = p.incidences;
     normalize_incidences(actual);
-    canonical_encoder ee, ea;
-    for (const auto &x : expected) enc_incidence(ee, x);
-    for (const auto &x : actual) enc_incidence(ea, x);
-    if (ee.bytes() != ea.bytes()) return false;
+    if (expected.size() != actual.size() ||
+        !std::equal(expected.begin(), expected.end(), actual.begin(),
+                    canonical_incidence_equal))
+      return false;
   }
   return semantic(a) == a.canonical_event_bytes &&
          invocation(a) == a.artifact_bytes &&
@@ -1235,15 +1280,14 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
               verifier_normalize_ownership(cycle_owners);
               if (interval_owners.size() != expected->ownership.size() ||
                   cycle_owners.size() != expected->ownership.size()) return false;
-              canonical_encoder expected_bytes, interval_bytes, cycle_bytes;
-              for (const auto &owner : expected->ownership)
-                enc_ownership(expected_bytes, owner);
-              for (const auto &owner : interval_owners)
-                enc_ownership(interval_bytes, owner);
-              for (const auto &owner : cycle_owners)
-                enc_ownership(cycle_bytes, owner);
-              if (expected_bytes.bytes() != interval_bytes.bytes() ||
-                  expected_bytes.bytes() != cycle_bytes.bytes()) return false;
+              if (!std::equal(expected->ownership.begin(),
+                              expected->ownership.end(),
+                              interval_owners.begin(),
+                              canonical_ownership_equal) ||
+                  !std::equal(expected->ownership.begin(),
+                              expected->ownership.end(), cycle_owners.begin(),
+                              canonical_ownership_equal))
+                return false;
             }
           }
         }

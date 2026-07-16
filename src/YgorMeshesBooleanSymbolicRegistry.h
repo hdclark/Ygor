@@ -104,6 +104,31 @@ struct symbolic_reconciliation_request {
   std::vector<construction_node_id> constructions;
   digest canonical_key;
 };
+inline int reconciliation_request_structural_compare(
+    const symbolic_reconciliation_request &a,
+    const symbolic_reconciliation_request &b) noexcept {
+  if (a.facet != b.facet) return a.facet < b.facet ? -1 : 1;
+  if (a.first_curve != b.first_curve)
+    return a.first_curve < b.first_curve ? -1 : 1;
+  if (a.second_curve != b.second_curve)
+    return a.second_curve < b.second_curve ? -1 : 1;
+  int c = canonical_encoding_compare(a.point.x, b.point.x);
+  if (!c) c = canonical_encoding_compare(a.point.y, b.point.y);
+  if (!c) c = canonical_encoding_compare(a.point.z, b.point.z);
+  return c;
+}
+inline bool reconciliation_request_less(
+    const symbolic_reconciliation_request &a,
+    const symbolic_reconciliation_request &b) noexcept {
+  if (a.canonical_key != b.canonical_key)
+    return a.canonical_key < b.canonical_key;
+  return reconciliation_request_structural_compare(a, b) < 0;
+}
+inline bool reconciliation_request_equal(
+    const symbolic_reconciliation_request &a,
+    const symbolic_reconciliation_request &b) noexcept {
+  return reconciliation_request_structural_compare(a, b) == 0;
+}
 template <class T, class I> struct symbolic_complex {
   context_owner_token owner;
   digest setup_digest, upstream_digest, validated_digest, kernel_policy_digest,

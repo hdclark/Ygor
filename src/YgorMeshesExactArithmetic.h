@@ -100,6 +100,26 @@ public:
 };
 using exact_scalar=exact_rational;
 
+// Canonical byte streams order signed values by their encoded sign byte, not
+// by mathematical value. These comparisons reproduce that order directly.
+inline int canonical_encoding_compare(const big_uint &a,
+                                      const big_uint &b) noexcept {
+    return a.compare(b);
+}
+inline int canonical_encoding_compare(const big_int &a,
+                                      const big_int &b) noexcept {
+    const auto as = static_cast<std::uint8_t>(static_cast<std::int8_t>(a.sign()));
+    const auto bs = static_cast<std::uint8_t>(static_cast<std::int8_t>(b.sign()));
+    if(as != bs) return as < bs ? -1 : 1;
+    return canonical_encoding_compare(a.magnitude(), b.magnitude());
+}
+inline int canonical_encoding_compare(const exact_rational &a,
+                                      const exact_rational &b) noexcept {
+    const int numerator = canonical_encoding_compare(a.numerator(), b.numerator());
+    return numerator ? numerator
+                     : canonical_encoding_compare(a.denominator(), b.denominator());
+}
+
 enum class coordinate_category:std::uint8_t{positive_zero,negative_zero,normal,subnormal,infinity,nan};
 template<class T>struct coordinate_bits;
 template<>struct coordinate_bits<float>{std::uint32_t bits=0;};

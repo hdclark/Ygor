@@ -1150,16 +1150,12 @@ build_symbolic_complex_impl(
           }
         if (atom.raw_intervals.empty())
           continue;
-        std::sort(atom.ownership.begin(), atom.ownership.end(), [](const auto &x,
-                                                                   const auto &y) {
-          canonical_encoder a, b; enc_ownership(a, x); enc_ownership(b, y);
-          return a.bytes() < b.bytes();
-        });
-        atom.ownership.erase(std::unique(atom.ownership.begin(), atom.ownership.end(),
-          [](const auto &x, const auto &y) {
-            canonical_encoder a, b; enc_ownership(a, x); enc_ownership(b, y);
-            return a.bytes() == b.bytes();
-          }), atom.ownership.end());
+        std::sort(atom.ownership.begin(), atom.ownership.end(),
+                  canonical_ownership_less);
+        atom.ownership.erase(
+            std::unique(atom.ownership.begin(), atom.ownership.end(),
+                        canonical_ownership_equal),
+            atom.ownership.end());
         std::sort(atom.constructions.begin(), atom.constructions.end());
         atom.constructions.erase(std::unique(atom.constructions.begin(), atom.constructions.end()),
                                  atom.constructions.end());
@@ -1423,13 +1419,9 @@ reconcile_symbolic_complex(
     return make_error(boolean_error_code::internal_invariant_error,
                       boolean_stage::symbolic_registry,
                       "stale_symbolic_generation");
-  std::sort(requests.begin(), requests.end(), [](const auto &a, const auto &b) {
-    return a.canonical_key < b.canonical_key;
-  });
+  std::sort(requests.begin(), requests.end(), reconciliation_request_less);
   requests.erase(std::unique(requests.begin(), requests.end(),
-                             [](const auto &a, const auto &b) {
-                               return a.canonical_key == b.canonical_key;
-                             }),
+                             reconciliation_request_equal),
                  requests.end());
   for (const auto &request : requests) {
     if (request.schema != symbolic_reconciliation_schema_v1 ||

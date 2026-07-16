@@ -2,6 +2,86 @@
 #include <iostream>
 using namespace symbolic_test;
 using namespace event_test;
+namespace {
+void encode_feature(canonical_encoder &e, const feature_ref &f) {
+  e.byte(static_cast<std::uint8_t>(f.index()));
+  std::visit([&](const auto &x) {
+    using X = typename std::decay<decltype(x)>::type;
+    if constexpr (std::is_same<X, original_vertex_ref>::value) {
+      e.id(x.operand); e.id(x.vertex);
+    } else if constexpr (std::is_same<X, facet_ref>::value) {
+      e.id(x.operand); e.id(x.facet);
+    } else {
+      e.id(x);
+    }
+  }, f);
+}
+std::vector<std::uint8_t> encoded(const raw_source_incidence &x) {
+  canonical_encoder e;
+  encode_feature(e, x.source);
+  e.byte(static_cast<std::uint8_t>(x.location));
+  e.boolean(x.directed_edge_parameter.has_value());
+  if (x.directed_edge_parameter) x.directed_edge_parameter->encode(e);
+  e.boolean(x.local_side.has_value());
+  if (x.local_side) e.byte(static_cast<std::uint8_t>(*x.local_side));
+  e.byte(static_cast<std::uint8_t>(x.orientation));
+  return e.bytes();
+}
+std::vector<std::uint8_t> encoded(const raw_curve_ownership &x) {
+  canonical_encoder e;
+  e.id(x.operand);
+  encode_feature(e, x.source);
+  e.byte(static_cast<std::uint8_t>(x.direction));
+  e.u32(x.multiplicity);
+  return e.bytes();
+}
+void comparator_equivalence() {
+  std::vector<feature_ref> features{
+      operand_a(), shell_id::from_canonical_value(2),
+      edge_use_id::from_canonical_value(3), facet_id::from_canonical_value(4),
+      original_vertex_ref{operand_b(), original_vertex_id::from_canonical_value(5)},
+      facet_ref{operand_a(), facet_id::from_canonical_value(6)}};
+  for (const auto &a : features) for (const auto &b : features) {
+    canonical_encoder ea, eb;
+    encode_feature(ea, a); encode_feature(eb, b);
+    require(canonical_feature_less(a, b) == (ea.bytes() < eb.bytes()),
+            "feature structural ordering matches bytes");
+  }
+  const std::vector<exact_scalar> parameters{
+      exact_scalar(0), exact_scalar(1), exact_scalar(-1),
+      exact_scalar(big_int(integer_sign::positive, big_uint(256)), big_uint(3)),
+      exact_scalar(big_int(integer_sign::negative, big_uint(257)), big_uint(5))};
+  std::vector<raw_source_incidence> incidences;
+  for (const auto &feature : features)
+    for (const auto &parameter : parameters) {
+      incidences.push_back({feature,
+                            local_incidence_location::directed_edge_open_interior,
+                            parameter, exact_sign::negative,
+                            orientation_parity::opposite});
+      incidences.push_back({feature, local_incidence_location::facet_boundary,
+                            std::nullopt, std::nullopt,
+                            orientation_parity::agree});
+    }
+  for (const auto &a : incidences) for (const auto &b : incidences) {
+    require(canonical_incidence_less(a, b) == (encoded(a) < encoded(b)),
+            "incidence structural ordering matches bytes");
+    require(canonical_incidence_equal(a, b) == (encoded(a) == encoded(b)),
+            "incidence structural equality matches bytes");
+  }
+  std::vector<raw_curve_ownership> ownership;
+  for (const auto &feature : features)
+    for (auto direction : {orientation_parity::agree,
+                           orientation_parity::opposite})
+      ownership.push_back({operand_b(), feature, direction,
+                           static_cast<std::uint32_t>(ownership.size() + 1)});
+  for (const auto &a : ownership) for (const auto &b : ownership) {
+    require(canonical_ownership_less(a, b) == (encoded(a) < encoded(b)),
+            "ownership structural ordering matches bytes");
+    require(canonical_ownership_equal(a, b) == (encoded(a) == encoded(b)),
+            "ownership structural equality matches bytes");
+  }
+}
+} // namespace
 template <class T, class I>
 void check_source_mappings(const raw_event_set<T, I> &events) {
   const auto &validated = *events.candidates->payload->validated->payload;
@@ -99,6 +179,7 @@ template <class T, class I> void run() {
 }
 int main() {
   try {
+    comparator_equivalence();
     run<float, std::uint32_t>();
     run<float, std::uint64_t>();
     run<double, std::uint32_t>();

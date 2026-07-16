@@ -144,16 +144,18 @@ prepare_faces(const realized_boundary<T, I> &r,
                           "triangle_vertex_range");
     prepared_face<T, I> f;
     f.triangle = &t;
-    std::array<std::vector<std::uint8_t>, 3> rotations;
-    for (std::size_t q = 0; q < 3; ++q) {
-      canonical_encoder e;
-      for (std::size_t n = 0; n < 3; ++n)
-        append_bytes(e, tokens[t.vertices[(n + q) % 3].value_for_debug()]);
-      rotations[q] = e.bytes();
-    }
-    f.rotation = static_cast<std::uint8_t>(
-        std::min_element(rotations.begin(), rotations.end()) -
-        rotations.begin());
+    auto rotation_less = [&](std::size_t a, std::size_t b) {
+      for (std::size_t n = 0; n < 3; ++n) {
+        const auto &x = tokens[t.vertices[(n + a) % 3].value_for_debug()];
+        const auto &y = tokens[t.vertices[(n + b) % 3].value_for_debug()];
+        if (x.size() != y.size()) return x.size() < y.size();
+        if (x != y) return x < y;
+      }
+      return false;
+    };
+    for (std::size_t q = 1; q < 3; ++q)
+      if (rotation_less(q, f.rotation))
+        f.rotation = static_cast<std::uint8_t>(q);
     for (std::size_t n = 0; n < 3; ++n) {
       const auto source = (n + f.rotation) % 3;
       f.ring[n] = t.vertices[source];
@@ -171,7 +173,12 @@ prepare_faces(const realized_boundary<T, I> &r,
       f.roles[n] = he.role;
     }
     canonical_encoder key;
-    append_bytes(key, rotations[f.rotation]);
+    std::uint64_t ring_bytes = 3U * sizeof(std::uint64_t);
+    for (auto vertex : f.ring)
+      ring_bytes += tokens[vertex.value_for_debug()].size();
+    key.u64(ring_bytes);
+    for (auto vertex : f.ring)
+      append_bytes(key, tokens[vertex.value_for_debug()]);
     append_bytes(key, t.owner_free_semantic_key);
     key.byte(static_cast<std::uint8_t>(t.projection));
     for (auto role : f.roles)
@@ -703,21 +710,36 @@ bool independently_valid(const assembled_output<T, I> &a,
   for (const auto &triangle : r.triangles) {
     if (triangle.id.value_for_debug() >= r.triangles.size())
       return false;
-    std::array<std::vector<std::uint8_t>, 3> rotations;
-    for (std::size_t q = 0; q < 3; ++q) {
-      canonical_encoder encoded;
-      for (std::size_t n = 0; n < 3; ++n)
-        encoded.byte_string(
-            tokens[triangle.vertices[(n + q) % 3].value_for_debug()]);
-      rotations[q] = encoded.bytes();
-    }
     verifier_face face;
     face.id = triangle.id;
-    face.rotation = static_cast<std::uint8_t>(
-        std::min_element(rotations.begin(), rotations.end()) -
-        rotations.begin());
+    auto verifier_rotation_before = [&](std::size_t lhs, std::size_t rhs) {
+      for (std::size_t offset = 0; offset < 3; ++offset) {
+        const auto &left = tokens[triangle.vertices[(lhs + offset) % 3]
+                                      .value_for_debug()];
+        const auto &right = tokens[triangle.vertices[(rhs + offset) % 3]
+                                       .value_for_debug()];
+        if (left.size() < right.size()) return true;
+        if (right.size() < left.size()) return false;
+        if (std::lexicographical_compare(left.begin(), left.end(), right.begin(),
+                                         right.end()))
+          return true;
+        if (left != right) return false;
+      }
+      return false;
+    };
+    for (std::size_t candidate = 1; candidate < 3; ++candidate)
+      if (verifier_rotation_before(candidate, face.rotation))
+        face.rotation = static_cast<std::uint8_t>(candidate);
     canonical_encoder key;
-    key.byte_string(rotations[face.rotation]);
+    std::uint64_t encoded_ring_size = 3U * sizeof(std::uint64_t);
+    for (std::size_t n = 0; n < 3; ++n)
+      encoded_ring_size +=
+          tokens[triangle.vertices[(n + face.rotation) % 3].value_for_debug()]
+              .size();
+    key.u64(encoded_ring_size);
+    for (std::size_t n = 0; n < 3; ++n)
+      key.byte_string(
+          tokens[triangle.vertices[(n + face.rotation) % 3].value_for_debug()]);
     key.byte_string(triangle.owner_free_semantic_key);
     key.byte(static_cast<std::uint8_t>(triangle.projection));
     for (std::size_t n = 0; n < 3; ++n) {

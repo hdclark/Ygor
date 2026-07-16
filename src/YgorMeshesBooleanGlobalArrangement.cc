@@ -16,7 +16,22 @@ template<class T,class I> std::uint64_t type_tag(){return arrangement_complex_ty
 void plane(canonical_encoder&e,const exact_plane3&p){encode(e,p.a);encode(e,p.b);encode(e,p.c);encode(e,p.d);e.byte(static_cast<std::uint8_t>(p.oriented));}
 void vector3(canonical_encoder&e,const exact_vector3&v){encode(e,v.x);encode(e,v.y);encode(e,v.z);}
 void point3(canonical_encoder&e,const exact_point3&p){encode(e,p.x);encode(e,p.y);encode(e,p.z);}
-std::vector<std::uint8_t> plane_key(const exact_plane3&p,bool unoriented=false){canonical_encoder e;encode(e,p.a);encode(e,p.b);encode(e,p.c);encode(e,p.d);if(!unoriented)e.byte(static_cast<std::uint8_t>(p.oriented));return e.bytes();}
+struct canonical_plane_key {
+  exact_plane3 plane;
+  bool include_orientation = true;
+  bool operator<(const canonical_plane_key &o) const {
+    int c = canonical_encoding_compare(plane.a, o.plane.a);
+    if (!c) c = canonical_encoding_compare(plane.b, o.plane.b);
+    if (!c) c = canonical_encoding_compare(plane.c, o.plane.c);
+    if (!c) c = canonical_encoding_compare(plane.d, o.plane.d);
+    if (c) return c < 0;
+    if (include_orientation != o.include_orientation)
+      return include_orientation < o.include_orientation;
+    return include_orientation && plane.oriented != o.plane.oriented &&
+           static_cast<std::uint8_t>(plane.oriented) <
+               static_cast<std::uint8_t>(o.plane.oriented);
+  }
+};
 template<class Id> void ids(canonical_encoder&e,const std::vector<Id>&v){e.u64(v.size());for(auto x:v)e.id(x);}
 std::vector<symbolic_vertex_id> normalized_cycle(std::vector<symbolic_vertex_id> v){
   if(v.empty())return v;
@@ -268,13 +283,12 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         for (auto id : part)
           sheet_component[id] = least;
       }
-    std::map<
-        std::tuple<operand_id, shell_id, facet_id, std::vector<std::uint8_t>>,
-        source_sheet_member_id>
+    std::map<std::tuple<operand_id, shell_id, facet_id, canonical_plane_key>,
+             source_sheet_member_id>
         members;
     std::map<std::pair<facet_id, local_patch_id>, sheet_use_id> local_use;
     struct patch_key {
-      std::vector<std::uint8_t> plane;
+      canonical_plane_key plane;
       std::vector<symbolic_vertex_id> outer;
       std::vector<std::vector<symbolic_vertex_id>> holes;
       bool operator<(const patch_key &o) const {
@@ -287,7 +301,7 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       const auto &vf = a.validated->payload->facets[f.facet.value_for_debug()];
       for (const auto &p : f.patches) {
         auto mk = std::make_tuple(f.operand, f.shell, sheet_component[f.facet],
-                                  plane_key(vf.plane));
+                                  canonical_plane_key{vf.plane, true});
         auto mi = members.find(mk);
         if (mi == members.end()) {
           auto id =
@@ -307,7 +321,7 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
                               .symbolic);
           return normalized_cycle(std::move(out));
         };
-        patch_key pk{plane_key(vf.plane, true), cycle(p.outer), {}};
+        patch_key pk{canonical_plane_key{vf.plane, false}, cycle(p.outer), {}};
         for (auto h : p.holes)
           pk.holes.push_back(cycle(h));
         std::sort(pk.holes.begin(), pk.holes.end());

@@ -3,6 +3,31 @@
 using namespace symbolic_test;
 int main() {
   try {
+    construction_storage collision_storage;
+    collision_storage.nodes.push_back(
+        {construction_node_id::from_canonical_value(0),
+         construction_kind::exact_relation, {},
+         {facet_id::from_canonical_value(1)}, {}, {1, 2}});
+    collision_storage.nodes.push_back(
+        {construction_node_id::from_canonical_value(1),
+         construction_kind::exact_relation, {},
+         {facet_id::from_canonical_value(2)}, {}, {3, 4}});
+    detail::construction_key_index collision_index;
+    digest forced_collision;
+    collision_index.insert(forced_collision, 0);
+    collision_index.insert(forced_collision, 1);
+    require(collision_index.find(forced_collision, collision_storage,
+                                 collision_storage.nodes[0].defining_sources,
+                                 collision_storage.nodes[0].exact_result) == 0,
+            "collision index finds first exact key");
+    require(collision_index.find(forced_collision, collision_storage,
+                                 collision_storage.nodes[1].defining_sources,
+                                 collision_storage.nodes[1].exact_result) == 1,
+            "digest collision preserves distinct construction");
+    require(!collision_index.find(forced_collision, collision_storage,
+                                  collision_storage.nodes[0].defining_sources,
+                                  std::vector<std::uint8_t>{9}),
+            "digest collision never establishes equality");
     auto r = registry();
     auto a = cube<double, std::uint32_t>(), b = cube<double, std::uint32_t>();
     translate(b, 0.5, 0.5, 0.5);
