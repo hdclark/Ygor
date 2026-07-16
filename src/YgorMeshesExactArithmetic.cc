@@ -9,23 +9,68 @@
 
 namespace ygor { namespace mesh_boolean {
 namespace { void count_integer_operation(std::size_t limbs){performance_count(limbs<=2?performance_counter::small_integer_operations:performance_counter::large_integer_operations);} }
-void big_uint::normalize()noexcept{while(!limbs_.empty()&&!limbs_.back())limbs_.pop_back();}
-big_uint::big_uint(std::uint64_t v){if(v)limbs_.push_back(std::uint32_t(v));if(v>>32)limbs_.push_back(std::uint32_t(v>>32));}
+void big_uint::resize(std::size_t n,std::uint32_t value){
+  if(n<=inline_capacity_){
+    std::array<std::uint32_t,inline_capacity_> next{{value,value}};
+    const auto copied=std::min(size_,n);
+    for(std::size_t i=0;i<copied;++i)next[i]=limb(i);
+    heap_limbs_.clear();inline_limbs_=next;size_=n;return;
+  }
+  std::vector<std::uint32_t> next(n,value);
+  const auto copied=std::min(size_,n);
+  for(std::size_t i=0;i<copied;++i)next[i]=limb(i);
+  heap_limbs_.swap(next);size_=n;
+}
+void big_uint::assign(std::size_t n,std::uint32_t value){
+  if(n<=inline_capacity_){heap_limbs_.clear();inline_limbs_={{value,value}};size_=n;return;}
+  std::vector<std::uint32_t> next(n,value);heap_limbs_.swap(next);size_=n;
+}
+void big_uint::push_back(std::uint32_t value){const auto old=size_;if(old==std::numeric_limits<std::size_t>::max())throw std::length_error("integer size overflow");resize(old+1);limb(old)=value;}
+void big_uint::normalize()noexcept{const auto*current=data();auto normalized=size_;while(normalized&&!current[normalized-1])--normalized;if(normalized<=inline_capacity_&&!heap_limbs_.empty()){for(std::size_t i=0;i<normalized;++i)inline_limbs_[i]=current[i];for(std::size_t i=normalized;i<inline_capacity_;++i)inline_limbs_[i]=0;heap_limbs_.clear();}else if(normalized>inline_capacity_&&heap_limbs_.size()!=normalized)heap_limbs_.resize(normalized);size_=normalized;}
+big_uint::big_uint(big_uint&&o)noexcept:inline_limbs_(o.inline_limbs_),heap_limbs_(std::move(o.heap_limbs_)),size_(o.size_){o.inline_limbs_={{0,0}};o.size_=0;}
+big_uint&big_uint::operator=(big_uint o){using std::swap;swap(inline_limbs_,o.inline_limbs_);swap(heap_limbs_,o.heap_limbs_);swap(size_,o.size_);return *this;}
+big_uint::big_uint(std::uint64_t v){if(v){inline_limbs_[0]=std::uint32_t(v);size_=1;}if(v>>32){inline_limbs_[1]=std::uint32_t(v>>32);size_=2;}}
 status_or<big_uint>big_uint::from_hex(const std::string&s,boolean_stage st){try{big_uint r;if(s.empty())return make_error(boolean_error_code::input_contract_error,st,"empty_integer");for(char c:s){unsigned d=c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:16;if(d==16)return make_error(boolean_error_code::input_contract_error,st,"invalid_integer");r=r.shifted_left(4)+big_uint(d);}return r;}catch(const std::bad_alloc&){return make_error(boolean_error_code::resource_limit,st,"allocation");}}
-std::size_t big_uint::bit_length()const noexcept{if(is_zero())return 0;std::uint32_t x=limbs_.back();std::size_t n=32*(limbs_.size()-1);while(x){++n;x>>=1;}return n;}
-std::size_t big_uint::trailing_zero_bits()const noexcept{if(is_zero())return 0;std::size_t n=0;for(auto x:limbs_){if(!x){n+=32;continue;}while(!(x&1)){++n;x>>=1;}break;}return n;}
-bool big_uint::is_power_of_two()const noexcept{return !is_zero()&&shifted_right(trailing_zero_bits())==big_uint(1);}
-int big_uint::compare(const big_uint&o)const noexcept{if(limbs_.size()!=o.limbs_.size())return limbs_.size()<o.limbs_.size()?-1:1;for(std::size_t i=limbs_.size();i--;){if(limbs_[i]!=o.limbs_[i])return limbs_[i]<o.limbs_[i]?-1:1;}return 0;}
-std::uint64_t big_uint::to_uint64(bool*f)const noexcept{bool ok=limbs_.size()<=2;if(f)*f=ok;if(!ok)return 0;return (limbs_.empty()?0:limbs_[0])|(limbs_.size()>1?std::uint64_t(limbs_[1])<<32:0);}
-std::string big_uint::to_hex()const{if(is_zero())return"0";std::ostringstream os;os<<std::hex<<limbs_.back();for(std::size_t i=limbs_.size()-1;i--;)os<<std::setw(8)<<std::setfill('0')<<limbs_[i];return os.str();}
-std::vector<std::uint8_t>big_uint::canonical_bytes()const{std::vector<std::uint8_t>b;for(std::size_t i=bit_length();i;i-=std::min<std::size_t>(8,i)){std::size_t sh=((i-1)/8)*8;auto x=shifted_right(sh);b.push_back(std::uint8_t(x.limbs_[0]));}return b;}
+std::size_t big_uint::bit_length()const noexcept{if(is_zero())return 0;std::uint32_t x=limb(size_-1);std::size_t n=32*(size_-1);while(x){++n;x>>=1;}return n;}
+std::size_t big_uint::trailing_zero_bits()const noexcept{if(is_zero())return 0;std::size_t n=0;for(std::size_t i=0;i<size_;++i){auto x=limb(i);if(!x){n+=32;continue;}while(!(x&1)){++n;x>>=1;}break;}return n;}
+bool big_uint::is_power_of_two()const noexcept{bool found=false;for(std::size_t i=0;i<size_;++i){const auto x=limb(i);if(!x)continue;if(found||(x&(x-1U)))return false;found=true;}return found;}
+int big_uint::compare(const big_uint&o)const noexcept{if(size_!=o.size_)return size_<o.size_?-1:1;for(std::size_t i=size_;i--;){if(limb(i)!=o.limb(i))return limb(i)<o.limb(i)?-1:1;}return 0;}
+std::uint64_t big_uint::to_uint64(bool*f)const noexcept{bool ok=size_<=2;if(f)*f=ok;if(!ok)return 0;return (size_?limb(0):0)|(size_>1?std::uint64_t(limb(1))<<32:0);}
+std::string big_uint::to_hex()const{if(is_zero())return"0";std::ostringstream os;os<<std::hex<<limb(size_-1);for(std::size_t i=size_-1;i--;)os<<std::setw(8)<<std::setfill('0')<<limb(i);return os.str();}
+std::vector<std::uint8_t>big_uint::canonical_bytes()const{std::vector<std::uint8_t>b;for(std::size_t i=bit_length();i;i-=std::min<std::size_t>(8,i)){std::size_t sh=((i-1)/8)*8;auto x=shifted_right(sh);b.push_back(std::uint8_t(x.limb(0)));}return b;}
 void big_uint::encode(canonical_encoder&e)const{auto b=canonical_bytes();e.u64(b.size());e.raw(b.data(),b.size());}
-big_uint big_uint::shifted_left(std::size_t n)const{if(is_zero())return{};big_uint r;r.limbs_.assign(n/32,0);unsigned s=n%32;std::uint64_t carry=0;for(auto x:limbs_){std::uint64_t v=(std::uint64_t(x)<<s)|carry;r.limbs_.push_back(std::uint32_t(v));carry=v>>32;}if(carry)r.limbs_.push_back(std::uint32_t(carry));return r;}
-big_uint big_uint::shifted_right(std::size_t n)const{if(n/32>=limbs_.size())return{};big_uint r;r.limbs_.resize(limbs_.size()-n/32);unsigned s=n%32;std::uint32_t carry=0;for(std::size_t i=limbs_.size();i-->n/32;){auto x=limbs_[i];r.limbs_[i-n/32]=s?(x>>s)|(carry<<(32-s)):x;carry=s?x&((std::uint32_t(1)<<s)-1):0;}r.normalize();return r;}
-big_uint operator+(const big_uint&a,const big_uint&b){const auto n=std::max(a.limbs_.size(),b.limbs_.size());count_integer_operation(n);performance_count(performance_counter::limb_additions,n);big_uint r;r.limbs_.resize(n);std::uint64_t c=0;for(std::size_t i=0;i<r.limbs_.size();++i){std::uint64_t v=c+(i<a.limbs_.size()?a.limbs_[i]:0)+(i<b.limbs_.size()?b.limbs_[i]:0);r.limbs_[i]=std::uint32_t(v);c=v>>32;}if(c)r.limbs_.push_back(std::uint32_t(c));return r;}
-big_uint operator-(const big_uint&a,const big_uint&b){count_integer_operation(a.limbs_.size());performance_count(performance_counter::limb_additions,a.limbs_.size());if(a<b)throw std::invalid_argument("negative unsigned subtraction");big_uint r=a;std::uint64_t borrow=0;for(std::size_t i=0;i<r.limbs_.size();++i){std::uint64_t sub=(i<b.limbs_.size()?b.limbs_[i]:0)+borrow;std::uint64_t av=r.limbs_[i];r.limbs_[i]=std::uint32_t(av-sub);borrow=av<sub;}r.normalize();return r;}
-big_uint operator*(const big_uint&a,const big_uint&b){count_integer_operation(std::max(a.limbs_.size(),b.limbs_.size()));performance_count(performance_counter::limb_multiplications,a.limbs_.size()*b.limbs_.size());if(a.is_zero()||b.is_zero())return{};big_uint r;r.limbs_.assign(a.limbs_.size()+b.limbs_.size(),0);for(std::size_t i=0;i<a.limbs_.size();++i){std::uint64_t c=0;for(std::size_t j=0;j<b.limbs_.size();++j){std::uint64_t v=std::uint64_t(a.limbs_[i])*b.limbs_[j]+r.limbs_[i+j]+c;r.limbs_[i+j]=std::uint32_t(v);c=v>>32;}std::size_t k=i+b.limbs_.size();while(c){std::uint64_t v=std::uint64_t(r.limbs_[k])+c;r.limbs_[k]=std::uint32_t(v);c=v>>32;++k;}}r.normalize();return r;}
-std::pair<big_uint,big_uint>divide(const big_uint&a,const big_uint&b){performance_count(performance_counter::division_calls);performance_count(performance_counter::divided_limbs,a.limbs_.size());count_integer_operation(std::max(a.limbs_.size(),b.limbs_.size()));if(b.is_zero())throw std::invalid_argument("division by zero");if(a<b)return{{},a};big_uint q,r;for(std::size_t i=a.bit_length();i--;){r=r.shifted_left(1);if((a.limbs_[i/32]>>(i%32))&1)r=r+big_uint(1);if(r.compare(b)>=0){r=r-b;q=q+big_uint(1).shifted_left(i);}}return{q,r};}
+big_uint big_uint::shifted_left(std::size_t n)const{if(is_zero())return{};const auto words=n/32,max=std::numeric_limits<std::size_t>::max();if(words>max-size_||words+size_==max)throw std::length_error("integer size overflow");big_uint r;r.assign(words+size_+1,0);unsigned s=n%32;std::uint64_t carry=0;for(std::size_t i=0;i<size_;++i){std::uint64_t v=(std::uint64_t(limb(i))<<s)|carry;r.limb(words+i)=std::uint32_t(v);carry=v>>32;}r.limb(words+size_)=std::uint32_t(carry);r.normalize();return r;}
+big_uint big_uint::shifted_right(std::size_t n)const{const auto words=n/32;if(words>=size_)return{};big_uint r;r.resize(size_-words);unsigned s=n%32;std::uint32_t carry=0;for(std::size_t i=size_;i-->words;){auto x=limb(i);r.limb(i-words)=s?(x>>s)|(carry<<(32-s)):x;carry=s?x&((std::uint32_t(1)<<s)-1):0;}r.normalize();return r;}
+big_uint operator+(const big_uint&a,const big_uint&b){const auto n=std::max(a.size_,b.size_);count_integer_operation(n);performance_count(performance_counter::limb_additions,n);big_uint r;r.resize(n);std::uint64_t c=0;for(std::size_t i=0;i<n;++i){std::uint64_t v=c+(i<a.size_?a.limb(i):0)+(i<b.size_?b.limb(i):0);r.limb(i)=std::uint32_t(v);c=v>>32;}if(c)r.push_back(std::uint32_t(c));return r;}
+big_uint operator-(const big_uint&a,const big_uint&b){count_integer_operation(a.size_);performance_count(performance_counter::limb_additions,a.size_);if(a<b)throw std::invalid_argument("negative unsigned subtraction");big_uint r=a;std::uint64_t borrow=0;for(std::size_t i=0;i<r.size_;++i){std::uint64_t sub=(i<b.size_?b.limb(i):0)+borrow;std::uint64_t av=r.limb(i);r.limb(i)=std::uint32_t(av-sub);borrow=av<sub;}r.normalize();return r;}
+big_uint operator*(const big_uint&a,const big_uint&b){count_integer_operation(std::max(a.size_,b.size_));performance_count(performance_counter::limb_multiplications,a.size_*b.size_);if(a.is_zero()||b.is_zero())return{};if(a.size_>std::numeric_limits<std::size_t>::max()-b.size_)throw std::length_error("integer size overflow");big_uint r;r.assign(a.size_+b.size_,0);for(std::size_t i=0;i<a.size_;++i){std::uint64_t c=0;for(std::size_t j=0;j<b.size_;++j){std::uint64_t v=std::uint64_t(a.limb(i))*b.limb(j)+r.limb(i+j)+c;r.limb(i+j)=std::uint32_t(v);c=v>>32;}std::size_t k=i+b.size_;while(c){std::uint64_t v=std::uint64_t(r.limb(k))+c;r.limb(k)=std::uint32_t(v);c=v>>32;++k;}}r.normalize();return r;}
+std::pair<big_uint,big_uint>divide(const big_uint&a,const big_uint&b){
+  performance_count(performance_counter::division_calls);performance_count(performance_counter::divided_limbs,a.size_);count_integer_operation(std::max(a.size_,b.size_));
+  if(b.is_zero())throw std::invalid_argument("division by zero");
+  if(a.is_zero()||a<b)return{{},a};
+  if(b==big_uint(1))return{a,{}};
+  if(a==b)return{big_uint(1),{}};
+  if(b.is_power_of_two()){const auto shift=b.trailing_zero_bits();auto q=a.shifted_right(shift);return{std::move(q),a-(q.shifted_left(shift))};}
+  if(b.size_==1){
+    const std::uint64_t divisor=b.limb(0);std::uint64_t remainder=0;big_uint q;q.resize(a.size_);
+    for(std::size_t i=a.size_;i--;){const std::uint64_t current=(remainder<<32)|a.limb(i);q.limb(i)=std::uint32_t(current/divisor);remainder=current%divisor;}
+    q.normalize();return{std::move(q),big_uint(remainder)};
+  }
+  const auto n=b.size_,m=a.size_-n;unsigned normalization=0;for(auto x=b.limb(n-1);(x&0x80000000U)==0;x<<=1)++normalization;
+  if(a.size_==std::numeric_limits<std::size_t>::max())throw std::length_error("integer size overflow");
+  big_uint v=b.shifted_left(normalization),u=a.shifted_left(normalization);u.resize(a.size_+1);big_uint q;q.assign(m+1,0);
+  constexpr std::uint64_t base=std::uint64_t(1)<<32;
+  for(std::size_t jj=m+1;jj--;){const auto j=jj;const std::uint64_t numerator=(std::uint64_t(u.limb(j+n))<<32)|u.limb(j+n-1);std::uint64_t qhat=numerator/v.limb(n-1),rhat=numerator%v.limb(n-1);
+    if(qhat==base){qhat=base-1;rhat+=v.limb(n-1);}
+    while(rhat<base&&qhat*v.limb(n-2)>(rhat<<32)+u.limb(j+n-2)){--qhat;rhat+=v.limb(n-1);}
+    std::uint64_t carry=0,borrow=0;
+    for(std::size_t i=0;i<n;++i){const std::uint64_t product=qhat*v.limb(i)+carry;carry=product>>32;const std::uint64_t sub=std::uint64_t(std::uint32_t(product))+borrow;const auto current=u.limb(j+i);u.limb(j+i)=std::uint32_t(std::uint64_t(current)-sub);borrow=current<sub;}
+    const std::uint64_t top_sub=carry+borrow;const auto top=u.limb(j+n);const bool negative=std::uint64_t(top)<top_sub;u.limb(j+n)=std::uint32_t(std::uint64_t(top)-top_sub);
+    if(negative){--qhat;std::uint64_t add_carry=0;for(std::size_t i=0;i<n;++i){const std::uint64_t sum=std::uint64_t(u.limb(j+i))+v.limb(i)+add_carry;u.limb(j+i)=std::uint32_t(sum);add_carry=sum>>32;}u.limb(j+n)=std::uint32_t(std::uint64_t(u.limb(j+n))+add_carry);}
+    q.limb(j)=std::uint32_t(qhat);
+  }
+  q.normalize();u.resize(n);auto remainder=u.shifted_right(normalization);return{std::move(q),std::move(remainder)};
+}
 big_uint gcd(big_uint a,big_uint b){performance_count(performance_counter::gcd_calls);while(!b.is_zero()){auto r=divide(a,b).second;a=std::move(b);b=std::move(r);}return a;}
 
 big_int::big_int(std::int64_t v):sign_(v<0?integer_sign::negative:v?integer_sign::positive:integer_sign::zero),magnitude_(v<0?std::uint64_t(-(v+1))+1:std::uint64_t(v)){}

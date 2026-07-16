@@ -3,6 +3,8 @@
 #define YGOR_MESHES_EXACT_ARITHMETIC_H_
 
 #include "YgorMeshesBooleanContract.h"
+#include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -17,19 +19,33 @@ enum class integer_sign : std::int8_t { negative=-1, zero=0, positive=1 };
 enum class exact_sign : std::int8_t { negative=-1, zero=0, positive=1 };
 
 class big_uint {
-    std::vector<std::uint32_t> limbs_; // Little endian, canonical.
+    static constexpr std::size_t inline_capacity_ = 2;
+    std::array<std::uint32_t,inline_capacity_> inline_limbs_{{0,0}};
+    std::vector<std::uint32_t> heap_limbs_;
+    std::size_t size_=0;
+    const std::uint32_t* data()const noexcept{assert(size_<=inline_capacity_||heap_limbs_.size()>=size_);return size_<=inline_capacity_?inline_limbs_.data():heap_limbs_.data();}
+    std::uint32_t* data()noexcept{assert(size_<=inline_capacity_||heap_limbs_.size()>=size_);return size_<=inline_capacity_?inline_limbs_.data():heap_limbs_.data();}
+    std::uint32_t limb(std::size_t i)const noexcept{return data()[i];}
+    std::uint32_t&limb(std::size_t i)noexcept{return data()[i];}
+    void resize(std::size_t,std::uint32_t=0);
+    void assign(std::size_t,std::uint32_t);
+    void push_back(std::uint32_t);
     void normalize() noexcept;
 public:
     big_uint() = default;
+    big_uint(const big_uint&)=default;
+    big_uint(big_uint&&)noexcept;
+    big_uint&operator=(big_uint);
     explicit big_uint(std::uint64_t);
     static status_or<big_uint> from_hex(const std::string&, boolean_stage=boolean_stage::intersection_events);
-    bool is_zero() const noexcept { return limbs_.empty(); }
-    std::size_t limb_count() const noexcept { return limbs_.size(); }
+    bool is_zero() const noexcept { return size_==0; }
+    std::size_t limb_count() const noexcept { return size_; }
+    bool uses_inline_storage()const noexcept{return size_<=inline_capacity_;}
     std::size_t bit_length() const noexcept;
     std::size_t trailing_zero_bits() const noexcept;
     bool is_power_of_two() const noexcept;
     int compare(const big_uint&) const noexcept;
-    bool operator==(const big_uint&o)const noexcept{return limbs_==o.limbs_;}
+    bool operator==(const big_uint&o)const noexcept{return compare(o)==0;}
     bool operator!=(const big_uint&o)const noexcept{return !(*this==o);}
     bool operator<(const big_uint&o)const noexcept{return compare(o)<0;}
     std::uint64_t to_uint64(bool *fits=nullptr) const noexcept;
