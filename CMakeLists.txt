@@ -24,7 +24,7 @@ option(USE_LTO "Use link-time optimization when available." OFF)
 option(BUILD_SHARED_LIBS "Build shared-object/dynamically-loaded binaries." ON)
 option(YGOR_BUILD_BOOLEAN_TESTS "Build authoritative mesh Boolean tests." ON)
 option(YGOR_BOOLEAN_STRICT_FP "Use strict floating point for mesh Boolean code." ON)
-option(YGOR_BUILD_BOOLEAN_BENCHMARKS "Build mesh Boolean performance tools." OFF)
+option(YGOR_BUILD_BOOLEAN_BENCHMARKS "Build mesh Boolean performance tools." ON)
 set(YGOR_BOOLEAN_TEST_TIER "continuous" CACHE STRING
     "Mesh Boolean test tier: continuous, extended, or qualification")
 set_property(CACHE YGOR_BOOLEAN_TEST_TIER PROPERTY STRINGS continuous extended qualification)
