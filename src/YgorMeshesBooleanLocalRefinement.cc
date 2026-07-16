@@ -1189,6 +1189,9 @@ refine_source_facets(boolean_context<T, I> &ctx) {
     auto sym = build_symbolic_complex(ctx);
     if (!sym.has_value())
       return sym.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::local_refinement,
+                               performance_role::producer);
     auto symbolic = sym.value();
     for (std::uint64_t pass = 0;; ++pass) {
       auto requests = audit_crossings(*symbolic);
@@ -1317,9 +1320,13 @@ refine_source_facets(boolean_context<T, I> &ctx) {
     stage_transaction<refined_facet_patches<T, I>, refined_facet_patches<T, I>>
         tx(ctx.owner(), boolean_stage::local_refinement,
            artifact_slot::refined_facet_patches,
-           std::make_unique<refined_facet_patches<T, I>>());
+           std::make_unique<refined_facet_patches<T, I>>(),
+           ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
+    performance_count(performance_counter::dcel_entities,
+                      vertices + edges + halfedges + walks + faces + patch);
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

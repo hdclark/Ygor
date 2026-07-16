@@ -45,7 +45,140 @@ status_or<std::vector<bounded_feature_pair>>enumerate_bounded_feature_self(const
 
 status_or<bool>register_broad_phase_verifier(verifier_registry&r,coordinate_tag c,index_tag i){verifier_registration x;x.slot=artifact_slot::candidate_stream;x.artifact_type_tag=candidate_stream_type_tag+(static_cast<std::uint64_t>(c)<<8)+static_cast<std::uint64_t>(i);x.artifact_schema=candidate_stream_schema;x.mandatory={invariant_code::broad_phase_binding,invariant_code::broad_phase_bounds,invariant_code::broad_phase_candidates,invariant_code::broad_phase_canonical_encoding};x.exhaustive=x.mandatory;if(c==coordinate_tag::binary32&&i==index_tag::uint32)x.callback=&callback<float,std::uint32_t>;else if(c==coordinate_tag::binary32)x.callback=&callback<float,std::uint64_t>;else if(i==index_tag::uint32)x.callback=&callback<double,std::uint32_t>;else x.callback=&callback<double,std::uint64_t>;return r.register_verifier(std::move(x));}
 
-template<class T,class I>status_or<std::shared_ptr<const published_artifact<candidate_stream<T,I>>>>enumerate_broad_phase_candidates(boolean_context<T,I>&ctx){try{if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::broad_phase,"cancelled");auto upstream=validate_operands(ctx);if(!upstream.has_value())return upstream.error();if(upstream.value()->owner!=ctx.owner()||upstream.value()->payload->setup_digest!=ctx.replay().setup)return make_error(boolean_error_code::internal_invariant_error,boolean_stage::broad_phase,"upstream_binding");if(!validate_bounds(*upstream.value()->payload))return make_error(boolean_error_code::internal_invariant_error,boolean_stage::broad_phase,"malformed_authoritative_bound");std::vector<feature>af,bf;for(const auto&f:upstream.value()->payload->facets)(f.operand==operand_a()?af:bf).push_back({f.id,from_box(f.bounds)});auto product=checked_multiply(af.size(),bf.size(),boolean_stage::broad_phase);candidate_stream<T,I>draft;draft.owner=ctx.owner();draft.setup_digest=ctx.replay().setup;draft.upstream_digest=upstream.value()->artifact_digest;draft.kernel_policy_digest=upstream.value()->payload->kernel_policy_digest;draft.validated=upstream.value();draft.statistics.operand_a_facets=draft.statistics.operand_a_safe=af.size();draft.statistics.operand_b_facets=draft.statistics.operand_b_safe=bf.size();draft.statistics.cartesian_pairs.representable_in_u64=product.has_value();if(product.has_value())draft.statistics.cartesian_pairs.value=product.value();auto ta=make_tree(std::move(af)),tb=make_tree(std::move(bf));draft.implementation_statistics.node_count=ta.nodes.size()+tb.nodes.size();draft.implementation_statistics.max_depth=std::max(ta.max_depth,tb.max_depth);auto keys=traverse(ta,tb,draft.implementation_statistics,[&]{return ctx.cancelled();});std::sort(keys.begin(),keys.end(),key_less);keys.erase(std::unique(keys.begin(),keys.end()),keys.end());auto candidate_charge=ctx.accountant().reserve_scoped(resource_kind::candidates,keys.size(),boolean_stage::broad_phase);if(!candidate_charge.has_value())return candidate_charge.error();for(std::size_t i=0;i<keys.size();++i)draft.candidates.push_back({candidate_id::from_canonical_value(i),keys[i]});draft.statistics.exact_box_overlap_candidates=keys.size();draft.statistics.final_candidates=keys.size();draft.canonical_candidate_bytes=semantic_bytes(draft);draft.artifact_bytes=invocation_bytes(draft);draft.artifact_digest=artifact_digest_for(draft);auto candidate=std::make_shared<const candidate_stream<T,I>>(std::move(draft));auto registry=dynamic_cast<const verifier_registry*>(&ctx.verifiers());if(!registry)return make_error(boolean_error_code::input_contract_error,boolean_stage::broad_phase,"broad_phase_verifier_registry_required");const auto type=candidate_stream_type_tag+(static_cast<std::uint64_t>(ctx.platform().coordinate)<<8)+static_cast<std::uint64_t>(ctx.platform().index);auto spec=registry->specification(artifact_slot::candidate_stream,type,candidate_stream_schema,ctx.options().verification);if(!spec.has_value())return spec.error();artifact_view view{ctx.owner(),artifact_slot::candidate_stream,type,candidate_stream_schema,1,candidate->artifact_digest,candidate,candidate.get()};verification_environment_view env;env.owner=ctx.owner();env.setup_digest=ctx.replay().setup;env.op=ctx.contract().selected_operation();env.options=&ctx.options();env.coordinate=ctx.platform().coordinate;env.index=ctx.platform().index;env.exact_kernel=&ctx.kernel();env.raw_operands={env.coordinate,env.index,&ctx.operand_a_mesh(),&ctx.operand_b_mesh()};env.accountant=&ctx.accountant();env.cancelled=[&]{return ctx.cancelled();};auto authoritative=ctx.accountant().reserve_scoped(resource_kind::authoritative_bytes,candidate->artifact_bytes.size()+candidate->candidates.size()*sizeof(facet_candidate),boolean_stage::broad_phase);if(!authoritative.has_value())return authoritative.error();stage_transaction<candidate_stream<T,I>,candidate_stream<T,I>>tx(ctx.owner(),boolean_stage::broad_phase,artifact_slot::candidate_stream,std::unique_ptr<candidate_stream<T,I>>(new candidate_stream<T,I>(*candidate)));tx.stage_reservation(std::move(candidate_charge.value()));tx.stage_reservation(std::move(authoritative.value()));auto verified=tx.verify(candidate,view,spec.value(),env,*registry);if(!verified.has_value())return verified.error();return tx.publish();}catch(const boolean_error&e){return e;}catch(const std::bad_alloc&){return make_error(boolean_error_code::resource_limit,boolean_stage::broad_phase,"broad_phase_allocation");}catch(const std::exception&e){auto x=make_error(boolean_error_code::internal_invariant_error,boolean_stage::broad_phase,"broad_phase_exception");x.detail=e.what();return x;}}
+template <class T, class I>
+status_or<std::shared_ptr<const published_artifact<candidate_stream<T, I>>>>
+enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
+  try {
+    if (ctx.cancelled())
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::broad_phase, "cancelled");
+    auto upstream = validate_operands(ctx);
+    if (!upstream.has_value())
+      return upstream.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::broad_phase,
+                               performance_role::producer);
+    if (upstream.value()->owner != ctx.owner() ||
+        upstream.value()->payload->setup_digest != ctx.replay().setup)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::broad_phase, "upstream_binding");
+    if (!validate_bounds(*upstream.value()->payload))
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::broad_phase,
+                        "malformed_authoritative_bound");
+    std::vector<feature> af, bf;
+    for (const auto &f : upstream.value()->payload->facets)
+      (f.operand == operand_a() ? af : bf)
+          .push_back({f.id, from_box(f.bounds)});
+    auto product =
+        checked_multiply(af.size(), bf.size(), boolean_stage::broad_phase);
+    candidate_stream<T, I> draft;
+    draft.owner = ctx.owner();
+    draft.setup_digest = ctx.replay().setup;
+    draft.upstream_digest = upstream.value()->artifact_digest;
+    draft.kernel_policy_digest =
+        upstream.value()->payload->kernel_policy_digest;
+    draft.validated = upstream.value();
+    draft.statistics.operand_a_facets = draft.statistics.operand_a_safe =
+        af.size();
+    draft.statistics.operand_b_facets = draft.statistics.operand_b_safe =
+        bf.size();
+    draft.statistics.cartesian_pairs.representable_in_u64 = product.has_value();
+    if (product.has_value())
+      draft.statistics.cartesian_pairs.value = product.value();
+    auto ta = make_tree(std::move(af)), tb = make_tree(std::move(bf));
+    draft.implementation_statistics.node_count =
+        ta.nodes.size() + tb.nodes.size();
+    draft.implementation_statistics.max_depth =
+        std::max(ta.max_depth, tb.max_depth);
+    auto keys = traverse(ta, tb, draft.implementation_statistics,
+                         [&] { return ctx.cancelled(); });
+    std::sort(keys.begin(), keys.end(), key_less);
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+    auto candidate_charge = ctx.accountant().reserve_scoped(
+        resource_kind::candidates, keys.size(), boolean_stage::broad_phase);
+    if (!candidate_charge.has_value())
+      return candidate_charge.error();
+    for (std::size_t i = 0; i < keys.size(); ++i)
+      draft.candidates.push_back(
+          {candidate_id::from_canonical_value(i), keys[i]});
+    draft.statistics.exact_box_overlap_candidates = keys.size();
+    draft.statistics.final_candidates = keys.size();
+    draft.canonical_candidate_bytes = semantic_bytes(draft);
+    draft.artifact_bytes = invocation_bytes(draft);
+    draft.artifact_digest = artifact_digest_for(draft);
+    auto candidate =
+        std::make_shared<const candidate_stream<T, I>>(std::move(draft));
+    auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
+    if (!registry)
+      return make_error(boolean_error_code::input_contract_error,
+                        boolean_stage::broad_phase,
+                        "broad_phase_verifier_registry_required");
+    const auto type =
+        candidate_stream_type_tag +
+        (static_cast<std::uint64_t>(ctx.platform().coordinate) << 8) +
+        static_cast<std::uint64_t>(ctx.platform().index);
+    auto spec = registry->specification(artifact_slot::candidate_stream, type,
+                                        candidate_stream_schema,
+                                        ctx.options().verification);
+    if (!spec.has_value())
+      return spec.error();
+    artifact_view view{ctx.owner(), artifact_slot::candidate_stream,
+                       type,        candidate_stream_schema,
+                       1,           candidate->artifact_digest,
+                       candidate,   candidate.get()};
+    verification_environment_view env;
+    env.owner = ctx.owner();
+    env.setup_digest = ctx.replay().setup;
+    env.op = ctx.contract().selected_operation();
+    env.options = &ctx.options();
+    env.coordinate = ctx.platform().coordinate;
+    env.index = ctx.platform().index;
+    env.exact_kernel = &ctx.kernel();
+    env.raw_operands = {env.coordinate, env.index, &ctx.operand_a_mesh(),
+                        &ctx.operand_b_mesh()};
+    env.accountant = &ctx.accountant();
+    env.cancelled = [&] { return ctx.cancelled(); };
+    auto authoritative = ctx.accountant().reserve_scoped(
+        resource_kind::authoritative_bytes,
+        candidate->artifact_bytes.size() +
+            candidate->candidates.size() * sizeof(facet_candidate),
+        boolean_stage::broad_phase);
+    if (!authoritative.has_value())
+      return authoritative.error();
+    stage_transaction<candidate_stream<T, I>, candidate_stream<T, I>> tx(
+        ctx.owner(), boolean_stage::broad_phase,
+        artifact_slot::candidate_stream,
+        std::unique_ptr<candidate_stream<T, I>>(
+            new candidate_stream<T, I>(*candidate)),
+        ctx.performance_collector_for_internal_use());
+    tx.stage_reservation(std::move(candidate_charge.value()));
+    tx.stage_reservation(std::move(authoritative.value()));
+    performance_count(performance_counter::copied_artifact_bytes,
+                      candidate->artifact_bytes.size());
+    performance_count(performance_counter::broad_phase_node_pairs,
+                      candidate->implementation_statistics.node_pair_tests);
+    performance_count(performance_counter::broad_phase_leaf_facet_pairs,
+                      candidate->implementation_statistics.facet_pair_tests);
+    performance_count(performance_counter::broad_phase_final_candidates,
+                      candidate->statistics.final_candidates);
+    producer.finish();
+    auto verified = tx.verify(candidate, view, spec.value(), env, *registry);
+    if (!verified.has_value())
+      return verified.error();
+    return tx.publish();
+  } catch (const boolean_error &e) {
+    return e;
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::broad_phase, "broad_phase_allocation");
+  } catch (const std::exception &e) {
+    auto x = make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::broad_phase, "broad_phase_exception");
+    x.detail = e.what();
+    return x;
+  }
+}
 #define INST(T,I) template status_or<std::shared_ptr<const published_artifact<candidate_stream<T,I>>>>enumerate_broad_phase_candidates(boolean_context<T,I>&)
 INST(float,std::uint32_t);INST(float,std::uint64_t);INST(double,std::uint32_t);INST(double,std::uint64_t);
 #undef INST

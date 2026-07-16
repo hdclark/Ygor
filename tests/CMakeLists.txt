@@ -88,6 +88,8 @@ add_component14_test(MeshBooleanReplay MeshBoolean.Replay "replay;continuous" 30
 add_component14_test(Test_MeshesBooleanFuzz MeshBoolean.Fuzz "fuzz;scheduled" 1200)
 add_component14_test(Test_MeshesBooleanMutation MeshBoolean.Mutation "mutation;scheduled" 600)
 add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualification;scheduled" 360)
+add_component14_test(Test_MeshesBooleanPerformanceBaselines
+    MeshBoolean.PerformanceBaselines "performance" 600)
 
 # Keep the documented end-user example independent of test-only support code.
 add_executable(MeshBooleanExample

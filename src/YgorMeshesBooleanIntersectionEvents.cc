@@ -1352,6 +1352,9 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
     auto upstream = enumerate_broad_phase_candidates(ctx);
     if (!upstream.has_value())
       return upstream.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::intersection_events,
+                               performance_role::producer);
     raw_event_set<T, I> a;
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
@@ -1717,10 +1720,19 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
                                       [&] { return ctx.cancelled(); }};
     stage_transaction<raw_event_set<T, I>, raw_event_set<T, I>> tx(
         ctx.owner(), boolean_stage::intersection_events,
-        artifact_slot::raw_event_set, std::make_unique<raw_event_set<T, I>>());
+        artifact_slot::raw_event_set, std::make_unique<raw_event_set<T, I>>(),
+        ctx.performance_collector_for_internal_use());
     tx.stage_reservation(std::move(work_charge.value()));
     tx.stage_reservation(std::move(private_charge.value()));
     tx.stage_reservation(std::move(event_charge.value()));
+    performance_count(performance_counter::event_candidate_facet_pairs,
+                      ptr->classifications.size());
+    performance_count(performance_counter::plane_relation_classes,
+                      ptr->classifications.size());
+    performance_count(performance_counter::raw_events,
+                      ptr->points.size() + ptr->intervals.size() +
+                          ptr->regions.size());
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

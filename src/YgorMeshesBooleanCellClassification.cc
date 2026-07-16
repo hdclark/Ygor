@@ -1135,6 +1135,9 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
     auto ar = build_global_arrangement(ctx);
     if (!ar.has_value())
       return ar.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::cell_classification,
+                               performance_role::producer);
     auto arrangement = ar.value();
     if (ctx.artifacts().latest_generation(artifact_slot::arrangement_complex) !=
         arrangement->generation)
@@ -1604,9 +1607,17 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
     stage_transaction<labeled_arrangement<T, I>, labeled_arrangement<T, I>> tx(
         ctx.owner(), boolean_stage::cell_classification,
         artifact_slot::labeled_arrangement,
-        std::make_unique<labeled_arrangement<T, I>>());
+        std::make_unique<labeled_arrangement<T, I>>(),
+        ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
+    performance_count(performance_counter::classification_source_facets,
+                      ptr->validated->payload->facets.size());
+    performance_count(performance_counter::classification_probes,
+                      ptr->seeds.size());
+    performance_count(performance_counter::alternate_rays,
+                      ptr->seeds.size() * 2);
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

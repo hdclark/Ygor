@@ -216,6 +216,114 @@ enum class resource_kind : std::uint8_t {
   minimization_work,
   count
 };
+enum class performance_role : std::uint8_t { producer, verifier };
+enum class performance_counter : std::uint8_t {
+  small_integer_operations,
+  large_integer_operations,
+  limb_additions,
+  limb_multiplications,
+  division_calls,
+  divided_limbs,
+  gcd_calls,
+  rational_normalizations,
+  cross_cancellations,
+  max_numerator_limbs,
+  max_denominator_limbs,
+  orient2d_calls,
+  orient3d_calls,
+  filter_accepts,
+  filter_fallbacks,
+  exact_fallbacks,
+  geometric_exact_divisions,
+  support_plane_constructions,
+  point_in_polygon_edge_tests,
+  ring_edge_candidate_pairs,
+  exact_ring_edge_tests,
+  ear_candidates,
+  exact_ear_tests,
+  self_embedding_candidate_pairs,
+  exact_facet_pair_tests,
+  shell_location_queries,
+  canonicalization_refinements,
+  canonicalization_branches,
+  broad_phase_node_pairs,
+  broad_phase_leaf_facet_pairs,
+  broad_phase_final_candidates,
+  broad_phase_false_positives,
+  broad_phase_build_comparisons,
+  broad_phase_verifier_candidate_checks,
+  event_candidate_facet_pairs,
+  plane_relation_classes,
+  exact_carrier_polygon_tests,
+  raw_events,
+  duplicate_derivations,
+  exact_equality_checks,
+  hash_bucket_probes,
+  canonical_key_encodings,
+  symbolic_vertices,
+  symbolic_curves,
+  constraints,
+  candidate_constraint_pairs,
+  exact_constraint_intersections,
+  dcel_entities,
+  reconciliation_passes,
+  global_patches,
+  global_edges,
+  global_uses,
+  link_entities,
+  patch_witness_slabs,
+  patch_witness_crossings,
+  probe_constraints,
+  classification_source_facets,
+  classification_source_triangles,
+  classification_probes,
+  ray_box_candidates,
+  exact_ray_facet_tests,
+  accepted_ray_hits,
+  alternate_rays,
+  reconstructed_rays,
+  exterior_attachment_candidates,
+  realized_variables,
+  realization_axis_candidates,
+  realization_obligations,
+  realization_pair_boxes,
+  realization_pair_candidates,
+  realization_exact_pair_checks,
+  realization_constraint_components,
+  realization_solver_nodes,
+  realization_rejected_prefixes,
+  realization_complete_assignments,
+  allocation_count,
+  copied_artifact_bytes,
+  count
+};
+struct performance_counter_snapshot {
+  std::array<std::uint64_t,
+             static_cast<std::size_t>(performance_counter::count)>
+      values{{}};
+  std::array<std::uint64_t, static_cast<std::size_t>(resource_kind::count)>
+      resources{{}};
+  std::uint64_t value(performance_counter c) const noexcept {
+    return values[static_cast<std::size_t>(c)];
+  }
+  std::uint64_t resource(resource_kind k) const noexcept {
+    return resources[static_cast<std::size_t>(k)];
+  }
+};
+struct stage_performance_snapshot {
+  std::uint64_t producer_nanoseconds = 0, verifier_nanoseconds = 0;
+  performance_counter_snapshot producer, verifier;
+};
+struct performance_snapshot {
+  std::uint16_t schema = 1;
+  bool collected = false;
+  std::array<stage_performance_snapshot,
+             static_cast<std::size_t>(boolean_stage::final_verification) + 1>
+      stages{{}};
+  const stage_performance_snapshot &stage(boolean_stage s) const noexcept {
+    return stages[static_cast<std::size_t>(s)];
+  }
+};
 enum class artifact_slot : std::uint8_t {
   validated_operands,
   candidate_stream,
@@ -873,6 +981,7 @@ struct replay_descriptor {
   platform_facts platform;
 };
 class deterministic_executor;
+class performance_collector;
 template <class T, class I> class boolean_context {
   static_assert(is_supported_boolean_types<T, I>::value,
                 "unsupported Boolean types");
@@ -891,6 +1000,7 @@ template <class T, class I> class boolean_context {
   cancellation_source internal_cancel_;
   cancellation_source *caller_cancel_;
   diagnostic_consumer consumer_;
+  std::shared_ptr<performance_collector> performance_;
   boolean_context(const fv_surface_mesh<T, I> &, const fv_surface_mesh<T, I> &,
                   operation, boolean_options, platform_facts, replay_descriptor,
                   context_owner_token,
@@ -922,6 +1032,10 @@ public:
   resource_accountant &accountant() { return accountant_; }
   artifact_generation_catalog &artifacts() { return artifacts_; }
   const artifact_generation_catalog &artifacts() const { return artifacts_; }
+  std::shared_ptr<const performance_snapshot> performance() const;
+  performance_collector *performance_collector_for_internal_use() const {
+    return performance_.get();
+  }
   bool cancelled() const {
     return internal_cancel_.token().cancelled() ||
            (caller_cancel_ && caller_cancel_->token().cancelled());

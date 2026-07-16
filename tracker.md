@@ -11,18 +11,6 @@
 - [x] Component 11 checked realization and impossibility reporting.
 - [x] Component 12 output assembly and canonicalization.
 - [x] Full Component 14 adversarial, randomized, metamorphic, replay, and performance suites.
-- [x] Determine the root problem causing the following test failures, then identify whether the components and plans need to be updated, then update them and fix the issue. Root cause: GCC `-ffast-math` remained active on final compiler-driver link commands and linked `crtfastmath`, enabling process-wide FTZ/DAZ despite strict Boolean translation-unit flags. Components 9 and 10 were correct; Plans 1 and 14, strict link policy, runtime platform validation, and diagnostics were updated.
-
-```
-...
-      Start 20: MeshBooleanCellClassification.Adversarial         20/33 Test #20: MeshBooleanCellClassification.Adversarial ...***Failed   34.02 sec                                                  analytic classification case op=0 bounds=-0.000000,0.000000,0.000000,0.000000: boolean_error[0:1:5] zero_length_edge
-...
-      Start 23: MeshBooleanSelection.Adversarial                  23/33 Test #23: MeshBooleanSelection.Adversarial ............***Failed   32.78 sec                                                  analytic selection case op=0 bounds=-0.000000,0.000000,0.000000,0.000000: boolean_error[0:1:5] zero_length_edge
-...
-```
-
-Additional items as determined through plan and implementation peer-review:
-
 - [x] Convert every plan-gap case from `tests/MeshBooleanPlanGapCases.md` into an executable CI test with an explicit success or typed-failure expectation. These tests are expected to compile, but are not expected to pass until the broad plan and implementation components are updated.
 - [x] Resolve the contract and algorithm gaps documented in `tests/MeshBooleanPlanGapCases.md`. The broad plan and Components 1, 3, 6, and 8-14 now distinguish exact geometry from topological occurrences, stratified selection from manifold publication, direct side classification from transition auditing, and exact-in-`T` semantics from future approximate output.
 - [x] Components 1, 8, 9, and 13: implement topological occurrence IDs, complete spherical vertex links, certified open patch-side probes, frozen `independent_patch_side_v1` classification, independent arrangement reconstruction, and G3-G6/G9a/G9b/G9d gates.
@@ -36,7 +24,7 @@ Additional items as determined through plan and implementation peer-review:
 
 Complete these items strictly in the order defined by `plan_speed.md`. Do not check an item until its focused tests, affected component tests, exact baseline comparison, and required broader qualification gate pass.
 
-- [ ] **P0 — Freeze exact and performance baselines.** Implement the versioned stage producer/verifier timing and deterministic counter facility from `plan_speed.md` sections 2-3; expand `benchmarks/MeshBooleanBenchmark.cc` to B0-B8; add `tests/Test_MeshesBooleanPerformanceBaselines.cc` and its Component 14 CTest registration; record exact typed outcomes, stage semantic digests, canonical output bytes, structural counters, and controlled Release benchmark results before changing algorithms. Run the full Component 1-14, Plan Gap, replay, mutation, qualification, and example suites.
+- [x] **P0 — Freeze exact and performance baselines.** Implement the versioned stage producer/verifier timing and deterministic counter facility from `plan_speed.md` sections 2-3; expand `benchmarks/MeshBooleanBenchmark.cc` to B0-B8; add `tests/Test_MeshesBooleanPerformanceBaselines.cc` and its Component 14 CTest registration; record exact typed outcomes, stage semantic digests, canonical output bytes, structural counters, and controlled Release benchmark results before changing algorithms. Run the full Component 1-14, Plan Gap, replay, mutation, qualification, and example suites.
 - [ ] **P1.1 — Remove full artifact copies.** Refactor `src/YgorMeshesBooleanTransaction.h` and every Component 2-12 producer so the transaction freezes, verifies, and publishes one allocation; remove `new Artifact(*candidate)`-style copies. Add synthetic large-artifact copy/move, failed-verification, stale-binding, rollback, prior-generation immutability, and resource-reservation tests. Confirm all P0 canonical bytes and digests remain unchanged.
 - [ ] **P1.2 — Remove encoding from hot comparisons.** Replace repeated `canonical_encoder` construction in event incidence/ownership comparison, construction interning, registry ordering, arrangement ordering, realization ordering, and output ordering with typed structural comparisons or once-computed immutable keys. Add generated equivalence tests against the previous canonical-byte comparator and deliberate digest-collision tests; retain full canonical encoding only at publication/verification boundaries.
 - [ ] **P1.3 — Add dense lookup indices and batched exact resource accounting.** Replace strong-ID/raw-ordinal `find_if` scans with immutable indexed tables, and batch reservations only after checked cardinality calculation. Add malformed handle, stale index, hash collision, and `limit-1`/`limit`/`limit+1` tests for every changed resource path. Run Components 1, 2, 5-13, mutation, and replay tests.

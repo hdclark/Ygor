@@ -1512,6 +1512,9 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
     auto selected_result = select_boolean_boundary(ctx);
     if (!selected_result.has_value())
       return selected_result.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::geometry_realization,
+                               performance_role::producer);
     auto selected = selected_result.value();
     if (ctx.artifacts().latest_generation(
             artifact_slot::selected_exact_boundary) != selected->generation)
@@ -2124,9 +2127,29 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
     stage_transaction<realized_boundary<T, I>, realized_boundary<T, I>> tx(
         ctx.owner(), boolean_stage::geometry_realization,
         artifact_slot::realized_boundary,
-        std::make_unique<realized_boundary<T, I>>());
+        std::make_unique<realized_boundary<T, I>>(),
+        ctx.performance_collector_for_internal_use());
     for (auto &charge : realization_charges)
       tx.stage_reservation(std::move(charge));
+    performance_count(performance_counter::realized_variables,
+                      ptr->vertices.size());
+    performance_count(performance_counter::realization_axis_candidates,
+                      candidate_count);
+    performance_count(performance_counter::realization_obligations,
+                      ptr->obligations.size());
+    performance_count(performance_counter::realization_pair_boxes,
+                      ptr->pair_boxes.size());
+    performance_count(performance_counter::realization_pair_candidates,
+                      ptr->pair_candidates.size());
+    performance_count(performance_counter::realization_exact_pair_checks,
+                      ptr->search.pair_checks);
+    performance_count(performance_counter::realization_constraint_components,
+                      ptr->components.size());
+    performance_count(performance_counter::realization_solver_nodes,
+                      ptr->search.visited_nodes);
+    performance_count(performance_counter::realization_complete_assignments,
+                      ptr->search.complete_assignments);
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

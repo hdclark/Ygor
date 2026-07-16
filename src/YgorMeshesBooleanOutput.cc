@@ -1152,6 +1152,9 @@ authorize_result_topology(boolean_context<T, I> &ctx) {
   auto selected_result = select_boolean_boundary(ctx);
   if (!selected_result.has_value())
     return selected_result.error();
+  performance_scope producer(ctx.performance_collector_for_internal_use(),
+                             boolean_stage::result_topology_preflight,
+                             performance_role::producer);
   const auto selected = selected_result.value();
   if (!selected || !selected->payload || selected->owner != ctx.owner() ||
       selected->stage != boolean_stage::boolean_selection ||
@@ -1222,6 +1225,9 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
     auto realized_result = realize_selected_boundary(ctx);
     if (!realized_result.has_value())
       return realized_result.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::output_assembly,
+                               performance_role::producer);
     auto realized = realized_result.value();
     if (!realized || !realized->payload || realized->owner != ctx.owner() ||
         realized->stage != boolean_stage::geometry_realization ||
@@ -1563,9 +1569,12 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
     stage_transaction<assembled_output<T, I>, assembled_output<T, I>> tx(
         ctx.owner(), boolean_stage::output_assembly,
         artifact_slot::assembled_output,
-        std::make_unique<assembled_output<T, I>>());
+        std::make_unique<assembled_output<T, I>>(),
+        ctx.performance_collector_for_internal_use(),
+        boolean_stage::final_verification);
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
+    producer.finish();
     auto verified = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!verified.has_value())
       return verified.error();

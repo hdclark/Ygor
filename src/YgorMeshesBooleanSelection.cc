@@ -712,6 +712,9 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
     auto lr = classify_arrangement_cells(ctx);
     if (!lr.has_value())
       return lr.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::boolean_selection,
+                               performance_role::producer);
     auto labeled = lr.value();
     if (ctx.artifacts().latest_generation(artifact_slot::labeled_arrangement) !=
         labeled->generation)
@@ -1197,9 +1200,11 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
                       selected_exact_boundary<T, I>>
         tx(ctx.owner(), boolean_stage::boolean_selection,
            artifact_slot::selected_exact_boundary,
-           std::make_unique<selected_exact_boundary<T, I>>());
+           std::make_unique<selected_exact_boundary<T, I>>(),
+           ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

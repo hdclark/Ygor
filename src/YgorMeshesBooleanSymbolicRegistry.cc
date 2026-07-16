@@ -789,6 +789,9 @@ build_symbolic_complex_impl(
         prior ? prior->payload->raw_events : discover_intersection_events(ctx);
     if (!raw.has_value())
       return raw.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::symbolic_registry,
+                               performance_role::producer);
     symbolic_complex<T, I> a;
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
@@ -1367,11 +1370,19 @@ build_symbolic_complex_impl(
     stage_transaction<symbolic_complex<T, I>, symbolic_complex<T, I>> tx(
         ctx.owner(), boolean_stage::symbolic_registry,
         artifact_slot::symbolic_complex,
-        std::make_unique<symbolic_complex<T, I>>());
+        std::make_unique<symbolic_complex<T, I>>(),
+        ctx.performance_collector_for_internal_use());
     tx.stage_reservation(std::move(work_charge.value()));
     tx.stage_reservation(std::move(private_charge.value()));
     tx.stage_reservation(std::move(vertex_charge.value()));
     tx.stage_reservation(std::move(curve_charge.value()));
+    performance_count(performance_counter::symbolic_vertices,
+                      ptr->vertices.size());
+    performance_count(performance_counter::symbolic_curves,
+                      ptr->curves.size());
+    performance_count(performance_counter::reconciliation_passes,
+                      requests.empty() ? 0 : 1);
+    producer.finish();
     auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();

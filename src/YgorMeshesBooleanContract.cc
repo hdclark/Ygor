@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanContract.h"
+#include "YgorMeshesBooleanPerformance.h"
 #include "External/MD5/md5.h"
 #include "YgorMeshesBooleanExecutor.h"
 #include <algorithm>
@@ -513,6 +514,7 @@ status_or<bool> resource_accountant::reserve(resource_kind k, std::uint64_t n,
     return e;
   }
   used_[i] = sum.value();
+  performance_count_resource(k, n);
   return true;
 }
 status_or<resource_reservation>
@@ -666,8 +668,25 @@ boolean_context<T, I>::boolean_context(
       verifiers_(std::move(v)),
       executor_(new deterministic_executor(options_.execution)),
       accountant_(options_.resources), artifacts_(owner_), caller_cancel_(c),
-      consumer_(std::move(d)) {}
+      consumer_(std::move(d)) {
+  const auto level = options_.tracing.level;
+  if (options_.tracing.collect_noncanonical_timings ||
+      level == trace_level::stages || level == trace_level::full) {
+    try {
+      performance_ = std::make_shared<performance_collector>();
+    } catch (...) {
+      // Optional diagnostics never make an otherwise valid context fail.
+    }
+  }
+}
 template <class T, class I> boolean_context<T, I>::~boolean_context() = default;
+template <class T, class I>
+std::shared_ptr<const performance_snapshot>
+boolean_context<T, I>::performance() const {
+  if (performance_)
+    return performance_->snapshot();
+  return std::make_shared<const performance_snapshot>();
+}
 template <
     class T, class I,
     typename std::enable_if<is_supported_boolean_types<T, I>::value, int>::type>

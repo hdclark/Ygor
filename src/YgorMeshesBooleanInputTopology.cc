@@ -936,6 +936,9 @@ template <class T, class I>
 status_or<std::shared_ptr<const published_artifact<validated_operands<T, I>>>>
 validate_operands(boolean_context<T, I> &ctx) {
   try {
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::input_validation,
+                               performance_role::producer);
     auto made = build(ctx);
     if (!made.has_value())
       return made.error();
@@ -978,8 +981,12 @@ validate_operands(boolean_context<T, I> &ctx) {
     stage_transaction<artifact_t<T, I>, artifact_t<T, I>> tx(
         ctx.owner(), boolean_stage::input_validation,
         artifact_slot::validated_operands,
-        std::unique_ptr<artifact_t<T, I>>(new artifact_t<T, I>(*candidate)));
+        std::unique_ptr<artifact_t<T, I>>(new artifact_t<T, I>(*candidate)),
+        ctx.performance_collector_for_internal_use());
+    performance_count(performance_counter::copied_artifact_bytes,
+                      artifact_bytes.size());
     tx.stage_reservation(std::move(authoritative.value()));
+    producer.finish();
     auto ok = tx.verify(candidate, view, spec.value(), env, *registry);
     if (!ok.has_value())
       return ok.error();
