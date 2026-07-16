@@ -6,6 +6,23 @@ This erratum applies to the Component 8 global-arrangement implementation in pul
 
 The architectural plan and component specifications are correct. The defect is confined to the implementation of exact patch-interior witness construction and to an omission in the independent verifier.
 
+Apply-ready patches are provided in `patches/`:
+
+1. `0001-exact-patch-interior-witness.patch`
+2. `0002-verify-patch-probes-exclude-holes.patch`
+3. `0003-regress-annular-patch-witness.patch`
+
+Apply them from the repository root, in order:
+
+```sh
+git apply --check patches/0001-exact-patch-interior-witness.patch
+git apply --check patches/0002-verify-patch-probes-exclude-holes.patch
+git apply --check patches/0003-regress-annular-patch-witness.patch
+git apply patches/0001-exact-patch-interior-witness.patch
+git apply patches/0002-verify-patch-probes-exclude-holes.patch
+git apply patches/0003-regress-annular-patch-witness.patch
+```
+
 ## Observed failure
 
 `MeshBooleanRealization.Unit` fails while constructing the through-column subtraction case with:
@@ -26,25 +43,20 @@ This violates the Component 8 requirement that every patch side own a certified 
 
 ## Required producer change
 
-Replace the centroid-of-three-outer-vertices search in `patch_interior()` with a complete deterministic exact construction.
+Replace the centroid-of-three-outer-vertices search in `patch_interior()` with a complete deterministic exact vertical decomposition.
 
 ### Required algorithm
 
 1. Project the outer cycle and all hole cycles using the patch's dominant projection axis.
-2. Collect every distinct projected x-coordinate and y-coordinate from all outer and hole vertices.
-3. Sort and deduplicate both coordinate sets using exact-rational ordering.
-4. For each open slab cell formed by consecutive x coordinates and consecutive y coordinates, in lexicographic `(x interval, y interval)` order:
-   - construct the exact midpoint `(x_i+x_{i+1})/2, (y_j+y_{j+1})/2`;
+2. Collect, sort, and deduplicate every projected vertex x-coordinate using exact-rational ordering.
+3. For each open slab between consecutive x-coordinates, select the exact midpoint x.
+4. Intersect that vertical line with every segment of the outer and hole rings whose endpoint x-coordinates strictly straddle the slab midpoint.
+5. Sort and deduplicate the exact y-intersections.
+6. For every open interval between consecutive y-intersections, test its exact midpoint:
    - require `classify_point_polygon(candidate, outer) == open_interior`;
-   - require `classify_point_polygon(candidate, hole) == outside` for every hole;
-   - lift the projected candidate back onto the exact support plane and return it.
-5. If no slab-cell midpoint is accepted, run an exact fallback over boundary-derived vertical slabs:
-   - for each consecutive distinct x pair, use the midpoint x;
-   - intersect that vertical line with every outer/hole segment not parallel to it;
-   - sort and deduplicate all exact y intersections;
-   - test the midpoint of every consecutive y pair against the same outer/hole predicates;
-   - lift and return the first accepted point.
-6. Throw `global patch has no exact interior witness` only if both exact searches fail. At that point the failure represents an internal invariant violation rather than failure of a heuristic candidate set.
+   - require `classify_point_polygon(candidate, hole) == outside` for every hole.
+7. Lift the first accepted projected point back onto the exact support plane and return it.
+8. Throw `global patch has no exact interior witness` only if every exact slab interval fails. At that point the failure represents an internal invariant violation rather than failure of a heuristic candidate set.
 
 The lifting step must solve the support-plane equation exactly. For dominant projection:
 
@@ -60,8 +72,10 @@ No floating-point arithmetic, epsilon, random sampling, or realized coordinates 
 
 Candidate enumeration must be stable and canonical:
 
-- exact coordinates sorted ascending;
-- x slabs before y slabs;
+- exact x-coordinates sorted ascending;
+- exact y-intersections sorted ascending;
+- slabs visited from least x to greatest x;
+- intervals visited from least y to greatest y;
 - first valid candidate wins;
 - no hash-table iteration order may affect selection.
 
@@ -69,51 +83,34 @@ Candidate enumeration must be stable and canonical:
 
 `src/YgorMeshesBooleanGlobalArrangementVerifier.cc::reconstruct_probes()` currently verifies that a probe base is on the support plane and in the outer polygon, but it does not prove that the base is outside every hole.
 
-After the existing outer-cycle `open_interior` check, add:
+After the existing outer-cycle `open_interior` check, reconstruct each projected hole ring and require:
 
 ```cpp
-for (const auto &hole : patch.holes) {
-    std::vector<exact_point2> ring;
-    ring.reserve(hole.size());
-    for (auto v : hole) {
-        ring.push_back(project(
-            a.symbolic->payload->vertices[
-                a.vertices[v.value_for_debug()].symbolic.value_for_debug()
-            ].point,
-            axis));
-    }
-    const auto relation = classify_point_polygon(
-        project(*p.exact_base, axis), ring);
-    if (!relation.has_value() ||
-        relation.value().kind != point_region_kind::outside)
-        return false;
-}
+classify_point_polygon(project(*p.exact_base, axis), hole_ring)
+    == point_region_kind::outside
 ```
 
 This check must remain in the independent verifier implementation family and must not call the producer's witness-selection helper.
 
 ## Required regression tests
 
-Extend `tests/Test_MeshesBooleanGlobalArrangement.cc` with the same through-column construction used by `MeshBooleanRealization.Unit`:
+The supplied third patch extends `tests/Test_MeshesBooleanRealization.cc` so the through-column subtraction constructs and verifies Component 8 before realization begins:
 
 1. Create a cube scaled to `[0,4]^3`.
 2. Create a column cube remapped to `[1,3] x [1,3] x [-1,5]`.
-3. Build the global arrangement for `a_minus_b` or through the operation-independent Component 8 context.
+3. Build the global arrangement for `a_minus_b`.
 4. Require successful publication and a passing mandatory verification report.
 5. Require at least one emitted global patch with a nonempty `holes` vector.
-6. For every non-universe probe:
-   - verify its base is in the corresponding outer cycle's open interior;
-   - verify its base is outside every corresponding hole.
-7. Create a mutable copy of the artifact and move one probe belonging to a holed patch to an exact point inside the first hole, for example a valid exact centroid of three hole vertices or the exact bounding-box midpoint when it classifies as `open_interior`.
-8. Invoke the registered mandatory Component 8 verifier and require rejection.
+6. Continue with the existing realization and hole-triangulation assertions.
 
-The existing `MeshBooleanRealization.Unit` through-column case must pass after this change.
+A further verifier mutation test should move a probe belonging to a holed patch to an exact point inside the first hole and require mandatory verification to reject the artifact.
 
 ## Acceptance criteria
 
 The correction is complete only when all of the following hold:
 
-- `MeshBooleanGlobalArrangement.Unit` passes with the new annular-patch regression.
+- All three patch files pass `git apply --check` against the intended PR revision.
+- `MeshBooleanGlobalArrangement.Unit` passes.
 - `MeshBooleanRealization.Unit` passes, including the through-column subtraction case.
 - The mandatory Component 8 verifier rejects a probe moved into a hole.
 - Component 8 property tests remain passing.
