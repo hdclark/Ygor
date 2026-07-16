@@ -364,11 +364,15 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
         !(a.vertices[m.symbolic.value_for_debug()].point ==
           a.validated->payload->vertices[i].exact_coordinate)) return false;
   }
-  for (const auto &m : a.raw_points) {
-    auto raw = std::find_if(a.raw_events->payload->points.begin(),
-                            a.raw_events->payload->points.end(),
-                            [&](const auto &p) { return p.id == m.source; });
-    if (raw == a.raw_events->payload->points.end() ||
+  const auto raw_event_count = a.raw_events->payload->event_index.size();
+  if (a.raw_point_index.size() != raw_event_count ||
+      a.raw_interval_index.size() != raw_event_count ||
+      a.raw_region_index.size() != raw_event_count)
+    return false;
+  for (std::size_t i = 0; i < a.raw_points.size(); ++i) {
+    const auto &m = a.raw_points[i];
+    const auto *raw = find_raw_point(*a.raw_events->payload, m.source);
+    if (!raw || a.raw_point_index[m.source.value_for_debug()] != i ||
         m.symbolic.value_for_debug() >= a.vertices.size() ||
         !(raw->point == a.vertices[m.symbolic.value_for_debug()].point)) return false;
   }
@@ -392,14 +396,15 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
               a.validated->payload->edge_uses[use.twin.value_for_debug()].facet)) return false;
     }
   }
-  for (const auto &m : a.raw_intervals) {
+  for (std::size_t mapping_ordinal = 0;
+       mapping_ordinal < a.raw_intervals.size(); ++mapping_ordinal) {
+    const auto &m = a.raw_intervals[mapping_ordinal];
     if (m.parity != orientation_parity::agree &&
         m.parity != orientation_parity::opposite)
       return false;
-    auto raw = std::find_if(a.raw_events->payload->intervals.begin(),
-                            a.raw_events->payload->intervals.end(),
-                            [&](const auto &q) { return q.id == m.source; });
-    if (raw == a.raw_events->payload->intervals.end() || m.atomic_intervals.empty())
+    const auto *raw = find_raw_interval(*a.raw_events->payload, m.source);
+    if (!raw || a.raw_interval_index[m.source.value_for_debug()] != mapping_ordinal ||
+        m.atomic_intervals.empty())
       return false;
     std::optional<symbolic_vertex_id> previous;
     for (std::size_t k = 0; k < m.atomic_intervals.size(); ++k) {
@@ -417,9 +422,8 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
     }
     auto point_map = [&](raw_event_id id)
         -> std::optional<symbolic_vertex_id> {
-      auto found = std::find_if(a.raw_points.begin(), a.raw_points.end(),
-                                [&](const auto &p) { return p.source == id; });
-      if (found == a.raw_points.end()) return std::nullopt;
+      const auto *found = find_raw_point_mapping(a, id);
+      if (!found) return std::nullopt;
       return found->symbolic;
     };
     const auto &first = a.curves[m.atomic_intervals[
@@ -535,11 +539,12 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
     std::sort(actual.begin(), actual.end());
     if (actual != carrier.facets) return false;
   }
-  for (const auto &m : a.raw_regions) {
-    auto raw_region = std::find_if(a.raw_events->payload->regions.begin(),
-                                   a.raw_events->payload->regions.end(),
-                                   [&](const auto &r) { return r.id == m.source; });
-    if (raw_region == a.raw_events->payload->regions.end() ||
+  for (std::size_t mapping_ordinal = 0;
+       mapping_ordinal < a.raw_regions.size(); ++mapping_ordinal) {
+    const auto &m = a.raw_regions[mapping_ordinal];
+    const auto *raw_region = find_raw_region(*a.raw_events->payload, m.source);
+    if (!raw_region ||
+        a.raw_region_index[m.source.value_for_debug()] != mapping_ordinal ||
         m.boundary_cycles.size() != raw_region->boundary_cycles.size())
       return false;
     for (std::size_t i = 0; i < m.boundary_cycles.size(); ++i) {
@@ -554,12 +559,10 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
       for (std::size_t j = 0; j < cycle.vertices.size(); ++j) {
         if (cycle.vertices[j].value_for_debug() >= a.vertices.size() ||
             cycle.boundary_intervals[j].empty()) return false;
-        auto point_map = std::find_if(a.raw_points.begin(), a.raw_points.end(),
-          [&](const auto &x) { return x.source == raw_cycle.vertices[j]; });
-        auto interval_map = std::find_if(a.raw_intervals.begin(), a.raw_intervals.end(),
-          [&](const auto &x) { return x.source == raw_cycle.intervals[j]; });
-        if (point_map == a.raw_points.end() || point_map->symbolic != cycle.vertices[j] ||
-            interval_map == a.raw_intervals.end() ||
+         const auto *point_map = find_raw_point_mapping(a, raw_cycle.vertices[j]);
+         const auto *interval_map = find_raw_interval_mapping(a, raw_cycle.intervals[j]);
+         if (!point_map || point_map->symbolic != cycle.vertices[j] ||
+             !interval_map ||
             interval_map->atomic_intervals != cycle.boundary_intervals[j])
           return false;
         const auto next = cycle.vertices[(j + 1) % cycle.vertices.size()];
@@ -662,16 +665,12 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
   // Small rational interval-union oracle: derive every atom from all registered
   // points on each raw interval and compare its exact coverage set.
   for (const auto &mapping : a.raw_intervals) {
-    const auto raw = std::find_if(a.raw_events->payload->intervals.begin(),
-        a.raw_events->payload->intervals.end(),
-        [&](const auto &x) { return x.id == mapping.source; });
-    if (raw == a.raw_events->payload->intervals.end()) return false;
+    const auto *raw = find_raw_interval(*a.raw_events->payload, mapping.source);
+    if (!raw) return false;
     const auto line = canonical_line(raw->carrier);
     auto endpoint = [&](raw_event_id id) -> const exact_point3 * {
-      const auto p = std::find_if(a.raw_events->payload->points.begin(),
-          a.raw_events->payload->points.end(),
-          [&](const auto &x) { return x.id == id; });
-      return p == a.raw_events->payload->points.end() ? nullptr : &p->point;
+      const auto *p = find_raw_point(*a.raw_events->payload, id);
+      return p ? &p->point : nullptr;
     };
     const auto *p0 = endpoint(raw->lower_point), *p1 = endpoint(raw->upper_point);
     if (!p0 || !p1) return false;
@@ -806,6 +805,11 @@ build_symbolic_complex_impl(
     a.validated = raw.value()->payload->candidates->payload->validated;
     a.validated_digest = a.validated->artifact_digest;
     a.kernel_policy_digest = raw.value()->payload->kernel_policy_digest;
+    const auto raw_event_count = raw.value()->payload->event_index.size();
+    const auto missing_mapping = std::numeric_limits<std::uint64_t>::max();
+    a.raw_point_index.assign(raw_event_count, missing_mapping);
+    a.raw_interval_index.assign(raw_event_count, missing_mapping);
+    a.raw_region_index.assign(raw_event_count, missing_mapping);
     a.generation = prior ? prior->generation + 1 : 1;
     a.prior_generation = prior;
     if (prior)
@@ -903,6 +907,7 @@ build_symbolic_complex_impl(
         }
         if (m[k].rp) {
           v.raw_points.push_back(*m[k].rp);
+          a.raw_point_index[m[k].rp->value_for_debug()] = a.raw_points.size();
           a.raw_points.push_back({*m[k].rp, v.id});
         }
       }
@@ -935,10 +940,8 @@ build_symbolic_complex_impl(
         }
       }
       for (auto rid : sv.raw_points) {
-        auto rp = std::find_if(raw.value()->payload->points.begin(),
-                               raw.value()->payload->points.end(),
-                               [&](const auto &p) { return p.id == rid; });
-        if (rp == raw.value()->payload->points.end())
+        const auto *rp = find_raw_point(*raw.value()->payload, rid);
+        if (!rp)
           throw std::logic_error("raw point incidence");
         for (const auto &inc : rp->incidences) {
           if (auto x = std::get_if<edge_use_id>(&inc.source))
@@ -1090,14 +1093,9 @@ build_symbolic_complex_impl(
       for (const auto &q : raw.value()->payload->intervals) {
         if (!same_line(parent_line, q.carrier))
           continue;
-        auto lp = std::find_if(raw.value()->payload->points.begin(),
-                               raw.value()->payload->points.end(),
-                               [&](const auto &p) { return p.id == q.lower_point; });
-        auto up = std::find_if(raw.value()->payload->points.begin(),
-                               raw.value()->payload->points.end(),
-                               [&](const auto &p) { return p.id == q.upper_point; });
-        if (lp == raw.value()->payload->points.end() ||
-            up == raw.value()->payload->points.end())
+        const auto *lp = find_raw_point(*raw.value()->payload, q.lower_point);
+        const auto *up = find_raw_point(*raw.value()->payload, q.upper_point);
+        if (!lp || !up)
           throw std::logic_error("interval endpoint");
         auto lo = lparam(parent_line, lp->point);
         auto hi = lparam(parent_line, up->point);
@@ -1161,17 +1159,17 @@ build_symbolic_complex_impl(
                                  atom.constructions.end());
         atom.id = symbolic_curve_id::from_canonical_value(a.curves.size());
         for (auto rid : atom.raw_intervals) {
-          auto map = std::find_if(a.raw_intervals.begin(), a.raw_intervals.end(),
-                                  [&](const auto &m) { return m.source == rid; });
-          if (map == a.raw_intervals.end()) {
+          auto *map = find_raw_interval_mapping(a, rid);
+          if (!map) {
             auto cover = std::find_if(covers.begin(), covers.end(),
                                       [&](const auto &c) {
                                         return c.raw->id == rid;
                                       });
             if (cover == covers.end())
               throw std::logic_error("raw interval coverage");
+            a.raw_interval_index[rid.value_for_debug()] = a.raw_intervals.size();
             a.raw_intervals.push_back({rid, {}, cover->parity});
-            map = a.raw_intervals.end() - 1;
+            map = &a.raw_intervals.back();
           }
           map->atomic_intervals.push_back(atom.id);
         }
@@ -1191,17 +1189,15 @@ build_symbolic_complex_impl(
         symbolic_region_boundary_cycle out;
         out.role = cycle.role;
         for (auto raw_id : cycle.vertices) {
-          auto p = std::find_if(a.raw_points.begin(), a.raw_points.end(),
-                                [&](const auto &m) { return m.source == raw_id; });
-          if (p == a.raw_points.end())
+          const auto *p = find_raw_point_mapping(a, raw_id);
+          if (!p)
             throw std::logic_error("region boundary point");
           out.vertices.push_back(p->symbolic);
           a.vertices[p->symbolic.value_for_debug()].overlap_regions.push_back(region.id);
         }
         for (auto raw_id : cycle.intervals) {
-          auto interval = std::find_if(a.raw_intervals.begin(), a.raw_intervals.end(),
-                                       [&](const auto &m) { return m.source == raw_id; });
-          if (interval == a.raw_intervals.end())
+          const auto *interval = find_raw_interval_mapping(a, raw_id);
+          if (!interval)
             throw std::logic_error("region boundary interval");
           out.boundary_intervals.push_back(interval->atomic_intervals);
           for (auto atom_id : interval->atomic_intervals)
@@ -1209,6 +1205,7 @@ build_symbolic_complex_impl(
         }
         map.boundary_cycles.push_back(std::move(out));
       }
+      a.raw_region_index[region.id.value_for_debug()] = a.raw_regions.size();
       a.raw_regions.push_back(std::move(map));
     }
     const auto &vv = *a.validated->payload;
@@ -1325,6 +1322,18 @@ build_symbolic_complex_impl(
               [](const auto &x, const auto &y) {
                 return x.source_ordinal < y.source_ordinal;
               });
+    std::fill(a.raw_point_index.begin(), a.raw_point_index.end(),
+              missing_mapping);
+    std::fill(a.raw_interval_index.begin(), a.raw_interval_index.end(),
+              missing_mapping);
+    std::fill(a.raw_region_index.begin(), a.raw_region_index.end(),
+              missing_mapping);
+    for (std::size_t i = 0; i < a.raw_points.size(); ++i)
+      a.raw_point_index[a.raw_points[i].source.value_for_debug()] = i;
+    for (std::size_t i = 0; i < a.raw_intervals.size(); ++i)
+      a.raw_interval_index[a.raw_intervals[i].source.value_for_debug()] = i;
+    for (std::size_t i = 0; i < a.raw_regions.size(); ++i)
+      a.raw_region_index[a.raw_regions[i].source.value_for_debug()] = i;
     auto vertex_charge = ctx.accountant().reserve_scoped(
         resource_kind::symbolic_vertices, a.vertices.size(),
         boolean_stage::symbolic_registry);

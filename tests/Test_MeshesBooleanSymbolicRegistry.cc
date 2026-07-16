@@ -19,6 +19,12 @@ int main() {
             "all originals mapped");
     require(x.raw_points.size() == x.raw_events->payload->points.size(),
             "all raw points mapped");
+    for (const auto &mapping : x.raw_points)
+      require(find_raw_point_mapping(x, mapping.source) == &mapping,
+              "dense raw point mapping lookup");
+    for (const auto &mapping : x.raw_intervals)
+      require(find_raw_interval_mapping(x, mapping.source) == &mapping,
+              "dense raw interval mapping lookup");
     require(x.edge_sequences.size() == x.validated->payload->edges.size(),
             "all edges sequenced");
     for (const auto &e : x.edge_sequences) {
@@ -177,6 +183,18 @@ int main() {
           complex.raw_intervals.front().atomic_intervals.clear();
         },
         "raw interval mapping mutation rejected");
+    verify_symbolic_mutation(
+        [](auto &complex) {
+          const auto id = complex.raw_points.front().source.value_for_debug();
+          complex.raw_point_index[id] = complex.raw_points.size();
+        },
+        "stale raw point mapping index rejected");
+    verify_symbolic_mutation(
+        [](auto &complex) {
+          const auto id = complex.raw_intervals.front().source.value_for_debug();
+          complex.raw_interval_index[id] = complex.raw_intervals.size();
+        },
+        "stale raw interval mapping index rejected");
     auto missing_class = std::make_shared<symbolic_complex<double, std::uint32_t>>(x);
     missing_class->vertices.pop_back();
     artifact_view class_view{c->owner(), artifact_slot::symbolic_complex,
@@ -228,6 +246,16 @@ int main() {
     auto limited_context = context(a, b, r, vertex_limit);
     require(build_symbolic_complex(*limited_context).has_value(),
             "symbolic exact limits");
+    boolean_options one_spare = vertex_limit;
+    one_spare.resources.symbolic_vertices = {false, x.vertices.size() + 1};
+    one_spare.resources.symbolic_curves = {false, x.curves.size() + 1};
+    auto spare_context = context(a, b, r, one_spare);
+    require(build_symbolic_complex(*spare_context).has_value() &&
+                spare_context->accountant().used(
+                    resource_kind::symbolic_vertices) == x.vertices.size() &&
+                spare_context->accountant().used(
+                    resource_kind::symbolic_curves) == x.curves.size(),
+            "symbolic limits plus one charge exact batches");
     boolean_options one_over = vertex_limit;
     one_over.resources.symbolic_vertices = {false, x.vertices.size() - 1};
     auto over_context = context(a, b, r, one_over);

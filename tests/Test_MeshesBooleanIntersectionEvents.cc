@@ -39,6 +39,17 @@ int main() {
                 e.value()->payload->candidates->payload->candidates.size(),
             "ledger");
     require(!e.value()->payload->intervals.empty(), "transverse intervals");
+    require(e.value()->payload->event_index.size() ==
+                e.value()->payload->points.size() +
+                    e.value()->payload->intervals.size() +
+                    e.value()->payload->regions.size(),
+            "dense raw event index");
+    for (const auto &point : e.value()->payload->points)
+      require(find_raw_point(*e.value()->payload, point.id) == &point,
+              "raw point indexed lookup");
+    for (const auto &interval : e.value()->payload->intervals)
+      require(find_raw_interval(*e.value()->payload, interval.id) == &interval,
+              "raw interval indexed lookup");
     require(e.value()->payload->constructions &&
                 !e.value()->payload->constructions->nodes.empty(),
             "construction storage retained");
@@ -135,6 +146,18 @@ int main() {
     mutate_events(
         [](auto &events) { ++events.classifications.front().event_end; },
         "candidate event range mutation detected");
+    mutate_events(
+        [](auto &events) {
+          const auto id = events.points.front().id.value_for_debug();
+          events.event_index[id].ordinal = events.points.size();
+        },
+        "stale raw event index mutation detected");
+    mutate_events(
+        [](auto &events) {
+          const auto id = events.points.front().id.value_for_debug();
+          events.event_index[id].dimension = event_dimension::interval;
+        },
+        "raw event dimension mutation detected");
     mutate_events(
         [](auto &events) {
           events.classifications.front().aggregate =
@@ -268,7 +291,14 @@ int main() {
     at_limit.resources.raw_events = {false, event_count};
     auto at_context = context(a, b, r, at_limit);
     require(discover_intersection_events(*at_context).has_value(),
-            "raw event exact limit");
+             "raw event exact limit");
+    boolean_options one_spare;
+    one_spare.resources.raw_events = {false, event_count + 1};
+    auto spare_context = context(a, b, r, one_spare);
+    require(discover_intersection_events(*spare_context).has_value() &&
+                spare_context->accountant().used(resource_kind::raw_events) ==
+                    event_count,
+            "raw event limit plus one charges exact batch");
     boolean_options one_over;
     one_over.resources.raw_events = {false, event_count - 1};
     auto over_context = context(a, b, r, one_over);

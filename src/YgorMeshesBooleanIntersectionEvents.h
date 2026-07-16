@@ -24,6 +24,10 @@ enum class pair_aggregate_relation : std::uint8_t {
   equal_opposite_orientation
 };
 enum class event_dimension : std::uint8_t { point, interval, region };
+struct raw_event_locator {
+  event_dimension dimension = event_dimension::point;
+  std::uint64_t ordinal = 0;
+};
 enum class raw_point_kind : std::uint8_t {
   proper_transverse_endpoint,
   proper_boundary_crossing,
@@ -174,8 +178,41 @@ template <class T, class I> struct raw_event_set {
   std::vector<raw_point_event> points;
   std::vector<raw_interval_event> intervals;
   std::vector<raw_region_event> regions;
+  // Dense raw_event_id -> dimension/ordinal lookup. It is derived metadata and
+  // is not part of the canonical artifact encoding.
+  std::vector<raw_event_locator> event_index;
   std::vector<std::uint8_t> canonical_event_bytes, artifact_bytes;
 };
+template <class T, class I>
+inline const raw_point_event *find_raw_point(const raw_event_set<T, I> &a,
+                                             raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.event_index.size()) return nullptr;
+  const auto &location = a.event_index[id.value_for_debug()];
+  if (location.dimension != event_dimension::point ||
+      location.ordinal >= a.points.size()) return nullptr;
+  const auto &record = a.points[location.ordinal];
+  return record.id == id ? &record : nullptr;
+}
+template <class T, class I>
+inline const raw_interval_event *find_raw_interval(const raw_event_set<T, I> &a,
+                                                   raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.event_index.size()) return nullptr;
+  const auto &location = a.event_index[id.value_for_debug()];
+  if (location.dimension != event_dimension::interval ||
+      location.ordinal >= a.intervals.size()) return nullptr;
+  const auto &record = a.intervals[location.ordinal];
+  return record.id == id ? &record : nullptr;
+}
+template <class T, class I>
+inline const raw_region_event *find_raw_region(const raw_event_set<T, I> &a,
+                                               raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.event_index.size()) return nullptr;
+  const auto &location = a.event_index[id.value_for_debug()];
+  if (location.dimension != event_dimension::region ||
+      location.ordinal >= a.regions.size()) return nullptr;
+  const auto &record = a.regions[location.ordinal];
+  return record.id == id ? &record : nullptr;
+}
 status_or<bool> register_intersection_events_verifier(verifier_registry &,
                                                       coordinate_tag,
                                                       index_tag);

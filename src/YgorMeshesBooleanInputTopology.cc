@@ -255,10 +255,11 @@ semantic_operand_bytes(const artifact_t<T, I> &a, operand_id role,
   return e.bytes();
 }
 
-template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_t<T,I>&output){
+template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_t<T,I>&output,std::vector<resource_reservation>&reservations){
     auto*out=&output;out->owner=ctx.owner();out->setup_digest=ctx.replay().setup;auto kb=ctx.kernel().arithmetic_policy_bytes();out->kernel_policy_digest=domain_digest({{'Y','G','B','K','E','R','0','3'}},kb);
     const fv_surface_mesh<T,I>*raw[2]={&ctx.operand_a_mesh(),&ctx.operand_b_mesh()};std::uint64_t vertex_base=0,facet_base=0,use_base=0,edge_base=0,shell_base=0;
-    for(unsigned role=0;role<2;++role){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&m=*raw[role];std::uint64_t ring_entries=0;for(const auto&face:m.faces){auto sum=checked_add(ring_entries,face.size(),boolean_stage::input_validation);if(!sum.has_value())return sum.error();ring_entries=sum.value();}auto entities=checked_add(m.vertices.size(),m.faces.size(),boolean_stage::input_validation);if(!entities.has_value())return entities.error();entities=checked_add(entities.value(),ring_entries,boolean_stage::input_validation);if(!entities.has_value())return entities.error();auto charged=ctx.accountant().reserve(resource_kind::entities,entities.value(),boolean_stage::input_validation);if(!charged.has_value())return charged.error();charged=ctx.accountant().reserve(resource_kind::work_units,entities.value(),boolean_stage::input_validation);if(!charged.has_value())return charged.error();auto oid=role?operand_b():operand_a();auto&op=out->operands[role];op.operand=oid;op.raw_vertex_count=m.vertices.size();op.raw_face_count=m.faces.size();std::vector<bool>used(m.vertices.size(),false);std::vector<exact_point3>points(m.vertices.size());
+    std::uint64_t total_entities=0,total_pair_work=0;for(const auto*m:raw){std::uint64_t ring_entries=0;for(const auto&face:m->faces){auto sum=checked_add(ring_entries,face.size(),boolean_stage::input_validation);if(!sum.has_value())return sum.error();ring_entries=sum.value();}auto entities=checked_add(m->vertices.size(),m->faces.size(),boolean_stage::input_validation);if(!entities.has_value())return entities.error();entities=checked_add(entities.value(),ring_entries,boolean_stage::input_validation);if(!entities.has_value())return entities.error();entities=checked_add(total_entities,entities.value(),boolean_stage::input_validation);if(!entities.has_value())return entities.error();total_entities=entities.value();auto pairs=checked_multiply(m->faces.size(),m->faces.empty()?0:m->faces.size()-1,boolean_stage::input_validation);if(!pairs.has_value())return pairs.error();pairs=pairs.value()/2;pairs=checked_add(total_pair_work,pairs.value(),boolean_stage::input_validation);if(!pairs.has_value())return pairs.error();total_pair_work=pairs.value();}auto charged=ctx.accountant().reserve_scoped(resource_kind::entities,total_entities,boolean_stage::input_validation);if(!charged.has_value())return charged.error();reservations.push_back(std::move(charged.value()));auto total_work=checked_add(total_entities,total_pair_work,boolean_stage::input_validation);if(!total_work.has_value())return total_work.error();charged=ctx.accountant().reserve_scoped(resource_kind::work_units,total_work.value(),boolean_stage::input_validation);if(!charged.has_value())return charged.error();reservations.push_back(std::move(charged.value()));
+    for(unsigned role=0;role<2;++role){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&m=*raw[role];auto oid=role?operand_b():operand_a();auto&op=out->operands[role];op.operand=oid;op.raw_vertex_count=m.vertices.size();op.raw_face_count=m.faces.size();out->raw_vertex_provenance[role].resize(m.vertices.size());out->raw_facets[role].resize(m.faces.size());std::vector<bool>used(m.vertices.size(),false);std::vector<exact_point3>points(m.vertices.size());std::uint64_t operand_exact_bits=0;
       for (std::size_t i = 0; i < m.vertices.size(); ++i) {
         const auto &v = m.vertices[i];
         auto x = decode_coordinate(v.x), y = decode_coordinate(v.y),
@@ -281,15 +282,19 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
                                  boolean_stage::input_validation);
         if (!exact_bits.has_value())
           return exact_bits.error();
-        auto exact_charge = ctx.accountant().reserve(
-            resource_kind::exact_number_bits, exact_bits.value(),
-            boolean_stage::input_validation);
-        if (!exact_charge.has_value())
-          return exact_charge.error();
+        exact_bits = checked_add(operand_exact_bits, exact_bits.value(),
+                                 boolean_stage::input_validation);
+        if (!exact_bits.has_value()) return exact_bits.error();
+        operand_exact_bits = exact_bits.value();
         points[i] = point(x.value(), y.value(), z.value());
       }
+      auto exact_charge = ctx.accountant().reserve_scoped(
+          resource_kind::exact_number_bits, operand_exact_bits,
+          boolean_stage::input_validation);
+      if (!exact_charge.has_value()) return exact_charge.error();
+      reservations.push_back(std::move(exact_charge.value()));
         for(std::size_t fi=0;fi<m.faces.size();++fi){const auto&f=m.faces[fi];if(f.size()<3)return input_error(input_validation_subcode::short_ring,"short_ring");std::set<I>seen;for(std::size_t j=0;j<f.size();++j){if(static_cast<std::uint64_t>(f[j])>=m.vertices.size())return input_error(input_validation_subcode::index_out_of_range,"index_out_of_range");if(!seen.insert(f[j]).second)return input_error(input_validation_subcode::repeated_vertex,"repeated_ring_vertex");used[f[j]]=true;if(points[f[j]]==points[f[(j+1)%f.size()]])return input_error(input_validation_subcode::zero_length_edge,"zero_length_edge");}}
-        std::vector<original_vertex_id>vmap(m.vertices.size());std::vector<std::size_t>vertex_order;for(std::size_t i=0;i<m.vertices.size();++i)if(used[i])vertex_order.push_back(i);std::sort(vertex_order.begin(),vertex_order.end(),[&](std::size_t x,std::size_t y){int c=lexicographic_compare(points[x],points[y]);return c?c<0:x<y;});for(auto i:vertex_order){auto id=original_vertex_id::from_canonical_value(vertex_base++);vmap[i]=id;validated_vertex<T>v;v.id=id;v.operand=oid;v.raw_coordinate={m.vertices[i].x,m.vertices[i].y,m.vertices[i].z};v.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};v.exact_coordinate=points[i];out->vertices.push_back(std::move(v));op.vertices.push_back(id);}for(std::size_t i=0;i<m.vertices.size();++i){source_vertex_provenance<T>p;p.operand=oid;p.raw_vertex_ordinal=i;p.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};p.exact_coordinate=points[i];if(used[i]){p.disposition=raw_vertex_disposition::retained;p.canonical_vertex=vmap[i];}out->provenance.push_back(std::move(p));}
+        std::vector<original_vertex_id>vmap(m.vertices.size());std::vector<std::size_t>vertex_order;for(std::size_t i=0;i<m.vertices.size();++i)if(used[i])vertex_order.push_back(i);std::sort(vertex_order.begin(),vertex_order.end(),[&](std::size_t x,std::size_t y){int c=lexicographic_compare(points[x],points[y]);return c?c<0:x<y;});for(auto i:vertex_order){auto id=original_vertex_id::from_canonical_value(vertex_base++);vmap[i]=id;validated_vertex<T>v;v.id=id;v.operand=oid;v.raw_coordinate={m.vertices[i].x,m.vertices[i].y,m.vertices[i].z};v.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};v.exact_coordinate=points[i];out->vertices.push_back(std::move(v));op.vertices.push_back(id);}for(std::size_t i=0;i<m.vertices.size();++i){source_vertex_provenance<T>p;p.operand=oid;p.raw_vertex_ordinal=i;p.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};p.exact_coordinate=points[i];if(used[i]){p.disposition=raw_vertex_disposition::retained;p.canonical_vertex=vmap[i];}out->raw_vertex_provenance[role][i]=out->provenance.size();out->provenance.push_back(std::move(p));}
         auto face_key = [&](std::size_t fi) {
           std::vector<std::uint64_t> x;
           for (I v : m.faces[fi])
@@ -336,6 +341,7 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           f.id = facet_id::from_canonical_value(facet_base++);
           f.operand = oid;
           f.raw_face_ordinal = fi;
+          out->raw_facets[role][fi] = f.id;
           std::size_t ring_start = 0;
           for (std::size_t i = 1; i < rf.size(); ++i)
             if (vmap[rf[i]] < vmap[rf[ring_start]])
@@ -459,7 +465,7 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           out->shells.push_back(std::move(s));
         }
         for(auto vid:op.vertices){auto&v=out->vertices[vid.value_for_debug()];std::vector<edge_use_id>outgoing;for(const auto&h:out->edge_uses)if(h.operand==oid&&h.origin==vid)outgoing.push_back(h.id);if(!outgoing.empty()){auto start=*std::min_element(outgoing.begin(),outgoing.end()),cur=start;std::set<edge_use_id>seen;do{if(!seen.insert(cur).second)break;v.ordered_outgoing_link.push_back(cur);const auto&h=out->edge_uses[cur.value_for_debug()];cur=out->edge_uses[h.previous.value_for_debug()].twin;}while(cur!=start);if(seen.size()!=outgoing.size()||cur!=start)return input_error(input_validation_subcode::disconnected_vertex_link,"disconnected_vertex_link");}}
-        auto pair_work=checked_multiply(op.facets.size(),op.facets.empty()?0:op.facets.size()-1,boolean_stage::input_validation);if(!pair_work.has_value())return pair_work.error();pair_work=pair_work.value()/2;auto pair_charge=ctx.accountant().reserve(resource_kind::work_units,pair_work.value(),boolean_stage::input_validation);if(!pair_charge.has_value())return pair_charge.error();for(std::size_t i=0;i<op.facets.size();++i)for(std::size_t j=i+1;j<op.facets.size();++j){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&f=out->facets[op.facets[i].value_for_debug()];const auto&g=out->facets[op.facets[j].value_for_debug()];auto relation=relate_polygons(facet_triangles(*out,f),facet_triangles(*out,g));std::size_t shared_vertices=0;for(auto x:f.ring)if(std::find(g.ring.begin(),g.ring.end(),x)!=g.ring.end())++shared_vertices;bool shared_edge=false;for(auto h:f.edge_uses)for(auto q:g.edge_uses)if(out->edge_uses[h.value_for_debug()].edge==out->edge_uses[q.value_for_debug()].edge)shared_edge=true;if(f.shell!=g.shell){if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");}else if(shared_edge){if(relation!=polygon_intersection_kind::segment)return input_error(input_validation_subcode::self_intersection,"adjacent_facet_intersection");}else if(shared_vertices){if(relation!=polygon_intersection_kind::point)return input_error(input_validation_subcode::self_intersection,"vertex_adjacent_facet_intersection");}else if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::self_intersection,"nonadjacent_facet_intersection");}
+        for(std::size_t i=0;i<op.facets.size();++i)for(std::size_t j=i+1;j<op.facets.size();++j){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&f=out->facets[op.facets[i].value_for_debug()];const auto&g=out->facets[op.facets[j].value_for_debug()];auto relation=relate_polygons(facet_triangles(*out,f),facet_triangles(*out,g));std::size_t shared_vertices=0;for(auto x:f.ring)if(std::find(g.ring.begin(),g.ring.end(),x)!=g.ring.end())++shared_vertices;bool shared_edge=false;for(auto h:f.edge_uses)for(auto q:g.edge_uses)if(out->edge_uses[h.value_for_debug()].edge==out->edge_uses[q.value_for_debug()].edge)shared_edge=true;if(f.shell!=g.shell){if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");}else if(shared_edge){if(relation!=polygon_intersection_kind::segment)return input_error(input_validation_subcode::self_intersection,"adjacent_facet_intersection");}else if(shared_vertices){if(relation!=polygon_intersection_kind::point)return input_error(input_validation_subcode::self_intersection,"vertex_adjacent_facet_intersection");}else if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::self_intersection,"nonadjacent_facet_intersection");}
         std::vector<shell_id>role_shells=op.shells;std::vector<std::vector<bool>>inside(role_shells.size(),std::vector<bool>(role_shells.size(),false));for(std::size_t i=0;i<role_shells.size();++i)for(std::size_t j=0;j<role_shells.size();++j)if(i!=j){const auto&s=out->shells[role_shells[i].value_for_debug()];const auto&t=out->shells[role_shells[j].value_for_debug()];auto witness=*std::min_element(s.vertices.begin(),s.vertices.end());const auto&p=out->vertices[witness.value_for_debug()].exact_coordinate;auto loc=classify_point_closed_triangle_shell(p,shell_triangles(*out,t));if(!loc.has_value())return loc.error();if(loc.value()==solid_point_kind::boundary)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");inside[i][j]=loc.value()==solid_point_kind::inside;}
         for(std::size_t i=0;i<role_shells.size();++i){std::optional<std::size_t>parent;for(std::size_t j=0;j<role_shells.size();++j)if(inside[i][j]){bool nearest=true;for(std::size_t k=0;k<role_shells.size();++k)if(k!=j&&inside[i][k]&&!inside[j][k])nearest=false;if(nearest){if(parent)return input_error(input_validation_subcode::ambiguous_nesting,"ambiguous_shell_parent");parent=j;}}if(parent){auto&child=out->shells[role_shells[i].value_for_debug()];child.parent=role_shells[*parent];out->shells[role_shells[*parent].value_for_debug()].children.push_back(child.id);}}
         for (std::size_t pass = 0; pass < role_shells.size(); ++pass)
@@ -562,6 +568,29 @@ verify_typed(const artifact_view &v, const verification_spec &s,
         boolean_stage::input_validation);
     if (!scratch_charge.has_value())
       return scratch_charge.error();
+    bool indices_valid = true;
+    for (unsigned role = 0; role < 2 && indices_valid; ++role) {
+      indices_valid = a.raw_vertex_provenance[role].size() ==
+                          a.operands[role].raw_vertex_count &&
+                      a.raw_facets[role].size() ==
+                          a.operands[role].raw_face_count;
+      const auto expected_operand = role ? operand_b() : operand_a();
+      for (std::size_t i = 0;
+           i < a.raw_vertex_provenance[role].size() && indices_valid; ++i) {
+        const auto ordinal = a.raw_vertex_provenance[role][i];
+        indices_valid = ordinal < a.provenance.size() &&
+                        a.provenance[ordinal].operand == expected_operand &&
+                        a.provenance[ordinal].raw_vertex_ordinal == i;
+      }
+      for (std::size_t i = 0; i < a.raw_facets[role].size() && indices_valid;
+           ++i) {
+        const auto id = a.raw_facets[role][i];
+        indices_valid = id.valid() && id.value_for_debug() < a.facets.size() &&
+                        a.facets[id.value_for_debug()].id == id &&
+                        a.facets[id.value_for_debug()].operand == expected_operand &&
+                        a.facets[id.value_for_debug()].raw_face_ordinal == i;
+      }
+    }
     bool failed = false;
     for (auto code : s.required_invariants) {
       if (env.cancelled && env.cancelled())
@@ -572,7 +601,7 @@ verify_typed(const artifact_view &v, const verification_spec &s,
       x.status = failed ? check_status::not_run_due_to_prior_failure
                         : check_status::passed;
       if (!failed) {
-        bool ok = true;
+        bool ok = indices_valid;
         switch (code) {
         case invariant_code::input_binding:
           ok = a.owner == v.owner && a.setup_digest == env.setup_digest &&
@@ -633,40 +662,30 @@ verify_typed(const artifact_view &v, const verification_spec &s,
         case invariant_code::input_rings:
           for (unsigned role = 0; role < 2 && ok; ++role)
             for (std::size_t fi = 0; fi < raw[role]->faces.size() && ok; ++fi) {
-              const validated_facet *stored = nullptr;
-              for (const auto &facet : a.facets)
-                if (facet.operand == (role ? operand_b() : operand_a()) &&
-                    facet.raw_face_ordinal == fi) {
-                  stored = &facet;
-                  break;
-                }
+              const auto facet_id = a.raw_facets[role][fi];
+              const validated_facet *stored =
+                  &a.facets[facet_id.value_for_debug()];
               ok = stored && stored->ring.size() == raw[role]->faces[fi].size() &&
-                   stored->edge_uses.size() == stored->ring.size();
+                    stored->edge_uses.size() == stored->ring.size();
               if (!stored)
                 continue;
               std::size_t raw_start = 0;
               for (; raw_start < stored->ring.size(); ++raw_start) {
                 const auto ordinal = static_cast<std::uint64_t>(
                     raw[role]->faces[fi][raw_start]);
-                for (const auto &candidate : a.provenance)
-                  if (candidate.operand == stored->operand &&
-                      candidate.raw_vertex_ordinal == ordinal &&
-                      candidate.canonical_vertex &&
-                      *candidate.canonical_vertex == stored->ring[0])
-                    goto ring_start_found;
+                const auto provenance_ordinal =
+                    a.raw_vertex_provenance[role][ordinal];
+                const auto &candidate = a.provenance[provenance_ordinal];
+                if (candidate.canonical_vertex &&
+                    *candidate.canonical_vertex == stored->ring[0])
+                  break;
               }
-            ring_start_found:
               ok = raw_start < stored->ring.size();
               for (std::size_t k = 0; k < stored->ring.size() && ok; ++k) {
                 const auto ordinal = static_cast<std::uint64_t>(
                     raw[role]->faces[fi][(raw_start + k) % stored->ring.size()]);
-                const source_vertex_provenance<T> *source = nullptr;
-                for (const auto &candidate : a.provenance)
-                  if (candidate.operand == stored->operand &&
-                      candidate.raw_vertex_ordinal == ordinal) {
-                    source = &candidate;
-                    break;
-                  }
+                const auto *source = &a.provenance[
+                    a.raw_vertex_provenance[role][ordinal]];
                 ok = source && source->canonical_vertex &&
                      *source->canonical_vertex == stored->ring[k];
               }
@@ -944,7 +963,8 @@ validate_operands(boolean_context<T, I> &ctx) {
         artifact_slot::validated_operands, std::make_unique<artifact_t<T, I>>(),
         ctx.performance_collector_for_internal_use());
     auto &candidate = tx.draft();
-    auto made = build(ctx, candidate);
+    std::vector<resource_reservation> build_reservations;
+    auto made = build(ctx, candidate, build_reservations);
     if (!made.has_value())
       return made.error();
     auto type = validated_operands_type_tag +
@@ -979,6 +999,8 @@ validate_operands(boolean_context<T, I> &ctx) {
     if (!authoritative.has_value())
       return authoritative.error();
     tx.stage_reservation(std::move(authoritative.value()));
+    for (auto &reservation : build_reservations)
+      tx.stage_reservation(std::move(reservation));
     producer.finish();
     auto ok = tx.freeze_and_verify(type, validated_operands_schema, 1,
                                    candidate.artifact_digest, spec.value(), env,

@@ -294,11 +294,9 @@ audit_crossings(const published_artifact<symbolic_complex<T, I>> &published) {
       const bool incident = std::any_of(
           curve.raw_intervals.begin(), curve.raw_intervals.end(),
           [&](auto id) {
-            auto raw = std::find_if(
-                symbolic.raw_events->payload->intervals.begin(),
-                symbolic.raw_events->payload->intervals.end(),
-                [&](const auto &interval) { return interval.id == id; });
-            return raw != symbolic.raw_events->payload->intervals.end() &&
+            const auto *raw = find_raw_interval(
+                *symbolic.raw_events->payload, id);
+            return raw &&
                    (raw->facets.operand_a_facet == facet.id ||
                     raw->facets.operand_b_facet == facet.id);
           });
@@ -418,9 +416,8 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     if (c.kind == symbolic_curve_kind::atomic_interval && c.lower && c.upper) {
       bool incident = false;
       for (auto rid : c.raw_intervals) {
-        auto it = std::find_if(raw.intervals.begin(), raw.intervals.end(),
-                               [&](const auto &r) { return r.id == rid; });
-        if (it == raw.intervals.end())
+        const auto *it = find_raw_interval(raw, rid);
+        if (!it)
           return make_error(boolean_error_code::internal_invariant_error,
                             boolean_stage::local_refinement,
                             "missing_raw_interval");
@@ -432,9 +429,8 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
         continue;
       std::vector<local_constraint_label> ls;
       for (auto rid : c.raw_intervals) {
-        auto it = std::find_if(raw.intervals.begin(), raw.intervals.end(),
-                               [&](const auto &r) { return r.id == rid; });
-        if (it == raw.intervals.end())
+        const auto *it = find_raw_interval(raw, rid);
+        if (!it)
           return make_error(boolean_error_code::internal_invariant_error,
                             boolean_stage::local_refinement,
                             "missing_raw_interval");

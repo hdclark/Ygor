@@ -69,6 +69,13 @@ static void mutations() {
   corrupt = std::make_shared<validated_operands<T, I>>(*payload);
   corrupt->evidence[0].checked += 1;
   rejected(corrupt, "artifact evidence mutation detected");
+  corrupt = std::make_shared<validated_operands<T, I>>(*payload);
+  corrupt->raw_vertex_provenance[0][0] = corrupt->provenance.size();
+  rejected(corrupt, "stale raw vertex index detected");
+  corrupt = std::make_shared<validated_operands<T, I>>(*payload);
+  corrupt->raw_facets[0][0] =
+      facet_id::from_canonical_value(corrupt->facets.size());
+  rejected(corrupt, "malformed raw facet index detected");
   auto saved_face = a.faces[0][0];
   a.faces[0][0] = a.faces[0][1];
   stale = registry->verify(view, spec, env);

@@ -147,12 +147,47 @@ template <class T, class I> struct symbolic_complex {
   std::vector<raw_interval_mapping> raw_intervals;
   std::vector<raw_carrier_mapping> raw_carriers;
   std::vector<raw_region_mapping> raw_regions;
+  // Dense raw_event_id -> mapping ordinal tables. UINT64_MAX denotes an event
+  // of another dimension. These derived tables are not canonically serialized.
+  std::vector<std::uint64_t> raw_point_index;
+  std::vector<std::uint64_t> raw_interval_index;
+  std::vector<std::uint64_t> raw_region_index;
   std::uint64_t generation = 1;
   std::shared_ptr<const published_artifact<symbolic_complex<T, I>>>
       prior_generation;
   std::vector<symbolic_reconciliation_request> reconciliation_history;
   std::vector<std::uint8_t> canonical_symbolic_bytes, artifact_bytes;
 };
+template <class T, class I>
+inline const raw_point_mapping *find_raw_point_mapping(
+    const symbolic_complex<T, I> &a, raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.raw_point_index.size()) return nullptr;
+  const auto ordinal = a.raw_point_index[id.value_for_debug()];
+  if (ordinal >= a.raw_points.size()) return nullptr;
+  return a.raw_points[ordinal].source == id ? &a.raw_points[ordinal] : nullptr;
+}
+template <class T, class I>
+inline const raw_interval_mapping *find_raw_interval_mapping(
+    const symbolic_complex<T, I> &a, raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.raw_interval_index.size()) return nullptr;
+  const auto ordinal = a.raw_interval_index[id.value_for_debug()];
+  if (ordinal >= a.raw_intervals.size()) return nullptr;
+  return a.raw_intervals[ordinal].source == id ? &a.raw_intervals[ordinal] : nullptr;
+}
+template <class T, class I>
+inline raw_interval_mapping *find_raw_interval_mapping(
+    symbolic_complex<T, I> &a, raw_event_id id) noexcept {
+  return const_cast<raw_interval_mapping *>(find_raw_interval_mapping(
+      static_cast<const symbolic_complex<T, I> &>(a), id));
+}
+template <class T, class I>
+inline const raw_region_mapping *find_raw_region_mapping(
+    const symbolic_complex<T, I> &a, raw_event_id id) noexcept {
+  if (!id.valid() || id.value_for_debug() >= a.raw_region_index.size()) return nullptr;
+  const auto ordinal = a.raw_region_index[id.value_for_debug()];
+  if (ordinal >= a.raw_regions.size()) return nullptr;
+  return a.raw_regions[ordinal].source == id ? &a.raw_regions[ordinal] : nullptr;
+}
 status_or<bool> register_symbolic_registry_verifier(verifier_registry &,
                                                     coordinate_tag, index_tag);
 template <class T, class I>

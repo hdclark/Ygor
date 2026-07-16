@@ -467,13 +467,17 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
   for (auto n : occurrence_uses)
     if (n == 0)
       return false;
+  std::vector<std::vector<selected_halfedge_id>> occurrence_halfedges(
+      a.vertex_occurrences.size());
+  for (const auto &halfedge : a.halfedges) {
+    occurrence_halfedges[halfedge.origin_occurrence.value_for_debug()]
+        .push_back(halfedge.id);
+    occurrence_halfedges[halfedge.destination_occurrence.value_for_debug()]
+        .push_back(halfedge.id);
+  }
   for (const auto &occurrence : a.vertex_occurrences) {
-    std::vector<selected_halfedge_id> expected;
-    for (const auto &halfedge : a.halfedges) {
-      if (halfedge.origin_occurrence == occurrence.id ||
-          halfedge.destination_occurrence == occurrence.id)
-        expected.push_back(halfedge.id);
-    }
+    auto &expected =
+        occurrence_halfedges[occurrence.id.value_for_debug()];
     std::sort(expected.begin(), expected.end());
     expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
     if (expected != occurrence.incident_halfedges)

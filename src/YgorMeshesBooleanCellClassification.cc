@@ -797,13 +797,14 @@ exterior_attachment(const arrangement_complex<T, I> &g,
       throw std::logic_error("exterior witness lies on hit plane");
     const auto side = sign == exact_sign::negative ? patch_plane_side::negative
                                                     : patch_plane_side::positive;
-    auto found = std::find_if(g.patch_sides.begin(), g.patch_sides.end(),
-                             [&](const patch_side &s) {
-                               return s.patch == patch.id && s.side == side;
-                             });
-    if (found == g.patch_sides.end())
+    const auto side_ordinal = 2 * patch.id.value_for_debug() +
+        static_cast<std::uint64_t>(side == patch_plane_side::positive);
+    if (side_ordinal >= g.patch_sides.size())
       throw std::logic_error("attachment hit lacks patch side");
-    hits.push_back({patch.id, parameter, relation.kind, found->id});
+    const auto &found = g.patch_sides[side_ordinal];
+    if (found.patch != patch.id || found.side != side)
+      throw std::logic_error("stale attachment patch-side index");
+    hits.push_back({patch.id, parameter, relation.kind, found.id});
   }
   if (hits.empty())
     throw std::logic_error("attachment ray misses arrangement");
@@ -1266,14 +1267,19 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       a.side_labels.push_back(x);
     }
     for (const auto &p : g.patches) {
-      const patch_side_label *n = nullptr, *q = nullptr;
-      for (const auto &s : a.side_labels)
-        if (s.patch == p.id)
-          (s.side == patch_plane_side::negative ? n : q) = &s;
-      if (!n || !q)
+      const auto negative_ordinal = 2 * p.id.value_for_debug();
+      const auto positive_ordinal = negative_ordinal + 1;
+      if (positive_ordinal >= a.side_labels.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                           boolean_stage::cell_classification,
+                           "missing_patch_sides");
+      const auto *n = &a.side_labels[negative_ordinal];
+      const auto *q = &a.side_labels[positive_ordinal];
+      if (n->patch != p.id || n->side != patch_plane_side::negative ||
+          q->patch != p.id || q->side != patch_plane_side::positive)
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::cell_classification,
-                          "missing_patch_sides");
+                          "stale_patch_side_index");
       a.patch_labels.push_back(
           {p.id, n->id, q->id, n->occupancy, q->occupancy});
     }

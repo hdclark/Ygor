@@ -1012,20 +1012,23 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
     seen[id.value_for_debug()] = true;
     return true;
   };
-  for (const auto &p : a.points)
+  if (a.event_index.size() != next) return false;
+  for (std::size_t i = 0; i < a.points.size(); ++i) {
+    const auto &p = a.points[i];
     if (!claim(p.id) || p.candidate.value_for_debug() >= a.classifications.size() ||
         p.facets.operand_a_facet != a.classifications[p.candidate.value_for_debug()].facets.operand_a_facet ||
-        p.facets.operand_b_facet != a.classifications[p.candidate.value_for_debug()].facets.operand_b_facet)
+        p.facets.operand_b_facet != a.classifications[p.candidate.value_for_debug()].facets.operand_b_facet ||
+        a.event_index[p.id.value_for_debug()].dimension != event_dimension::point ||
+        a.event_index[p.id.value_for_debug()].ordinal != i)
       return false;
-  auto point = [&](raw_event_id id) -> const raw_point_event * {
-    for (const auto &p : a.points)
-      if (p.id == id)
-        return &p;
-    return nullptr;
-  };
-  for (const auto &q : a.intervals) {
+  }
+  auto point = [&](raw_event_id id) { return find_raw_point(a, id); };
+  for (std::size_t i = 0; i < a.intervals.size(); ++i) {
+    const auto &q = a.intervals[i];
     auto lo = point(q.lower_point), hi = point(q.upper_point);
     if (!claim(q.id) || !lo || !hi ||
+        a.event_index[q.id.value_for_debug()].dimension != event_dimension::interval ||
+        a.event_index[q.id.value_for_debug()].ordinal != i ||
         !(q.carrier_parameters.lower < q.carrier_parameters.upper) ||
         !(at(q.carrier, q.carrier_parameters.lower) == lo->point) ||
         !(at(q.carrier, q.carrier_parameters.upper) == hi->point) ||
@@ -1052,8 +1055,12 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
           (owner.direction != orientation_parity::agree &&
            owner.direction != orientation_parity::opposite)) return false;
   }
-  for (const auto &r : a.regions) {
+  for (std::size_t region_ordinal = 0; region_ordinal < a.regions.size();
+       ++region_ordinal) {
+    const auto &r = a.regions[region_ordinal];
     if (!claim(r.id) || !(exact_scalar(0) < r.area) ||
+        a.event_index[r.id.value_for_debug()].dimension != event_dimension::region ||
+        a.event_index[r.id.value_for_debug()].ordinal != region_ordinal ||
         r.boundary_cycles.empty())
       return false;
     exact_scalar signed_area(0);
@@ -1074,9 +1081,8 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
         const auto *p = point(id);
         const auto *q = point(cycle.vertices[(i + 1) % cycle.vertices.size()]);
         if (!q) return false;
-        auto interval = std::find_if(a.intervals.begin(), a.intervals.end(),
-          [&](const auto &x) { return x.id == cycle.intervals[i]; });
-        if (interval == a.intervals.end() || interval->candidate != r.candidate ||
+        const auto *interval = find_raw_interval(a, cycle.intervals[i]);
+        if (!interval || interval->candidate != r.candidate ||
             interval->lower_point != id ||
             interval->upper_point != cycle.vertices[(i + 1) % cycle.vertices.size()] ||
             interval->kind != raw_interval_kind::coplanar_overlap_boundary_segment)
@@ -1112,14 +1118,14 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
   }
   if (std::find(seen.begin(), seen.end(), false) != seen.end())
     return false;
+  std::vector<std::array<std::uint64_t, 3>> candidate_counts(
+      a.classifications.size());
+  for (const auto &p : a.points) ++candidate_counts[p.candidate.value_for_debug()][0];
+  for (const auto &q : a.intervals) ++candidate_counts[q.candidate.value_for_debug()][1];
+  for (const auto &r : a.regions) ++candidate_counts[r.candidate.value_for_debug()][2];
   for (const auto &c : a.classifications) {
-    std::uint64_t pc = 0, ic = 0, rc = 0;
-    for (const auto &p : a.points)
-      pc += p.candidate == c.candidate;
-    for (const auto &q : a.intervals)
-      ic += q.candidate == c.candidate;
-    for (const auto &r : a.regions)
-      rc += r.candidate == c.candidate;
+    const auto counts = candidate_counts[c.candidate.value_for_debug()];
+    const auto pc = counts[0], ic = counts[1], rc = counts[2];
     if (c.facets.operand_a_facet != a.candidates->payload->candidates[c.candidate.value_for_debug()].key.operand_a_facet ||
         c.facets.operand_b_facet != a.candidates->payload->candidates[c.candidate.value_for_debug()].key.operand_b_facet ||
         c.carrier_end < c.carrier_begin || c.carrier_end > a.carriers.size() ||
@@ -1205,12 +1211,13 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
                                                 line_polygon(line, validated, fb));
       std::vector<exact_interval> actual_intervals;
       std::vector<exact_scalar> actual_points;
-      for (const auto &interval : a.intervals)
-        if (interval.candidate == stored.candidate)
-          actual_intervals.push_back(interval.carrier_parameters);
-      for (const auto &point_event : a.points)
-        if (point_event.candidate == stored.candidate)
-          actual_points.push_back(parameter(line, point_event.point));
+      for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id) {
+        const auto event = raw_event_id::from_canonical_value(id);
+        if (const auto *interval = find_raw_interval(a, event))
+          actual_intervals.push_back(interval->carrier_parameters);
+        else if (const auto *point_event = find_raw_point(a, event))
+          actual_points.push_back(parameter(line, point_event->point));
+      }
       std::sort(actual_intervals.begin(), actual_intervals.end(),
                 [](const auto &x, const auto &y) {
                   return x.lower == y.lower ? x.upper < y.upper
@@ -1241,29 +1248,27 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
       auto a2 = ring2(validated, fa), b2 = ring2(validated, fb);
       const auto expected_area = verifier_overlap_area(a2, b2);
       exact_scalar stored_area(0);
-      for (const auto &region : a.regions)
-        if (region.candidate == stored.candidate)
-          stored_area = stored_area + region.area;
+      for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id)
+        if (const auto *region = find_raw_region(
+                a, raw_event_id::from_canonical_value(id)))
+          stored_area = stored_area + region->area;
       if (stored_area != expected_area) return false;
       if (exact_scalar(0) < expected_area) {
         const auto expected_boundary = verifier_overlap_boundary(validated, fa, fb);
         std::vector<bool> matched(expected_boundary.size(), false);
         std::size_t actual_count = 0;
-        for (const auto &region : a.regions) {
-          if (region.candidate != stored.candidate) continue;
-          for (const auto &cycle : region.boundary_cycles) {
+        for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id) {
+          const auto *region = find_raw_region(
+              a, raw_event_id::from_canonical_value(id));
+          if (!region) continue;
+          for (const auto &cycle : region->boundary_cycles) {
             for (std::size_t edge = 0; edge < cycle.intervals.size(); ++edge) {
               ++actual_count;
-              const auto interval = std::find_if(
-                  a.intervals.begin(), a.intervals.end(), [&](const auto &x) {
-                    return x.id == cycle.intervals[edge];
-                  });
-              if (interval == a.intervals.end()) return false;
-              const auto lower = std::find_if(a.points.begin(), a.points.end(),
-                  [&](const auto &x) { return x.id == interval->lower_point; });
-              const auto upper = std::find_if(a.points.begin(), a.points.end(),
-                  [&](const auto &x) { return x.id == interval->upper_point; });
-              if (lower == a.points.end() || upper == a.points.end()) return false;
+              const auto *interval = find_raw_interval(a, cycle.intervals[edge]);
+              if (!interval) return false;
+              const auto *lower = find_raw_point(a, interval->lower_point);
+              const auto *upper = find_raw_point(a, interval->upper_point);
+              if (!lower || !upper) return false;
               const auto from = project(lower->point, fa.projection);
               const auto to = project(upper->point, fa.projection);
               const auto expected = std::find_if(
@@ -1733,6 +1738,16 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
     auto event_charge = ctx.accountant().reserve_scoped(
         resource_kind::raw_events, next, boolean_stage::intersection_events);
     if (!event_charge.has_value()) return event_charge.error();
+    a.event_index.resize(next);
+    for (std::size_t i = 0; i < a.points.size(); ++i)
+      a.event_index[a.points[i].id.value_for_debug()] =
+          {event_dimension::point, i};
+    for (std::size_t i = 0; i < a.intervals.size(); ++i)
+      a.event_index[a.intervals[i].id.value_for_debug()] =
+          {event_dimension::interval, i};
+    for (std::size_t i = 0; i < a.regions.size(); ++i)
+      a.event_index[a.regions[i].id.value_for_debug()] =
+          {event_dimension::region, i};
     freeze_constructions(a);
     a.canonical_event_bytes = semantic(a);
     a.artifact_bytes = invocation(a);

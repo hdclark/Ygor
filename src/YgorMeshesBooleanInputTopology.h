@@ -35,6 +35,10 @@ template<class T,class I>struct validated_operands{
     std::vector<validated_edge>edges;
     std::vector<validated_shell>shells;
     std::vector<validation_evidence>evidence;
+    // Derived lookup metadata. These tables are intentionally excluded from
+    // canonical serialization and are checked against the records by verifiers.
+    std::array<std::vector<std::uint64_t>,2>raw_vertex_provenance;
+    std::array<std::vector<facet_id>,2>raw_facets;
 };
 
 status_or<bool>register_input_topology_verifier(verifier_registry&,coordinate_tag,index_tag);
