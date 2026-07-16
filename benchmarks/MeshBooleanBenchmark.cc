@@ -1,4 +1,6 @@
 #include "MeshBooleanPerformanceSupport.h"
+#include "MeshBooleanExactArithmeticFixtures.h"
+#include <YgorMeshesBooleanPerformance.h>
 
 #include <algorithm>
 #include <array>
@@ -20,6 +22,9 @@ namespace {
 struct command_line {
   std::vector<std::string> fixtures{"B0"};
   std::uint32_t size = 1, threads = 1, warmups = 1, repetitions = 5;
+  std::uint32_t arithmetic_limbs = 8;
+  std::string suite = "mesh";
+  std::string arithmetic_case = "all";
   std::string operation_name = "all";
   std::string verification_name = "mandatory";
   std::string type_name = "double-u32";
@@ -51,11 +56,16 @@ command_line parse_command_line(int argc, char **argv) {
     const std::string argument(argv[i]);
     if (argument == "--help") {
       std::cout
-          << "MeshBooleanBenchmark [--fixture B0|...|B8|all] [--size 1|2|3]\n"
+          << "MeshBooleanBenchmark [--suite mesh|exact-arithmetic]\n"
+             "  [--fixture B0|...|B8|all] [--size 1|2|3]\n"
              "  [--operation union|intersection|a-minus-b|b-minus-a|xor|all]\n"
              "  [--verification mandatory|exhaustive] [--type float-u32|float-u64|double-u32|double-u64]\n"
+             "  [--arithmetic-case add|subtract|multiply|divide|gcd|rational|all]\n"
+             "  [--limbs 1|2|8|32|128]\n"
              "  [--threads N] [--warmup N] [--repetitions N]\n";
       std::exit(0);
+    } else if (argument.rfind("--suite", 0) == 0) {
+      result.suite = value_after(argument, "--suite", i, argc, argv);
     } else if (argument.rfind("--fixture", 0) == 0) {
       const auto value = value_after(argument, "--fixture", i, argc, argv);
       result.fixtures.clear();
@@ -72,6 +82,11 @@ command_line parse_command_line(int argc, char **argv) {
       result.verification_name = value_after(argument, "--verification", i, argc, argv);
     } else if (argument.rfind("--type", 0) == 0) {
       result.type_name = value_after(argument, "--type", i, argc, argv);
+    } else if (argument.rfind("--arithmetic-case", 0) == 0) {
+      result.arithmetic_case = value_after(argument, "--arithmetic-case", i, argc, argv);
+    } else if (argument.rfind("--limbs", 0) == 0) {
+      result.arithmetic_limbs = unsigned_value(
+          value_after(argument, "--limbs", i, argc, argv), "limbs");
     } else if (argument.rfind("--threads", 0) == 0) {
       result.threads = unsigned_value(value_after(argument, "--threads", i, argc, argv), "threads");
     } else if (argument.rfind("--warmup", 0) == 0) {
@@ -82,9 +97,17 @@ command_line parse_command_line(int argc, char **argv) {
       throw std::invalid_argument("unknown argument: " + argument);
     }
   }
-  checked_performance_size(result.size);
-  for (const auto &fixture : result.fixtures)
-    make_performance_fixture<double, std::uint32_t>(fixture, result.size);
+  if (result.suite == "mesh") {
+    checked_performance_size(result.size);
+    for (const auto &fixture : result.fixtures)
+      make_performance_fixture<double, std::uint32_t>(fixture, result.size);
+  } else if (result.suite == "exact-arithmetic") {
+    const std::vector<std::uint32_t> valid{1, 2, 8, 32, 128};
+    if (std::find(valid.begin(), valid.end(), result.arithmetic_limbs) == valid.end())
+      throw std::invalid_argument("limbs must be one of 1, 2, 8, 32, or 128");
+  } else {
+    throw std::invalid_argument("unknown suite: " + result.suite);
+  }
   return result;
 }
 
@@ -118,6 +141,126 @@ std::int64_t median_absolute_deviation(const std::vector<std::int64_t> &values,
   for (const auto value : values)
     deviations.push_back(value >= center ? value - center : center - value);
   return median(std::move(deviations));
+}
+
+struct arithmetic_observation {
+  std::uint64_t checksum = 1469598103934665603ULL;
+  std::uint64_t nanoseconds = 0;
+  performance_counter_snapshot counters;
+};
+
+arithmetic_observation observe_arithmetic(const std::string &name,
+                                          std::size_t limbs) {
+  using namespace exact_arithmetic_test;
+  const auto a = patterned_operand(limbs, 11);
+  const auto b = patterned_operand(limbs, 17);
+  const auto divisor = patterned_operand(limbs, 23);
+  const auto quotient = patterned_operand(std::max<std::size_t>(1, limbs / 2), 29);
+  const auto dividend = quotient * divisor + (divisor - big_uint(1));
+  const auto common = big_uint(45).shifted_left(limbs + 1);
+  const auto gcd_a = a * common, gcd_b = b * common;
+  const auto denominator_a = big_uint(1).shifted_left(limbs * 32 + 1);
+  const auto denominator_b = big_uint(1).shifted_left(limbs * 32 - 1);
+  const exact_rational rational_a(big_int(integer_sign::positive, a), denominator_a);
+  const exact_rational rational_b(big_int(integer_sign::negative, b), denominator_b);
+  const std::size_t batch = std::max<std::size_t>(1, 64 / limbs);
+
+  big_uint unsigned_result;
+  exact_rational rational_result;
+  int comparison = 0;
+  performance_collector collector;
+  {
+    performance_scope scope(&collector, boolean_stage::intersection_events,
+                            performance_role::producer);
+    for (std::size_t i = 0; i < batch; ++i) {
+      if (name == "add")
+        unsigned_result = a + b;
+      else if (name == "subtract")
+        unsigned_result = (a + b) - a;
+      else if (name == "multiply")
+        unsigned_result = a * b;
+      else if (name == "divide") {
+        const auto result = divide(dividend, divisor);
+        unsigned_result = result.first + result.second;
+      } else if (name == "gcd")
+        unsigned_result = gcd(gcd_a, gcd_b);
+      else if (name == "rational") {
+        const auto sum = rational_a + rational_b;
+        const auto difference = rational_a - rational_b;
+        const auto product = rational_a * rational_b;
+        const auto ratio = rational_a / rational_b;
+        comparison += rational_a.compare(rational_b);
+        rational_result = (sum + difference) * product / ratio;
+      } else
+        throw std::invalid_argument("unknown arithmetic case: " + name);
+    }
+  }
+  arithmetic_observation result;
+  result.checksum = checksum_bytes(result.checksum,
+                                   name == "rational"
+                                       ? rational_result.canonical_bytes()
+                                       : unsigned_result.canonical_bytes());
+  result.checksum ^= static_cast<std::uint64_t>(comparison);
+  const auto snapshot = collector.snapshot();
+  const auto &stage = snapshot->stage(boolean_stage::intersection_events);
+  result.nanoseconds = stage.producer_nanoseconds;
+  result.counters = stage.producer;
+  return result;
+}
+
+std::vector<std::string> arithmetic_cases(const std::string &selected) {
+  const std::vector<std::string> all{
+      "add", "subtract", "multiply", "divide", "gcd", "rational"};
+  if (selected == "all")
+    return all;
+  if (std::find(all.begin(), all.end(), selected) == all.end())
+    throw std::invalid_argument("unknown arithmetic case: " + selected);
+  return {selected};
+}
+
+void run_arithmetic_case(const command_line &cli, const std::string &name) {
+  for (std::uint32_t i = 0; i < cli.warmups; ++i)
+    (void)observe_arithmetic(name, cli.arithmetic_limbs);
+  std::vector<std::int64_t> timings;
+  arithmetic_observation reference;
+  for (std::uint32_t i = 0; i < cli.repetitions; ++i) {
+    auto observed = observe_arithmetic(name, cli.arithmetic_limbs);
+    timings.push_back(static_cast<std::int64_t>(observed.nanoseconds));
+    if (i == 0)
+      reference = observed;
+    else if (observed.checksum != reference.checksum ||
+             observed.counters.values != reference.counters.values)
+      throw std::runtime_error("non-deterministic arithmetic repetition");
+  }
+  const auto timing = median(timings);
+  const auto mad = median_absolute_deviation(timings, timing);
+  const auto value = [&](performance_counter counter) {
+    return reference.counters.value(counter);
+  };
+  std::cout << "ARITH_BENCH\tschema=1\tcase=" << name
+            << "\tlimbs=" << cli.arithmetic_limbs
+            << "\twarmup=" << cli.warmups
+            << "\trepetitions=" << cli.repetitions
+            << "\tmedian_ns=" << timing << "\tmad_ns=" << mad
+            << "\tchecksum=" << reference.checksum
+            << "\tsmall_integer_ops=" << value(performance_counter::small_integer_operations)
+            << "\tlarge_integer_ops=" << value(performance_counter::large_integer_operations)
+            << "\tlimb_additions=" << value(performance_counter::limb_additions)
+            << "\tlimb_multiplications=" << value(performance_counter::limb_multiplications)
+            << "\tdivision_calls=" << value(performance_counter::division_calls)
+            << "\tdivided_limbs=" << value(performance_counter::divided_limbs)
+            << "\tgcd_calls=" << value(performance_counter::gcd_calls)
+            << "\trational_normalizations=" << value(performance_counter::rational_normalizations)
+            << "\tcross_cancellations=" << value(performance_counter::cross_cancellations)
+            << "\tmax_numerator_limbs=" << value(performance_counter::max_numerator_limbs)
+            << "\tmax_denominator_limbs=" << value(performance_counter::max_denominator_limbs)
+            << "\tallocation_count=" << value(performance_counter::allocation_count)
+            << '\n';
+}
+
+void run_arithmetic(const command_line &cli) {
+  for (const auto &name : arithmetic_cases(cli.arithmetic_case))
+    run_arithmetic_case(cli, name);
 }
 
 std::string digest_list(const performance_observation &observation) {
@@ -336,6 +479,10 @@ void run_selected(const command_line &cli, verification_level verification,
 int main(int argc, char **argv) {
   try {
     const auto cli = parse_command_line(argc, argv);
+    if (cli.suite == "exact-arithmetic") {
+      run_arithmetic(cli);
+      return 0;
+    }
     const auto verification = cli.verification_name == "mandatory"
                                   ? verification_level::mandatory
                                   : cli.verification_name == "exhaustive"

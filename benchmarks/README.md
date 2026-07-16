@@ -77,3 +77,22 @@ The baseline test currently compares mandatory verification at one and four
 threads. When a public test policy for forcing exact-kernel filters off and on
 is available, add that policy matrix in `observe_performance_fixture` and keep
 the same semantic-byte and deterministic-counter equality checks.
+
+## Exact Arithmetic
+
+P2 exact-arithmetic work uses the same executable in direct operation mode.
+It emits one tab-separated `ARITH_BENCH schema=1` record per selected operation,
+with deterministic result checksums and arithmetic counters. The supported
+scales are 1, 2, 8, 32, and 128 32-bit limbs. These records are performance
+evidence, not timing assertions in CTest.
+
+```sh
+taskset -c 2 ./bin/MeshBooleanBenchmark \
+  --suite exact-arithmetic --arithmetic-case all --limbs 32 \
+  --warmup 2 --repetitions 11
+```
+
+Compare records only when `case`, `limbs`, `checksum`, and deterministic
+counters agree. The rational case exercises construction/normalization,
+comparison, addition, subtraction, multiplication, and division; the integer
+cases isolate add, subtract, multiply, divide, and GCD.
