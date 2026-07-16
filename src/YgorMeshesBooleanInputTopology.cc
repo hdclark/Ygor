@@ -255,8 +255,8 @@ semantic_operand_bytes(const artifact_t<T, I> &a, operand_id role,
   return e.bytes();
 }
 
-template<class T,class I>status_or<std::shared_ptr<artifact_t<T,I>>>build(boolean_context<T,I>&ctx){
-    auto out=std::make_shared<artifact_t<T,I>>();out->owner=ctx.owner();out->setup_digest=ctx.replay().setup;auto kb=ctx.kernel().arithmetic_policy_bytes();out->kernel_policy_digest=domain_digest({{'Y','G','B','K','E','R','0','3'}},kb);
+template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_t<T,I>&output){
+    auto*out=&output;out->owner=ctx.owner();out->setup_digest=ctx.replay().setup;auto kb=ctx.kernel().arithmetic_policy_bytes();out->kernel_policy_digest=domain_digest({{'Y','G','B','K','E','R','0','3'}},kb);
     const fv_surface_mesh<T,I>*raw[2]={&ctx.operand_a_mesh(),&ctx.operand_b_mesh()};std::uint64_t vertex_base=0,facet_base=0,use_base=0,edge_base=0,shell_base=0;
     for(unsigned role=0;role<2;++role){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&m=*raw[role];std::uint64_t ring_entries=0;for(const auto&face:m.faces){auto sum=checked_add(ring_entries,face.size(),boolean_stage::input_validation);if(!sum.has_value())return sum.error();ring_entries=sum.value();}auto entities=checked_add(m.vertices.size(),m.faces.size(),boolean_stage::input_validation);if(!entities.has_value())return entities.error();entities=checked_add(entities.value(),ring_entries,boolean_stage::input_validation);if(!entities.has_value())return entities.error();auto charged=ctx.accountant().reserve(resource_kind::entities,entities.value(),boolean_stage::input_validation);if(!charged.has_value())return charged.error();charged=ctx.accountant().reserve(resource_kind::work_units,entities.value(),boolean_stage::input_validation);if(!charged.has_value())return charged.error();auto oid=role?operand_b():operand_a();auto&op=out->operands[role];op.operand=oid;op.raw_vertex_count=m.vertices.size();op.raw_face_count=m.faces.size();std::vector<bool>used(m.vertices.size(),false);std::vector<exact_point3>points(m.vertices.size());
       for (std::size_t i = 0; i < m.vertices.size(); ++i) {
@@ -521,7 +521,7 @@ template<class T,class I>status_or<std::shared_ptr<artifact_t<T,I>>>build(boolea
           out->evidence.push_back(std::move(evidence));
         }
     }
-    for(unsigned role=0;role<2;++role){auto bytes=semantic_operand_bytes(*out,role?operand_b():operand_a(),&ctx.accountant(),[&ctx]{return ctx.cancelled();});if(!bytes.has_value())return bytes.error();out->operands[role].semantic_digest=domain_digest({{'Y','G','B','O','P','D','0','2'}},bytes.value());}out->artifact_digest=artifact_digest_for(*out);return out;
+    for(unsigned role=0;role<2;++role){auto bytes=semantic_operand_bytes(*out,role?operand_b():operand_a(),&ctx.accountant(),[&ctx]{return ctx.cancelled();});if(!bytes.has_value())return bytes.error();out->operands[role].semantic_digest=domain_digest({{'Y','G','B','O','P','D','0','2'}},bytes.value());}out->artifact_digest=artifact_digest_for(*out);return true;
 }
 
 template <class T, class I>
@@ -939,10 +939,14 @@ validate_operands(boolean_context<T, I> &ctx) {
     performance_scope producer(ctx.performance_collector_for_internal_use(),
                                boolean_stage::input_validation,
                                performance_role::producer);
-    auto made = build(ctx);
+    stage_transaction<artifact_t<T, I>> tx(
+        ctx.owner(), boolean_stage::input_validation,
+        artifact_slot::validated_operands, std::make_unique<artifact_t<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &candidate = tx.draft();
+    auto made = build(ctx, candidate);
     if (!made.has_value())
       return made.error();
-    auto candidate = std::shared_ptr<const artifact_t<T, I>>(made.value());
     auto type = validated_operands_type_tag +
                 (static_cast<std::uint64_t>(ctx.platform().coordinate) << 8) +
                 static_cast<std::uint64_t>(ctx.platform().index);
@@ -956,10 +960,6 @@ validate_operands(boolean_context<T, I> &ctx) {
                                         ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(), artifact_slot::validated_operands,
-                       type,        validated_operands_schema,
-                       1,           candidate->artifact_digest,
-                       candidate,   candidate.get()};
     verification_environment_view env;
     env.owner = ctx.owner();
     env.setup_digest = ctx.replay().setup;
@@ -972,22 +972,17 @@ validate_operands(boolean_context<T, I> &ctx) {
                         &ctx.operand_b_mesh()};
     env.accountant = &ctx.accountant();
     env.cancelled = [&ctx] { return ctx.cancelled(); };
-    auto artifact_bytes = encode_artifact(*candidate);
+    auto artifact_bytes = encode_artifact(candidate);
     auto authoritative = ctx.accountant().reserve_scoped(
         resource_kind::authoritative_bytes, artifact_bytes.size(),
         boolean_stage::input_validation);
     if (!authoritative.has_value())
       return authoritative.error();
-    stage_transaction<artifact_t<T, I>, artifact_t<T, I>> tx(
-        ctx.owner(), boolean_stage::input_validation,
-        artifact_slot::validated_operands,
-        std::unique_ptr<artifact_t<T, I>>(new artifact_t<T, I>(*candidate)),
-        ctx.performance_collector_for_internal_use());
-    performance_count(performance_counter::copied_artifact_bytes,
-                      artifact_bytes.size());
     tx.stage_reservation(std::move(authoritative.value()));
     producer.finish();
-    auto ok = tx.verify(candidate, view, spec.value(), env, *registry);
+    auto ok = tx.freeze_and_verify(type, validated_operands_schema, 1,
+                                   candidate.artifact_digest, spec.value(), env,
+                                   *registry);
     if (!ok.has_value())
       return ok.error();
     return tx.publish();

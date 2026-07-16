@@ -792,7 +792,12 @@ build_symbolic_complex_impl(
     performance_scope producer(ctx.performance_collector_for_internal_use(),
                                boolean_stage::symbolic_registry,
                                performance_role::producer);
-    symbolic_complex<T, I> a;
+    stage_transaction<symbolic_complex<T, I>> tx(
+        ctx.owner(), boolean_stage::symbolic_registry,
+        artifact_slot::symbolic_complex,
+        std::make_unique<symbolic_complex<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.upstream_digest = raw.value()->artifact_digest;
@@ -1338,7 +1343,6 @@ build_symbolic_complex_impl(
     a.canonical_symbolic_bytes = semantic(a);
     a.artifact_bytes = invocation(a);
     a.artifact_digest = artifact_digest_for(a);
-    auto ptr = std::make_shared<const symbolic_complex<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1349,14 +1353,6 @@ build_symbolic_complex_impl(
         symbolic_complex_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::symbolic_complex,
-                       type_tag<T, I>(),
-                       symbolic_complex_schema,
-                       a.generation,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1367,23 +1363,20 @@ build_symbolic_complex_impl(
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<symbolic_complex<T, I>, symbolic_complex<T, I>> tx(
-        ctx.owner(), boolean_stage::symbolic_registry,
-        artifact_slot::symbolic_complex,
-        std::make_unique<symbolic_complex<T, I>>(),
-        ctx.performance_collector_for_internal_use());
     tx.stage_reservation(std::move(work_charge.value()));
     tx.stage_reservation(std::move(private_charge.value()));
     tx.stage_reservation(std::move(vertex_charge.value()));
     tx.stage_reservation(std::move(curve_charge.value()));
     performance_count(performance_counter::symbolic_vertices,
-                      ptr->vertices.size());
+                      a.vertices.size());
     performance_count(performance_counter::symbolic_curves,
-                      ptr->curves.size());
+                      a.curves.size());
     performance_count(performance_counter::reconciliation_passes,
                       requests.empty() ? 0 : 1);
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), symbolic_complex_schema,
+                                   a.generation, a.artifact_digest,
+                                   spec.value(), env, ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

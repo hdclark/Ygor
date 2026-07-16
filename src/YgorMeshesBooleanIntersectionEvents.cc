@@ -1355,7 +1355,11 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
     performance_scope producer(ctx.performance_collector_for_internal_use(),
                                boolean_stage::intersection_events,
                                performance_role::producer);
-    raw_event_set<T, I> a;
+    stage_transaction<raw_event_set<T, I>> tx(
+        ctx.owner(), boolean_stage::intersection_events,
+        artifact_slot::raw_event_set, std::make_unique<raw_event_set<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.upstream_digest = upstream.value()->artifact_digest;
@@ -1689,7 +1693,6 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
     a.canonical_event_bytes = semantic(a);
     a.artifact_bytes = invocation(a);
     a.artifact_digest = artifact_digest_for(a);
-    auto ptr = std::make_shared<const raw_event_set<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1700,14 +1703,6 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
                                         ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::raw_event_set,
-                       type_tag<T, I>(),
-                       raw_event_set_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1718,22 +1713,19 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<raw_event_set<T, I>, raw_event_set<T, I>> tx(
-        ctx.owner(), boolean_stage::intersection_events,
-        artifact_slot::raw_event_set, std::make_unique<raw_event_set<T, I>>(),
-        ctx.performance_collector_for_internal_use());
     tx.stage_reservation(std::move(work_charge.value()));
     tx.stage_reservation(std::move(private_charge.value()));
     tx.stage_reservation(std::move(event_charge.value()));
     performance_count(performance_counter::event_candidate_facet_pairs,
-                      ptr->classifications.size());
+                      a.classifications.size());
     performance_count(performance_counter::plane_relation_classes,
-                      ptr->classifications.size());
+                      a.classifications.size());
     performance_count(performance_counter::raw_events,
-                      ptr->points.size() + ptr->intervals.size() +
-                          ptr->regions.size());
+                      a.points.size() + a.intervals.size() + a.regions.size());
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), raw_event_set_schema, 1,
+                                   a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

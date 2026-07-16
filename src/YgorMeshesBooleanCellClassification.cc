@@ -1145,7 +1145,12 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
                         boolean_stage::cell_classification,
                         "stale_arrangement");
     const auto &g = *arrangement->payload;
-    labeled_arrangement<T, I> a;
+    stage_transaction<labeled_arrangement<T, I>> tx(
+        ctx.owner(), boolean_stage::cell_classification,
+        artifact_slot::labeled_arrangement,
+        std::make_unique<labeled_arrangement<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.arrangement_digest = arrangement->artifact_digest;
@@ -1575,7 +1580,6 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       if (!ok.has_value())
         return ok.error();
     }
-    auto ptr = std::make_shared<const labeled_arrangement<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1586,14 +1590,6 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
         labeled_arrangement_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::labeled_arrangement,
-                       type_tag<T, I>(),
-                       labeled_arrangement_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1604,21 +1600,18 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<labeled_arrangement<T, I>, labeled_arrangement<T, I>> tx(
-        ctx.owner(), boolean_stage::cell_classification,
-        artifact_slot::labeled_arrangement,
-        std::make_unique<labeled_arrangement<T, I>>(),
-        ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     performance_count(performance_counter::classification_source_facets,
-                      ptr->validated->payload->facets.size());
+                      a.validated->payload->facets.size());
     performance_count(performance_counter::classification_probes,
-                      ptr->seeds.size());
+                      a.seeds.size());
     performance_count(performance_counter::alternate_rays,
-                      ptr->seeds.size() * 2);
+                      a.seeds.size() * 2);
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), labeled_arrangement_schema,
+                                   1, a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

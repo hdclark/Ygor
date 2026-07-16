@@ -72,7 +72,12 @@ enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
           .push_back({f.id, from_box(f.bounds)});
     auto product =
         checked_multiply(af.size(), bf.size(), boolean_stage::broad_phase);
-    candidate_stream<T, I> draft;
+    stage_transaction<candidate_stream<T, I>> tx(
+        ctx.owner(), boolean_stage::broad_phase,
+        artifact_slot::candidate_stream,
+        std::make_unique<candidate_stream<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &draft = tx.draft();
     draft.owner = ctx.owner();
     draft.setup_digest = ctx.replay().setup;
     draft.upstream_digest = upstream.value()->artifact_digest;
@@ -107,8 +112,6 @@ enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
     draft.canonical_candidate_bytes = semantic_bytes(draft);
     draft.artifact_bytes = invocation_bytes(draft);
     draft.artifact_digest = artifact_digest_for(draft);
-    auto candidate =
-        std::make_shared<const candidate_stream<T, I>>(std::move(draft));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::input_contract_error,
@@ -123,10 +126,6 @@ enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
                                         ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(), artifact_slot::candidate_stream,
-                       type,        candidate_stream_schema,
-                       1,           candidate->artifact_digest,
-                       candidate,   candidate.get()};
     verification_environment_view env;
     env.owner = ctx.owner();
     env.setup_digest = ctx.replay().setup;
@@ -141,29 +140,23 @@ enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
     env.cancelled = [&] { return ctx.cancelled(); };
     auto authoritative = ctx.accountant().reserve_scoped(
         resource_kind::authoritative_bytes,
-        candidate->artifact_bytes.size() +
-            candidate->candidates.size() * sizeof(facet_candidate),
+        draft.artifact_bytes.size() +
+            draft.candidates.size() * sizeof(facet_candidate),
         boolean_stage::broad_phase);
     if (!authoritative.has_value())
       return authoritative.error();
-    stage_transaction<candidate_stream<T, I>, candidate_stream<T, I>> tx(
-        ctx.owner(), boolean_stage::broad_phase,
-        artifact_slot::candidate_stream,
-        std::unique_ptr<candidate_stream<T, I>>(
-            new candidate_stream<T, I>(*candidate)),
-        ctx.performance_collector_for_internal_use());
     tx.stage_reservation(std::move(candidate_charge.value()));
     tx.stage_reservation(std::move(authoritative.value()));
-    performance_count(performance_counter::copied_artifact_bytes,
-                      candidate->artifact_bytes.size());
     performance_count(performance_counter::broad_phase_node_pairs,
-                      candidate->implementation_statistics.node_pair_tests);
+                      draft.implementation_statistics.node_pair_tests);
     performance_count(performance_counter::broad_phase_leaf_facet_pairs,
-                      candidate->implementation_statistics.facet_pair_tests);
+                      draft.implementation_statistics.facet_pair_tests);
     performance_count(performance_counter::broad_phase_final_candidates,
-                      candidate->statistics.final_candidates);
+                      draft.statistics.final_candidates);
     producer.finish();
-    auto verified = tx.verify(candidate, view, spec.value(), env, *registry);
+    auto verified = tx.freeze_and_verify(type, candidate_stream_schema, 1,
+                                         draft.artifact_digest, spec.value(),
+                                         env, *registry);
     if (!verified.has_value())
       return verified.error();
     return tx.publish();

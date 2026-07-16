@@ -48,7 +48,7 @@ struct output_assembly_certificate {
       mapping_digest, semantic_digest;
 };
 
-template <class T, class I> struct assembled_output {
+template <class T, class I> struct assembled_output : boolean_success<T, I> {
   context_owner_token owner;
   operation selected_operation = operation::regularized_union;
   digest setup_digest, input_a_digest, input_b_digest, selected_digest,
@@ -56,12 +56,10 @@ template <class T, class I> struct assembled_output {
   output_policy policy;
   result_topology_authorization topology_authorization;
   std::shared_ptr<const published_artifact<realized_boundary<T, I>>> realized;
-  fv_surface_mesh<T, I> mesh;
   std::vector<output_vertex_record<I>> vertices;
   std::vector<output_face_record<I>> faces;
   std::vector<output_component_record> components;
   output_assembly_certificate certificate;
-  std::shared_ptr<const boolean_success<T, I>> public_result;
   std::vector<std::uint8_t> canonical_bytes, artifact_bytes;
 };
 

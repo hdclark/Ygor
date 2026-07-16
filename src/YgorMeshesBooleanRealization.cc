@@ -1529,7 +1529,12 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
                         "dependency_binding");
     const auto &svs = symbolic->payload->vertices;
     const auto &validated = *symbolic->payload->validated->payload;
-    realized_boundary<T, I> a;
+    stage_transaction<realized_boundary<T, I>> tx(
+        ctx.owner(), boolean_stage::geometry_realization,
+        artifact_slot::realized_boundary,
+        std::make_unique<realized_boundary<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.selected_digest = selected->artifact_digest;
@@ -2095,7 +2100,6 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
     if (!authoritative_charge.has_value())
       return authoritative_charge.error();
     realization_charges.push_back(std::move(authoritative_charge.value()));
-    auto ptr = std::make_shared<const realized_boundary<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -2106,14 +2110,6 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         realized_boundary_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::realized_boundary,
-                       type_tag<T, I>(),
-                       realized_boundary_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -2124,33 +2120,30 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<realized_boundary<T, I>, realized_boundary<T, I>> tx(
-        ctx.owner(), boolean_stage::geometry_realization,
-        artifact_slot::realized_boundary,
-        std::make_unique<realized_boundary<T, I>>(),
-        ctx.performance_collector_for_internal_use());
     for (auto &charge : realization_charges)
       tx.stage_reservation(std::move(charge));
     performance_count(performance_counter::realized_variables,
-                      ptr->vertices.size());
+                      a.vertices.size());
     performance_count(performance_counter::realization_axis_candidates,
                       candidate_count);
     performance_count(performance_counter::realization_obligations,
-                      ptr->obligations.size());
+                      a.obligations.size());
     performance_count(performance_counter::realization_pair_boxes,
-                      ptr->pair_boxes.size());
+                      a.pair_boxes.size());
     performance_count(performance_counter::realization_pair_candidates,
-                      ptr->pair_candidates.size());
+                      a.pair_candidates.size());
     performance_count(performance_counter::realization_exact_pair_checks,
-                      ptr->search.pair_checks);
+                      a.search.pair_checks);
     performance_count(performance_counter::realization_constraint_components,
-                      ptr->components.size());
+                      a.components.size());
     performance_count(performance_counter::realization_solver_nodes,
-                      ptr->search.visited_nodes);
+                      a.search.visited_nodes);
     performance_count(performance_counter::realization_complete_assignments,
-                      ptr->search.complete_assignments);
+                      a.search.complete_assignments);
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), realized_boundary_schema,
+                                   1, a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

@@ -1209,7 +1209,12 @@ refine_source_facets(boolean_context<T, I> &ctx) {
         return successor.error();
       symbolic = successor.value();
     }
-    refined_facet_patches<T, I> a;
+    stage_transaction<refined_facet_patches<T, I>> tx(
+        ctx.owner(), boolean_stage::local_refinement,
+        artifact_slot::refined_facet_patches,
+        std::make_unique<refined_facet_patches<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.symbolic_digest = symbolic->artifact_digest;
@@ -1287,8 +1292,6 @@ refine_source_facets(boolean_context<T, I> &ctx) {
     a.canonical_bytes = semantic(a);
     a.artifact_bytes = invocation(a);
     a.artifact_digest = artifact_digest_for(a);
-    auto ptr =
-        std::make_shared<const refined_facet_patches<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1299,14 +1302,6 @@ refine_source_facets(boolean_context<T, I> &ctx) {
         refined_facet_patches_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::refined_facet_patches,
-                       type_tag<T, I>(),
-                       refined_facet_patches_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1317,17 +1312,15 @@ refine_source_facets(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<refined_facet_patches<T, I>, refined_facet_patches<T, I>>
-        tx(ctx.owner(), boolean_stage::local_refinement,
-           artifact_slot::refined_facet_patches,
-           std::make_unique<refined_facet_patches<T, I>>(),
-           ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     performance_count(performance_counter::dcel_entities,
                       vertices + edges + halfedges + walks + faces + patch);
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(),
+                                   refined_facet_patches_schema, 1,
+                                   a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

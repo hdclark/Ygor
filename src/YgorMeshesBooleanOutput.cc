@@ -494,68 +494,70 @@ bool independently_valid(const assembled_output<T, I> &a,
       !a.mesh.vertex_normals.empty() || !a.mesh.vertex_colours.empty() ||
       !a.mesh.metadata.empty())
     return false;
-  if (!a.public_result || a.public_result->mesh.faces != a.mesh.faces ||
-      a.public_result->mesh.involved_faces != a.mesh.involved_faces ||
-      !a.public_result->mesh.vertex_normals.empty() ||
-      !a.public_result->mesh.vertex_colours.empty() ||
-      !a.public_result->mesh.metadata.empty() ||
-      a.public_result->selected_operation != a.selected_operation ||
-      a.public_result->policy.schema != a.policy.schema ||
-      a.public_result->policy.ordering_version != a.policy.ordering_version ||
-      a.public_result->policy.encoding_version != a.policy.encoding_version ||
-      a.public_result->policy.topology != a.policy.topology ||
-      a.public_result->policy.include_compact_provenance !=
-          a.policy.include_compact_provenance ||
-      a.public_result->input_a_digest != a.input_a_digest ||
-      a.public_result->input_b_digest != a.input_b_digest ||
-      a.public_result->selected_boundary_digest != a.selected_digest ||
-      a.public_result->realized_boundary_digest != a.realized_digest ||
-      a.public_result->canonical_output_digest !=
-          a.certificate.semantic_digest ||
-      a.public_result->summary.vertices != a.certificate.vertices ||
-      a.public_result->summary.faces != a.certificate.faces ||
-      a.public_result->summary.components != a.certificate.components ||
-      a.public_result->summary.face_indices != a.certificate.face_indices ||
-      a.public_result->summary.involved_face_entries !=
-          a.certificate.involved_face_entries ||
-      a.public_result->summary.semantic_digest !=
-          a.certificate.semantic_digest ||
-      !a.public_result->certificate ||
-      a.public_result->certificate->id != a.certificate.id ||
-      a.public_result->certificate->schema != a.certificate.schema ||
-      a.public_result->certificate->ordering_version !=
-          a.certificate.ordering_version ||
-      a.public_result->certificate->encoding_version !=
-          a.certificate.encoding_version ||
-      a.public_result->certificate->vertices != a.certificate.vertices ||
-      a.public_result->certificate->faces != a.certificate.faces ||
-      a.public_result->certificate->components != a.certificate.components ||
-      a.public_result->certificate->face_indices !=
-          a.certificate.face_indices ||
-      a.public_result->certificate->involved_face_entries !=
-          a.certificate.involved_face_entries ||
-      a.public_result->certificate->edge_uses != a.certificate.edge_uses ||
-      a.public_result->certificate->selected_digest !=
-          a.certificate.selected_digest ||
-      a.public_result->certificate->realized_digest !=
-          a.certificate.realized_digest ||
-      a.public_result->certificate->policy_digest !=
-          a.certificate.policy_digest ||
-      a.public_result->certificate->topology_digest !=
-          a.certificate.topology_digest ||
-      a.public_result->certificate->mapping_digest !=
-          a.certificate.mapping_digest ||
-      a.public_result->certificate->semantic_digest !=
-          a.certificate.semantic_digest ||
-      !a.public_result->compact_provenance.empty() ||
-      a.public_result->mesh.vertices.size() != a.mesh.vertices.size())
+  const auto &public_result =
+      static_cast<const boolean_success<T, I> &>(a);
+  if (public_result.mesh.faces != a.mesh.faces ||
+      public_result.mesh.involved_faces != a.mesh.involved_faces ||
+      !public_result.mesh.vertex_normals.empty() ||
+      !public_result.mesh.vertex_colours.empty() ||
+      !public_result.mesh.metadata.empty() ||
+      public_result.selected_operation != a.selected_operation ||
+      public_result.policy.schema != a.policy.schema ||
+      public_result.policy.ordering_version != a.policy.ordering_version ||
+      public_result.policy.encoding_version != a.policy.encoding_version ||
+      public_result.policy.topology != a.policy.topology ||
+      public_result.policy.include_compact_provenance !=
+           a.policy.include_compact_provenance ||
+      public_result.input_a_digest != a.input_a_digest ||
+      public_result.input_b_digest != a.input_b_digest ||
+      public_result.selected_boundary_digest != a.selected_digest ||
+      public_result.realized_boundary_digest != a.realized_digest ||
+      public_result.canonical_output_digest !=
+           a.certificate.semantic_digest ||
+      public_result.summary.vertices != a.certificate.vertices ||
+      public_result.summary.faces != a.certificate.faces ||
+      public_result.summary.components != a.certificate.components ||
+      public_result.summary.face_indices != a.certificate.face_indices ||
+      public_result.summary.involved_face_entries !=
+           a.certificate.involved_face_entries ||
+      public_result.summary.semantic_digest !=
+           a.certificate.semantic_digest ||
+      !public_result.certificate ||
+      public_result.certificate->id != a.certificate.id ||
+      public_result.certificate->schema != a.certificate.schema ||
+      public_result.certificate->ordering_version !=
+           a.certificate.ordering_version ||
+      public_result.certificate->encoding_version !=
+           a.certificate.encoding_version ||
+      public_result.certificate->vertices != a.certificate.vertices ||
+      public_result.certificate->faces != a.certificate.faces ||
+      public_result.certificate->components != a.certificate.components ||
+      public_result.certificate->face_indices !=
+           a.certificate.face_indices ||
+      public_result.certificate->involved_face_entries !=
+           a.certificate.involved_face_entries ||
+      public_result.certificate->edge_uses != a.certificate.edge_uses ||
+      public_result.certificate->selected_digest !=
+           a.certificate.selected_digest ||
+      public_result.certificate->realized_digest !=
+           a.certificate.realized_digest ||
+      public_result.certificate->policy_digest !=
+           a.certificate.policy_digest ||
+      public_result.certificate->topology_digest !=
+           a.certificate.topology_digest ||
+      public_result.certificate->mapping_digest !=
+           a.certificate.mapping_digest ||
+      public_result.certificate->semantic_digest !=
+           a.certificate.semantic_digest ||
+      !public_result.compact_provenance.empty() ||
+      public_result.mesh.vertices.size() != a.mesh.vertices.size())
     return false;
   for (std::size_t i = 0; i < a.mesh.vertices.size(); ++i)
-    if (raw_bits(a.public_result->mesh.vertices[i].x) !=
+    if (raw_bits(public_result.mesh.vertices[i].x) !=
             raw_bits(a.mesh.vertices[i].x) ||
-        raw_bits(a.public_result->mesh.vertices[i].y) !=
+        raw_bits(public_result.mesh.vertices[i].y) !=
             raw_bits(a.mesh.vertices[i].y) ||
-        raw_bits(a.public_result->mesh.vertices[i].z) !=
+        raw_bits(public_result.mesh.vertices[i].z) !=
             raw_bits(a.mesh.vertices[i].z))
       return false;
   const auto &r = *a.realized->payload;
@@ -1373,7 +1375,13 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
       if (!ok.has_value())
         return ok.error();
     }
-    assembled_output<T, I> a;
+    stage_transaction<assembled_output<T, I>> tx(
+        ctx.owner(), boolean_stage::output_assembly,
+        artifact_slot::assembled_output,
+        std::make_unique<assembled_output<T, I>>(),
+        ctx.performance_collector_for_internal_use(),
+        boolean_stage::final_verification);
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.selected_operation = ctx.contract().selected_operation();
     a.setup_digest = ctx.replay().setup;
@@ -1518,8 +1526,7 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
         reserve(resource_kind::authoritative_bytes, a.artifact_bytes.size());
     if (!auth_charge.has_value())
       return auth_charge.error();
-    boolean_success<T, I> public_result;
-    public_result.mesh = a.mesh;
+    auto &public_result = static_cast<boolean_success<T, I> &>(a);
     public_result.selected_operation = a.selected_operation;
     public_result.policy = a.policy;
     public_result.input_a_digest = a.input_a_digest;
@@ -1535,9 +1542,6 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
                              a.certificate.semantic_digest};
     public_result.certificate =
         std::make_shared<const output_assembly_certificate>(a.certificate);
-    a.public_result =
-        std::make_shared<const boolean_success<T, I>>(std::move(public_result));
-    auto ptr = std::make_shared<const assembled_output<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1548,14 +1552,6 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
         assembled_output_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::assembled_output,
-                       type_tag<T, I>(),
-                       assembled_output_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1566,16 +1562,13 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<assembled_output<T, I>, assembled_output<T, I>> tx(
-        ctx.owner(), boolean_stage::output_assembly,
-        artifact_slot::assembled_output,
-        std::make_unique<assembled_output<T, I>>(),
-        ctx.performance_collector_for_internal_use(),
-        boolean_stage::final_verification);
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     producer.finish();
-    auto verified = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto verified = tx.freeze_and_verify(type_tag<T, I>(),
+                                         assembled_output_schema, 1,
+                                         a.artifact_digest, spec.value(), env,
+                                         ctx.verifiers());
     if (!verified.has_value())
       return verified.error();
     if (ctx.cancelled())
@@ -1598,11 +1591,9 @@ boolean_result<T, I> assemble_boolean_output(boolean_context<T, I> &ctx) {
   auto artifact = assemble_boolean_output_artifact(ctx);
   if (!artifact.has_value())
     return artifact.error();
-  if (!artifact.value()->payload->public_result)
-    return make_error(boolean_error_code::internal_invariant_error,
-                      boolean_stage::output_assembly,
-                      "published_public_result_missing");
-  return artifact.value()->payload->public_result;
+  return std::shared_ptr<const boolean_success<T, I>>(
+      artifact.value()->payload,
+      static_cast<const boolean_success<T, I> *>(artifact.value()->payload.get()));
 }
 
 #define INST(T, I)                                                             \

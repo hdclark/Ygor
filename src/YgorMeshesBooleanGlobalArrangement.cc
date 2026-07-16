@@ -148,7 +148,12 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
             artifact_slot::refined_facet_patches) != refined->generation)
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::global_arrangement, "stale_refinement");
-    arrangement_complex<T, I> a;
+    stage_transaction<arrangement_complex<T, I>> tx(
+        ctx.owner(), boolean_stage::global_arrangement,
+        artifact_slot::arrangement_complex,
+        std::make_unique<arrangement_complex<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.setup_digest = ctx.replay().setup;
     a.refined_digest = refined->artifact_digest;
@@ -800,7 +805,6 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         {{'Y', 'G', 'B', 'C', 'A', 'N', '0', '8'}}, a.canonical_bytes);
     a.artifact_bytes = invocation(a);
     a.artifact_digest = artifact_digest_for(a);
-    auto ptr = std::make_shared<const arrangement_complex<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -811,14 +815,6 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         arrangement_complex_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::arrangement_complex,
-                       type_tag<T, I>(),
-                       arrangement_complex_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -829,26 +825,23 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<arrangement_complex<T, I>, arrangement_complex<T, I>> tx(
-        ctx.owner(), boolean_stage::global_arrangement,
-        artifact_slot::arrangement_complex,
-        std::make_unique<arrangement_complex<T, I>>(),
-        ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     performance_count(performance_counter::global_patches,
-                      ptr->patches.size());
-    performance_count(performance_counter::global_edges, ptr->edges.size());
+                      a.patches.size());
+    performance_count(performance_counter::global_edges, a.edges.size());
     performance_count(performance_counter::global_uses,
-                      ptr->sheet_uses.size());
+                      a.sheet_uses.size());
     performance_count(performance_counter::link_entities,
-                      ptr->link_rays.size() + ptr->link_arcs.size() +
-                          ptr->vertex_sectors.size());
-    for (const auto &probe : ptr->probes)
+                      a.link_rays.size() + a.link_arcs.size() +
+                          a.vertex_sectors.size());
+    for (const auto &probe : a.probes)
       performance_count(performance_counter::probe_constraints,
                         probe.constraints.size());
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), arrangement_complex_schema,
+                                   1, a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())

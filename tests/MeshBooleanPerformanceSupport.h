@@ -135,7 +135,8 @@ performance_observation observe_performance_fixture(const std::string &name,
     observed.success = true;
     output = result.value();
     observed.output_identity =
-        result.value()->payload->public_result->canonical_output_digest;
+        static_cast<const boolean_success<T, I> &>(*result.value()->payload)
+            .canonical_output_digest;
     observed.canonical_output_bytes = result.value()->payload->canonical_bytes;
   }
 

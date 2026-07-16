@@ -24,6 +24,10 @@ int main() {
     require(public_result.value()->mesh.faces == x.mesh.faces &&
                 public_result.value()->certificate,
             "public wrapper audit data");
+    require(public_result.value()->mesh.vertices.data() ==
+                    x.mesh.vertices.data() &&
+                public_result.value()->mesh.faces.data() == x.mesh.faces.data(),
+            "public result reuses published mesh storage");
     auto repeated = assemble_boolean_output_artifact(*c);
     require(repeated.has_value() &&
                 repeated.value().get() == result.value().get(),

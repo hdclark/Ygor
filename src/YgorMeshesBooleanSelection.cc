@@ -722,7 +722,12 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
                         boolean_stage::boolean_selection, "stale_labels");
     const auto &l = *labeled->payload;
     const auto &g = *l.arrangement->payload;
-    selected_exact_boundary<T, I> a;
+    stage_transaction<selected_exact_boundary<T, I>> tx(
+        ctx.owner(), boolean_stage::boolean_selection,
+        artifact_slot::selected_exact_boundary,
+        std::make_unique<selected_exact_boundary<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
     a.owner = ctx.owner();
     a.selected_operation = ctx.contract().selected_operation();
     a.setup_digest = ctx.replay().setup;
@@ -1166,8 +1171,6 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
       if (!ok.has_value())
         return ok.error();
     }
-    auto ptr =
-        std::make_shared<const selected_exact_boundary<T, I>>(std::move(a));
     auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
     if (!registry)
       return make_error(boolean_error_code::internal_invariant_error,
@@ -1178,14 +1181,6 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
         selected_exact_boundary_schema, ctx.options().verification);
     if (!spec.has_value())
       return spec.error();
-    artifact_view view{ctx.owner(),
-                       artifact_slot::selected_exact_boundary,
-                       type_tag<T, I>(),
-                       selected_exact_boundary_schema,
-                       1,
-                       ptr->artifact_digest,
-                       ptr,
-                       ptr.get()};
     verification_environment_view env{ctx.owner(),
                                       ctx.replay().setup,
                                       ctx.contract().selected_operation(),
@@ -1196,16 +1191,13 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
                                       {},
                                       &ctx.accountant(),
                                       [&] { return ctx.cancelled(); }};
-    stage_transaction<selected_exact_boundary<T, I>,
-                      selected_exact_boundary<T, I>>
-        tx(ctx.owner(), boolean_stage::boolean_selection,
-           artifact_slot::selected_exact_boundary,
-           std::make_unique<selected_exact_boundary<T, I>>(),
-           ctx.performance_collector_for_internal_use());
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     producer.finish();
-    auto ok = tx.verify(ptr, view, spec.value(), env, ctx.verifiers());
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(),
+                                   selected_exact_boundary_schema, 1,
+                                   a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
     if (!ok.has_value())
       return ok.error();
     if (ctx.cancelled())
