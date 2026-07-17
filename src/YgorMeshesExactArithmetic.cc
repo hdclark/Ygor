@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iomanip>
 #include <limits>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 
@@ -71,7 +72,37 @@ std::pair<big_uint,big_uint>divide(const big_uint&a,const big_uint&b){
   }
   q.normalize();u.resize(n);auto remainder=u.shifted_right(normalization);return{std::move(q),std::move(remainder)};
 }
-big_uint gcd(big_uint a,big_uint b){performance_count(performance_counter::gcd_calls);while(!b.is_zero()){auto r=divide(a,b).second;a=std::move(b);b=std::move(r);}return a;}
+big_uint gcd(big_uint a,big_uint b){
+  performance_count(performance_counter::gcd_calls);
+  if(a.is_zero())return b;
+  if(b.is_zero())return a;
+  if(a==b)return a;
+  if(a.is_power_of_two()&&b.is_power_of_two())return big_uint(1).shifted_left(std::min(a.trailing_zero_bits(),b.trailing_zero_bits()));
+  if(a.size_==1||b.size_==1){
+    const big_uint&small=a.size_==1?a:b;const big_uint&large=a.size_==1?b:a;
+    const auto divisor=small.to_uint64();const auto remainder=divide(large,small).second.to_uint64();
+    return big_uint(std::gcd(divisor,remainder));
+  }
+  const auto common_shift=std::min(a.trailing_zero_bits(),b.trailing_zero_bits());
+  a=a.shifted_right(a.trailing_zero_bits());b=b.shifted_right(b.trailing_zero_bits());
+  const auto subtract_assign=[](big_uint&larger,const big_uint&smaller){
+    count_integer_operation(larger.size_);performance_count(performance_counter::limb_additions,larger.size_);std::uint64_t borrow=0;
+    for(std::size_t i=0;i<larger.size_;++i){const std::uint64_t sub=(i<smaller.size_?smaller.limb(i):0)+borrow;const auto value=larger.limb(i);larger.limb(i)=std::uint32_t(std::uint64_t(value)-sub);borrow=value<sub;}
+    larger.normalize();
+  };
+  const auto shift_right_assign=[](big_uint&value,std::size_t bits){
+    const auto words=bits/32;const auto shift=unsigned(bits%32);const auto old_size=value.size_,new_size=old_size-words;
+    for(std::size_t i=0;i<new_size;++i){const auto source=i+words;value.limb(i)=value.limb(source)>>shift;if(shift&&source+1<old_size)value.limb(i)|=value.limb(source+1)<<(32-shift);}
+    if(old_size>big_uint::inline_capacity_&&new_size<=big_uint::inline_capacity_){
+      std::array<std::uint32_t,big_uint::inline_capacity_> next{{0,0}};for(std::size_t i=0;i<new_size;++i)next[i]=value.heap_limbs_[i];value.inline_limbs_=next;value.heap_limbs_.clear();value.size_=new_size;
+    }else{value.size_=new_size;value.normalize();}
+  };
+  while(a!=b){
+    big_uint*larger=&a,*smaller=&b;if(a.compare(b)<0)std::swap(larger,smaller);
+    subtract_assign(*larger,*smaller);shift_right_assign(*larger,larger->trailing_zero_bits());
+  }
+  return a.shifted_left(common_shift);
+}
 
 big_int::big_int(std::int64_t v):sign_(v<0?integer_sign::negative:v?integer_sign::positive:integer_sign::zero),magnitude_(v<0?std::uint64_t(-(v+1))+1:std::uint64_t(v)){}
 big_int::big_int(integer_sign s,big_uint m):sign_(m.is_zero()?integer_sign::zero:s),magnitude_(std::move(m)){if(!magnitude_.is_zero()&&s==integer_sign::zero)throw std::invalid_argument("zero sign with magnitude");}
@@ -85,18 +116,71 @@ big_int operator*(const big_int&a,const big_int&b){if(a.is_zero()||b.is_zero())r
 std::pair<big_int,big_int>divide(const big_int&a,const big_int&b){if(b.is_zero())throw std::invalid_argument("division by zero");auto qr=divide(a.magnitude_,b.magnitude_);auto qs=a.sign_==b.sign_?integer_sign::positive:integer_sign::negative;return{big_int(qs,std::move(qr.first)),big_int(a.sign_,std::move(qr.second))};}
 
 exact_rational::exact_rational(big_int n,big_uint d):numerator_(std::move(n)),denominator_(std::move(d)){normalize();}
-void exact_rational::normalize(){performance_count(performance_counter::rational_normalizations);performance_max(performance_counter::max_numerator_limbs,numerator_.magnitude().limb_count());performance_max(performance_counter::max_denominator_limbs,denominator_.limb_count());if(denominator_.is_zero())throw std::invalid_argument("zero denominator");if(numerator_.is_zero()){denominator_=big_uint(1);return;}auto g=gcd(numerator_.magnitude(),denominator_);numerator_=big_int(numerator_.sign(),divide(numerator_.magnitude(),g).first);denominator_=divide(denominator_,g).first;}
-int exact_rational::compare(const exact_rational&o)const{return (numerator_*big_int(integer_sign::positive,o.denominator_)).compare(o.numerator_*big_int(integer_sign::positive,denominator_));}
+void exact_rational::normalize(){
+  performance_count(performance_counter::rational_normalizations);performance_max(performance_counter::max_numerator_limbs,numerator_.magnitude().limb_count());performance_max(performance_counter::max_denominator_limbs,denominator_.limb_count());
+  if(denominator_.is_zero())throw std::invalid_argument("zero denominator");
+  if(numerator_.is_zero()){denominator_=big_uint(1);return;}
+  if(denominator_==big_uint(1))return;
+  auto g=gcd(numerator_.magnitude(),denominator_);if(g==big_uint(1))return;
+  numerator_=big_int(numerator_.sign(),divide(numerator_.magnitude(),g).first);denominator_=divide(denominator_,g).first;
+}
+exact_rational exact_rational::reduced(big_int n,big_uint d){
+  if(d.is_zero())throw std::invalid_argument("zero denominator");
+  exact_rational result;result.numerator_=std::move(n);result.denominator_=result.numerator_.is_zero()?big_uint(1):std::move(d);
+  performance_max(performance_counter::max_numerator_limbs,result.numerator_.magnitude().limb_count());performance_max(performance_counter::max_denominator_limbs,result.denominator_.limb_count());return result;
+}
+exact_rational exact_rational::negated()const{return reduced(numerator_.negated(),denominator_);}
+exact_rational exact_rational::abs()const{return sign()==exact_sign::negative?negated():*this;}
+namespace{
+big_uint exact_quotient(const big_uint&value,const big_uint&factor){if(factor==big_uint(1))return value;auto qr=divide(value,factor);if(!qr.second.is_zero())throw std::logic_error("non-exact rational reduction");return std::move(qr.first);}
+void count_cancellation(const big_uint&factor){if(factor!=big_uint(1))performance_count(performance_counter::cross_cancellations);}
+int positive_rational_compare(const exact_rational&a,const exact_rational&b){
+  const auto an=a.numerator().magnitude().bit_length(),ad=a.denominator().bit_length(),bn=b.numerator().magnitude().bit_length(),bd=b.denominator().bit_length();
+  const auto maximum=std::numeric_limits<std::size_t>::max();
+  if(an<=maximum-bd&&bn<=maximum-ad){const auto left_bits=an+bd,right_bits=bn+ad;if(left_bits>right_bits&&left_bits-right_bits>1)return 1;if(right_bits>left_bits&&right_bits-left_bits>1)return -1;}
+  if(a.denominator().is_power_of_two()&&b.denominator().is_power_of_two()){
+    const auto ae=a.denominator().trailing_zero_bits(),be=b.denominator().trailing_zero_bits();
+    return ae>=be?a.numerator().magnitude().compare(b.numerator().magnitude().shifted_left(ae-be)):a.numerator().magnitude().shifted_left(be-ae).compare(b.numerator().magnitude());
+  }
+  big_uint left_n=a.numerator().magnitude(),right_n=b.numerator().magnitude(),left_d=a.denominator(),right_d=b.denominator();
+  if(left_n.limb_count()>1&&right_n.limb_count()>1){const auto common=gcd(left_n,right_n);if(common!=big_uint(1)){left_n=exact_quotient(left_n,common);right_n=exact_quotient(right_n,common);}}
+  if(left_d.limb_count()>1&&right_d.limb_count()>1){const auto common=gcd(left_d,right_d);if(common!=big_uint(1)){left_d=exact_quotient(left_d,common);right_d=exact_quotient(right_d,common);}}
+  return (left_n*right_d).compare(right_n*left_d);
+}
+}
+int exact_rational::compare(const exact_rational&o)const{if(sign()!=o.sign())return int(sign())<int(o.sign())?-1:1;if(is_zero())return 0;const auto magnitude=positive_rational_compare(*this,o);return sign()==exact_sign::negative?-magnitude:magnitude;}
 exact_rational exact_rational::pow(std::uint64_t n)const{exact_rational b=*this,r(1);while(n){if(n&1)r=r*b;n>>=1;if(n)b=b*b;}return r;}
 big_int exact_rational::trunc()const{return divide(numerator_,big_int(integer_sign::positive,denominator_)).first;}
 big_int exact_rational::floor()const{auto q=divide(numerator_,big_int(integer_sign::positive,denominator_));return sign()==exact_sign::negative&&!q.second.is_zero()?q.first-big_int(1):q.first;}
 big_int exact_rational::ceil()const{auto q=divide(numerator_,big_int(integer_sign::positive,denominator_));return sign()==exact_sign::positive&&!q.second.is_zero()?q.first+big_int(1):q.first;}
 std::string exact_rational::to_string()const{return numerator_.to_string()+(denominator_==big_uint(1)?"":"/"+denominator_.to_hex());}
 void exact_rational::encode(canonical_encoder&e)const{numerator_.encode(e);denominator_.encode(e);}std::vector<std::uint8_t>exact_rational::canonical_bytes()const{canonical_encoder e;encode(e);return e.bytes();}digest exact_rational::canonical_hash()const{auto b=canonical_bytes();return domain_digest({{'Y','G','R','A','T','0','0','1'}},b);}
-exact_rational operator+(const exact_rational&a,const exact_rational&b){auto g=gcd(a.denominator_,b.denominator_);if(g!=big_uint(1))performance_count(performance_counter::cross_cancellations);auto ad=divide(a.denominator_,g).first,bd=divide(b.denominator_,g).first;return exact_rational(a.numerator_*big_int(integer_sign::positive,bd)+b.numerator_*big_int(integer_sign::positive,ad),ad*b.denominator_);}
+exact_rational operator+(const exact_rational&a,const exact_rational&b){
+  if(a.is_zero())return b;
+  if(b.is_zero())return a;
+  const auto g=gcd(a.denominator_,b.denominator_);count_cancellation(g);
+  const auto ad=exact_quotient(a.denominator_,g),bd=exact_quotient(b.denominator_,g);
+  auto numerator=a.numerator_*big_int(integer_sign::positive,bd)+b.numerator_*big_int(integer_sign::positive,ad);if(numerator.is_zero())return exact_rational();
+  const auto remaining=g==big_uint(1)?big_uint(1):gcd(numerator.magnitude(),g);count_cancellation(remaining);
+  numerator=big_int(numerator.sign(),exact_quotient(numerator.magnitude(),remaining));
+  return exact_rational::reduced(std::move(numerator),ad*exact_quotient(b.denominator_,remaining));
+}
 exact_rational operator-(const exact_rational&a,const exact_rational&b){return a+b.negated();}
-exact_rational operator*(const exact_rational&a,const exact_rational&b){return exact_rational(a.numerator_*b.numerator_,a.denominator_*b.denominator_);}
-exact_rational operator/(const exact_rational&a,const exact_rational&b){if(b.is_zero())throw std::invalid_argument("rational division by zero");integer_sign s=b.numerator_.sign();big_int n=a.numerator_*big_int(s,b.denominator_);return exact_rational(std::move(n),a.denominator_*b.numerator_.magnitude());}
+exact_rational operator*(const exact_rational&a,const exact_rational&b){
+  if(a.is_zero()||b.is_zero())return exact_rational();
+  const auto left=gcd(a.numerator_.magnitude(),b.denominator_),right=gcd(b.numerator_.magnitude(),a.denominator_);count_cancellation(left);count_cancellation(right);
+  const auto magnitude=exact_quotient(a.numerator_.magnitude(),left)*exact_quotient(b.numerator_.magnitude(),right);
+  const auto sign=a.numerator_.sign()==b.numerator_.sign()?integer_sign::positive:integer_sign::negative;
+  return exact_rational::reduced(big_int(sign,magnitude),exact_quotient(a.denominator_,right)*exact_quotient(b.denominator_,left));
+}
+exact_rational operator/(const exact_rational&a,const exact_rational&b){
+  if(b.is_zero())throw std::invalid_argument("rational division by zero");
+  if(a.is_zero())return exact_rational();
+  const auto numerators=gcd(a.numerator_.magnitude(),b.numerator_.magnitude()),denominators=gcd(b.denominator_,a.denominator_);count_cancellation(numerators);count_cancellation(denominators);
+  const auto magnitude=exact_quotient(a.numerator_.magnitude(),numerators)*exact_quotient(b.denominator_,denominators);
+  const auto sign=a.numerator_.sign()==b.numerator_.sign()?integer_sign::positive:integer_sign::negative;
+  return exact_rational::reduced(big_int(sign,magnitude),exact_quotient(a.denominator_,denominators)*exact_quotient(b.numerator_.magnitude(),numerators));
+}
 
 template<class T>coordinate_bits<T>bits_of(T v)noexcept{coordinate_bits<T>b;std::memcpy(&b.bits,&v,sizeof(v));return b;}template<class T>T value_of_bits(coordinate_bits<T>b)noexcept{T v;std::memcpy(&v,&b.bits,sizeof(v));return v;}
 template<class T>coordinate_category classify_coordinate_bits(coordinate_bits<T>b)noexcept{using U=decltype(b.bits);constexpr unsigned total=sizeof(T)*8,fb=std::numeric_limits<T>::digits-1,eb=total-fb-1;const U frac=b.bits&((U(1)<<fb)-1),exp=(b.bits>>fb)&((U(1)<<eb)-1);if(exp==((U(1)<<eb)-1))return frac?coordinate_category::nan:coordinate_category::infinity;if(!exp&&!frac)return b.bits>>(total-1)?coordinate_category::negative_zero:coordinate_category::positive_zero;return exp?coordinate_category::normal:coordinate_category::subnormal;}

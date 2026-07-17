@@ -88,6 +88,7 @@ class exact_rational {
     big_int numerator_;
     big_uint denominator_{1};
     void normalize();
+    static exact_rational reduced(big_int,big_uint);
 public:
     exact_rational()=default;
     explicit exact_rational(std::int64_t n):numerator_(n){}
@@ -98,8 +99,8 @@ public:
     bool is_zero()const noexcept{return numerator_.is_zero();}
     bool is_integer()const noexcept{return denominator_==big_uint(1);}
     int compare(const exact_rational&)const;
-    exact_rational negated()const{return exact_rational(numerator_.negated(),denominator_);}
-    exact_rational abs()const{return sign()==exact_sign::negative?negated():*this;}
+    exact_rational negated()const;
+    exact_rational abs()const;
     exact_rational pow(std::uint64_t)const;
     big_int trunc()const; big_int floor()const; big_int ceil()const;
     std::string to_string()const;

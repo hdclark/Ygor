@@ -1,4 +1,5 @@
 #include "MeshBooleanExactArithmeticFixtures.h"
+#include "YgorMeshesBooleanPerformance.h"
 #include <iostream>
 using namespace exact_test;
 static void integers(){auto a=big_uint::from_hex("ffffffffffffffffffffffff").value(),b=big_uint::from_hex("100000001").value();auto qr=divide(a,b);require(qr.first*b+qr.second==a,"division identity");require(qr.second<b,"remainder bound");require(gcd(big_uint(48),big_uint(18))==big_uint(6),"gcd");require((big_int(-7)+big_int(12))==big_int(5),"signed add");require(divide(big_int(-17),big_int(5)).first==big_int(-3),"truncation");}
@@ -69,6 +70,17 @@ static void gcd_reference_vectors(){
   }
   require(gcd(big_uint(),big_uint(17))==big_uint(17),"gcd zero canonical form");
   require(gcd(big_uint(23),big_uint(23))==big_uint(23),"gcd equal canonical form");
+  require(gcd(big_uint(1).shifted_left(511),big_uint(1).shifted_left(257))==big_uint(1).shifted_left(257),"gcd powers of two fast path");
+  require(gcd(from_hex("123456789abcdef0123456789abcdef0"),big_uint(0xfffffff1U))==reference_gcd(from_hex("123456789abcdef0123456789abcdef0"),big_uint(0xfffffff1U)),"gcd single-limb fast path");
+  require(gcd(from_hex("10000000000000003"),from_hex("ffffffffffffffff"))==big_uint(1),"gcd heap-to-inline reduction");
+  require(gcd(big_uint(7540113804746346429ULL),big_uint(4660046610375530309ULL))==big_uint(1),"gcd consecutive Fibonacci worst case");
+  prng random;
+  for(std::size_t i=0;i<128;++i){
+    const auto common=big_uint((random.next()%65535U)+1U).shifted_left(random.next()%97U);
+    const auto a=patterned_operand(1U+random.next()%8U,static_cast<std::uint32_t>(random.next()))*common;
+    const auto b=patterned_operand(1U+random.next()%8U,static_cast<std::uint32_t>(random.next()))*common;
+    require(gcd(a,b)==reference_gcd(a,b),"deterministic generated gcd oracle");
+  }
 }
 static void rational_reference_vectors(){
   using namespace exact_arithmetic_test;
@@ -89,6 +101,22 @@ static void rational_reference_vectors(){
   require((dyadic_a+dyadic_b)-dyadic_b==dyadic_a,"large dyadic cancellation");
   require((dyadic_a*dyadic_b)/dyadic_b==dyadic_a,"large rational multiply/divide cancellation");
   require(q(0).numerator()==big_int()&&q(0).denominator()==big_uint(1),"zero rational canonical form");
+  require(q(6,35)*q(14,15)==q(4,25),"multiplication cross-cancellation");
+  require(q(6,35)/q(15,14)==q(4,25),"division cross-cancellation");
+  require(q(1,6)+q(2,15)==q(3,10),"addition removes remaining denominator gcd");
+  require(q(1,6)-q(1,6)==q(0),"subtraction cancellation to canonical zero");
+  const auto wide=exact_rational(big_int(integer_sign::positive,big_uint(1).shifted_left(300)+big_uint(1)),big_uint(3));
+  require(wide.compare(q(1,3))>0&&q(-7,9).compare(q(-3,4))<0,"comparison sign and bit bounds");
+  require(q(3,8).compare(q(6,16))==0&&q(7,8).compare(q(15,16))<0,"dyadic comparison alignment");
+  const std::vector<exact_rational> ordered{q(-5),q(-7,8),q(0),q(1,1024),q(1,3),q(2,3),wide};
+  for(std::size_t i=0;i<ordered.size();++i)for(std::size_t j=0;j<ordered.size();++j){const auto comparison=ordered[i].compare(ordered[j]);require((comparison<0)==(i<j)&&(comparison==0)==(i==j),"rational comparison total order");}
+  const auto expected_product=q(4,25),expected_sum=q(3,10),product_left=q(6,35),product_right=q(14,15),sum_left=q(1,6),sum_right=q(2,15);performance_collector collector;
+  exact_rational product,sum;
+  {performance_scope scope(&collector,boolean_stage::intersection_events,performance_role::producer,0,false);product=product_left*product_right;sum=sum_left+sum_right;}
+  const auto counters=collector.snapshot()->stage(boolean_stage::intersection_events).producer;
+  require(product==expected_product&&sum==expected_sum,"reduced-result arithmetic values");
+  require(counters.value(performance_counter::rational_normalizations)==0,"reduced-result factory avoids repeated normalization");
+  require(counters.value(performance_counter::cross_cancellations)>=3,"cross-cancellation counter evidence");
 }
 static void canonical_serialization_vectors(){
   const std::vector<std::uint8_t> positive_half{1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,2};
