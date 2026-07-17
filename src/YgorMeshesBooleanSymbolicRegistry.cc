@@ -75,6 +75,51 @@ bool same_canonical_line(const exact_line3 &a, const exact_line3 &b) {
   return a.anchor == b.anchor && a.direction.x == b.direction.x &&
          a.direction.y == b.direction.y && a.direction.z == b.direction.z;
 }
+struct scalar_fingerprint {
+  digest hash;
+  std::size_t numerator_limbs = 0, denominator_limbs = 0;
+  exact_sign sign = exact_sign::zero;
+};
+bool operator<(const scalar_fingerprint &a,
+               const scalar_fingerprint &b) noexcept {
+  if (a.hash != b.hash) return a.hash < b.hash;
+  if (a.numerator_limbs != b.numerator_limbs)
+    return a.numerator_limbs < b.numerator_limbs;
+  if (a.denominator_limbs != b.denominator_limbs)
+    return a.denominator_limbs < b.denominator_limbs;
+  return a.sign < b.sign;
+}
+bool operator==(const scalar_fingerprint &a,
+                const scalar_fingerprint &b) noexcept {
+  return a.hash == b.hash && a.numerator_limbs == b.numerator_limbs &&
+         a.denominator_limbs == b.denominator_limbs && a.sign == b.sign;
+}
+scalar_fingerprint fingerprint(const exact_scalar &x) {
+  performance_count(performance_counter::canonical_key_encodings);
+  return {x.canonical_hash(), x.numerator().magnitude().limb_count(),
+          x.denominator().limb_count(), x.sign()};
+}
+using point_fingerprint = std::array<scalar_fingerprint, 3>;
+point_fingerprint fingerprint(const exact_point3 &p) {
+  return {{fingerprint(p.x), fingerprint(p.y), fingerprint(p.z)}};
+}
+using line_fingerprint = std::array<scalar_fingerprint, 6>;
+line_fingerprint fingerprint(const exact_line3 &line) {
+  return {{fingerprint(line.anchor.x), fingerprint(line.anchor.y),
+           fingerprint(line.anchor.z), fingerprint(line.direction.x),
+           fingerprint(line.direction.y), fingerprint(line.direction.z)}};
+}
+bool point_less(const exact_point3 &a, const exact_point3 &b) noexcept {
+  return lexicographic_compare(a, b) < 0;
+}
+bool line_less(const exact_line3 &a, const exact_line3 &b) noexcept {
+  int c = lexicographic_compare(a.anchor, b.anchor);
+  if (c) return c < 0;
+  c = a.direction.x.compare(b.direction.x);
+  if (c) return c < 0;
+  c = a.direction.y.compare(b.direction.y);
+  return c ? c < 0 : a.direction.z < b.direction.z;
+}
 bool upper_half(const exact_vector2 &v) {
   return v.y.sign() == exact_sign::positive ||
          (v.y.is_zero() && v.x.sign() != exact_sign::negative);
@@ -585,6 +630,20 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
 template <class T, class I>
 status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
                                      const verification_environment_view &env) {
+  auto verifier_line = [](const exact_line3 &input) {
+    exact_line3 result = input;
+    std::size_t axis = 0;
+    if (result.direction.x.is_zero())
+      axis = result.direction.y.is_zero() ? 2 : 1;
+    const auto component = [&](const auto &v) -> const exact_scalar & {
+      return axis == 0 ? v.x : axis == 1 ? v.y : v.z;
+    };
+    result.direction = result.direction *
+                       (exact_scalar(1) / component(result.direction));
+    result.anchor = result.anchor + result.direction *
+                    (exact_scalar(0) - component(result.anchor));
+    return result;
+  };
   auto members = checked_add(a.validated->payload->vertices.size(),
                               a.raw_events->payload->points.size(),
                               boolean_stage::symbolic_registry);
@@ -592,15 +651,49 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
   members = checked_add(members.value(), a.reconciliation_history.size(),
                         boolean_stage::symbolic_registry);
   if (!members.has_value()) return members.error();
+  auto verifier_work = checked_add(members.value(),
+      a.raw_events->payload->carriers.size(), boolean_stage::symbolic_registry);
+  if (!verifier_work.has_value()) return verifier_work.error();
+  verifier_work = checked_add(verifier_work.value(),
+      a.raw_events->payload->intervals.size(), boolean_stage::symbolic_registry);
+  if (!verifier_work.has_value()) return verifier_work.error();
+  const auto exhaustive_small = env.options &&
+      env.options->verification == verification_level::exhaustive &&
+      members.value() <= 64 && a.raw_events->payload->carriers.size() <= 64;
+  if (exhaustive_small) {
+    const auto point_pairs = members.value() < 2
+                                 ? 0
+                                 : members.value() * (members.value() - 1) / 2;
+    const auto carrier_count = a.raw_events->payload->carriers.size();
+    const auto carrier_pairs = carrier_count < 2
+                                   ? 0
+                                   : carrier_count * (carrier_count - 1) / 2;
+    verifier_work = checked_add(verifier_work.value(), point_pairs,
+                                boolean_stage::symbolic_registry);
+    if (!verifier_work.has_value()) return verifier_work.error();
+    verifier_work = checked_add(verifier_work.value(), carrier_pairs,
+                                boolean_stage::symbolic_registry);
+    if (!verifier_work.has_value()) return verifier_work.error();
+  }
   std::optional<resource_reservation> work_charge, scratch_charge;
   if (env.accountant) {
     auto charged = env.accountant->reserve_scoped(
-        resource_kind::verifier_work, members.value(),
+        resource_kind::verifier_work, verifier_work.value(),
         boolean_stage::symbolic_registry);
     if (!charged.has_value()) return charged.error();
     work_charge.emplace(std::move(charged.value()));
-    auto bytes = checked_multiply(members.value(), sizeof(exact_point3),
+    auto point_bytes = checked_multiply(members.value(), sizeof(exact_point3),
                                   boolean_stage::symbolic_registry);
+    if (!point_bytes.has_value()) return point_bytes.error();
+    auto line_sources = checked_add(a.raw_events->payload->carriers.size(),
+                                    a.raw_events->payload->intervals.size(),
+                                    boolean_stage::symbolic_registry);
+    if (!line_sources.has_value()) return line_sources.error();
+    auto line_bytes = checked_multiply(line_sources.value(), sizeof(exact_line3),
+                                       boolean_stage::symbolic_registry);
+    if (!line_bytes.has_value()) return line_bytes.error();
+    auto bytes = checked_add(point_bytes.value(), line_bytes.value(),
+                             boolean_stage::symbolic_registry);
     if (!bytes.has_value()) return bytes.error();
     charged = env.accountant->reserve_scoped(
         resource_kind::verifier_scratch_bytes, bytes.value(),
@@ -616,26 +709,8 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
     reconstructed.push_back(p.point);
   for (const auto &request : a.reconciliation_history)
     reconstructed.push_back(request.point);
-  // Exhaustive identity is deliberately independent of sorting/fingerprints.
-  for (std::size_t i = 0; i < reconstructed.size(); ++i)
-    for (std::size_t j = i + 1; j < reconstructed.size(); ++j) {
-      if (((i * reconstructed.size() + j) & 255U) == 0 && env.cancelled &&
-          env.cancelled())
-        return make_error(boolean_error_code::resource_limit,
-                          boolean_stage::symbolic_registry, "cancelled");
-      const bool equal = reconstructed[i] == reconstructed[j];
-      const auto left = std::find_if(a.vertices.begin(), a.vertices.end(),
-          [&](const auto &v) { return v.point == reconstructed[i]; });
-      const auto right = std::find_if(a.vertices.begin(), a.vertices.end(),
-          [&](const auto &v) { return v.point == reconstructed[j]; });
-      if ((left == a.vertices.end()) || (right == a.vertices.end()) ||
-          (equal != (left->id == right->id)))
-        return false;
-    }
-  std::sort(reconstructed.begin(), reconstructed.end(), [](const auto &x,
-                                                            const auto &y) {
-    return lexicographic_compare(x, y) < 0;
-  });
+  // The verifier independently derives exact runs by structural ordering.
+  std::sort(reconstructed.begin(), reconstructed.end(), point_less);
   reconstructed.erase(std::unique(reconstructed.begin(), reconstructed.end()),
                       reconstructed.end());
   if (reconstructed.size() != a.vertices.size()) return false;
@@ -645,23 +720,88 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
                         boolean_stage::symbolic_registry, "cancelled");
     if (!(reconstructed[i] == a.vertices[i].point)) return false;
   }
-  // Compare every raw carrier pair without using producer interning helpers.
+  auto published_vertex = [&](const exact_point3 &point)
+      -> std::optional<symbolic_vertex_id> {
+    auto found = std::lower_bound(a.vertices.begin(), a.vertices.end(), point,
+        [](const auto &vertex, const auto &value) {
+          return point_less(vertex.point, value);
+        });
+    if (found == a.vertices.end() || !(found->point == point))
+      return std::nullopt;
+    return found->id;
+  };
+  // Retain the previous all-pairs proof only as a bounded exhaustive oracle.
+  if (exhaustive_small) {
+    std::vector<exact_point3> exhaustive_points;
+    exhaustive_points.reserve(members.value());
+    for (const auto &v : a.validated->payload->vertices)
+      exhaustive_points.push_back(v.exact_coordinate);
+    for (const auto &p : a.raw_events->payload->points)
+      exhaustive_points.push_back(p.point);
+    for (const auto &request : a.reconciliation_history)
+      exhaustive_points.push_back(request.point);
+    for (std::size_t i = 0; i < exhaustive_points.size(); ++i)
+      for (std::size_t j = i + 1; j < exhaustive_points.size(); ++j) {
+        performance_count(performance_counter::exact_equality_checks);
+        const auto left = published_vertex(exhaustive_points[i]);
+        const auto right = published_vertex(exhaustive_points[j]);
+        if (!left || !right ||
+            ((exhaustive_points[i] == exhaustive_points[j]) !=
+             (*left == *right)))
+          return false;
+      }
+  }
+  // Canonicalize and sort carriers independently, then use exact lookup.
   const auto &raw_carriers = a.raw_events->payload->carriers;
+  std::vector<exact_line3> reconstructed_carriers;
+  reconstructed_carriers.reserve(raw_carriers.size() +
+                                  a.raw_events->payload->intervals.size());
+  for (const auto &raw : raw_carriers)
+    reconstructed_carriers.push_back(verifier_line(raw.carrier));
+  for (const auto &raw : a.raw_events->payload->intervals)
+    reconstructed_carriers.push_back(verifier_line(raw.carrier));
+  std::sort(reconstructed_carriers.begin(), reconstructed_carriers.end(),
+            line_less);
+  reconstructed_carriers.erase(
+      std::unique(reconstructed_carriers.begin(), reconstructed_carriers.end(),
+                  same_canonical_line),
+      reconstructed_carriers.end());
+  const auto published_carrier_count = static_cast<std::size_t>(std::count_if(
+      a.curves.begin(), a.curves.end(), [](const auto &curve) {
+        return curve.kind == symbolic_curve_kind::carrier;
+      }));
+  if (reconstructed_carriers.size() != published_carrier_count)
+    return false;
+  for (std::size_t i = 0; i < reconstructed_carriers.size(); ++i)
+    if (!same_canonical_line(reconstructed_carriers[i], a.curves[i].carrier))
+      return false;
   for (std::size_t i = 0; i < raw_carriers.size(); ++i) {
     if (i >= a.raw_carriers.size()) return false;
-    for (std::size_t j = i + 1; j < raw_carriers.size(); ++j) {
-      const bool equal = same_line(raw_carriers[i].carrier,
-                                   raw_carriers[j].carrier);
-      if (equal != (a.raw_carriers[i].carrier == a.raw_carriers[j].carrier))
-        return false;
-    }
+    const auto line = verifier_line(raw_carriers[i].carrier);
+    const auto found = std::lower_bound(
+        reconstructed_carriers.begin(), reconstructed_carriers.end(), line,
+        line_less);
+    if (found == reconstructed_carriers.end() ||
+        !same_canonical_line(*found, line) ||
+        a.raw_carriers[i].carrier.value_for_debug() !=
+            static_cast<std::uint64_t>(found - reconstructed_carriers.begin()))
+      return false;
   }
+  if (exhaustive_small)
+    for (std::size_t i = 0; i < raw_carriers.size(); ++i)
+      for (std::size_t j = i + 1; j < raw_carriers.size(); ++j) {
+        performance_count(performance_counter::exact_equality_checks);
+        if (same_canonical_line(verifier_line(raw_carriers[i].carrier),
+                                verifier_line(raw_carriers[j].carrier)) !=
+            (a.raw_carriers[i].carrier == a.raw_carriers[j].carrier))
+          return false;
+      }
   // Small rational interval-union oracle: derive every atom from all registered
   // points on each raw interval and compare its exact coverage set.
   for (const auto &mapping : a.raw_intervals) {
     const auto *raw = find_raw_interval(*a.raw_events->payload, mapping.source);
     if (!raw) return false;
-    const auto line = canonical_line(raw->carrier);
+    const auto line = verifier_line(raw->carrier);
     auto endpoint = [&](raw_event_id id) -> const exact_point3 * {
       const auto *p = find_raw_point(*a.raw_events->payload, id);
       return p ? &p->point : nullptr;
@@ -685,7 +825,9 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
     for (auto id : mapping.atomic_intervals) {
       if (id.value_for_debug() >= a.curves.size()) return false;
       const auto &atom = a.curves[id.value_for_debug()];
-      if (!atom.parameters || !same_line(line, atom.carrier)) return false;
+      if (!atom.parameters ||
+          !same_canonical_line(line, verifier_line(atom.carrier)))
+        return false;
       actual.push_back({atom.parameters->lower, atom.parameters->upper});
     }
     std::sort(actual.begin(), actual.end());
@@ -817,6 +959,9 @@ build_symbolic_complex_impl(
     work = checked_add(work.value(), raw.value()->payload->intervals.size(),
                        boolean_stage::symbolic_registry);
     if (!work.has_value()) return work.error();
+    work = checked_add(work.value(), raw.value()->payload->carriers.size(),
+                       boolean_stage::symbolic_registry);
+    if (!work.has_value()) return work.error();
     work = checked_add(work.value(), a.reconciliation_history.size(),
                        boolean_stage::symbolic_registry);
     if (!work.has_value()) return work.error();
@@ -833,6 +978,7 @@ build_symbolic_complex_impl(
     if (!private_charge.has_value()) return private_charge.error();
     struct member {
       exact_point3 p;
+      point_fingerprint fingerprint;
       std::optional<original_vertex_id> ov;
       std::optional<raw_event_id> rp;
     };
@@ -856,17 +1002,20 @@ build_symbolic_complex_impl(
             for (auto i = begin; i < end; ++i) {
               if (i < a.validated->payload->vertices.size()) {
                 const auto &v = a.validated->payload->vertices[i];
-                out.push_back({v.exact_coordinate, v.id, std::nullopt});
+                out.push_back({v.exact_coordinate, fingerprint(v.exact_coordinate),
+                               v.id, std::nullopt});
               } else if (i < a.validated->payload->vertices.size() +
                                  raw.value()->payload->points.size()) {
                 const auto &p = raw.value()->payload->points[
                     i - a.validated->payload->vertices.size()];
-                out.push_back({p.point, std::nullopt, p.id});
+                out.push_back({p.point, fingerprint(p.point), std::nullopt,
+                               p.id});
               } else {
                 const auto &request = a.reconciliation_history[
                     i - a.validated->payload->vertices.size() -
                     raw.value()->payload->points.size()];
-                out.push_back({request.point, std::nullopt, std::nullopt});
+                out.push_back({request.point, fingerprint(request.point),
+                               std::nullopt, std::nullopt});
               }
             }
             return true;
@@ -882,37 +1031,63 @@ build_symbolic_complex_impl(
       m.insert(m.end(), std::make_move_iterator(shard.begin()),
                std::make_move_iterator(shard.end()));
     std::sort(m.begin(), m.end(), [](const auto &x, const auto &y) {
-      return lexicographic_compare(x.p, y.p) < 0;
+      if (x.fingerprint != y.fingerprint)
+        return x.fingerprint < y.fingerprint;
+      return point_less(x.p, y.p);
     });
+    struct point_class {
+      exact_point3 point;
+      std::vector<original_vertex_id> original_vertices;
+      std::vector<raw_event_id> raw_points;
+    };
+    std::vector<point_class> point_classes;
+    point_classes.reserve(m.size());
     for (std::size_t i = 0; i < m.size();) {
       if ((i & 63U) == 0 && ctx.cancelled())
         return make_error(boolean_error_code::resource_limit,
                           boolean_stage::symbolic_registry, "cancelled");
       std::size_t j = i + 1;
-      while (j < m.size() && m[j].p == m[i].p)
+      while (j < m.size() && m[j].fingerprint == m[i].fingerprint) {
+        performance_count(performance_counter::hash_bucket_probes);
+        performance_count(performance_counter::exact_equality_checks);
+        if (!(m[j].p == m[i].p)) break;
         ++j;
-      symbolic_vertex v;
-      v.id = symbolic_vertex_id::from_canonical_value(a.vertices.size());
-      v.point = m[i].p;
-      for (std::size_t k = i; k < j; ++k) {
-        if (m[k].ov) {
-          v.original_vertices.push_back(*m[k].ov);
-          a.original_vertices.push_back({*m[k].ov, v.id});
-        }
-        if (m[k].rp) {
-          v.raw_points.push_back(*m[k].rp);
-          a.raw_point_index[m[k].rp->value_for_debug()] = a.raw_points.size();
-          a.raw_points.push_back({*m[k].rp, v.id});
-        }
       }
-      a.vertices.push_back(std::move(v));
+      point_class point_class_value;
+      point_class_value.point = m[i].p;
+      for (std::size_t k = i; k < j; ++k) {
+        if (m[k].ov)
+          point_class_value.original_vertices.push_back(*m[k].ov);
+        if (m[k].rp)
+          point_class_value.raw_points.push_back(*m[k].rp);
+      }
+      point_classes.push_back(std::move(point_class_value));
       i = j;
     }
+    std::sort(point_classes.begin(), point_classes.end(),
+              [](const auto &x, const auto &y) {
+                return point_less(x.point, y.point);
+              });
+    for (auto &point_class_value : point_classes) {
+      symbolic_vertex v;
+      v.id = symbolic_vertex_id::from_canonical_value(a.vertices.size());
+      v.point = std::move(point_class_value.point);
+      v.original_vertices = std::move(point_class_value.original_vertices);
+      v.raw_points = std::move(point_class_value.raw_points);
+      for (auto id : v.original_vertices)
+        a.original_vertices.push_back({id, v.id});
+      for (auto id : v.raw_points) {
+        a.raw_point_index[id.value_for_debug()] = a.raw_points.size();
+        a.raw_points.push_back({id, v.id});
+      }
+      a.vertices.push_back(std::move(v));
+    }
     for (const auto &request : requests) {
-      auto vertex = std::find_if(a.vertices.begin(), a.vertices.end(),
-                                 [&](const auto &v) {
-                                   return v.point == request.point;
-                                 });
+      auto vertex = std::lower_bound(a.vertices.begin(), a.vertices.end(),
+                                     request.point,
+                                     [](const auto &v, const auto &point) {
+                                       return point_less(v.point, point);
+                                     });
       if (vertex == a.vertices.end())
         throw std::logic_error("reconciliation vertex missing");
       vertex->facets.push_back(request.facet);
@@ -1000,8 +1175,14 @@ build_symbolic_complex_impl(
       return it->id;
     };
     const auto line_count = raw.value()->payload->carriers.size() +
-                            raw.value()->payload->intervals.size();
-    std::vector<std::vector<exact_line3>> line_shards(
+                             raw.value()->payload->intervals.size();
+    struct line_member {
+      exact_line3 line;
+      line_fingerprint fingerprint;
+      bool raw_carrier = false;
+      std::size_t ordinal = 0;
+    };
+    std::vector<std::vector<line_member>> line_shards(
         (line_count + frontier - 1) / frontier);
     std::vector<deterministic_task> line_tasks;
     for (std::size_t shard = 0; shard < line_shards.size(); ++shard) {
@@ -1015,11 +1196,16 @@ build_symbolic_complex_impl(
             auto &out = line_shards[shard];
             out.reserve(end - begin);
             for (auto i = begin; i < end; ++i) {
-              const auto &line = i < raw.value()->payload->carriers.size()
-                  ? raw.value()->payload->carriers[i].carrier
-                  : raw.value()->payload->intervals[
-                        i - raw.value()->payload->carriers.size()].carrier;
-              out.push_back(canonical_line(line));
+              const bool is_raw_carrier =
+                  i < raw.value()->payload->carriers.size();
+              const auto ordinal = is_raw_carrier
+                  ? i : i - raw.value()->payload->carriers.size();
+              const auto &line = is_raw_carrier
+                  ? raw.value()->payload->carriers[ordinal].carrier
+                  : raw.value()->payload->intervals[ordinal].carrier;
+              auto normalized = canonical_line(line);
+              out.push_back({normalized, fingerprint(normalized),
+                             is_raw_carrier, ordinal});
             }
             return true;
           }});
@@ -1028,37 +1214,68 @@ build_symbolic_complex_impl(
     auto line_result = ctx.executor().run(std::move(line_tasks),
                                            line_cancel.token());
     if (!line_result.has_value()) return line_result.error();
-    std::vector<exact_line3> lines;
-    lines.reserve(line_count);
+    std::vector<line_member> line_members;
+    line_members.reserve(line_count);
     for (auto &shard : line_shards)
-      lines.insert(lines.end(), std::make_move_iterator(shard.begin()),
-                   std::make_move_iterator(shard.end()));
-    std::sort(lines.begin(), lines.end(), [](const auto &x, const auto &y) {
-      int c = lexicographic_compare(x.anchor, y.anchor);
-      if (c)
-        return c < 0;
-      c = x.direction.x.compare(y.direction.x);
-      if (c)
-        return c < 0;
-      c = x.direction.y.compare(y.direction.y);
-      return c ? c < 0 : x.direction.z < y.direction.z;
+      line_members.insert(line_members.end(),
+          std::make_move_iterator(shard.begin()),
+          std::make_move_iterator(shard.end()));
+    std::sort(line_members.begin(), line_members.end(),
+              [](const auto &x, const auto &y) {
+      if (x.fingerprint != y.fingerprint)
+        return x.fingerprint < y.fingerprint;
+      return line_less(x.line, y.line);
     });
-    lines.erase(std::unique(lines.begin(), lines.end(), same_canonical_line),
-                lines.end());
-    for (const auto &l : lines) {
+    struct line_class {
+      exact_line3 line;
+      std::vector<std::size_t> raw_carriers, raw_intervals;
+    };
+    std::vector<line_class> line_classes;
+    line_classes.reserve(line_members.size());
+    for (std::size_t i = 0; i < line_members.size();) {
+      std::size_t j = i + 1;
+      while (j < line_members.size() &&
+             line_members[j].fingerprint == line_members[i].fingerprint) {
+        performance_count(performance_counter::hash_bucket_probes);
+        performance_count(performance_counter::exact_equality_checks);
+        if (!same_canonical_line(line_members[j].line,
+                                 line_members[i].line))
+          break;
+        ++j;
+      }
+      line_class line_class_value;
+      line_class_value.line = line_members[i].line;
+      for (std::size_t k = i; k < j; ++k) {
+        auto &ordinals = line_members[k].raw_carrier
+                             ? line_class_value.raw_carriers
+                             : line_class_value.raw_intervals;
+        ordinals.push_back(line_members[k].ordinal);
+      }
+      line_classes.push_back(std::move(line_class_value));
+      i = j;
+    }
+    std::sort(line_classes.begin(), line_classes.end(),
+              [](const auto &x, const auto &y) {
+                return line_less(x.line, y.line);
+              });
+    std::vector<std::size_t> interval_carrier(
+        raw.value()->payload->intervals.size(),
+        std::numeric_limits<std::size_t>::max());
+    a.raw_carriers.resize(raw.value()->payload->carriers.size());
+    for (auto &line_class_value : line_classes) {
       symbolic_curve c;
       c.id = symbolic_curve_id::from_canonical_value(a.curves.size());
-      c.carrier = l;
-      for (std::size_t ri = 0; ri < raw.value()->payload->carriers.size(); ++ri) {
+      c.carrier = std::move(line_class_value.line);
+      for (auto ri : line_class_value.raw_carriers) {
         const auto &r = raw.value()->payload->carriers[ri];
-        if (same_line(l, r.carrier)) {
-          c.raw_carriers.push_back(r.candidate);
-          c.facets.insert(c.facets.end(), r.facets.begin(), r.facets.end());
-          a.raw_carriers.push_back({ri, r.candidate, c.id});
-          for (const auto &derivation : r.derivations)
-            c.constructions.push_back(derivation.construction);
-        }
+        c.raw_carriers.push_back(r.candidate);
+        c.facets.insert(c.facets.end(), r.facets.begin(), r.facets.end());
+        a.raw_carriers[ri] = {ri, r.candidate, c.id};
+        for (const auto &derivation : r.derivations)
+          c.constructions.push_back(derivation.construction);
       }
+      for (auto ri : line_class_value.raw_intervals)
+        interval_carrier[ri] = c.id.value_for_debug();
       std::sort(c.raw_carriers.begin(), c.raw_carriers.end());
       c.raw_carriers.erase(std::unique(c.raw_carriers.begin(), c.raw_carriers.end()),
                            c.raw_carriers.end());
@@ -1070,6 +1287,12 @@ build_symbolic_complex_impl(
       a.curves.push_back(std::move(c));
     }
     const auto carrier_count = a.curves.size();
+    std::vector<std::vector<std::size_t>> intervals_by_carrier(carrier_count);
+    for (std::size_t i = 0; i < interval_carrier.size(); ++i) {
+      if (interval_carrier[i] >= carrier_count)
+        throw std::logic_error("interval carrier mapping");
+      intervals_by_carrier[interval_carrier[i]].push_back(i);
+    }
     for (std::size_t ci = 0; ci < carrier_count; ++ci) {
       if (ctx.cancelled())
         return make_error(boolean_error_code::resource_limit,
@@ -1084,9 +1307,8 @@ build_symbolic_complex_impl(
       };
       std::vector<coverage> covers;
       std::vector<std::pair<exact_scalar, symbolic_vertex_id>> cuts;
-      for (const auto &q : raw.value()->payload->intervals) {
-        if (!same_line(parent_line, q.carrier))
-          continue;
+      for (auto interval_ordinal : intervals_by_carrier[ci]) {
+        const auto &q = raw.value()->payload->intervals[interval_ordinal];
         const auto *lp = find_raw_point(*raw.value()->payload, q.lower_point);
         const auto *up = find_raw_point(*raw.value()->payload, q.upper_point);
         if (!lp || !up)
@@ -1101,6 +1323,10 @@ build_symbolic_complex_impl(
           parity = orientation_parity::opposite;
         }
         covers.push_back({&q, lo, hi, lower, upper, parity});
+        if (a.raw_interval_index[q.id.value_for_debug()] != missing_mapping)
+          throw std::logic_error("duplicate raw interval mapping");
+        a.raw_interval_index[q.id.value_for_debug()] = a.raw_intervals.size();
+        a.raw_intervals.push_back({q.id, {}, parity});
         cuts.push_back({lo, lower});
         cuts.push_back({hi, upper});
       }
@@ -1154,17 +1380,8 @@ build_symbolic_complex_impl(
         atom.id = symbolic_curve_id::from_canonical_value(a.curves.size());
         for (auto rid : atom.raw_intervals) {
           auto *map = find_raw_interval_mapping(a, rid);
-          if (!map) {
-            auto cover = std::find_if(covers.begin(), covers.end(),
-                                      [&](const auto &c) {
-                                        return c.raw->id == rid;
-                                      });
-            if (cover == covers.end())
-              throw std::logic_error("raw interval coverage");
-            a.raw_interval_index[rid.value_for_debug()] = a.raw_intervals.size();
-            a.raw_intervals.push_back({rid, {}, cover->parity});
-            map = &a.raw_intervals.back();
-          }
+          if (!map)
+            throw std::logic_error("raw interval coverage");
           map->atomic_intervals.push_back(atom.id);
         }
         a.vertices[atom.lower->value_for_debug()].incident_curves.push_back(atom.id);

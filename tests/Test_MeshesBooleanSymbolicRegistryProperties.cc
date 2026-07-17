@@ -41,6 +41,13 @@ template <class T, class I> void run() {
   for (const auto &order : x.radial_orders)
     require(!order.groups.empty(), "radial order coverage");
   const auto expected = x.canonical_symbolic_bytes;
+  boolean_options mandatory_options;
+  mandatory_options.verification = verification_level::mandatory;
+  auto mandatory_context = context(a, b, r, mandatory_options);
+  auto mandatory = build_symbolic_complex(*mandatory_context);
+  require(mandatory.has_value() &&
+              mandatory.value()->payload->canonical_symbolic_bytes == expected,
+          "mandatory sorted verifier preserves canonical artifact");
   for (auto threads : {1U, 2U, 4U}) {
     for (unsigned repetition = 0; repetition != 4; ++repetition) {
       boolean_options options;
