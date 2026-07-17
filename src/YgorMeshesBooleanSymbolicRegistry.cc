@@ -42,12 +42,7 @@ void enc_ownership(canonical_encoder &e, const raw_curve_ownership &x) {
   e.byte(static_cast<std::uint8_t>(x.direction)); e.u32(x.multiplicity);
 }
 exact_scalar param(const exact_segment3 &s, const exact_point3 &p) {
-  auto d = s.destination - s.origin;
-  if (!d.x.is_zero())
-    return (p.x - s.origin.x) / d.x;
-  if (!d.y.is_zero())
-    return (p.y - s.origin.y) / d.y;
-  return (p.z - s.origin.z) / d.z;
+  return segment_parameter(p, s);
 }
 exact_scalar lparam(const exact_line3 &l, const exact_point3 &p) {
   if (!l.direction.x.is_zero())

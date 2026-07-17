@@ -1,5 +1,6 @@
 #include "MeshBooleanExactKernelFixtures.h"
 #include <YgorMeshesBooleanPerformance.h>
+#include <algorithm>
 #include <cfenv>
 #include <iostream>
 using namespace exact_test;
@@ -36,6 +37,46 @@ static void certified_filters(){
   require(counters.value(performance_counter::orient2d_filter_accepts)>0&&counters.value(performance_counter::orient2d_filter_fallbacks)>0&&counters.value(performance_counter::exact_fallbacks)>0,"filter counters");
 }
 static void classifications(){exact_segment2 s{p2(0,0),p2(4,0)};require(classify_point_segment(p2(2,0),s)==point_segment_relation::open_interior,"point segment");auto poly=std::vector<exact_point2>{p2(0,0),p2(4,0),p2(4,4),p2(0,4)};require(classify_point_polygon(p2(2,2),poly).value().kind==point_region_kind::open_interior,"point polygon");require(classify_point_polygon(p2(4,2),poly).value().kind==point_region_kind::boundary_edge_interior,"polygon boundary");auto x=relate_segments(s,{p2(2,-1),p2(2,1)});require(x.dimension==intersection_dimension::point&&x.point_kind==segment_point_kind::proper_crossing&&*x.point==p2(2,0),"segment crossing");}
+static bool same_plane(const exact_plane3&a,const exact_plane3&b){return a.a==b.a&&a.b==b.b&&a.c==b.c&&a.d==b.d&&a.oriented==b.oriented;}
+static void division_free_incidence(){
+  const exact_segment2 s{p2(4,2),p2(-2,-1)};
+  require(classify_on_segment(p2(6,3),s)==point_segment_relation::before_origin,"negative segment before");
+  require(classify_on_segment(p2(4,2),s)==point_segment_relation::at_origin,"negative segment origin");
+  require(classify_on_segment(p2(0,0),s)==point_segment_relation::open_interior,"negative segment interior");
+  require(classify_on_segment(p2(-2,-1),s)==point_segment_relation::at_destination,"negative segment destination");
+  require(classify_on_segment(p2(-4,-2),s)==point_segment_relation::after_destination,"negative segment after");
+  require(!is_on_closed_segment(p2(0,1),s)&&is_on_closed_segment(p2(0,0),s),"closed segment incidence");
+  const exact_segment3 s3{p3(1,2,3),p3(5,6,7)};
+  require(classify_on_segment(p3(3,4,5),s3)==point_segment_relation::open_interior,"3D segment interior");
+  require(classify_on_segment(p3(3,4,6),s3)==point_segment_relation::off_carrier,"3D segment carrier");
+  performance_collector incidence;{
+    performance_scope scope(&incidence,boolean_stage::input_validation,performance_role::producer);
+    (void)classify_on_segment(p2(0,0),s);(void)is_on_closed_segment(p3(3,4,5),s3);
+    const std::vector<exact_point2> polygon{p2(0,0),p2(4,0),p2(4,4),p2(0,4)};
+    (void)classify_point_polygon(p2(2,2),polygon);(void)classify_point_polygon(p2(4,2),polygon);(void)classify_point_polygon(p2(5,4),polygon);
+  }
+  require(incidence.snapshot()->stage(boolean_stage::input_validation).producer.value(performance_counter::geometric_exact_divisions)==0,"incidence performs no division");
+  performance_collector construction;{
+    performance_scope scope(&construction,boolean_stage::input_validation,performance_role::producer);
+    require(segment_parameter(p2(0,0),s)==q(2,3),"requested segment parameter");
+  }
+  require(construction.snapshot()->stage(boolean_stage::input_validation).producer.value(performance_counter::geometric_exact_divisions)==1,"parameter performs one division");
+}
+static void dyadic_planes(){
+  const exact_point3 a{q(1,8),q(-3,4),q(5,2)},b{q(9,8),q(1,4),q(5,2)},c{q(1,8),q(-3,4),q(7,2)};
+  auto fast=support_plane_dyadic(a,b,c),general=support_plane(a,b,c);
+  require(fast.has_value()&&general.has_value()&&same_plane(fast.value(),general.value()),"dyadic plane differential");
+  std::array<exact_point3,3> points{{a,b,c}};std::array<unsigned,3> order{{0,1,2}};
+  do{auto x=support_plane_dyadic(points[order[0]],points[order[1]],points[order[2]]),y=support_plane(points[order[0]],points[order[1]],points[order[2]]);require(x.has_value()&&y.has_value()&&same_plane(x.value(),y.value()),"dyadic plane permutation");}while(std::next_permutation(order.begin(),order.end()));
+  const exact_point3 third{q(1,3),q(0),q(0)};
+  require(!support_plane_dyadic(third,p3(0,1,0),p3(0,0,1)).has_value(),"non-dyadic plane rejected");
+  require(!support_plane_dyadic(p3(0,0,0),p3(1,1,1),p3(2,2,2)).has_value(),"dyadic collinear plane rejected");
+  const auto negative_zero=decode_coordinate(from_bits<float>(0x80000000U)).value().value;
+  const auto subnormal=decode_coordinate(from_bits<float>(1U)).value().value;
+  const exact_point3 e0{negative_zero,q(0),q(0)},e1{q(1),q(0),q(0)},e2{q(0),subnormal,q(0)};
+  fast=support_plane_dyadic(e0,e1,e2);general=support_plane(e0,e1,e2);
+  require(fast.has_value()&&general.has_value()&&same_plane(fast.value(),general.value()),"signed-zero subnormal plane differential");
+}
 static void constructions(){auto pl=support_plane(p3(0,0,0),p3(2,0,0),p3(0,2,0)).value();auto x=intersect_line_plane({p3(1,1,-1),exact_vector3{q(0),q(0),q(2)}},pl);require(x.kind==line_plane_kind::unique&&plane_side(pl,*x.point)==exact_sign::zero,"line plane");auto pp=intersect_planes(pl,support_plane(p3(0,0,0),p3(0,1,0),p3(0,0,1)).value());require(pp.kind==plane_plane_kind::nonparallel,"plane plane");require(plane_side(pl,pp.line->anchor)==exact_sign::zero,"carrier substitution");}
 static void polygon_relations(){exact_triangle3 a{p3(0,0,0),p3(4,0,0),p3(0,4,0)},b{p3(1,1,-1),p3(1,1,1),p3(3,1,0)},c{p3(1,1,0),p3(2,1,0),p3(1,2,0)};require(relate_triangles(a,b)==polygon_intersection_kind::segment,"crossing triangles");require(relate_triangles(a,c)==polygon_intersection_kind::area,"coplanar overlap");std::vector<exact_triangle3>tet{{p3(0,0,0),p3(0,4,0),p3(4,0,0)},{p3(0,0,0),p3(4,0,0),p3(0,0,4)},{p3(4,0,0),p3(0,4,0),p3(0,0,4)},{p3(0,4,0),p3(0,0,0),p3(0,0,4)}};require(classify_point_closed_triangle_shell(p3(1,1,1),tet).value()==solid_point_kind::inside,"point in shell");require(classify_point_closed_triangle_shell(p3(5,5,5),tet).value()==solid_point_kind::outside,"point outside shell");}
 static void formal_point_location(){std::vector<exact_triangle3>tet{{p3(0,0,0),p3(0,4,0),p3(4,0,0)},{p3(0,0,0),p3(4,0,0),p3(0,0,4)},{p3(4,0,0),p3(0,4,0),p3(0,0,4)},{p3(0,4,0),p3(0,0,0),p3(0,0,4)}};formal_open_point_view inside{p3(1,1,1),exact_vector3{q(0),q(0),q(0)},{}},outside{p3(5,5,5),exact_vector3{q(0),q(0),q(0)},{}};auto a=locate_formal_open_point(inside,tet),b=locate_formal_open_point(outside,tet);require(a.has_value()&&a.value().location==formal_operand_location_kind::inside&&a.value().signed_degree==1,"formal inside degree");auto a2=locate_formal_open_point(inside,tet,static_cast<std::uint8_t>(a.value().ray_direction_index+1));require(a2.has_value()&&a2.value().signed_degree==a.value().signed_degree&&a2.value().ray_direction_index!=a.value().ray_direction_index,"alternate formal ray");require(b.has_value()&&b.value().location==formal_operand_location_kind::outside&&b.value().signed_degree==0,"formal outside degree");formal_open_point_view face_side{p3(1,1,0),exact_vector3{q(0),q(0),q(1)},{}};auto c=locate_formal_open_point(face_side,tet);require(c.has_value()&&c.value().signed_degree==1,"formal origin moves to occupied side");face_side.infinitesimal_direction=exact_vector3{q(0),q(0),q(-1)};auto d=locate_formal_open_point(face_side,tet);require(d.has_value()&&d.value().signed_degree==0,"formal origin moves to exterior side");}
@@ -104,4 +145,4 @@ static void stable_formal_ray_fallback(){
   require(alternate.has_value()&&alternate.value().ray_direction_index!=result.value().ray_direction_index&&alternate.value().signed_degree==result.value().signed_degree,"stable fallback has a distinct wrapping alternate");
 }
 static void radial_and_cones(){auto xy=support_plane(p3(0,0,0),p3(1,0,0),p3(0,1,0)).value(),xz=support_plane(p3(0,0,0),p3(1,0,0),p3(0,0,1)).value();auto order=rank_planes_around_carrier(exact_vector3{q(1),q(0),q(0)},{xy,xz});require(order.has_value()&&order.value().layers.size()==2,"exact carrier radial layers");auto witness=construct_strict_cone_witness({{exact_vector3{q(1),q(0),q(0)},exact_sign::positive},{exact_vector3{q(0),q(1),q(0)},exact_sign::positive}});require(witness.has_value()&&witness.value().evaluations==std::vector<exact_sign>({exact_sign::positive,exact_sign::positive}),"strict cone witness");}
-int main(){try{predicates();certified_filters();classifications();constructions();polygon_relations();formal_point_location();grouped_ray_ownership();stable_formal_ray_fallback();radial_and_cones();exact_kernel<double>k;require(k.coordinate_type()==coordinate_tag::binary64&&!k.arithmetic_policy_bytes().empty(),"service");std::cout<<"PASS exact kernel\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}
+int main(){try{predicates();certified_filters();classifications();division_free_incidence();dyadic_planes();constructions();polygon_relations();formal_point_location();grouped_ray_ownership();stable_formal_ray_fallback();radial_and_cones();exact_kernel<double>k;require(k.coordinate_type()==coordinate_tag::binary64&&!k.arithmetic_policy_bytes().empty(),"service");std::cout<<"PASS exact kernel\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

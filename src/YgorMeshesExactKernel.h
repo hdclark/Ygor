@@ -63,6 +63,7 @@ exact_sign orient3d(const exact_point3&,const exact_point3&,const exact_point3&,
 int lexicographic_compare(const exact_point2&,const exact_point2&);int lexicographic_compare(const exact_point3&,const exact_point3&);
 exact_point2 project(const exact_point3&,projection_axis);
 status_or<exact_plane3>support_plane(const exact_point3&,const exact_point3&,const exact_point3&);
+status_or<exact_plane3>support_plane_dyadic(const exact_point3&,const exact_point3&,const exact_point3&);
 exact_sign plane_side_exact(const exact_plane3&,const exact_point3&);
 exact_sign plane_side(const exact_plane3&,const exact_point3&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);projection_axis dominant_projection(const exact_plane3&);
 
@@ -71,6 +72,9 @@ enum class point_segment_relation:std::uint8_t{off_carrier,before_origin,at_orig
 enum class point_region_kind:std::uint8_t{outside,open_interior,boundary_vertex,boundary_edge_interior};
 struct point_region_relation{point_region_kind kind=point_region_kind::outside;std::size_t feature=0;};
 point_line_relation classify_point_line(const exact_point2&,const exact_line2&);point_line_relation classify_point_line(const exact_point3&,const exact_line3&);
+bool is_on_closed_segment(const exact_point2&,const exact_segment2&);bool is_on_closed_segment(const exact_point3&,const exact_segment3&);
+point_segment_relation classify_on_segment(const exact_point2&,const exact_segment2&);point_segment_relation classify_on_segment(const exact_point3&,const exact_segment3&);
+exact_scalar segment_parameter(const exact_point2&,const exact_segment2&);exact_scalar segment_parameter(const exact_point3&,const exact_segment3&);
 point_segment_relation classify_point_segment(const exact_point2&,const exact_segment2&);point_segment_relation classify_point_segment(const exact_point3&,const exact_segment3&);
 status_or<point_region_relation>classify_point_triangle(const exact_point3&,const exact_point3&,const exact_point3&,const exact_point3&);
 status_or<point_region_relation>classify_point_polygon(const exact_point2&,const std::vector<exact_point2>&);

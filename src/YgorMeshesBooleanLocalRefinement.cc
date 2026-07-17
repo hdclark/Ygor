@@ -466,7 +466,7 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
         project(s.vertices[d.a.value_for_debug()].point, vf.projection),
         project(s.vertices[d.b.value_for_debug()].point, vf.projection)};
     const auto direction = segment.destination - segment.origin;
-    std::vector<std::pair<exact_scalar, symbolic_vertex_id>> breakpoints;
+    std::vector<symbolic_vertex_id> breakpoints;
     for (auto vertex : used) {
       const auto p =
           project(s.vertices[vertex.value_for_debug()].point, vf.projection);
@@ -475,16 +475,22 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
           relation != point_segment_relation::open_interior &&
           relation != point_segment_relation::at_destination)
         continue;
-      const auto offset = p - segment.origin;
-      const auto parameter = !direction.x.is_zero() ? offset.x / direction.x
-                                                     : offset.y / direction.y;
-      breakpoints.push_back({parameter, vertex});
+      breakpoints.push_back(vertex);
     }
-    std::sort(breakpoints.begin(), breakpoints.end());
+    const bool use_x = !direction.x.is_zero();
+    const bool forward = (use_x ? direction.x : direction.y).sign() == exact_sign::positive;
+    auto projected = [&](symbolic_vertex_id id) {
+      return project(s.vertices[id.value_for_debug()].point, vf.projection);
+    };
+    std::sort(breakpoints.begin(), breakpoints.end(), [&](auto a, auto b) {
+      const auto pa = projected(a), pb = projected(b);
+      const int c = (use_x ? pa.x.compare(pb.x) : pa.y.compare(pb.y));
+      return c ? (forward ? c < 0 : c > 0) : a < b;
+    });
     breakpoints.erase(
         std::unique(breakpoints.begin(), breakpoints.end(),
-                    [](const auto &a, const auto &b) {
-                      return a.first == b.first;
+                    [&](const auto &a, const auto &b) {
+                      return projected(a) == projected(b);
                     }),
         breakpoints.end());
     if (breakpoints.size() < 2)
@@ -493,8 +499,8 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
                         "constraint_atomization_endpoints");
     for (std::size_t i = 1; i < breakpoints.size(); ++i) {
       draft atom = d;
-      atom.a = breakpoints[i - 1].second;
-      atom.b = breakpoints[i].second;
+      atom.a = breakpoints[i - 1];
+      atom.b = breakpoints[i];
       atomized.push_back(std::move(atom));
     }
   }
@@ -607,7 +613,7 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     }
     if (!cut)
       break;
-    std::vector<std::pair<exact_scalar, symbolic_vertex_id>> points;
+    std::vector<symbolic_vertex_id> points;
     exact_segment2 segment{
         project(s.vertices[cut->first.value_for_debug()].point, vf.projection),
         project(s.vertices[cut->second.value_for_debug()].point, vf.projection)};
@@ -618,17 +624,20 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
       if (relation == point_segment_relation::at_origin ||
           relation == point_segment_relation::open_interior ||
           relation == point_segment_relation::at_destination) {
-        const auto direction = segment.destination - segment.origin;
-        const auto offset = projected - segment.origin;
-        const auto parameter = !direction.x.is_zero()
-                                   ? offset.x / direction.x
-                                   : offset.y / direction.y;
-        points.push_back({parameter, vertex});
+        points.push_back(vertex);
       }
     }
-    std::sort(points.begin(), points.end());
+    const auto direction = segment.destination - segment.origin;
+    const bool use_x = !direction.x.is_zero();
+    const bool forward = (use_x ? direction.x : direction.y).sign() == exact_sign::positive;
+    std::sort(points.begin(), points.end(), [&](auto a, auto b) {
+      const auto pa = project(s.vertices[a.value_for_debug()].point, vf.projection);
+      const auto pb = project(s.vertices[b.value_for_debug()].point, vf.projection);
+      const int c = use_x ? pa.x.compare(pb.x) : pa.y.compare(pb.y);
+      return c ? (forward ? c < 0 : c > 0) : a < b;
+    });
     for (std::size_t i = 1; i < points.size(); ++i)
-      ds.push_back({points[i - 1].second, points[i].second, std::nullopt, {},
+      ds.push_back({points[i - 1], points[i], std::nullopt, {},
                     false, true});
   }
   std::sort(ds.begin(), ds.end(), [](const auto &a, const auto &b) {

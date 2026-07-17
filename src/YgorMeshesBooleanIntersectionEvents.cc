@@ -259,6 +259,7 @@ std::vector<std::uint8_t> point_payload(const exact_point3 &p) {
   canonical_encoder e; enc_point(e, p); return e.bytes();
 }
 exact_scalar parameter(const exact_line3 &l, const exact_point3 &p) {
+  performance_count(performance_counter::geometric_exact_divisions);
   if (!l.direction.x.is_zero())
     return (p.x - l.anchor.x) / l.direction.x;
   if (!l.direction.y.is_zero())
@@ -315,14 +316,8 @@ std::vector<exact_interval> line_polygon(const exact_line3 &l,
     exact_line2 el{p2[i], p2[(i + 1) % p2.size()] - p2[i]};
     auto x = intersect_lines(ql, el);
     if (x.kind == line_line_kind::unique &&
-        classify_point_segment(*x.point, {p2[i], p2[(i + 1) % p2.size()]}) !=
-            point_segment_relation::off_carrier) {
-      auto s =
-          classify_point_segment(*x.point, {p2[i], p2[(i + 1) % p2.size()]});
-      if (s == point_segment_relation::at_origin ||
-          s == point_segment_relation::at_destination ||
-          s == point_segment_relation::open_interior)
-        cuts.push_back(*x.first_parameter);
+        is_on_closed_segment(*x.point, {p2[i], p2[(i + 1) % p2.size()]})) {
+      cuts.push_back(*x.first_parameter);
     } else if (x.kind == line_line_kind::coincident) {
       cuts.push_back(parameter(l, r[i]));
       cuts.push_back(parameter(l, r[(i + 1) % r.size()]));
@@ -403,7 +398,7 @@ point_incidences(const exact_point3 &p, const validated_operands<T, I> &v,
             : rel == point_segment_relation::at_destination
                   ? local_incidence_location::directed_edge_destination
                   : local_incidence_location::directed_edge_open_interior;
-    auto t = parameter(exact_line3{a, b - a}, p);
+    auto t = segment_parameter(p, exact_segment3{a, b});
     out.push_back({f.edge_uses[i], loc, t, std::nullopt,
                    orientation_parity::agree});
     out.push_back({v.edge_uses[f.edge_uses[i].value_for_debug()].edge, loc, t,
@@ -440,8 +435,8 @@ std::vector<source_edge_parameter_interval> source_intervals(
              relation == point_segment_relation::open_interior;
     };
     if (!on_segment(lo_relation) || !on_segment(hi_relation)) continue;
-    auto lo = parameter(exact_line3{a, b - a}, lower);
-    auto hi = parameter(exact_line3{a, b - a}, upper);
+    auto lo = segment_parameter(lower, exact_segment3{a, b});
+    auto hi = segment_parameter(upper, exact_segment3{a, b});
     source_edge_parameter_interval mapping;
     mapping.edge_use = *id;
     mapping.orientation = hi < lo ? orientation_parity::opposite
@@ -506,8 +501,7 @@ bool angular_less(const exact_vector2 &incoming, const exact_vector2 &a,
 
 exact_scalar segment_parameter(const exact_point2 &a, const exact_point2 &b,
                                const exact_point2 &p) {
-  auto d = b - a;
-  return !d.x.is_zero() ? (p.x - a.x) / d.x : (p.y - a.y) / d.y;
+  return ::ygor::mesh_boolean::segment_parameter(p, exact_segment2{a, b});
 }
 
 bool polygon_contains(const exact_point2 &p,

@@ -353,7 +353,7 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           for (std::size_t i = 0; i < rf.size() && !pl.has_value(); ++i)
             for (std::size_t j = i + 1; j < rf.size() && !pl.has_value(); ++j)
               for (std::size_t k = j + 1; k < rf.size() && !pl.has_value(); ++k)
-                pl = support_plane(points[rf[i]], points[rf[j]], points[rf[k]]);
+                pl = support_plane_dyadic(points[rf[i]], points[rf[j]], points[rf[k]]);
           if (!pl.has_value())
             return input_error(input_validation_subcode::degenerate_facet,
                                "degenerate_facet");
