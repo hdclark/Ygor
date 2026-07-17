@@ -16,6 +16,7 @@ struct exact_line2{exact_point2 anchor;exact_vector2 direction;};struct exact_li
 struct exact_interval{exact_scalar lower,upper;bool lower_closed=true,upper_closed=true;};
 struct exact_box2{exact_point2 minimum,maximum;};struct exact_box3{exact_point3 minimum,maximum;};
 struct exact_plane3{big_int a,b,c,d;orientation_parity oriented=orientation_parity::agree;};
+enum class predicate_execution_policy:std::uint8_t{automatic,exact_only,force_filter_attempt,force_exact_fallback};
 
 enum class construction_kind:std::uint8_t{exact_relation};
 enum class defining_relation_kind:std::uint8_t{
@@ -53,11 +54,17 @@ exact_vector2 operator-(const exact_point2&,const exact_point2&);exact_vector3 o
 exact_point2 operator+(const exact_point2&,const exact_vector2&);exact_point3 operator+(const exact_point3&,const exact_vector3&);
 exact_vector2 operator*(const exact_vector2&,const exact_scalar&);exact_vector3 operator*(const exact_vector3&,const exact_scalar&);
 exact_scalar dot(const exact_vector2&,const exact_vector2&);exact_scalar dot(const exact_vector3&,const exact_vector3&);exact_vector3 cross(const exact_vector3&,const exact_vector3&);
-exact_sign orient2d(const exact_point2&,const exact_point2&,const exact_point2&);exact_sign orient3d(const exact_point3&,const exact_point3&,const exact_point3&,const exact_point3&);
+exact_sign dot_sign_exact(const exact_vector2&,const exact_vector2&);exact_sign dot_sign_exact(const exact_vector3&,const exact_vector3&);
+exact_sign dot_sign(const exact_vector2&,const exact_vector2&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);
+exact_sign dot_sign(const exact_vector3&,const exact_vector3&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);
+exact_sign orient2d_exact(const exact_point2&,const exact_point2&,const exact_point2&);exact_sign orient3d_exact(const exact_point3&,const exact_point3&,const exact_point3&,const exact_point3&);
+exact_sign orient2d(const exact_point2&,const exact_point2&,const exact_point2&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);
+exact_sign orient3d(const exact_point3&,const exact_point3&,const exact_point3&,const exact_point3&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);
 int lexicographic_compare(const exact_point2&,const exact_point2&);int lexicographic_compare(const exact_point3&,const exact_point3&);
 exact_point2 project(const exact_point3&,projection_axis);
 status_or<exact_plane3>support_plane(const exact_point3&,const exact_point3&,const exact_point3&);
-exact_sign plane_side(const exact_plane3&,const exact_point3&);projection_axis dominant_projection(const exact_plane3&);
+exact_sign plane_side_exact(const exact_plane3&,const exact_point3&);
+exact_sign plane_side(const exact_plane3&,const exact_point3&,predicate_execution_policy=predicate_execution_policy::automatic,coordinate_tag=coordinate_tag::binary64);projection_axis dominant_projection(const exact_plane3&);
 
 enum class point_line_relation:std::uint8_t{off_carrier,on_carrier};
 enum class point_segment_relation:std::uint8_t{off_carrier,before_origin,at_origin,open_interior,at_destination,after_destination};
@@ -155,8 +162,17 @@ struct strict_cone_constraint { exact_vector3 normal; exact_sign required=exact_
 struct exact_cone_witness { exact_vector3 direction; std::vector<exact_sign> evaluations; };
 status_or<exact_cone_witness> construct_strict_cone_witness(const std::vector<strict_cone_constraint>&);
 
-enum class predicate_execution_policy:std::uint8_t{automatic,exact_only,force_filter_attempt,force_exact_fallback};
-template<class T>class exact_kernel final:public exact_kernel_services<T>{static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value,"binary float only");public:coordinate_tag coordinate_type()const noexcept override{return std::is_same<T,float>::value?coordinate_tag::binary32:coordinate_tag::binary64;}std::vector<std::uint8_t>arithmetic_policy_bytes()const override;std::uint64_t implementation_type_tag()const noexcept override{return 0x5947424b45523033ULL;}status_or<decoded_coordinate<T>>decode(T v,boolean_stage s=boolean_stage::input_validation)const{return decode_coordinate(v,s);}exact_sign orientation(const exact_point2&a,const exact_point2&b,const exact_point2&c,predicate_execution_policy={})const{return orient2d(a,b,c);}exact_sign orientation(const exact_point3&a,const exact_point3&b,const exact_point3&c,const exact_point3&d,predicate_execution_policy={})const{return orient3d(a,b,c,d);}};
+namespace exact_filter_policy {
+extern const std::uint16_t orient2d_proof_version,orient3d_proof_version,plane_side_proof_version,dot_sign_proof_version;
+// Process-wide test seam. It is nonsemantic and does not enter policy bytes.
+predicate_execution_policy exchange_test_execution_policy(predicate_execution_policy)noexcept;
+std::optional<exact_sign>orient2d(const exact_point2&,const exact_point2&,const exact_point2&,coordinate_tag)noexcept;
+std::optional<exact_sign>orient3d(const exact_point3&,const exact_point3&,const exact_point3&,const exact_point3&,coordinate_tag)noexcept;
+std::optional<exact_sign>plane_side(const exact_plane3&,const exact_point3&,coordinate_tag)noexcept;
+std::optional<exact_sign>dot_sign(const exact_vector2&,const exact_vector2&,coordinate_tag)noexcept;
+std::optional<exact_sign>dot_sign(const exact_vector3&,const exact_vector3&,coordinate_tag)noexcept;
+}
+template<class T>class exact_kernel final:public exact_kernel_services<T>{static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value,"binary float only");public:coordinate_tag coordinate_type()const noexcept override{return std::is_same<T,float>::value?coordinate_tag::binary32:coordinate_tag::binary64;}std::vector<std::uint8_t>arithmetic_policy_bytes()const override;std::uint64_t implementation_type_tag()const noexcept override{return 0x5947424b45523033ULL;}status_or<decoded_coordinate<T>>decode(T v,boolean_stage s=boolean_stage::input_validation)const{return decode_coordinate(v,s);}exact_sign orientation(const exact_point2&a,const exact_point2&b,const exact_point2&c,predicate_execution_policy p={})const{return orient2d(a,b,c,p,coordinate_type());}exact_sign orientation(const exact_point3&a,const exact_point3&b,const exact_point3&c,const exact_point3&d,predicate_execution_policy p={})const{return orient3d(a,b,c,d,p,coordinate_type());}exact_sign side(const exact_plane3&p,const exact_point3&q,predicate_execution_policy x={})const{return plane_side(p,q,x,coordinate_type());}exact_sign sign_of_dot(const exact_vector2&a,const exact_vector2&b,predicate_execution_policy p={})const{return dot_sign(a,b,p,coordinate_type());}exact_sign sign_of_dot(const exact_vector3&a,const exact_vector3&b,predicate_execution_policy p={})const{return dot_sign(a,b,p,coordinate_type());}};
 extern template class exact_kernel<float>;extern template class exact_kernel<double>;
 } }
 #endif

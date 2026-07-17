@@ -1,7 +1,40 @@
 #include "MeshBooleanExactKernelFixtures.h"
+#include <YgorMeshesBooleanPerformance.h>
+#include <cfenv>
 #include <iostream>
 using namespace exact_test;
 static void predicates(){require(orient2d(p2(0,0),p2(1,0),p2(0,1))==exact_sign::positive,"orient2d");require(orient3d(p3(0,0,0),p3(1,0,0),p3(0,1,0),p3(0,0,1))==exact_sign::positive,"orient3d");auto pl=support_plane(p3(0,0,0),p3(1,0,0),p3(0,1,0)).value();require(plane_side(pl,p3(0,0,1))==exact_sign::positive,"plane side");require(dominant_projection(pl)==projection_axis::drop_z,"projection");}
+static void certified_filters(){
+  exact_kernel<float> k32;exact_kernel<double> k64;
+  const auto a=p2(0,0),b=p2(4,0),c=p2(0,3);
+  require(exact_filter_policy::orient2d(a,b,c,coordinate_tag::binary32)==exact_sign::positive,"orient2d binary32 accepts");
+  require(exact_filter_policy::orient2d(a,b,c,coordinate_tag::binary64)==exact_sign::positive,"orient2d binary64 accepts");
+  require(k32.orientation(a,b,c,predicate_execution_policy::force_filter_attempt)==orient2d_exact(a,b,c),"orient2d forced attempt");
+  require(k64.orientation(a,b,c,predicate_execution_policy::force_exact_fallback)==orient2d_exact(a,b,c),"orient2d forced fallback");
+  const auto p0=p3(0,0,0),p1=p3(3,0,0),p2v=p3(0,4,0),p3v=p3(0,0,5);
+  require(exact_filter_policy::orient3d(p0,p1,p2v,p3v,coordinate_tag::binary64)==exact_sign::positive,"orient3d accepts");
+  require(k64.orientation(p0,p1,p2v,p3v,predicate_execution_policy::force_filter_attempt)==orient3d_exact(p0,p1,p2v,p3v),"orient3d forced attempt");
+  auto plane=support_plane(p0,p1,p2v).value();
+  require(exact_filter_policy::plane_side(plane,p3v,coordinate_tag::binary64)==exact_sign::positive,"plane filter accepts");
+  require(k64.side(plane,p3v,predicate_execution_policy::force_exact_fallback)==plane_side_exact(plane,p3v),"plane forced fallback");
+  exact_vector3 u{q(1),q(2),q(3)},v{q(4),q(5),q(6)};
+  require(exact_filter_policy::dot_sign(u,v,coordinate_tag::binary64)==exact_sign::positive,"dot filter accepts");
+  require(k64.sign_of_dot(u,v,predicate_execution_policy::force_exact_fallback)==dot_sign_exact(u,v),"dot forced fallback");
+  require(!exact_filter_policy::orient2d(a,b,p2(8,0),coordinate_tag::binary64),"exact zero falls back");
+  const exact_point2 thirds{q(1,3),q(1,3)};
+  require(!exact_filter_policy::orient2d(thirds,p2(1,1),p2(2,3),coordinate_tag::binary64),"non-dyadic falls back");
+  const auto denorm=decode_coordinate(from_bits<float>(1U)).value().value;
+  require(!exact_filter_policy::orient2d({q(0),q(0)},{denorm,q(0)},{q(0),denorm},coordinate_tag::binary32),"subnormal filter bypass");
+  const auto negative_zero=decode_coordinate(from_bits<float>(0x80000000U)).value().value;
+  require(!exact_filter_policy::orient2d({negative_zero,q(0)},b,p2(8,0),coordinate_tag::binary32),"signed zero degeneracy falls back");
+  const auto original_round=std::fegetround();
+  if(std::fesetround(FE_DOWNWARD)==0){require(!exact_filter_policy::orient2d(a,b,c,coordinate_tag::binary64),"non-nearest filter bypass");require(orient2d(a,b,c)==orient2d_exact(a,b,c),"ambient rounding exact fallback");require(std::fegetround()==FE_DOWNWARD,"filter preserves ambient rounding");require(std::fesetround(original_round)==0,"restore rounding");}
+  require(exact_filter_policy::orient2d_proof_version>0&&exact_filter_policy::orient3d_proof_version>0&&exact_filter_policy::plane_side_proof_version>0&&exact_filter_policy::dot_sign_proof_version>0,"proof versions enabled");
+  require(k32.arithmetic_policy_bytes()!=k64.arithmetic_policy_bytes(),"coordinate policy identity");
+  performance_collector collector;{performance_scope scope(&collector,boolean_stage::input_validation,performance_role::producer);(void)orient2d(a,b,c);(void)orient2d(a,b,p2(8,0));(void)k64.orientation(a,b,c,predicate_execution_policy::force_exact_fallback);}
+  const auto counters=collector.snapshot()->stage(boolean_stage::input_validation).producer;
+  require(counters.value(performance_counter::orient2d_filter_accepts)>0&&counters.value(performance_counter::orient2d_filter_fallbacks)>0&&counters.value(performance_counter::exact_fallbacks)>0,"filter counters");
+}
 static void classifications(){exact_segment2 s{p2(0,0),p2(4,0)};require(classify_point_segment(p2(2,0),s)==point_segment_relation::open_interior,"point segment");auto poly=std::vector<exact_point2>{p2(0,0),p2(4,0),p2(4,4),p2(0,4)};require(classify_point_polygon(p2(2,2),poly).value().kind==point_region_kind::open_interior,"point polygon");require(classify_point_polygon(p2(4,2),poly).value().kind==point_region_kind::boundary_edge_interior,"polygon boundary");auto x=relate_segments(s,{p2(2,-1),p2(2,1)});require(x.dimension==intersection_dimension::point&&x.point_kind==segment_point_kind::proper_crossing&&*x.point==p2(2,0),"segment crossing");}
 static void constructions(){auto pl=support_plane(p3(0,0,0),p3(2,0,0),p3(0,2,0)).value();auto x=intersect_line_plane({p3(1,1,-1),exact_vector3{q(0),q(0),q(2)}},pl);require(x.kind==line_plane_kind::unique&&plane_side(pl,*x.point)==exact_sign::zero,"line plane");auto pp=intersect_planes(pl,support_plane(p3(0,0,0),p3(0,1,0),p3(0,0,1)).value());require(pp.kind==plane_plane_kind::nonparallel,"plane plane");require(plane_side(pl,pp.line->anchor)==exact_sign::zero,"carrier substitution");}
 static void polygon_relations(){exact_triangle3 a{p3(0,0,0),p3(4,0,0),p3(0,4,0)},b{p3(1,1,-1),p3(1,1,1),p3(3,1,0)},c{p3(1,1,0),p3(2,1,0),p3(1,2,0)};require(relate_triangles(a,b)==polygon_intersection_kind::segment,"crossing triangles");require(relate_triangles(a,c)==polygon_intersection_kind::area,"coplanar overlap");std::vector<exact_triangle3>tet{{p3(0,0,0),p3(0,4,0),p3(4,0,0)},{p3(0,0,0),p3(4,0,0),p3(0,0,4)},{p3(4,0,0),p3(0,4,0),p3(0,0,4)},{p3(0,4,0),p3(0,0,0),p3(0,0,4)}};require(classify_point_closed_triangle_shell(p3(1,1,1),tet).value()==solid_point_kind::inside,"point in shell");require(classify_point_closed_triangle_shell(p3(5,5,5),tet).value()==solid_point_kind::outside,"point outside shell");}
@@ -71,4 +104,4 @@ static void stable_formal_ray_fallback(){
   require(alternate.has_value()&&alternate.value().ray_direction_index!=result.value().ray_direction_index&&alternate.value().signed_degree==result.value().signed_degree,"stable fallback has a distinct wrapping alternate");
 }
 static void radial_and_cones(){auto xy=support_plane(p3(0,0,0),p3(1,0,0),p3(0,1,0)).value(),xz=support_plane(p3(0,0,0),p3(1,0,0),p3(0,0,1)).value();auto order=rank_planes_around_carrier(exact_vector3{q(1),q(0),q(0)},{xy,xz});require(order.has_value()&&order.value().layers.size()==2,"exact carrier radial layers");auto witness=construct_strict_cone_witness({{exact_vector3{q(1),q(0),q(0)},exact_sign::positive},{exact_vector3{q(0),q(1),q(0)},exact_sign::positive}});require(witness.has_value()&&witness.value().evaluations==std::vector<exact_sign>({exact_sign::positive,exact_sign::positive}),"strict cone witness");}
-int main(){try{predicates();classifications();constructions();polygon_relations();formal_point_location();grouped_ray_ownership();stable_formal_ray_fallback();radial_and_cones();exact_kernel<double>k;require(k.coordinate_type()==coordinate_tag::binary64&&!k.arithmetic_policy_bytes().empty(),"service");std::cout<<"PASS exact kernel\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}
+int main(){try{predicates();certified_filters();classifications();constructions();polygon_relations();formal_point_location();grouped_ray_ownership();stable_formal_ray_fallback();radial_and_cones();exact_kernel<double>k;require(k.coordinate_type()==coordinate_tag::binary64&&!k.arithmetic_policy_bytes().empty(),"service");std::cout<<"PASS exact kernel\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

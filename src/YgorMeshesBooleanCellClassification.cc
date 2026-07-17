@@ -291,7 +291,7 @@ exact_sign formal_plane_sign(const exact_plane3 &plane,
                   exact_scalar(plane.c, big_uint(1))};
   if (plane.oriented == orientation_parity::opposite)
     n = n * exact_scalar(-1);
-  return dot(n, point.infinitesimal_direction).sign();
+  return dot_sign(n, point.infinitesimal_direction);
 }
 template <class T, class I>
 status_or<formal_open_point_view>

@@ -295,6 +295,16 @@ enum class performance_counter : std::uint8_t {
   realization_complete_assignments,
   allocation_count,
   copied_artifact_bytes,
+  plane_side_calls,
+  dot_sign_calls,
+  orient2d_filter_accepts,
+  orient2d_filter_fallbacks,
+  orient3d_filter_accepts,
+  orient3d_filter_fallbacks,
+  plane_side_filter_accepts,
+  plane_side_filter_fallbacks,
+  dot_sign_filter_accepts,
+  dot_sign_filter_fallbacks,
   count
 };
 struct performance_counter_snapshot {

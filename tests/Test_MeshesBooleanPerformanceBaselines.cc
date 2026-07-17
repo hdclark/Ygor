@@ -20,19 +20,25 @@ struct frozen_baseline {
 };
 
 const frozen_baseline baselines[] = {
-    {"B0", operation::regularized_union, "cc2ccfd0028234ffea38825733e3f446", 0, 0, 12, 16, 24, 60486},
-    {"B1", operation::regularized_union, "cc2ccfd0028234ffea38825733e3f446", 0, 0, 12, 16, 24, 60486},
-    {"B2", operation::regularized_union, "a05c9a54b1b2b18cb840f39491ac879a", 6, 12, 12, 20, 36, 96626},
-    {"B3", operation::regularized_union, "83c2b3fa3174d0ef169a43e2a330d86e", 20, 48, 14, 16, 28, 69356},
-    {"B4", operation::regularized_union, "20109e4920fef993465d3bf86587818d", 4, 8, 11, 16, 28, 74601},
-    {"B5", operation::a_minus_b, "4f00278669ce6d80424915ec08f19b4f", 8, 16, 10, 16, 32, 88467},
-    {"B6", operation::regularized_union, "4eb932e71b6f37072f45bc6abc912793", 0, 0, 6, 8, 12, 30172},
-    {"B7", operation::regularized_union, "9c6f60db01e8566099184a1ad1200f62", 4, 8, 17, 24, 40, 104623},
-    {"B8", operation::regularized_union, "4ddbc6556ce9273dce0e1be182235378", 12, 28, 14, 20, 36, 103790},
+    {"B0", operation::regularized_union, "21cbe88be34183af2a4a1dbcbea815f9", 0, 0, 12, 16, 24, 60486},
+    {"B1", operation::regularized_union, "21cbe88be34183af2a4a1dbcbea815f9", 0, 0, 12, 16, 24, 60486},
+    {"B2", operation::regularized_union, "8ab64aecce1cb6c3811582962b942433", 6, 12, 12, 20, 36, 96626},
+    {"B3", operation::regularized_union, "aa7ba03125f4a12a1816663cfbd6dfa4", 20, 48, 14, 16, 28, 69356},
+    {"B4", operation::regularized_union, "0742898a71ee22d7f13f695fea440f9e", 4, 8, 11, 16, 28, 74601},
+    {"B5", operation::a_minus_b, "8ea99cb11f2af36a82fd1544cdbdf00c", 8, 16, 10, 16, 32, 88467},
+    {"B6", operation::regularized_union, "1fb3f7992d92003bcdc8e87efd00b6d5", 0, 0, 6, 8, 12, 30172},
+    {"B7", operation::regularized_union, "b891fe7f99c9e75e6d43f57081960ee8", 4, 8, 17, 24, 40, 104623},
+    {"B8", operation::regularized_union, "9f3ec87295a16c6de74c994882172340", 12, 28, 14, 20, 36, 103790},
 };
 
 performance_observation run(const frozen_baseline &baseline,
-                            std::uint32_t threads) {
+                             std::uint32_t threads,
+                             predicate_execution_policy predicates=predicate_execution_policy::automatic) {
+  struct policy_scope {
+    predicate_execution_policy previous;
+    explicit policy_scope(predicate_execution_policy policy):previous(exact_filter_policy::exchange_test_execution_policy(policy)){}
+    ~policy_scope(){exact_filter_policy::exchange_test_execution_policy(previous);}
+  } policy(predicates);
   boolean_options options;
   options.execution.max_threads = threads;
   options.verification = verification_level::mandatory;
@@ -74,6 +80,7 @@ void require_frozen(const frozen_baseline &baseline,
 void check_baseline(const frozen_baseline &baseline) {
   const auto single = run(baseline, 1);
   const auto parallel = run(baseline, 4);
+  const auto exact_only = run(baseline, 1, predicate_execution_policy::exact_only);
   require_frozen(baseline, single);
   require_frozen(baseline, parallel);
   require_equal(parallel.typed_outcome(), single.typed_outcome(),
@@ -82,6 +89,14 @@ void check_baseline(const frozen_baseline &baseline) {
                 "thread-count stage semantic identity");
   require_equal(parallel.canonical_output_bytes, single.canonical_output_bytes,
                 "thread-count complete canonical output bytes");
+  require_equal(exact_only.typed_outcome(), single.typed_outcome(),
+                "filter-on/off typed outcome identity");
+  require_equal(exact_only.semantic_digests, single.semantic_digests,
+                "filter-on/off stage semantic identity");
+  require_equal(exact_only.canonical_output_bytes, single.canonical_output_bytes,
+                "filter-on/off complete canonical output bytes");
+  require(exact_only.counters == single.counters,
+          "filter-on/off deterministic artifact counters");
   require(parallel.counters == single.counters,
           "thread-count deterministic artifact counters");
   require_equal(parallel.producer_counters.values,

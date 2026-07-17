@@ -73,10 +73,10 @@ The core snapshot API is consumed in `MeshBooleanPerformanceSupport.h` through
 fallback and cross-check. New snapshot fields should be adapted there rather
 than spread through fixture generators or baseline assertions.
 
-The baseline test currently compares mandatory verification at one and four
-threads. When a public test policy for forcing exact-kernel filters off and on
-is available, add that policy matrix in `observe_performance_fixture` and keep
-the same semantic-byte and deterministic-counter equality checks.
+The baseline test compares mandatory verification at one and four threads and
+replays every B0-B8 fixture with exact-kernel filters disabled. Typed outcomes,
+semantic digests, canonical bytes, and deterministic artifact counters must be
+identical with filters enabled and disabled.
 
 ## Exact Arithmetic
 
