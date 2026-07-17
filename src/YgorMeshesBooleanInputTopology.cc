@@ -18,7 +18,9 @@ boolean_error input_error(input_validation_subcode c,const char*k){return make_e
 template<class T>exact_point3 point(const decoded_coordinate<T>&x,const decoded_coordinate<T>&y,const decoded_coordinate<T>&z){return{x.value,y.value,z.value};}
 void enc_point(canonical_encoder&e,const exact_point3&p){p.x.encode(e);p.y.encode(e);p.z.encode(e);}
 void enc_plane(canonical_encoder&e,const exact_plane3&p){p.a.encode(e);p.b.encode(e);p.c.encode(e);p.d.encode(e);e.byte(static_cast<std::uint8_t>(p.oriented));}
+bool equal_plane(const exact_plane3&a,const exact_plane3&b){return a.a==b.a&&a.b==b.b&&a.c==b.c&&a.d==b.d&&a.oriented==b.oriented;}
 void enc_box(canonical_encoder&,const exact_box3&);
+template<class T>std::vector<T>rotated_key(const std::vector<T>&values,std::size_t shift){std::vector<T>out;out.reserve(values.size());for(std::size_t i=0;i<values.size();++i)out.push_back(values[(shift+i)%values.size()]);return out;}
 template <class T, class I>
 std::vector<std::uint8_t> encode_artifact(const artifact_t<T, I> &a) {
   canonical_encoder e;
@@ -148,16 +150,17 @@ semantic_operand_bytes(const artifact_t<T, I> &a, operand_id role,
         enc_point(p, a.vertices[id.value_for_debug()].exact_coordinate);
         cycle.push_back(p.bytes());
       }
-      std::vector<std::uint8_t> best;
-      for (std::size_t shift = 0; shift < cycle.size(); ++shift) {
-        canonical_encoder q;
-        q.u64(cycle.size());
-        for (std::size_t k = 0; k < cycle.size(); ++k)
-          q.byte_string(cycle[(shift + k) % cycle.size()]);
-        if (best.empty() || q.bytes() < best)
-          best = q.bytes();
-      }
-      facets.push_back(std::move(best));
+      auto encoded_token_less = [](const std::vector<std::uint8_t> &x,
+                                   const std::vector<std::uint8_t> &y) {
+        return x.size() != y.size() ? x.size() < y.size() : x < y;
+      };
+      const auto shift = input_topology_detail::minimal_cyclic_rotation(
+          cycle, encoded_token_less);
+      canonical_encoder q;
+      q.u64(cycle.size());
+      for (std::size_t k = 0; k < cycle.size(); ++k)
+        q.byte_string(cycle[(shift + k) % cycle.size()]);
+      facets.push_back(q.bytes());
     }
   for (const auto &s : a.shells)
     if (s.operand == role) {
@@ -295,46 +298,41 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
       reservations.push_back(std::move(exact_charge.value()));
         for(std::size_t fi=0;fi<m.faces.size();++fi){const auto&f=m.faces[fi];if(f.size()<3)return input_error(input_validation_subcode::short_ring,"short_ring");std::set<I>seen;for(std::size_t j=0;j<f.size();++j){if(static_cast<std::uint64_t>(f[j])>=m.vertices.size())return input_error(input_validation_subcode::index_out_of_range,"index_out_of_range");if(!seen.insert(f[j]).second)return input_error(input_validation_subcode::repeated_vertex,"repeated_ring_vertex");used[f[j]]=true;if(points[f[j]]==points[f[(j+1)%f.size()]])return input_error(input_validation_subcode::zero_length_edge,"zero_length_edge");}}
         std::vector<original_vertex_id>vmap(m.vertices.size());std::vector<std::size_t>vertex_order;for(std::size_t i=0;i<m.vertices.size();++i)if(used[i])vertex_order.push_back(i);std::sort(vertex_order.begin(),vertex_order.end(),[&](std::size_t x,std::size_t y){int c=lexicographic_compare(points[x],points[y]);return c?c<0:x<y;});for(auto i:vertex_order){auto id=original_vertex_id::from_canonical_value(vertex_base++);vmap[i]=id;validated_vertex<T>v;v.id=id;v.operand=oid;v.raw_coordinate={m.vertices[i].x,m.vertices[i].y,m.vertices[i].z};v.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};v.exact_coordinate=points[i];out->vertices.push_back(std::move(v));op.vertices.push_back(id);}for(std::size_t i=0;i<m.vertices.size();++i){source_vertex_provenance<T>p;p.operand=oid;p.raw_vertex_ordinal=i;p.raw_bits={bits_of(m.vertices[i].x),bits_of(m.vertices[i].y),bits_of(m.vertices[i].z)};p.exact_coordinate=points[i];if(used[i]){p.disposition=raw_vertex_disposition::retained;p.canonical_vertex=vmap[i];}out->raw_vertex_provenance[role][i]=out->provenance.size();out->provenance.push_back(std::move(p));}
-        auto face_key = [&](std::size_t fi) {
-          std::vector<std::uint64_t> x;
-          for (I v : m.faces[fi])
-            x.push_back(vmap[v].value_for_debug());
-          std::vector<std::uint64_t> best;
-          for (std::size_t shift = 0; shift < x.size(); ++shift) {
-            std::vector<std::uint64_t> q;
-            for (std::size_t k = 0; k < x.size(); ++k)
-              q.push_back(x[(shift + k) % x.size()]);
-            if (best.empty() || q < best)
-              best = q;
-          }
-          return best;
+        struct face_canonicalization {
+          std::size_t directed_rotation = 0;
+          std::vector<std::uint64_t> directed_key;
+          std::vector<std::uint64_t> unoriented_key;
         };
+        std::vector<face_canonicalization> face_keys(m.faces.size());
+        for (std::size_t fi = 0; fi < m.faces.size(); ++fi) {
+          std::vector<std::uint64_t> ids;
+          ids.reserve(m.faces[fi].size());
+          for (I v : m.faces[fi]) ids.push_back(vmap[v].value_for_debug());
+          auto &keys = face_keys[fi];
+          keys.directed_rotation =
+              input_topology_detail::minimal_cyclic_rotation(ids);
+          keys.directed_key = rotated_key(ids, keys.directed_rotation);
+          std::reverse(ids.begin(), ids.end());
+          const auto reverse_rotation =
+              input_topology_detail::minimal_cyclic_rotation(ids);
+          auto reverse_key = rotated_key(ids, reverse_rotation);
+          keys.unoriented_key = std::min(keys.directed_key, reverse_key);
+        }
         std::vector<std::size_t> face_order(m.faces.size());
         for (std::size_t i = 0; i < m.faces.size(); ++i)
           face_order[i] = i;
         std::sort(face_order.begin(), face_order.end(),
                   [&](std::size_t x, std::size_t y) {
-                    auto a = face_key(x), b = face_key(y);
+                     const auto &a = face_keys[x].directed_key;
+                     const auto &b = face_keys[y].directed_key;
                     return a != b ? a < b : x < y;
                   });
         std::set<std::vector<std::uint64_t>> facet_keys;
         std::vector<std::vector<edge_use_id>> face_uses(m.faces.size());
         for (std::size_t fi : face_order) {
           const auto &rf = m.faces[fi];
-          std::vector<std::uint64_t> fk;
-          for (I x : rf)
-            fk.push_back(static_cast<std::uint64_t>(x));
-          std::vector<std::uint64_t> canonical;
-          for (unsigned reverse = 0; reverse < 2; ++reverse)
-            for (std::size_t shift = 0; shift < fk.size(); ++shift) {
-              std::vector<std::uint64_t> q;
-              for (std::size_t k = 0; k < fk.size(); ++k)
-                q.push_back(fk[reverse ? (shift + fk.size() - k) % fk.size()
-                                       : (shift + k) % fk.size()]);
-              if (canonical.empty() || q < canonical)
-                canonical = q;
-            }
-          if (!facet_keys.insert(canonical).second)
+          const auto &keys = face_keys[fi];
+          if (!facet_keys.insert(keys.unoriented_key).second)
             return input_error(input_validation_subcode::duplicate_facet,
                                "duplicate_facet");
           validated_facet f;
@@ -342,18 +340,24 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           f.operand = oid;
           f.raw_face_ordinal = fi;
           out->raw_facets[role][fi] = f.id;
-          std::size_t ring_start = 0;
-          for (std::size_t i = 1; i < rf.size(); ++i)
-            if (vmap[rf[i]] < vmap[rf[ring_start]])
-              ring_start = i;
+          const std::size_t ring_start = keys.directed_rotation;
           for (std::size_t i = 0; i < rf.size(); ++i)
             f.ring.push_back(vmap[rf[(ring_start + i) % rf.size()]]);
+          const auto canonical_raw = [&](std::size_t i) {
+            return rf[(ring_start + i) % rf.size()];
+          };
+          std::size_t second = 1;
+          while (second < rf.size() &&
+                 points[canonical_raw(second)] == points[canonical_raw(0)])
+            ++second;
           status_or<exact_plane3> pl = input_error(
               input_validation_subcode::degenerate_facet, "degenerate_facet");
-          for (std::size_t i = 0; i < rf.size() && !pl.has_value(); ++i)
-            for (std::size_t j = i + 1; j < rf.size() && !pl.has_value(); ++j)
-              for (std::size_t k = j + 1; k < rf.size() && !pl.has_value(); ++k)
-                pl = support_plane_dyadic(points[rf[i]], points[rf[j]], points[rf[k]]);
+          for (std::size_t third = second + 1;
+               second < rf.size() && third < rf.size() && !pl.has_value();
+               ++third)
+            pl = support_plane_dyadic(points[canonical_raw(0)],
+                                      points[canonical_raw(second)],
+                                      points[canonical_raw(third)]);
           if (!pl.has_value())
             return input_error(input_validation_subcode::degenerate_facet,
                                "degenerate_facet");
@@ -693,13 +697,34 @@ verify_typed(const artifact_view &v, const verification_spec &s,
           break;
         case invariant_code::input_facets:
           for (const auto &f : a.facets) {
+            ok = ok && f.ring.size() >= 3;
+            for (auto q : f.ring)
+              ok = ok && q.valid() && q.value_for_debug() < a.vertices.size();
+            if (!ok) break;
+            status_or<exact_plane3> reconstructed = input_error(
+                input_validation_subcode::degenerate_facet,
+                "verifier_degenerate_facet");
+            std::size_t second = 1;
+            while (second < f.ring.size() &&
+                   a.vertices[f.ring[second].value_for_debug()].exact_coordinate ==
+                       a.vertices[f.ring[0].value_for_debug()].exact_coordinate)
+              ++second;
+            for (std::size_t third = second + 1;
+                 second < f.ring.size() && third < f.ring.size() &&
+                 !reconstructed.has_value();
+                 ++third)
+              reconstructed = support_plane_dyadic(
+                  a.vertices[f.ring[0].value_for_debug()].exact_coordinate,
+                  a.vertices[f.ring[second].value_for_debug()].exact_coordinate,
+                  a.vertices[f.ring[third].value_for_debug()].exact_coordinate);
+            ok = ok && reconstructed.has_value() &&
+                 equal_plane(reconstructed.value(), f.plane);
             std::vector<exact_point2> projected;
             for (auto q : f.ring)
-              ok = ok && q.valid() && q.value_for_debug() < a.vertices.size() &&
-                   plane_side(
-                       f.plane,
-                       a.vertices[q.value_for_debug()].exact_coordinate) ==
-                       exact_sign::zero;
+              ok = ok && plane_side(
+                             f.plane,
+                             a.vertices[q.value_for_debug()].exact_coordinate) ==
+                             exact_sign::zero;
             for (auto q : f.ring)
               projected.push_back(project(
                   a.vertices[q.value_for_debug()].exact_coordinate,

@@ -4,9 +4,37 @@
 #include "YgorMeshesBooleanTransaction.h"
 #include "YgorMeshesBooleanVerification.h"
 #include "YgorMeshesExactKernel.h"
+#include <functional>
 #include <optional>
 
 namespace ygor { namespace mesh_boolean {
+
+namespace input_topology_detail {
+template <class T, class Less = std::less<T>>
+std::size_t minimal_cyclic_rotation(const std::vector<T> &values,
+                                    Less less = Less{}) {
+  if (values.empty()) return 0;
+  const std::size_t n = values.size();
+  std::size_t first = 0, second = 1, matched = 0;
+  while (first < n && second < n && matched < n) {
+    const auto &a = values[(first + matched) % n];
+    const auto &b = values[(second + matched) % n];
+    if (!less(a, b) && !less(b, a)) {
+      ++matched;
+      continue;
+    }
+    if (less(b, a)) {
+      first += matched + 1;
+      if (first == second) ++first;
+    } else {
+      second += matched + 1;
+      if (first == second) ++second;
+    }
+    matched = 0;
+  }
+  return std::min(first, second) % n;
+}
+} // namespace input_topology_detail
 
 constexpr std::uint64_t validated_operands_type_tag=0x5947425641543032ULL; // YGBVAT02
 constexpr std::uint16_t validated_operands_schema=1;
