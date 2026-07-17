@@ -41,7 +41,121 @@ bool valid_exact_feature_bound(const exact_feature_bound3&b)noexcept{return inte
 bool exact_bounds_overlap(const exact_feature_bound3&a,const exact_feature_bound3&b)noexcept{return interval_overlap(a.x,b.x)&&interval_overlap(a.y,b.y)&&interval_overlap(a.z,b.z);}
 exact_feature_bound3 exact_bound_union(const exact_feature_bound3&a,const exact_feature_bound3&b){return {interval_union(a.x,b.x),interval_union(a.y,b.y),interval_union(a.z,b.z)};}
 
-status_or<std::vector<bounded_feature_pair>>enumerate_bounded_feature_self(const std::vector<bounded_feature_view>&in,resource_accountant*accountant,const std::function<bool()>&cancelled){try{std::vector<bounded_feature_view>v=in;if(v.empty())return std::vector<bounded_feature_pair>{};const auto owner=v.front().key.owner;const auto domain=v.front().key.caller_domain;std::sort(v.begin(),v.end(),[](const auto&a,const auto&b){return bounded_key_less(a.key,b.key);});for(std::size_t i=0;i<v.size();++i)if(v[i].key.owner!=owner||v[i].key.caller_domain!=domain||v[i].key.canonical_rank!=i||(v[i].source==bound_source_kind::exact_box&&!valid_exact_feature_bound(v[i].bound)))return make_error(boolean_error_code::input_contract_error,boolean_stage::input_validation,"bounded_feature_contract");auto pairs=checked_multiply(v.size(),v.size()-1,boolean_stage::input_validation);if(!pairs.has_value())return pairs.error();if(accountant){auto q=accountant->reserve(resource_kind::work_units,pairs.value()/2,boolean_stage::input_validation);if(!q.has_value())return q.error();}std::vector<bounded_feature_pair>out;for(std::size_t i=0;i<v.size();++i)for(std::size_t j=i+1;j<v.size();++j){if(cancelled&&((i*v.size()+j)&1023U)==0&&cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");if(v[i].source==bound_source_kind::exhaustive_fallback||v[j].source==bound_source_kind::exhaustive_fallback||exact_bounds_overlap(v[i].bound,v[j].bound))out.push_back({v[i].key,v[j].key});}return out;}catch(const std::bad_alloc&){return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"bounded_feature_allocation");}}
+status_or<std::vector<bounded_feature_pair>> enumerate_bounded_feature_self(
+    const std::vector<bounded_feature_view> &in,
+    resource_accountant *accountant,
+    const std::function<bool()> &cancelled) {
+  try {
+    std::vector<bounded_feature_view> features = in;
+    if (features.empty()) return std::vector<bounded_feature_pair>{};
+    const auto owner = features.front().key.owner;
+    const auto domain = features.front().key.caller_domain;
+    std::sort(features.begin(), features.end(), [](const auto &a, const auto &b) {
+      return bounded_key_less(a.key, b.key);
+    });
+    for (std::size_t i = 0; i < features.size(); ++i)
+      if (features[i].key.owner != owner ||
+          features[i].key.caller_domain != domain ||
+          features[i].key.canonical_rank != i ||
+          (features[i].source == bound_source_kind::exact_box &&
+           !valid_exact_feature_bound(features[i].bound)))
+        return make_error(boolean_error_code::input_contract_error,
+                          boolean_stage::input_validation,
+                          "bounded_feature_contract");
+    auto pairs = checked_multiply(features.size(), features.size() - 1,
+                                  boolean_stage::input_validation);
+    if (!pairs.has_value()) return pairs.error();
+    if (accountant) {
+      auto reserved = accountant->reserve(resource_kind::work_units,
+                                           pairs.value() / 2,
+                                           boolean_stage::input_validation);
+      if (!reserved.has_value()) return reserved.error();
+    }
+
+    struct event {
+      exact_scalar coordinate;
+      bool start = false;
+      std::size_t feature = 0;
+    };
+    std::vector<event> events;
+    std::vector<std::size_t> fallback;
+    events.reserve(features.size() * 2);
+    for (std::size_t i = 0; i < features.size(); ++i) {
+      if (features[i].source == bound_source_kind::exhaustive_fallback) {
+        fallback.push_back(i);
+      } else {
+        events.push_back({features[i].bound.x.lower, true, i});
+        events.push_back({features[i].bound.x.upper, false, i});
+      }
+    }
+    std::sort(events.begin(), events.end(), [&](const event &a, const event &b) {
+      if (a.coordinate != b.coordinate) return a.coordinate < b.coordinate;
+      if (a.start != b.start) return a.start > b.start;
+      return a.feature < b.feature;
+    });
+
+    std::vector<bounded_feature_pair> result;
+    std::vector<std::size_t> active;
+    std::uint64_t work = 0;
+    auto add_pair = [&](std::size_t a, std::size_t b) {
+      if (b < a) std::swap(a, b);
+      result.push_back({features[a].key, features[b].key});
+    };
+    for (const auto &current : events) {
+      if (cancelled && ((work++) & 1023U) == 0 && cancelled())
+        return make_error(boolean_error_code::resource_limit,
+                          boolean_stage::input_validation, "cancelled");
+      if (current.start) {
+        for (auto other : active) {
+          ++work;
+          const auto &a = features[current.feature].bound;
+          const auto &b = features[other].bound;
+          if (interval_overlap(a.y, b.y) && interval_overlap(a.z, b.z))
+            add_pair(current.feature, other);
+        }
+        active.push_back(current.feature);
+      } else {
+        auto position = std::find(active.begin(), active.end(), current.feature);
+        if (position == active.end())
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::input_validation,
+                            "bounded_feature_sweep_transition");
+        active.erase(position);
+      }
+    }
+    if (!active.empty())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::input_validation,
+                        "bounded_feature_sweep_incomplete");
+
+    // A feature without a certified box remains a candidate against everything.
+    for (auto i : fallback)
+      for (std::size_t j = 0; j < features.size(); ++j) {
+        if (j == i) continue;
+        if (cancelled && ((work++) & 1023U) == 0 && cancelled())
+          return make_error(boolean_error_code::resource_limit,
+                            boolean_stage::input_validation, "cancelled");
+        add_pair(i, j);
+      }
+    std::sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
+      return std::tie(a.first.canonical_rank, a.second.canonical_rank) <
+             std::tie(b.first.canonical_rank, b.second.canonical_rank);
+    });
+    result.erase(std::unique(result.begin(), result.end(),
+                             [](const auto &a, const auto &b) {
+                               return a.first.canonical_rank ==
+                                          b.first.canonical_rank &&
+                                      a.second.canonical_rank ==
+                                          b.second.canonical_rank;
+                             }),
+                 result.end());
+    return result;
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::input_validation,
+                      "bounded_feature_allocation");
+  }
+}
 
 status_or<bool>register_broad_phase_verifier(verifier_registry&r,coordinate_tag c,index_tag i){verifier_registration x;x.slot=artifact_slot::candidate_stream;x.artifact_type_tag=candidate_stream_type_tag+(static_cast<std::uint64_t>(c)<<8)+static_cast<std::uint64_t>(i);x.artifact_schema=candidate_stream_schema;x.mandatory={invariant_code::broad_phase_binding,invariant_code::broad_phase_bounds,invariant_code::broad_phase_candidates,invariant_code::broad_phase_canonical_encoding};x.exhaustive=x.mandatory;if(c==coordinate_tag::binary32&&i==index_tag::uint32)x.callback=&callback<float,std::uint32_t>;else if(c==coordinate_tag::binary32)x.callback=&callback<float,std::uint64_t>;else if(i==index_tag::uint32)x.callback=&callback<double,std::uint32_t>;else x.callback=&callback<double,std::uint64_t>;return r.register_verifier(std::move(x));}
 

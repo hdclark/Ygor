@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanInputTopology.h"
+#include "YgorMeshesBooleanBroadPhase.h"
 #include <algorithm>
 #include <map>
 #include <new>
@@ -122,9 +123,166 @@ std::vector<std::uint8_t> encode_artifact(const artifact_t<T, I> &a) {
 template<class T,class I>digest artifact_digest_for(const artifact_t<T,I>&a){canonical_encoder e;e.raw(a.setup_digest.bytes.data(),16);e.byte(static_cast<std::uint8_t>(artifact_slot::validated_operands));e.byte_string(encode_artifact(a));return domain_digest({{'Y','G','B','A','R','T','0','1'}},e.bytes());}
 exact_scalar area2(const std::vector<exact_point2>&p){exact_scalar a(0);for(std::size_t i=0;i<p.size();++i){const auto&x=p[i];const auto&y=p[(i+1)%p.size()];a=a+x.x*y.y-y.x*x.y;}return a;}
 bool adjacent(std::size_t a,std::size_t b,std::size_t n){return a==b||(a+1)%n==b||(b+1)%n==a;}
-status_or<bool>simple_ring(const std::vector<exact_point2>&p){for(std::size_t i=0;i<p.size();++i)for(std::size_t j=i+1;j<p.size();++j){if(adjacent(i,j,p.size()))continue;auto r=relate_segments({p[i],p[(i+1)%p.size()]},{p[j],p[(j+1)%p.size()]});if(r.dimension!=intersection_dimension::empty)return input_error(input_validation_subcode::self_intersection,"self_intersecting_facet");}return true;}
+exact_interval closed_interval(const exact_scalar &a, const exact_scalar &b) {
+  return b < a ? exact_interval{b, a, true, true}
+               : exact_interval{a, b, true, true};
+}
+exact_feature_bound3 bound2(const exact_point2 &a, const exact_point2 &b) {
+  const exact_scalar zero(0);
+  return {closed_interval(a.x, b.x), closed_interval(a.y, b.y),
+          {zero, zero, true, true}};
+}
+exact_feature_bound3 bound3(const exact_box3 &box) {
+  return {{box.minimum.x, box.maximum.x, true, true},
+          {box.minimum.y, box.maximum.y, true, true},
+          {box.minimum.z, box.maximum.z, true, true}};
+}
+status_or<bool> simple_ring(const std::vector<exact_point2> &points,
+                            context_owner_token owner,
+                            const std::function<bool()> &cancelled) {
+  std::vector<bounded_feature_view> edges;
+  edges.reserve(points.size());
+  for (std::size_t i = 0; i < points.size(); ++i)
+    edges.push_back({{owner, 0x0201U, i}, bound_source_kind::exact_box,
+                     bound2(points[i], points[(i + 1) % points.size()]),
+                     bound_fallback_reason::caller_requested});
+  auto candidates = enumerate_bounded_feature_self(edges, nullptr, cancelled);
+  if (!candidates.has_value()) return candidates.error();
+  performance_count(performance_counter::ring_edge_candidate_pairs,
+                    candidates.value().size());
+  for (const auto &candidate : candidates.value()) {
+    const auto i = static_cast<std::size_t>(candidate.first.canonical_rank);
+    const auto j = static_cast<std::size_t>(candidate.second.canonical_rank);
+    if (adjacent(i, j, points.size())) continue;
+    performance_count(performance_counter::exact_ring_edge_tests);
+    auto relation = relate_segments(
+        {points[i], points[(i + 1) % points.size()]},
+        {points[j], points[(j + 1) % points.size()]});
+    if (relation.dimension != intersection_dimension::empty)
+      return input_error(input_validation_subcode::self_intersection,
+                         "self_intersecting_facet");
+  }
+  return true;
+}
 bool in_or_on_triangle(const exact_point2&p,const exact_point2&a,const exact_point2&b,const exact_point2&c,exact_sign winding){auto x=orient2d(a,b,p),y=orient2d(b,c,p),z=orient2d(c,a,p);if(winding==exact_sign::positive)return x!=exact_sign::negative&&y!=exact_sign::negative&&z!=exact_sign::negative;return x!=exact_sign::positive&&y!=exact_sign::positive&&z!=exact_sign::positive;}
-status_or<std::vector<std::array<std::size_t,3>>>triangulate(const std::vector<exact_point2>&p){std::vector<std::array<std::size_t,3>>out;std::vector<std::size_t>cycle(p.size());for(std::size_t i=0;i<p.size();++i)cycle[i]=i;auto winding=area2(p).sign();while(cycle.size()>3){std::optional<std::size_t>best;std::array<std::size_t,3>best_key{{0,0,0}};for(std::size_t k=0;k<cycle.size();++k){auto a=cycle[(k+cycle.size()-1)%cycle.size()],b=cycle[k],c=cycle[(k+1)%cycle.size()];if(orient2d(p[a],p[b],p[c])!=winding)continue;bool clear=true;for(auto q:cycle)if(q!=a&&q!=b&&q!=c&&in_or_on_triangle(p[q],p[a],p[b],p[c],winding)){clear=false;break;}if(!clear)continue;exact_point2 mid{(p[a].x+p[c].x)/exact_scalar(2),(p[a].y+p[c].y)/exact_scalar(2)};auto loc=classify_point_polygon(mid,p);if(!loc.has_value()||loc.value().kind!=point_region_kind::open_interior)continue;std::array<std::size_t,3>key{{a,b,c}};if(!best||key<best_key){best=k;best_key=key;}}if(!best)return make_error(boolean_error_code::internal_invariant_error,boolean_stage::input_validation,"exact_triangulation_failed");auto k=*best,a=cycle[(k+cycle.size()-1)%cycle.size()],b=cycle[k],c=cycle[(k+1)%cycle.size()];out.push_back({{a,b,c}});cycle.erase(cycle.begin()+k);}if(orient2d(p[cycle[0]],p[cycle[1]],p[cycle[2]])!=winding)return make_error(boolean_error_code::internal_invariant_error,boolean_stage::input_validation,"degenerate_triangulation_tail");out.push_back({{cycle[0],cycle[1],cycle[2]}});exact_scalar sum(0);for(const auto&t:out)sum=sum+(p[t[0]].x*p[t[1]].y-p[t[0]].y*p[t[1]].x+p[t[1]].x*p[t[2]].y-p[t[1]].y*p[t[2]].x+p[t[2]].x*p[t[0]].y-p[t[2]].y*p[t[0]].x);if(out.size()!=p.size()-2||sum!=area2(p))return make_error(boolean_error_code::internal_invariant_error,boolean_stage::input_validation,"triangulation_partition");return out;}
+status_or<std::vector<std::array<std::size_t, 3>>>
+triangulate(const std::vector<exact_point2> &points) {
+  const std::size_t count = points.size();
+  const auto winding = area2(points).sign();
+  std::vector<std::size_t> previous(count), next(count);
+  std::vector<bool> active(count, true), nonconvex(count, false);
+  std::vector<std::optional<std::array<std::size_t, 3>>> queued(count);
+  std::multimap<exact_scalar, std::size_t> points_by_x;
+  for (std::size_t i = 0; i < count; ++i) {
+    previous[i] = (i + count - 1) % count;
+    next[i] = (i + 1) % count;
+    points_by_x.emplace(points[i].x, i);
+  }
+
+  std::set<std::array<std::size_t, 3>> ears;
+  auto remove_ear = [&](std::size_t vertex) {
+    if (queued[vertex]) {
+      ears.erase(*queued[vertex]);
+      queued[vertex].reset();
+    }
+  };
+  auto refresh = [&](std::size_t vertex) -> status_or<bool> {
+    remove_ear(vertex);
+    if (!active[vertex]) return false;
+    const auto a = previous[vertex], c = next[vertex];
+    nonconvex[vertex] =
+        orient2d(points[a], points[vertex], points[c]) != winding;
+    performance_count(performance_counter::ear_candidates);
+    if (nonconvex[vertex]) return false;
+
+    auto lower_x = points[a].x;
+    auto upper_x = points[a].x;
+    auto lower_y = points[a].y;
+    auto upper_y = points[a].y;
+    for (auto q : {vertex, c}) {
+      if (points[q].x < lower_x) lower_x = points[q].x;
+      if (upper_x < points[q].x) upper_x = points[q].x;
+      if (points[q].y < lower_y) lower_y = points[q].y;
+      if (upper_y < points[q].y) upper_y = points[q].y;
+    }
+    for (auto it = points_by_x.lower_bound(lower_x);
+         it != points_by_x.end() && !(upper_x < it->first); ++it) {
+      const auto q = it->second;
+      if (!active[q] || q == a || q == vertex || q == c || !nonconvex[q] ||
+          points[q].y < lower_y || upper_y < points[q].y)
+        continue;
+      performance_count(performance_counter::exact_ear_tests);
+      if (in_or_on_triangle(points[q], points[a], points[vertex], points[c],
+                            winding))
+        return false;
+    }
+    exact_point2 midpoint{(points[a].x + points[c].x) / exact_scalar(2),
+                          (points[a].y + points[c].y) / exact_scalar(2)};
+    auto location = classify_point_polygon(midpoint, points);
+    if (!location.has_value()) return location.error();
+    if (location.value().kind != point_region_kind::open_interior) return false;
+    std::array<std::size_t, 3> key{{a, vertex, c}};
+    ears.insert(key);
+    queued[vertex] = key;
+    return true;
+  };
+
+  // Establish reflex status before any ear query so only possible blockers are
+  // tested by the exact point-in-triangle predicate.
+  for (std::size_t i = 0; i < count; ++i)
+    nonconvex[i] = orient2d(points[previous[i]], points[i], points[next[i]]) !=
+                   winding;
+  for (std::size_t i = 0; i < count; ++i) {
+    auto refreshed = refresh(i);
+    if (!refreshed.has_value()) return refreshed.error();
+  }
+
+  std::vector<std::array<std::size_t, 3>> result;
+  result.reserve(count - 2);
+  std::size_t remaining = count;
+  while (remaining > 3) {
+    if (ears.empty())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::input_validation,
+                        "exact_triangulation_failed");
+    const auto ear = *ears.begin();
+    const auto a = ear[0], vertex = ear[1], c = ear[2];
+    remove_ear(a);
+    remove_ear(vertex);
+    remove_ear(c);
+    result.push_back(ear);
+    active[vertex] = false;
+    next[a] = c;
+    previous[c] = a;
+    --remaining;
+    auto left = refresh(a);
+    if (!left.has_value()) return left.error();
+    auto right = refresh(c);
+    if (!right.has_value()) return right.error();
+  }
+  std::size_t first = 0;
+  while (first < count && !active[first]) ++first;
+  const std::array<std::size_t, 3> tail{{first, next[first], next[next[first]]}};
+  if (orient2d(points[tail[0]], points[tail[1]], points[tail[2]]) != winding)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::input_validation,
+                      "degenerate_triangulation_tail");
+  result.push_back(tail);
+  exact_scalar sum(0);
+  for (const auto &triangle : result)
+    sum = sum +
+          (points[triangle[0]].x * points[triangle[1]].y -
+           points[triangle[0]].y * points[triangle[1]].x +
+           points[triangle[1]].x * points[triangle[2]].y -
+           points[triangle[1]].y * points[triangle[2]].x +
+           points[triangle[2]].x * points[triangle[0]].y -
+           points[triangle[2]].y * points[triangle[0]].x);
+  if (result.size() != count - 2 || sum != area2(points))
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::input_validation,
+                      "triangulation_partition");
+  return result;
+}
 template<class T,class I>std::vector<exact_triangle3>facet_triangles(const artifact_t<T,I>&a,const validated_facet&f){std::vector<exact_triangle3>out;for(const auto&t:f.triangles)out.push_back({a.vertices[t[0].value_for_debug()].exact_coordinate,a.vertices[t[1].value_for_debug()].exact_coordinate,a.vertices[t[2].value_for_debug()].exact_coordinate});return out;}
 template<class T,class I>std::vector<exact_triangle3>shell_triangles(const artifact_t<T,I>&a,const validated_shell&s){std::vector<exact_triangle3>out;for(auto id:s.facets){auto q=facet_triangles(a,a.facets[id.value_for_debug()]);out.insert(out.end(),q.begin(),q.end());}return out;}
 exact_box3 point_bounds(const std::vector<exact_point3>&points){if(points.empty())throw std::invalid_argument("empty bounds");exact_box3 b{points.front(),points.front()};for(const auto&p:points){if(p.x<b.minimum.x)b.minimum.x=p.x;if(b.maximum.x<p.x)b.maximum.x=p.x;if(p.y<b.minimum.y)b.minimum.y=p.y;if(b.maximum.y<p.y)b.maximum.y=p.y;if(p.z<b.minimum.z)b.minimum.z=p.z;if(b.maximum.z<p.z)b.maximum.z=p.z;}return b;}
@@ -375,7 +533,8 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           if (f.projected_double_area.is_zero())
             return input_error(input_validation_subcode::degenerate_facet,
                                "zero_area_facet");
-          auto simple = simple_ring(pp);
+          auto simple = simple_ring(pp, ctx.owner(),
+                                    [&ctx] { return ctx.cancelled(); });
           if (!simple.has_value())
             return simple.error();
           auto tris = triangulate(pp);
@@ -469,7 +628,59 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           out->shells.push_back(std::move(s));
         }
         for(auto vid:op.vertices){auto&v=out->vertices[vid.value_for_debug()];std::vector<edge_use_id>outgoing;for(const auto&h:out->edge_uses)if(h.operand==oid&&h.origin==vid)outgoing.push_back(h.id);if(!outgoing.empty()){auto start=*std::min_element(outgoing.begin(),outgoing.end()),cur=start;std::set<edge_use_id>seen;do{if(!seen.insert(cur).second)break;v.ordered_outgoing_link.push_back(cur);const auto&h=out->edge_uses[cur.value_for_debug()];cur=out->edge_uses[h.previous.value_for_debug()].twin;}while(cur!=start);if(seen.size()!=outgoing.size()||cur!=start)return input_error(input_validation_subcode::disconnected_vertex_link,"disconnected_vertex_link");}}
-        for(std::size_t i=0;i<op.facets.size();++i)for(std::size_t j=i+1;j<op.facets.size();++j){if(ctx.cancelled())return make_error(boolean_error_code::resource_limit,boolean_stage::input_validation,"cancelled");const auto&f=out->facets[op.facets[i].value_for_debug()];const auto&g=out->facets[op.facets[j].value_for_debug()];auto relation=relate_polygons(facet_triangles(*out,f),facet_triangles(*out,g));std::size_t shared_vertices=0;for(auto x:f.ring)if(std::find(g.ring.begin(),g.ring.end(),x)!=g.ring.end())++shared_vertices;bool shared_edge=false;for(auto h:f.edge_uses)for(auto q:g.edge_uses)if(out->edge_uses[h.value_for_debug()].edge==out->edge_uses[q.value_for_debug()].edge)shared_edge=true;if(f.shell!=g.shell){if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");}else if(shared_edge){if(relation!=polygon_intersection_kind::segment)return input_error(input_validation_subcode::self_intersection,"adjacent_facet_intersection");}else if(shared_vertices){if(relation!=polygon_intersection_kind::point)return input_error(input_validation_subcode::self_intersection,"vertex_adjacent_facet_intersection");}else if(relation!=polygon_intersection_kind::disjoint)return input_error(input_validation_subcode::self_intersection,"nonadjacent_facet_intersection");}
+        std::vector<bounded_feature_view> facet_bounds;
+        facet_bounds.reserve(op.facets.size());
+        for (std::size_t i = 0; i < op.facets.size(); ++i) {
+          const auto &facet = out->facets[op.facets[i].value_for_debug()];
+          facet_bounds.push_back(
+              {{ctx.owner(), 0x0202U + role, i}, bound_source_kind::exact_box,
+               bound3(facet.bounds), bound_fallback_reason::caller_requested});
+        }
+        auto facet_candidates = enumerate_bounded_feature_self(
+            facet_bounds, nullptr, [&ctx] { return ctx.cancelled(); });
+        if (!facet_candidates.has_value()) return facet_candidates.error();
+        performance_count(performance_counter::self_embedding_candidate_pairs,
+                          facet_candidates.value().size());
+        for (const auto &candidate : facet_candidates.value()) {
+          if (ctx.cancelled())
+            return make_error(boolean_error_code::resource_limit,
+                              boolean_stage::input_validation, "cancelled");
+          const auto i =
+              static_cast<std::size_t>(candidate.first.canonical_rank);
+          const auto j =
+              static_cast<std::size_t>(candidate.second.canonical_rank);
+          const auto &f = out->facets[op.facets[i].value_for_debug()];
+          const auto &g = out->facets[op.facets[j].value_for_debug()];
+          performance_count(performance_counter::exact_facet_pair_tests);
+          auto relation = relate_polygons(facet_triangles(*out, f),
+                                          facet_triangles(*out, g));
+          std::size_t shared_vertices = 0;
+          for (auto x : f.ring)
+            if (std::find(g.ring.begin(), g.ring.end(), x) != g.ring.end())
+              ++shared_vertices;
+          bool shared_edge = false;
+          for (auto h : f.edge_uses)
+            for (auto q : g.edge_uses)
+              if (out->edge_uses[h.value_for_debug()].edge ==
+                  out->edge_uses[q.value_for_debug()].edge)
+                shared_edge = true;
+          if (f.shell != g.shell) {
+            if (relation != polygon_intersection_kind::disjoint)
+              return input_error(input_validation_subcode::shell_contact,
+                                 "shell_boundary_contact");
+          } else if (shared_edge) {
+            if (relation != polygon_intersection_kind::segment)
+              return input_error(input_validation_subcode::self_intersection,
+                                 "adjacent_facet_intersection");
+          } else if (shared_vertices) {
+            if (relation != polygon_intersection_kind::point)
+              return input_error(input_validation_subcode::self_intersection,
+                                 "vertex_adjacent_facet_intersection");
+          } else if (relation != polygon_intersection_kind::disjoint) {
+            return input_error(input_validation_subcode::self_intersection,
+                               "nonadjacent_facet_intersection");
+          }
+        }
         std::vector<shell_id>role_shells=op.shells;std::vector<std::vector<bool>>inside(role_shells.size(),std::vector<bool>(role_shells.size(),false));for(std::size_t i=0;i<role_shells.size();++i)for(std::size_t j=0;j<role_shells.size();++j)if(i!=j){const auto&s=out->shells[role_shells[i].value_for_debug()];const auto&t=out->shells[role_shells[j].value_for_debug()];auto witness=*std::min_element(s.vertices.begin(),s.vertices.end());const auto&p=out->vertices[witness.value_for_debug()].exact_coordinate;auto loc=classify_point_closed_triangle_shell(p,shell_triangles(*out,t));if(!loc.has_value())return loc.error();if(loc.value()==solid_point_kind::boundary)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");inside[i][j]=loc.value()==solid_point_kind::inside;}
         for(std::size_t i=0;i<role_shells.size();++i){std::optional<std::size_t>parent;for(std::size_t j=0;j<role_shells.size();++j)if(inside[i][j]){bool nearest=true;for(std::size_t k=0;k<role_shells.size();++k)if(k!=j&&inside[i][k]&&!inside[j][k])nearest=false;if(nearest){if(parent)return input_error(input_validation_subcode::ambiguous_nesting,"ambiguous_shell_parent");parent=j;}}if(parent){auto&child=out->shells[role_shells[i].value_for_debug()];child.parent=role_shells[*parent];out->shells[role_shells[*parent].value_for_debug()].children.push_back(child.id);}}
         for (std::size_t pass = 0; pass < role_shells.size(); ++pass)
