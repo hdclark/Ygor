@@ -60,7 +60,9 @@ struct ray_source_attribution {
  std::optional<std::array<original_vertex_id,3>> vertices;
  const std::vector<exact_point3>* ring=nullptr;
  const std::vector<original_vertex_id>* ring_vertices=nullptr;
- const std::vector<std::vector<facet_id>>* vertex_fans=nullptr;
+  const std::vector<std::vector<facet_id>>* vertex_fans=nullptr;
+  const exact_plane3* plane=nullptr;
+  const exact_vector3* normal=nullptr;
 };
 template<class Triangle, class Geometry, class Source>
 status_or<formal_operand_location> locate_formal_open_point_impl(const formal_open_point_view&q,const std::vector<Triangle>&tris,std::uint8_t first_direction,Geometry geometry,Source source){
@@ -78,7 +80,7 @@ status_or<formal_operand_location> locate_formal_open_point_impl(const formal_op
  const auto seed=static_cast<std::uint64_t>(q.key.local_rank)+q.key.stable_features.size()+1;
  for(std::uint64_t step=0;dirs.size()<12;++step){
   const auto k=seed+step;exact_vector3 candidate{exact_scalar(1),exact_scalar(static_cast<std::int64_t>(k)),exact_scalar(static_cast<std::int64_t>(k*k))};bool generic=true;
-   for(const auto&item:tris){const auto&t=geometry(item);auto pl=support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();exact_vector3 n{ri(pl.value().a),ri(pl.value().b),ri(pl.value().c)};if(dot_sign(n,candidate)==exact_sign::zero){generic=false;break;}}
+    for(const auto&item:tris){const auto&t=geometry(item);const auto attribution=source(item);auto pl=attribution.plane?status_or<exact_plane3>(*attribution.plane):support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();exact_vector3 n=attribution.normal?*attribution.normal:exact_vector3{ri(pl.value().a),ri(pl.value().b),ri(pl.value().c)};if(dot_sign(n,candidate)==exact_sign::zero){generic=false;break;}}
    if(generic)dirs.push_back(std::move(candidate));
  }
  // Compare a+b*epsilon with zero for sufficiently small positive epsilon.
@@ -88,8 +90,8 @@ status_or<formal_operand_location> locate_formal_open_point_impl(const formal_op
  const auto attempts=first_direction==0?dirs.size():dirs.size()-1;
  for(std::size_t offset=0;offset<attempts;++offset){const auto di=(start+offset)%dirs.size();
   formal_operand_location out;out.ray_direction_index=static_cast<std::uint8_t>(di);out.ray_direction=dirs[di];bool ambiguous=false;std::int64_t degree=0;
-   for(std::size_t ti=0;ti<tris.size();++ti){performance_count(performance_counter::exact_ray_facet_tests);const auto&t=geometry(tris[ti]);auto pl=support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();
-   exact_vector3 n{ri(pl.value().a),ri(pl.value().b),ri(pl.value().c)};if(pl.value().oriented==orientation_parity::opposite)n=n*exact_scalar(-1);
+    for(std::size_t ti=0;ti<tris.size();++ti){performance_count(performance_counter::exact_ray_facet_tests);const auto&t=geometry(tris[ti]);auto attribution=source(tris[ti]);auto pl=attribution.plane?status_or<exact_plane3>(*attribution.plane):support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();
+    exact_vector3 n=attribution.normal?*attribution.normal:exact_vector3{ri(pl.value().a),ri(pl.value().b),ri(pl.value().c)};if(!attribution.normal&&pl.value().oriented==orientation_parity::opposite)n=n*exact_scalar(-1);
     auto den=dot(n,dirs[di]);if(den.is_zero()){auto c0=eval(pl.value(),q.base);if(c0.sign()==exact_sign::zero&&dot_sign(n,q.infinitesimal_direction)==exact_sign::zero){ambiguous=true;break;}continue;}
     performance_count(performance_counter::geometric_exact_divisions,2);auto tc=eval(pl.value(),q.base).negated()/den,te=dot(n,q.infinitesimal_direction).negated()/den;
    if(formal_sign(tc,te)!=exact_sign::positive)continue;
@@ -99,7 +101,7 @@ status_or<formal_operand_location> locate_formal_open_point_impl(const formal_op
    auto edge_sign=[&](const exact_point2&u,const exact_point2&v){auto e=v-u,w=x-u;return formal_sign(e.x*w.y-e.y*w.x,e.x*xe.y-e.y*xe.x);};
     auto orientation=orient2d(a,b,c);auto u0=orient2d(a,b,x),u1=orient2d(b,c,x),u2=orient2d(c,a,x);auto s0=edge_sign(a,b),s1=edge_sign(b,c),s2=edge_sign(c,a);if(s0==exact_sign::zero||s1==exact_sign::zero||s2==exact_sign::zero){ambiguous=true;break;}
     if(s0!=orientation||s1!=orientation||s2!=orientation)continue;
-       const auto contribution=den.sign()==exact_sign::positive?1:-1;auto attribution=source(tris[ti]);const auto zeros=unsigned(u0==exact_sign::zero)+unsigned(u1==exact_sign::zero)+unsigned(u2==exact_sign::zero);auto ownership=zeros>1?formal_ray_ownership_kind::source_vertex:zeros==1?formal_ray_ownership_kind::source_edge:formal_ray_ownership_kind::facet_interior;formal_ray_hit h;h.triangle=ti;h.source_facet=attribution.facet;h.source_primitive=attribution.primitive;h.parameter_constant=tc;h.parameter_epsilon=te;h.signed_contribution=static_cast<std::int8_t>(contribution);
+        const auto contribution=den.sign()==exact_sign::positive?1:-1;const auto zeros=unsigned(u0==exact_sign::zero)+unsigned(u1==exact_sign::zero)+unsigned(u2==exact_sign::zero);auto ownership=zeros>1?formal_ray_ownership_kind::source_vertex:zeros==1?formal_ray_ownership_kind::source_edge:formal_ray_ownership_kind::facet_interior;formal_ray_hit h;h.triangle=ti;h.source_facet=attribution.facet;h.source_primitive=attribution.primitive;h.parameter_constant=tc;h.parameter_epsilon=te;h.signed_contribution=static_cast<std::int8_t>(contribution);
          if(attribution.facet){if(!attribution.ring||!attribution.ring_vertices||attribution.ring->size()<3||attribution.ring->size()!=attribution.ring_vertices->size()||(attribution.vertex_fans&&!attribution.vertex_fans->empty()&&attribution.vertex_fans->size()!=attribution.ring->size()))return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"source_facet_ring");ownership=formal_ray_ownership_kind::facet_interior;for(std::size_t vi=0;vi<attribution.ring->size();++vi)if(x0==(*attribution.ring)[vi]){ownership=formal_ray_ownership_kind::source_vertex;h.source_vertex=(*attribution.ring_vertices)[vi];if(attribution.vertex_fans&&!attribution.vertex_fans->empty())h.source_vertex_fan=(*attribution.vertex_fans)[vi];break;}if(ownership==formal_ray_ownership_kind::facet_interior)for(std::size_t ei=0;ei<attribution.ring->size();++ei){const auto ni=(ei+1)%attribution.ring->size();if(classify_point_segment(x0,{(*attribution.ring)[ei],(*attribution.ring)[ni]})==point_segment_relation::open_interior){ownership=formal_ray_ownership_kind::source_edge;h.source_edge_direction=std::array<original_vertex_id,2>{(*attribution.ring_vertices)[ei],(*attribution.ring_vertices)[ni]};auto edge=*h.source_edge_direction;if(edge[1]<edge[0])std::swap(edge[0],edge[1]);h.source_edge=edge;break;}}}
        else if(attribution.vertices&&zeros>1){const auto vi=(u0==exact_sign::zero&&u2==exact_sign::zero)?0u:(u0==exact_sign::zero&&u1==exact_sign::zero)?1u:2u;h.source_vertex=(*attribution.vertices)[vi];}
         else if(attribution.vertices&&zeros==1){h.source_edge_direction=u0==exact_sign::zero?std::array<original_vertex_id,2>{(*attribution.vertices)[0],(*attribution.vertices)[1]}:u1==exact_sign::zero?std::array<original_vertex_id,2>{(*attribution.vertices)[1],(*attribution.vertices)[2]}:std::array<original_vertex_id,2>{(*attribution.vertices)[2],(*attribution.vertices)[0]};auto edge=*h.source_edge_direction;if(edge[1]<edge[0])std::swap(edge[0],edge[1]);h.source_edge=edge;}
@@ -120,7 +122,7 @@ status_or<formal_operand_location> locate_formal_open_point(const formal_open_po
    return locate_formal_open_point_impl(q,tris,first_direction,[](const exact_triangle3&t){return t;},[](const exact_triangle3&){return ray_source_attribution{};});
 }
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&q,const std::vector<sourced_exact_triangle3>&tris,std::uint8_t first_direction){
-   return locate_formal_open_point_impl(q,tris,first_direction,[](const sourced_exact_triangle3&t){return t.triangle;},[](const sourced_exact_triangle3&t){return ray_source_attribution{t.source_facet,t.source_primitive,t.source_vertices,&t.source_ring,&t.source_ring_vertices,&t.source_vertex_fans};});
+    return locate_formal_open_point_impl(q,tris,first_direction,[](const sourced_exact_triangle3&t){return t.triangle;},[](const sourced_exact_triangle3&t){return ray_source_attribution{t.source_facet,t.source_primitive,t.source_vertices,&t.source_ring,&t.source_ring_vertices,&t.source_vertex_fans,t.source_plane,t.source_normal};});
 }
 bool validate_formal_ray_ownership_evidence(const formal_operand_location&location) noexcept{
  std::uint32_t previous_group=0;bool first=true;std::int64_t degree=0;

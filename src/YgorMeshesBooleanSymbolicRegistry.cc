@@ -102,13 +102,12 @@ exact_vector3 plane_normal(const exact_plane3 &p) {
   return n;
 }
 exact_vector2 radial_direction(const exact_line3 &line,
-                               const exact_plane3 &plane) {
+                                const exact_vector3 &normal) {
   exact_vector3 axis = line.direction.x.is_zero()
                            ? exact_vector3{exact_scalar(1), exact_scalar(0), exact_scalar(0)}
                            : exact_vector3{exact_scalar(0), exact_scalar(1), exact_scalar(0)};
   auto first = cross(line.direction, axis);
   auto second = cross(line.direction, first);
-  auto normal = plane_normal(plane);
   return {dot(normal, first), dot(normal, second)};
 }
 template <class T, class I>
@@ -525,8 +524,8 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
       previous_direction = group.direction;
       for (auto id : group.facets) {
         if (id.value_for_debug() >= a.validated->payload->facets.size() ||
-            angular_compare(group.direction, radial_direction(
-                carrier.carrier, a.validated->payload->facets[id.value_for_debug()].plane)) != 0)
+             angular_compare(group.direction, radial_direction(
+                 carrier.carrier, plane_normal(a.validated->payload->facets[id.value_for_debug()].plane))) != 0)
           return false;
         actual.push_back(id);
       }
@@ -1276,8 +1275,8 @@ build_symbolic_complex_impl(
       if (carrier.facets.empty()) continue;
       std::vector<std::pair<exact_vector2, facet_id>> sheets;
       for (auto facet_id_value : carrier.facets)
-        sheets.push_back({radial_direction(carrier.carrier,
-            vv.facets[facet_id_value.value_for_debug()].plane), facet_id_value});
+         sheets.push_back({radial_direction(carrier.carrier,
+             vv.facet_geometry[facet_id_value.value_for_debug()].oriented_normal), facet_id_value});
       std::sort(sheets.begin(), sheets.end(), [](const auto &x, const auto &y) {
         const int c = angular_compare(x.first, y.first);
         return c ? c < 0 : x.second < y.second;

@@ -126,6 +126,10 @@ struct sourced_exact_triangle3 {
     // Aligned with source_ring_vertices; each entry is the complete cyclic
     // outgoing-link facet order at that source vertex.
     std::vector<std::vector<facet_id>> source_vertex_fans;
+    // Optional verified facet-level geometry avoids rebuilding the same plane
+    // and normal for every triangle query.
+    const exact_plane3 *source_plane=nullptr;
+    const exact_vector3 *source_normal=nullptr;
 };
 struct formal_operand_location {
     formal_operand_location_kind location=formal_operand_location_kind::outside;

@@ -277,23 +277,18 @@ const validated_facet &facet(const validated_operands<T, I> &v, facet_id id) {
   return v.facets[id.value_for_debug()];
 }
 template <class T, class I>
-std::vector<exact_point3> ring3(const validated_operands<T, I> &v,
-                                const validated_facet &f) {
-  std::vector<exact_point3> r;
-  for (auto id : f.ring) {
-    if (!id.valid() || id.value_for_debug() >= v.vertices.size())
-      throw std::logic_error("vertex ID");
-    r.push_back(v.vertices[id.value_for_debug()].exact_coordinate);
-  }
-  return r;
+const std::vector<exact_point3> &ring3(const validated_operands<T, I> &v,
+                                      const validated_facet &f) {
+  if (f.id.value_for_debug() >= v.facet_geometry.size())
+    throw std::logic_error("facet geometry ID");
+  return v.facet_geometry[f.id.value_for_debug()].ring3;
 }
 template <class T, class I>
-std::vector<exact_point2> ring2(const validated_operands<T, I> &v,
-                                const validated_facet &f) {
-  std::vector<exact_point2> r;
-  for (const auto &p : ring3(v, f))
-    r.push_back(project(p, f.projection));
-  return r;
+const std::vector<exact_point2> &ring2(const validated_operands<T, I> &v,
+                                      const validated_facet &f) {
+  if (f.id.value_for_debug() >= v.facet_geometry.size())
+    throw std::logic_error("facet geometry ID");
+  return v.facet_geometry[f.id.value_for_debug()].ring2;
 }
 bool inside(const exact_point3 &p, const validated_facet &f,
             const std::vector<exact_point2> &r) {
@@ -304,8 +299,8 @@ template <class T, class I>
 std::vector<exact_interval> line_polygon(const exact_line3 &l,
                                          const validated_operands<T, I> &v,
                                          const validated_facet &f) {
-  auto r = ring3(v, f);
-  auto p2 = ring2(v, f);
+  const auto &r = ring3(v, f);
+  const auto &p2 = ring2(v, f);
   std::vector<exact_scalar> cuts;
   // Edge/line intersection is most simply and exactly evaluated in the facet
   // chart.
@@ -383,11 +378,8 @@ point_incidences(const exact_point3 &p, const validated_operands<T, I> &v,
           ? local_incidence_location::facet_open_interior
           : local_incidence_location::facet_boundary));
   for (std::size_t i = 0; i < f.ring.size(); ++i) {
-    const auto &a = v.vertices[f.ring[i].value_for_debug()].exact_coordinate;
-    const auto &b =
-        v.vertices[f.ring[(i + 1) % f.ring.size()].value_for_debug()]
-            .exact_coordinate;
-    auto rel = classify_point_segment(p, {a, b});
+    const auto &segment=v.facet_geometry[f.id.value_for_debug()].edges[i].segment;
+    auto rel = classify_point_segment(p, segment);
     if (rel == point_segment_relation::off_carrier ||
         rel == point_segment_relation::before_origin ||
         rel == point_segment_relation::after_destination)
@@ -398,7 +390,7 @@ point_incidences(const exact_point3 &p, const validated_operands<T, I> &v,
             : rel == point_segment_relation::at_destination
                   ? local_incidence_location::directed_edge_destination
                   : local_incidence_location::directed_edge_open_interior;
-    auto t = segment_parameter(p, exact_segment3{a, b});
+    auto t = segment_parameter(p, segment);
     out.push_back({f.edge_uses[i], loc, t, std::nullopt,
                    orientation_parity::agree});
     out.push_back({v.edge_uses[f.edge_uses[i].value_for_debug()].edge, loc, t,
@@ -730,7 +722,7 @@ template <class T, class I>
 std::vector<verifier_boundary_atom> verifier_overlap_boundary(
     const validated_operands<T, I> &v, const validated_facet &fa,
     const validated_facet &fb) {
-  const auto a = ring2(v, fa), b = ring2(v, fb);
+  const auto &a = ring2(v, fa), &b = ring2(v, fb);
   std::vector<verifier_boundary_atom> atoms;
   auto split = [&](const validated_facet &source,
                    const std::vector<exact_point2> &source_ring,
@@ -1239,7 +1231,7 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
             actual_intervals[j].upper != expected_intervals[j].upper)
           return false;
     } else if (relation.kind != plane_plane_kind::parallel_disjoint) {
-      auto a2 = ring2(validated, fa), b2 = ring2(validated, fb);
+      const auto &a2 = ring2(validated, fa), &b2 = ring2(validated, fb);
       const auto expected_area = verifier_overlap_area(a2, b2);
       exact_scalar stored_area(0);
       for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id)
@@ -1550,7 +1542,7 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
             pp.kind == plane_plane_kind::coincident_same
                 ? event_plane_relation::coincident_same_orientation
                 : event_plane_relation::coincident_opposite_orientation;
-        auto pa = ring2(v, fa), pb = ring2(v, fb);
+        const auto &pa = ring2(v, fa), &pb = ring2(v, fb);
         const auto &overlay = shards[shard_index].coplanar_overlay;
         auto add_point = [&](const exact_point2 &q) {
           auto p = lift(q, fa.plane, fa.projection);

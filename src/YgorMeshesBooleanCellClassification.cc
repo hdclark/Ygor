@@ -259,23 +259,13 @@ operand_triangles(const validated_operands<T, I> &v, operand_id operand) {
   for (const auto &f : v.facets)
     if (f.operand == operand) {
       std::uint32_t primitive = 0;
-      std::vector<exact_point3> ring;
-      std::vector<std::vector<facet_id>> vertex_fans;
-      ring.reserve(f.ring.size());
-      vertex_fans.reserve(f.ring.size());
-      for (const auto vertex : f.ring) {
-        ring.push_back(v.vertices[vertex.value_for_debug()].exact_coordinate);
-        std::vector<facet_id> fan;
-        for (const auto use : v.vertices[vertex.value_for_debug()].ordered_outgoing_link)
-          fan.push_back(v.edge_uses[use.value_for_debug()].facet);
-        vertex_fans.push_back(std::move(fan));
-      }
-      for (const auto &t : f.triangles) {
-        out.push_back({{v.vertices[t[0].value_for_debug()].exact_coordinate,
-                        v.vertices[t[1].value_for_debug()].exact_coordinate,
-                        v.vertices[t[2].value_for_debug()].exact_coordinate},
-                       f.id, primitive, std::array<original_vertex_id, 3>{t[0], t[1], t[2]},
-                        ring, f.ring, vertex_fans});
+      const auto &geometry=v.facet_geometry[f.id.value_for_debug()];
+      for (std::size_t i=0;i<f.triangles.size();++i) {
+        const auto&t=f.triangles[i];
+        out.push_back({geometry.triangles[i].triangle,f.id,primitive,
+                       std::array<original_vertex_id, 3>{t[0], t[1], t[2]},
+                       geometry.ring3,f.ring,geometry.vertex_fans,
+                       &geometry.plane,&geometry.oriented_normal});
         ++primitive;
       }
     }

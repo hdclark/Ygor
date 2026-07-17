@@ -49,6 +49,16 @@ template<class T>struct source_vertex_provenance{operand_id operand;std::uint64_
 struct validated_edge_use{edge_use_id id;operand_id operand;facet_id facet;std::uint64_t ring_offset=0;original_vertex_id origin,destination;edge_use_id previous,next,twin;undirected_edge_id edge;shell_id shell;};
 struct validated_edge{undirected_edge_id id;operand_id operand;original_vertex_id first,second;std::array<edge_use_id,2>uses;shell_id shell;};
 struct validated_facet{facet_id id;operand_id operand;std::vector<original_vertex_id>ring;std::vector<edge_use_id>edge_uses;exact_plane3 plane;projection_axis projection=projection_axis::drop_z;exact_scalar projected_double_area;std::vector<std::array<original_vertex_id,3>>triangles;std::vector<facet_id>neighbors;shell_id shell;exact_box3 bounds;std::uint64_t raw_face_ordinal=0;};
+struct validated_edge_geometry{exact_segment3 segment;exact_box3 bounds;exact_box2 projected_bounds;};
+struct validated_triangle_geometry{exact_triangle3 triangle;exact_box3 bounds;};
+struct validated_facet_geometry{
+    facet_id facet;operand_id operand;exact_plane3 plane;
+    projection_axis projection=projection_axis::drop_z;exact_vector3 oriented_normal;
+    std::vector<exact_point3>ring3;std::vector<exact_point2>ring2;
+    std::vector<validated_edge_geometry>edges;
+    std::vector<validated_triangle_geometry>triangles;
+    std::vector<std::vector<facet_id>>vertex_fans;
+};
 template<class T>struct validated_vertex{original_vertex_id id;operand_id operand;std::array<T,3>raw_coordinate;std::array<coordinate_bits<T>,3>raw_bits;exact_point3 exact_coordinate;shell_id shell;std::vector<edge_use_id>ordered_outgoing_link;};
 struct validated_shell{shell_id id;operand_id operand;std::vector<facet_id>facets;std::vector<undirected_edge_id>edges;std::vector<original_vertex_id>vertices;exact_scalar oriented_six_volume;exact_box3 bounds;std::optional<shell_id>parent;std::vector<shell_id>children;std::uint32_t depth=0;shell_orientation orientation=shell_orientation::outward;shell_contribution contribution=shell_contribution::material_boundary;};
 struct validated_operand{operand_id operand;std::vector<original_vertex_id>vertices;std::vector<facet_id>facets;std::vector<shell_id>shells;std::uint64_t raw_vertex_count=0,raw_face_count=0;std::optional<exact_box3>bounds;digest semantic_digest;};
@@ -63,8 +73,10 @@ template<class T,class I>struct validated_operands{
     std::vector<validated_edge>edges;
     std::vector<validated_shell>shells;
     std::vector<validation_evidence>evidence;
-    // Derived lookup metadata. These tables are intentionally excluded from
-    // canonical serialization and are checked against the records by verifiers.
+    // Derived immutable geometry and lookup metadata. These are intentionally
+    // excluded from canonical serialization and checked against authoritative
+    // records by the Component 2 verifier.
+    std::vector<validated_facet_geometry>facet_geometry;
     std::array<std::vector<std::uint64_t>,2>raw_vertex_provenance;
     std::array<std::vector<facet_id>,2>raw_facets;
 };

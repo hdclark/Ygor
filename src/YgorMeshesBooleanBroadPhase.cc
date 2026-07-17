@@ -176,10 +176,6 @@ enumerate_broad_phase_candidates(boolean_context<T, I> &ctx) {
         upstream.value()->payload->setup_digest != ctx.replay().setup)
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::broad_phase, "upstream_binding");
-    if (!validate_bounds(*upstream.value()->payload))
-      return make_error(boolean_error_code::internal_invariant_error,
-                        boolean_stage::broad_phase,
-                        "malformed_authoritative_bound");
     std::vector<feature> af, bf;
     for (const auto &f : upstream.value()->payload->facets)
       (f.operand == operand_a() ? af : bf)

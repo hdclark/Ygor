@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanVerification.h"
+#include "YgorMeshesBooleanPerformance.h"
 #include <algorithm>
 #include <new>
 #include <set>
@@ -649,6 +650,7 @@ canonicalize_graph_exhaustive(const canonical_graph &g,
           ranked.begin());
     if (next == colors)
       break;
+    performance_count(performance_counter::canonicalization_refinements);
     colors.swap(next);
     if (accountant) {
       auto charged =
@@ -705,6 +707,7 @@ canonicalize_graph_exhaustive(const canonical_graph &g,
         return;
       }
     }
+    performance_count(performance_counter::canonicalization_branches);
     std::vector<std::uint64_t> label(order.size());
     for (std::size_t i = 0; i < order.size(); ++i)
       label[order[i]] = i;

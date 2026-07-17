@@ -556,14 +556,8 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
   // exact visible registered-vertex cut, one at a time, until every non-source
   // vertex has degree other than one. This is topology-driven; no length or
   // quality score participates in the choice.
-  const auto source_polygon = [&] {
-    std::vector<exact_point2> polygon;
-    for (auto id : vf.ring)
-      polygon.push_back(project(
-          s.validated->payload->vertices[id.value_for_debug()].exact_coordinate,
-          vf.projection));
-    return polygon;
-  }();
+  const auto &source_polygon =
+      s.validated->payload->facet_geometry[vf.id.value_for_debug()].ring2;
   const auto visible = [&](symbolic_vertex_id from, symbolic_vertex_id to) {
     const exact_segment2 candidate{
         project(s.vertices[from.value_for_debug()].point, vf.projection),

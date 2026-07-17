@@ -283,10 +283,21 @@ triangulate(const std::vector<exact_point2> &points) {
                       "triangulation_partition");
   return result;
 }
-template<class T,class I>std::vector<exact_triangle3>facet_triangles(const artifact_t<T,I>&a,const validated_facet&f){std::vector<exact_triangle3>out;for(const auto&t:f.triangles)out.push_back({a.vertices[t[0].value_for_debug()].exact_coordinate,a.vertices[t[1].value_for_debug()].exact_coordinate,a.vertices[t[2].value_for_debug()].exact_coordinate});return out;}
+template<class T,class I>std::vector<exact_triangle3>facet_triangles(const artifact_t<T,I>&a,const validated_facet&f){std::vector<exact_triangle3>out;for(const auto&t:a.facet_geometry[f.id.value_for_debug()].triangles)out.push_back(t.triangle);return out;}
 template<class T,class I>std::vector<exact_triangle3>shell_triangles(const artifact_t<T,I>&a,const validated_shell&s){std::vector<exact_triangle3>out;for(auto id:s.facets){auto q=facet_triangles(a,a.facets[id.value_for_debug()]);out.insert(out.end(),q.begin(),q.end());}return out;}
 exact_box3 point_bounds(const std::vector<exact_point3>&points){if(points.empty())throw std::invalid_argument("empty bounds");exact_box3 b{points.front(),points.front()};for(const auto&p:points){if(p.x<b.minimum.x)b.minimum.x=p.x;if(b.maximum.x<p.x)b.maximum.x=p.x;if(p.y<b.minimum.y)b.minimum.y=p.y;if(b.maximum.y<p.y)b.maximum.y=p.y;if(p.z<b.minimum.z)b.minimum.z=p.z;if(b.maximum.z<p.z)b.maximum.z=p.z;}return b;}
+exact_box2 point_bounds(const std::vector<exact_point2>&points){if(points.empty())throw std::invalid_argument("empty bounds");exact_box2 b{points.front(),points.front()};for(const auto&p:points){if(p.x<b.minimum.x)b.minimum.x=p.x;if(b.maximum.x<p.x)b.maximum.x=p.x;if(p.y<b.minimum.y)b.minimum.y=p.y;if(b.maximum.y<p.y)b.maximum.y=p.y;}return b;}
 bool equal_box(const exact_box3&a,const exact_box3&b){return a.minimum==b.minimum&&a.maximum==b.maximum;}
+bool equal_box(const exact_box2&a,const exact_box2&b){return a.minimum==b.minimum&&a.maximum==b.maximum;}
+bool equal_triangle(const exact_triangle3&a,const exact_triangle3&b){return a.a==b.a&&a.b==b.b&&a.c==b.c;}
+exact_vector3 oriented_normal(const exact_plane3&p){exact_vector3 n{exact_scalar(p.a,big_uint(1)),exact_scalar(p.b,big_uint(1)),exact_scalar(p.c,big_uint(1))};return p.oriented==orientation_parity::opposite?n*exact_scalar(-1):n;}
+template<class T,class I>validated_facet_geometry facet_geometry(const artifact_t<T,I>&a,const validated_facet&f){
+  validated_facet_geometry g;g.facet=f.id;g.operand=f.operand;g.plane=f.plane;g.projection=f.projection;g.oriented_normal=oriented_normal(f.plane);
+  for(auto id:f.ring){const auto&p=a.vertices[id.value_for_debug()].exact_coordinate;g.ring3.push_back(p);g.ring2.push_back(project(p,f.projection));std::vector<facet_id>fan;for(auto use:a.vertices[id.value_for_debug()].ordered_outgoing_link)fan.push_back(a.edge_uses[use.value_for_debug()].facet);g.vertex_fans.push_back(std::move(fan));}
+  for(std::size_t i=0;i<g.ring3.size();++i){const exact_segment3 segment{g.ring3[i],g.ring3[(i+1)%g.ring3.size()]};g.edges.push_back({segment,point_bounds(std::vector<exact_point3>{segment.origin,segment.destination}),point_bounds(std::vector<exact_point2>{g.ring2[i],g.ring2[(i+1)%g.ring2.size()]})});}
+  for(const auto&t:f.triangles){exact_triangle3 triangle{a.vertices[t[0].value_for_debug()].exact_coordinate,a.vertices[t[1].value_for_debug()].exact_coordinate,a.vertices[t[2].value_for_debug()].exact_coordinate};g.triangles.push_back({triangle,point_bounds(std::vector<exact_point3>{triangle.a,triangle.b,triangle.c})});}
+  return g;
+}
 void enc_box(canonical_encoder&e,const exact_box3&b){enc_point(e,b.minimum);enc_point(e,b.maximum);}
 template <class T, class I>
 status_or<std::vector<std::uint8_t>>
@@ -628,6 +639,7 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           out->shells.push_back(std::move(s));
         }
         for(auto vid:op.vertices){auto&v=out->vertices[vid.value_for_debug()];std::vector<edge_use_id>outgoing;for(const auto&h:out->edge_uses)if(h.operand==oid&&h.origin==vid)outgoing.push_back(h.id);if(!outgoing.empty()){auto start=*std::min_element(outgoing.begin(),outgoing.end()),cur=start;std::set<edge_use_id>seen;do{if(!seen.insert(cur).second)break;v.ordered_outgoing_link.push_back(cur);const auto&h=out->edge_uses[cur.value_for_debug()];cur=out->edge_uses[h.previous.value_for_debug()].twin;}while(cur!=start);if(seen.size()!=outgoing.size()||cur!=start)return input_error(input_validation_subcode::disconnected_vertex_link,"disconnected_vertex_link");}}
+        for(auto id:op.facets)out->facet_geometry.push_back(facet_geometry(*out,out->facets[id.value_for_debug()]));
         std::vector<bounded_feature_view> facet_bounds;
         facet_bounds.reserve(op.facets.size());
         for (std::size_t i = 0; i < op.facets.size(); ++i) {
@@ -652,8 +664,8 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           const auto &f = out->facets[op.facets[i].value_for_debug()];
           const auto &g = out->facets[op.facets[j].value_for_debug()];
           performance_count(performance_counter::exact_facet_pair_tests);
-          auto relation = relate_polygons(facet_triangles(*out, f),
-                                          facet_triangles(*out, g));
+           auto relation = relate_polygons(facet_triangles(*out, f),
+                                           facet_triangles(*out, g));
           std::size_t shared_vertices = 0;
           for (auto x : f.ring)
             if (std::find(g.ring.begin(), g.ring.end(), x) != g.ring.end())
@@ -907,6 +919,7 @@ verify_typed(const artifact_view &v, const verification_spec &s,
             }
           break;
         case invariant_code::input_facets:
+          ok = a.facet_geometry.size() == a.facets.size();
           for (const auto &f : a.facets) {
             ok = ok && f.ring.size() >= 3;
             for (auto q : f.ring)
@@ -974,6 +987,13 @@ verify_typed(const artifact_view &v, const verification_spec &s,
               triangle_area = triangle_area + signed_area;
             }
             ok = ok && triangle_area == polygon_area;
+            if(!ok||f.id.value_for_debug()>=a.facet_geometry.size())break;
+            for(auto id:f.ring)for(auto use:a.vertices[id.value_for_debug()].ordered_outgoing_link)ok=ok&&use.valid()&&use.value_for_debug()<a.edge_uses.size()&&a.edge_uses[use.value_for_debug()].facet.valid()&&a.edge_uses[use.value_for_debug()].facet.value_for_debug()<a.facets.size();
+            if(!ok)break;
+            const auto&cached=a.facet_geometry[f.id.value_for_debug()];const auto rebuilt=facet_geometry(a,f);
+            ok=ok&&cached.facet==f.id&&cached.operand==f.operand&&equal_plane(cached.plane,f.plane)&&cached.projection==f.projection&&cached.oriented_normal.x==rebuilt.oriented_normal.x&&cached.oriented_normal.y==rebuilt.oriented_normal.y&&cached.oriented_normal.z==rebuilt.oriented_normal.z&&cached.ring3==rebuilt.ring3&&cached.ring2==rebuilt.ring2&&cached.edges.size()==rebuilt.edges.size()&&cached.triangles.size()==rebuilt.triangles.size()&&cached.vertex_fans==rebuilt.vertex_fans;
+            for(std::size_t i=0;i<cached.edges.size()&&ok;++i)ok=equal_box(cached.edges[i].bounds,rebuilt.edges[i].bounds)&&equal_box(cached.edges[i].projected_bounds,rebuilt.edges[i].projected_bounds)&&cached.edges[i].segment.origin==rebuilt.edges[i].segment.origin&&cached.edges[i].segment.destination==rebuilt.edges[i].segment.destination;
+            for(std::size_t i=0;i<cached.triangles.size()&&ok;++i)ok=equal_triangle(cached.triangles[i].triangle,rebuilt.triangles[i].triangle)&&equal_box(cached.triangles[i].bounds,rebuilt.triangles[i].bounds);
           }
           break;
         case invariant_code::input_edges:
