@@ -1082,7 +1082,7 @@ build_symbolic_complex_impl(
       }
       a.vertices.push_back(std::move(v));
     }
-    for (const auto &request : requests) {
+    for (const auto &request : a.reconciliation_history) {
       auto vertex = std::lower_bound(a.vertices.begin(), a.vertices.end(),
                                      request.point,
                                      [](const auto &v, const auto &point) {
@@ -1656,15 +1656,52 @@ reconcile_symbolic_complex(
                         "malformed_reconciliation_request");
     const auto &facet = prior->payload->validated->payload
                             ->facets[request.facet.value_for_debug()];
+    const auto &first =
+        prior->payload->curves[request.first_curve.value_for_debug()];
+    const auto &second =
+        prior->payload->curves[request.second_curve.value_for_debug()];
+    const auto incident = [&](const symbolic_curve &curve) {
+      return std::any_of(curve.raw_intervals.begin(), curve.raw_intervals.end(),
+                         [&](auto id) {
+        const auto *raw = find_raw_interval(*prior->payload->raw_events->payload,
+                                            id);
+        return raw && (raw->facets.operand_a_facet == request.facet ||
+                       raw->facets.operand_b_facet == request.facet);
+      });
+    };
+    canonical_encoder encoded;
+    encoded.id(request.facet);
+    encoded.id(request.first_curve);
+    encoded.id(request.second_curve);
+    enc_point(encoded, request.point);
+    const auto key = domain_digest(
+        {{'Y', 'G', 'B', 'R', 'E', 'C', '0', '7'}}, encoded.bytes());
+    const bool valid_curves =
+        first.kind == symbolic_curve_kind::atomic_interval && first.lower &&
+        first.upper && second.kind == symbolic_curve_kind::atomic_interval &&
+        second.lower && second.upper;
+    segment_relation3 relation;
+    if (valid_curves)
+      relation = relate_segments(
+          exact_segment3{
+              prior->payload->vertices[first.lower->value_for_debug()].point,
+              prior->payload->vertices[first.upper->value_for_debug()].point},
+          exact_segment3{
+              prior->payload->vertices[second.lower->value_for_debug()].point,
+              prior->payload->vertices[second.upper->value_for_debug()].point});
+    const auto existing = std::lower_bound(
+        prior->payload->vertices.begin(), prior->payload->vertices.end(),
+        request.point, [](const auto &vertex, const auto &point) {
+          return point_less(vertex.point, point);
+        });
     if (plane_side(facet.plane, request.point) != exact_sign::zero ||
-        classify_point_line(request.point,
-                            prior->payload
-                                ->curves[request.first_curve.value_for_debug()]
-                                .carrier) != point_line_relation::on_carrier ||
-        classify_point_line(request.point,
-                            prior->payload
-                                ->curves[request.second_curve.value_for_debug()]
-                                .carrier) != point_line_relation::on_carrier)
+        !valid_curves || !incident(first) || !incident(second) ||
+        key != request.canonical_key ||
+        relation.dimension != intersection_dimension::point ||
+        relation.point_kind != segment_point_kind::proper_crossing ||
+        !relation.point || !(*relation.point == request.point) ||
+        (existing != prior->payload->vertices.end() &&
+         existing->point == request.point))
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::symbolic_registry,
                         "reconciliation_geometry");
@@ -1681,6 +1718,14 @@ reconcile_symbolic_complex(
     return generation.error();
   auto result = build_symbolic_complex_impl<T, I>(ctx, requests, prior);
   if (result.has_value()) {
+    if (result.value()->generation != prior->generation + 1 ||
+        result.value()->payload->vertices.size() <=
+            prior->payload->vertices.size() ||
+        result.value()->payload->reconciliation_history.size() !=
+            prior->payload->reconciliation_history.size() + requests.size())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::symbolic_registry,
+                        "reconciliation_no_progress");
     charge.value().commit();
     generation.value().commit();
   }

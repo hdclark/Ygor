@@ -280,78 +280,185 @@ int ray_compare(const exact_vector2 &a, const exact_vector2 &b) {
     return exact_scalar(0) < z ? -1 : 1;
   return 0;
 }
+struct facet_constraint_view {
+  std::vector<symbolic_curve_id> curves;
+  std::vector<symbolic_vertex_id> vertices;
+};
+template <class T, class I>
+status_or<std::vector<facet_constraint_view>>
+build_constraint_index(const symbolic_complex<T, I> &symbolic) {
+  std::vector<facet_constraint_view> index(
+      symbolic.validated->payload->facets.size());
+  for (const auto &vertex : symbolic.vertices)
+    for (auto facet : vertex.facets) {
+      if (facet.value_for_debug() >= index.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::local_refinement,
+                          "constraint_index_facet");
+      index[facet.value_for_debug()].vertices.push_back(vertex.id);
+    }
+  for (const auto &curve : symbolic.curves) {
+    if (curve.kind != symbolic_curve_kind::atomic_interval || !curve.lower ||
+        !curve.upper)
+      continue;
+    std::vector<facet_id> incident;
+    for (auto raw_id : curve.raw_intervals) {
+      const auto *raw = find_raw_interval(*symbolic.raw_events->payload, raw_id);
+      if (!raw)
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::local_refinement,
+                          "constraint_index_raw_interval");
+      incident.push_back(raw->facets.operand_a_facet);
+      incident.push_back(raw->facets.operand_b_facet);
+    }
+    std::sort(incident.begin(), incident.end());
+    incident.erase(std::unique(incident.begin(), incident.end()),
+                   incident.end());
+    for (auto facet : incident) {
+      if (facet.value_for_debug() >= index.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::local_refinement,
+                          "constraint_index_curve_facet");
+      index[facet.value_for_debug()].curves.push_back(curve.id);
+    }
+  }
+  for (auto &facet : index) {
+    std::sort(facet.curves.begin(), facet.curves.end());
+    facet.curves.erase(std::unique(facet.curves.begin(), facet.curves.end()),
+                       facet.curves.end());
+    std::sort(facet.vertices.begin(), facet.vertices.end());
+    facet.vertices.erase(
+        std::unique(facet.vertices.begin(), facet.vertices.end()),
+        facet.vertices.end());
+  }
+  return index;
+}
+struct bounded_segment2 {
+  exact_scalar min_x, max_x, min_y, max_y;
+  std::size_t ordinal = 0;
+};
+std::vector<std::pair<std::size_t, std::size_t>>
+crossing_candidates(const std::vector<exact_segment2> &segments) {
+  std::vector<bounded_segment2> bounds;
+  bounds.reserve(segments.size());
+  for (std::size_t i = 0; i < segments.size(); ++i) {
+    const auto &a = segments[i].origin;
+    const auto &b = segments[i].destination;
+    bounds.push_back({b.x < a.x ? b.x : a.x, a.x < b.x ? b.x : a.x,
+                      b.y < a.y ? b.y : a.y, a.y < b.y ? b.y : a.y, i});
+  }
+  std::sort(bounds.begin(), bounds.end(), [](const auto &a, const auto &b) {
+    int c = a.min_x.compare(b.min_x);
+    if (c) return c < 0;
+    c = a.min_y.compare(b.min_y);
+    if (c) return c < 0;
+    c = a.max_x.compare(b.max_x);
+    if (c) return c < 0;
+    c = a.max_y.compare(b.max_y);
+    return c ? c < 0 : a.ordinal < b.ordinal;
+  });
+  std::vector<std::size_t> active;
+  std::vector<std::pair<std::size_t, std::size_t>> result;
+  for (std::size_t current_index = 0; current_index < bounds.size();
+       ++current_index) {
+    const auto &current = bounds[current_index];
+    active.erase(std::remove_if(active.begin(), active.end(), [&](auto n) {
+                   return bounds[n].max_x < current.min_x;
+                 }),
+                 active.end());
+    for (auto n : active) {
+      const auto &other = bounds[n];
+      if (other.max_y < current.min_y || current.max_y < other.min_y)
+        continue;
+      result.emplace_back(std::min(other.ordinal, current.ordinal),
+                          std::max(other.ordinal, current.ordinal));
+    }
+    active.push_back(current_index);
+  }
+  std::sort(result.begin(), result.end());
+  result.erase(std::unique(result.begin(), result.end()), result.end());
+  performance_count(performance_counter::candidate_constraint_pairs,
+                    result.size());
+  return result;
+}
+template <class T, class I>
+bool contains_exact_vertex(const symbolic_complex<T, I> &symbolic,
+                           const exact_point3 &point) {
+  auto it = std::lower_bound(symbolic.vertices.begin(), symbolic.vertices.end(),
+                             point, [](const auto &vertex, const auto &value) {
+                               return lexicographic_compare(vertex.point,
+                                                            value) < 0;
+                             });
+  performance_count(performance_counter::exact_equality_checks);
+  return it != symbolic.vertices.end() && it->point == point;
+}
 template <class T, class I>
 status_or<std::vector<symbolic_reconciliation_request>>
-audit_crossings(const published_artifact<symbolic_complex<T, I>> &published) {
+audit_crossings(const published_artifact<symbolic_complex<T, I>> &published,
+                const std::vector<facet_constraint_view> &index) {
   const auto &symbolic = *published.payload;
   std::vector<symbolic_reconciliation_request> requests;
   for (const auto &facet : symbolic.validated->payload->facets) {
     std::vector<const symbolic_curve *> curves;
-    for (const auto &curve : symbolic.curves) {
-      if (curve.kind != symbolic_curve_kind::atomic_interval || !curve.lower ||
-          !curve.upper)
-        continue;
-      const bool incident = std::any_of(
-          curve.raw_intervals.begin(), curve.raw_intervals.end(),
-          [&](auto id) {
-            const auto *raw = find_raw_interval(
-                *symbolic.raw_events->payload, id);
-            return raw &&
-                   (raw->facets.operand_a_facet == facet.id ||
-                    raw->facets.operand_b_facet == facet.id);
-          });
-      if (incident &&
-          intersect_line_plane(curve.carrier, facet.plane).kind ==
-              line_plane_kind::contained)
+    std::vector<exact_segment2> projected;
+    for (auto curve_id : index[facet.id.value_for_debug()].curves) {
+      const auto &curve = symbolic.curves[curve_id.value_for_debug()];
+      if (intersect_line_plane(curve.carrier, facet.plane).kind ==
+              line_plane_kind::contained) {
         curves.push_back(&curve);
-    }
-    for (std::size_t i = 0; i < curves.size(); ++i)
-      for (std::size_t j = i + 1; j < curves.size(); ++j) {
-        const auto &first = *curves[i];
-        const auto &second = *curves[j];
-        exact_segment3 first_segment{
-            symbolic.vertices[first.lower->value_for_debug()].point,
-            symbolic.vertices[first.upper->value_for_debug()].point};
-        exact_segment3 second_segment{
-            symbolic.vertices[second.lower->value_for_debug()].point,
-            symbolic.vertices[second.upper->value_for_debug()].point};
-        const auto relation = relate_segments(first_segment, second_segment);
-        if (relation.dimension != intersection_dimension::point ||
-            relation.point_kind != segment_point_kind::proper_crossing ||
-            !relation.point)
-          continue;
-        if (std::any_of(symbolic.vertices.begin(), symbolic.vertices.end(),
-                        [&](const auto &vertex) {
-                          return vertex.point == *relation.point;
-                        }))
-          continue;
-        symbolic_reconciliation_request request;
-        request.prior_digest = published.artifact_digest;
-        request.prior_generation = published.generation;
-        request.facet = facet.id;
-        request.first_curve = std::min(first.id, second.id);
-        request.second_curve = std::max(first.id, second.id);
-        request.point = *relation.point;
-        request.constructions = first.constructions;
-        request.constructions.insert(request.constructions.end(),
-                                     second.constructions.begin(),
-                                     second.constructions.end());
-        std::sort(request.constructions.begin(), request.constructions.end());
-        request.constructions.erase(
-            std::unique(request.constructions.begin(),
-                        request.constructions.end()),
-            request.constructions.end());
-        canonical_encoder encoded;
-        encoded.id(request.facet);
-        encoded.id(request.first_curve);
-        encoded.id(request.second_curve);
-        encode(encoded, request.point.x);
-        encode(encoded, request.point.y);
-        encode(encoded, request.point.z);
-        request.canonical_key = domain_digest(
-            {{'Y', 'G', 'B', 'R', 'E', 'C', '0', '7'}}, encoded.bytes());
-        requests.push_back(std::move(request));
+        projected.push_back(
+            {project(symbolic.vertices[curve.lower->value_for_debug()].point,
+                     facet.projection),
+             project(symbolic.vertices[curve.upper->value_for_debug()].point,
+                     facet.projection)});
       }
+    }
+    performance_count(performance_counter::constraints, curves.size());
+    for (const auto pair : crossing_candidates(projected)) {
+      const auto i = pair.first, j = pair.second;
+      const auto &first = *curves[i];
+      const auto &second = *curves[j];
+      exact_segment3 first_segment{
+          symbolic.vertices[first.lower->value_for_debug()].point,
+          symbolic.vertices[first.upper->value_for_debug()].point};
+      exact_segment3 second_segment{
+          symbolic.vertices[second.lower->value_for_debug()].point,
+          symbolic.vertices[second.upper->value_for_debug()].point};
+      performance_count(performance_counter::exact_constraint_intersections);
+      const auto relation = relate_segments(first_segment, second_segment);
+      if (relation.dimension != intersection_dimension::point ||
+          relation.point_kind != segment_point_kind::proper_crossing ||
+          !relation.point)
+        continue;
+      if (contains_exact_vertex(symbolic, *relation.point))
+        continue;
+      symbolic_reconciliation_request request;
+      request.prior_digest = published.artifact_digest;
+      request.prior_generation = published.generation;
+      request.facet = facet.id;
+      request.first_curve = std::min(first.id, second.id);
+      request.second_curve = std::max(first.id, second.id);
+      request.point = *relation.point;
+      request.constructions = first.constructions;
+      request.constructions.insert(request.constructions.end(),
+                                   second.constructions.begin(),
+                                   second.constructions.end());
+      std::sort(request.constructions.begin(), request.constructions.end());
+      request.constructions.erase(
+          std::unique(request.constructions.begin(),
+                      request.constructions.end()),
+          request.constructions.end());
+      canonical_encoder encoded;
+      encoded.id(request.facet);
+      encoded.id(request.first_curve);
+      encoded.id(request.second_curve);
+      encode(encoded, request.point.x);
+      encode(encoded, request.point.y);
+      encode(encoded, request.point.z);
+      request.canonical_key = domain_digest(
+          {{'Y', 'G', 'B', 'R', 'E', 'C', '0', '7'}}, encoded.bytes());
+      requests.push_back(std::move(request));
+    }
   }
   std::sort(requests.begin(), requests.end(), reconciliation_request_less);
   requests.erase(std::unique(requests.begin(), requests.end(),
@@ -362,7 +469,8 @@ audit_crossings(const published_artifact<symbolic_complex<T, I>> &published) {
 template <class T, class I>
 status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
                                         const validated_facet &vf,
-                                        context_owner_token owner) {
+                                        context_owner_token owner,
+                                        const facet_constraint_view &view) {
   local_refinement f;
   f.facet = vf.id;
   f.operand = vf.operand;
@@ -392,6 +500,9 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     bool artificial = false;
   };
   std::vector<draft> ds;
+  const auto missing_chain = std::numeric_limits<std::size_t>::max();
+  std::vector<std::size_t> source_chain_by_use(
+      s.validated->payload->edge_uses.size(), missing_chain);
   for (auto use_id : vf.edge_uses) {
     const auto &view = s.directed_edge_views[use_id.value_for_debug()];
     const auto &seq = s.edge_sequences[view.sequence.value_for_debug()];
@@ -409,24 +520,20 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
       used.insert(a);
       used.insert(b);
     }
+    source_chain_by_use[use_id.value_for_debug()] = f.source_boundary.size();
     f.source_boundary.push_back(std::move(chain));
   }
   const auto &raw = *s.raw_events->payload;
-  for (const auto &c : s.curves)
+  for (auto curve_id : view.curves) {
+    const auto &c = s.curves[curve_id.value_for_debug()];
     if (c.kind == symbolic_curve_kind::atomic_interval && c.lower && c.upper) {
-      bool incident = false;
       for (auto rid : c.raw_intervals) {
         const auto *it = find_raw_interval(raw, rid);
         if (!it)
           return make_error(boolean_error_code::internal_invariant_error,
                             boolean_stage::local_refinement,
                             "missing_raw_interval");
-        if (it->facets.operand_a_facet == vf.id ||
-            it->facets.operand_b_facet == vf.id)
-          incident = true;
       }
-      if (!incident)
-        continue;
       std::vector<local_constraint_label> ls;
       for (auto rid : c.raw_intervals) {
         const auto *it = find_raw_interval(raw, rid);
@@ -454,9 +561,8 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
         used.insert(*c.upper);
       }
     }
-  for (const auto &v : s.vertices)
-    if (std::binary_search(v.facets.begin(), v.facets.end(), vf.id))
-      used.insert(v.id);
+  }
+  used.insert(view.vertices.begin(), view.vertices.end());
   // Atomize every occurrence at all registry points on its closed segment.
   // This makes T-junctions and collinear overlap endpoints explicit before
   // geometric edge aggregation.
@@ -513,10 +619,11 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
                                   project(pb, vf.projection));
     return c ? c < 0 : a < b;
   });
-  std::map<std::uint64_t, local_vertex_id> vm;
+  const auto invalid_local = std::numeric_limits<std::uint64_t>::max();
+  std::vector<std::uint64_t> vm(s.vertices.size(), invalid_local);
   for (auto sid : order) {
     auto id = local_vertex_id::from_canonical_value(f.vertices.size());
-    vm[sid.value_for_debug()] = id;
+    vm[sid.value_for_debug()] = id.value_for_debug();
     f.vertices.push_back(
         {refv(id),
          sid,
@@ -537,21 +644,23 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     f.point_incidences.push_back(std::move(pi));
   }
   // Exact audit: the registry must already contain every non-endpoint crossing.
-  for (std::size_t i = 0; i < ds.size(); ++i)
-    for (std::size_t j = i + 1; j < ds.size(); ++j) {
-      exact_segment2 a{
-          project(s.vertices[ds[i].a.value_for_debug()].point, vf.projection),
-          project(s.vertices[ds[i].b.value_for_debug()].point, vf.projection)},
-          b{project(s.vertices[ds[j].a.value_for_debug()].point, vf.projection),
-            project(s.vertices[ds[j].b.value_for_debug()].point,
-                    vf.projection)};
-      auto r = relate_segments(a, b);
-      if (r.dimension == intersection_dimension::point &&
-          r.point_kind == segment_point_kind::proper_crossing)
-        return make_error(boolean_error_code::internal_invariant_error,
-                          boolean_stage::local_refinement,
-                          "symbolic_reconciliation_required");
-    }
+  std::vector<exact_segment2> atom_segments;
+  atom_segments.reserve(ds.size());
+  for (const auto &d : ds)
+    atom_segments.push_back(
+        {project(s.vertices[d.a.value_for_debug()].point, vf.projection),
+         project(s.vertices[d.b.value_for_debug()].point, vf.projection)});
+  performance_count(performance_counter::constraints, atom_segments.size());
+  for (const auto pair : crossing_candidates(atom_segments)) {
+    performance_count(performance_counter::exact_constraint_intersections);
+    auto r = relate_segments(atom_segments[pair.first],
+                             atom_segments[pair.second]);
+    if (r.dimension == intersection_dimension::point &&
+        r.point_kind == segment_point_kind::proper_crossing)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::local_refinement,
+                        "symbolic_reconciliation_required");
+  }
   // A semantic dangling edge produces a weak boundary walk. Add the least
   // exact visible registered-vertex cut, one at a time, until every non-source
   // vertex has degree other than one. This is topology-driven; no length or
@@ -587,14 +696,14 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
   };
   for (std::size_t cut_count = 0; cut_count < used.size() * used.size();
        ++cut_count) {
-    std::map<symbolic_vertex_id, std::size_t> degree;
+    std::vector<std::size_t> degree(s.vertices.size());
     for (const auto &edge : ds) {
-      ++degree[edge.a];
-      ++degree[edge.b];
+      ++degree[edge.a.value_for_debug()];
+      ++degree[edge.b.value_for_debug()];
     }
     std::optional<std::pair<symbolic_vertex_id, symbolic_vertex_id>> cut;
     for (auto from : used) {
-      if (degree[from] != 1)
+      if (degree[from.value_for_debug()] != 1)
         continue;
       for (auto to : used) {
         if (from == to || !visible(from, to))
@@ -644,14 +753,16 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
     while (j < ds.size() && same_edge_pair(ds[i].a, ds[i].b, ds[j].a, ds[j].b))
       ++j;
     auto lo = ds[i].a, hi = ds[i].b;
-    const auto &lp = f.vertices[vm[lo.value_for_debug()].value_for_debug()].projected;
-    const auto &hp = f.vertices[vm[hi.value_for_debug()].value_for_debug()].projected;
+    const auto &lp = f.vertices[vm[lo.value_for_debug()]].projected;
+    const auto &hp = f.vertices[vm[hi.value_for_debug()]].projected;
     if (lexicographic_compare(hp, lp) < 0)
       std::swap(lo, hi);
     local_atomic_edge e;
     e.id = refe(local_atomic_edge_id::from_canonical_value(f.edges.size()));
-    e.lower = refv(vm[lo.value_for_debug()]);
-    e.upper = refv(vm[hi.value_for_debug()]);
+    e.lower = refv(local_vertex_id::from_canonical_value(
+        vm[lo.value_for_debug()]));
+    e.upper = refv(local_vertex_id::from_canonical_value(
+        vm[hi.value_for_debug()]));
     for (std::size_t k = i; k < j; ++k) {
       e.labels.insert(e.labels.end(), ds[k].labels.begin(), ds[k].labels.end());
       e.source_boundary |= ds[k].boundary;
@@ -665,24 +776,28 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
   for (auto &edge : f.edges) {
     std::sort(edge.labels.begin(), edge.labels.end(), label_less);
   }
+  std::vector<std::size_t> constraint_chain_by_raw(
+      s.raw_events->payload->event_index.size(), missing_chain);
   for (auto &e : f.edges)
     for (const auto &l : e.labels) {
       if (l.source_kind == local_constraint_source::source_boundary) {
         auto use = std::get<edge_use_id>(l.source);
-        auto it =
-            std::find_if(f.source_boundary.begin(), f.source_boundary.end(),
-                         [&](const auto &x) { return use == x.source; });
-        if (it != f.source_boundary.end())
-          it->edges.push_back(e.id);
+        const auto chain = source_chain_by_use[use.value_for_debug()];
+        if (chain == missing_chain)
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::local_refinement,
+                            "source_chain_lookup");
+        f.source_boundary[chain].edges.push_back(e.id);
       } else {
-        auto it =
-            std::find_if(f.constraints.begin(), f.constraints.end(),
-                         [&](const auto &x) { return x.source == l.source; });
-        if (it == f.constraints.end())
+        auto raw_id = std::get<raw_event_id>(l.source);
+        auto &chain = constraint_chain_by_raw[raw_id.value_for_debug()];
+        if (chain == missing_chain) {
+          chain = f.constraints.size();
           f.constraints.push_back(
               {l.source, {e.id}, l.direction, l.multiplicity});
-        else
-          it->edges.push_back(e.id);
+        } else {
+          f.constraints[chain].edges.push_back(e.id);
+        }
       }
     }
   for (auto &e : f.edges) {
@@ -725,13 +840,19 @@ status_or<local_refinement> build_facet(const symbolic_complex<T, I> &s,
       int c = ray_compare(da, db);
       return c ? c < 0 : a.id < b.id;
     });
+  std::vector<std::size_t> star_position(f.halfedges.size());
+  for (const auto &vertex : f.vertices)
+    for (std::size_t i = 0; i < vertex.outgoing.size(); ++i)
+      star_position[vertex.outgoing[i].id.value_for_debug()] = i;
   for (auto &h : f.halfedges) {
     const auto &star = f.vertices[h.destination.id.value_for_debug()].outgoing;
-    auto it = std::find(star.begin(), star.end(), h.twin);
-    if (it == star.end())
+    if (star.empty() ||
+        star_position[h.twin.id.value_for_debug()] >= star.size() ||
+        star[star_position[h.twin.id.value_for_debug()]] != h.twin)
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::local_refinement, "star_missing_twin");
-    h.next = it == star.begin() ? star.back() : *(it - 1);
+    const auto position = star_position[h.twin.id.value_for_debug()];
+    h.next = star[(position + star.size() - 1) % star.size()];
   }
   for (auto &h : f.halfedges)
     f.halfedges[h.next.id.value_for_debug()].previous = h.id;
@@ -1216,16 +1337,30 @@ refine_source_facets(boolean_context<T, I> &ctx) {
                                boolean_stage::local_refinement,
                                performance_role::producer);
     auto symbolic = sym.value();
-    for (std::uint64_t pass = 0;; ++pass) {
-      auto requests = audit_crossings(*symbolic);
+    std::vector<symbolic_reconciliation_request> submitted;
+    std::vector<facet_constraint_view> constraint_index;
+    for (;;) {
+      auto built_index = build_constraint_index(*symbolic->payload);
+      if (!built_index.has_value())
+        return built_index.error();
+      constraint_index = std::move(built_index.value());
+      auto requests = audit_crossings(*symbolic, constraint_index);
       if (!requests.has_value())
         return requests.error();
       if (requests.value().empty())
         break;
-      if (pass != 0)
-        return make_error(boolean_error_code::internal_invariant_error,
-                          boolean_stage::local_refinement,
-                          "nonprogressing_reconciliation");
+      for (const auto &request : requests.value())
+        if (std::any_of(submitted.begin(), submitted.end(), [&](const auto &old) {
+              return old.facet == request.facet &&
+                     old.first_curve == request.first_curve &&
+                     old.second_curve == request.second_curve &&
+                     old.point == request.point;
+            }))
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::local_refinement,
+                            "nonprogressing_reconciliation");
+      submitted.insert(submitted.end(), requests.value().begin(),
+                       requests.value().end());
       auto successor = reconcile_symbolic_complex(
           ctx, symbolic, std::move(requests.value()));
       if (!successor.has_value())
@@ -1247,7 +1382,8 @@ refine_source_facets(boolean_context<T, I> &ctx) {
     a.kernel_policy_digest = symbolic->payload->kernel_policy_digest;
     a.constructions = symbolic->payload->constructions;
     for (const auto &vf : a.validated->payload->facets) {
-      auto f = build_facet(*symbolic->payload, vf, ctx.owner());
+      auto f = build_facet(*symbolic->payload, vf, ctx.owner(),
+                           constraint_index[vf.id.value_for_debug()]);
       if (!f.has_value())
         return f.error();
       a.facets.push_back(std::move(f.value()));

@@ -110,6 +110,7 @@ int main() {
       boolean_options generated_options;
       generated_options.execution.max_threads =
           offset == 0.5 ? 4U : 1U;
+      generated_options.tracing.collect_noncanonical_timings = true;
       auto generated_context =
           context(generated_a, generated_b, r, generated_options);
       auto generated = refine_source_facets(*generated_context);
@@ -119,6 +120,14 @@ int main() {
                                  render_error(generated.error()));
       for (const auto &facet : generated.value()->payload->facets)
         exhaustive_oracle(facet);
+      const auto counters = generated_context->performance()->stage(
+          boolean_stage::local_refinement).producer;
+      require(counters.value(performance_counter::constraints) > 0,
+              "local constraints are counted");
+      require(counters.value(performance_counter::candidate_constraint_pairs) ==
+                  counters.value(
+                      performance_counter::exact_constraint_intersections),
+              "only conservative candidates reach exact segment relation");
     }
     std::cout << "ok\n";
   } catch (const std::exception &e) {

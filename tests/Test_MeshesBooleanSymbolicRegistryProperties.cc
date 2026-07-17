@@ -41,6 +41,40 @@ template <class T, class I> void run() {
   for (const auto &order : x.radial_orders)
     require(!order.groups.empty(), "radial order coverage");
   const auto expected = x.canonical_symbolic_bytes;
+  const auto curve = std::find_if(x.curves.begin(), x.curves.end(),
+                                  [](const auto &value) {
+    return value.kind == symbolic_curve_kind::atomic_interval && value.lower &&
+           value.upper && !value.raw_intervals.empty();
+  });
+  require(curve != x.curves.end(), "atomic curve for reconciliation audit");
+  const auto *raw = find_raw_interval(*x.raw_events->payload,
+                                      curve->raw_intervals.front());
+  require(raw != nullptr, "raw interval for reconciliation audit");
+  symbolic_reconciliation_request no_progress;
+  no_progress.prior_digest = s.value()->artifact_digest;
+  no_progress.prior_generation = s.value()->generation;
+  no_progress.facet = raw->facets.operand_a_facet;
+  no_progress.first_curve = curve->id;
+  no_progress.second_curve = curve->id;
+  no_progress.point = x.vertices[curve->lower->value_for_debug()].point;
+  canonical_encoder request_key;
+  request_key.id(no_progress.facet);
+  request_key.id(no_progress.first_curve);
+  request_key.id(no_progress.second_curve);
+  encode(request_key, no_progress.point.x);
+  encode(request_key, no_progress.point.y);
+  encode(request_key, no_progress.point.z);
+  no_progress.canonical_key = domain_digest(
+      {{'Y', 'G', 'B', 'R', 'E', 'C', '0', '7'}}, request_key.bytes());
+  auto rejected = reconcile_symbolic_complex(*c, s.value(), {no_progress});
+  require(!rejected.has_value() &&
+              rejected.error().code ==
+                  boolean_error_code::internal_invariant_error &&
+              c->artifacts().latest_generation(artifact_slot::symbolic_complex) ==
+                  s.value()->generation &&
+              c->accountant().used(resource_kind::reconciliation_requests) == 0 &&
+              c->accountant().used(resource_kind::successor_generations) == 0,
+          "already satisfied reconciliation cannot publish a successor");
   boolean_options mandatory_options;
   mandatory_options.verification = verification_level::mandatory;
   auto mandatory_context = context(a, b, r, mandatory_options);
