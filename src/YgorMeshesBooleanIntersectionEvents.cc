@@ -295,13 +295,19 @@ bool inside(const exact_point3 &p, const validated_facet &f,
   auto q = classify_point_polygon(project(p, f.projection), r);
   return q.has_value() && q.value().kind != point_region_kind::outside;
 }
+struct line_polygon_result {
+  std::vector<exact_scalar> cuts;
+  std::vector<exact_interval> components;
+};
+
 template <class T, class I>
-std::vector<exact_interval> line_polygon(const exact_line3 &l,
-                                         const validated_operands<T, I> &v,
-                                         const validated_facet &f) {
+line_polygon_result line_polygon(const exact_line3 &l,
+                                 const validated_operands<T, I> &v,
+                                 const validated_facet &f) {
+  performance_count(performance_counter::exact_carrier_polygon_tests);
   const auto &r = ring3(v, f);
   const auto &p2 = ring2(v, f);
-  std::vector<exact_scalar> cuts;
+  line_polygon_result result;
   // Edge/line intersection is most simply and exactly evaluated in the facet
   // chart.
   exact_line2 ql{project(l.anchor, f.projection),
@@ -312,32 +318,34 @@ std::vector<exact_interval> line_polygon(const exact_line3 &l,
     auto x = intersect_lines(ql, el);
     if (x.kind == line_line_kind::unique &&
         is_on_closed_segment(*x.point, {p2[i], p2[(i + 1) % p2.size()]})) {
-      cuts.push_back(*x.first_parameter);
+      result.cuts.push_back(*x.first_parameter);
     } else if (x.kind == line_line_kind::coincident) {
-      cuts.push_back(parameter(l, r[i]));
-      cuts.push_back(parameter(l, r[(i + 1) % r.size()]));
+      result.cuts.push_back(parameter(l, r[i]));
+      result.cuts.push_back(parameter(l, r[(i + 1) % r.size()]));
     }
   }
-  std::sort(cuts.begin(), cuts.end());
-  cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
-  std::vector<exact_interval> out;
-  for (std::size_t i = 0; i + 1 < cuts.size(); ++i) {
-    auto m = (cuts[i] + cuts[i + 1]) / exact_scalar(2);
+  std::sort(result.cuts.begin(), result.cuts.end());
+  result.cuts.erase(std::unique(result.cuts.begin(), result.cuts.end()),
+                    result.cuts.end());
+  for (std::size_t i = 0; i + 1 < result.cuts.size(); ++i) {
+    auto m = (result.cuts[i] + result.cuts[i + 1]) / exact_scalar(2);
     if (inside(at(l, m), f, p2))
-      out.push_back({cuts[i], cuts[i + 1], true, true});
+      result.components.push_back(
+          {result.cuts[i], result.cuts[i + 1], true, true});
   }
-  for (auto t : cuts)
+  for (const auto &t : result.cuts)
     if (inside(at(l, t), f, p2)) {
       bool covered = false;
-      for (const auto &q : out)
+      for (const auto &q : result.components)
         covered |= !(t < q.lower) && !(q.upper < t);
       if (!covered)
-        out.push_back({t, t, true, true});
+        result.components.push_back({t, t, true, true});
     }
-  std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+  std::sort(result.components.begin(), result.components.end(),
+            [](const auto &a, const auto &b) {
     return a.lower == b.lower ? a.upper < b.upper : a.lower < b.lower;
   });
-  return out;
+  return result;
 }
 std::vector<exact_interval>
 intersect_sets(const std::vector<exact_interval> &a,
@@ -587,9 +595,46 @@ planar_overlay overlay_polygons(const std::vector<exact_point2> &a,
 
 struct candidate_shard {
   std::optional<plane_plane_result> planes;
+  std::optional<line_polygon_result> operand_a_cuts;
+  std::optional<line_polygon_result> operand_b_cuts;
   std::vector<exact_interval> nonparallel_components;
   planar_overlay coplanar_overlay;
+  struct point_attribution {
+    exact_point3 point;
+    std::vector<raw_source_incidence> incidences;
+  };
+  std::vector<point_attribution> point_attributions;
 };
+
+template <class T, class I>
+void cache_point_attribution(candidate_shard &shard, const exact_point3 &point,
+                             const validated_operands<T, I> &v,
+                             const validated_facet &fa,
+                             const validated_facet &fb) {
+  if (std::find_if(shard.point_attributions.begin(),
+                   shard.point_attributions.end(), [&](const auto &entry) {
+                     return entry.point == point;
+                   }) != shard.point_attributions.end())
+    return;
+  candidate_shard::point_attribution entry;
+  entry.point = point;
+  entry.incidences = point_incidences(point, v, fa);
+  auto other = point_incidences(point, v, fb);
+  entry.incidences.insert(entry.incidences.end(), other.begin(), other.end());
+  normalize_incidences(entry.incidences);
+  shard.point_attributions.push_back(std::move(entry));
+}
+
+const std::vector<raw_source_incidence> &
+cached_point_attribution(const candidate_shard &shard,
+                         const exact_point3 &point) {
+  const auto found = std::find_if(
+      shard.point_attributions.begin(), shard.point_attributions.end(),
+      [&](const auto &entry) { return entry.point == point; });
+  if (found == shard.point_attributions.end())
+    throw std::logic_error("missing candidate point attribution");
+  return found->incidences;
+}
 
 exact_point2 overlap_witness(const std::vector<exact_point2> &cycle,
                              const std::vector<exact_point2> &a,
@@ -1193,8 +1238,9 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
           stored.carrier_begin != stored.carrier_end)) return false;
     if (relation.kind == plane_plane_kind::nonparallel) {
       const auto &line = *relation.line;
-      auto expected_components = intersect_sets(line_polygon(line, validated, fa),
-                                                line_polygon(line, validated, fb));
+      auto expected_components = intersect_sets(
+          line_polygon(line, validated, fa).components,
+          line_polygon(line, validated, fb).components);
       std::vector<exact_interval> actual_intervals;
       std::vector<exact_scalar> actual_points;
       for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id) {
@@ -1433,10 +1479,43 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
         shard.planes = intersect_planes(fa.plane, fb.plane);
         if (shard.planes->kind == plane_plane_kind::nonparallel) {
           const auto &line = *shard.planes->line;
+          shard.operand_a_cuts = line_polygon(line, v, fa);
+          shard.operand_b_cuts = line_polygon(line, v, fb);
           shard.nonparallel_components = intersect_sets(
-              line_polygon(line, v, fa), line_polygon(line, v, fb));
+              shard.operand_a_cuts->components,
+              shard.operand_b_cuts->components);
+          for (const auto &component : shard.nonparallel_components) {
+            cache_point_attribution(shard, at(line, component.lower), v, fa,
+                                    fb);
+            cache_point_attribution(shard, at(line, component.upper), v, fa,
+                                    fb);
+          }
         } else if (shard.planes->kind != plane_plane_kind::parallel_disjoint) {
           shard.coplanar_overlay = overlay_polygons(ring2(v, fa), ring2(v, fb));
+          auto cache_projected = [&](const exact_point2 &point) {
+            cache_point_attribution(
+                shard, lift(point, fa.plane, fa.projection), v, fa, fb);
+          };
+          for (const auto &cycle : shard.coplanar_overlay.cycles) {
+            for (const auto &point : cycle) cache_projected(point);
+            for (std::size_t edge = 0; edge < cycle.size(); ++edge) {
+              const auto midpoint =
+                  cycle[edge] +
+                  (cycle[(edge + 1) % cycle.size()] - cycle[edge]) *
+                      (exact_scalar(1) / exact_scalar(2));
+              cache_projected(midpoint);
+            }
+          }
+          for (const auto &segment :
+               shard.coplanar_overlay.contact_segments) {
+            cache_projected(segment.first);
+            cache_projected(segment.second);
+            cache_projected(segment.first +
+                            (segment.second - segment.first) *
+                                (exact_scalar(1) / exact_scalar(2)));
+          }
+          for (const auto &point : shard.coplanar_overlay.contact_points)
+            cache_projected(point);
         }
         shards[i] = std::move(shard);
         return true;
@@ -1462,6 +1541,7 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
       c.facets = cand.key;
       c.event_begin = next;
       c.carrier_begin = a.carriers.size();
+      const auto candidate_point_begin = a.points.size();
       const auto &fa = facet(v, cand.key.operand_a_facet);
       const auto &fb = facet(v, cand.key.operand_b_facet);
       if (!shards[shard_index].planes)
@@ -1479,7 +1559,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
         for (const auto &q : common) {
           auto addp = [&](const exact_scalar &t, raw_point_kind k) {
             auto value = at(line, t);
-            auto prior = std::find_if(a.points.begin(), a.points.end(),
+            auto prior = std::find_if(a.points.begin() + candidate_point_begin,
+                                      a.points.end(),
               [&](const auto &x) { return x.candidate == cand.id && x.point == value; });
             if (prior != a.points.end()) return std::make_pair(prior->id, false);
             raw_point_event p;
@@ -1488,10 +1569,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
             p.facets = cand.key;
             p.point = value;
             p.kind = k;
-            p.incidences = point_incidences(p.point, v, fa);
-            auto bi = point_incidences(p.point, v, fb);
-            p.incidences.insert(p.incidences.end(), bi.begin(), bi.end());
-            normalize_incidences(p.incidences);
+            p.incidences = cached_point_attribution(shards[shard_index],
+                                                    p.point);
             p.derivations.push_back(exact_derivation(p.incidences,
                                                      point_payload(p.point)));
             a.points.push_back(std::move(p));
@@ -1546,7 +1625,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
         const auto &overlay = shards[shard_index].coplanar_overlay;
         auto add_point = [&](const exact_point2 &q) {
           auto p = lift(q, fa.plane, fa.projection);
-          auto prior = std::find_if(a.points.begin(), a.points.end(),
+          auto prior = std::find_if(a.points.begin() + candidate_point_begin,
+                                    a.points.end(),
             [&](const auto &x) { return x.candidate == cand.id && x.point == p; });
           if (prior != a.points.end()) return prior->id;
           raw_point_event z;
@@ -1555,10 +1635,7 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
           z.facets = cand.key;
           z.point = p;
           z.kind = raw_point_kind::overlap_boundary_vertex;
-          z.incidences = point_incidences(p, v, fa);
-          auto bi = point_incidences(p, v, fb);
-          z.incidences.insert(z.incidences.end(), bi.begin(), bi.end());
-          normalize_incidences(z.incidences);
+          z.incidences = cached_point_attribution(shards[shard_index], p);
           z.derivations.push_back(exact_derivation(z.incidences,
                                                    point_payload(z.point)));
           a.points.push_back(std::move(z));
@@ -1626,11 +1703,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
               z.carrier_parameters = {exact_scalar(0), exact_scalar(1), true,
                                       true};
               auto midpoint = at(z.carrier, exact_scalar(1) / exact_scalar(2));
-              z.incidences = point_incidences(midpoint, v, fa);
-              auto midpoint_b = point_incidences(midpoint, v, fb);
-              z.incidences.insert(z.incidences.end(), midpoint_b.begin(),
-                                  midpoint_b.end());
-              normalize_incidences(z.incidences);
+              z.incidences = cached_point_attribution(shards[shard_index],
+                                                      midpoint);
               z.source_intervals = source_intervals(p, q, z.incidences, v);
               z.ownership = curve_ownership(z.incidences, v);
               apply_source_directions(z.ownership, z.source_intervals);
@@ -1690,11 +1764,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
             z.carrier = {p, q - p}; z.lower_point = lo; z.upper_point = hi;
             z.carrier_parameters = {exact_scalar(0), exact_scalar(1), true, true};
             auto midpoint = at(z.carrier, exact_scalar(1) / exact_scalar(2));
-            z.incidences = point_incidences(midpoint, v, fa);
-            auto midpoint_b = point_incidences(midpoint, v, fb);
-            z.incidences.insert(z.incidences.end(), midpoint_b.begin(),
-                                midpoint_b.end());
-            normalize_incidences(z.incidences);
+            z.incidences = cached_point_attribution(shards[shard_index],
+                                                    midpoint);
             z.source_intervals = source_intervals(p, q, z.incidences, v);
             z.ownership = curve_ownership(z.incidences, v);
             apply_source_directions(z.ownership, z.source_intervals);

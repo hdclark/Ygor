@@ -138,12 +138,24 @@ template <class T, class I> void run() {
     translate(b, T(1) / T(3), T(1) / T(4), T(1) / T(5));
     boolean_options options;
     options.execution.max_threads = threads;
+    options.tracing.collect_noncanonical_timings = true;
     auto c = context(a, b, r, options);
     auto events = discover_intersection_events(*c);
     require(events.has_value(), "scheduled events");
     if (reference.empty()) reference = events.value()->payload->canonical_event_bytes;
     require(reference == events.value()->payload->canonical_event_bytes,
             "thread-count independent canonical events");
+    const auto nonparallel = static_cast<std::uint64_t>(std::count_if(
+        events.value()->payload->classifications.begin(),
+        events.value()->payload->classifications.end(), [](const auto &entry) {
+          return entry.plane_relation == event_plane_relation::nonparallel;
+        }));
+    const auto performance = c->performance();
+    require(performance->stage(boolean_stage::intersection_events)
+                .producer.value(
+                    performance_counter::exact_carrier_polygon_tests) ==
+                nonparallel * 2,
+            "one cached carrier query per candidate facet");
     check_source_mappings(*events.value()->payload);
   }
 
