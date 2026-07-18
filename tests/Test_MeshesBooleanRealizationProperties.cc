@@ -7,6 +7,7 @@ template <class T, class I> void qualification() {
   auto b = input_test::box<T, I>(T(3), T(4));
   boolean_options one;
   one.execution.max_threads = 1;
+  one.tracing.collect_noncanonical_timings = true;
   auto c1 = classification_test::context(a, b, realization_test::registry(), operation::regularized_union, one);
   auto x = realize_selected_boundary(*c1);
   require(x.has_value(), "single-thread realization");
@@ -87,6 +88,68 @@ template <class T, class I> void qualification() {
     const auto pair_checks = std::max<std::uint64_t>(
         hierarchy_checks, x.value()->payload->pair_candidates.size());
     require(pair_checks > 0, "realization pair-check fixture");
+    std::vector<realization_triangle_pair> exhaustive_pairs;
+    const auto &boxes = x.value()->payload->pair_boxes;
+    for (std::size_t i = 0; i < boxes.size(); ++i)
+      for (std::size_t j = i + 1; j < boxes.size(); ++j)
+        if (!(boxes[i].upper.x < boxes[j].lower.x) &&
+            !(boxes[j].upper.x < boxes[i].lower.x) &&
+            !(boxes[i].upper.y < boxes[j].lower.y) &&
+            !(boxes[j].upper.y < boxes[i].lower.y) &&
+            !(boxes[i].upper.z < boxes[j].lower.z) &&
+            !(boxes[j].upper.z < boxes[i].lower.z)) {
+          const auto pair = std::minmax(boxes[i].triangle, boxes[j].triangle);
+          exhaustive_pairs.push_back({pair.first, pair.second});
+        }
+    std::sort(exhaustive_pairs.begin(), exhaustive_pairs.end(),
+              [](const auto &lhs, const auto &rhs) {
+                return std::tie(lhs.lower, lhs.upper) <
+                       std::tie(rhs.lower, rhs.upper);
+              });
+    require(exhaustive_pairs == x.value()->payload->pair_candidates,
+            "verifier interval sweep matches bounded exhaustive oracle");
+    const auto verifier = c1->performance()
+                              ->stage(boolean_stage::geometry_realization)
+                              .verifier;
+    require(verifier.value(performance_counter::realization_exact_pair_checks) <=
+                x.value()->payload->search.pair_checks -
+                    x.value()->payload->pair_candidates.size(),
+            "verifier interval index prunes the linear x-active candidate set");
+    require(verifier.resource(resource_kind::verifier_scratch_bytes) > 0 &&
+                verifier.resource(resource_kind::verifier_work) > 0,
+            "realization verifier scratch and work are accounted");
+    resource_policy verifier_limits;
+    verifier_limits.verifier_scratch_bytes = {
+        false, verifier.resource(resource_kind::verifier_scratch_bytes)};
+    verifier_limits.verifier_work = {
+        false, verifier.resource(resource_kind::verifier_work)};
+    resource_accountant exact_accountant(verifier_limits);
+    auto exact_checked = verify_realization_constraint_evidence_checked(
+        *x.value()->payload, &exact_accountant);
+    require(exact_checked.has_value() && exact_checked.value(),
+            "realization verifier exact scratch/work limits");
+    require(exact_accountant.used(resource_kind::verifier_scratch_bytes) == 0 &&
+                exact_accountant.used(resource_kind::verifier_work) == 0,
+            "realization verifier resource rollback");
+    auto scratch_short_limits = verifier_limits;
+    scratch_short_limits.verifier_scratch_bytes.value--;
+    resource_accountant scratch_short_accountant(scratch_short_limits);
+    const auto scratch_short = verify_realization_constraint_evidence_checked(
+        *x.value()->payload, &scratch_short_accountant);
+    require(!scratch_short.has_value() &&
+                scratch_short.error().code == boolean_error_code::resource_limit &&
+                scratch_short_accountant.used(
+                    resource_kind::verifier_scratch_bytes) == 0,
+            "realization verifier one-under scratch limit and rollback");
+    verifier_limits.verifier_work.value--;
+    resource_accountant short_accountant(verifier_limits);
+    const auto short_checked = verify_realization_constraint_evidence_checked(
+        *x.value()->payload, &short_accountant);
+    require(!short_checked.has_value() &&
+                short_checked.error().code == boolean_error_code::resource_limit &&
+                short_accountant.used(resource_kind::verifier_scratch_bytes) == 0 &&
+                short_accountant.used(resource_kind::verifier_work) == 0,
+            "realization verifier one-under work limit and rollback");
     boolean_options pair_exact;
     pair_exact.resources.realization_pair_checks = {false, pair_checks};
     auto pair_context = classification_test::context(

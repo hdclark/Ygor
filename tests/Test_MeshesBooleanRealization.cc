@@ -56,6 +56,7 @@ int main() {
     mutation_rejected(*r, *c, x, [](auto &v) { v.certificate.solver_version = 1; }, "stale solver evidence rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.certificate.obligation_version = 2; }, "stale obligation evidence rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.pair_boxes.front().upper.x = exact_scalar(-1); }, "pair box mutation rejected");
+    mutation_rejected(*r, *c, x, [](auto &v) { v.pair_candidates.pop_back(); }, "pair candidate mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.canonical_bytes.push_back(0); }, "canonical mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.artifact_bytes.push_back(0); }, "artifact mutation rejected");
 

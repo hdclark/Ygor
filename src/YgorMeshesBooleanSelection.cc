@@ -619,20 +619,15 @@ template <class T, class I> bool valid(const selected_exact_boundary<T, I> &a) {
   }
   if (components != a.certificate.connected_components)
     return false;
-  return semantic(a) == a.canonical_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest &&
-         a.certificate.semantic_digest ==
-             domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '1', '0'}},
-                           a.canonical_bytes);
+  return true;
 }
 template <class T, class I>
 status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a =
-        *static_cast<const selected_exact_boundary<T, I> *>(v.payload);
+    const auto *artifact =
+        static_cast<const selected_exact_boundary<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -643,19 +638,106 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    bool ok = valid(a) && independently_reconstruct_topology(a) &&
-              a.selected_operation == e.op;
-    r.outcome = ok ? verification_outcome::pass
-                   : verification_outcome::invariant_failure;
+    const bool binding_ok = artifact && e.accountant &&
+        v.owner == e.owner && v.slot == artifact_slot::selected_exact_boundary &&
+        v.artifact_type_tag == selected_exact_boundary_type_tag +
+            (static_cast<std::uint64_t>(e.coordinate) << 8) +
+            static_cast<std::uint64_t>(e.index) &&
+        v.artifact_schema == selected_exact_boundary_schema &&
+        artifact->owner == v.owner && artifact->setup_digest == e.setup_digest &&
+        v.artifact_digest == artifact->artifact_digest &&
+        artifact->labeled && artifact->labeled->payload &&
+        artifact->arrangement && artifact->arrangement->payload &&
+        artifact->labeled->payload->arrangement.get() == artifact->arrangement.get() &&
+        artifact->labeled_digest == artifact->labeled->artifact_digest &&
+        artifact->arrangement_digest == artifact->arrangement->artifact_digest &&
+        artifact->selected_operation == e.op;
+    std::optional<resource_reservation> work_charge, scratch_charge;
+    const auto reserve_resources = [&]() -> status_or<bool> {
+      auto entities = checked_add(artifact->decisions.size(),
+                                  artifact->vertices.size(),
+                                  boolean_stage::boolean_selection);
+      if (!entities.has_value()) return entities.error();
+      for (const auto count : {artifact->vertex_occurrences.size(),
+                               artifact->edges.size(), artifact->halfedges.size(),
+                               artifact->cycles.size(), artifact->patches.size(),
+                               artifact->topology_obstructions.size()}) {
+        entities = checked_add(entities.value(), count,
+                               boolean_stage::boolean_selection);
+        if (!entities.has_value()) return entities.error();
+      }
+      auto work = checked_add(entities.value(), artifact->canonical_bytes.size(),
+                              boolean_stage::boolean_selection);
+      if (!work.has_value()) return work.error();
+      auto scratch = checked_multiply(entities.value(), 1024,
+                                      boolean_stage::boolean_selection);
+      if (!scratch.has_value()) return scratch.error();
+      auto encoded = checked_add(artifact->canonical_bytes.size(),
+                                 artifact->artifact_bytes.size(),
+                                 boolean_stage::boolean_selection);
+      if (!encoded.has_value()) return encoded.error();
+      auto encoded_copies = checked_multiply(encoded.value(), 4,
+                                             boolean_stage::boolean_selection);
+      if (!encoded_copies.has_value()) return encoded_copies.error();
+      scratch = checked_add(scratch.value(), encoded_copies.value(),
+                            boolean_stage::boolean_selection);
+      if (!scratch.has_value()) return scratch.error();
+      auto reserved = e.accountant->reserve_scoped(
+          resource_kind::verifier_work, work.value(),
+          boolean_stage::boolean_selection);
+      if (!reserved.has_value()) return reserved.error();
+      work_charge.emplace(std::move(reserved.value()));
+      reserved = e.accountant->reserve_scoped(
+          resource_kind::verifier_scratch_bytes, scratch.value(),
+          boolean_stage::boolean_selection);
+      if (!reserved.has_value()) return reserved.error();
+      scratch_charge.emplace(std::move(reserved.value()));
+      return true;
+    };
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      auto st = ok ? check_status::passed
-                   : failed ? check_status::not_run_due_to_prior_failure
-                            : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::selection_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::selection_decisions:
+          {
+          auto reserved = reserve_resources();
+          if (!reserved.has_value()) return reserved.error();
+          ok = valid(*artifact);
+          break;
+          }
+        case invariant_code::selection_topology:
+          ok = independently_reconstruct_topology(*artifact);
+          break;
+        case invariant_code::selection_orientation:
+          ok = true;
+          break;
+        case invariant_code::selection_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest &&
+               artifact->certificate.semantic_digest == domain_digest(
+                   {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '0'}},
+                   artifact->canonical_bytes);
+          break;
+        default:
+          ok = false;
+        }
+      }
+      auto st = failed ? check_status::not_run_due_to_prior_failure
+                       : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, st, {}, 0});
       failed |= st == check_status::failed;
     }
-    r.dependency_digests = {a.labeled_digest, a.arrangement_digest};
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->labeled_digest,
+                              artifact->arrangement_digest};
     auto b = encode_verification_report(r);
     if (!b.has_value())
       return b.error();

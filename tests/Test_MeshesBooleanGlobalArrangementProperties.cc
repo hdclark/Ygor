@@ -1,6 +1,8 @@
 #include "MeshBooleanGlobalArrangementFixtures.h"
 
+#include <cmath>
 #include <iostream>
+#include <random>
 
 using namespace arrangement_test;
 
@@ -116,6 +118,69 @@ void exact_patch_witness_regressions() {
   require_cached_witness_work(*thin.first, *thin.second->payload);
 }
 
+mesh bipyramid(std::size_t valence) {
+  constexpr double pi = 3.141592653589793238462643383279502884;
+  mesh result;
+  result.vertices.push_back({0.0, 0.0, 2.0});
+  result.vertices.push_back({0.0, 0.0, -2.0});
+  for (std::size_t i = 0; i < valence; ++i) {
+    const auto angle = 2.0 * pi * static_cast<double>(i) /
+                       static_cast<double>(valence);
+    result.vertices.push_back({std::cos(angle), std::sin(angle), 0.0});
+  }
+  for (std::size_t i = 0; i < valence; ++i) {
+    const auto current = static_cast<std::uint32_t>(2 + i);
+    const auto next = static_cast<std::uint32_t>(2 + (i + 1) % valence);
+    result.faces.push_back({0, current, next});
+    result.faces.push_back({1, next, current});
+  }
+  return result;
+}
+
+void high_valence_verifier_work() {
+  constexpr std::size_t valence = 64;
+  auto shell = bipyramid(valence);
+  mesh empty;
+  auto verifiers = arrangement_test::registry();
+  boolean_options options;
+  options.execution.max_threads = 1;
+  options.tracing.collect_noncanonical_timings = true;
+  auto ctx = context(shell, empty, verifiers, options);
+  auto built = build_global_arrangement(*ctx);
+  if (!built.has_value())
+    throw std::runtime_error(render_error(built.error()));
+
+  const auto &arrangement = *built.value()->payload;
+  std::uint64_t candidates = 0, comparison_bound = 0;
+  std::size_t maximum_valence = 0;
+  for (const auto &occurrence : arrangement.vertex_occurrences) {
+    std::set<global_atomic_edge_id> incident;
+    for (auto halfedge : occurrence.incident_halfedges)
+      incident.insert(
+          arrangement.halfedges[halfedge.value_for_debug()].edge);
+    const auto count = incident.size();
+    maximum_valence = std::max(maximum_valence, count);
+    candidates += count;
+    std::uint64_t levels = 0;
+    for (std::size_t width = 1; width < count; width *= 2) ++levels;
+    comparison_bound += 2 * count * levels;
+  }
+  require(maximum_valence >= valence,
+          "high-valence occurrence reaches verifier direction sort");
+  const auto counters =
+      ctx->performance()->stage(boolean_stage::global_arrangement).verifier;
+  require(counters.value(performance_counter::link_direction_candidates) ==
+              candidates,
+          "verifier visits each high-valence direction once");
+  require(counters.value(
+              performance_counter::link_direction_sort_comparisons) <=
+              comparison_bound,
+          "verifier direction comparisons obey n log n admission bound");
+  require(counters.value(performance_counter::exact_link_direction_tests) <=
+              candidates,
+          "mandatory verifier exact-confirms only equal-key runs");
+}
+
 } // namespace
 
 int main() {
@@ -148,6 +213,63 @@ int main() {
     require(counters.value(performance_counter::exact_link_direction_tests) ==
                 counters.value(performance_counter::link_direction_candidates),
             "all local direction candidates checked exactly");
+    const auto verifier_counters =
+        c1->performance()->stage(boolean_stage::global_arrangement).verifier;
+    require(verifier_counters.value(performance_counter::global_index_lookups) > 0 &&
+                verifier_counters.value(performance_counter::exact_link_direction_tests) <=
+                    verifier_counters.value(performance_counter::link_direction_candidates) &&
+                verifier_counters.value(
+                    performance_counter::link_direction_sort_comparisons) > 0,
+            "verifier uses indexed incidence and sorted exact directions");
+    require(verifier_counters.resource(resource_kind::verifier_scratch_bytes) > 0 &&
+                verifier_counters.resource(resource_kind::verifier_work) > 0,
+            "global verifier scratch and work are accounted");
+
+    const auto type = arrangement_complex_type_tag +
+        (static_cast<std::uint64_t>(coordinate_tag::binary64) << 8) +
+        static_cast<std::uint64_t>(index_tag::uint32);
+    const auto spec = r->specification(artifact_slot::arrangement_complex, type,
+                                      arrangement_complex_schema,
+                                      verification_level::mandatory);
+    require(spec.has_value(), "global verifier resource specification");
+    const auto direct_verify = [&](resource_policy policy) {
+      resource_accountant accountant(policy);
+      const auto &artifact = *x.value()->payload;
+      artifact_view view{c1->owner(), artifact_slot::arrangement_complex, type,
+                         arrangement_complex_schema, 1, artifact.artifact_digest,
+                         x.value()->payload, x.value()->payload.get()};
+      verification_environment_view env{
+          c1->owner(), c1->replay().setup, c1->contract().selected_operation(),
+          &c1->options(), coordinate_tag::binary64, index_tag::uint32,
+          &c1->kernel(), {}, &accountant, [&] { return c1->cancelled(); }};
+      auto checked = r->verify(view, spec.value(), env);
+      require(accountant.used(resource_kind::verifier_scratch_bytes) == 0 &&
+                  accountant.used(resource_kind::verifier_work) == 0,
+              "global verifier scoped resource rollback");
+      return checked;
+    };
+    resource_policy exact_verifier;
+    exact_verifier.verifier_scratch_bytes = {
+        false, verifier_counters.resource(resource_kind::verifier_scratch_bytes)};
+    exact_verifier.verifier_work = {
+        false, verifier_counters.resource(resource_kind::verifier_work)};
+    const auto verifier_exact = direct_verify(exact_verifier);
+    require(verifier_exact.has_value() && verifier_exact.value().passed(),
+            "global verifier passes at exact scratch/work limits");
+    auto short_work = exact_verifier;
+    short_work.verifier_work.value--;
+    const auto verifier_short = direct_verify(short_work);
+    require(!verifier_short.has_value() &&
+                verifier_short.error().code == boolean_error_code::resource_limit &&
+                verifier_short.error().stage == boolean_stage::global_arrangement,
+            "global verifier one-under work limit");
+    auto short_scratch = exact_verifier;
+    short_scratch.verifier_scratch_bytes.value--;
+    const auto scratch_short = direct_verify(short_scratch);
+    require(!scratch_short.has_value() &&
+                scratch_short.error().code == boolean_error_code::resource_limit &&
+                scratch_short.error().stage == boolean_stage::global_arrangement,
+            "global verifier one-under scratch limit");
 
     cancellation_source stop;
     auto cc = context(a, b, r, boolean_options{}, &stop);
@@ -182,6 +304,87 @@ int main() {
     for (const auto &group : same.value()->payload->coincident_groups)
       require(group.members.size() == 2, "separate coincidence members");
 
+    const auto semantic_check = [&](const auto &published, const auto &ctx,
+                                     verification_level level, auto mutate) {
+      auto changed = std::make_shared<arrangement_complex<double, std::uint32_t>>(
+          *published->payload);
+      mutate(*changed);
+      const auto level_spec = r->specification(
+          artifact_slot::arrangement_complex, type, arrangement_complex_schema,
+          level);
+      require(level_spec.has_value(), "differential verifier specification");
+      artifact_view view{ctx->owner(), artifact_slot::arrangement_complex, type,
+                         arrangement_complex_schema, 1,
+                         published->artifact_digest, changed, changed.get()};
+      resource_accountant accountant(resource_policy{});
+      verification_environment_view env{
+          ctx->owner(), ctx->replay().setup, ctx->contract().selected_operation(),
+          &ctx->options(), coordinate_tag::binary64, index_tag::uint32,
+          &ctx->kernel(), {}, &accountant, [] { return false; }};
+      auto checked = r->verify(view, level_spec.value(), env);
+      require(accountant.used(resource_kind::verifier_scratch_bytes) == 0 &&
+                  accountant.used(resource_kind::verifier_work) == 0,
+              "differential verifier rollback");
+      return checked;
+    };
+    const auto unchanged = [](auto &) {};
+    const auto mandatory_valid = semantic_check(
+        x.value(), c1, verification_level::mandatory, unchanged);
+    const auto exhaustive_valid = semantic_check(
+        x.value(), c1, verification_level::exhaustive, unchanged);
+    require(mandatory_valid.has_value() && exhaustive_valid.has_value() &&
+                mandatory_valid.value().passed() &&
+                exhaustive_valid.value().passed(),
+            "bounded exhaustive direction oracle agrees on valid artifact");
+    std::mt19937 random(0x080b11u);
+    for (std::size_t trial = 0; trial < 48; ++trial) {
+      const auto mutation = random() % 10;
+      const auto mutate = [mutation](auto &changed) {
+        switch (mutation) {
+        case 0: changed.refined_digest.bytes[0] ^= 1; break;
+        case 1: changed.local_maps.front().global_fragments.front() ^= 1; break;
+        case 2: changed.halfedges.front().sheet_mate = changed.halfedges.front().id; break;
+        case 3: changed.seams.clear(); break;
+        case 4: changed.coincident_groups.clear(); break;
+        case 5: changed.transitions.front().region_crossing =
+                    !changed.transitions.front().region_crossing; break;
+        case 6: changed.canonical_bytes.push_back(0); break;
+        case 7: changed.vertex_occurrences.front().local_germs.clear(); break;
+        case 8: changed.link_rays.front().antipode = changed.link_rays.front().id; break;
+        default: changed.probes.front().evidence.front() = exact_sign::zero; break;
+        }
+      };
+      const auto &fixture = mutation == 3 ? crossing : mutation == 4 ? same : x;
+      const auto &fixture_context =
+          mutation == 3 ? crossing_context : mutation == 4 ? same_context : c1;
+      const auto mandatory = semantic_check(
+          fixture.value(), fixture_context, verification_level::mandatory, mutate);
+      const auto exhaustive = semantic_check(
+          fixture.value(), fixture_context, verification_level::exhaustive, mutate);
+      require(mandatory.has_value() && exhaustive.has_value() &&
+                  mandatory.value().outcome == exhaustive.value().outcome &&
+                  mandatory.value().results.size() == exhaustive.value().results.size(),
+              "mandatory/exhaustive semantic differential outcome");
+      bool causal_failure = false;
+      for (std::size_t i = 0; i < mandatory.value().results.size(); ++i) {
+        require(mandatory.value().results[i].code ==
+                    exhaustive.value().results[i].code &&
+                    mandatory.value().results[i].status ==
+                    exhaustive.value().results[i].status,
+                "mandatory/exhaustive deterministic invariant result");
+        const auto status = mandatory.value().results[i].status;
+        if (!causal_failure && status == check_status::failed)
+          causal_failure = true;
+        else
+          require(status == (causal_failure
+                                 ? check_status::not_run_due_to_prior_failure
+                                 : check_status::passed),
+                  "ordered checks stop after one causal failure");
+      }
+      require(causal_failure && !mandatory.value().passed(),
+              "mutation produces one causal verifier failure");
+    }
+
     auto partial_a = cube<double, std::uint32_t>();
     auto partial_b = cube<double, std::uint32_t>();
     translate(partial_b, 0.5, 0, 0);
@@ -204,6 +407,7 @@ int main() {
             "probe resource rollback");
 
     exact_patch_witness_regressions();
+    high_valence_verifier_work();
     std::cout << "ok\n";
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';

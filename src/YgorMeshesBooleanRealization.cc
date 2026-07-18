@@ -1035,7 +1035,8 @@ void append_obligations(realized_boundary<T, I> &a) {
 }
 
 template <class T, class I>
-bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
+bool valid(const realized_boundary<T, I> &a, const realization_policy &policy,
+           bool constraint_evidence_ok) {
   if (!a.selected || !a.symbolic || !a.constructions ||
       a.owner != a.selected->owner || a.owner != a.symbolic->owner ||
       a.selected->payload->arrangement->payload->symbolic.get() !=
@@ -1170,6 +1171,18 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
   std::set<std::tuple<selected_patch_id, realization_vertex_id,
                       realization_vertex_id>>
       expected_hole_bridges;
+  std::map<std::pair<realization_vertex_id, realization_vertex_id>,
+           selected_edge_id>
+      selected_edges;
+  for (const auto &edge : s.edges) {
+    const auto lower = realization_vertex_id::from_canonical_value(
+        edge.lower.value_for_debug());
+    const auto upper = realization_vertex_id::from_canonical_value(
+        edge.upper.value_for_debug());
+    const auto endpoints = std::minmax(lower, upper);
+    if (!selected_edges.emplace(endpoints, edge.id).second)
+      return false;
+  }
   for (const auto &patch : s.patches) {
     if (patch.source.value_for_debug() >=
         s.arrangement->payload->patches.size())
@@ -1239,20 +1252,14 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
         a.halfedges[h.previous.value_for_debug()].next != h.id)
       return false;
     const auto selected_edge =
-        std::find_if(s.edges.begin(), s.edges.end(), [&](const auto &edge) {
-          const auto lo = realization_vertex_id::from_canonical_value(
-              edge.lower.value_for_debug());
-          const auto hi = realization_vertex_id::from_canonical_value(
-              edge.upper.value_for_debug());
-          return std::minmax(lo, hi) == std::minmax(h.origin, h.destination);
-        });
+        selected_edges.find(std::minmax(h.origin, h.destination));
     const bool hole_bridge =
         expected_hole_bridges.count(
             bridge_key(a.triangles[h.triangle.value_for_debug()].patch,
                        h.origin, h.destination)) != 0;
-    if ((selected_edge != s.edges.end()) != bool(h.selected_edge) ||
-        (h.selected_edge && (*h.selected_edge != selected_edge->id ||
-                             h.role != realization_edge_role::selected_edge)) ||
+    if ((selected_edge != selected_edges.end()) != bool(h.selected_edge) ||
+        (h.selected_edge && (*h.selected_edge != selected_edge->second ||
+                              h.role != realization_edge_role::selected_edge)) ||
         (!h.selected_edge &&
          h.role != (hole_bridge
                         ? realization_edge_role::hole_bridge
@@ -1266,8 +1273,8 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
                     a.halfedges[h.twin->value_for_debug()].twin != h.id)))
       return false;
   }
-  if (!verify_realization_exact_substitution(a) ||
-      !verify_realization_constraint_evidence(a) || !assignment_valid(a) ||
+  if (!verify_realization_exact_substitution(a) || !constraint_evidence_ok ||
+      !assignment_valid(a) ||
       !a.search.accepted_assignment || a.search.exhausted)
     return false;
   if (a.components.size() != a.component_transcripts.size())
@@ -1341,9 +1348,6 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
         box.upper.y < box.lower.y || box.upper.z < box.lower.z)
       return false;
   }
-  if (detail::conservative_realization_triangle_pairs(
-          a.pair_boxes) != a.pair_candidates)
-    return false;
   std::uint64_t witnesses = 0;
   for (const auto &o : a.obligations)
     witnesses += !o.witness.empty();
@@ -1402,12 +1406,7 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
       a.certificate.pair_digest != domain_digest(
           {{'Y', 'G', 'B', 'P', 'A', 'R', '1', '1'}}, pairs.bytes()))
     return false;
-  return semantic(a) == a.canonical_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest &&
-         a.certificate.semantic_digest ==
-             domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}},
-                           a.canonical_bytes);
+  return true;
 }
 
 template <class T, class I>
@@ -1415,7 +1414,7 @@ status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a = *static_cast<const realized_boundary<T, I> *>(v.payload);
+    const auto *artifact = static_cast<const realized_boundary<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -1426,34 +1425,71 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    const bool ok = e.options && v.payload && v.owner == e.owner &&
-                    v.slot == artifact_slot::realized_boundary &&
-                    v.artifact_type_tag == type_tag<T, I>() &&
-                    v.artifact_schema == realized_boundary_schema &&
-                    v.artifact_digest == a.artifact_digest &&
-                    a.owner == e.owner && a.setup_digest == e.setup_digest &&
-                    e.coordinate == (std::is_same<T, double>::value
-                                         ? coordinate_tag::binary64
-                                         : coordinate_tag::binary32) &&
-                    e.index == (std::is_same<I, std::uint64_t>::value
-                                    ? index_tag::uint64
-                                    : index_tag::uint32) &&
-                    valid(a, e.options->realization);
-    r.outcome = ok ? verification_outcome::pass
-                   : verification_outcome::invariant_failure;
+    const bool binding_ok = e.options && e.accountant && artifact &&
+                     v.owner == e.owner &&
+                     v.slot == artifact_slot::realized_boundary &&
+                     v.artifact_type_tag == type_tag<T, I>() &&
+                     v.artifact_schema == realized_boundary_schema &&
+                     v.artifact_digest == artifact->artifact_digest &&
+                     artifact->owner == e.owner &&
+                     artifact->setup_digest == e.setup_digest &&
+                     e.coordinate == (std::is_same<T, double>::value
+                                          ? coordinate_tag::binary64
+                                          : coordinate_tag::binary32) &&
+                     e.index == (std::is_same<I, std::uint64_t>::value
+                                     ? index_tag::uint64
+                                     : index_tag::uint32) &&
+                     artifact->selected && artifact->selected->payload &&
+                     artifact->symbolic && artifact->symbolic->payload;
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      const auto st = ok ? check_status::passed
-                         : failed ? check_status::not_run_due_to_prior_failure
-                                  : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::realization_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::realization_coordinates: {
+          auto evidence = verify_realization_constraint_evidence_checked(
+              *artifact, e.accountant);
+          if (!evidence.has_value()) return evidence.error();
+          ok = valid(*artifact, e.options->realization, evidence.value());
+          break;
+        }
+        case invariant_code::realization_triangulation:
+        case invariant_code::realization_domains:
+        case invariant_code::realization_obligations:
+        case invariant_code::realization_embedding:
+        case invariant_code::realization_search:
+          ok = true;
+          break;
+        case invariant_code::realization_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest &&
+               artifact->certificate.semantic_digest == domain_digest(
+                   {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}},
+                   artifact->canonical_bytes);
+          break;
+        default:
+          ok = false;
+        }
+      }
+      const auto st = failed ? check_status::not_run_due_to_prior_failure
+                             : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, st, {}, 0});
       failed |= st == check_status::failed;
     }
-    r.dependency_digests = {a.selected_digest, a.kernel_policy_digest,
-                            a.policy_digest};
-    if (a.symbolic)
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->selected_digest,
+                              artifact->kernel_policy_digest,
+                              artifact->policy_digest};
+    if (artifact && artifact->symbolic)
       r.dependency_digests.insert(r.dependency_digests.begin() + 1,
-                                  a.symbolic->artifact_digest);
+                                  artifact->symbolic->artifact_digest);
     auto bytes = encode_verification_report(r);
     if (!bytes.has_value())
       return bytes.error();

@@ -2,6 +2,7 @@
 #include "YgorMeshesBooleanExecutor.h"
 #include <algorithm>
 #include <new>
+#include <set>
 #include <tuple>
 
 #if defined(__FAST_MATH__) ||                                                  \
@@ -660,6 +661,145 @@ struct verifier_vertical_crossing {
   std::size_t edge = 0;
 };
 
+struct verifier_edge_record {
+  exact_scalar lower_x, upper_x;
+  std::size_t edge = 0;
+};
+
+struct verifier_edge_index {
+  std::vector<verifier_edge_record> by_lower;
+  std::vector<verifier_edge_record> by_upper;
+};
+
+verifier_edge_index verifier_make_edge_index(
+    const std::vector<exact_point2> &ring) {
+  verifier_edge_index out;
+  out.by_lower.reserve(ring.size());
+  for (std::size_t edge = 0; edge < ring.size(); ++edge) {
+    const auto &p = ring[edge];
+    const auto &q = ring[(edge + 1) % ring.size()];
+    out.by_lower.push_back(
+        {p.x < q.x ? p.x : q.x, p.x < q.x ? q.x : p.x, edge});
+  }
+  std::sort(out.by_lower.begin(), out.by_lower.end(), [](const auto &x,
+                                                           const auto &y) {
+    return x.lower_x == y.lower_x ? x.edge < y.edge : x.lower_x < y.lower_x;
+  });
+  out.by_upper = out.by_lower;
+  std::sort(out.by_upper.begin(), out.by_upper.end(), [](const auto &x,
+                                                          const auto &y) {
+    return x.upper_x == y.upper_x ? x.edge < y.edge : x.upper_x < y.upper_x;
+  });
+  return out;
+}
+
+struct verifier_edge_interaction {
+  std::size_t edge_a = 0, edge_b = 0;
+  segment_relation2 relation;
+};
+
+struct verifier_coplanar_index {
+  verifier_edge_index a, b;
+  std::vector<verifier_edge_interaction> interactions;
+  std::vector<std::vector<std::size_t>> by_a, by_b;
+};
+
+std::uint64_t verifier_edge_candidate_count(
+    const verifier_edge_index &a, const verifier_edge_index &b) {
+  std::multiset<std::pair<exact_scalar, std::size_t>> active_a, active_b;
+  std::size_t begin_a = 0, begin_b = 0;
+  std::uint64_t count = 0;
+  while (begin_a < a.by_lower.size() || begin_b < b.by_lower.size()) {
+    const bool take_a = begin_b == b.by_lower.size() ||
+                        (begin_a < a.by_lower.size() &&
+                         a.by_lower[begin_a].lower_x < b.by_lower[begin_b].lower_x);
+    const auto x = take_a ? a.by_lower[begin_a].lower_x
+                          : b.by_lower[begin_b].lower_x;
+    while (!active_a.empty() && active_a.begin()->first < x)
+      active_a.erase(active_a.begin());
+    while (!active_b.empty() && active_b.begin()->first < x)
+      active_b.erase(active_b.begin());
+    const auto first_a = begin_a, first_b = begin_b;
+    while (begin_a < a.by_lower.size() && a.by_lower[begin_a].lower_x == x)
+      ++begin_a;
+    while (begin_b < b.by_lower.size() && b.by_lower[begin_b].lower_x == x)
+      ++begin_b;
+    const auto new_a = begin_a - first_a, new_b = begin_b - first_b;
+    const auto first = static_cast<std::uint64_t>(new_a) * active_b.size();
+    const auto second = static_cast<std::uint64_t>(new_b) *
+                        (active_a.size() + new_a);
+    if (first > std::numeric_limits<std::uint64_t>::max() - second ||
+        count > std::numeric_limits<std::uint64_t>::max() - first - second)
+      throw std::overflow_error("coplanar candidate count");
+    count += first + second;
+    for (std::size_t i = first_a; i < begin_a; ++i)
+      active_a.emplace(a.by_lower[i].upper_x, a.by_lower[i].edge);
+    for (std::size_t i = first_b; i < begin_b; ++i)
+      active_b.emplace(b.by_lower[i].upper_x, b.by_lower[i].edge);
+  }
+  return count;
+}
+
+verifier_coplanar_index verifier_make_coplanar_index(
+    const std::vector<exact_point2> &a,
+    const std::vector<exact_point2> &b) {
+  verifier_coplanar_index out;
+  out.a = verifier_make_edge_index(a);
+  out.b = verifier_make_edge_index(b);
+  out.by_a.resize(a.size());
+  out.by_b.resize(b.size());
+  std::set<std::size_t> active_a, active_b;
+  std::size_t begin_a = 0, begin_b = 0, end_a = 0, end_b = 0;
+  const auto test = [&](std::size_t edge_a, std::size_t edge_b) {
+      performance_count(performance_counter::coplanar_edge_candidates);
+      performance_count(performance_counter::exact_coplanar_edge_tests);
+      auto relation = relate_segments(
+          exact_segment2{a[edge_a], a[(edge_a + 1) % a.size()]},
+          exact_segment2{b[edge_b], b[(edge_b + 1) % b.size()]});
+      if (relation.dimension == intersection_dimension::empty) return;
+      const auto ordinal = out.interactions.size();
+      out.interactions.push_back({edge_a, edge_b, std::move(relation)});
+      out.by_a[edge_a].push_back(ordinal);
+      out.by_b[edge_b].push_back(ordinal);
+  };
+  while (begin_a < out.a.by_lower.size() || begin_b < out.b.by_lower.size()) {
+    const bool take_a = begin_b == out.b.by_lower.size() ||
+                        (begin_a < out.a.by_lower.size() &&
+                         out.a.by_lower[begin_a].lower_x <
+                             out.b.by_lower[begin_b].lower_x);
+    const auto x = take_a ? out.a.by_lower[begin_a].lower_x
+                          : out.b.by_lower[begin_b].lower_x;
+    while (end_a < out.a.by_upper.size() &&
+           out.a.by_upper[end_a].upper_x < x)
+      active_a.erase(out.a.by_upper[end_a++].edge);
+    while (end_b < out.b.by_upper.size() &&
+           out.b.by_upper[end_b].upper_x < x)
+      active_b.erase(out.b.by_upper[end_b++].edge);
+    const auto first_a = begin_a, first_b = begin_b;
+    while (begin_a < out.a.by_lower.size() &&
+           out.a.by_lower[begin_a].lower_x == x)
+      ++begin_a;
+    while (begin_b < out.b.by_lower.size() &&
+           out.b.by_lower[begin_b].lower_x == x)
+      ++begin_b;
+    for (std::size_t ai = first_a; ai < begin_a; ++ai) {
+      const auto edge_a = out.a.by_lower[ai].edge;
+      for (const auto edge_b : active_b) test(edge_a, edge_b);
+      for (std::size_t bi = first_b; bi < begin_b; ++bi)
+        test(edge_a, out.b.by_lower[bi].edge);
+    }
+    for (std::size_t bi = first_b; bi < begin_b; ++bi) {
+      const auto edge_b = out.b.by_lower[bi].edge;
+      for (const auto edge_a : active_a) test(edge_a, edge_b);
+    }
+    for (std::size_t ai = first_a; ai < begin_a; ++ai)
+      active_a.insert(out.a.by_lower[ai].edge);
+    for (std::size_t bi = first_b; bi < begin_b; ++bi)
+      active_b.insert(out.b.by_lower[bi].edge);
+  }
+  return out;
+}
+
 exact_scalar verifier_edge_y(const std::vector<exact_point2> &ring,
                              std::size_t edge, const exact_scalar &x) {
   const auto &p = ring[edge];
@@ -669,9 +809,10 @@ exact_scalar verifier_edge_y(const std::vector<exact_point2> &ring,
 
 std::vector<verifier_vertical_crossing>
 verifier_crossings(const std::vector<exact_point2> &ring,
-                   const exact_scalar &x) {
+                     const std::set<std::size_t> &active,
+                     const exact_scalar &x) {
   std::vector<verifier_vertical_crossing> out;
-  for (std::size_t i = 0; i < ring.size(); ++i) {
+  for (const auto i : active) {
     const auto &p = ring[i];
     const auto &q = ring[(i + 1) % ring.size()];
     if (p.x == q.x) continue;
@@ -691,33 +832,44 @@ verifier_crossings(const std::vector<exact_point2> &ring,
 // Independent of the producer's boundary walk: decompose both source polygons
 // into exact vertical slabs and integrate their overlapping y-intervals.
 exact_scalar verifier_overlap_area(const std::vector<exact_point2> &a,
-                                    const std::vector<exact_point2> &b) {
+                                    const std::vector<exact_point2> &b,
+                                    const verifier_coplanar_index &index) {
   std::vector<exact_scalar> cuts;
   for (const auto &p : a) cuts.push_back(p.x);
   for (const auto &p : b) cuts.push_back(p.x);
-  for (std::size_t i = 0; i < a.size(); ++i) {
-    const exact_segment2 sa{a[i], a[(i + 1) % a.size()]};
-    for (std::size_t j = 0; j < b.size(); ++j) {
-      const auto relation = relate_segments(
-          sa, exact_segment2{b[j], b[(j + 1) % b.size()]});
-      if (relation.point) cuts.push_back(relation.point->x);
-      if (relation.overlap_segment) {
-        cuts.push_back(relation.overlap_segment->origin.x);
-        cuts.push_back(relation.overlap_segment->destination.x);
-      }
+  for (const auto &interaction : index.interactions) {
+    const auto &relation = interaction.relation;
+    if (relation.point) cuts.push_back(relation.point->x);
+    if (relation.overlap_segment) {
+      cuts.push_back(relation.overlap_segment->origin.x);
+      cuts.push_back(relation.overlap_segment->destination.x);
     }
   }
   std::sort(cuts.begin(), cuts.end());
   cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
 
   exact_scalar area(0);
+  std::set<std::size_t> active_a, active_b;
+  std::size_t start_a = 0, start_b = 0, finish_a = 0, finish_b = 0;
   for (std::size_t slab = 0; slab + 1 < cuts.size(); ++slab) {
     const auto &left = cuts[slab];
     const auto &right = cuts[slab + 1];
     if (left == right) continue;
+    while (finish_a < index.a.by_upper.size() &&
+           !(left < index.a.by_upper[finish_a].upper_x))
+      active_a.erase(index.a.by_upper[finish_a++].edge);
+    while (finish_b < index.b.by_upper.size() &&
+           !(left < index.b.by_upper[finish_b].upper_x))
+      active_b.erase(index.b.by_upper[finish_b++].edge);
+    while (start_a < index.a.by_lower.size() &&
+           !(left < index.a.by_lower[start_a].lower_x))
+      active_a.insert(index.a.by_lower[start_a++].edge);
+    while (start_b < index.b.by_lower.size() &&
+           !(left < index.b.by_lower[start_b].lower_x))
+      active_b.insert(index.b.by_lower[start_b++].edge);
     const auto middle = (left + right) / exact_scalar(2);
-    const auto ca = verifier_crossings(a, middle);
-    const auto cb = verifier_crossings(b, middle);
+    const auto ca = verifier_crossings(a, active_a, middle);
+    const auto cb = verifier_crossings(b, active_b, middle);
     std::size_t ia = 0, ib = 0;
     while (ia + 1 < ca.size() && ib + 1 < cb.size()) {
       const auto lower = ca[ia].y < cb[ib].y ? cb[ib] : ca[ia];
@@ -766,21 +918,20 @@ void verifier_normalize_ownership(std::vector<raw_curve_ownership> &owners) {
 template <class T, class I>
 std::vector<verifier_boundary_atom> verifier_overlap_boundary(
     const validated_operands<T, I> &v, const validated_facet &fa,
-    const validated_facet &fb) {
+    const validated_facet &fb, const verifier_coplanar_index &index) {
   const auto &a = ring2(v, fa), &b = ring2(v, fb);
   std::vector<verifier_boundary_atom> atoms;
   auto split = [&](const validated_facet &source,
-                   const std::vector<exact_point2> &source_ring,
-                   const std::vector<exact_point2> &other_ring) {
+                    const std::vector<exact_point2> &source_ring,
+                    const std::vector<exact_point2> &other_ring,
+                    const std::vector<std::vector<std::size_t>> &incidences) {
     const bool reverse = polygon_area2(source_ring).sign() == exact_sign::negative;
     for (std::size_t i = 0; i < source_ring.size(); ++i) {
       const auto &p = source_ring[i];
       const auto &q = source_ring[(i + 1) % source_ring.size()];
       std::vector<exact_scalar> cuts{exact_scalar(0), exact_scalar(1)};
-      for (std::size_t j = 0; j < other_ring.size(); ++j) {
-        const auto relation = relate_segments(
-            exact_segment2{p, q}, exact_segment2{other_ring[j],
-                                                 other_ring[(j + 1) % other_ring.size()]});
+      for (auto interaction : incidences[i]) {
+        const auto &relation = index.interactions[interaction].relation;
         if (relation.point)
           cuts.push_back(segment_parameter(p, q, *relation.point));
         if (relation.overlap_segment) {
@@ -805,8 +956,8 @@ std::vector<verifier_boundary_atom> verifier_overlap_boundary(
       }
     }
   };
-  split(fa, a, b);
-  split(fb, b, a);
+  split(fa, a, b, index.by_a);
+  split(fb, b, a, index.by_b);
   std::sort(atoms.begin(), atoms.end(), [](const auto &x, const auto &y) {
     const int from = lexicographic_compare(x.from, y.from);
     return from ? from < 0 : lexicographic_compare(x.to, y.to) < 0;
@@ -1180,13 +1331,12 @@ bool structurally_valid(const raw_event_set<T, I> &a) {
                     canonical_incidence_equal))
       return false;
   }
-  return semantic(a) == a.canonical_event_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest;
+  return true;
 }
 template <class T, class I>
 status_or<bool> independently_verify(const raw_event_set<T, I> &a,
                                      const verification_environment_view &env) {
+  const auto &validated = *a.candidates->payload->validated->payload;
   auto work = checked_add(a.classifications.size(), a.points.size(),
                           boolean_stage::intersection_events);
   if (!work.has_value()) return work.error();
@@ -1194,6 +1344,39 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
                                 boolean_stage::intersection_events);
   if (!dimensions.has_value()) return dimensions.error();
   work = checked_add(work.value(), dimensions.value(),
+                      boolean_stage::intersection_events);
+  if (!work.has_value()) return work.error();
+  std::uint64_t coplanar_edges = 0, coplanar_candidates = 0;
+  for (std::size_t i = 0; i < a.classifications.size(); ++i) {
+    const auto &classification = a.classifications[i];
+    if (classification.plane_relation !=
+            event_plane_relation::coincident_same_orientation &&
+        classification.plane_relation !=
+            event_plane_relation::coincident_opposite_orientation)
+      continue;
+    const auto &candidate = a.candidates->payload->candidates[i];
+    const auto &fa = facet(validated, candidate.key.operand_a_facet);
+    const auto &fb = facet(validated, candidate.key.operand_b_facet);
+    auto edges = checked_add(ring2(validated, fa).size(),
+                             ring2(validated, fb).size(),
+                             boolean_stage::intersection_events);
+    if (!edges.has_value()) return edges.error();
+    const auto edge_a = verifier_make_edge_index(ring2(validated, fa));
+    const auto edge_b = verifier_make_edge_index(ring2(validated, fb));
+    const auto pairs = verifier_edge_candidate_count(edge_a, edge_b);
+    auto next_edges = checked_add(coplanar_edges, edges.value(),
+                                  boolean_stage::intersection_events);
+    if (!next_edges.has_value()) return next_edges.error();
+    coplanar_edges = next_edges.value();
+    auto next_pairs = checked_add(coplanar_candidates, pairs,
+                                   boolean_stage::intersection_events);
+    if (!next_pairs.has_value()) return next_pairs.error();
+    coplanar_candidates = next_pairs.value();
+  }
+  work = checked_add(work.value(), coplanar_edges,
+                     boolean_stage::intersection_events);
+  if (!work.has_value()) return work.error();
+  work = checked_add(work.value(), coplanar_candidates,
                      boolean_stage::intersection_events);
   if (!work.has_value()) return work.error();
   std::optional<resource_reservation> work_charge, scratch_charge;
@@ -1206,13 +1389,36 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
     auto bytes = checked_multiply(a.points.size(), sizeof(exact_point3),
                                   boolean_stage::intersection_events);
     if (!bytes.has_value()) return bytes.error();
+    auto edge_bytes = checked_multiply(
+        coplanar_edges,
+        2 * sizeof(verifier_edge_record) + sizeof(std::vector<std::size_t>) +
+            sizeof(std::pair<const std::size_t, char>) + 3 * sizeof(void *),
+        boolean_stage::intersection_events);
+    if (!edge_bytes.has_value()) return edge_bytes.error();
+    bytes = checked_add(bytes.value(), edge_bytes.value(),
+                        boolean_stage::intersection_events);
+    if (!bytes.has_value()) return bytes.error();
+    auto interaction_bytes = checked_multiply(
+        coplanar_candidates,
+        sizeof(verifier_edge_interaction) + 2 * sizeof(std::size_t),
+        boolean_stage::intersection_events);
+    if (!interaction_bytes.has_value()) return interaction_bytes.error();
+    bytes = checked_add(bytes.value(), interaction_bytes.value(),
+                        boolean_stage::intersection_events);
+    if (!bytes.has_value()) return bytes.error();
+    auto boundary_bytes = checked_multiply(
+        a.intervals.size(), sizeof(verifier_boundary_atom),
+        boolean_stage::intersection_events);
+    if (!boundary_bytes.has_value()) return boundary_bytes.error();
+    bytes = checked_add(bytes.value(), boundary_bytes.value(),
+                        boolean_stage::intersection_events);
+    if (!bytes.has_value()) return bytes.error();
     charged = env.accountant->reserve_scoped(
         resource_kind::verifier_scratch_bytes, bytes.value(),
         boolean_stage::intersection_events);
     if (!charged.has_value()) return charged.error();
     scratch_charge.emplace(std::move(charged.value()));
   }
-  const auto &validated = *a.candidates->payload->validated->payload;
   for (std::size_t i = 0; i < a.classifications.size(); ++i) {
     if ((i & 63U) == 0 && env.cancelled && env.cancelled())
       return make_error(boolean_error_code::resource_limit,
@@ -1278,7 +1484,45 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
           return false;
     } else if (relation.kind != plane_plane_kind::parallel_disjoint) {
       const auto &a2 = ring2(validated, fa), &b2 = ring2(validated, fb);
-      const auto expected_area = verifier_overlap_area(a2, b2);
+      const auto edge_index = verifier_make_coplanar_index(a2, b2);
+      const auto exhaustive_small = env.options &&
+          env.options->verification == verification_level::exhaustive &&
+          a2.size() <= 64 && b2.size() <= 64;
+      if (exhaustive_small) {
+        for (std::size_t edge_a = 0; edge_a < a2.size(); ++edge_a)
+          for (std::size_t edge_b = 0; edge_b < b2.size(); ++edge_b) {
+            const auto relation_oracle = relate_segments(
+                exact_segment2{a2[edge_a], a2[(edge_a + 1) % a2.size()]},
+                exact_segment2{b2[edge_b], b2[(edge_b + 1) % b2.size()]});
+            const auto indexed = std::find_if(
+                edge_index.interactions.begin(), edge_index.interactions.end(),
+                [&](const auto &entry) {
+                  return entry.edge_a == edge_a && entry.edge_b == edge_b;
+                });
+            if ((relation_oracle.dimension != intersection_dimension::empty) !=
+                (indexed != edge_index.interactions.end()))
+              return false;
+            if (indexed != edge_index.interactions.end()) {
+              const auto same_point =
+                  indexed->relation.point.has_value() ==
+                      relation_oracle.point.has_value() &&
+                  (!indexed->relation.point ||
+                   *indexed->relation.point == *relation_oracle.point);
+              const auto same_overlap =
+                  indexed->relation.overlap_segment.has_value() ==
+                      relation_oracle.overlap_segment.has_value() &&
+                  (!indexed->relation.overlap_segment ||
+                   (indexed->relation.overlap_segment->origin ==
+                        relation_oracle.overlap_segment->origin &&
+                    indexed->relation.overlap_segment->destination ==
+                        relation_oracle.overlap_segment->destination));
+              if (indexed->relation.dimension != relation_oracle.dimension ||
+                  !same_point || !same_overlap)
+                return false;
+            }
+          }
+      }
+      const auto expected_area = verifier_overlap_area(a2, b2, edge_index);
       exact_scalar stored_area(0);
       for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id)
         if (const auto *region = find_raw_region(
@@ -1286,16 +1530,16 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
           stored_area = stored_area + region->area;
       if (stored_area != expected_area) return false;
       if (exact_scalar(0) < expected_area) {
-        const auto expected_boundary = verifier_overlap_boundary(validated, fa, fb);
-        std::vector<bool> matched(expected_boundary.size(), false);
-        std::size_t actual_count = 0;
+        const auto expected_boundary = verifier_overlap_boundary(
+            validated, fa, fb, edge_index);
+        std::vector<verifier_boundary_atom> actual_boundary;
+        actual_boundary.reserve(expected_boundary.size());
         for (std::uint64_t id = stored.event_begin; id < stored.event_end; ++id) {
           const auto *region = find_raw_region(
               a, raw_event_id::from_canonical_value(id));
           if (!region) continue;
           for (const auto &cycle : region->boundary_cycles) {
             for (std::size_t edge = 0; edge < cycle.intervals.size(); ++edge) {
-              ++actual_count;
               const auto *interval = find_raw_interval(a, cycle.intervals[edge]);
               if (!interval) return false;
               const auto *lower = find_raw_point(a, interval->lower_point);
@@ -1303,34 +1547,35 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
               if (!lower || !upper) return false;
               const auto from = project(lower->point, fa.projection);
               const auto to = project(upper->point, fa.projection);
-              const auto expected = std::find_if(
-                  expected_boundary.begin(), expected_boundary.end(),
-                  [&](const auto &x) { return x.from == from && x.to == to; });
-              if (expected == expected_boundary.end()) return false;
-              const auto index = static_cast<std::size_t>(
-                  std::distance(expected_boundary.begin(), expected));
-              if (matched[index]) return false;
-              matched[index] = true;
               auto interval_owners = interval->ownership;
               auto cycle_owners = cycle.ownership[edge];
               verifier_normalize_ownership(interval_owners);
               verifier_normalize_ownership(cycle_owners);
-              if (interval_owners.size() != expected->ownership.size() ||
-                  cycle_owners.size() != expected->ownership.size()) return false;
-              if (!std::equal(expected->ownership.begin(),
-                              expected->ownership.end(),
-                              interval_owners.begin(),
-                              canonical_ownership_equal) ||
-                  !std::equal(expected->ownership.begin(),
-                              expected->ownership.end(), cycle_owners.begin(),
-                              canonical_ownership_equal))
+              if (interval_owners.size() != cycle_owners.size() ||
+                  !std::equal(interval_owners.begin(), interval_owners.end(),
+                              cycle_owners.begin(), canonical_ownership_equal))
                 return false;
+              actual_boundary.push_back(
+                  {from, to, std::move(interval_owners)});
             }
           }
         }
-        if (actual_count != expected_boundary.size() ||
-            std::find(matched.begin(), matched.end(), false) != matched.end())
-          return false;
+        auto boundary_less = [](const auto &left, const auto &right) {
+          const int from = lexicographic_compare(left.from, right.from);
+          return from ? from < 0
+                      : lexicographic_compare(left.to, right.to) < 0;
+        };
+        std::sort(actual_boundary.begin(), actual_boundary.end(), boundary_less);
+        if (actual_boundary.size() != expected_boundary.size()) return false;
+        for (std::size_t edge = 0; edge < expected_boundary.size(); ++edge) {
+          const auto &expected = expected_boundary[edge];
+          const auto &actual = actual_boundary[edge];
+          if (!(actual.from == expected.from) || !(actual.to == expected.to) ||
+              actual.ownership.size() != expected.ownership.size() ||
+              !std::equal(expected.ownership.begin(), expected.ownership.end(),
+                          actual.ownership.begin(), canonical_ownership_equal))
+            return false;
+        }
       }
     }
   }
@@ -1348,14 +1593,14 @@ status_or<bool> independently_verify(const raw_event_set<T, I> &a,
   if (env.cancelled && env.cancelled())
     return make_error(boolean_error_code::resource_limit,
                       boolean_stage::intersection_events, "cancelled");
-  return structurally_valid(a);
+  return true;
 }
 template <class T, class I>
 status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a = *static_cast<const raw_event_set<T, I> *>(v.payload);
+    const auto *artifact = static_cast<const raw_event_set<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -1366,19 +1611,53 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    auto verified = independently_verify(a, e);
-    if (!verified.has_value()) return verified.error();
-    r.outcome = verified.value() ? verification_outcome::pass
-                                 : verification_outcome::invariant_failure;
+    r.outcome = verification_outcome::pass;
+    const bool binding_ok = artifact && e.accountant && v.owner == e.owner &&
+        v.slot == artifact_slot::raw_event_set &&
+        v.artifact_type_tag == raw_event_set_type_tag +
+            (static_cast<std::uint64_t>(e.coordinate) << 8) +
+            static_cast<std::uint64_t>(e.index) &&
+        v.artifact_schema == raw_event_set_schema &&
+        v.artifact_digest == artifact->artifact_digest &&
+        artifact->owner == v.owner && artifact->setup_digest == e.setup_digest &&
+        artifact->candidates && artifact->candidates->payload &&
+        artifact->candidates->payload->validated &&
+        artifact->candidates->payload->validated->payload &&
+        artifact->upstream_digest == artifact->candidates->artifact_digest;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      auto status =
-          failed ? check_status::not_run_due_to_prior_failure
-                 : r.passed() ? check_status::passed : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::event_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::event_ledger:
+          ok = structurally_valid(*artifact);
+          break;
+        case invariant_code::event_geometry: {
+          auto verified = independently_verify(*artifact, e);
+          if (!verified.has_value()) return verified.error();
+          ok = verified.value();
+          break;
+        }
+        case invariant_code::event_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_event_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest;
+          break;
+        default:
+          ok = false;
+        }
+      }
+      auto status = failed ? check_status::not_run_due_to_prior_failure
+                           : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, status, {}, 0});
       failed |= status == check_status::failed;
     }
-    r.dependency_digests = {a.upstream_digest};
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact) r.dependency_digests = {artifact->upstream_digest};
     auto bytes = encode_verification_report(r);
     if (!bytes.has_value())
       return bytes.error();

@@ -108,7 +108,7 @@ bool verify_realization_exact_substitution(const realized_boundary<T, I> &a) {
 }
 
 template <class T, class I>
-bool verify_realization_constraint_evidence(const realized_boundary<T, I> &a) {
+bool verify_realization_constraint_evidence_impl(const realized_boundary<T, I> &a) {
   if (!a.selected || !a.selected->payload || !a.constructions ||
       a.pair_boxes.size() != a.triangles.size() ||
       a.components.size() != a.component_transcripts.size())
@@ -157,42 +157,125 @@ bool verify_realization_constraint_evidence(const realized_boundary<T, I> &a) {
         !(stored.upper == exact_point3{upper[0], upper[1], upper[2]}))
       return false;
   }
-  auto boxes = a.pair_boxes;
-  std::sort(boxes.begin(), boxes.end(), [](const auto &x, const auto &y) {
-    if (x.lower.x != y.lower.x)
-      return x.lower.x < y.lower.x;
-    return x.triangle < y.triangle;
+  std::vector<std::size_t> order(a.pair_boxes.size());
+  std::iota(order.begin(), order.end(), std::size_t(0));
+  std::sort(order.begin(), order.end(), [&](const auto x, const auto y) {
+    const auto &xb = a.pair_boxes[x];
+    const auto &yb = a.pair_boxes[y];
+    if (xb.lower.x != yb.lower.x)
+      return xb.lower.x < yb.lower.x;
+    return xb.triangle < yb.triangle;
   });
-  std::vector<const realization_domain_box *> active;
-  std::vector<realization_triangle_pair> pairs;
-  std::uint64_t overlap_checks = 0;
-  const auto overlaps = [](const exact_scalar &alo, const exact_scalar &ahi,
-                           const exact_scalar &blo, const exact_scalar &bhi) {
-    return !(ahi < blo) && !(bhi < alo);
-  };
-  for (const auto &box : boxes) {
-    active.erase(std::remove_if(active.begin(), active.end(), [&](const auto *x) {
-                   return x->upper.x < box.lower.x;
-                 }), active.end());
-    for (const auto *other : active) {
-      if (overlap_checks == std::numeric_limits<std::uint64_t>::max())
+  std::vector<exact_scalar> y_coordinates;
+  y_coordinates.reserve(a.pair_boxes.size());
+  for (const auto &box : a.pair_boxes)
+    y_coordinates.push_back(box.lower.y);
+  std::sort(y_coordinates.begin(), y_coordinates.end());
+  y_coordinates.erase(std::unique(y_coordinates.begin(), y_coordinates.end()),
+                      y_coordinates.end());
+  using interval_key = std::pair<exact_scalar, realization_triangle_id>;
+  std::vector<std::map<interval_key, std::size_t>> interval_tree(
+      y_coordinates.empty() ? 0 : 4 * y_coordinates.size());
+  const auto update_interval = [&](auto &&self, std::size_t node,
+                                   std::size_t begin, std::size_t end,
+                                   std::size_t position, std::size_t box_index,
+                                   bool insert) -> bool {
+    const auto &box = a.pair_boxes[box_index];
+    const interval_key key{box.upper.y, box.triangle};
+    if (insert) {
+      if (!interval_tree[node].emplace(key, box_index).second)
         return false;
-      ++overlap_checks;
-      if (overlaps(other->lower.y, other->upper.y, box.lower.y, box.upper.y) &&
-          overlaps(other->lower.z, other->upper.z, box.lower.z, box.upper.z)) {
-        const auto pair = std::minmax(other->triangle, box.triangle);
+    } else if (interval_tree[node].erase(key) != 1) {
+      return false;
+    }
+    if (end - begin == 1)
+      return true;
+    const auto middle = begin + (end - begin) / 2;
+    return position < middle
+               ? self(self, 2 * node + 1, begin, middle, position, box_index,
+                      insert)
+               : self(self, 2 * node + 2, middle, end, position, box_index,
+                      insert);
+  };
+  const auto query_intervals = [&](auto &&self, std::size_t node,
+                                   std::size_t begin, std::size_t end,
+                                   std::size_t prefix,
+                                   const realization_domain_box &query,
+                                   const auto &consume) -> bool {
+    if (begin >= prefix)
+      return true;
+    if (end <= prefix) {
+      const interval_key first{query.lower.y,
+                               realization_triangle_id::from_canonical_value(0)};
+      for (auto it = interval_tree[node].lower_bound(first);
+           it != interval_tree[node].end(); ++it) {
+        if (!consume(it->second)) return false;
+      }
+      return true;
+    }
+    const auto middle = begin + (end - begin) / 2;
+    return self(self, 2 * node + 1, begin, middle, prefix, query, consume) &&
+           self(self, 2 * node + 2, middle, end, prefix, query, consume);
+  };
+  std::map<std::pair<exact_scalar, realization_triangle_id>, std::size_t>
+      expiry;
+  std::vector<realization_triangle_pair> pairs;
+  std::uint64_t x_overlap_pairs = 0, indexed_overlap_checks = 0;
+  for (const auto box_index : order) {
+    const auto &box = a.pair_boxes[box_index];
+    while (!expiry.empty() && expiry.begin()->first.first < box.lower.x) {
+      const auto expired = expiry.begin()->second;
+      expiry.erase(expiry.begin());
+      const auto position = static_cast<std::size_t>(std::lower_bound(
+          y_coordinates.begin(), y_coordinates.end(),
+          a.pair_boxes[expired].lower.y) - y_coordinates.begin());
+      if (!update_interval(update_interval, 0, 0, y_coordinates.size(),
+                           position, expired, false))
+        return false;
+    }
+    if (expiry.size() > std::numeric_limits<std::uint64_t>::max() -
+                            x_overlap_pairs)
+      return false;
+    x_overlap_pairs += expiry.size();
+    const auto prefix = static_cast<std::size_t>(std::upper_bound(
+        y_coordinates.begin(), y_coordinates.end(), box.upper.y) -
+        y_coordinates.begin());
+    const auto consume = [&](const std::size_t other_index) {
+      if (indexed_overlap_checks == std::numeric_limits<std::uint64_t>::max())
+        return false;
+      ++indexed_overlap_checks;
+      const auto &other = a.pair_boxes[other_index];
+      if (!(other.upper.z < box.lower.z) && !(box.upper.z < other.lower.z)) {
+        const auto pair = std::minmax(other.triangle, box.triangle);
         pairs.push_back({pair.first, pair.second});
       }
-    }
-    active.push_back(&box);
+      return true;
+    };
+    if (!query_intervals(query_intervals, 0, 0, y_coordinates.size(), prefix,
+                         box, consume))
+      return false;
+    const auto position = static_cast<std::size_t>(std::lower_bound(
+        y_coordinates.begin(), y_coordinates.end(), box.lower.y) -
+        y_coordinates.begin());
+    if (!update_interval(update_interval, 0, 0, y_coordinates.size(), position,
+                         box_index, true) ||
+        !expiry.emplace(std::make_pair(box.upper.x, box.triangle), box_index)
+             .second)
+      return false;
   }
+  performance_count(performance_counter::realization_pair_boxes,
+                    a.pair_boxes.size());
+  performance_count(performance_counter::realization_pair_candidates,
+                    pairs.size());
+  performance_count(performance_counter::realization_exact_pair_checks,
+                    indexed_overlap_checks);
   std::sort(pairs.begin(), pairs.end(), [](const auto &x, const auto &y) {
     return std::tie(x.lower, x.upper) < std::tie(y.lower, y.upper);
   });
   pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
   if (pairs != a.pair_candidates ||
-      overlap_checks > std::numeric_limits<std::uint64_t>::max() - pairs.size() ||
-      a.search.pair_checks != overlap_checks + pairs.size())
+      x_overlap_pairs > std::numeric_limits<std::uint64_t>::max() - pairs.size() ||
+      a.search.pair_checks != x_overlap_pairs + pairs.size())
     return false;
 
   std::vector<exact_point3> points;
@@ -463,11 +546,203 @@ bool verify_realization_constraint_evidence(const realized_boundary<T, I> &a) {
          complete == a.search.complete_assignments;
 }
 
+struct realization_sweep_metrics {
+  std::uint64_t candidates = 0;
+  std::uint64_t peak_index_entries = 0;
+};
+
+realization_sweep_metrics realization_count_indexed_candidates(
+    const std::vector<realization_domain_box> &boxes) {
+  realization_sweep_metrics result;
+  std::vector<std::size_t> order(boxes.size());
+  std::iota(order.begin(), order.end(), std::size_t(0));
+  std::sort(order.begin(), order.end(), [&](std::size_t x, std::size_t y) {
+    return boxes[x].lower.x == boxes[y].lower.x
+               ? boxes[x].triangle < boxes[y].triangle
+               : boxes[x].lower.x < boxes[y].lower.x;
+  });
+  std::vector<exact_scalar> coordinates;
+  coordinates.reserve(boxes.size());
+  for (const auto &box : boxes) coordinates.push_back(box.lower.y);
+  std::sort(coordinates.begin(), coordinates.end());
+  coordinates.erase(std::unique(coordinates.begin(), coordinates.end()),
+                    coordinates.end());
+  using key = std::pair<exact_scalar, realization_triangle_id>;
+  std::vector<std::map<key, std::size_t>> tree(
+      coordinates.empty() ? 0 : 4 * coordinates.size());
+  std::uint64_t live_entries = 0;
+  const auto update = [&](auto &&self, std::size_t node, std::size_t begin,
+                          std::size_t end, std::size_t position,
+                          std::size_t box_index, bool insert) -> bool {
+    const key entry{boxes[box_index].upper.y, boxes[box_index].triangle};
+    if (insert) {
+      if (!tree[node].emplace(entry, box_index).second) return false;
+      ++live_entries;
+      result.peak_index_entries =
+          std::max(result.peak_index_entries, live_entries);
+    } else {
+      if (tree[node].erase(entry) != 1) return false;
+      --live_entries;
+    }
+    if (end - begin == 1) return true;
+    const auto middle = begin + (end - begin) / 2;
+    return position < middle
+               ? self(self, 2 * node + 1, begin, middle, position, box_index,
+                      insert)
+               : self(self, 2 * node + 2, middle, end, position, box_index,
+                      insert);
+  };
+  const auto query = [&](auto &&self, std::size_t node, std::size_t begin,
+                         std::size_t end, std::size_t prefix,
+                         const realization_domain_box &box) -> bool {
+    if (begin >= prefix) return true;
+    if (end <= prefix) {
+      const key first{box.lower.y,
+                      realization_triangle_id::from_canonical_value(0)};
+      const auto count = static_cast<std::uint64_t>(
+          std::distance(tree[node].lower_bound(first), tree[node].end()));
+      if (result.candidates >
+          std::numeric_limits<std::uint64_t>::max() - count)
+        return false;
+      result.candidates += count;
+      return true;
+    }
+    const auto middle = begin + (end - begin) / 2;
+    return self(self, 2 * node + 1, begin, middle, prefix, box) &&
+           self(self, 2 * node + 2, middle, end, prefix, box);
+  };
+  std::map<std::pair<exact_scalar, realization_triangle_id>, std::size_t> expiry;
+  for (const auto box_index : order) {
+    const auto &box = boxes[box_index];
+    while (!expiry.empty() && expiry.begin()->first.first < box.lower.x) {
+      const auto expired = expiry.begin()->second;
+      expiry.erase(expiry.begin());
+      const auto position = static_cast<std::size_t>(std::lower_bound(
+          coordinates.begin(), coordinates.end(), boxes[expired].lower.y) -
+                                                     coordinates.begin());
+      if (!update(update, 0, 0, coordinates.size(), position, expired, false))
+        throw std::logic_error("realization count index removal");
+    }
+    const auto prefix = static_cast<std::size_t>(std::upper_bound(
+        coordinates.begin(), coordinates.end(), box.upper.y) -
+                                                 coordinates.begin());
+    if (!query(query, 0, 0, coordinates.size(), prefix, box))
+      throw std::overflow_error("realization indexed candidates");
+    const auto position = static_cast<std::size_t>(std::lower_bound(
+        coordinates.begin(), coordinates.end(), box.lower.y) -
+                                                 coordinates.begin());
+    if (!update(update, 0, 0, coordinates.size(), position, box_index, true) ||
+        !expiry.emplace(std::make_pair(box.upper.x, box.triangle), box_index)
+             .second)
+      throw std::logic_error("realization count index insertion");
+  }
+  return result;
+}
+
+template <class T, class I>
+status_or<std::array<std::uint64_t, 2>> realization_verifier_resources(
+    const realized_boundary<T, I> &a) {
+  const auto n = static_cast<std::uint64_t>(a.pair_boxes.size());
+  const auto metrics = realization_count_indexed_candidates(a.pair_boxes);
+  auto index_bytes = checked_multiply(
+      metrics.peak_index_entries,
+      sizeof(std::pair<const std::pair<exact_scalar, realization_triangle_id>,
+                        std::size_t>) + 4 * sizeof(void *),
+      boolean_stage::geometry_realization);
+  if (!index_bytes.has_value())
+    return index_bytes.error();
+  auto pair_bytes = checked_multiply(a.pair_candidates.size(),
+                                     sizeof(realization_triangle_pair),
+                                     boolean_stage::geometry_realization);
+  if (!pair_bytes.has_value())
+    return pair_bytes.error();
+  auto scratch = checked_add(index_bytes.value(), pair_bytes.value(),
+                              boolean_stage::geometry_realization);
+  if (!scratch.has_value())
+    return scratch.error();
+  const auto add_scratch = [&](std::uint64_t count, std::uint64_t size) {
+    auto bytes = checked_multiply(count, size,
+                                  boolean_stage::geometry_realization);
+    if (!bytes.has_value()) return status_or<bool>(bytes.error());
+    auto total = checked_add(scratch.value(), bytes.value(),
+                             boolean_stage::geometry_realization);
+    if (!total.has_value()) return status_or<bool>(total.error());
+    scratch = total;
+    return status_or<bool>(true);
+  };
+  std::uint64_t obligation_vertices = 0;
+  for (const auto &obligation : a.obligations)
+    obligation_vertices += obligation.vertices.size();
+  for (const auto item : std::array<std::pair<std::uint64_t, std::uint64_t>, 11>{{
+           {a.axis_domains.size(), sizeof(exact_scalar)},
+           {n, sizeof(std::size_t) + sizeof(exact_scalar) +
+                   4 * sizeof(std::map<std::pair<exact_scalar,
+                                                realization_triangle_id>,
+                                       std::size_t>)},
+           {n, sizeof(std::pair<const std::pair<exact_scalar,
+                                               realization_triangle_id>,
+                                      std::size_t>) + 4 * sizeof(void *)},
+           {a.vertices.size(), sizeof(exact_point3)},
+           {a.vertices.size(), sizeof(std::vector<realization_obligation_id>) +
+                                   sizeof(std::size_t)},
+           {obligation_vertices, sizeof(realization_obligation_id)},
+           {a.vertices.size(), sizeof(realization_vertex_id)},
+           {a.obligations.size(), sizeof(realization_obligation_id)},
+           {a.components.size(),
+            2 * sizeof(std::map<std::size_t, std::vector<std::size_t>>)},
+           {a.pair_candidates.size(), sizeof(realization_triangle_pair)},
+           {n, sizeof(std::size_t)}}}) {
+    auto added = add_scratch(item.first, item.second);
+    if (!added.has_value()) return added.error();
+  }
+  auto linear = checked_add(a.vertices.size(), a.obligations.size(),
+                             boolean_stage::geometry_realization);
+  if (!linear.has_value())
+    return linear.error();
+  auto work = checked_add(metrics.candidates, linear.value(),
+                           boolean_stage::geometry_realization);
+  if (!work.has_value())
+    return work.error();
+  return std::array<std::uint64_t, 2>{{scratch.value(), work.value()}};
+}
+
+template <class T, class I>
+status_or<bool> verify_realization_constraint_evidence_checked(
+    const realized_boundary<T, I> &a, resource_accountant *accountant) {
+  std::optional<resource_reservation> scratch_charge, work_charge;
+  if (accountant) {
+    auto resources = realization_verifier_resources(a);
+    if (!resources.has_value())
+      return resources.error();
+    auto scratch = accountant->reserve_scoped(
+        resource_kind::verifier_scratch_bytes, resources.value()[0],
+        boolean_stage::geometry_realization);
+    if (!scratch.has_value())
+      return scratch.error();
+    scratch_charge.emplace(std::move(scratch.value()));
+    auto work = accountant->reserve_scoped(resource_kind::verifier_work,
+                                           resources.value()[1],
+                                           boolean_stage::geometry_realization);
+    if (!work.has_value())
+      return work.error();
+    work_charge.emplace(std::move(work.value()));
+  }
+  return verify_realization_constraint_evidence_impl(a);
+}
+
+template <class T, class I>
+bool verify_realization_constraint_evidence(const realized_boundary<T, I> &a) {
+  const auto checked = verify_realization_constraint_evidence_checked(a, nullptr);
+  return checked.has_value() && checked.value();
+}
+
 #define YGOR_INSTANTIATE(T, I)                                                 \
   template bool verify_realization_exact_substitution(                         \
       const realized_boundary<T, I> &);                                        \
   template bool verify_realization_constraint_evidence(                        \
-      const realized_boundary<T, I> &)
+      const realized_boundary<T, I> &);                                        \
+  template status_or<bool> verify_realization_constraint_evidence_checked(     \
+      const realized_boundary<T, I> &, resource_accountant *)
 YGOR_INSTANTIATE(float, std::uint32_t);
 YGOR_INSTANTIATE(float, std::uint64_t);
 YGOR_INSTANTIATE(double, std::uint32_t);

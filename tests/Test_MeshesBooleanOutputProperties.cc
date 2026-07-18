@@ -56,6 +56,88 @@ void rotation_equivalence() {
             "direct ring encoding matches legacy nested encoding");
   }
 }
+template <class T, class I>
+status_or<verification_report>
+verify_with_work_limit(const assembled_output<T, I> &artifact,
+                       boolean_context<T, I> &context,
+                       verifier_registry &registry, std::uint64_t limit,
+                       verification_level level) {
+  resource_policy policy;
+  policy.verifier_work = {false, limit};
+  resource_accountant accountant(policy);
+  const auto type = assembled_output_type_tag +
+                    (static_cast<std::uint64_t>(coordinate_type<T>()) << 8) +
+                    static_cast<std::uint64_t>(index_type<I>());
+  auto spec = registry.specification(artifact_slot::assembled_output, type,
+                                     assembled_output_schema,
+                                     level);
+  require(spec.has_value(), "output resource specification");
+  std::shared_ptr<const void> lifetime(&artifact, [](const void *) {});
+  artifact_view view{context.owner(), artifact_slot::assembled_output,
+                     type, assembled_output_schema, 1,
+                     artifact.artifact_digest, lifetime, &artifact};
+  auto verify_options = context.options();
+  verify_options.verification = level;
+  verification_environment_view env{
+      context.owner(), context.replay().setup,
+      context.contract().selected_operation(), &verify_options,
+      coordinate_type<T>(), index_type<I>(), &context.kernel(), {},
+      &accountant, [&] { return context.cancelled(); }};
+  return registry.verify(view, spec.value(), env);
+}
+std::uint64_t output_verifier_work(std::size_t components) {
+  using T = double;
+  using I = std::uint32_t;
+  fv_surface_mesh<T, I> a, b;
+  for (std::size_t i = 0; i < components; ++i)
+    input_test::append(a, input_test::box<T, I>(T(3 * i), T(3 * i + 1)));
+  auto verifiers = output_test::registry();
+  boolean_options options;
+  auto context = classification_test::context(
+      a, b, verifiers, operation::regularized_union, options);
+  auto output = assemble_boolean_output_artifact(*context);
+  require(output.has_value(), "output resource fixture");
+  const auto faces = output.value()->payload->mesh.faces.size();
+  const auto vertices = output.value()->payload->mesh.vertices.size();
+  const std::uint64_t incidences = 6 * faces;
+  std::uint64_t levels = 1;
+  for (auto count = incidences; count > 1; count = count / 2 + count % 2)
+    ++levels;
+  const std::uint64_t work = incidences * levels + faces + vertices + 1;
+  auto exact = verify_with_work_limit(*output.value()->payload, *context,
+                                      *verifiers, work,
+                                      verification_level::mandatory);
+  require(exact.has_value() && exact.value().passed(),
+          "exact output verifier work limit passes");
+  auto short_limit = verify_with_work_limit(*output.value()->payload, *context,
+                                            *verifiers, work - 1,
+                                            verification_level::mandatory);
+  require(!short_limit.has_value() &&
+              short_limit.error().code == boolean_error_code::resource_limit,
+          "one-under output verifier work limit is rejected");
+  const auto exhaustive_work = work + vertices * 32U * 32U;
+  const auto bytes = output.value()->payload->canonical_bytes;
+  auto exhaustive = verify_with_work_limit(
+      *output.value()->payload, *context, *verifiers, exhaustive_work,
+      verification_level::exhaustive);
+  require(exhaustive.has_value() && exhaustive.value().passed() &&
+              output.value()->payload->canonical_bytes == bytes,
+          "same output artifact passes bounded exhaustive verifier");
+  auto exhaustive_short = verify_with_work_limit(
+      *output.value()->payload, *context, *verifiers, exhaustive_work - 1,
+      verification_level::exhaustive);
+  require(!exhaustive_short.has_value() &&
+              exhaustive_short.error().code ==
+                  boolean_error_code::resource_limit,
+          "exhaustive output oracle is separately work-admitted");
+  return work;
+}
+void output_resource_scaling() {
+  const auto one = output_verifier_work(1);
+  const auto two = output_verifier_work(2);
+  require(two < 3 * one,
+          "output link verifier work scales below quadratic doubling");
+}
 } // namespace
 
 template <class T, class I> void qualification() {
@@ -116,6 +198,7 @@ template <class T, class I> void qualification() {
 int main() {
   try {
     rotation_equivalence();
+    output_resource_scaling();
     boolean_options unsupported_provenance;
     unsupported_provenance.output.include_compact_provenance = true;
     require(!validate_options(unsupported_provenance).has_value(),

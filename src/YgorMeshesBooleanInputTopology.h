@@ -10,6 +10,24 @@
 namespace ygor { namespace mesh_boolean {
 
 namespace input_topology_detail {
+struct facet_sweep_entry {
+  exact_box3 bounds;
+  operand_id operand;
+};
+struct facet_sweep_counters {
+  std::uint64_t sort_work = 0;
+  std::uint64_t build_nodes = 0;
+  std::uint64_t index_visits = 0;
+  std::uint64_t leaf_tests = 0;
+  std::uint64_t conservative_candidates = 0;
+};
+struct facet_sweep_result {
+  std::vector<std::pair<std::size_t, std::size_t>> candidates;
+  facet_sweep_counters counters;
+};
+facet_sweep_result
+verifier_facet_sweep_candidates(const std::vector<facet_sweep_entry> &entries);
+
 template <class T, class Less = std::less<T>>
 std::size_t minimal_cyclic_rotation(const std::vector<T> &values,
                                     Less less = Less{}) {

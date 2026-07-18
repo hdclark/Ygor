@@ -561,6 +561,7 @@ void g9a() {
                                       arrangement_complex_schema,
                                       verification_level::mandatory).value();
   verification_environment_view env; env.owner=context->owner(); env.setup_digest=context->replay().setup;
+  env.accountant = &context->accountant();
   artifact_view view{context->owner(), artifact_slot::arrangement_complex, type,
                      arrangement_complex_schema, 1, changed->artifact_digest,
                      changed, changed.get()};
@@ -588,6 +589,7 @@ void g9b() {
                                       arrangement_complex_schema,
                                       verification_level::mandatory).value();
   verification_environment_view env; env.owner=context->owner(); env.setup_digest=context->replay().setup;
+  env.accountant = &context->accountant();
   artifact_view view{context->owner(), artifact_slot::arrangement_complex, type,
                      arrangement_complex_schema, 1, changed->artifact_digest,
                      changed, changed.get()};

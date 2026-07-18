@@ -49,6 +49,19 @@ int main() {
     mutation_rejected(*r, *c, x,
                       [](auto &v) { v.mesh.involved_faces.front().clear(); },
                       "reverse incidence mutation rejected");
+    mutation_rejected(
+        *r, *c, x,
+        [](auto &v) {
+          std::swap(v.mesh.faces.front()[0], v.mesh.faces.front()[1]);
+          std::swap(v.faces.front().public_vertices[0],
+                    v.faces.front().public_vertices[1]);
+          for (auto &incidence : v.mesh.involved_faces) incidence.clear();
+          for (std::size_t face = 0; face < v.mesh.faces.size(); ++face)
+            for (auto vertex : v.mesh.faces[face])
+              v.mesh.involved_faces[vertex].push_back(
+                  static_cast<std::uint32_t>(face));
+        },
+        "co-mutated face mapping and incidence rejected");
     mutation_rejected(*r, *c, x,
                       [](auto &v) {
                         v.mesh.vertex_normals.push_back({0, 0, 1});

@@ -57,6 +57,7 @@ int main() {
     translate(b, 3, 0, 0);
     boolean_options one;
     one.execution.max_threads = 1;
+    one.tracing.collect_noncanonical_timings = true;
     auto c1 = context(a, b, r, one);
     auto x = refine_source_facets(*c1);
     require(x.has_value(), "single-thread refinement");
@@ -68,6 +69,51 @@ int main() {
     require(x.value()->payload->canonical_bytes ==
                 y.value()->payload->canonical_bytes,
             "schedule-independent canonical bytes");
+    const auto type = refined_facet_patches_type_tag +
+        (static_cast<std::uint64_t>(coordinate_tag::binary64) << 8) +
+        static_cast<std::uint64_t>(index_tag::uint32);
+    auto spec = r->specification(artifact_slot::refined_facet_patches, type,
+                                 refined_facet_patches_schema,
+                                 verification_level::mandatory);
+    require(spec.has_value(), "local verifier resource specification");
+    artifact_view view{c1->owner(), artifact_slot::refined_facet_patches, type,
+                       refined_facet_patches_schema, 1,
+                       x.value()->artifact_digest, x.value()->payload,
+                       x.value()->payload.get()};
+    const auto &verifier = c1->performance()->stage(
+        boolean_stage::local_refinement).verifier;
+    for (const auto &entry : std::array<std::pair<resource_kind, std::uint64_t>, 2>{{
+             {resource_kind::verifier_work,
+              verifier.resource(resource_kind::verifier_work)},
+             {resource_kind::verifier_scratch_bytes,
+              verifier.resource(resource_kind::verifier_scratch_bytes)}}}) {
+      require(entry.second > 0, "local verifier resource measured");
+      auto run = [&](std::uint64_t limit) {
+        resource_policy policy;
+        if (entry.first == resource_kind::verifier_work)
+          policy.verifier_work = {false, limit};
+        else
+          policy.verifier_scratch_bytes = {false, limit};
+        resource_accountant accountant(policy);
+        verification_environment_view env{
+            c1->owner(), c1->replay().setup,
+            c1->contract().selected_operation(), &c1->options(),
+            coordinate_tag::binary64, index_tag::uint32, &c1->kernel(), {},
+            &accountant, [] { return false; }};
+        auto checked = r->verify(view, spec.value(), env);
+        require(accountant.used(resource_kind::verifier_work) == 0 &&
+                    accountant.used(resource_kind::verifier_scratch_bytes) == 0,
+                "local verifier reservation rollback");
+        return checked;
+      };
+      auto exact = run(entry.second);
+      require(exact.has_value() && exact.value().passed(),
+              "local verifier exact resource admission");
+      auto short_result = run(entry.second - 1);
+      require(!short_result.has_value() &&
+                  short_result.error().code == boolean_error_code::resource_limit,
+              "local verifier one-under resource admission");
+    }
     for (const auto &f : x.value()->payload->facets)
       require(f.patches.size() == 1 &&
                   f.certificate.source_domain_faces == 1 &&

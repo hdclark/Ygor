@@ -309,6 +309,11 @@ enum class performance_counter : std::uint8_t {
   global_index_lookups,
   link_direction_candidates,
   exact_link_direction_tests,
+  symbolic_point_candidates,
+  symbolic_endpoint_incidences,
+  coplanar_edge_candidates,
+  exact_coplanar_edge_tests,
+  link_direction_sort_comparisons,
   count
 };
 struct performance_counter_snapshot {

@@ -16,4 +16,116 @@ template<class T,class I>void rotated(){auto a=tetra<T,I>(),b=fv_surface_mesh<T,
 template<class T,class I>void canonical_digest(){auto a=prism<T,I>(true),permuted=a,b=fv_surface_mesh<T,I>{};std::reverse(permuted.vertices.begin(),permuted.vertices.end());for(auto&f:permuted.faces)for(auto&v:f)v=static_cast<I>(permuted.vertices.size()-1-v);for(auto&f:permuted.faces)std::rotate(f.begin(),f.begin()+2%f.size(),f.end());std::reverse(permuted.faces.begin(),permuted.faces.end());auto r=registry();auto c1=context(a,b,r),c2=context(permuted,b,r);auto x=validate_operands(*c1),y=validate_operands(*c2);require(x.has_value()&&y.has_value(),"permutations validate");require(x.value()->payload->operands[0].semantic_digest==y.value()->payload->operands[0].semantic_digest,"canonical semantic digest");require(x.value()->payload->artifact_digest!=y.value()->payload->artifact_digest,"provenance-bound artifact digest");}
 template<class T,class I>void repeated_determinism(){auto a=prism<T,I>(true),b=fv_surface_mesh<T,I>{};auto r=registry();std::optional<digest>artifact,report;for(int i=0;i<8;++i){auto c=context(a,b,r);auto x=validate_operands(*c);require(x.has_value(),"repeated validation");if(artifact){require(*artifact==x.value()->payload->artifact_digest,"repeated artifact digest");require(*report==x.value()->report.report_digest,"repeated report digest");}else{artifact=x.value()->payload->artifact_digest;report=x.value()->report.report_digest;}}}
 template<class T,class I>void component_permutation(){auto a=box<T,I>(T(0),T(1)),permuted=box<T,I>(T(3),T(4)),b=fv_surface_mesh<T,I>{};append(a,box<T,I>(T(3),T(4)));append(permuted,box<T,I>(T(0),T(1)));auto r=registry();auto c1=context(a,b,r),c2=context(permuted,b,r);auto x=validate_operands(*c1),y=validate_operands(*c2);require(x.has_value()&&y.has_value(),"component permutations validate");require(x.value()->payload->operands[0].semantic_digest==y.value()->payload->operands[0].semantic_digest,"component permutation semantic digest");}
-int main(){try{rotation_oracle();rotated<float,std::uint32_t>();rotated<float,std::uint64_t>();rotated<double,std::uint32_t>();rotated<double,std::uint64_t>();canonical_digest<double,std::uint32_t>();artifact_oracles<double,std::uint32_t>();component_permutation<double,std::uint32_t>();repeated_determinism<double,std::uint32_t>();std::cout<<"PASS input properties\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}
+std::uint64_t verifier_resources(std::size_t components) {
+  using T = double;
+  using I = std::uint32_t;
+  fv_surface_mesh<T, I> a, b;
+  for (std::size_t i = 0; i < components; ++i)
+    append(a, box<T, I>(T(3 * i), T(3 * i + 1)));
+  auto verifiers = registry();
+  boolean_options options;
+  std::shared_ptr<const exact_kernel_services<T>> kernel =
+      std::make_shared<exact_kernel<T>>();
+  std::shared_ptr<const verifier_service> service = verifiers;
+  auto made = make_boolean_context(a, b, operation::regularized_union, options,
+                                   kernel, service);
+  require(made.has_value(), "resource context");
+  auto result = validate_operands(*made.value());
+  require(result.has_value(), "resource fixture validates");
+  const auto type = validated_operands_type_tag +
+                    (static_cast<std::uint64_t>(coordinate_tag::binary64) << 8);
+  auto spec = verifiers->specification(
+      artifact_slot::validated_operands, type, validated_operands_schema,
+      verification_level::mandatory);
+  require(spec.has_value(), "input resource specification");
+  artifact_view view{made.value()->owner(), artifact_slot::validated_operands,
+                     type, validated_operands_schema, 1,
+                     result.value()->payload->artifact_digest,
+                     result.value()->payload, result.value()->payload.get()};
+  verification_environment_view env;
+  env.owner = made.value()->owner();
+  env.setup_digest = made.value()->replay().setup;
+  env.coordinate = coordinate_tag::binary64;
+  env.index = index_tag::uint32;
+  env.raw_operands = {env.coordinate, env.index, &a, &b};
+  env.exact_kernel = &made.value()->kernel();
+  auto run=[&](resource_kind kind,std::uint64_t limit){resource_policy policy;if(kind==resource_kind::verifier_work)policy.verifier_work={false,limit};else policy.verifier_scratch_bytes={false,limit};resource_accountant accountant(policy);env.accountant=&accountant;auto checked=verifiers->verify(view,spec.value(),env);require(accountant.used(resource_kind::verifier_work)==0&&accountant.used(resource_kind::verifier_scratch_bytes)==0,"input verifier temporary resources roll back");return checked;};
+  auto threshold=[&](resource_kind kind){std::uint64_t high=1;while(!run(kind,high).has_value())high*=2;std::uint64_t low=0;while(low+1<high){const auto middle=low+(high-low)/2;if(run(kind,middle).has_value())high=middle;else low=middle;}auto exact=run(kind,high);require(exact.has_value()&&exact.value().passed(),"input verifier exact resource limit");auto short_result=run(kind,high-1);require(!short_result.has_value()&&short_result.error().code==boolean_error_code::resource_limit,"input verifier one-under resource limit");return high;};
+  const auto work=threshold(resource_kind::verifier_work);
+  const auto scratch=threshold(resource_kind::verifier_scratch_bytes);
+  require(work>0&&scratch>0,"input verifier resources admitted");
+  return work;
+}
+void verifier_resource_scaling() {
+  const auto small = verifier_resources(2);
+  const auto large = verifier_resources(4);
+  require(large < 3 * small,
+          "disjoint input verifier work scales below quadratic doubling");
+}
+input_topology_detail::facet_sweep_entry sweep_entry(
+    int min_x, int max_x, int min_y, int max_y, int min_z, int max_z,
+    operand_id operand = operand_a()) {
+  return {{{exact_scalar(min_x), exact_scalar(min_y), exact_scalar(min_z)},
+           {exact_scalar(max_x), exact_scalar(max_y), exact_scalar(max_z)}},
+          operand};
+}
+bool overlaps(const exact_box3 &a, const exact_box3 &b) {
+  return !(a.maximum.x < b.minimum.x || b.maximum.x < a.minimum.x ||
+           a.maximum.y < b.minimum.y || b.maximum.y < a.minimum.y ||
+           a.maximum.z < b.minimum.z || b.maximum.z < a.minimum.z);
+}
+void facet_sweep_index_properties() {
+  using input_topology_detail::facet_sweep_entry;
+  using input_topology_detail::verifier_facet_sweep_candidates;
+  std::vector<facet_sweep_entry> separated;
+  constexpr std::size_t count = 128;
+  for (std::size_t i = 0; i < count; ++i)
+    separated.push_back(sweep_entry(0, 10, static_cast<int>(2 * i),
+                                    static_cast<int>(2 * i + 1), 0, 1));
+  const auto pruned = verifier_facet_sweep_candidates(separated);
+  require(pruned.candidates.empty(), "equal-x disjoint-y candidates prune");
+  require(pruned.counters.index_visits < 32 * count,
+          "equal-x disjoint-y traversal is index bounded");
+  require(pruned.counters.leaf_tests == 0,
+          "equal-x disjoint-y avoids candidate leaves");
+
+  std::uint32_t state = 0x65d31a4bU;
+  for (std::size_t sample = 0; sample < 80; ++sample) {
+    std::vector<facet_sweep_entry> entries;
+    const auto size = 1U + sample % 18U;
+    for (std::size_t i = 0; i < size; ++i) {
+      auto next = [&] { state = state * 1664525U + 1013904223U; return state; };
+      const int x = static_cast<int>(next() % 7U) - 3;
+      const int y = static_cast<int>(next() % 11U) - 5;
+      const int z = static_cast<int>(next() % 9U) - 4;
+      const int dx = static_cast<int>(next() % 4U);
+      const int dy = static_cast<int>(next() % 4U);
+      const int dz = static_cast<int>(next() % 4U);
+      entries.push_back(sweep_entry(x, x + dx, y, y + dy, z, z + dz,
+                                    (next() & 1U) ? operand_a() : operand_b()));
+    }
+    std::vector<std::pair<std::size_t, std::size_t>> exhaustive;
+    for (std::size_t i = 0; i < entries.size(); ++i)
+      for (std::size_t j = i + 1; j < entries.size(); ++j)
+        if (entries[i].operand == entries[j].operand &&
+            overlaps(entries[i].bounds, entries[j].bounds))
+          exhaustive.emplace_back(i, j);
+    auto indexed = verifier_facet_sweep_candidates(entries);
+    std::sort(indexed.candidates.begin(), indexed.candidates.end());
+    require(indexed.candidates == exhaustive,
+            "bounded facet sweep candidates match exhaustive pairs");
+    require(indexed.counters.conservative_candidates == indexed.candidates.size(),
+            "facet sweep candidate accounting is exact");
+    const auto repeated = verifier_facet_sweep_candidates(entries);
+    auto repeated_candidates = repeated.candidates;
+    std::sort(repeated_candidates.begin(), repeated_candidates.end());
+    require(repeated_candidates == indexed.candidates &&
+                repeated.counters.sort_work == indexed.counters.sort_work &&
+                repeated.counters.build_nodes == indexed.counters.build_nodes &&
+                repeated.counters.index_visits == indexed.counters.index_visits &&
+                repeated.counters.leaf_tests == indexed.counters.leaf_tests,
+            "facet sweep candidates and counters are deterministic");
+  }
+}
+void containment_differential(){using T=double;using I=std::uint32_t;std::uint32_t state=0x71c3a5d9U;for(std::size_t sample=0;sample<20;++sample){state=state*1664525U+1013904223U;fv_surface_mesh<T,I>a,b;const auto separated=1U+(state%4U);for(std::uint32_t i=0;i<separated;++i){const T base=T(12*i);append(a,box<T,I>(base,base+T(4)));}if((state>>8)&1U){append(a,box<T,I>(T(1),T(3)),true);if((state>>9)&1U)append(a,box<T,I>(T(1.5),T(2.5)));}auto verifiers=registry();auto made=context(a,b,verifiers);auto artifact=validate_operands(*made);require(artifact.has_value(),"bounded containment fixture validates");const auto type=validated_operands_type_tag+(static_cast<std::uint64_t>(coordinate_tag::binary64)<<8);artifact_view view{made->owner(),artifact_slot::validated_operands,type,validated_operands_schema,1,artifact.value()->payload->artifact_digest,artifact.value()->payload,artifact.value()->payload.get()};verification_environment_view env;env.owner=made->owner();env.setup_digest=made->replay().setup;env.coordinate=coordinate_tag::binary64;env.index=index_tag::uint32;env.raw_operands={env.coordinate,env.index,&a,&b};env.exact_kernel=&made->kernel();resource_accountant mandatory_accountant(resource_policy{}),exhaustive_accountant(resource_policy{});auto mandatory=verifiers->specification(artifact_slot::validated_operands,type,validated_operands_schema,verification_level::mandatory);auto exhaustive=verifiers->specification(artifact_slot::validated_operands,type,validated_operands_schema,verification_level::exhaustive);require(mandatory.has_value()&&exhaustive.has_value(),"containment differential specifications");env.accountant=&mandatory_accountant;auto fast=verifiers->verify(view,mandatory.value(),env);env.accountant=&exhaustive_accountant;auto oracle=verifiers->verify(view,exhaustive.value(),env);require(fast.has_value()&&oracle.has_value()&&fast.value().passed()&&oracle.value().passed(),"mandatory containment matches exhaustive oracle");require(mandatory_accountant.used(resource_kind::verifier_work)==0&&mandatory_accountant.used(resource_kind::verifier_scratch_bytes)==0&&exhaustive_accountant.used(resource_kind::verifier_work)==0&&exhaustive_accountant.used(resource_kind::verifier_scratch_bytes)==0,"differential verifier resources roll back");}}
+int main(){try{rotation_oracle();rotated<float,std::uint32_t>();rotated<float,std::uint64_t>();rotated<double,std::uint32_t>();rotated<double,std::uint64_t>();canonical_digest<double,std::uint32_t>();artifact_oracles<double,std::uint32_t>();component_permutation<double,std::uint32_t>();repeated_determinism<double,std::uint32_t>();facet_sweep_index_properties();containment_differential();verifier_resource_scaling();std::cout<<"PASS input properties\n";return 0;}catch(const std::exception&e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

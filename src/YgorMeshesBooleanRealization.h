@@ -241,6 +241,9 @@ template <class T, class I>
 bool verify_realization_exact_substitution(const realized_boundary<T, I>&);
 template <class T, class I>
 bool verify_realization_constraint_evidence(const realized_boundary<T, I>&);
+template <class T, class I>
+status_or<bool> verify_realization_constraint_evidence_checked(
+    const realized_boundary<T, I>&, resource_accountant *);
 #define YGOR_REALIZATION_EXTERN(T, I)                                          \
   extern template status_or<                                                   \
       std::shared_ptr<const published_artifact<realized_boundary<T, I>>>>      \

@@ -299,7 +299,8 @@ digest artifact_digest_for(const symbolic_complex<T, I> &a) {
   e.byte_string(a.artifact_bytes);
   return domain_digest({{'Y', 'G', 'B', 'A', 'R', 'T', '0', '1'}}, e.bytes());
 }
-template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
+template <class T, class I>
+bool valid(const symbolic_complex<T, I> &a, bool exhaustive_small) {
   if (!a.raw_events || !a.validated || !a.constructions ||
       a.upstream_digest != a.raw_events->artifact_digest ||
       a.kernel_policy_digest != a.raw_events->payload->kernel_policy_digest ||
@@ -506,6 +507,15 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
     const auto &twin = a.directed_edge_views[use.twin.value_for_debug()];
     if (twin.sequence != view.sequence || twin.forward == view.forward) return false;
   }
+  std::vector<std::pair<symbolic_vertex_id, symbolic_curve_id>> endpoint_index;
+  endpoint_index.reserve(a.curves.size() * 2);
+  for (const auto &curve : a.curves)
+    if (curve.kind == symbolic_curve_kind::atomic_interval && curve.lower &&
+        curve.upper) {
+      endpoint_index.push_back({*curve.lower, curve.id});
+      endpoint_index.push_back({*curve.upper, curve.id});
+    }
+  std::sort(endpoint_index.begin(), endpoint_index.end());
   std::pair<facet_id, symbolic_vertex_id> previous_angular;
   bool have_angular = false;
   for (const auto &order : a.angular_orders) {
@@ -518,11 +528,34 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
     std::vector<symbolic_curve_id> expected;
     const auto &facet = a.validated->payload->facets[order.facet.value_for_debug()];
     const auto vertex = order.vertex;
-    for (const auto &curve : a.curves)
-      if (curve.kind == symbolic_curve_kind::atomic_interval &&
-          (curve.lower == vertex || curve.upper == vertex) &&
-          intersect_line_plane(curve.carrier, facet.plane).kind == line_plane_kind::contained)
+    const auto endpoint_begin = std::lower_bound(
+        endpoint_index.begin(), endpoint_index.end(), vertex,
+        [](const auto &entry, auto id) { return entry.first < id; });
+    const auto endpoint_end = std::upper_bound(
+        endpoint_begin, endpoint_index.end(), vertex,
+        [](auto id, const auto &entry) { return id < entry.first; });
+    performance_count(performance_counter::symbolic_endpoint_incidences,
+                      static_cast<std::uint64_t>(endpoint_end - endpoint_begin));
+    for (auto incidence = endpoint_begin; incidence != endpoint_end;
+         ++incidence) {
+      const auto &curve = a.curves[incidence->second.value_for_debug()];
+      if (intersect_line_plane(curve.carrier, facet.plane).kind ==
+          line_plane_kind::contained)
         expected.push_back(curve.id);
+    }
+    if (exhaustive_small && a.curves.size() <= 64) {
+      std::vector<symbolic_curve_id> exhaustive;
+      for (const auto &curve : a.curves)
+        if (curve.kind == symbolic_curve_kind::atomic_interval &&
+            (curve.lower == vertex || curve.upper == vertex) &&
+            intersect_line_plane(curve.carrier, facet.plane).kind ==
+                line_plane_kind::contained)
+          exhaustive.push_back(curve.id);
+      std::sort(exhaustive.begin(), exhaustive.end());
+      auto indexed = expected;
+      std::sort(indexed.begin(), indexed.end());
+      if (indexed != exhaustive) return false;
+    }
     std::vector<symbolic_curve_id> actual;
     std::optional<exact_vector2> previous_direction;
     for (const auto &group : order.groups) {
@@ -623,9 +656,7 @@ template <class T, class I> bool valid(const symbolic_complex<T, I> &a) {
       }
     }
   }
-  return semantic(a) == a.canonical_symbolic_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest;
+  return true;
 }
 template <class T, class I>
 status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
@@ -657,17 +688,38 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
   verifier_work = checked_add(verifier_work.value(),
       a.raw_events->payload->intervals.size(), boolean_stage::symbolic_registry);
   if (!verifier_work.has_value()) return verifier_work.error();
+  verifier_work = checked_add(verifier_work.value(), a.curves.size(),
+                              boolean_stage::symbolic_registry);
+  if (!verifier_work.has_value()) return verifier_work.error();
+  auto interval_candidates = checked_multiply(
+      a.raw_intervals.size(), a.vertices.size(),
+      boolean_stage::symbolic_registry);
+  if (!interval_candidates.has_value()) return interval_candidates.error();
+  verifier_work = checked_add(verifier_work.value(), interval_candidates.value(),
+                              boolean_stage::symbolic_registry);
+  if (!verifier_work.has_value()) return verifier_work.error();
+  auto angular_candidates = checked_multiply(
+      a.angular_orders.size(), a.curves.size(),
+      boolean_stage::symbolic_registry);
+  if (!angular_candidates.has_value()) return angular_candidates.error();
+  verifier_work = checked_add(verifier_work.value(), angular_candidates.value(),
+                              boolean_stage::symbolic_registry);
+  if (!verifier_work.has_value()) return verifier_work.error();
   const auto exhaustive_small = env.options &&
       env.options->verification == verification_level::exhaustive &&
       members.value() <= 64 && a.raw_events->payload->carriers.size() <= 64;
   if (exhaustive_small) {
-    const auto point_pairs = members.value() < 2
-                                 ? 0
-                                 : members.value() * (members.value() - 1) / 2;
+    auto point_pairs_twice = checked_multiply(
+        members.value(), members.value() == 0 ? 0 : members.value() - 1,
+        boolean_stage::symbolic_registry);
+    if (!point_pairs_twice.has_value()) return point_pairs_twice.error();
+    const auto point_pairs = point_pairs_twice.value() / 2;
     const auto carrier_count = a.raw_events->payload->carriers.size();
-    const auto carrier_pairs = carrier_count < 2
-                                   ? 0
-                                   : carrier_count * (carrier_count - 1) / 2;
+    auto carrier_pairs_twice = checked_multiply(
+        carrier_count, carrier_count == 0 ? 0 : carrier_count - 1,
+        boolean_stage::symbolic_registry);
+    if (!carrier_pairs_twice.has_value()) return carrier_pairs_twice.error();
+    const auto carrier_pairs = carrier_pairs_twice.value() / 2;
     verifier_work = checked_add(verifier_work.value(), point_pairs,
                                 boolean_stage::symbolic_registry);
     if (!verifier_work.has_value()) return verifier_work.error();
@@ -683,7 +735,7 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
     if (!charged.has_value()) return charged.error();
     work_charge.emplace(std::move(charged.value()));
     auto point_bytes = checked_multiply(members.value(), sizeof(exact_point3),
-                                  boolean_stage::symbolic_registry);
+                                   boolean_stage::symbolic_registry);
     if (!point_bytes.has_value()) return point_bytes.error();
     auto line_sources = checked_add(a.raw_events->payload->carriers.size(),
                                     a.raw_events->payload->intervals.size(),
@@ -694,6 +746,21 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
     if (!line_bytes.has_value()) return line_bytes.error();
     auto bytes = checked_add(point_bytes.value(), line_bytes.value(),
                              boolean_stage::symbolic_registry);
+    if (!bytes.has_value()) return bytes.error();
+    auto point_index_bytes = checked_multiply(
+        a.vertices.size(), 3 * sizeof(symbolic_vertex_id),
+        boolean_stage::symbolic_registry);
+    if (!point_index_bytes.has_value()) return point_index_bytes.error();
+    bytes = checked_add(bytes.value(), point_index_bytes.value(),
+                        boolean_stage::symbolic_registry);
+    if (!bytes.has_value()) return bytes.error();
+    auto endpoint_bytes = checked_multiply(
+        a.curves.size(), 2 * sizeof(std::pair<symbolic_vertex_id,
+                                             symbolic_curve_id>),
+        boolean_stage::symbolic_registry);
+    if (!endpoint_bytes.has_value()) return endpoint_bytes.error();
+    bytes = checked_add(bytes.value(), endpoint_bytes.value(),
+                        boolean_stage::symbolic_registry);
     if (!bytes.has_value()) return bytes.error();
     charged = env.accountant->reserve_scoped(
         resource_kind::verifier_scratch_bytes, bytes.value(),
@@ -730,6 +797,21 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
       return std::nullopt;
     return found->id;
   };
+  auto coordinate = [](const exact_point3 &point, std::size_t axis)
+      -> const exact_scalar & {
+    return axis == 0 ? point.x : axis == 1 ? point.y : point.z;
+  };
+  std::array<std::vector<symbolic_vertex_id>, 3> point_indices;
+  for (std::size_t axis = 0; axis < point_indices.size(); ++axis) {
+    auto &index = point_indices[axis];
+    index.reserve(a.vertices.size());
+    for (const auto &vertex : a.vertices) index.push_back(vertex.id);
+    std::sort(index.begin(), index.end(), [&](auto left, auto right) {
+      const auto &l = coordinate(a.vertices[left.value_for_debug()].point, axis);
+      const auto &r = coordinate(a.vertices[right.value_for_debug()].point, axis);
+      return l == r ? left < right : l < r;
+    });
+  }
   // Retain the previous all-pairs proof only as a bounded exhaustive oracle.
   if (exhaustive_small) {
     std::vector<exact_point3> exhaustive_points;
@@ -796,8 +878,8 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
             (a.raw_carriers[i].carrier == a.raw_carriers[j].carrier))
           return false;
       }
-  // Small rational interval-union oracle: derive every atom from all registered
-  // points on each raw interval and compare its exact coverage set.
+  // Query a conservative coordinate range before the exact carrier predicate.
+  // The three independently sorted views avoid raw-interval x all-point scans.
   for (const auto &mapping : a.raw_intervals) {
     const auto *raw = find_raw_interval(*a.raw_events->payload, mapping.source);
     if (!raw) return false;
@@ -811,11 +893,43 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
     auto lo = lparam(line, *p0), hi = lparam(line, *p1);
     if (hi < lo) std::swap(lo, hi);
     std::vector<exact_scalar> cuts{lo, hi};
-    for (const auto &vertex : a.vertices)
+    const std::size_t axis = !line.direction.x.is_zero()
+                                 ? 0
+                                 : !line.direction.y.is_zero() ? 1 : 2;
+    const auto &point_index = point_indices[axis];
+    const auto begin = std::lower_bound(
+        point_index.begin(), point_index.end(), lo, [&](auto id, const auto &t) {
+          return coordinate(a.vertices[id.value_for_debug()].point, axis) < t;
+        });
+    const auto end = std::upper_bound(
+        begin, point_index.end(), hi, [&](const auto &t, auto id) {
+          return t < coordinate(a.vertices[id.value_for_debug()].point, axis);
+        });
+    performance_count(performance_counter::symbolic_point_candidates,
+                      static_cast<std::uint64_t>(end - begin));
+    for (auto candidate = begin; candidate != end; ++candidate) {
+      const auto &vertex = a.vertices[candidate->value_for_debug()];
       if (classify_point_line(vertex.point, line) == point_line_relation::on_carrier) {
         const auto t = lparam(line, vertex.point);
         if (!(t < lo) && !(hi < t)) cuts.push_back(t);
       }
+    }
+    if (exhaustive_small && a.vertices.size() <= 64) {
+      std::vector<exact_scalar> exhaustive{lo, hi};
+      for (const auto &vertex : a.vertices)
+        if (classify_point_line(vertex.point, line) ==
+            point_line_relation::on_carrier) {
+          const auto t = lparam(line, vertex.point);
+          if (!(t < lo) && !(hi < t)) exhaustive.push_back(t);
+        }
+      std::sort(exhaustive.begin(), exhaustive.end());
+      exhaustive.erase(std::unique(exhaustive.begin(), exhaustive.end()),
+                       exhaustive.end());
+      auto indexed = cuts;
+      std::sort(indexed.begin(), indexed.end());
+      indexed.erase(std::unique(indexed.begin(), indexed.end()), indexed.end());
+      if (indexed != exhaustive) return false;
+    }
     std::sort(cuts.begin(), cuts.end());
     cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
     std::vector<std::pair<exact_scalar, exact_scalar>> expected;
@@ -836,14 +950,14 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
   if (env.cancelled && env.cancelled())
     return make_error(boolean_error_code::resource_limit,
                       boolean_stage::symbolic_registry, "cancelled");
-  return valid(a);
+  return true;
 }
 template <class T, class I>
 status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a = *static_cast<const symbolic_complex<T, I> *>(v.payload);
+    const auto *artifact = static_cast<const symbolic_complex<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -854,19 +968,56 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    auto verified = independently_verify(a, e);
-    if (!verified.has_value()) return verified.error();
-    r.outcome = verified.value() ? verification_outcome::pass
-                                 : verification_outcome::invariant_failure;
+    const bool binding_ok = artifact && e.accountant && v.owner == e.owner &&
+        v.slot == artifact_slot::symbolic_complex &&
+        v.artifact_type_tag == symbolic_complex_type_tag +
+            (static_cast<std::uint64_t>(e.coordinate) << 8) +
+            static_cast<std::uint64_t>(e.index) &&
+        v.artifact_schema == symbolic_complex_schema &&
+        v.artifact_digest == artifact->artifact_digest &&
+        artifact->owner == v.owner && artifact->setup_digest == e.setup_digest &&
+        artifact->validated && artifact->validated->payload &&
+        artifact->raw_events && artifact->raw_events->payload &&
+        artifact->validated_digest == artifact->validated->artifact_digest &&
+        artifact->upstream_digest == artifact->raw_events->artifact_digest;
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      auto status =
-          failed ? check_status::not_run_due_to_prior_failure
-                 : r.passed() ? check_status::passed : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::symbolic_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::symbolic_identity: {
+          auto verified = independently_verify(*artifact, e);
+          if (!verified.has_value()) return verified.error();
+          ok = verified.value();
+          break;
+        }
+        case invariant_code::symbolic_order:
+          ok = valid(*artifact, s.level == verification_level::exhaustive &&
+                                    artifact->vertices.size() <= 64);
+          break;
+        case invariant_code::symbolic_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_symbolic_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest;
+          break;
+        default:
+          ok = false;
+        }
+      }
+      auto status = failed ? check_status::not_run_due_to_prior_failure
+                           : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, status, {}, 0});
       failed |= status == check_status::failed;
     }
-    r.dependency_digests = {a.upstream_digest, a.validated_digest};
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->upstream_digest,
+                              artifact->validated_digest};
     auto b = encode_verification_report(r);
     if (!b.has_value())
       return b.error();

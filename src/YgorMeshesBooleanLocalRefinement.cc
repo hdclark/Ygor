@@ -1240,17 +1240,15 @@ template <class T, class I> bool valid(const refined_facet_patches<T, I> &a) {
         return false;
     }
   }
-  return semantic(a) == a.canonical_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest;
+  return true;
 }
 template <class T, class I>
 status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a =
-        *static_cast<const refined_facet_patches<T, I> *>(v.payload);
+    const auto *artifact =
+        static_cast<const refined_facet_patches<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -1261,18 +1259,103 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    bool ok = valid(a);
-    r.outcome = ok ? verification_outcome::pass
-                   : verification_outcome::invariant_failure;
+    const bool binding_ok = artifact && e.accountant &&
+        v.owner == e.owner && v.slot == artifact_slot::refined_facet_patches &&
+        v.artifact_type_tag == refined_facet_patches_type_tag +
+            (static_cast<std::uint64_t>(e.coordinate) << 8) +
+            static_cast<std::uint64_t>(e.index) &&
+        v.artifact_schema == refined_facet_patches_schema &&
+        artifact->owner == v.owner && artifact->setup_digest == e.setup_digest &&
+        v.artifact_digest == artifact->artifact_digest &&
+        artifact->symbolic && artifact->symbolic->payload &&
+        artifact->validated && artifact->validated->payload &&
+        artifact->validated.get() == artifact->symbolic->payload->validated.get() &&
+        artifact->symbolic_digest == artifact->symbolic->artifact_digest &&
+        artifact->validated_digest == artifact->validated->artifact_digest;
+    std::optional<resource_reservation> work_charge, scratch_charge;
+    const auto reserve_resources = [&]() -> status_or<bool> {
+      std::uint64_t entities = artifact->shared_edges.size();
+      for (const auto &facet : artifact->facets) {
+        for (const auto count : {facet.vertices.size(), facet.point_incidences.size(),
+                                 facet.edges.size(), facet.halfedges.size(),
+                                 facet.walks.size(), facet.faces.size(),
+                                 facet.patches.size(), facet.source_boundary.size(),
+                                 facet.constraints.size()}) {
+          auto next = checked_add(entities, count,
+                                  boolean_stage::local_refinement);
+          if (!next.has_value()) return next.error();
+          entities = next.value();
+        }
+      }
+      auto work = checked_add(entities, artifact->canonical_bytes.size(),
+                              boolean_stage::local_refinement);
+      if (!work.has_value()) return work.error();
+      auto scratch = checked_multiply(entities, 1024,
+                                      boolean_stage::local_refinement);
+      if (!scratch.has_value()) return scratch.error();
+      auto encoded = checked_add(artifact->canonical_bytes.size(),
+                                 artifact->artifact_bytes.size(),
+                                 boolean_stage::local_refinement);
+      if (!encoded.has_value()) return encoded.error();
+      auto encoded_copies = checked_multiply(encoded.value(), 4,
+                                             boolean_stage::local_refinement);
+      if (!encoded_copies.has_value()) return encoded_copies.error();
+      scratch = checked_add(scratch.value(), encoded_copies.value(),
+                            boolean_stage::local_refinement);
+      if (!scratch.has_value()) return scratch.error();
+      auto reserved = e.accountant->reserve_scoped(
+          resource_kind::verifier_work, work.value(),
+          boolean_stage::local_refinement);
+      if (!reserved.has_value()) return reserved.error();
+      work_charge.emplace(std::move(reserved.value()));
+      reserved = e.accountant->reserve_scoped(
+          resource_kind::verifier_scratch_bytes, scratch.value(),
+          boolean_stage::local_refinement);
+      if (!reserved.has_value()) return reserved.error();
+      scratch_charge.emplace(std::move(reserved.value()));
+      return true;
+    };
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      const auto status = ok ? check_status::passed
-                             : failed ? check_status::not_run_due_to_prior_failure
-                                      : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::local_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::local_constraints:
+          ok = artifact->facets.size() == artifact->validated->payload->facets.size();
+          break;
+        case invariant_code::local_dcel:
+          {
+          auto reserved = reserve_resources();
+          if (!reserved.has_value()) return reserved.error();
+          ok = valid(*artifact);
+          break;
+          }
+        case invariant_code::local_coverage:
+          ok = true;
+          break;
+        case invariant_code::local_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest;
+          break;
+        default:
+          ok = false;
+        }
+      }
+      const auto status = failed ? check_status::not_run_due_to_prior_failure
+                                 : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, status, {}, 0});
       failed |= status == check_status::failed;
     }
-    r.dependency_digests = {a.symbolic_digest, a.validated_digest};
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->symbolic_digest,
+                              artifact->validated_digest};
     auto b = encode_verification_report(r);
     if (!b.has_value())
       return b.error();

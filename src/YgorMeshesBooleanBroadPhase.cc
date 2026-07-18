@@ -554,7 +554,8 @@ status_or<verification_report>
 verify_typed(const artifact_view &view, const verification_spec &spec,
              const verification_environment_view &env) noexcept {
   try {
-    const auto &a = *static_cast<const candidate_stream<T, I> *>(view.payload);
+    const auto *artifact =
+        static_cast<const candidate_stream<T, I> *>(view.payload);
     verification_report r;
     r.checker_version = spec.checker_version;
     r.owner = view.owner;
@@ -566,6 +567,69 @@ verify_typed(const artifact_view &view, const verification_spec &spec,
     r.artifact_digest = view.artifact_digest;
     r.invariant_set_digest = spec.invariant_set_digest;
     r.outcome = verification_outcome::pass;
+    const bool bound = artifact && env.accountant &&
+                       view.owner == env.owner &&
+                       view.slot == artifact_slot::candidate_stream &&
+                       view.artifact_type_tag == candidate_stream_type_tag +
+                           (static_cast<std::uint64_t>(env.coordinate) << 8) +
+                           static_cast<std::uint64_t>(env.index) &&
+                       view.artifact_schema == candidate_stream_schema &&
+                       artifact->owner == view.owner &&
+                       artifact->setup_digest == env.setup_digest &&
+                       artifact->validated && artifact->validated->payload &&
+                       artifact->validated->owner == view.owner &&
+                       view.artifact_digest == artifact->artifact_digest &&
+                       artifact->upstream_digest ==
+                           artifact->validated->artifact_digest;
+    std::optional<resource_reservation> work_charge, scratch_charge;
+    if (bound) {
+      const auto &a = *artifact;
+      auto work = checked_multiply(a.validated->payload->facets.size(), 4,
+                                   boolean_stage::broad_phase);
+      if (!work.has_value()) return work.error();
+      work = checked_add(work.value(), a.candidates.size(),
+                         boolean_stage::broad_phase);
+      if (!work.has_value()) return work.error();
+      work = checked_add(work.value(), a.canonical_candidate_bytes.size(),
+                         boolean_stage::broad_phase);
+      if (!work.has_value()) return work.error();
+      if (spec.level == verification_level::exhaustive) {
+        auto pairs = checked_multiply(a.validated->payload->facets.size(),
+                                      a.validated->payload->facets.size(),
+                                      boolean_stage::broad_phase);
+        if (!pairs.has_value()) return pairs.error();
+        work = checked_add(work.value(), pairs.value(),
+                           boolean_stage::broad_phase);
+        if (!work.has_value()) return work.error();
+      }
+      auto scratch_entities = checked_add(
+          a.validated->payload->facets.size(), a.candidates.size(),
+          boolean_stage::broad_phase);
+      if (!scratch_entities.has_value()) return scratch_entities.error();
+      auto scratch = checked_multiply(scratch_entities.value(), 1024,
+                                      boolean_stage::broad_phase);
+      if (!scratch.has_value()) return scratch.error();
+      auto encoded = checked_add(a.canonical_candidate_bytes.size(),
+                                 a.artifact_bytes.size(),
+                                 boolean_stage::broad_phase);
+      if (!encoded.has_value()) return encoded.error();
+      auto encoded_copies = checked_multiply(encoded.value(), 4,
+                                             boolean_stage::broad_phase);
+      if (!encoded_copies.has_value()) return encoded_copies.error();
+      scratch = checked_add(scratch.value(), encoded_copies.value(),
+                            boolean_stage::broad_phase);
+      if (!scratch.has_value()) return scratch.error();
+      auto reserved = env.accountant->reserve_scoped(
+          resource_kind::verifier_work, work.value(),
+          boolean_stage::broad_phase);
+      if (!reserved.has_value()) return reserved.error();
+      work_charge.emplace(std::move(reserved.value()));
+      reserved = env.accountant->reserve_scoped(
+          resource_kind::verifier_scratch_bytes, scratch.value(),
+          boolean_stage::broad_phase);
+      if (!reserved.has_value()) return reserved.error();
+      scratch_charge.emplace(std::move(reserved.value()));
+    }
     bool failed = false;
     for (auto code : spec.required_invariants) {
       invariant_result q;
@@ -576,34 +640,33 @@ verify_typed(const artifact_view &view, const verification_spec &spec,
       if (!failed)
         switch (code) {
         case invariant_code::broad_phase_binding:
-          ok = a.owner == view.owner && a.setup_digest == env.setup_digest &&
-               a.validated && a.validated->owner == view.owner &&
-               a.upstream_digest == a.validated->artifact_digest;
+          ok = bound;
           break;
         case invariant_code::broad_phase_bounds:
-          ok = validate_bounds(*a.validated->payload);
+          ok = validate_bounds(*artifact->validated->payload);
           break;
         case invariant_code::broad_phase_candidates: {
-          auto reconstructed = sweep(*a.validated->payload);
+          auto reconstructed = sweep(*artifact->validated->payload);
           performance_count(
               performance_counter::broad_phase_verifier_candidate_checks,
               reconstructed.candidate_checks);
           const auto &expected = reconstructed.candidates;
           if (spec.level == verification_level::exhaustive)
-            ok = expected == exhaustive(*a.validated->payload);
-          ok = ok && expected.size() == a.candidates.size();
+            ok = expected == exhaustive(*artifact->validated->payload);
+          ok = ok && expected.size() == artifact->candidates.size();
           for (std::size_t i = 0; i < expected.size() && ok; ++i)
-            ok = a.candidates[i].id.value_for_debug() == i &&
-                 a.candidates[i].key == expected[i];
-          ok = ok && a.statistics.final_candidates == expected.size() &&
-               a.statistics.exact_box_overlap_candidates == expected.size();
+            ok = artifact->candidates[i].id.value_for_debug() == i &&
+                  artifact->candidates[i].key == expected[i];
+          ok = ok && artifact->statistics.final_candidates == expected.size() &&
+                artifact->statistics.exact_box_overlap_candidates == expected.size();
           break;
         }
         case invariant_code::broad_phase_canonical_encoding: {
-          auto sem = semantic_bytes(a);
-          auto inv = invocation_bytes(a);
-          ok = sem == a.canonical_candidate_bytes && inv == a.artifact_bytes &&
-               artifact_digest_for(a) == view.artifact_digest;
+          auto sem = semantic_bytes(*artifact);
+          auto inv = invocation_bytes(*artifact);
+          ok = sem == artifact->canonical_candidate_bytes &&
+               inv == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == view.artifact_digest;
           break;
         }
         default:
@@ -621,9 +684,11 @@ verify_typed(const artifact_view &view, const verification_spec &spec,
     evidence.kind = evidence_kind::coverage;
     evidence.invariant = invariant_code::broad_phase_candidates;
     canonical_encoder p;
-    p.u64(a.candidates.size());
+    p.u64(artifact ? artifact->candidates.size() : 0);
     evidence.exact_payload = p.bytes();
-    evidence.dependencies = {a.upstream_digest, a.artifact_digest};
+    if (artifact)
+      evidence.dependencies = {artifact->upstream_digest,
+                               artifact->artifact_digest};
     evidence.evidence_digest = evidence_digest(evidence);
     r.evidence.push_back(evidence);
     auto bytes = encode_verification_report(r);

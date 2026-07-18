@@ -432,9 +432,41 @@ bool raw_coordinate_matches(const vec3<T> &v, const realization_vertex<T> &r) {
 }
 
 template <class I>
+bool exhaustive_vertex_link_is_cycle(
+    const std::vector<std::vector<I>> &faces,
+    const std::vector<std::size_t> &incident) {
+  std::map<std::size_t, std::vector<std::size_t>> neighbors;
+  for (auto f : incident)
+    for (auto g : incident)
+      if (f < g) {
+        std::size_t shared = 0;
+        for (auto x : faces[f])
+          for (auto y : faces[g]) shared += x == y;
+        if (shared == 2) {
+          neighbors[f].push_back(g);
+          neighbors[g].push_back(f);
+        }
+      }
+  for (auto f : incident)
+    if (neighbors[f].size() != 2) return false;
+  std::set<std::size_t> reached;
+  std::queue<std::size_t> pending;
+  pending.push(incident.front());
+  reached.insert(incident.front());
+  while (!pending.empty()) {
+    const auto face = pending.front();
+    pending.pop();
+    for (auto neighbor : neighbors[face])
+      if (reached.insert(neighbor).second) pending.push(neighbor);
+  }
+  return reached.size() == incident.size();
+}
+
+template <class I>
 bool vertex_links_are_cycles(const std::vector<std::vector<I>> &faces,
-                             std::size_t vertex_count,
-                             const std::function<bool()> &cancelled) {
+                              std::size_t vertex_count,
+                              const std::function<bool()> &cancelled,
+                              bool exhaustive_small) {
   std::vector<std::vector<std::size_t>> incident(vertex_count);
   for (std::size_t f = 0; f < faces.size(); ++f)
     for (auto v : faces[f])
@@ -444,42 +476,159 @@ bool vertex_links_are_cycles(const std::vector<std::vector<I>> &faces,
       return false;
     if (incident[v].empty())
       return false;
-    std::map<std::size_t, std::vector<std::size_t>> neighbors;
-    for (auto f : incident[v])
-      for (auto g : incident[v])
-        if (f < g) {
-          std::size_t shared = 0;
-          for (auto x : faces[f])
-            for (auto y : faces[g])
-              shared += x == y;
-          if (shared == 2) {
-            neighbors[f].push_back(g);
-            neighbors[g].push_back(f);
-          }
+    std::vector<std::pair<std::size_t, std::size_t>> endpoint_faces;
+    endpoint_faces.reserve(2 * incident[v].size());
+    for (auto face : incident[v]) {
+      bool found = false;
+      for (auto endpoint : faces[face])
+        if (static_cast<std::size_t>(endpoint) == v) {
+          if (found) return false;
+          found = true;
+        } else {
+          endpoint_faces.push_back(
+              {static_cast<std::size_t>(endpoint), face});
         }
-    for (auto f : incident[v])
-      if (neighbors[f].size() != 2)
-        return false;
-    std::set<std::size_t> reached;
-    std::queue<std::size_t> q;
-    q.push(incident[v].front());
-    reached.insert(incident[v].front());
-    while (!q.empty()) {
-      auto f = q.front();
-      q.pop();
-      for (auto n : neighbors[f])
-        if (reached.insert(n).second)
-          q.push(n);
+      if (!found) return false;
     }
-    if (reached.size() != incident[v].size())
+    std::sort(endpoint_faces.begin(), endpoint_faces.end());
+    std::vector<std::pair<std::size_t, std::size_t>> links;
+    links.reserve(endpoint_faces.size());
+    for (std::size_t i = 0; i < endpoint_faces.size();) {
+      std::size_t end = i + 1;
+      while (end < endpoint_faces.size() &&
+             endpoint_faces[end].first == endpoint_faces[i].first)
+        ++end;
+      if (end - i != 2 ||
+          endpoint_faces[i].second == endpoint_faces[i + 1].second)
+        return false;
+      links.push_back(
+          {endpoint_faces[i].second, endpoint_faces[i + 1].second});
+      links.push_back(
+          {endpoint_faces[i + 1].second, endpoint_faces[i].second});
+      i = end;
+    }
+    std::sort(links.begin(), links.end());
+    std::vector<std::array<std::size_t, 2>> neighbors(incident[v].size());
+    for (std::size_t i = 0, link = 0; i < incident[v].size(); ++i) {
+      if (link + 1 >= links.size() || links[link].first != incident[v][i] ||
+          links[link + 1].first != incident[v][i])
+        return false;
+      for (std::size_t side = 0; side < 2; ++side) {
+        const auto position = std::lower_bound(incident[v].begin(),
+                                               incident[v].end(),
+                                               links[link + side].second);
+        if (position == incident[v].end() ||
+            *position != links[link + side].second)
+          return false;
+        neighbors[i][side] =
+            static_cast<std::size_t>(position - incident[v].begin());
+      }
+      if (neighbors[i][0] == neighbors[i][1]) return false;
+      link += 2;
+    }
+    std::vector<bool> reached(incident[v].size());
+    std::size_t previous = incident[v].size(), current = 0;
+    for (std::size_t step = 0; step < incident[v].size(); ++step) {
+      if (reached[current]) return false;
+      reached[current] = true;
+      const auto next = neighbors[current][0] == previous
+                            ? neighbors[current][1]
+                            : neighbors[current][0];
+      previous = current;
+      current = next;
+    }
+    const bool linear_result = current == 0;
+    constexpr std::size_t oracle_limit = 32;
+    if (exhaustive_small && incident[v].size() <= oracle_limit &&
+        linear_result != exhaustive_vertex_link_is_cycle(faces, incident[v]))
+      return false;
+    if (!linear_result) return false;
+  }
+  return true;
+}
+
+template <class T, class I>
+bool valid_output_structure(const assembled_output<T, I> &a,
+                            const verification_environment_view &env) {
+  return a.realized && a.realized->payload && a.owner == env.owner &&
+         a.setup_digest == env.setup_digest &&
+         a.selected_digest == a.realized->payload->selected_digest &&
+         a.realized_digest == a.realized->artifact_digest &&
+         a.policy_digest == policy_digest(a.policy) &&
+         a.policy.topology ==
+             output_topology_policy::triangulated_v1_no_simplification &&
+         a.mesh.vertex_normals.empty() && a.mesh.vertex_colours.empty() &&
+         a.mesh.metadata.empty() &&
+         a.mesh.faces.size() == a.faces.size() &&
+         a.mesh.vertices.size() == a.vertices.size() &&
+         a.mesh.involved_faces.size() == a.mesh.vertices.size();
+}
+
+template <class T, class I>
+bool valid_output_coordinates(const assembled_output<T, I> &a) {
+  const auto &r = *a.realized->payload;
+  for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+    const auto &mapping = a.vertices[i];
+    if (mapping.realization.value_for_debug() >= r.vertices.size() ||
+        !raw_coordinate_matches(
+            a.mesh.vertices[i],
+            r.vertices[mapping.realization.value_for_debug()]))
       return false;
   }
   return true;
 }
 
 template <class T, class I>
+bool valid_output_topology(const assembled_output<T, I> &a,
+                           const verification_environment_view &env) {
+  std::map<std::pair<I, I>, std::vector<bool>> edge_directions;
+  for (const auto &face : a.mesh.faces) {
+    if (face.size() != 3) return false;
+    for (std::size_t n = 0; n < 3; ++n) {
+      if (static_cast<std::size_t>(face[n]) >= a.mesh.vertices.size() ||
+          face[n] == face[(n + 1) % 3])
+        return false;
+      const auto x = face[n], y = face[(n + 1) % 3];
+      const bool forward = x < y;
+      edge_directions[forward ? std::make_pair(x, y) : std::make_pair(y, x)]
+          .push_back(forward);
+    }
+  }
+  for (const auto &edge : edge_directions)
+    if (edge.second.size() != 2 || edge.second[0] == edge.second[1])
+      return false;
+  return vertex_links_are_cycles(
+      a.mesh.faces, a.mesh.vertices.size(), env.cancelled,
+      env.options->verification == verification_level::exhaustive);
+}
+
+template <class T, class I>
+bool valid_output_mappings(const assembled_output<T, I> &a) {
+  const auto &r = *a.realized->payload;
+  std::vector<std::vector<I>> incidences(a.mesh.vertices.size());
+  for (std::size_t i = 0; i < a.vertices.size(); ++i)
+    if (a.vertices[i].id.value_for_debug() != i ||
+        static_cast<std::size_t>(a.vertices[i].public_index) != i ||
+        a.vertices[i].realization.value_for_debug() >= r.vertices.size())
+      return false;
+  for (std::size_t i = 0; i < a.faces.size(); ++i) {
+    const auto &mapping = a.faces[i];
+    if (mapping.id.value_for_debug() != i ||
+        mapping.realization.value_for_debug() >= r.triangles.size() ||
+        mapping.cyclic_rotation > 2 ||
+        mapping.public_vertices != std::array<I, 3>{{a.mesh.faces[i][0],
+                                                     a.mesh.faces[i][1],
+                                                     a.mesh.faces[i][2]}})
+      return false;
+    for (auto vertex : mapping.public_vertices)
+      incidences[vertex].push_back(static_cast<I>(i));
+  }
+  return incidences == a.mesh.involved_faces;
+}
+
+template <class T, class I>
 bool independently_valid(const assembled_output<T, I> &a,
-                         const verification_environment_view &env) {
+                          const verification_environment_view &env) {
   if (!a.realized || !a.realized->payload || a.owner != env.owner ||
       a.setup_digest != env.setup_digest ||
       a.selected_digest != a.realized->payload->selected_digest ||
@@ -682,7 +831,9 @@ bool independently_valid(const assembled_output<T, I> &a,
       next != a.mesh.vertices.size() ||
       rebuilt_involved != a.mesh.involved_faces ||
       !vertex_links_are_cycles(a.mesh.faces, a.mesh.vertices.size(),
-                               env.cancelled))
+                                env.cancelled,
+                                env.options->verification ==
+                                    verification_level::exhaustive))
     return false;
   for (const auto &edge : edge_directions)
     if (edge.second.size() != 2 || edge.second[0] == edge.second[1])
@@ -868,6 +1019,12 @@ bool independently_valid(const assembled_output<T, I> &a,
       ++expected_face;
     }
   }
+  return true;
+}
+
+template <class T, class I>
+bool valid_output_certificate(const assembled_output<T, I> &a) {
+  const auto &r = *a.realized->payload;
   const auto &c = a.certificate;
   if (c.id.value_for_debug() != 0 || c.schema != assembled_output_schema ||
       c.ordering_version != a.policy.ordering_version ||
@@ -906,119 +1063,7 @@ bool independently_valid(const assembled_output<T, I> &a,
   for (const auto &obligation : r.obligations)
     if (obligation.expected != obligation.actual)
       return false;
-  canonical_encoder semantic_check;
-  const char semantic_tag[] = "YGBCAN12";
-  semantic_check.raw(reinterpret_cast<const std::uint8_t *>(semantic_tag), 8);
-  semantic_check.u16(assembled_output_schema);
-  semantic_check.byte(std::is_same<T, double>::value ? 1 : 0);
-  semantic_check.byte(std::is_same<I, std::uint64_t>::value ? 1 : 0);
-  semantic_check.u16(a.policy.ordering_version);
-  semantic_check.u16(a.policy.encoding_version);
-  semantic_check.byte(static_cast<std::uint8_t>(a.policy.topology));
-  semantic_check.byte(
-      static_cast<std::uint8_t>(a.topology_authorization.topology));
-  semantic_check.raw(
-      a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
-  semantic_check.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
-  semantic_check.raw(r.certificate.semantic_digest.bytes.data(), 16);
-  semantic_check.raw(r.policy_digest.bytes.data(), 16);
-  semantic_check.u64(a.components.size());
-  for (const auto &component : a.components) {
-    semantic_check.id(component.id);
-    semantic_check.u64(component.first_face);
-    semantic_check.u64(component.face_count);
-    semantic_check.byte_string(component.semantic_key);
-  }
-  semantic_check.u64(a.mesh.vertices.size());
-  for (const auto &vertex : a.mesh.vertices) {
-    semantic_check.floating(vertex.x);
-    semantic_check.floating(vertex.y);
-    semantic_check.floating(vertex.z);
-  }
-  semantic_check.u64(a.mesh.faces.size());
-  for (const auto &face : a.mesh.faces) {
-    semantic_check.u64(3);
-    for (auto index : face)
-      semantic_check.u64(index);
-  }
-  semantic_check.u64(a.vertices.size());
-  for (const auto &vertex : a.vertices) {
-    semantic_check.id(vertex.id);
-    semantic_check.id(vertex.realization);
-    semantic_check.u64(vertex.public_index);
-    semantic_check.byte_string(vertex.semantic_token);
-  }
-  semantic_check.u64(a.faces.size());
-  for (const auto &face : a.faces) {
-    semantic_check.id(face.id);
-    semantic_check.id(face.realization);
-    semantic_check.id(face.component);
-    semantic_check.byte(face.cyclic_rotation);
-    for (auto index : face.public_vertices)
-      semantic_check.u64(index);
-    semantic_check.byte_string(face.semantic_key);
-  }
-  semantic_check.u64(a.mesh.involved_faces.size());
-  for (const auto &incidence : a.mesh.involved_faces) {
-    semantic_check.u64(incidence.size());
-    for (auto face : incidence)
-      semantic_check.u64(face);
-  }
-  semantic_check.u64(0);
-  semantic_check.u64(0);
-  semantic_check.u64(0);
-  semantic_check.id(c.id);
-  semantic_check.u16(c.schema);
-  semantic_check.u16(c.ordering_version);
-  semantic_check.u16(c.encoding_version);
-  semantic_check.u64(c.vertices);
-  semantic_check.u64(c.faces);
-  semantic_check.u64(c.components);
-  semantic_check.u64(c.face_indices);
-  semantic_check.u64(c.involved_face_entries);
-  semantic_check.u64(c.edge_uses);
-  for (const auto *binding :
-       {&c.selected_digest, &c.realized_digest, &c.policy_digest,
-        &c.topology_digest, &c.mapping_digest})
-    semantic_check.raw(binding->bytes.data(), 16);
-  if (semantic_check.bytes() != a.canonical_bytes)
-    return false;
-  canonical_encoder invocation_check;
-  const char invocation_tag[] = "YGBOUT12";
-  invocation_check.raw(reinterpret_cast<const std::uint8_t *>(invocation_tag),
-                       8);
-  invocation_check.u16(assembled_output_schema);
-  invocation_check.raw(a.setup_digest.bytes.data(), 16);
-  invocation_check.byte(static_cast<std::uint8_t>(a.selected_operation));
-  invocation_check.raw(a.input_a_digest.bytes.data(), 16);
-  invocation_check.raw(a.input_b_digest.bytes.data(), 16);
-  invocation_check.raw(a.selected_digest.bytes.data(), 16);
-  invocation_check.raw(a.realized_digest.bytes.data(), 16);
-  invocation_check.raw(a.policy_digest.bytes.data(), 16);
-  invocation_check.raw(a.topology_authorization.selected_digest.bytes.data(),
-                       16);
-  invocation_check.raw(
-      a.topology_authorization.topology_certificate_digest.bytes.data(), 16);
-  invocation_check.raw(a.topology_authorization.policy_digest.bytes.data(), 16);
-  invocation_check.u64(r.selected->generation);
-  invocation_check.u64(a.realized->generation);
-  invocation_check.raw(r.selected->report.report_digest.bytes.data(), 16);
-  invocation_check.raw(a.realized->report.report_digest.bytes.data(), 16);
-  invocation_check.raw(c.semantic_digest.bytes.data(), 16);
-  invocation_check.byte_string(a.canonical_bytes);
-  if (invocation_check.bytes() != a.artifact_bytes)
-    return false;
-  canonical_encoder artifact_check;
-  artifact_check.raw(a.setup_digest.bytes.data(), 16);
-  artifact_check.byte(
-      static_cast<std::uint8_t>(artifact_slot::assembled_output));
-  artifact_check.byte_string(a.artifact_bytes);
-  return a.artifact_digest ==
-             domain_digest({{'Y', 'G', 'B', 'A', 'R', 'T', '0', '1'}},
-                           artifact_check.bytes()) &&
-         c.semantic_digest ==
-             domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '1', '2'}},
-                           a.canonical_bytes);
+  return true;
 }
 
 template <class T, class I>
@@ -1039,7 +1084,22 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     const auto *a = static_cast<const assembled_output<T, I> *>(v.payload);
     status_or<resource_reservation> scratch = resource_reservation{};
     status_or<resource_reservation> work = resource_reservation{};
-    if (a && e.accountant) {
+    const bool binding_ok = e.options && e.accountant && a &&
+                            v.owner == e.owner &&
+                            v.slot == artifact_slot::assembled_output &&
+                            v.artifact_type_tag == type_tag<T, I>() &&
+                             v.artifact_schema == assembled_output_schema &&
+                             v.artifact_digest == a->artifact_digest &&
+                             a->owner == v.owner &&
+                             a->setup_digest == e.setup_digest &&
+                             e.coordinate == (std::is_same<T, double>::value
+                                                 ? coordinate_tag::binary64
+                                                 : coordinate_tag::binary32) &&
+                            e.index == (std::is_same<I, std::uint64_t>::value
+                                            ? index_tag::uint64
+                                            : index_tag::uint32) &&
+                            a->policy.schema == e.options->output.schema;
+    const auto reserve_resources = [&]() -> status_or<bool> {
       auto scratch_entities =
           checked_add(a->mesh.faces.size(), a->mesh.vertices.size(),
                       boolean_stage::output_assembly);
@@ -1068,14 +1128,34 @@ verify_typed(const artifact_view &v, const verification_spec &s,
           boolean_stage::output_assembly);
       if (!scratch.has_value())
         return scratch.error();
-      auto quadratic_work =
-          checked_multiply(a->mesh.faces.size(), a->mesh.faces.size(),
-                           boolean_stage::output_assembly);
-      if (!quadratic_work.has_value())
-        return quadratic_work.error();
-      auto total_work =
-          checked_add(quadratic_work.value(), 1 + a->mesh.vertices.size(),
-                      boolean_stage::output_assembly);
+      auto endpoint_incidences = checked_multiply(
+          a->mesh.faces.size(), 6, boolean_stage::output_assembly);
+      if (!endpoint_incidences.has_value()) return endpoint_incidences.error();
+      std::uint64_t sort_levels = 1;
+      for (auto count = endpoint_incidences.value(); count > 1;
+           count = count / 2 + count % 2)
+        ++sort_levels;
+      auto sorted_link_work = checked_multiply(endpoint_incidences.value(),
+                                               sort_levels,
+                                               boolean_stage::output_assembly);
+      if (!sorted_link_work.has_value()) return sorted_link_work.error();
+      auto total_work = sorted_link_work;
+      if (e.options->verification == verification_level::exhaustive) {
+        auto oracle_work = checked_multiply(a->mesh.vertices.size(), 32U * 32U,
+                                            boolean_stage::output_assembly);
+        if (!oracle_work.has_value()) return oracle_work.error();
+        total_work = checked_add(total_work.value(), oracle_work.value(),
+                                 boolean_stage::output_assembly);
+      }
+      if (!total_work.has_value()) return total_work.error();
+      total_work = checked_add(total_work.value(), a->mesh.faces.size(),
+                               boolean_stage::output_assembly);
+      if (!total_work.has_value()) return total_work.error();
+      total_work = checked_add(total_work.value(), a->mesh.vertices.size(),
+                               boolean_stage::output_assembly);
+      if (!total_work.has_value()) return total_work.error();
+      total_work = checked_add(total_work.value(), 1,
+                               boolean_stage::output_assembly);
       if (!total_work.has_value())
         return total_work.error();
       work = e.accountant->reserve_scoped(resource_kind::verifier_work,
@@ -1083,33 +1163,58 @@ verify_typed(const artifact_view &v, const verification_spec &s,
                                           boolean_stage::output_assembly);
       if (!work.has_value())
         return work.error();
-    }
-    const bool binding_ok = e.options && a && v.owner == e.owner &&
-                            v.slot == artifact_slot::assembled_output &&
-                            v.artifact_type_tag == type_tag<T, I>() &&
-                            v.artifact_schema == assembled_output_schema &&
-                            v.artifact_digest == a->artifact_digest &&
-                            e.coordinate == (std::is_same<T, double>::value
-                                                 ? coordinate_tag::binary64
-                                                 : coordinate_tag::binary32) &&
-                            e.index == (std::is_same<I, std::uint64_t>::value
-                                            ? index_tag::uint64
-                                            : index_tag::uint32) &&
-                            a->policy.schema == e.options->output.schema;
-    const bool ok = binding_ok && independently_valid(*a, e);
-    if (e.cancelled && e.cancelled())
-      return make_error(boolean_error_code::resource_limit,
-                        boolean_stage::output_assembly, "cancelled");
-    r.outcome = ok ? verification_outcome::pass
-                   : verification_outcome::invariant_failure;
+      return true;
+    };
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto code : s.required_invariants) {
-      auto st = ok ? check_status::passed
-                   : failed ? check_status::not_run_due_to_prior_failure
-                            : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (code) {
+        case invariant_code::output_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::output_structure:
+          ok = valid_output_structure(*a, e);
+          break;
+        case invariant_code::output_coordinates:
+          ok = valid_output_coordinates(*a);
+          break;
+        case invariant_code::output_topology:
+          {
+          auto reserved = reserve_resources();
+          if (!reserved.has_value()) return reserved.error();
+          ok = valid_output_topology(*a, e);
+          break;
+          }
+        case invariant_code::output_mappings:
+          ok = valid_output_mappings(*a);
+          break;
+        case invariant_code::output_certificate:
+          ok = valid_output_certificate(*a) && independently_valid(*a, e);
+          if (e.cancelled && e.cancelled())
+            return make_error(boolean_error_code::resource_limit,
+                              boolean_stage::output_assembly, "cancelled");
+          break;
+        case invariant_code::output_canonical_encoding:
+          ok = semantic(*a) == a->canonical_bytes &&
+               invocation(*a) == a->artifact_bytes &&
+               artifact_digest_for(*a) == a->artifact_digest &&
+               a->certificate.semantic_digest == domain_digest(
+                   {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '2'}},
+                   a->canonical_bytes);
+          break;
+        default:
+          ok = false;
+        }
+      }
+      auto st = failed ? check_status::not_run_due_to_prior_failure
+                       : ok ? check_status::passed : check_status::failed;
       r.results.push_back({code, st, {}, 0});
       failed |= st == check_status::failed;
     }
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
     if (a)
       r.dependency_digests = {a->selected_digest, a->realized_digest,
                               a->policy_digest};

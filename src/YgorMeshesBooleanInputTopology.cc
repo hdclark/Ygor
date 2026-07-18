@@ -291,13 +291,245 @@ bool equal_box(const exact_box3&a,const exact_box3&b){return a.minimum==b.minimu
 bool equal_box(const exact_box2&a,const exact_box2&b){return a.minimum==b.minimum&&a.maximum==b.maximum;}
 bool equal_triangle(const exact_triangle3&a,const exact_triangle3&b){return a.a==b.a&&a.b==b.b&&a.c==b.c;}
 exact_vector3 oriented_normal(const exact_plane3&p){exact_vector3 n{exact_scalar(p.a,big_uint(1)),exact_scalar(p.b,big_uint(1)),exact_scalar(p.c,big_uint(1))};return p.oriented==orientation_parity::opposite?n*exact_scalar(-1):n;}
-template<class T,class I>validated_facet_geometry facet_geometry(const artifact_t<T,I>&a,const validated_facet&f){
+template<class T,class I>std::vector<std::vector<facet_id>>vertex_fans(const artifact_t<T,I>&a){std::vector<std::vector<facet_id>>fans(a.vertices.size());for(const auto&v:a.vertices){auto&fan=fans[v.id.value_for_debug()];fan.reserve(v.ordered_outgoing_link.size());for(auto use:v.ordered_outgoing_link)fan.push_back(a.edge_uses[use.value_for_debug()].facet);}return fans;}
+template<class T,class I>validated_facet_geometry facet_geometry(const artifact_t<T,I>&a,const validated_facet&f,const std::vector<std::vector<facet_id>>*fans=nullptr){
   validated_facet_geometry g;g.facet=f.id;g.operand=f.operand;g.plane=f.plane;g.projection=f.projection;g.oriented_normal=oriented_normal(f.plane);
-  for(auto id:f.ring){const auto&p=a.vertices[id.value_for_debug()].exact_coordinate;g.ring3.push_back(p);g.ring2.push_back(project(p,f.projection));std::vector<facet_id>fan;for(auto use:a.vertices[id.value_for_debug()].ordered_outgoing_link)fan.push_back(a.edge_uses[use.value_for_debug()].facet);g.vertex_fans.push_back(std::move(fan));}
+  for(auto id:f.ring){const auto&p=a.vertices[id.value_for_debug()].exact_coordinate;g.ring3.push_back(p);g.ring2.push_back(project(p,f.projection));if(fans)g.vertex_fans.push_back((*fans)[id.value_for_debug()]);else{std::vector<facet_id>fan;for(auto use:a.vertices[id.value_for_debug()].ordered_outgoing_link)fan.push_back(a.edge_uses[use.value_for_debug()].facet);g.vertex_fans.push_back(std::move(fan));}}
   for(std::size_t i=0;i<g.ring3.size();++i){const exact_segment3 segment{g.ring3[i],g.ring3[(i+1)%g.ring3.size()]};g.edges.push_back({segment,point_bounds(std::vector<exact_point3>{segment.origin,segment.destination}),point_bounds(std::vector<exact_point2>{g.ring2[i],g.ring2[(i+1)%g.ring2.size()]})});}
   for(const auto&t:f.triangles){exact_triangle3 triangle{a.vertices[t[0].value_for_debug()].exact_coordinate,a.vertices[t[1].value_for_debug()].exact_coordinate,a.vertices[t[2].value_for_debug()].exact_coordinate};g.triangles.push_back({triangle,point_bounds(std::vector<exact_point3>{triangle.a,triangle.b,triangle.c})});}
   return g;
 }
+struct verifier_facet_cache {
+  exact_box3 bounds;
+  std::vector<exact_triangle3> triangles;
+  std::vector<original_vertex_id> vertices;
+  std::vector<std::pair<original_vertex_id, original_vertex_id>> edges;
+};
+bool boxes_overlap(const exact_box3 &a, const exact_box3 &b) {
+  return !(a.maximum.x < b.minimum.x || b.maximum.x < a.minimum.x ||
+           a.maximum.y < b.minimum.y || b.maximum.y < a.minimum.y ||
+           a.maximum.z < b.minimum.z || b.maximum.z < a.minimum.z);
+}
+bool box_contains(const exact_box3 &outer, const exact_box3 &inner) {
+  return !(inner.minimum.x < outer.minimum.x || outer.maximum.x < inner.maximum.x ||
+           inner.minimum.y < outer.minimum.y || outer.maximum.y < inner.maximum.y ||
+           inner.minimum.z < outer.minimum.z || outer.maximum.z < inner.maximum.z);
+}
+exact_scalar box_volume(const exact_box3 &box) {
+  return (box.maximum.x - box.minimum.x) *
+         (box.maximum.y - box.minimum.y) *
+         (box.maximum.z - box.minimum.z);
+}
+struct shell_containment_index {
+  struct node {
+    std::size_t begin = 0, end = 0;
+    exact_scalar minimum_y, minimum_z, maximum_x, maximum_y, maximum_z;
+  };
+  const std::vector<validated_shell> *shells = nullptr;
+  std::vector<std::size_t> order;
+  std::vector<node> tree;
+
+  explicit shell_containment_index(const std::vector<validated_shell> &values)
+      : shells(&values), order(values.size()), tree(values.empty() ? 0 : 4 * values.size()) {
+    for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+    std::sort(order.begin(), order.end(), [&](std::size_t x, std::size_t y) {
+      const auto &a = values[x].bounds.minimum.x;
+      const auto &b = values[y].bounds.minimum.x;
+      return a != b ? a < b : x < y;
+    });
+    if (!order.empty()) build(1, 0, order.size());
+  }
+  void build(std::size_t at, std::size_t begin, std::size_t end) {
+    auto &n = tree[at]; n.begin = begin; n.end = end;
+    const auto &first = (*shells)[order[begin]].bounds;
+    n.minimum_y = first.minimum.y; n.minimum_z = first.minimum.z;
+    n.maximum_x = first.maximum.x; n.maximum_y = first.maximum.y;
+    n.maximum_z = first.maximum.z;
+    if (end - begin > 1) {
+      const auto middle = begin + (end - begin) / 2;
+      build(at * 2, begin, middle); build(at * 2 + 1, middle, end);
+      const auto &left = tree[at * 2], &right = tree[at * 2 + 1];
+      if (right.minimum_y < n.minimum_y) n.minimum_y = right.minimum_y;
+      if (right.minimum_z < n.minimum_z) n.minimum_z = right.minimum_z;
+      if (n.maximum_x < right.maximum_x) n.maximum_x = right.maximum_x;
+      if (n.maximum_y < right.maximum_y) n.maximum_y = right.maximum_y;
+      if (n.maximum_z < right.maximum_z) n.maximum_z = right.maximum_z;
+      if (left.minimum_y < n.minimum_y) n.minimum_y = left.minimum_y;
+      if (left.minimum_z < n.minimum_z) n.minimum_z = left.minimum_z;
+      if (n.maximum_x < left.maximum_x) n.maximum_x = left.maximum_x;
+      if (n.maximum_y < left.maximum_y) n.maximum_y = left.maximum_y;
+      if (n.maximum_z < left.maximum_z) n.maximum_z = left.maximum_z;
+    }
+  }
+  template<class F>std::uint64_t possible_containers(std::size_t child, F &&visit) const {
+    if (order.empty()) return 0;
+    const auto &box = (*shells)[child].bounds;
+    const auto prefix = static_cast<std::size_t>(std::upper_bound(
+        order.begin(), order.end(), box.minimum.x,
+        [&](const exact_scalar &x, std::size_t shell) {
+          return x < (*shells)[shell].bounds.minimum.x;
+        }) - order.begin());
+    return query(1, prefix, child, box, visit);
+  }
+  template<class F>std::uint64_t query(std::size_t at, std::size_t prefix,
+                                      std::size_t child, const exact_box3 &box,
+                                      F &visit) const {
+    const auto &n = tree[at];
+    std::uint64_t work = 1;
+    if (n.begin >= prefix || box.minimum.y < n.minimum_y ||
+        box.minimum.z < n.minimum_z || n.maximum_x < box.maximum.x ||
+        n.maximum_y < box.maximum.y || n.maximum_z < box.maximum.z)
+      return work;
+    if (n.end - n.begin == 1) {
+      const auto candidate = order[n.begin];
+      if (candidate != child && box_contains((*shells)[candidate].bounds, box))
+        visit(candidate);
+      return work;
+    }
+    work += query(at * 2, prefix, child, box, visit);
+    work += query(at * 2 + 1, prefix, child, box, visit);
+    return work;
+  }
+};
+template <class T, class I>
+std::vector<verifier_facet_cache>
+cache_verifier_facets(const artifact_t<T, I> &a) {
+  std::vector<verifier_facet_cache> cache(a.facets.size());
+  for (std::size_t fi = 0; fi < a.facets.size(); ++fi) {
+    const auto &facet = a.facets[fi];
+    auto &entry = cache[fi];
+    std::vector<exact_point3> points;
+    points.reserve(facet.ring.size());
+    entry.vertices = facet.ring;
+    std::sort(entry.vertices.begin(), entry.vertices.end());
+    entry.edges.reserve(facet.ring.size());
+    for (std::size_t i = 0; i < facet.ring.size(); ++i) {
+      const auto x = facet.ring[i];
+      const auto y = facet.ring[(i + 1) % facet.ring.size()];
+      points.push_back(a.vertices[x.value_for_debug()].exact_coordinate);
+      entry.edges.push_back(x < y ? std::make_pair(x, y)
+                                  : std::make_pair(y, x));
+    }
+    std::sort(entry.edges.begin(), entry.edges.end());
+    entry.bounds = point_bounds(points);
+    entry.triangles.reserve(facet.triangles.size());
+    for (const auto &triangle : facet.triangles)
+      entry.triangles.push_back(
+          {a.vertices[triangle[0].value_for_debug()].exact_coordinate,
+           a.vertices[triangle[1].value_for_debug()].exact_coordinate,
+           a.vertices[triangle[2].value_for_debug()].exact_coordinate});
+  }
+  return cache;
+}
+template <class T, class I>
+std::vector<input_topology_detail::facet_sweep_entry>
+verifier_facet_sweep_entries(const artifact_t<T, I> &a) {
+  std::vector<input_topology_detail::facet_sweep_entry> entries;
+  entries.reserve(a.facets.size());
+  for (const auto &facet : a.facets)
+    entries.push_back({facet.bounds, facet.operand});
+  return entries;
+}
+struct verifier_facet_sweep {
+  struct node {
+    std::size_t begin = 0, end = 0, minimum_x_rank = 0;
+    exact_scalar maximum_y, maximum_x, minimum_z, maximum_z;
+  };
+  std::vector<input_topology_detail::facet_sweep_entry> entries;
+  std::vector<std::size_t> x_order, x_rank, y_order;
+  std::vector<node> tree;
+  std::vector<std::pair<std::size_t, std::size_t>> candidates;
+  input_topology_detail::facet_sweep_counters counters;
+
+  explicit verifier_facet_sweep(
+      std::vector<input_topology_detail::facet_sweep_entry> values)
+      : entries(std::move(values)), x_order(entries.size()),
+        x_rank(entries.size()), y_order(entries.size()),
+        tree(entries.empty() ? 0 : 4 * entries.size()) {
+    for (std::size_t i = 0; i < entries.size(); ++i)
+      x_order[i] = y_order[i] = i;
+    std::uint64_t sort_levels = 1;
+    for (auto count = entries.size(); count > 1;
+         count = count / 2 + count % 2)
+      ++sort_levels;
+    counters.sort_work = 2 * entries.size() * sort_levels;
+    std::sort(x_order.begin(), x_order.end(), [&](std::size_t x, std::size_t y) {
+      const auto &a_box = entries[x].bounds;
+      const auto &b_box = entries[y].bounds;
+      return a_box.minimum.x != b_box.minimum.x
+                 ? a_box.minimum.x < b_box.minimum.x
+                 : x < y;
+    });
+    for (std::size_t i = 0; i < x_order.size(); ++i) x_rank[x_order[i]] = i;
+    std::sort(y_order.begin(), y_order.end(), [&](std::size_t x, std::size_t y) {
+      const auto &a_box = entries[x].bounds;
+      const auto &b_box = entries[y].bounds;
+      return a_box.minimum.y != b_box.minimum.y
+                 ? a_box.minimum.y < b_box.minimum.y
+                 : x < y;
+    });
+    if (!entries.empty()) {
+      build(1, 0, entries.size());
+      for (std::size_t rank = 0; rank < x_order.size(); ++rank)
+        query(1, rank, x_order[rank]);
+    }
+  }
+  void build(std::size_t at, std::size_t begin, std::size_t end) {
+    ++counters.build_nodes;
+    auto &n = tree[at];
+    n.begin = begin;
+    n.end = end;
+    const auto first = y_order[begin];
+    const auto &box = entries[first].bounds;
+    n.minimum_x_rank = x_rank[first];
+    n.maximum_y = box.maximum.y;
+    n.maximum_x = box.maximum.x;
+    n.minimum_z = box.minimum.z;
+    n.maximum_z = box.maximum.z;
+    if (end - begin > 1) {
+      const auto middle = begin + (end - begin) / 2;
+      build(at * 2, begin, middle);
+      build(at * 2 + 1, middle, end);
+      for (const auto child : {at * 2, at * 2 + 1}) {
+        const auto &c = tree[child];
+        n.minimum_x_rank = std::min(n.minimum_x_rank, c.minimum_x_rank);
+        if (n.maximum_y < c.maximum_y) n.maximum_y = c.maximum_y;
+        if (n.maximum_x < c.maximum_x) n.maximum_x = c.maximum_x;
+        if (c.minimum_z < n.minimum_z) n.minimum_z = c.minimum_z;
+        if (n.maximum_z < c.maximum_z) n.maximum_z = c.maximum_z;
+      }
+    }
+  }
+  void query(std::size_t at, std::size_t current_rank, std::size_t current) {
+    ++counters.index_visits;
+    const auto &n = tree[at];
+    const auto &box = entries[current].bounds;
+    const auto &first_y = entries[y_order[n.begin]].bounds.minimum.y;
+    if (current_rank <= n.minimum_x_rank || box.maximum.y < first_y ||
+        n.maximum_y < box.minimum.y || n.maximum_x < box.minimum.x ||
+        n.maximum_z < box.minimum.z || box.maximum.z < n.minimum_z)
+      return;
+    if (n.end - n.begin == 1) {
+      ++counters.leaf_tests;
+      const auto prior = y_order[n.begin];
+      if (x_rank[prior] < current_rank &&
+          entries[prior].operand == entries[current].operand &&
+          boxes_overlap(entries[prior].bounds, box)) {
+        candidates.emplace_back(std::min(prior, current),
+                                std::max(prior, current));
+        ++counters.conservative_candidates;
+      }
+      return;
+    }
+    query(at * 2, current_rank, current);
+    query(at * 2 + 1, current_rank, current);
+  }
+  template <class F> void enumerate(F &&visit) const {
+    for (const auto &candidate : candidates)
+      visit(candidate.first, candidate.second);
+  }
+};
+
 void enc_box(canonical_encoder&e,const exact_box3&b){enc_point(e,b.minimum);enc_point(e,b.maximum);}
 template <class T, class I>
 status_or<std::vector<std::uint8_t>>
@@ -639,7 +871,7 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
           out->shells.push_back(std::move(s));
         }
         for(auto vid:op.vertices){auto&v=out->vertices[vid.value_for_debug()];std::vector<edge_use_id>outgoing;for(const auto&h:out->edge_uses)if(h.operand==oid&&h.origin==vid)outgoing.push_back(h.id);if(!outgoing.empty()){auto start=*std::min_element(outgoing.begin(),outgoing.end()),cur=start;std::set<edge_use_id>seen;do{if(!seen.insert(cur).second)break;v.ordered_outgoing_link.push_back(cur);const auto&h=out->edge_uses[cur.value_for_debug()];cur=out->edge_uses[h.previous.value_for_debug()].twin;}while(cur!=start);if(seen.size()!=outgoing.size()||cur!=start)return input_error(input_validation_subcode::disconnected_vertex_link,"disconnected_vertex_link");}}
-        for(auto id:op.facets)out->facet_geometry.push_back(facet_geometry(*out,out->facets[id.value_for_debug()]));
+        const auto cached_vertex_fans=vertex_fans(*out);for(auto id:op.facets)out->facet_geometry.push_back(facet_geometry(*out,out->facets[id.value_for_debug()],&cached_vertex_fans));
         std::vector<bounded_feature_view> facet_bounds;
         facet_bounds.reserve(op.facets.size());
         for (std::size_t i = 0; i < op.facets.size(); ++i) {
@@ -693,15 +925,17 @@ template<class T,class I>status_or<bool>build(boolean_context<T,I>&ctx,artifact_
                                "nonadjacent_facet_intersection");
           }
         }
-        std::vector<shell_id>role_shells=op.shells;std::vector<std::vector<bool>>inside(role_shells.size(),std::vector<bool>(role_shells.size(),false));for(std::size_t i=0;i<role_shells.size();++i)for(std::size_t j=0;j<role_shells.size();++j)if(i!=j){const auto&s=out->shells[role_shells[i].value_for_debug()];const auto&t=out->shells[role_shells[j].value_for_debug()];auto witness=*std::min_element(s.vertices.begin(),s.vertices.end());const auto&p=out->vertices[witness.value_for_debug()].exact_coordinate;auto loc=classify_point_closed_triangle_shell(p,shell_triangles(*out,t));if(!loc.has_value())return loc.error();if(loc.value()==solid_point_kind::boundary)return input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");inside[i][j]=loc.value()==solid_point_kind::inside;}
-        for(std::size_t i=0;i<role_shells.size();++i){std::optional<std::size_t>parent;for(std::size_t j=0;j<role_shells.size();++j)if(inside[i][j]){bool nearest=true;for(std::size_t k=0;k<role_shells.size();++k)if(k!=j&&inside[i][k]&&!inside[j][k])nearest=false;if(nearest){if(parent)return input_error(input_validation_subcode::ambiguous_nesting,"ambiguous_shell_parent");parent=j;}}if(parent){auto&child=out->shells[role_shells[i].value_for_debug()];child.parent=role_shells[*parent];out->shells[role_shells[*parent].value_for_debug()].children.push_back(child.id);}}
-        for (std::size_t pass = 0; pass < role_shells.size(); ++pass)
-          for (auto id : role_shells) {
+        std::vector<std::vector<exact_triangle3>> shell_triangle_cache(out->shells.size());
+        for(auto id:op.shells) shell_triangle_cache[id.value_for_debug()]=shell_triangles(*out,out->shells[id.value_for_debug()]);
+        const shell_containment_index containment(out->shells);
+        for(auto id:op.shells){const auto child_index=id.value_for_debug();const auto&child=out->shells[child_index];const auto witness=*std::min_element(child.vertices.begin(),child.vertices.end());const auto&p=out->vertices[witness.value_for_debug()].exact_coordinate;std::optional<std::size_t>parent;std::optional<exact_scalar>parent_volume;status_or<bool>classified=true;containment.possible_containers(child_index,[&](std::size_t candidate){if(!classified.has_value()||out->shells[candidate].operand!=oid)return;auto location=classify_point_closed_triangle_shell(p,shell_triangle_cache[candidate]);if(!location.has_value()){classified=location.error();return;}if(location.value()==solid_point_kind::boundary){classified=input_error(input_validation_subcode::shell_contact,"shell_boundary_contact");return;}if(location.value()!=solid_point_kind::inside)return;const auto volume=box_volume(out->shells[candidate].bounds);if(!parent_volume||volume<*parent_volume){parent=candidate;parent_volume=volume;}else if(volume==*parent_volume){classified=input_error(input_validation_subcode::ambiguous_nesting,"ambiguous_shell_parent");}});if(!classified.has_value())return classified.error();if(parent){auto&stored_child=out->shells[child_index];stored_child.parent=out->shells[*parent].id;out->shells[*parent].children.push_back(stored_child.id);}}
+        for (std::size_t pass = 0; pass < op.shells.size(); ++pass)
+          for (auto id : op.shells) {
             auto &s = out->shells[id.value_for_debug()];
             if (s.parent)
               s.depth = out->shells[s.parent->value_for_debug()].depth + 1;
           }
-        for (auto id : role_shells) {
+        for (auto id : op.shells) {
           auto &s = out->shells[id.value_for_debug()];
           s.contribution = s.depth % 2 ? shell_contribution::cavity_boundary
                                        : shell_contribution::material_boundary;
@@ -783,18 +1017,123 @@ verify_typed(const artifact_view &v, const verification_spec &s,
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::input_validation,
                         "missing_verifier_accountant");
+    std::uint64_t ring_entries = 0, triangle_entries = 0;
+    for (const auto &facet : a.facets) {
+      auto next = checked_add(ring_entries, facet.ring.size(),
+                              boolean_stage::input_validation);
+      if (!next.has_value()) return next.error();
+      ring_entries = next.value();
+      next = checked_add(triangle_entries, facet.triangles.size(),
+                         boolean_stage::input_validation);
+      if (!next.has_value()) return next.error();
+      triangle_entries = next.value();
+    }
+    auto base_work = checked_add(s.required_invariants.size(), a.vertices.size(),
+                                 boolean_stage::input_validation);
+    if (!base_work.has_value()) return base_work.error();
+    base_work = checked_add(base_work.value(), a.edge_uses.size(),
+                            boolean_stage::input_validation);
+    if (!base_work.has_value()) return base_work.error();
+    base_work = checked_add(base_work.value(), ring_entries,
+                            boolean_stage::input_validation);
+    if (!base_work.has_value()) return base_work.error();
+    base_work = checked_add(base_work.value(), triangle_entries,
+                            boolean_stage::input_validation);
+    if (!base_work.has_value()) return base_work.error();
     auto verifier_charge = env.accountant->reserve_scoped(
-        resource_kind::verifier_work, s.required_invariants.size(),
+        resource_kind::verifier_work, base_work.value(),
         boolean_stage::input_validation);
     if (!verifier_charge.has_value())
       return verifier_charge.error();
+    auto scratch_entries = checked_add(ring_entries, ring_entries,
+                                       boolean_stage::input_validation);
+    if (!scratch_entries.has_value()) return scratch_entries.error();
+    scratch_entries = checked_add(scratch_entries.value(), triangle_entries,
+                                  boolean_stage::input_validation);
+    if (!scratch_entries.has_value()) return scratch_entries.error();
+    scratch_entries = checked_add(scratch_entries.value(), triangle_entries,
+                                  boolean_stage::input_validation);
+    if (!scratch_entries.has_value()) return scratch_entries.error();
+    auto scratch_bytes = checked_multiply(
+        scratch_entries.value(),
+        std::max({sizeof(original_vertex_id),
+                  sizeof(std::pair<original_vertex_id, original_vertex_id>),
+                  sizeof(exact_triangle3)}),
+        boolean_stage::input_validation);
+    if (!scratch_bytes.has_value()) return scratch_bytes.error();
+    auto cache_bytes = checked_multiply(a.facets.size(),
+                                        sizeof(verifier_facet_cache),
+                                        boolean_stage::input_validation);
+    if (!cache_bytes.has_value()) return cache_bytes.error();
+    scratch_bytes = checked_add(scratch_bytes.value(), cache_bytes.value(),
+                                boolean_stage::input_validation);
+    if (!scratch_bytes.has_value()) return scratch_bytes.error();
+    auto index_entries = checked_add(a.vertices.size(), a.edge_uses.size(),
+                                     boolean_stage::input_validation);
+    if (!index_entries.has_value()) return index_entries.error();
+    auto facet_index_entries=checked_multiply(a.facets.size(),8,
+                                              boolean_stage::input_validation);
+    if(!facet_index_entries.has_value())return facet_index_entries.error();
+    index_entries = checked_add(index_entries.value(), facet_index_entries.value(),
+                                boolean_stage::input_validation);
+    if (!index_entries.has_value()) return index_entries.error();
+    auto shell_index_entries=checked_multiply(a.shells.size(),5,
+                                              boolean_stage::input_validation);
+    if(!shell_index_entries.has_value())return shell_index_entries.error();
+    index_entries = checked_add(index_entries.value(), shell_index_entries.value(),
+                                boolean_stage::input_validation);
+    if (!index_entries.has_value()) return index_entries.error();
+    auto index_bytes = checked_multiply(index_entries.value(),
+                                        std::max({sizeof(std::size_t),sizeof(shell_containment_index::node),sizeof(verifier_facet_sweep::node),sizeof(input_topology_detail::facet_sweep_entry)}),
+                                        boolean_stage::input_validation);
+    if (!index_bytes.has_value()) return index_bytes.error();
+    scratch_bytes = checked_add(scratch_bytes.value(), index_bytes.value(),
+                                boolean_stage::input_validation);
+    if (!scratch_bytes.has_value()) return scratch_bytes.error();
+    constexpr std::size_t oracle_limit = 64;
+    const bool run_exhaustive_oracle =
+        s.level == verification_level::exhaustive && a.shells.size() <= oracle_limit;
+    if (run_exhaustive_oracle) {
+      auto oracle_bytes = checked_multiply(a.shells.size(),a.shells.size(),
+                                           boolean_stage::input_validation);
+      if (!oracle_bytes.has_value()) return oracle_bytes.error();
+      scratch_bytes = checked_add(scratch_bytes.value(),oracle_bytes.value(),
+                                  boolean_stage::input_validation);
+      if (!scratch_bytes.has_value()) return scratch_bytes.error();
+    }
     auto scratch_charge = env.accountant->reserve_scoped(
-        resource_kind::verifier_scratch_bytes,
-        a.vertices.size() * sizeof(std::uint64_t) +
-            a.edge_uses.size() * sizeof(std::uint64_t),
+        resource_kind::verifier_scratch_bytes, scratch_bytes.value(),
         boolean_stage::input_validation);
     if (!scratch_charge.has_value())
       return scratch_charge.error();
+    const bool needs_shell_verification =
+        std::find(s.required_invariants.begin(),s.required_invariants.end(),
+                  invariant_code::input_shells)!=s.required_invariants.end();
+    std::unique_ptr<verifier_facet_sweep> facet_sweep;
+    std::unique_ptr<shell_containment_index> containment;
+    std::vector<verifier_facet_cache> facet_cache;
+    std::vector<std::vector<exact_triangle3>> shell_triangle_cache;
+    std::optional<resource_reservation> relation_work_charge;
+    std::optional<resource_reservation> facet_candidate_scratch_charge;
+    if(needs_shell_verification){
+      facet_sweep=std::make_unique<verifier_facet_sweep>(verifier_facet_sweep_entries(a));
+      containment=std::make_unique<shell_containment_index>(a.shells);
+      auto candidate_bytes=checked_multiply(facet_sweep->candidates.size(),sizeof(std::pair<std::size_t,std::size_t>),boolean_stage::input_validation);if(!candidate_bytes.has_value())return candidate_bytes.error();auto candidate_charge=env.accountant->reserve_scoped(resource_kind::verifier_scratch_bytes,candidate_bytes.value(),boolean_stage::input_validation);if(!candidate_charge.has_value())return candidate_charge.error();facet_candidate_scratch_charge.emplace(std::move(candidate_charge.value()));
+      std::uint64_t relation_work=0;
+      std::optional<boolean_error> admission_error;
+      facet_sweep->enumerate([&](std::size_t i,std::size_t j){if(admission_error)return;auto pair_work=checked_multiply(a.facets[i].triangles.size(),a.facets[j].triangles.size(),boolean_stage::input_validation);if(!pair_work.has_value()){admission_error=pair_work.error();return;}auto added=checked_add(relation_work,pair_work.value(),boolean_stage::input_validation);if(!added.has_value()){admission_error=added.error();return;}relation_work=added.value();});if(admission_error)return *admission_error;
+      const auto &facet_counts=facet_sweep->counters;auto facet_walk=checked_add(facet_counts.sort_work,facet_counts.build_nodes,boolean_stage::input_validation);if(!facet_walk.has_value())return facet_walk.error();facet_walk=checked_add(facet_walk.value(),facet_counts.index_visits,boolean_stage::input_validation);if(!facet_walk.has_value())return facet_walk.error();facet_walk=checked_add(facet_walk.value(),facet_counts.leaf_tests,boolean_stage::input_validation);if(!facet_walk.has_value())return facet_walk.error();auto candidate_streams=checked_multiply(facet_counts.conservative_candidates,2,boolean_stage::input_validation);if(!candidate_streams.has_value())return candidate_streams.error();facet_walk=checked_add(facet_walk.value(),candidate_streams.value(),boolean_stage::input_validation);if(!facet_walk.has_value())return facet_walk.error();auto next=checked_add(relation_work,facet_walk.value(),boolean_stage::input_validation);if(!next.has_value())return next.error();relation_work=next.value();
+      status_or<std::uint64_t> doubled_walk=std::uint64_t(0);
+      for(std::size_t i=0;i<a.shells.size();++i){std::uint64_t classify_work=0;const auto walk=containment->possible_containers(i,[&](std::size_t candidate){if(admission_error||a.shells[candidate].operand!=a.shells[i].operand)return;for(auto facet:a.shells[candidate].facets){if(!facet.valid()||facet.value_for_debug()>=a.facets.size())continue;auto added=checked_add(classify_work,a.facets[facet.value_for_debug()].triangles.size(),boolean_stage::input_validation);if(!added.has_value()){admission_error=added.error();return;}classify_work=added.value();}});if(admission_error)return *admission_error;doubled_walk=checked_multiply(walk,2,boolean_stage::input_validation);if(!doubled_walk.has_value())return doubled_walk.error();next=checked_add(relation_work,doubled_walk.value(),boolean_stage::input_validation);if(!next.has_value())return next.error();relation_work=next.value();next=checked_add(relation_work,classify_work,boolean_stage::input_validation);if(!next.has_value())return next.error();relation_work=next.value();}
+      if(run_exhaustive_oracle){for(std::size_t i=0;i<a.shells.size();++i)for(std::size_t j=0;j<a.shells.size();++j)if(i!=j&&a.shells[i].operand==a.shells[j].operand){for(auto facet:a.shells[j].facets)if(facet.valid()&&facet.value_for_debug()<a.facets.size()){next=checked_add(relation_work,a.facets[facet.value_for_debug()].triangles.size(),boolean_stage::input_validation);if(!next.has_value())return next.error();relation_work=next.value();}}}
+      auto charged=env.accountant->reserve_scoped(resource_kind::verifier_work,relation_work,boolean_stage::input_validation);if(!charged.has_value())return charged.error();relation_work_charge.emplace(std::move(charged.value()));
+      facet_cache=cache_verifier_facets(a);
+      shell_triangle_cache.resize(a.shells.size());
+      for(std::size_t i=0;i<a.shells.size();++i)for(auto facet:a.shells[i].facets)if(facet.valid()&&facet.value_for_debug()<facet_cache.size()){const auto&triangles=facet_cache[facet.value_for_debug()].triangles;shell_triangle_cache[i].insert(shell_triangle_cache[i].end(),triangles.begin(),triangles.end());}
+    }
+    bool fan_indices_valid=true;
+    std::vector<std::vector<facet_id>> verifier_vertex_fans(a.vertices.size());
+    for(std::size_t i=0;i<a.vertices.size()&&fan_indices_valid;++i){auto&fan=verifier_vertex_fans[i];fan.reserve(a.vertices[i].ordered_outgoing_link.size());for(auto use:a.vertices[i].ordered_outgoing_link){fan_indices_valid=use.valid()&&use.value_for_debug()<a.edge_uses.size();if(!fan_indices_valid)break;const auto facet=a.edge_uses[use.value_for_debug()].facet;fan_indices_valid=facet.valid()&&facet.value_for_debug()<a.facets.size();if(!fan_indices_valid)break;fan.push_back(facet);}}
     bool indices_valid = true;
     for (unsigned role = 0; role < 2 && indices_valid; ++role) {
       indices_valid = a.raw_vertex_provenance[role].size() ==
@@ -988,9 +1327,8 @@ verify_typed(const artifact_view &v, const verification_spec &s,
             }
             ok = ok && triangle_area == polygon_area;
             if(!ok||f.id.value_for_debug()>=a.facet_geometry.size())break;
-            for(auto id:f.ring)for(auto use:a.vertices[id.value_for_debug()].ordered_outgoing_link)ok=ok&&use.valid()&&use.value_for_debug()<a.edge_uses.size()&&a.edge_uses[use.value_for_debug()].facet.valid()&&a.edge_uses[use.value_for_debug()].facet.value_for_debug()<a.facets.size();
-            if(!ok)break;
-            const auto&cached=a.facet_geometry[f.id.value_for_debug()];const auto rebuilt=facet_geometry(a,f);
+            ok=ok&&fan_indices_valid;if(!ok)break;
+            const auto&cached=a.facet_geometry[f.id.value_for_debug()];const auto rebuilt=facet_geometry(a,f,&verifier_vertex_fans);
             ok=ok&&cached.facet==f.id&&cached.operand==f.operand&&equal_plane(cached.plane,f.plane)&&cached.projection==f.projection&&cached.oriented_normal.x==rebuilt.oriented_normal.x&&cached.oriented_normal.y==rebuilt.oriented_normal.y&&cached.oriented_normal.z==rebuilt.oriented_normal.z&&cached.ring3==rebuilt.ring3&&cached.ring2==rebuilt.ring2&&cached.edges.size()==rebuilt.edges.size()&&cached.triangles.size()==rebuilt.triangles.size()&&cached.vertex_fans==rebuilt.vertex_fans;
             for(std::size_t i=0;i<cached.edges.size()&&ok;++i)ok=equal_box(cached.edges[i].bounds,rebuilt.edges[i].bounds)&&equal_box(cached.edges[i].projected_bounds,rebuilt.edges[i].projected_bounds)&&cached.edges[i].segment.origin==rebuilt.edges[i].segment.origin&&cached.edges[i].segment.destination==rebuilt.edges[i].segment.destination;
             for(std::size_t i=0;i<cached.triangles.size()&&ok;++i)ok=equal_triangle(cached.triangles[i].triangle,rebuilt.triangles[i].triangle)&&equal_box(cached.triangles[i].bounds,rebuilt.triangles[i].bounds);
@@ -1022,8 +1360,14 @@ verify_typed(const artifact_view &v, const verification_spec &s,
           break;
           }
         case invariant_code::input_vertex_links:
-          for (const auto &q : a.vertices)
+          {
+          std::vector<std::uint8_t> incidence_seen(a.edge_uses.size(),0);
+          for (const auto &q : a.vertices) {
             ok = ok && (!q.shell.valid() || !q.ordered_outgoing_link.empty());
+            for(std::size_t i=0;i<q.ordered_outgoing_link.size()&&ok;++i){const auto id=q.ordered_outgoing_link[i];ok=id.valid()&&id.value_for_debug()<a.edge_uses.size();if(!ok)break;const auto&use=a.edge_uses[id.value_for_debug()];ok=use.id==id&&use.origin==q.id&&!incidence_seen[id.value_for_debug()]&&use.previous.valid()&&use.previous.value_for_debug()<a.edge_uses.size();if(!ok)break;incidence_seen[id.value_for_debug()]=1;const auto expected=a.edge_uses[use.previous.value_for_debug()].twin;ok=expected==q.ordered_outgoing_link[(i+1)%q.ordered_outgoing_link.size()];}
+          }
+          for(std::size_t i=0;i<a.edge_uses.size()&&ok;++i)ok=incidence_seen[i]==1;
+          }
           break;
         case invariant_code::input_shells:
           for (const auto &q : a.shells) {
@@ -1035,94 +1379,41 @@ verify_typed(const artifact_view &v, const verification_spec &s,
               shell_points.push_back(
                   a.vertices[id.value_for_debug()].exact_coordinate);
             ok = ok && !shell_points.empty() &&
-                 equal_box(q.bounds, point_bounds(shell_points));
+                  equal_box(q.bounds, point_bounds(shell_points));
           }
-          for (std::size_t i = 0; i < a.facets.size() && ok; ++i)
-            for (std::size_t j = i + 1; j < a.facets.size() && ok; ++j) {
-              const auto &f = a.facets[i], &g = a.facets[j];
-              if (f.operand != g.operand)
-                continue;
-              auto make_triangles = [&](const validated_facet &facet) {
-                std::vector<exact_triangle3> triangles;
-                for (const auto &t : facet.triangles)
-                  triangles.push_back(
-                      {a.vertices[t[0].value_for_debug()].exact_coordinate,
-                       a.vertices[t[1].value_for_debug()].exact_coordinate,
-                       a.vertices[t[2].value_for_debug()].exact_coordinate});
-                return triangles;
-              };
-              auto relation =
-                  relate_polygons(make_triangles(f), make_triangles(g));
-              bool shared_edge = false;
-              std::size_t shared_vertices = 0;
-              for (auto x : f.ring)
-                if (std::find(g.ring.begin(), g.ring.end(), x) != g.ring.end())
-                  ++shared_vertices;
-              for (auto x : f.edge_uses)
-                for (auto y : g.edge_uses)
-                  if (a.edge_uses[x.value_for_debug()].edge ==
-                      a.edge_uses[y.value_for_debug()].edge)
-                    shared_edge = true;
-              ok = f.shell != g.shell
-                       ? relation == polygon_intersection_kind::disjoint
-                       : shared_edge
-                             ? relation == polygon_intersection_kind::segment
-                             : shared_vertices
-                                   ? relation == polygon_intersection_kind::point
-                                   : relation == polygon_intersection_kind::disjoint;
-            }
-          for (unsigned role = 0; role < 2 && ok; ++role) {
-            std::vector<const validated_shell *> shells;
-            for (const auto &shell : a.shells)
-              if (shell.operand == (role ? operand_b() : operand_a()))
-                shells.push_back(&shell);
-            std::vector<std::vector<bool>> contained(
-                shells.size(), std::vector<bool>(shells.size(), false));
-            auto triangles_for_shell = [&](const validated_shell &shell) {
-              std::vector<exact_triangle3> triangles;
-              for (auto facet_id : shell.facets)
-                for (const auto &t :
-                     a.facets[facet_id.value_for_debug()].triangles)
-                  triangles.push_back(
-                      {a.vertices[t[0].value_for_debug()].exact_coordinate,
-                       a.vertices[t[1].value_for_debug()].exact_coordinate,
-                       a.vertices[t[2].value_for_debug()].exact_coordinate});
-              return triangles;
-            };
-            for (std::size_t i = 0; i < shells.size() && ok; ++i)
-              for (std::size_t j = 0; j < shells.size() && ok; ++j)
-                if (i != j) {
-                  auto witness = *std::min_element(shells[i]->vertices.begin(),
-                                                   shells[i]->vertices.end());
-                  auto location = classify_point_closed_triangle_shell(
-                      a.vertices[witness.value_for_debug()].exact_coordinate,
-                      triangles_for_shell(*shells[j]));
-                  ok = location.has_value() &&
-                       location.value() != solid_point_kind::boundary;
-                  if (ok)
-                    contained[i][j] =
-                        location.value() == solid_point_kind::inside;
-                }
-            for (std::size_t i = 0; i < shells.size() && ok; ++i) {
-              const validated_shell *parent = nullptr;
-              for (std::size_t j = 0; j < shells.size(); ++j)
-                if (contained[i][j]) {
-                  bool nearest = true;
-                  for (std::size_t k = 0; k < shells.size(); ++k)
-                    if (k != j && contained[i][k] && !contained[j][k])
-                      nearest = false;
-                  if (nearest) {
-                    ok = ok && parent == nullptr;
-                    parent = shells[j];
-                  }
-                }
-              ok = ok && shells[i]->parent.has_value() == (parent != nullptr);
-              if (parent)
-                ok = ok && *shells[i]->parent == parent->id &&
-                     shells[i]->depth == parent->depth + 1;
-              else
-                ok = ok && shells[i]->depth == 0;
-            }
+          if (!ok) break;
+          {
+          facet_sweep->enumerate([&](std::size_t i,std::size_t j) {
+            if(!ok)return;
+            const auto &f = a.facets[i], &g = a.facets[j];
+            const auto relation = relate_polygons(facet_cache[i].triangles,
+                                                  facet_cache[j].triangles);
+            std::vector<original_vertex_id> shared_vertices;
+            std::set_intersection(facet_cache[i].vertices.begin(),
+                                  facet_cache[i].vertices.end(),
+                                  facet_cache[j].vertices.begin(),
+                                  facet_cache[j].vertices.end(),
+                                  std::back_inserter(shared_vertices));
+            std::vector<std::pair<original_vertex_id, original_vertex_id>>
+                shared_edges;
+            std::set_intersection(facet_cache[i].edges.begin(),
+                                  facet_cache[i].edges.end(),
+                                  facet_cache[j].edges.begin(),
+                                  facet_cache[j].edges.end(),
+                                  std::back_inserter(shared_edges));
+            ok = f.shell != g.shell
+                     ? relation == polygon_intersection_kind::disjoint
+                     : !shared_edges.empty()
+                           ? relation == polygon_intersection_kind::segment
+                           : !shared_vertices.empty()
+                                 ? relation == polygon_intersection_kind::point
+                                  : relation == polygon_intersection_kind::disjoint;
+          });
+          if (!ok) break;
+          std::vector<std::optional<std::size_t>> reconstructed_parent(a.shells.size());
+          for(std::size_t i=0;i<a.shells.size()&&ok;++i){const auto&child=a.shells[i];ok=!child.vertices.empty();if(!ok)break;const auto witness=*std::min_element(child.vertices.begin(),child.vertices.end());ok=witness.valid()&&witness.value_for_debug()<a.vertices.size();if(!ok)break;const auto&p=a.vertices[witness.value_for_debug()].exact_coordinate;std::optional<exact_scalar>parent_volume;containment->possible_containers(i,[&](std::size_t candidate){if(!ok||a.shells[candidate].operand!=child.operand)return;auto location=classify_point_closed_triangle_shell(p,shell_triangle_cache[candidate]);ok=location.has_value()&&location.value()!=solid_point_kind::boundary;if(!ok||location.value()!=solid_point_kind::inside)return;const auto volume=box_volume(a.shells[candidate].bounds);if(!parent_volume||volume<*parent_volume){reconstructed_parent[i]=candidate;parent_volume=volume;}else if(volume==*parent_volume)ok=false;});if(!ok)break;ok=child.parent.has_value()==reconstructed_parent[i].has_value();if(reconstructed_parent[i]){const auto parent=*reconstructed_parent[i];ok=ok&&*child.parent==a.shells[parent].id&&child.depth==a.shells[parent].depth+1;}else ok=ok&&child.depth==0;}
+          if(ok){std::vector<std::vector<shell_id>>children(a.shells.size());for(std::size_t i=0;i<reconstructed_parent.size();++i)if(reconstructed_parent[i])children[*reconstructed_parent[i]].push_back(a.shells[i].id);for(std::size_t i=0;i<a.shells.size()&&ok;++i){std::sort(children[i].begin(),children[i].end());ok=children[i]==a.shells[i].children;}}
+          if(run_exhaustive_oracle&&ok){std::vector<std::vector<std::uint8_t>>inside(a.shells.size(),std::vector<std::uint8_t>(a.shells.size(),0));for(std::size_t i=0;i<a.shells.size()&&ok;++i)for(std::size_t j=0;j<a.shells.size()&&ok;++j)if(i!=j&&a.shells[i].operand==a.shells[j].operand){const auto witness=*std::min_element(a.shells[i].vertices.begin(),a.shells[i].vertices.end());auto location=classify_point_closed_triangle_shell(a.vertices[witness.value_for_debug()].exact_coordinate,shell_triangle_cache[j]);ok=location.has_value()&&location.value()!=solid_point_kind::boundary;if(ok)inside[i][j]=location.value()==solid_point_kind::inside;}for(std::size_t i=0;i<a.shells.size()&&ok;++i){std::optional<std::size_t>parent;for(std::size_t j=0;j<a.shells.size();++j)if(inside[i][j]){bool nearest=true;for(std::size_t k=0;k<a.shells.size();++k)if(k!=j&&inside[i][k]&&!inside[j][k])nearest=false;if(nearest){ok=!parent.has_value();parent=j;}}ok=ok&&parent==reconstructed_parent[i];}}
           }
           break;
         case invariant_code::input_canonical_encoding:
@@ -1188,8 +1479,6 @@ verify_typed(const artifact_view &v, const verification_spec &s,
       return report_charge.error();
     r.report_digest =
         domain_digest({{'Y', 'G', 'B', 'V', 'E', 'R', '0', '1'}}, enc.value());
-    verifier_charge.value().commit();
-    scratch_charge.value().commit();
     evidence_charge.value().commit();
     report_charge.value().commit();
     return r;
@@ -1204,6 +1493,13 @@ verify_typed(const artifact_view &v, const verification_spec &s,
   }
 }
 template<class T,class I>status_or<verification_report>callback(const artifact_view&v,const verification_spec&s,const verification_environment_view&e)noexcept{return verify_typed<T,I>(v,s,e);}
+}
+
+input_topology_detail::facet_sweep_result
+input_topology_detail::verifier_facet_sweep_candidates(
+    const std::vector<facet_sweep_entry> &entries) {
+  verifier_facet_sweep sweep(entries);
+  return {std::move(sweep.candidates), sweep.counters};
 }
 
 status_or<bool>register_input_topology_verifier(verifier_registry&r,coordinate_tag c,index_tag i){verifier_registration x;x.slot=artifact_slot::validated_operands;x.artifact_type_tag=validated_operands_type_tag+(static_cast<std::uint64_t>(c)<<8)+static_cast<std::uint64_t>(i);x.artifact_schema=validated_operands_schema;x.mandatory={invariant_code::input_binding,invariant_code::input_coordinates,invariant_code::input_rings,invariant_code::input_facets,invariant_code::input_edges,invariant_code::input_vertex_links,invariant_code::input_shells,invariant_code::input_canonical_encoding};x.exhaustive=x.mandatory;if(c==coordinate_tag::binary32&&i==index_tag::uint32)x.callback=&callback<float,std::uint32_t>;else if(c==coordinate_tag::binary32)x.callback=&callback<float,std::uint64_t>;else if(i==index_tag::uint32)x.callback=&callback<double,std::uint32_t>;else x.callback=&callback<double,std::uint64_t>;return r.register_verifier(std::move(x));}

@@ -14,6 +14,41 @@
 namespace ygor {
 namespace mesh_boolean {
 namespace {
+struct verifier_facet_index_node {
+  exact_box3 bounds;
+  std::size_t begin = 0, end = 0, left = 0, right = 0;
+  bool leaf = true;
+};
+
+struct verifier_edge_key {
+  operand_id operand;
+  original_vertex_id first, second;
+};
+
+bool operator<(const verifier_edge_key &a, const verifier_edge_key &b) {
+  if (a.operand != b.operand) return a.operand < b.operand;
+  if (a.first != b.first) return a.first < b.first;
+  return a.second < b.second;
+}
+
+bool operator==(const verifier_edge_key &a, const verifier_edge_key &b) {
+  return a.operand == b.operand && a.first == b.first && a.second == b.second;
+}
+
+struct verifier_directed_edge_key {
+  original_vertex_id first, second;
+};
+
+bool operator<(const verifier_directed_edge_key &a,
+               const verifier_directed_edge_key &b) {
+  return a.first != b.first ? a.first < b.first : a.second < b.second;
+}
+
+struct verifier_attribution_index {
+  std::vector<std::vector<verifier_directed_edge_key>> facet_edges;
+  std::vector<std::pair<verifier_edge_key, std::size_t>> edges;
+};
+
 template <class T, class I> std::uint64_t type_tag() {
   return labeled_arrangement_type_tag +
          (static_cast<std::uint64_t>(std::is_same<T, double>::value
@@ -255,7 +290,7 @@ digest artifact_digest_for(const labeled_arrangement<T, I> &a) {
 template <class T, class I>
 status_or<std::uint64_t>
 classification_geometry_bytes(const validated_operands<T, I> &v,
-                              operand_id operand, bool producer_index) {
+                               operand_id operand, bool producer_index) {
   std::uint64_t facets = 0, triangles = 0, ring_entries = 0, fan_members = 0;
   for (const auto &f : v.facets) if (f.operand == operand) {
     auto count = checked_add(facets, 1, boolean_stage::cell_classification);
@@ -306,7 +341,6 @@ classification_geometry_bytes(const validated_operands<T, I> &v,
   if (!sweep_bytes.has_value()) return sweep_bytes.error();
   bytes = checked_add(bytes.value(), sweep_bytes.value(),
                       boolean_stage::cell_classification);
-  if (!bytes.has_value() || !producer_index) return bytes;
   std::function<std::uint64_t(std::uint64_t)> node_count =
       [&](std::uint64_t count) -> std::uint64_t {
     if (count == 0) return 0;
@@ -314,11 +348,14 @@ classification_geometry_bytes(const validated_operands<T, I> &v,
     const auto left = count / 2;
     return 1 + node_count(left) + node_count(count - left);
   };
+  const auto index_count = producer_index ? triangles : facets;
   auto index_entries = checked_multiply(
-      triangles, sizeof(exact_box3) + sizeof(std::size_t),
+      producer_index ? triangles : 0,
+      sizeof(exact_box3) + sizeof(std::size_t),
       boolean_stage::cell_classification);
   auto node_bytes = checked_multiply(
-      node_count(triangles), sizeof(sourced_exact_ray_index_node3),
+      node_count(index_count), producer_index ? sizeof(sourced_exact_ray_index_node3)
+                                              : sizeof(verifier_facet_index_node),
       boolean_stage::cell_classification);
   if (!index_entries.has_value()) return index_entries.error();
   if (!node_bytes.has_value()) return node_bytes.error();
@@ -326,6 +363,35 @@ classification_geometry_bytes(const validated_operands<T, I> &v,
                       boolean_stage::cell_classification);
   if (!bytes.has_value()) return bytes.error();
   return checked_add(bytes.value(), node_bytes.value(),
+                      boolean_stage::cell_classification);
+}
+
+template <class T, class I>
+status_or<std::uint64_t>
+verifier_attribution_bytes(const validated_operands<T, I> &v) {
+  std::uint64_t facet_vectors = v.facets.size(), facet_edges = 0;
+  for (const auto &facet : v.facets) {
+    auto count = checked_add(facet_edges, facet.ring.size(),
+                             boolean_stage::cell_classification);
+    if (!count.has_value()) return count.error();
+    facet_edges = count.value();
+  }
+  auto vectors = checked_multiply(facet_vectors,
+                                  sizeof(std::vector<verifier_directed_edge_key>),
+                                  boolean_stage::cell_classification);
+  auto local_edges = checked_multiply(facet_edges,
+                                      sizeof(verifier_directed_edge_key),
+                                      boolean_stage::cell_classification);
+  auto global_edges = checked_multiply(
+      v.edges.size(), sizeof(std::pair<verifier_edge_key, std::size_t>),
+      boolean_stage::cell_classification);
+  if (!vectors.has_value()) return vectors.error();
+  if (!local_edges.has_value()) return local_edges.error();
+  if (!global_edges.has_value()) return global_edges.error();
+  auto bytes = checked_add(vectors.value(), local_edges.value(),
+                           boolean_stage::cell_classification);
+  if (!bytes.has_value()) return bytes.error();
+  return checked_add(bytes.value(), global_edges.value(),
                      boolean_stage::cell_classification);
 }
 
@@ -695,28 +761,169 @@ std::vector<std::size_t> verifier_ray_candidates(
   return out;
 }
 
-bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
-                                    const verifier_facet_sweep &sweep,
-                                    const formal_open_point_view &point,
-                                    const operand_ray_evidence &stored) {
-  const auto &direction = stored.direction;
+exact_box3 verifier_joined_box(const exact_box3 &a, const exact_box3 &b) {
+  exact_box3 out = a;
+  if (b.minimum.x < out.minimum.x) out.minimum.x = b.minimum.x;
+  if (out.maximum.x < b.maximum.x) out.maximum.x = b.maximum.x;
+  if (b.minimum.y < out.minimum.y) out.minimum.y = b.minimum.y;
+  if (out.maximum.y < b.maximum.y) out.maximum.y = b.maximum.y;
+  if (b.minimum.z < out.minimum.z) out.minimum.z = b.minimum.z;
+  if (out.maximum.z < b.maximum.z) out.maximum.z = b.maximum.z;
+  return out;
+}
+
+const exact_scalar &verifier_box_minimum(const exact_box3 &box, unsigned axis) {
+  return axis == 0 ? box.minimum.x : axis == 1 ? box.minimum.y : box.minimum.z;
+}
+
+const exact_scalar &verifier_box_maximum(const exact_box3 &box, unsigned axis) {
+  return axis == 0 ? box.maximum.x : axis == 1 ? box.maximum.y : box.maximum.z;
+}
+
+struct verifier_facet_index {
+  std::vector<exact_box3> bounds;
+  std::vector<std::size_t> order;
+  std::vector<verifier_facet_index_node> nodes;
+};
+
+verifier_facet_index
+build_independent_verifier_facet_index(const sourced_exact_operand3 &geometry) {
+  verifier_facet_index out;
+  out.bounds.reserve(geometry.facets.size());
+  out.order.reserve(geometry.facets.size());
+  for (std::size_t i = 0; i < geometry.facets.size(); ++i) {
+    out.bounds.push_back(verifier_ring_bounds(geometry.facets[i].source_ring));
+    out.order.push_back(i);
+  }
+  if (out.order.empty()) return out;
+  std::function<std::size_t(std::size_t, std::size_t)> build =
+      [&](std::size_t begin, std::size_t end) {
+        const auto node_index = out.nodes.size();
+        out.nodes.push_back({});
+        auto bounds = out.bounds[out.order[begin]];
+        for (auto i = begin + 1; i < end; ++i)
+          bounds = verifier_joined_box(bounds, out.bounds[out.order[i]]);
+        auto &node = out.nodes[node_index];
+        node.bounds = bounds;
+        node.begin = begin;
+        node.end = end;
+        if (end - begin <= 8) return node_index;
+        unsigned axis = 0;
+        auto extent = verifier_box_maximum(bounds, 0) -
+                      verifier_box_minimum(bounds, 0);
+        for (unsigned candidate = 1; candidate < 3; ++candidate) {
+          auto candidate_extent = verifier_box_maximum(bounds, candidate) -
+                                  verifier_box_minimum(bounds, candidate);
+          if (extent < candidate_extent) {
+            axis = candidate;
+            extent = std::move(candidate_extent);
+          }
+        }
+        std::stable_sort(out.order.begin() + begin, out.order.begin() + end,
+                         [&](std::size_t a, std::size_t b) {
+          const auto ac = verifier_box_minimum(out.bounds[a], axis) +
+                          verifier_box_maximum(out.bounds[a], axis);
+          const auto bc = verifier_box_minimum(out.bounds[b], axis) +
+                          verifier_box_maximum(out.bounds[b], axis);
+          if (ac != bc) return ac < bc;
+          return geometry.facets[a].source_facet <
+                 geometry.facets[b].source_facet;
+        });
+        const auto middle = begin + (end - begin) / 2;
+        const auto left = build(begin, middle);
+        const auto right = build(middle, end);
+        out.nodes[node_index].left = left;
+        out.nodes[node_index].right = right;
+        out.nodes[node_index].leaf = false;
+        return node_index;
+      };
+  build(0, out.order.size());
+  return out;
+}
+
+std::vector<std::size_t> independent_verifier_ray_candidates(
+    const sourced_exact_operand3 &geometry, const verifier_facet_index &index,
+    const formal_open_point_view &point, const exact_vector3 &direction,
+    bool exhaustive) {
+  std::vector<std::size_t> out;
+  if (exhaustive) {
+    out.resize(geometry.facets.size());
+    for (std::size_t i = 0; i < out.size(); ++i) out[i] = i;
+  } else {
+    std::vector<std::size_t> stack;
+    if (!index.nodes.empty()) stack.push_back(0);
+    while (!stack.empty()) {
+      const auto node_index = stack.back();
+      stack.pop_back();
+      if (node_index >= index.nodes.size())
+        throw std::logic_error("verifier facet index node");
+      const auto &node = index.nodes[node_index];
+      if (!verifier_ray_meets_box(point.base, direction, node.bounds)) continue;
+      if (node.leaf) {
+        for (auto i = node.begin; i < node.end; ++i) {
+          if (i >= index.order.size())
+            throw std::logic_error("verifier facet index order");
+          const auto facet_index = index.order[i];
+          if (verifier_ray_meets_box(point.base, direction,
+                                     index.bounds[facet_index]))
+            out.push_back(facet_index);
+        }
+      } else {
+        stack.push_back(node.right);
+        stack.push_back(node.left);
+      }
+    }
+    std::sort(out.begin(), out.end(), [&](std::size_t a, std::size_t b) {
+      return geometry.facets[a].source_facet < geometry.facets[b].source_facet;
+    });
+  }
+  performance_count(performance_counter::ray_box_candidates, out.size());
+  return out;
+}
+
+struct verifier_reconstructed_hit {
+  facet_id facet;
+  exact_scalar constant, epsilon;
+};
+
+bool operator<(const verifier_reconstructed_hit &a,
+               const verifier_reconstructed_hit &b) {
+  if (a.facet != b.facet) return a.facet < b.facet;
+  if (a.constant != b.constant) return a.constant < b.constant;
+  return a.epsilon < b.epsilon;
+}
+
+bool operator==(const verifier_reconstructed_hit &a,
+                const verifier_reconstructed_hit &b) {
+  return a.facet == b.facet && a.constant == b.constant &&
+         a.epsilon == b.epsilon;
+}
+
+struct verifier_ray_reconstruction {
+  bool regular = true;
   std::int64_t degree = 0;
-  std::vector<facet_id> sources;
-  struct reconstructed_hit {
-    facet_id facet;
-    exact_scalar constant, epsilon;
-  };
-  std::vector<reconstructed_hit> reconstructed;
+  std::vector<verifier_reconstructed_hit> hits;
+  std::map<shell_id, std::int64_t> shell_degrees;
+};
+
+verifier_ray_reconstruction reconstruct_verifier_ray(
+    const sourced_exact_operand3 &geometry, const verifier_facet_index &index,
+    const formal_open_point_view &point, const exact_vector3 &direction,
+    bool exhaustive) {
+  verifier_ray_reconstruction result;
   performance_count(performance_counter::reconstructed_rays);
-  for (const auto fi : verifier_ray_candidates(geometry, sweep, point, direction)) {
+  for (const auto fi : independent_verifier_ray_candidates(
+           geometry, index, point, direction, exhaustive)) {
     const auto &facet = geometry.facets[fi];
     performance_count(performance_counter::exact_ray_facet_tests);
     const auto &normal = facet.source_normal;
     const auto denominator = dot(normal, direction);
     if (denominator.is_zero()) {
       if (oriented_plane_value(facet.source_plane, point.base).is_zero() &&
-          dot(normal, point.infinitesimal_direction).is_zero())
-        return false;
+          dot(normal, point.infinitesimal_direction).is_zero()) {
+        result.regular = false;
+        return result;
+      }
       continue;
     }
     auto plane_value = oriented_plane_value(facet.source_plane, point.base);
@@ -734,35 +941,53 @@ bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
     if (!formal_point_in_facet(project_formal(hit, hit_epsilon, facet.projection),
                                facet.projected_ring))
       continue;
-    degree += denominator.sign() == exact_sign::positive ? 1 : -1;
-    sources.push_back(facet.source_facet);
-    reconstructed.push_back({facet.source_facet, tc, te});
+    const auto contribution = denominator.sign() == exact_sign::positive ? 1 : -1;
+    result.degree += contribution;
+    result.shell_degrees[facet.source_shell] += contribution;
+    result.hits.push_back({facet.source_facet, tc, te});
+    performance_count(performance_counter::accepted_ray_hits);
   }
-  std::sort(sources.begin(), sources.end());
-  std::vector<facet_id> stored_sources;
+  std::sort(result.hits.begin(), result.hits.end());
+  return result;
+}
+
+bool same_reconstruction(const verifier_ray_reconstruction &a,
+                         const verifier_ray_reconstruction &b) {
+  return a.regular == b.regular && a.degree == b.degree && a.hits == b.hits &&
+         a.shell_degrees == b.shell_degrees;
+}
+
+verifier_ray_reconstruction independently_reconstruct_ray(
+    const sourced_exact_operand3 &geometry, const verifier_facet_index &index,
+    const formal_open_point_view &point, const operand_ray_evidence &stored) {
+  const auto policy = formal_ray_index_policy::test_execution_policy();
+  if (policy == formal_ray_index_execution_policy::exhaustive)
+    return reconstruct_verifier_ray(geometry, index, point, stored.direction, true);
+  auto accelerated =
+      reconstruct_verifier_ray(geometry, index, point, stored.direction, false);
+  if (policy == formal_ray_index_execution_policy::differential) {
+    const auto exhaustive =
+        reconstruct_verifier_ray(geometry, index, point, stored.direction, true);
+    if (!same_reconstruction(accelerated, exhaustive))
+      accelerated.regular = false;
+  }
+  return accelerated;
+}
+
+bool independently_check_ray_evidence(const verifier_ray_reconstruction &ray,
+                                      const operand_ray_evidence &stored) {
+  if (!ray.regular || ray.hits.size() != stored.hits.size()) return false;
+  std::vector<verifier_reconstructed_hit> stored_hits;
+  stored_hits.reserve(stored.hits.size());
   for (const auto &h : stored.hits)
-    if (h.source_facet)
-      stored_sources.push_back(*h.source_facet);
-  std::sort(stored_sources.begin(), stored_sources.end());
-  if (reconstructed.size() != stored.hits.size()) return false;
-  std::vector<bool> matched(reconstructed.size(), false);
-  for (const auto &h : stored.hits) {
     if (!h.source_facet) return false;
-    bool found = false;
-    for (std::size_t i = 0; i < reconstructed.size(); ++i)
-      if (!matched[i] && reconstructed[i].facet == *h.source_facet &&
-          reconstructed[i].constant == h.parameter_constant &&
-          reconstructed[i].epsilon == h.parameter_epsilon) {
-        matched[i] = true;
-        found = true;
-        break;
-      }
-    if (!found) return false;
-  }
-  return degree == stored.signed_degree &&
-         stored.location == (degree == 1 ? operand_location_kind::inside
-                                         : operand_location_kind::outside) &&
-         sources == stored_sources;
+    else
+      stored_hits.push_back(
+          {*h.source_facet, h.parameter_constant, h.parameter_epsilon});
+  std::sort(stored_hits.begin(), stored_hits.end());
+  return ray.hits == stored_hits && ray.degree == stored.signed_degree &&
+         stored.location == (ray.degree == 1 ? operand_location_kind::inside
+                                             : operand_location_kind::outside);
 }
 template <class T, class I>
 bool independently_check_shell_polarity(const validated_operands<T, I> &v,
@@ -822,9 +1047,64 @@ bool independently_check_shell_polarity(const validated_operands<T, I> &v,
   const bool occupied = operand_degree == 1;
   return (operand_degree == 0 || occupied) &&
          operand_degree == stored.signed_degree &&
+          stored.location == (occupied ? operand_location_kind::inside
+                                       : operand_location_kind::outside);
+}
+
+template <class T, class I>
+bool independently_check_shell_polarity(
+    const validated_operands<T, I> &v, operand_id operand,
+    const verifier_ray_reconstruction &ray,
+    const operand_ray_evidence &stored) {
+  if (!ray.regular) return false;
+  std::int64_t operand_degree = 0;
+  std::set<shell_id> containing;
+  for (const auto shell_id : v.operands[operand.value_for_debug()].shells) {
+    const auto &shell = v.shells[shell_id.value_for_debug()];
+    const auto found = ray.shell_degrees.find(shell_id);
+    const auto degree = found == ray.shell_degrees.end() ? 0 : found->second;
+    const auto expected = shell.orientation == shell_orientation::outward ? 1 : -1;
+    if (degree != 0 && degree != expected) return false;
+    if (degree != 0) containing.insert(shell_id);
+    operand_degree += degree;
+  }
+  for (const auto shell_id : containing) {
+    auto parent = v.shells[shell_id.value_for_debug()].parent;
+    while (parent) {
+      if (!containing.count(*parent)) return false;
+      parent = v.shells[parent->value_for_debug()].parent;
+    }
+  }
+  const bool occupied = operand_degree == 1;
+  return (operand_degree == 0 || occupied) &&
+         operand_degree == stored.signed_degree &&
          stored.location == (occupied ? operand_location_kind::inside
                                       : operand_location_kind::outside);
 }
+
+template <class T, class I>
+verifier_attribution_index
+build_verifier_attribution_index(const validated_operands<T, I> &v) {
+  verifier_attribution_index out;
+  out.facet_edges.resize(v.facets.size());
+  for (const auto &facet : v.facets) {
+    auto &edges = out.facet_edges[facet.id.value_for_debug()];
+    edges.reserve(facet.ring.size());
+    for (std::size_t i = 0; i < facet.ring.size(); ++i)
+      edges.push_back({facet.ring[i], facet.ring[(i + 1) % facet.ring.size()]});
+    std::sort(edges.begin(), edges.end());
+  }
+  out.edges.reserve(v.edges.size());
+  for (std::size_t i = 0; i < v.edges.size(); ++i) {
+    const auto &edge = v.edges[i];
+    out.edges.push_back({{edge.operand, edge.first, edge.second}, i});
+  }
+  std::sort(out.edges.begin(), out.edges.end(), [](const auto &a, const auto &b) {
+    return a.first < b.first;
+  });
+  return out;
+}
+
 std::vector<facet_id> boundary_sources(const formal_operand_location &location) {
   std::vector<facet_id> out;
   for (const auto &h : location.hits) {
@@ -850,6 +1130,7 @@ operand_ray_evidence ray_record(operand_id op,
 }
 template <class T, class I>
 bool valid_source_attribution(const validated_operands<T, I> &v,
+                               const verifier_attribution_index &index,
                                operand_id operand,
                                const operand_location_evidence &location,
                                const operand_ray_evidence &ray,
@@ -898,29 +1179,35 @@ bool valid_source_attribution(const validated_operands<T, I> &v,
     } else if (h.ownership == formal_ray_ownership_kind::source_edge) {
       if (!h.source_edge || !h.source_edge_direction)
         return false;
-      bool found = false;
-      for (std::size_t i = 0; i < facet.ring.size(); ++i) {
-        const std::array<original_vertex_id, 2> directed{
-            facet.ring[i], facet.ring[(i + 1) % facet.ring.size()]};
-        auto edge = directed;
-        if (edge[1] < edge[0])
-          std::swap(edge[0], edge[1]);
-        found = found || (directed == *h.source_edge_direction &&
-                          edge == *h.source_edge);
-      }
-      if (!found)
+      const verifier_directed_edge_key directed{(*h.source_edge_direction)[0],
+                                                 (*h.source_edge_direction)[1]};
+      auto directed_undirected = *h.source_edge_direction;
+      if (directed_undirected[1] < directed_undirected[0])
+        std::swap(directed_undirected[0], directed_undirected[1]);
+      if (directed_undirected != *h.source_edge)
         return false;
-      auto edge = std::find_if(v.edges.begin(), v.edges.end(), [&](const auto &x) {
-        return x.operand == operand && x.first == (*h.source_edge)[0] &&
-               x.second == (*h.source_edge)[1];
-      });
-      if (edge == v.edges.end())
+      if (facet.id.value_for_debug() >= index.facet_edges.size() ||
+          !std::binary_search(index.facet_edges[facet.id.value_for_debug()].begin(),
+                              index.facet_edges[facet.id.value_for_debug()].end(),
+                              directed))
         return false;
-      const auto &first = v.edge_uses[edge->uses[0].value_for_debug()];
-      const auto &second = v.edge_uses[edge->uses[1].value_for_debug()];
+      auto undirected = *h.source_edge;
+      if (undirected[1] < undirected[0]) std::swap(undirected[0], undirected[1]);
+      const verifier_edge_key key{operand, undirected[0], undirected[1]};
+      const auto edge = std::lower_bound(
+          index.edges.begin(), index.edges.end(), key,
+          [](const auto &entry, const verifier_edge_key &value) {
+            return entry.first < value;
+          });
+      if (edge == index.edges.end() || !(edge->first == key) ||
+          edge->second >= v.edges.size())
+        return false;
+      const auto &source_edge = v.edges[edge->second];
+      const auto &first = v.edge_uses[source_edge.uses[0].value_for_debug()];
+      const auto &second = v.edge_uses[source_edge.uses[1].value_for_debug()];
       if (first.twin != second.id || second.twin != first.id ||
           first.facet == second.facet || first.shell != second.shell ||
-          first.shell != edge->shell)
+          first.shell != source_edge.shell)
         return false;
     } else if (h.ownership == formal_ray_ownership_kind::facet_interior &&
                (h.source_vertex || h.source_edge || h.source_edge_direction))
@@ -1143,8 +1430,9 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     return false;
   const auto ta = build_verifier_operand_geometry(*a.validated->payload, operand_a());
   const auto tb = build_verifier_operand_geometry(*a.validated->payload, operand_b());
-  const auto sweep_a = build_verifier_facet_sweep(ta);
-  const auto sweep_b = build_verifier_facet_sweep(tb);
+  const auto index_a = build_independent_verifier_facet_index(ta);
+  const auto index_b = build_independent_verifier_facet_index(tb);
+  const auto attribution = build_verifier_attribution_index(*a.validated->payload);
   if (a.seeds.size() != g.probes.size())
     return false;
   for (std::size_t i = 0; i < g.probes.size(); ++i) {
@@ -1152,26 +1440,35 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     if (!p.has_value())
       return false;
     const auto &s = a.seeds[i];
-    if (!valid_source_attribution(*a.validated->payload, operand_a(), s.operand_a,
-                                    s.operand_a_primary) ||
-         !valid_source_attribution(*a.validated->payload, operand_a(), s.operand_a,
+    if (!valid_source_attribution(*a.validated->payload, attribution, operand_a(), s.operand_a,
+                                     s.operand_a_primary) ||
+         !valid_source_attribution(*a.validated->payload, attribution, operand_a(), s.operand_a,
                                    s.operand_a_alternate, false) ||
-         !valid_source_attribution(*a.validated->payload, operand_b(), s.operand_b,
+         !valid_source_attribution(*a.validated->payload, attribution, operand_b(), s.operand_b,
                                    s.operand_b_primary) ||
-         !valid_source_attribution(*a.validated->payload, operand_b(), s.operand_b,
-                                   s.operand_b_alternate, false) ||
-          !independently_reconstruct_ray(ta, sweep_a, p.value(), s.operand_a_primary) ||
-          !independently_reconstruct_ray(ta, sweep_a, p.value(), s.operand_a_alternate) ||
-           !independently_reconstruct_ray(tb, sweep_b, p.value(), s.operand_b_primary) ||
-           !independently_reconstruct_ray(tb, sweep_b, p.value(), s.operand_b_alternate) ||
-           !independently_check_shell_polarity(*a.validated->payload, ta, sweep_a, operand_a(),
-                                                p.value(), s.operand_a_primary) ||
-           !independently_check_shell_polarity(*a.validated->payload, ta, sweep_a, operand_a(),
-                                                p.value(), s.operand_a_alternate) ||
-           !independently_check_shell_polarity(*a.validated->payload, tb, sweep_b, operand_b(),
-                                                p.value(), s.operand_b_primary) ||
-           !independently_check_shell_polarity(*a.validated->payload, tb, sweep_b, operand_b(),
-                                                p.value(), s.operand_b_alternate))
+         !valid_source_attribution(*a.validated->payload, attribution, operand_b(), s.operand_b,
+                                   s.operand_b_alternate, false))
+      return false;
+    const auto a_primary = independently_reconstruct_ray(
+                   ta, index_a, p.value(), s.operand_a_primary),
+               a_alternate = independently_reconstruct_ray(
+                   ta, index_a, p.value(), s.operand_a_alternate),
+               b_primary = independently_reconstruct_ray(
+                   tb, index_b, p.value(), s.operand_b_primary),
+               b_alternate = independently_reconstruct_ray(
+                   tb, index_b, p.value(), s.operand_b_alternate);
+    if (!independently_check_ray_evidence(a_primary, s.operand_a_primary) ||
+        !independently_check_ray_evidence(a_alternate, s.operand_a_alternate) ||
+        !independently_check_ray_evidence(b_primary, s.operand_b_primary) ||
+        !independently_check_ray_evidence(b_alternate, s.operand_b_alternate) ||
+        !independently_check_shell_polarity(*a.validated->payload, operand_a(),
+                                            a_primary, s.operand_a_primary) ||
+        !independently_check_shell_polarity(*a.validated->payload, operand_a(),
+                                            a_alternate, s.operand_a_alternate) ||
+        !independently_check_shell_polarity(*a.validated->payload, operand_b(),
+                                            b_primary, s.operand_b_primary) ||
+        !independently_check_shell_polarity(*a.validated->payload, operand_b(),
+                                            b_alternate, s.operand_b_alternate))
       return false;
   }
   const auto witness = exterior_witness(*a.validated->payload, g);
@@ -1198,10 +1495,14 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     }
   formal_open_point_view q{witness, {exact_scalar(0), exact_scalar(0), exact_scalar(0)},
                            {perturbation_domain::generic_ray, {}, 0}};
-  return independently_reconstruct_ray(ta, sweep_a, q,
-                                       a.certificate.exterior_operand_a) &&
-          independently_reconstruct_ray(tb, sweep_b, q,
-                                       a.certificate.exterior_operand_b) &&
+  const auto exterior_a = independently_reconstruct_ray(
+                 ta, index_a, q, a.certificate.exterior_operand_a),
+             exterior_b = independently_reconstruct_ray(
+                 tb, index_b, q, a.certificate.exterior_operand_b);
+  return independently_check_ray_evidence(exterior_a,
+                                          a.certificate.exterior_operand_a) &&
+           independently_check_ray_evidence(exterior_b,
+                                            a.certificate.exterior_operand_b) &&
           a.certificate.exterior_operand_a.location == operand_location_kind::outside &&
           a.certificate.exterior_operand_b.location == operand_location_kind::outside &&
           a.certificate.exterior_region.value_for_debug() < a.regions.size() &&
@@ -1343,19 +1644,15 @@ template <class T, class I> bool valid(const labeled_arrangement<T, I> &a) {
       a.certificate.directed_transitions != a.transitions.size() ||
       a.certificate.side_labels != a.side_labels.size())
     return false;
-  return verify_geometric_evidence(a) && semantic(a) == a.canonical_bytes &&
-         invocation(a) == a.artifact_bytes &&
-         artifact_digest_for(a) == a.artifact_digest &&
-         a.certificate.semantic_digest ==
-             domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '0', '9'}},
-                           a.canonical_bytes);
+  return verify_geometric_evidence(a);
 }
 template <class T, class I>
 status_or<verification_report>
 verify_typed(const artifact_view &v, const verification_spec &s,
              const verification_environment_view &e) noexcept {
   try {
-    const auto &a = *static_cast<const labeled_arrangement<T, I> *>(v.payload);
+    const auto *artifact =
+        static_cast<const labeled_arrangement<T, I> *>(v.payload);
     verification_report r;
     r.checker_version = s.checker_version;
     r.owner = v.owner;
@@ -1366,38 +1663,111 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    const bool safe_dependencies = a.validated && a.validated->payload &&
-        a.arrangement && a.arrangement->payload &&
-        classification_geometry_shape_valid(*a.validated->payload);
-    std::optional<resource_reservation> scratch_charge;
-    if (safe_dependencies && e.accountant) {
-      auto bytes_a = classification_geometry_bytes(*a.validated->payload,
+    const bool binding_ok = artifact && e.accountant && v.owner == e.owner &&
+        v.slot == artifact_slot::labeled_arrangement &&
+        v.artifact_type_tag == labeled_arrangement_type_tag +
+            (static_cast<std::uint64_t>(e.coordinate) << 8) +
+            static_cast<std::uint64_t>(e.index) &&
+        v.artifact_schema == labeled_arrangement_schema &&
+        v.artifact_digest == artifact->artifact_digest &&
+        artifact->owner == v.owner && artifact->setup_digest == e.setup_digest &&
+        artifact->validated && artifact->validated->payload &&
+        artifact->arrangement && artifact->arrangement->payload &&
+        artifact->validated_digest == artifact->validated->artifact_digest &&
+        artifact->arrangement_digest == artifact->arrangement->artifact_digest;
+    const bool safe_dependencies = binding_ok &&
+        classification_geometry_shape_valid(*artifact->validated->payload);
+    std::optional<resource_reservation> scratch_charge, work_charge;
+    const auto reserve_resources = [&]() -> status_or<bool> {
+      auto bytes_a = classification_geometry_bytes(*artifact->validated->payload,
                                                    operand_a(), false);
-      auto bytes_b = classification_geometry_bytes(*a.validated->payload,
+      auto bytes_b = classification_geometry_bytes(*artifact->validated->payload,
                                                    operand_b(), false);
+      auto attribution_bytes =
+          verifier_attribution_bytes(*artifact->validated->payload);
       if (!bytes_a.has_value()) return bytes_a.error();
       if (!bytes_b.has_value()) return bytes_b.error();
+      if (!attribution_bytes.has_value()) return attribution_bytes.error();
       auto scratch = checked_add(bytes_a.value(), bytes_b.value(),
                                  boolean_stage::cell_classification);
       if (!scratch.has_value()) return scratch.error();
+      scratch = checked_add(scratch.value(), attribution_bytes.value(),
+                            boolean_stage::cell_classification);
+      if (!scratch.has_value()) return scratch.error();
+      auto ray_count = checked_multiply(artifact->seeds.size(), 4,
+                                        boolean_stage::cell_classification);
+      if (!ray_count.has_value()) return ray_count.error();
+      ray_count = checked_add(ray_count.value(), 2,
+                              boolean_stage::cell_classification);
+      if (!ray_count.has_value()) return ray_count.error();
+      auto ray_facet_work = checked_multiply(
+          ray_count.value(), artifact->validated->payload->facets.size(),
+          boolean_stage::cell_classification);
+      if (!ray_facet_work.has_value()) return ray_facet_work.error();
+      auto work = checked_add(ray_facet_work.value(), artifact->transitions.size(),
+                              boolean_stage::cell_classification);
+      if (!work.has_value()) return work.error();
+      work = checked_add(work.value(), artifact->canonical_bytes.size(),
+                         boolean_stage::cell_classification);
+      if (!work.has_value()) return work.error();
       auto charged = e.accountant->reserve_scoped(
+          resource_kind::verifier_work, work.value(),
+          boolean_stage::cell_classification);
+      if (!charged.has_value()) return charged.error();
+      work_charge.emplace(std::move(charged.value()));
+      charged = e.accountant->reserve_scoped(
           resource_kind::verifier_scratch_bytes, scratch.value(),
           boolean_stage::cell_classification);
       if (!charged.has_value()) return charged.error();
       scratch_charge.emplace(std::move(charged.value()));
-    }
-    bool ok = safe_dependencies && valid(a);
-    r.outcome = ok ? verification_outcome::pass
-                   : verification_outcome::invariant_failure;
+      return true;
+    };
+    r.outcome = verification_outcome::pass;
     bool failed = false;
     for (auto c : s.required_invariants) {
-      auto st = ok ? check_status::passed
-                   : failed ? check_status::not_run_due_to_prior_failure
-                            : check_status::failed;
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::classification_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::classification_regions:
+          {
+          if (!safe_dependencies) {
+            ok = false;
+            break;
+          }
+          auto reserved = reserve_resources();
+          if (!reserved.has_value()) return reserved.error();
+          ok = valid(*artifact);
+          break;
+          }
+        case invariant_code::classification_transfers:
+        case invariant_code::classification_side_labels:
+          ok = true;
+          break;
+        case invariant_code::classification_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest &&
+               artifact->certificate.semantic_digest == domain_digest(
+                   {{'Y', 'G', 'B', 'C', 'A', 'N', '0', '9'}},
+                   artifact->canonical_bytes);
+          break;
+        default:
+          ok = false;
+        }
+      }
+      auto st = failed ? check_status::not_run_due_to_prior_failure
+                       : ok ? check_status::passed : check_status::failed;
       r.results.push_back({c, st, {}, 0});
       failed |= st == check_status::failed;
     }
-    r.dependency_digests = {a.arrangement_digest, a.validated_digest};
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->arrangement_digest,
+                              artifact->validated_digest};
     auto b = encode_verification_report(r);
     if (!b.has_value())
       return b.error();
