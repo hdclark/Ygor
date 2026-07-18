@@ -1747,8 +1747,8 @@ discover_intersection_events(boolean_context<T, I> &ctx) {
     std::vector<deterministic_task> tasks;
     tasks.reserve(candidates.size());
     for (std::size_t i = 0; i < candidates.size(); ++i) {
-      tasks.push_back({candidates[i].id.value_for_debug(), [&, i]() -> status_or<bool> {
-        if (ctx.cancelled())
+      tasks.push_back({candidates[i].id.value_for_debug(), [&, i](cancellation_token task_cancel) -> status_or<bool> {
+        if (task_cancel.cancelled() || ctx.cancelled())
           return make_error(boolean_error_code::resource_limit,
                             boolean_stage::intersection_events, "cancelled");
         const auto &candidate = candidates[i];

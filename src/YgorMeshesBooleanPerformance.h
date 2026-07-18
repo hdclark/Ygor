@@ -29,6 +29,11 @@ struct performance_task_context {
   boolean_stage stage = boolean_stage::context_setup;
   performance_role role = performance_role::producer;
 };
+struct performance_measurement {
+  performance_counter_snapshot counters;
+  std::uint64_t nanoseconds = 0;
+  bool valid = false;
+};
 
 performance_task_context capture_performance_task_context() noexcept;
 void performance_count(performance_counter, std::uint64_t = 1) noexcept;
@@ -48,6 +53,7 @@ public:
   performance_scope &operator=(const performance_scope &) = delete;
   ~performance_scope();
   void finish() noexcept;
+  performance_measurement finish_without_merge() noexcept;
 };
 
 } }

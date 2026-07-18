@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanGlobalArrangement.h"
+#include "YgorMeshesBooleanExecutor.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -631,76 +632,160 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       return p.oriented == orientation_parity::opposite ? n * exact_scalar(-1)
                                                         : n;
     };
-    for (auto &o : a.vertex_occurrences) {
+    struct link_preparation {
+      vertex_germ_kind germ = vertex_germ_kind::terminal_contact;
+      std::vector<exact_vector3> representative_directions;
+      std::vector<seam_sector_id> seam_continuations;
+      std::vector<source_edge_sector_id> source_edge_continuations;
+      exact_vector3 witness_direction;
+      std::vector<exact_sign> witness_evidence;
+    };
+    std::vector<std::optional<link_preparation>> link_preparations(
+        a.vertex_occurrences.size());
+    std::vector<deterministic_task> link_tasks;
+    link_tasks.reserve(a.vertex_occurrences.size());
+    for (std::size_t occurrence_index = 0;
+         occurrence_index < a.vertex_occurrences.size(); ++occurrence_index) {
+      link_tasks.push_back(
+          {a.vertex_occurrences[occurrence_index].id.value_for_debug(),
+            [&, occurrence_index](cancellation_token task_cancel) -> status_or<bool> {
+              try {
+                if (task_cancel.cancelled() || ctx.cancelled())
+                 return make_error(boolean_error_code::resource_limit,
+                                   boolean_stage::global_arrangement,
+                                   "cancelled");
+               const auto &o = a.vertex_occurrences[occurrence_index];
+               link_preparation prepared;
+               std::set<global_atomic_edge_id> incident;
+               for (auto h : o.incident_halfedges)
+                 incident.insert(a.halfedges[h.value_for_debug()].edge);
+               prepared.germ = incident.empty()
+                                   ? vertex_germ_kind::terminal_contact
+                                   : incident.size() == 1
+                                         ? vertex_germ_kind::semicircle
+                                         : vertex_germ_kind::wedge;
+               std::vector<
+                   std::pair<global_atomic_edge_id, exact_vector3>> directions;
+               for (auto edge : incident) {
+                 const auto &e = a.edges[edge.value_for_debug()];
+                 auto other = e.lower == o.vertex ? e.upper : e.lower;
+                 const auto &p =
+                     a.symbolic->payload
+                         ->vertices[a.vertices[o.vertex.value_for_debug()]
+                                        .symbolic.value_for_debug()]
+                         .point;
+                 const auto &q =
+                     a.symbolic->payload
+                         ->vertices[a.vertices[other.value_for_debug()]
+                                        .symbolic.value_for_debug()]
+                         .point;
+                 directions.push_back({edge, q - p});
+               }
+               std::vector<std::size_t> representatives;
+               for (std::size_t i = 0; i < directions.size(); ++i) {
+                 bool duplicate = false;
+                 for (auto j : representatives) {
+                   performance_count(
+                       performance_counter::link_direction_candidates);
+                   performance_count(
+                       performance_counter::exact_link_direction_tests);
+                   const auto c =
+                       cross(directions[i].second, directions[j].second);
+                   if (c.x.sign() == exact_sign::zero &&
+                       c.y.sign() == exact_sign::zero &&
+                       c.z.sign() == exact_sign::zero &&
+                       dot_sign_exact(directions[i].second,
+                                      directions[j].second) ==
+                           exact_sign::positive) {
+                     duplicate = true;
+                     break;
+                   }
+                 }
+                 if (!duplicate)
+                   representatives.push_back(i);
+               }
+               prepared.representative_directions.reserve(
+                   representatives.size());
+               for (auto i : representatives)
+                 prepared.representative_directions.push_back(
+                     directions[i].second);
+               for (auto edge : incident) {
+                 const auto seam = seam_by_edge[edge.value_for_debug()];
+                 performance_count(performance_counter::global_index_lookups);
+                 if (seam) {
+                   const auto &sectors =
+                       a.seams[seam->value_for_debug()].sectors;
+                   prepared.seam_continuations.insert(
+                       prepared.seam_continuations.end(), sectors.begin(),
+                       sectors.end());
+                 }
+                 const auto &source_sectors =
+                     source_sectors_by_edge[edge.value_for_debug()];
+                 performance_count(performance_counter::global_index_lookups);
+                 prepared.source_edge_continuations.insert(
+                     prepared.source_edge_continuations.end(),
+                     source_sectors.begin(), source_sectors.end());
+               }
+               const auto &pl =
+                   a.validated->payload
+                       ->facets[o.local_germs.front().facet.value_for_debug()]
+                       .plane;
+               auto witness = construct_strict_cone_witness(
+                   {{normal(pl), exact_sign::positive}});
+               if (!witness.has_value())
+                 return witness.error();
+               prepared.witness_direction = witness.value().direction;
+               prepared.witness_evidence = witness.value().evaluations;
+               link_preparations[occurrence_index] = std::move(prepared);
+               return true;
+             } catch (const std::bad_alloc &) {
+               return make_error(boolean_error_code::resource_limit,
+                                 boolean_stage::global_arrangement,
+                                 "arrangement_allocation");
+             } catch (const std::exception &e) {
+               auto error = make_error(
+                   boolean_error_code::internal_invariant_error,
+                   boolean_stage::global_arrangement, "arrangement_exception");
+               error.detail = e.what();
+               return error;
+             }
+           }});
+    }
+    cancellation_source link_cancellation;
+    auto links =
+        ctx.executor().run(std::move(link_tasks), link_cancellation.token());
+    if (!links.has_value()) {
+      auto error = links.error();
+      error.stage = boolean_stage::global_arrangement;
+      return error;
+    }
+    for (std::size_t occurrence_index = 0;
+         occurrence_index < a.vertex_occurrences.size(); ++occurrence_index) {
+      if (ctx.cancelled())
+        return make_error(boolean_error_code::resource_limit,
+                          boolean_stage::global_arrangement, "cancelled");
+      auto &o = a.vertex_occurrences[occurrence_index];
+      if (!link_preparations[occurrence_index])
+        throw std::logic_error("missing link preparation");
+      auto &prepared = *link_preparations[occurrence_index];
       vertex_sector s;
       s.id = vertex_sector_id::from_canonical_value(a.vertex_sectors.size());
       s.vertex = o.vertex;
       s.occurrence = o.id;
       s.region = link_region_id::from_canonical_value(s.id.value_for_debug());
-      std::set<global_atomic_edge_id> incident;
-      for (auto h : o.incident_halfedges)
-        incident.insert(a.halfedges[h.value_for_debug()].edge);
-      s.germ = incident.empty()
-                   ? vertex_germ_kind::terminal_contact
-                   : incident.size() == 1 ? vertex_germ_kind::semicircle
-                                          : vertex_germ_kind::wedge;
-      std::vector<std::pair<global_atomic_edge_id, exact_vector3>> directions;
-      for (auto edge : incident) {
-        const auto &e = a.edges[edge.value_for_debug()];
-        auto other = e.lower == o.vertex ? e.upper : e.lower;
-        const auto &p = a.symbolic->payload
-                            ->vertices[a.vertices[o.vertex.value_for_debug()]
-                                           .symbolic.value_for_debug()]
-                            .point;
-        const auto &q = a.symbolic->payload
-                            ->vertices[a.vertices[other.value_for_debug()]
-                                           .symbolic.value_for_debug()]
-                            .point;
-        directions.push_back({edge, q - p});
-      }
-      std::vector<std::size_t> representatives;
-      for (std::size_t i = 0; i < directions.size(); ++i) {
-        bool duplicate = false;
-        for (auto j : representatives) {
-          performance_count(performance_counter::link_direction_candidates);
-          performance_count(performance_counter::exact_link_direction_tests);
-          const auto c = cross(directions[i].second, directions[j].second);
-          if (c.x.sign() == exact_sign::zero &&
-              c.y.sign() == exact_sign::zero &&
-              c.z.sign() == exact_sign::zero &&
-              dot_sign_exact(directions[i].second, directions[j].second) ==
-                  exact_sign::positive) {
-            duplicate = true;
-            break;
-          }
-        }
-        if (!duplicate)
-          representatives.push_back(i);
-      }
-      for (auto i : representatives) {
-        const auto &d = directions[i].second;
+      s.germ = prepared.germ;
+      for (auto &d : prepared.representative_directions) {
         auto r = link_ray_id::from_canonical_value(a.link_rays.size()),
              anti = link_ray_id::from_canonical_value(a.link_rays.size() + 1);
-        a.link_rays.push_back({r, d, anti});
-        a.link_rays.push_back({anti, d * exact_scalar(-1), r});
+        a.link_rays.push_back({r, std::move(d), anti});
+        a.link_rays.push_back(
+            {anti, a.link_rays.back().direction * exact_scalar(-1), r});
         s.boundary_rays.push_back(r);
         s.boundary_rays.push_back(anti);
       }
-      for (auto edge : incident) {
-        const auto seam = seam_by_edge[edge.value_for_debug()];
-        performance_count(performance_counter::global_index_lookups);
-        if (seam) {
-          const auto &sectors = a.seams[seam->value_for_debug()].sectors;
-          s.seam_continuations.insert(s.seam_continuations.end(),
-                                      sectors.begin(), sectors.end());
-        }
-        const auto &source_sectors =
-            source_sectors_by_edge[edge.value_for_debug()];
-        performance_count(performance_counter::global_index_lookups);
-        s.source_edge_continuations.insert(s.source_edge_continuations.end(),
-                                           source_sectors.begin(),
-                                           source_sectors.end());
-      }
+      s.seam_continuations = std::move(prepared.seam_continuations);
+      s.source_edge_continuations =
+          std::move(prepared.source_edge_continuations);
       for (std::size_t i = 0; i < s.boundary_rays.size(); ++i) {
         auto id = link_arc_id::from_canonical_value(a.link_arcs.size());
         a.link_arcs.push_back(
@@ -711,16 +796,8 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
              {}});
         s.boundary_arcs.push_back(id);
       }
-      const auto &pl =
-          a.validated->payload
-              ->facets[o.local_germs.front().facet.value_for_debug()]
-              .plane;
-      auto witness =
-          construct_strict_cone_witness({{normal(pl), exact_sign::positive}});
-      if (!witness.has_value())
-        return witness.error();
-      s.witness_direction = witness.value().direction;
-      s.witness_evidence = witness.value().evaluations;
+      s.witness_direction = std::move(prepared.witness_direction);
+      s.witness_evidence = std::move(prepared.witness_evidence);
       o.link_regions.push_back(s.id);
       a.vertex_sectors.push_back(std::move(s));
     }

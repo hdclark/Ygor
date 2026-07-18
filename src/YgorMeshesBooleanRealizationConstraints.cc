@@ -1,6 +1,8 @@
 #include "YgorMeshesBooleanRealization.h"
+#include "YgorMeshesBooleanExecutor.h"
 
 #include <algorithm>
+#include <exception>
 #include <limits>
 #include <map>
 #include <numeric>
@@ -53,7 +55,7 @@ realization_solver_result solve_realization_constraint_components(
     std::vector<realization_solver_constraint> constraints,
     const realization_constraint_evaluator &evaluate, std::uint64_t node_limit,
     std::uint64_t component_limit, std::uint64_t trail_limit,
-    const std::function<bool()> &cancelled) {
+    const std::function<bool()> &cancelled, deterministic_executor *executor) {
   realization_solver_result result;
   std::sort(variables.begin(), variables.end(), [](const auto &a, const auto &b) {
     return a.id < b.id;
@@ -107,86 +109,99 @@ realization_solver_result solve_realization_constraint_components(
   for (const auto &variable : variables)
     variable_by_id.emplace(variable.id, variable);
 
+  struct component_work {
+    realization_solver_component_result component;
+    bool accepted = false;
+    bool limited = false;
+    bool singleton = false;
+  };
+  std::vector<component_work> work;
+  work.reserve(grouped.size());
   for (auto &entry : grouped) {
-    auto component = std::move(entry.second);
+    component_work item;
+    item.component = std::move(entry.second);
+    auto &component = item.component;
     std::sort(component.variables.begin(), component.variables.end());
     std::sort(component.constraints.begin(), component.constraints.end());
+    work.push_back(std::move(item));
+  }
+
+  const auto solve_component = [&](component_work &item,
+                                   const std::function<bool()> &stop,
+                                   std::uint64_t component_node_limit) {
+    auto &component = item.component;
     std::map<std::uint64_t, std::uint64_t> degree;
     for (auto constraint_id : component.constraints)
-      for (auto variable_id : constraint_by_id[constraint_id].variables)
+      for (auto variable_id : constraint_by_id.at(constraint_id).variables)
         ++degree[variable_id];
     auto order = component.variables;
     std::sort(order.begin(), order.end(), [&](auto a, auto b) {
-      const auto &x = variable_by_id[a];
-      const auto &y = variable_by_id[b];
+      const auto &x = variable_by_id.at(a);
+      const auto &y = variable_by_id.at(b);
       if (x.domain_size != y.domain_size)
         return x.domain_size < y.domain_size;
       if (degree[a] != degree[b])
         return degree[a] > degree[b];
       return a < b;
     });
-    const bool singleton = std::all_of(
+    item.singleton = std::all_of(
         order.begin(), order.end(), [&](auto id) {
-          return variable_by_id[id].domain_size == 1;
+          return variable_by_id.at(id).domain_size == 1;
         });
-    if (singleton) {
+    if (item.singleton) {
       const auto canonical_nodes = component.variables.size() + 1;
-      if (result.visited_nodes > node_limit ||
-          canonical_nodes > node_limit - result.visited_nodes) {
-        result.limited = true;
-        return result;
+      if (canonical_nodes > component_node_limit) {
+        item.limited = true;
+        return;
       }
       for (auto constraint_id : component.constraints) {
-        if (cancelled && cancelled()) {
-          result.limited = true;
-          return result;
+        if (stop && stop()) {
+          item.limited = true;
+          return;
         }
-        const auto &constraint = constraint_by_id[constraint_id];
+        const auto &constraint = constraint_by_id.at(constraint_id);
         std::vector<std::pair<std::uint64_t, std::uint64_t>> values;
         values.reserve(constraint.variables.size());
         for (auto id : constraint.variables)
           values.push_back({id, 0});
         if (!evaluate(constraint_id, values))
-          return result;
+          return;
       }
       component.accepted_ranks.assign(component.variables.size(), 0);
       component.visited_nodes = canonical_nodes;
       component.complete_assignments = 1;
-      result.visited_nodes += component.visited_nodes;
-      ++result.complete_assignments;
-      result.components.push_back(std::move(component));
-      continue;
+      item.accepted = true;
+      return;
     }
     std::map<std::uint64_t, std::uint64_t> assignment;
     std::map<std::uint64_t, std::uint64_t> accepted_assignment;
     bool accepted = false;
     std::function<void(std::size_t)> dfs = [&](std::size_t depth) {
-      if (accepted || result.limited)
+      if (accepted || item.limited)
         return;
-      if (cancelled && cancelled()) {
-        result.limited = true;
-        return;
-      }
-      if (result.visited_nodes == node_limit) {
-        result.limited = true;
+      if (stop && stop()) {
+        item.limited = true;
         return;
       }
-      ++result.visited_nodes;
+      if (component.visited_nodes == component_node_limit) {
+        item.limited = true;
+        return;
+      }
       ++component.visited_nodes;
       if (depth == order.size()) {
-        ++result.complete_assignments;
         ++component.complete_assignments;
         accepted = true;
         accepted_assignment = assignment;
         return;
       }
       const auto variable = order[depth];
-      for (std::uint64_t rank = 0; rank < variable_by_id[variable].domain_size;
+      for (std::uint64_t rank = 0;
+           rank < variable_by_id.at(variable).domain_size;
            ++rank) {
         assignment[variable] = rank;
         std::optional<std::uint64_t> conflict;
         for (auto constraint_id : component.constraints) {
-          const auto &constraint = constraint_by_id[constraint_id];
+          const auto &constraint = constraint_by_id.at(constraint_id);
           if (std::all_of(constraint.variables.begin(), constraint.variables.end(),
                           [&](auto id) { return assignment.count(id) != 0; })) {
             std::vector<std::pair<std::uint64_t, std::uint64_t>> values;
@@ -203,23 +218,94 @@ realization_solver_result solve_realization_constraint_components(
         else
           component.rejected_prefix_witnesses.push_back(*conflict);
         assignment.erase(variable);
-        if (accepted || result.limited)
+        if (accepted || item.limited)
           break;
       }
     };
     dfs(0);
-    if (result.limited)
-      return result;
     if (!accepted)
-      return result;
+      return;
     for (auto id : component.variables)
       component.accepted_ranks.push_back(accepted_assignment[id]);
-    result.components.push_back(std::move(component));
+    item.accepted = true;
+  };
+
+  if (executor && !work.empty() &&
+      node_limit == std::numeric_limits<std::uint64_t>::max()) {
+    std::vector<deterministic_task> tasks;
+    tasks.reserve(work.size());
+    for (std::size_t i = 0; i < work.size(); ++i) {
+      const auto key = work[i].component.variables.front();
+      tasks.push_back({key, [&, i](cancellation_token task_cancel) -> status_or<bool> {
+        if (task_cancel.cancelled() || (cancelled && cancelled()))
+          return make_error(boolean_error_code::resource_limit,
+                            boolean_stage::geometry_realization,
+                            "cancelled");
+        solve_component(work[i], [&] {
+          return task_cancel.cancelled() || (cancelled && cancelled());
+        }, std::numeric_limits<std::uint64_t>::max());
+        if (cancelled && cancelled())
+          return make_error(boolean_error_code::resource_limit,
+                            boolean_stage::geometry_realization,
+                            "cancelled");
+        if (work[i].limited)
+          return make_error(boolean_error_code::resource_limit,
+                            boolean_stage::geometry_realization,
+                            "solver_component_limited");
+        if (!work[i].accepted)
+          return make_error(boolean_error_code::output_not_representable,
+                            boolean_stage::geometry_realization,
+                            "solver_component_rejected");
+        return true;
+      }});
+    }
+    cancellation_source dispatch_cancellation;
+    const auto dispatched = executor->run(std::move(tasks),
+                                          dispatch_cancellation.token());
+    if (!dispatched.has_value()) {
+      if (dispatched.error().code == boolean_error_code::resource_limit &&
+          dispatched.error().message_key == "allocation")
+        throw std::bad_alloc();
+      if (dispatched.error().message_key == "cancelled") {
+        result.limited = true;
+        return result;
+      }
+      if (dispatched.error().message_key == "solver_component_limited" ||
+          dispatched.error().message_key == "solver_component_rejected") {
+        // Canonical merge below maps the private component outcome.
+      } else {
+      throw std::runtime_error(dispatched.error().message_key);
+      }
+    }
+  } else {
+    std::uint64_t remaining_nodes = node_limit;
+    for (auto &item : work) {
+      solve_component(item, cancelled, remaining_nodes);
+      if (item.component.visited_nodes > remaining_nodes) {
+        item.limited = true;
+        break;
+      }
+      remaining_nodes -= item.component.visited_nodes;
+      if (item.limited || !item.accepted) break;
+    }
   }
-  std::sort(result.components.begin(), result.components.end(), [](const auto &a,
-                                                                    const auto &b) {
-    return a.variables < b.variables;
-  });
+
+  for (auto &item : work) {
+    const auto remaining = result.visited_nodes > node_limit
+                               ? 0
+                               : node_limit - result.visited_nodes;
+    if (item.limited || item.component.visited_nodes > remaining) {
+      if (!item.singleton)
+        result.visited_nodes += std::min(item.component.visited_nodes, remaining);
+      result.limited = true;
+      return result;
+    }
+    result.visited_nodes += item.component.visited_nodes;
+    result.complete_assignments += item.component.complete_assignments;
+    if (!item.accepted)
+      return result;
+    result.components.push_back(std::move(item.component));
+  }
   result.accepted = true;
   return result;
 }

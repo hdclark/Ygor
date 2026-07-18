@@ -93,7 +93,8 @@ void require_frozen(const frozen_baseline &baseline,
 
 void check_baseline(const frozen_baseline &baseline) {
   const auto single = run(baseline, 1);
-  const auto parallel = run(baseline, 4);
+  const auto two_threads = run(baseline, 2);
+  const auto maximum_threads = run(baseline, 4);
   const auto exact_only = run(baseline, 1, predicate_execution_policy::exact_only);
   const auto exhaustive = run(baseline, 1, predicate_execution_policy::automatic,
                               formal_ray_index_execution_policy::exhaustive);
@@ -106,13 +107,31 @@ void check_baseline(const frozen_baseline &baseline) {
   require_equal(exhaustive.canonical_output_bytes, single.canonical_output_bytes,
                 "exhaustive/indexed complete canonical output bytes");
   require_frozen(baseline, single);
-  require_frozen(baseline, parallel);
-  require_equal(parallel.typed_outcome(), single.typed_outcome(),
-                "thread-count typed outcome identity");
-  require_equal(parallel.semantic_digests, single.semantic_digests,
-                "thread-count stage semantic identity");
-  require_equal(parallel.canonical_output_bytes, single.canonical_output_bytes,
-                "thread-count complete canonical output bytes");
+  auto require_thread_identity = [&](const performance_observation &parallel) {
+    require_frozen(baseline, parallel);
+    require_equal(parallel.typed_outcome(), single.typed_outcome(),
+                  "thread-count typed outcome identity");
+    require_equal(parallel.semantic_digests, single.semantic_digests,
+                  "thread-count stage semantic identity");
+    require_equal(parallel.canonical_output_bytes, single.canonical_output_bytes,
+                  "thread-count complete canonical output bytes");
+    require(parallel.counters == single.counters,
+            "thread-count deterministic artifact counters");
+    require_equal(parallel.producer_counters.values,
+                  single.producer_counters.values,
+                  "thread-count producer performance counters");
+    require_equal(parallel.verifier_counters.values,
+                  single.verifier_counters.values,
+                  "thread-count verifier performance counters");
+    require_equal(parallel.producer_counters.resources,
+                  single.producer_counters.resources,
+                  "thread-count producer resource counters");
+    require_equal(parallel.verifier_counters.resources,
+                  single.verifier_counters.resources,
+                  "thread-count verifier resource counters");
+  };
+  require_thread_identity(two_threads);
+  require_thread_identity(maximum_threads);
   require_equal(exact_only.typed_outcome(), single.typed_outcome(),
                 "filter-on/off typed outcome identity");
   require_equal(exact_only.semantic_digests, single.semantic_digests,
@@ -121,20 +140,6 @@ void check_baseline(const frozen_baseline &baseline) {
                 "filter-on/off complete canonical output bytes");
   require(exact_only.counters == single.counters,
           "filter-on/off deterministic artifact counters");
-  require(parallel.counters == single.counters,
-          "thread-count deterministic artifact counters");
-  require_equal(parallel.producer_counters.values,
-                single.producer_counters.values,
-                "thread-count producer performance counters");
-  require_equal(parallel.verifier_counters.values,
-                single.verifier_counters.values,
-                "thread-count verifier performance counters");
-  require_equal(parallel.producer_counters.resources,
-                single.producer_counters.resources,
-                "thread-count producer resource counters");
-  require_equal(parallel.verifier_counters.resources,
-                single.verifier_counters.resources,
-                "thread-count verifier resource counters");
 }
 
 template <class T, class I>

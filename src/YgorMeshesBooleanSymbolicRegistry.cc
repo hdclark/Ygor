@@ -1142,8 +1142,8 @@ build_symbolic_complex_impl(
     std::vector<deterministic_task> member_tasks;
     for (std::size_t shard = 0; shard < member_shards.size(); ++shard) {
       member_tasks.push_back({0x0601000000000000ULL + shard,
-          [&, shard]() -> status_or<bool> {
-            if (ctx.cancelled())
+          [&, shard](cancellation_token task_cancel) -> status_or<bool> {
+            if (task_cancel.cancelled() || ctx.cancelled())
               return make_error(boolean_error_code::resource_limit,
                                 boolean_stage::symbolic_registry, "cancelled");
             const auto begin = shard * frontier;
@@ -1338,8 +1338,8 @@ build_symbolic_complex_impl(
     std::vector<deterministic_task> line_tasks;
     for (std::size_t shard = 0; shard < line_shards.size(); ++shard) {
       line_tasks.push_back({0x0602000000000000ULL + shard,
-          [&, shard]() -> status_or<bool> {
-            if (ctx.cancelled())
+          [&, shard](cancellation_token task_cancel) -> status_or<bool> {
+            if (task_cancel.cancelled() || ctx.cancelled())
               return make_error(boolean_error_code::resource_limit,
                                 boolean_stage::symbolic_registry, "cancelled");
             const auto begin = shard * frontier;

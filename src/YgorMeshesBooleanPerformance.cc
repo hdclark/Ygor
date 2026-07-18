@@ -138,9 +138,10 @@ performance_scope::performance_scope(performance_scope &&) noexcept = default;
 performance_scope &performance_scope::operator=(performance_scope &&) noexcept =
     default;
 performance_scope::~performance_scope() { finish(); }
-void performance_scope::finish() noexcept {
+performance_measurement performance_scope::finish_without_merge() noexcept {
+  performance_measurement result;
   if (!state_ || state_->finished)
-    return;
+    return result;
   const auto now = std::chrono::steady_clock::now();
   if (state_->local.running)
     add_saturating(state_->local.elapsed_nanoseconds,
@@ -153,11 +154,23 @@ void performance_scope::finish() noexcept {
     active->started = now;
     active->running = true;
   }
-  state_->local.collector->merge(
-      state_->local.stage, state_->local.role, state_->local.task_key,
-      state_->local.elapsed_nanoseconds,
-      state_->local.counters);
+  result.counters = state_->local.counters;
+  result.nanoseconds = state_->local.elapsed_nanoseconds;
+  result.valid = true;
   state_->finished = true;
+  return result;
+}
+void performance_scope::finish() noexcept {
+  if (!state_ || state_->finished)
+    return;
+  auto *collector = state_->local.collector;
+  const auto stage = state_->local.stage;
+  const auto role = state_->local.role;
+  const auto task_key = state_->local.task_key;
+  const auto result = finish_without_merge();
+  if (result.valid)
+    collector->merge(stage, role, task_key, result.nanoseconds,
+                     result.counters);
 }
 
 } }

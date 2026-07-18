@@ -2018,13 +2018,10 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
       solver_constraints.push_back({obligation.id.value_for_debug(),
                                     std::move(variables)});
     }
-    std::vector<std::optional<bool>> singleton_evaluation(a.obligations.size());
-    auto evaluator = [&](std::uint64_t obligation_id,
-                         const std::vector<std::pair<std::uint64_t,
-                                                     std::uint64_t>> &values) {
+    auto evaluate_obligation = [&](std::uint64_t obligation_id,
+                                   const std::vector<std::pair<
+                                       std::uint64_t, std::uint64_t>> &values) {
       const auto representative = evaluation_representative[obligation_id];
-      if (all_singleton && singleton_evaluation[representative])
-        return *singleton_evaluation[representative];
       const auto &obligation = a.obligations[representative];
       std::map<std::uint64_t, exact_point3> points;
       for (const auto &value : values) {
@@ -2073,11 +2070,36 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         valid = relation == obligation.expected;
       } else
         valid = obligation.expected == obligation.actual;
-      if (all_singleton)
-        singleton_evaluation[representative] = valid;
       return valid;
     };
+    std::vector<std::optional<bool>> singleton_evaluations(a.obligations.size());
     const auto attempt_limit = ctx.options().resources.realization_attempts;
+    const bool parallel_solver = attempt_limit.unlimited;
+    if (all_singleton && parallel_solver) {
+      for (const auto &constraint : solver_constraints) {
+        const auto representative =
+            evaluation_representative[constraint.id];
+        if (singleton_evaluations[representative]) continue;
+        std::vector<std::pair<std::uint64_t, std::uint64_t>> values;
+        values.reserve(constraint.variables.size());
+        for (auto variable : constraint.variables)
+          values.push_back({variable, 0});
+        singleton_evaluations[representative] =
+            evaluate_obligation(constraint.id, values);
+      }
+    }
+    auto evaluator = [&](std::uint64_t obligation_id,
+                         const std::vector<std::pair<std::uint64_t,
+                                                     std::uint64_t>> &values) {
+      if (all_singleton) {
+        const auto representative = evaluation_representative[obligation_id];
+        if (!singleton_evaluations[representative])
+          singleton_evaluations[representative] =
+              evaluate_obligation(obligation_id, values);
+        return *singleton_evaluations[representative];
+      }
+      return evaluate_obligation(obligation_id, values);
+    };
     const auto component_limit = ctx.options().resources.realization_components;
     const auto transcript_limit =
         ctx.options().resources.realization_component_transcripts;
@@ -2098,7 +2120,7 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         bounded_components,
         trail_limit.unlimited ? std::numeric_limits<std::uint64_t>::max()
                               : trail_limit.value,
-        [&] { return ctx.cancelled(); });
+        [&] { return ctx.cancelled(); }, &ctx.executor());
     if (ctx.cancelled())
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization, "cancelled");

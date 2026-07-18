@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanCellClassification.h"
+#include "YgorMeshesBooleanExecutor.h"
 #include <algorithm>
 #include <deque>
 #include <map>
@@ -1877,85 +1878,141 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
     const auto polarity_sweep_a = build_verifier_facet_sweep(triangles_a),
                polarity_sweep_b = build_verifier_facet_sweep(triangles_b);
     std::map<open_region_component_id, classification_region_id> region_ids;
+    std::set<open_region_component_id> probe_components;
     for (std::size_t i = 0; i < g.probes.size(); ++i) {
       if (ctx.cancelled())
         return make_error(boolean_error_code::resource_limit,
                           boolean_stage::cell_classification, "cancelled");
       const auto &p = g.probes[i];
-      if (region_ids.count(p.component))
+      if (!probe_components.insert(p.component).second)
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::cell_classification,
                           "duplicate_region_probe");
-      auto probe = formal_probe(g, p);
-      if (!probe.has_value())
-        return probe.error();
-      auto la = locate_formal_open_point(probe.value(), triangles_a, ray_index_a),
-           lb = locate_formal_open_point(probe.value(), triangles_b, ray_index_b);
-      if (!la.has_value())
-        return la.error();
-      if (!lb.has_value())
-        return lb.error();
-      auto la2 = locate_formal_open_point(
-               probe.value(), triangles_a, ray_index_a,
-               static_cast<std::uint8_t>(la.value().ray_direction_index + 1)),
-           lb2 = locate_formal_open_point(
-               probe.value(), triangles_b, ray_index_b,
-               static_cast<std::uint8_t>(lb.value().ray_direction_index + 1));
-      if (!la2.has_value())
-        return la2.error();
-      if (!lb2.has_value())
-        return lb2.error();
-      if (la.value().location != la2.value().location ||
-          la.value().signed_degree != la2.value().signed_degree ||
-          lb.value().location != lb2.value().location ||
-          lb.value().signed_degree != lb2.value().signed_degree)
-        return make_error(boolean_error_code::internal_invariant_error,
-                           boolean_stage::cell_classification,
-                           "alternate_formal_ray_disagreement");
-      const auto shell_a = ray_record(operand_a(), p.component, la.value());
-      const auto shell_b = ray_record(operand_b(), p.component, lb.value());
-      if (!independently_check_shell_polarity(*g.validated->payload, triangles_a,
-                                               polarity_sweep_a,
-                                               operand_a(),
-                                               probe.value(), shell_a) ||
-          !independently_check_shell_polarity(*g.validated->payload, triangles_b,
-                                               polarity_sweep_b,
-                                               operand_b(),
-                                               probe.value(), shell_b))
+    }
+    struct probe_classification_slot {
+      seed_classification_certificate seed;
+      classification_region region;
+    };
+    std::vector<std::optional<probe_classification_slot>> probe_slots(
+        g.probes.size());
+    std::vector<deterministic_task> probe_tasks;
+    probe_tasks.reserve(g.probes.size());
+    for (std::size_t i = 0; i < g.probes.size(); ++i) {
+      probe_tasks.push_back({static_cast<std::uint64_t>(i),
+          [&, i](cancellation_token task_cancel) -> status_or<bool> {
+            try {
+              if (task_cancel.cancelled() || ctx.cancelled())
+                return make_error(boolean_error_code::resource_limit,
+                                  boolean_stage::cell_classification,
+                                  "cancelled");
+              const auto &p = g.probes[i];
+              auto probe = formal_probe(g, p);
+              if (!probe.has_value()) return probe.error();
+              auto la = locate_formal_open_point(
+                       probe.value(), triangles_a, ray_index_a),
+                   lb = locate_formal_open_point(
+                       probe.value(), triangles_b, ray_index_b);
+              if (!la.has_value()) return la.error();
+              if (!lb.has_value()) return lb.error();
+              auto la2 = locate_formal_open_point(
+                       probe.value(), triangles_a, ray_index_a,
+                       static_cast<std::uint8_t>(
+                           la.value().ray_direction_index + 1)),
+                   lb2 = locate_formal_open_point(
+                       probe.value(), triangles_b, ray_index_b,
+                       static_cast<std::uint8_t>(
+                           lb.value().ray_direction_index + 1));
+              if (!la2.has_value()) return la2.error();
+              if (!lb2.has_value()) return lb2.error();
+              if (la.value().location != la2.value().location ||
+                  la.value().signed_degree != la2.value().signed_degree ||
+                  lb.value().location != lb2.value().location ||
+                  lb.value().signed_degree != lb2.value().signed_degree)
+                return make_error(boolean_error_code::internal_invariant_error,
+                                  boolean_stage::cell_classification,
+                                  "alternate_formal_ray_disagreement");
+              const auto shell_a =
+                  ray_record(operand_a(), p.component, la.value());
+              const auto shell_b =
+                  ray_record(operand_b(), p.component, lb.value());
+              if (!independently_check_shell_polarity(
+                      *g.validated->payload, triangles_a, polarity_sweep_a,
+                      operand_a(), probe.value(), shell_a) ||
+                  !independently_check_shell_polarity(
+                      *g.validated->payload, triangles_b, polarity_sweep_b,
+                      operand_b(), probe.value(), shell_b))
+                return make_error(
+                    boolean_error_code::internal_invariant_error,
+                    boolean_stage::cell_classification,
+                    "shell_polarity_point_location_disagreement");
+              occupancy_pair label{
+                  la.value().location == formal_operand_location_kind::inside,
+                  lb.value().location == formal_operand_location_kind::inside};
+              probe_classification_slot slot;
+              slot.seed.id = seed_certificate_id::from_canonical_value(i);
+              slot.seed.source_side = p.side;
+              slot.seed.source_component = p.component;
+              slot.seed.base_kind = p.base_kind;
+              slot.seed.base_id = p.base_id;
+              slot.seed.operand_a = {
+                  label.in_a ? operand_location_kind::inside
+                             : operand_location_kind::outside,
+                  la.value().signed_degree, boundary_sources(la.value()),
+                  location_digest(operand_a(), p.component, la.value())};
+              slot.seed.operand_b = {
+                  label.in_b ? operand_location_kind::inside
+                             : operand_location_kind::outside,
+                  lb.value().signed_degree, boundary_sources(lb.value()),
+                  location_digest(operand_b(), p.component, lb.value())};
+              slot.seed.operand_a_primary =
+                  ray_record(operand_a(), p.component, la.value());
+              slot.seed.operand_a_alternate =
+                  ray_record(operand_a(), p.component, la2.value());
+              slot.seed.operand_b_primary =
+                  ray_record(operand_b(), p.component, lb.value());
+              slot.seed.operand_b_alternate =
+                  ray_record(operand_b(), p.component, lb2.value());
+              slot.region.id =
+                  classification_region_id::from_canonical_value(i);
+              slot.region.source_component = p.component;
+              slot.region.label = label;
+              slot.region.seed = slot.seed.id;
+              probe_slots[i] = std::move(slot);
+              return true;
+            } catch (const std::bad_alloc &) {
+              return make_error(boolean_error_code::resource_limit,
+                                boolean_stage::cell_classification,
+                                "classification_allocation");
+            } catch (const std::exception &e) {
+              auto error = make_error(
+                  boolean_error_code::internal_invariant_error,
+                  boolean_stage::cell_classification,
+                  "classification_exception");
+              error.detail = e.what();
+              return error;
+            }
+          }});
+    }
+    cancellation_source probe_cancel;
+    auto probe_result =
+        ctx.executor().run(std::move(probe_tasks), probe_cancel.token());
+    if (!probe_result.has_value()) {
+      auto error = probe_result.error();
+      error.stage = boolean_stage::cell_classification;
+      return error;
+    }
+    for (std::size_t i = 0; i < probe_slots.size(); ++i) {
+      if (ctx.cancelled())
+        return make_error(boolean_error_code::resource_limit,
+                          boolean_stage::cell_classification, "cancelled");
+      if (!probe_slots[i])
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::cell_classification,
-                          "shell_polarity_point_location_disagreement");
-      occupancy_pair label{
-          la.value().location == formal_operand_location_kind::inside,
-          lb.value().location == formal_operand_location_kind::inside};
-      seed_classification_certificate seed;
-      seed.id = seed_certificate_id::from_canonical_value(i);
-      seed.source_side = p.side;
-      seed.source_component = p.component;
-      seed.base_kind = p.base_kind;
-      seed.base_id = p.base_id;
-      seed.operand_a = {label.in_a ? operand_location_kind::inside
-                                   : operand_location_kind::outside,
-                        la.value().signed_degree,
-                         boundary_sources(la.value()),
-                        location_digest(operand_a(), p.component, la.value())};
-      seed.operand_b = {label.in_b ? operand_location_kind::inside
-                                   : operand_location_kind::outside,
-                        lb.value().signed_degree,
-                         boundary_sources(lb.value()),
-                         location_digest(operand_b(), p.component, lb.value())};
-      seed.operand_a_primary = ray_record(operand_a(), p.component, la.value());
-      seed.operand_a_alternate = ray_record(operand_a(), p.component, la2.value());
-      seed.operand_b_primary = ray_record(operand_b(), p.component, lb.value());
-      seed.operand_b_alternate = ray_record(operand_b(), p.component, lb2.value());
-      a.seeds.push_back(seed);
-      classification_region r;
-      r.id = classification_region_id::from_canonical_value(i);
-      r.source_component = p.component;
-      r.label = label;
-      r.seed = seed.id;
-      region_ids.emplace(p.component, r.id);
-      a.regions.push_back(std::move(r));
+                          "missing_probe_classification");
+      auto &slot = *probe_slots[i];
+      region_ids.emplace(slot.region.source_component, slot.region.id);
+      a.seeds.push_back(std::move(slot.seed));
+      a.regions.push_back(std::move(slot.region));
     }
     for (const auto &s : g.patch_sides) {
       if (ctx.cancelled())

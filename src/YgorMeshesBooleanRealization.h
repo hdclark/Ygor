@@ -222,7 +222,8 @@ realization_solver_result solve_realization_constraint_components(
     const realization_constraint_evaluator &, std::uint64_t node_limit,
     std::uint64_t component_limit = std::numeric_limits<std::uint64_t>::max(),
     std::uint64_t trail_limit = std::numeric_limits<std::uint64_t>::max(),
-    const std::function<bool()> &cancelled = {});
+    const std::function<bool()> &cancelled = {},
+    deterministic_executor *executor = nullptr);
 std::vector<realization_triangle_pair> conservative_realization_triangle_pairs(
     const std::vector<realization_domain_box> &,
     std::uint64_t *overlap_checks = nullptr,

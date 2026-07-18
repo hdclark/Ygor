@@ -1,4 +1,5 @@
 #include "YgorMeshesBooleanLocalRefinement.h"
+#include "YgorMeshesBooleanExecutor.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -1464,12 +1465,56 @@ refine_source_facets(boolean_context<T, I> &ctx) {
     a.validated_digest = a.validated->artifact_digest;
     a.kernel_policy_digest = symbolic->payload->kernel_policy_digest;
     a.constructions = symbolic->payload->constructions;
-    for (const auto &vf : a.validated->payload->facets) {
-      auto f = build_facet(*symbolic->payload, vf, ctx.owner(),
-                           constraint_index[vf.id.value_for_debug()]);
-      if (!f.has_value())
-        return f.error();
-      a.facets.push_back(std::move(f.value()));
+    const auto &validated_facets = a.validated->payload->facets;
+    std::vector<std::optional<local_refinement>> facet_results(
+        validated_facets.size());
+    std::vector<deterministic_task> facet_tasks;
+    facet_tasks.reserve(validated_facets.size());
+    for (std::size_t i = 0; i < validated_facets.size(); ++i) {
+      const auto &vf = validated_facets[i];
+      facet_tasks.push_back(
+           {vf.id.value_for_debug(), [&, i](cancellation_token task_cancel) -> status_or<bool> {
+              if (task_cancel.cancelled() || ctx.cancelled())
+               return make_error(boolean_error_code::resource_limit,
+                                 boolean_stage::local_refinement, "cancelled");
+             try {
+               auto facet = build_facet(
+                   *symbolic->payload, validated_facets[i], ctx.owner(),
+                   constraint_index[validated_facets[i].id.value_for_debug()]);
+               if (!facet.has_value()) return facet.error();
+               facet_results[i].emplace(std::move(facet.value()));
+               return true;
+             } catch (const std::bad_alloc &) {
+               return make_error(boolean_error_code::resource_limit,
+                                 boolean_stage::local_refinement,
+                                 "local_allocation");
+             } catch (const std::exception &e) {
+               auto error = make_error(
+                   boolean_error_code::internal_invariant_error,
+                   boolean_stage::local_refinement, "local_exception");
+               error.detail = e.what();
+               return error;
+             }
+           }});
+    }
+    cancellation_source facet_cancel;
+    auto facets_built =
+        ctx.executor().run(std::move(facet_tasks), facet_cancel.token());
+    if (!facets_built.has_value()) {
+      auto error = facets_built.error();
+      error.stage = boolean_stage::local_refinement;
+      return error;
+    }
+    if (ctx.cancelled())
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::local_refinement, "cancelled");
+    a.facets.reserve(facet_results.size());
+    for (auto &facet : facet_results) {
+      if (!facet)
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::local_refinement,
+                          "missing_facet_result");
+      a.facets.push_back(std::move(*facet));
     }
     std::map<std::pair<symbolic_vertex_id, symbolic_vertex_id>,
              shared_atomic_edge_id>
