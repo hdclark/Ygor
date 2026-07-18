@@ -908,8 +908,9 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
           if (it != local_halfedge.end())
             g.push_back(it->second.value_for_debug());
         }
+        const bool incidence = g.empty();
         addmap(local_map_kind::boundary_walk, f.facet,
-               w.id.id.value_for_debug(), std::move(g), g.empty());
+               w.id.id.value_for_debug(), std::move(g), incidence);
       }
       for (const auto &face : f.faces) {
         std::vector<std::uint64_t> g;
@@ -917,8 +918,9 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         for (auto use : uses)
           g.push_back(use.value_for_debug());
         performance_count(performance_counter::global_index_lookups);
+        const bool incidence = g.empty();
         addmap(local_map_kind::face, f.facet, face.id.id.value_for_debug(),
-               std::move(g), g.empty());
+               std::move(g), incidence);
       }
       for (const auto &p : f.patches)
         addmap(local_map_kind::patch, f.facet, p.id.id.value_for_debug(),
