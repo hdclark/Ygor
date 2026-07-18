@@ -287,6 +287,9 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
              source_sheet_member_id>
         members;
     std::map<std::pair<facet_id, local_patch_id>, sheet_use_id> local_use;
+    std::map<std::pair<facet_id, local_face_id>,
+             std::vector<sheet_use_id>>
+        uses_by_parent_face;
     struct patch_key {
       canonical_plane_key plane;
       std::vector<symbolic_vertex_id> outer;
@@ -360,6 +363,7 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         a.sheet_uses.push_back(std::move(u));
         a.patches[pi->second.value_for_debug()].uses.push_back(uid);
         local_use[{f.facet, p.id.id}] = uid;
+        uses_by_parent_face[{f.facet, p.parent_face.id}].push_back(uid);
       }
     }
     for (auto &m : a.sheet_members) {
@@ -367,6 +371,10 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       m.facets.erase(std::unique(m.facets.begin(), m.facets.end()),
                      m.facets.end());
     }
+    std::vector<std::vector<sheet_use_id>> uses_by_facet(
+        a.validated->payload->facets.size());
+    for (const auto &use : a.sheet_uses)
+      uses_by_facet[use.facet.value_for_debug()].push_back(use.id);
     std::map<std::pair<facet_id, local_halfedge_id>, global_halfedge_id>
         local_halfedge;
     for (const auto &f : refined->payload->facets)
@@ -419,37 +427,51 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
           ++a.certificate.patch_cycles;
         }
       }
-    std::map<std::tuple<global_atomic_edge_id, operand_id, shell_id>,
-             std::vector<global_halfedge_id>>
-        mate_groups;
+    std::vector<std::vector<sheet_use_id>> uses_by_edge(a.edges.size());
+    using mate_group_key =
+        std::tuple<global_atomic_edge_id, operand_id, shell_id,
+                   vertex_occurrence_id, vertex_occurrence_id>;
+    std::map<mate_group_key, std::vector<global_halfedge_id>> mate_groups;
     for (const auto &h : a.halfedges) {
       const auto &u = a.sheet_uses[h.use.value_for_debug()];
-      mate_groups[{h.edge, u.operand, u.shell}].push_back(h.id);
+      uses_by_edge[h.edge.value_for_debug()].push_back(h.use);
+      mate_groups[{h.edge, u.operand, u.shell, h.origin_occurrence,
+                   h.destination_occurrence}]
+          .push_back(h.id);
+      performance_count(performance_counter::global_incidence_records);
     }
-    for (auto &entry : mate_groups) {
-      auto &hs = entry.second;
-      std::sort(hs.begin(), hs.end());
-      std::vector<bool> used(hs.size());
-      for (std::size_t i = 0; i < hs.size(); ++i)
-        if (!used[i]) {
-          std::size_t j = i + 1;
-          for (; j < hs.size(); ++j)
-            if (!used[j]) {
-              const auto &x = a.halfedges[hs[i].value_for_debug()];
-              const auto &y = a.halfedges[hs[j].value_for_debug()];
-              if (x.origin_occurrence == y.destination_occurrence &&
-                  x.destination_occurrence == y.origin_occurrence)
-                break;
-            }
-          if (j == hs.size())
-            return make_error(boolean_error_code::internal_invariant_error,
-                              boolean_stage::global_arrangement,
-                              "unmatched_sheet_halfedge");
-          used[i] = used[j] = true;
-          a.halfedges[hs[i].value_for_debug()].sheet_mate = hs[j];
-          a.halfedges[hs[j].value_for_debug()].sheet_mate = hs[i];
-          ++a.certificate.mate_pairs;
-        }
+    for (auto &entry : mate_groups)
+      std::sort(entry.second.begin(), entry.second.end());
+    for (const auto &entry : mate_groups) {
+      const auto &key = entry.first;
+      if (!(std::get<3>(key) < std::get<4>(key)))
+        continue;
+      mate_group_key reverse{std::get<0>(key), std::get<1>(key),
+                             std::get<2>(key), std::get<4>(key),
+                             std::get<3>(key)};
+      auto opposite = mate_groups.find(reverse);
+      performance_count(performance_counter::global_index_lookups);
+      if (opposite == mate_groups.end() ||
+          opposite->second.size() != entry.second.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::global_arrangement,
+                          "unmatched_sheet_halfedge");
+      for (std::size_t i = 0; i < entry.second.size(); ++i) {
+        const auto x = entry.second[i], y = opposite->second[i];
+        a.halfedges[x.value_for_debug()].sheet_mate = y;
+        a.halfedges[y.value_for_debug()].sheet_mate = x;
+        ++a.certificate.mate_pairs;
+      }
+    }
+    for (const auto &entry : mate_groups)
+      if (!(std::get<3>(entry.first) < std::get<4>(entry.first)) &&
+          !(std::get<4>(entry.first) < std::get<3>(entry.first)))
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::global_arrangement,
+                          "degenerate_sheet_halfedge");
+    for (auto &uses : uses_by_edge) {
+      std::sort(uses.begin(), uses.end());
+      uses.erase(std::unique(uses.begin(), uses.end()), uses.end());
     }
     auto radial = [&](const global_atomic_edge &e,
                       const std::vector<sheet_use_id> &uses)
@@ -471,12 +493,8 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       return rank_planes_around_carrier(q - p, planes);
     };
     for (const auto &e : a.edges) {
-      std::vector<sheet_use_id> uses;
-      for (const auto &h : a.halfedges)
-        if (h.edge == e.id)
-          uses.push_back(h.use);
-      std::sort(uses.begin(), uses.end());
-      uses.erase(std::unique(uses.begin(), uses.end()), uses.end());
+      const auto &uses = uses_by_edge[e.id.value_for_debug()];
+      performance_count(performance_counter::global_index_lookups);
       if (uses.size() < 2)
         continue;
       auto order = radial(e, uses);
@@ -523,6 +541,13 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         }
       }
     }
+    std::vector<std::optional<seam_id>> seam_by_edge(a.edges.size());
+    for (const auto &seam : a.seams)
+      seam_by_edge[seam.edge.value_for_debug()] = seam.id;
+    std::vector<std::vector<source_edge_sector_id>> source_sectors_by_edge(
+        a.edges.size());
+    for (const auto &sector : a.source_edge_sectors)
+      source_sectors_by_edge[sector.edge.value_for_debug()].push_back(sector.id);
     for (auto &p : a.patches)
       if (p.uses.size() > 1) {
         coincident_group g;
@@ -533,6 +558,10 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         a.certificate.coincident_memberships += g.members.size();
         a.coincident_groups.push_back(std::move(g));
       }
+    std::vector<std::optional<coincident_group_id>> coincidence_by_patch(
+        a.patches.size());
+    for (const auto &group : a.coincident_groups)
+      coincidence_by_patch[group.patch.value_for_debug()] = group.id;
     for (const auto &p : a.patches)
       for (unsigned side = 0; side < 2; ++side) {
         auto id = patch_side_id::from_canonical_value(a.patch_sides.size());
@@ -547,16 +576,15 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       t.to =
           patch_side_id::from_canonical_value(2 * p.id.value_for_debug() + 1);
       t.region_crossing = true;
-      auto g =
-          std::find_if(a.coincident_groups.begin(), a.coincident_groups.end(),
-                       [&](const auto &x) { return x.patch == p.id; });
-      if (g == a.coincident_groups.end()) {
+      const auto group = coincidence_by_patch[p.id.value_for_debug()];
+      performance_count(performance_counter::global_index_lookups);
+      if (!group) {
         t.kind = side_transition_kind::sheet_crossing;
         t.uses = p.uses;
       } else {
         t.kind = side_transition_kind::coincidence_crossing;
-        t.coincidence = g->id;
-        t.uses = g->members;
+        t.coincidence = *group;
+        t.uses = a.coincident_groups[group->value_for_debug()].members;
       }
       a.transitions.push_back(std::move(t));
     }
@@ -581,6 +609,7 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
                    ? vertex_germ_kind::terminal_contact
                    : incident.size() == 1 ? vertex_germ_kind::semicircle
                                           : vertex_germ_kind::wedge;
+      std::vector<std::pair<global_atomic_edge_id, exact_vector3>> directions;
       for (auto edge : incident) {
         const auto &e = a.edges[edge.value_for_debug()];
         auto other = e.lower == o.vertex ? e.upper : e.lower;
@@ -592,21 +621,50 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
                             ->vertices[a.vertices[other.value_for_debug()]
                                            .symbolic.value_for_debug()]
                             .point;
-        auto d = q - p;
+        directions.push_back({edge, q - p});
+      }
+      std::vector<std::size_t> representatives;
+      for (std::size_t i = 0; i < directions.size(); ++i) {
+        bool duplicate = false;
+        for (auto j : representatives) {
+          performance_count(performance_counter::link_direction_candidates);
+          performance_count(performance_counter::exact_link_direction_tests);
+          const auto c = cross(directions[i].second, directions[j].second);
+          if (c.x.sign() == exact_sign::zero &&
+              c.y.sign() == exact_sign::zero &&
+              c.z.sign() == exact_sign::zero &&
+              dot_sign_exact(directions[i].second, directions[j].second) ==
+                  exact_sign::positive) {
+            duplicate = true;
+            break;
+          }
+        }
+        if (!duplicate)
+          representatives.push_back(i);
+      }
+      for (auto i : representatives) {
+        const auto &d = directions[i].second;
         auto r = link_ray_id::from_canonical_value(a.link_rays.size()),
              anti = link_ray_id::from_canonical_value(a.link_rays.size() + 1);
         a.link_rays.push_back({r, d, anti});
         a.link_rays.push_back({anti, d * exact_scalar(-1), r});
         s.boundary_rays.push_back(r);
         s.boundary_rays.push_back(anti);
-        for (const auto &seam : a.seams)
-          if (seam.edge == edge)
-            s.seam_continuations.insert(s.seam_continuations.end(),
-                                        seam.sectors.begin(),
-                                        seam.sectors.end());
-        for (const auto &sector : a.source_edge_sectors)
-          if (sector.edge == edge)
-            s.source_edge_continuations.push_back(sector.id);
+      }
+      for (auto edge : incident) {
+        const auto seam = seam_by_edge[edge.value_for_debug()];
+        performance_count(performance_counter::global_index_lookups);
+        if (seam) {
+          const auto &sectors = a.seams[seam->value_for_debug()].sectors;
+          s.seam_continuations.insert(s.seam_continuations.end(),
+                                      sectors.begin(), sectors.end());
+        }
+        const auto &source_sectors =
+            source_sectors_by_edge[edge.value_for_debug()];
+        performance_count(performance_counter::global_index_lookups);
+        s.source_edge_continuations.insert(s.source_edge_continuations.end(),
+                                           source_sectors.begin(),
+                                           source_sectors.end());
       }
       for (std::size_t i = 0; i < s.boundary_rays.size(); ++i) {
         auto id = link_arc_id::from_canonical_value(a.link_arcs.size());
@@ -688,11 +746,10 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
         auto facet = a.vertices[s.vertex.value_for_debug()]
                          .local_occurrences.front()
                          .facet;
-        auto use =
-            std::find_if(a.sheet_uses.begin(), a.sheet_uses.end(),
-                         [&](const auto &u) { return u.facet == facet; });
-        if (use != a.sheet_uses.end())
-          preserving(side_transition_kind::vertex_sector, use->id);
+        performance_count(performance_counter::global_index_lookups);
+        const auto &uses = uses_by_facet[facet.value_for_debug()];
+        if (!uses.empty())
+          preserving(side_transition_kind::vertex_sector, uses.front());
       }
     a.certificate.side_transitions = a.transitions.size();
     auto addmap = [&](local_map_kind k, facet_id f, std::uint64_t id,
@@ -738,9 +795,10 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       }
       for (const auto &face : f.faces) {
         std::vector<std::uint64_t> g;
-        for (const auto &p : f.patches)
-          if (p.parent_face == face.id)
-            g.push_back(local_use[{f.facet, p.id.id}].value_for_debug());
+        const auto &uses = uses_by_parent_face[{f.facet, face.id.id}];
+        for (auto use : uses)
+          g.push_back(use.value_for_debug());
+        performance_count(performance_counter::global_index_lookups);
         addmap(local_map_kind::face, f.facet, face.id.id.value_for_debug(),
                std::move(g), g.empty());
       }

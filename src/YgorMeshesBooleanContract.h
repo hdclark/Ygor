@@ -305,6 +305,10 @@ enum class performance_counter : std::uint8_t {
   plane_side_filter_fallbacks,
   dot_sign_filter_accepts,
   dot_sign_filter_fallbacks,
+  global_incidence_records,
+  global_index_lookups,
+  link_direction_candidates,
+  exact_link_direction_tests,
   count
 };
 struct performance_counter_snapshot {
