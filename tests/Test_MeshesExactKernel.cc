@@ -80,6 +80,11 @@ static void dyadic_planes(){
 static void constructions(){auto pl=support_plane(p3(0,0,0),p3(2,0,0),p3(0,2,0)).value();auto x=intersect_line_plane({p3(1,1,-1),exact_vector3{q(0),q(0),q(2)}},pl);require(x.kind==line_plane_kind::unique&&plane_side(pl,*x.point)==exact_sign::zero,"line plane");auto pp=intersect_planes(pl,support_plane(p3(0,0,0),p3(0,1,0),p3(0,0,1)).value());require(pp.kind==plane_plane_kind::nonparallel,"plane plane");require(plane_side(pl,pp.line->anchor)==exact_sign::zero,"carrier substitution");}
 static void polygon_relations(){exact_triangle3 a{p3(0,0,0),p3(4,0,0),p3(0,4,0)},b{p3(1,1,-1),p3(1,1,1),p3(3,1,0)},c{p3(1,1,0),p3(2,1,0),p3(1,2,0)};require(relate_triangles(a,b)==polygon_intersection_kind::segment,"crossing triangles");require(relate_triangles(a,c)==polygon_intersection_kind::area,"coplanar overlap");std::vector<exact_triangle3>tet{{p3(0,0,0),p3(0,4,0),p3(4,0,0)},{p3(0,0,0),p3(4,0,0),p3(0,0,4)},{p3(4,0,0),p3(0,4,0),p3(0,0,4)},{p3(0,4,0),p3(0,0,0),p3(0,0,4)}};require(classify_point_closed_triangle_shell(p3(1,1,1),tet).value()==solid_point_kind::inside,"point in shell");require(classify_point_closed_triangle_shell(p3(5,5,5),tet).value()==solid_point_kind::outside,"point outside shell");}
 static void formal_point_location(){std::vector<exact_triangle3>tet{{p3(0,0,0),p3(0,4,0),p3(4,0,0)},{p3(0,0,0),p3(4,0,0),p3(0,0,4)},{p3(4,0,0),p3(0,4,0),p3(0,0,4)},{p3(0,4,0),p3(0,0,0),p3(0,0,4)}};formal_open_point_view inside{p3(1,1,1),exact_vector3{q(0),q(0),q(0)},{}},outside{p3(5,5,5),exact_vector3{q(0),q(0),q(0)},{}};auto a=locate_formal_open_point(inside,tet),b=locate_formal_open_point(outside,tet);require(a.has_value()&&a.value().location==formal_operand_location_kind::inside&&a.value().signed_degree==1,"formal inside degree");auto a2=locate_formal_open_point(inside,tet,static_cast<std::uint8_t>(a.value().ray_direction_index+1));require(a2.has_value()&&a2.value().signed_degree==a.value().signed_degree&&a2.value().ray_direction_index!=a.value().ray_direction_index,"alternate formal ray");require(b.has_value()&&b.value().location==formal_operand_location_kind::outside&&b.value().signed_degree==0,"formal outside degree");formal_open_point_view face_side{p3(1,1,0),exact_vector3{q(0),q(0),q(1)},{}};auto c=locate_formal_open_point(face_side,tet);require(c.has_value()&&c.value().signed_degree==1,"formal origin moves to occupied side");face_side.infinitesimal_direction=exact_vector3{q(0),q(0),q(-1)};auto d=locate_formal_open_point(face_side,tet);require(d.has_value()&&d.value().signed_degree==0,"formal origin moves to exterior side");}
+static bool same_formal_location(const formal_operand_location&a,const formal_operand_location&b){
+  if(a.location!=b.location||a.signed_degree!=b.signed_degree||a.ray_direction_index!=b.ray_direction_index||a.ray_direction.x!=b.ray_direction.x||a.ray_direction.y!=b.ray_direction.y||a.ray_direction.z!=b.ray_direction.z||a.hits.size()!=b.hits.size())return false;
+  for(std::size_t i=0;i<a.hits.size();++i){const auto&x=a.hits[i];const auto&y=b.hits[i];if(x.triangle!=y.triangle||x.source_facet!=y.source_facet||x.source_primitive!=y.source_primitive||x.parameter_constant!=y.parameter_constant||x.parameter_epsilon!=y.parameter_epsilon||x.signed_contribution!=y.signed_contribution||x.parameter_group!=y.parameter_group||x.ownership!=y.ownership||x.source_vertex!=y.source_vertex||x.source_vertex_fan!=y.source_vertex_fan||x.source_vertex_fan_index!=y.source_vertex_fan_index||x.source_edge!=y.source_edge||x.source_edge_direction!=y.source_edge_direction||x.owns_boundary_crossing!=y.owns_boundary_crossing)return false;}return true;
+}
+static void require_index_differential(const formal_open_point_view&qv,const sourced_exact_operand3&operand,std::uint8_t direction=0){const auto index=build_sourced_exact_ray_index(operand);const auto exhaustive=locate_formal_open_point(qv,operand,direction),accelerated=locate_formal_open_point(qv,operand,index,direction);require(exhaustive.has_value()==accelerated.has_value(),"ray index outcome differential");if(exhaustive.has_value())require(same_formal_location(exhaustive.value(),accelerated.value()),"complete ray index evidence differential");else require(exhaustive.error().code==accelerated.error().code&&exhaustive.error().subcode==accelerated.error().subcode,"ray index error differential");}
 static void grouped_ray_ownership(){
   const auto facet=facet_id::from_canonical_value(0);
   const auto v0=original_vertex_id::from_canonical_value(0),v1=original_vertex_id::from_canonical_value(1),v2=original_vertex_id::from_canonical_value(2),v3=original_vertex_id::from_canonical_value(3);
@@ -105,6 +110,7 @@ static void grouped_ray_ownership(){
   add_facet(diagonal_b,facet,square,square_ids,{},{{{square[0],square[1],square[3]},{v0,v1,v3}},{{square[1],square[2],square[3]},{v1,v2,v3}}});
   require(diagonal_a.facets.size()==1&&diagonal_a.facets[0].source_ring.size()==4&&diagonal_a.triangles.size()==2&&diagonal_a.triangles[0].source_facet_index==diagonal_a.triangles[1].source_facet_index,"source facet geometry stored once");
   auto a=locate_formal_open_point(center,diagonal_a),b=locate_formal_open_point(center,diagonal_b);
+  require_index_differential(center,diagonal_a);require_index_differential(center,diagonal_b);
   require(a.has_value()&&b.has_value()&&a.value().signed_degree==1&&b.value().signed_degree==1,"source polygon degree independent of diagonal");
   require(a.value().hits.size()==1&&b.value().hits.size()==1&&a.value().hits[0].source_facet==facet&&b.value().hits[0].source_facet==facet,"one source polygon owner");
   require(a.value().hits[0].ownership==formal_ray_ownership_kind::facet_interior&&b.value().hits[0].ownership==formal_ray_ownership_kind::facet_interior&&!a.value().hits[0].source_edge&&!b.value().hits[0].source_edge,"internal diagonals are not source edges");
@@ -114,9 +120,11 @@ static void grouped_ray_ownership(){
   const std::vector<original_vertex_id> triangle_ids{v0,v1,v2};
   sourced_exact_operand3 edge_triangle;add_facet(edge_triangle,facet,triangle_ring,triangle_ids,{},{{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},{v0,v1,v2}}});
   auto e=locate_formal_open_point(edge,edge_triangle);
+  require_index_differential(edge,edge_triangle);
   require(e.has_value()&&e.value().hits.size()==1&&e.value().hits[0].ownership==formal_ray_ownership_kind::source_edge&&e.value().hits[0].source_edge==std::optional<std::array<original_vertex_id,2>>({v0,v2})&&e.value().hits[0].source_edge_direction==std::optional<std::array<original_vertex_id,2>>({v2,v0})&&e.value().hits[0].owns_boundary_crossing,"ordered source edge ownership evidence");
   sourced_exact_operand3 shared_edge=edge_triangle;add_facet(shared_edge,facet_id::from_canonical_value(2),triangle_ring,{v0,v3,v2},{},{{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},{v0,v3,v2}}});
   auto se=locate_formal_open_point(edge,shared_edge);
+  require_index_differential(edge,shared_edge);
   require(se.has_value()&&se.value().signed_degree==1&&se.value().hits.size()==2,"shared source edge contributes once");
   require(se.value().hits[0].source_edge==se.value().hits[1].source_edge&&se.value().hits[0].source_edge_direction==std::optional<std::array<original_vertex_id,2>>({v2,v0})&&se.value().hits[0].signed_contribution+se.value().hits[1].signed_contribution==1&&se.value().hits[0].owns_boundary_crossing!=se.value().hits[1].owns_boundary_crossing,"shared source edge has one ordered owner");
   require(validate_formal_ray_ownership_evidence(se.value()),"shared source edge replay evidence");
@@ -129,6 +137,7 @@ static void grouped_ray_ownership(){
   const std::vector<facet_id> vertex_fan{facet,facet_id::from_canonical_value(2),facet_id::from_canonical_value(3)};
   sourced_exact_operand3 vertex_triangle;add_facet(vertex_triangle,facet,vertex_ring,triangle_ids,{vertex_fan,{facet},{facet}},{{{vertex_ring[0],vertex_ring[1],vertex_ring[2]},{v0,v1,v2}}});
   auto v=locate_formal_open_point(vertex,vertex_triangle);
+  require_index_differential(vertex,vertex_triangle);
   require(v.has_value()&&v.value().hits.size()==1&&v.value().hits[0].ownership==formal_ray_ownership_kind::source_vertex&&v.value().hits[0].source_vertex==v0&&v.value().hits[0].source_vertex_fan==vertex_fan&&v.value().hits[0].source_vertex_fan_index==0,"ordered source vertex fan ownership evidence");
   require(validate_formal_ray_ownership_evidence(v.value()),"source vertex fan replay evidence");
   auto damaged_vertex=v.value();damaged_vertex.hits[0].source_vertex_fan_index=1;
@@ -139,10 +148,12 @@ static void grouped_ray_ownership(){
   const std::vector<exact_point3> tangent_ring{p3(1,-2,-2),p3(1,2,-2),p3(1,0,2)};
   sourced_exact_operand3 tangent;add_facet(tangent,facet,tangent_ring,triangle_ids,{},{{{tangent_ring[0],tangent_ring[1],tangent_ring[2]},{v0,v1,v2}}});add_facet(tangent,opposite,tangent_ring,triangle_ids,{},{{{tangent_ring[2],tangent_ring[1],tangent_ring[0]},{v2,v1,v0}}});
   auto t=locate_formal_open_point(center,tangent);
+  require_index_differential(center,tangent);
   require(t.has_value()&&t.value().signed_degree==0&&t.value().hits.size()==2&&t.value().hits[0].parameter_group==t.value().hits[1].parameter_group&&t.value().hits[0].ownership==formal_ray_ownership_kind::tangent&&t.value().hits[1].ownership==formal_ray_ownership_kind::tangent&&!t.value().hits[0].owns_boundary_crossing&&!t.value().hits[1].owns_boundary_crossing,"equal parameter tangent has no owner");
   require(validate_formal_ray_ownership_evidence(t.value()),"tangent replay evidence");
   auto false_crossing=t.value();false_crossing.hits[0].owns_boundary_crossing=true;
   require(!validate_formal_ray_ownership_evidence(false_crossing),"reject tangent crossing owner evidence");
+  sourced_exact_operand3 sparse=diagonal_a;for(std::size_t i=1;i<=20;++i){const auto y=static_cast<std::int64_t>(100*i);const std::vector<exact_point3>ring{p3(1,y-1,-1),p3(1,y+1,-1),p3(1,y,1)};add_facet(sparse,facet_id::from_canonical_value(i),ring,{v0,v1,v2},{},{{{ring[0],ring[1],ring[2]},{v0,v1,v2}}});}require_index_differential(center,sparse);require(build_sourced_exact_ray_index(sparse).nodes.size()>1,"ray index subdivides sparse operand");
 }
 static void stable_formal_ray_fallback(){
   const std::array<exact_vector3,10> directions{{

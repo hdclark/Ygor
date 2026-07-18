@@ -255,7 +255,7 @@ digest artifact_digest_for(const labeled_arrangement<T, I> &a) {
 template <class T, class I>
 status_or<std::uint64_t>
 classification_geometry_bytes(const validated_operands<T, I> &v,
-                              operand_id operand) {
+                              operand_id operand, bool producer_index) {
   std::uint64_t facets = 0, triangles = 0, ring_entries = 0, fan_members = 0;
   for (const auto &f : v.facets) if (f.operand == operand) {
     auto count = checked_add(facets, 1, boolean_stage::cell_classification);
@@ -297,7 +297,35 @@ classification_geometry_bytes(const validated_operands<T, I> &v,
   bytes = checked_add(bytes.value(), ring_bytes.value(),
                       boolean_stage::cell_classification);
   if (!bytes.has_value()) return bytes.error();
-  return checked_add(bytes.value(), fan_bytes.value(),
+  bytes = checked_add(bytes.value(), fan_bytes.value(),
+                      boolean_stage::cell_classification);
+  if (!bytes.has_value()) return bytes.error();
+  auto sweep_bytes = checked_multiply(
+      facets, sizeof(exact_box3) + sizeof(std::size_t),
+      boolean_stage::cell_classification);
+  if (!sweep_bytes.has_value()) return sweep_bytes.error();
+  bytes = checked_add(bytes.value(), sweep_bytes.value(),
+                      boolean_stage::cell_classification);
+  if (!bytes.has_value() || !producer_index) return bytes;
+  std::function<std::uint64_t(std::uint64_t)> node_count =
+      [&](std::uint64_t count) -> std::uint64_t {
+    if (count == 0) return 0;
+    if (count <= 8) return 1;
+    const auto left = count / 2;
+    return 1 + node_count(left) + node_count(count - left);
+  };
+  auto index_entries = checked_multiply(
+      triangles, sizeof(exact_box3) + sizeof(std::size_t),
+      boolean_stage::cell_classification);
+  auto node_bytes = checked_multiply(
+      node_count(triangles), sizeof(sourced_exact_ray_index_node3),
+      boolean_stage::cell_classification);
+  if (!index_entries.has_value()) return index_entries.error();
+  if (!node_bytes.has_value()) return node_bytes.error();
+  bytes = checked_add(bytes.value(), index_entries.value(),
+                      boolean_stage::cell_classification);
+  if (!bytes.has_value()) return bytes.error();
+  return checked_add(bytes.value(), node_bytes.value(),
                      boolean_stage::cell_classification);
 }
 
@@ -581,17 +609,116 @@ bool formal_point_in_facet(const formal_projected_point &p,
   return inside;
 }
 
+struct verifier_facet_sweep {
+  std::vector<exact_box3> bounds;
+  std::vector<std::size_t> by_maximum_x;
+};
+
+exact_box3 verifier_ring_bounds(const std::vector<exact_point3> &ring) {
+  exact_box3 out{ring.front(), ring.front()};
+  for (const auto &p : ring) {
+    if (p.x < out.minimum.x) out.minimum.x = p.x;
+    if (out.maximum.x < p.x) out.maximum.x = p.x;
+    if (p.y < out.minimum.y) out.minimum.y = p.y;
+    if (out.maximum.y < p.y) out.maximum.y = p.y;
+    if (p.z < out.minimum.z) out.minimum.z = p.z;
+    if (out.maximum.z < p.z) out.maximum.z = p.z;
+  }
+  return out;
+}
+
+verifier_facet_sweep build_verifier_facet_sweep(
+    const sourced_exact_operand3 &geometry) {
+  verifier_facet_sweep out;
+  out.bounds.reserve(geometry.facets.size());
+  out.by_maximum_x.reserve(geometry.facets.size());
+  for (std::size_t i = 0; i < geometry.facets.size(); ++i) {
+    out.bounds.push_back(verifier_ring_bounds(geometry.facets[i].source_ring));
+    out.by_maximum_x.push_back(i);
+  }
+  std::sort(out.by_maximum_x.begin(), out.by_maximum_x.end(), [&](auto a, auto b) {
+    const auto &x = out.bounds[a].maximum.x;
+    const auto &y = out.bounds[b].maximum.x;
+    return x != y ? x < y
+                  : geometry.facets[a].source_facet < geometry.facets[b].source_facet;
+  });
+  return out;
+}
+
+bool verifier_ray_meets_box(const exact_point3 &origin,
+                            const exact_vector3 &direction,
+                            const exact_box3 &box) {
+  struct ratio { exact_scalar numerator, denominator; };
+  auto less = [](const ratio &a, const ratio &b) {
+    return a.numerator * b.denominator < b.numerator * a.denominator;
+  };
+  ratio lower{exact_scalar(0), exact_scalar(1)};
+  std::optional<ratio> upper;
+  const std::array<const exact_scalar *, 3> origins{{&origin.x, &origin.y, &origin.z}},
+      directions{{&direction.x, &direction.y, &direction.z}},
+      minima{{&box.minimum.x, &box.minimum.y, &box.minimum.z}},
+      maxima{{&box.maximum.x, &box.maximum.y, &box.maximum.z}};
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    if (directions[axis]->is_zero()) {
+      if (*origins[axis] < *minima[axis] || *maxima[axis] < *origins[axis])
+        return false;
+      continue;
+    }
+    ratio first{*minima[axis] - *origins[axis], *directions[axis]};
+    ratio last{*maxima[axis] - *origins[axis], *directions[axis]};
+    if (directions[axis]->sign() == exact_sign::negative) {
+      first = {*origins[axis] - *maxima[axis], directions[axis]->negated()};
+      last = {*origins[axis] - *minima[axis], directions[axis]->negated()};
+    }
+    if (less(lower, first)) lower = std::move(first);
+    if (!upper || less(last, *upper)) upper = std::move(last);
+    if (upper && less(*upper, lower)) return false;
+  }
+  return true;
+}
+
+std::vector<std::size_t> verifier_ray_candidates(
+    const sourced_exact_operand3 &geometry, const verifier_facet_sweep &sweep,
+    const formal_open_point_view &point, const exact_vector3 &direction) {
+  std::vector<std::size_t> out;
+  for (const auto fi : sweep.by_maximum_x) {
+    const auto &facet = geometry.facets[fi];
+    const bool formal_plane_containment =
+        dot(facet.source_normal, direction).is_zero() &&
+        oriented_plane_value(facet.source_plane, point.base).is_zero() &&
+        dot(facet.source_normal, point.infinitesimal_direction).is_zero();
+    if (formal_plane_containment ||
+        verifier_ray_meets_box(point.base, direction, sweep.bounds[fi]))
+      out.push_back(fi);
+  }
+  performance_count(performance_counter::ray_box_candidates, out.size());
+  return out;
+}
+
 bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
+                                    const verifier_facet_sweep &sweep,
                                     const formal_open_point_view &point,
                                     const operand_ray_evidence &stored) {
   const auto &direction = stored.direction;
   std::int64_t degree = 0;
   std::vector<facet_id> sources;
-  for (const auto &facet : geometry.facets) {
+  struct reconstructed_hit {
+    facet_id facet;
+    exact_scalar constant, epsilon;
+  };
+  std::vector<reconstructed_hit> reconstructed;
+  performance_count(performance_counter::reconstructed_rays);
+  for (const auto fi : verifier_ray_candidates(geometry, sweep, point, direction)) {
+    const auto &facet = geometry.facets[fi];
+    performance_count(performance_counter::exact_ray_facet_tests);
     const auto &normal = facet.source_normal;
     const auto denominator = dot(normal, direction);
-    if (denominator.is_zero())
+    if (denominator.is_zero()) {
+      if (oriented_plane_value(facet.source_plane, point.base).is_zero() &&
+          dot(normal, point.infinitesimal_direction).is_zero())
+        return false;
       continue;
+    }
     auto plane_value = oriented_plane_value(facet.source_plane, point.base);
     const auto tc = plane_value.negated() / denominator;
     const auto te = dot(normal, point.infinitesimal_direction).negated() /
@@ -609,6 +736,7 @@ bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
       continue;
     degree += denominator.sign() == exact_sign::positive ? 1 : -1;
     sources.push_back(facet.source_facet);
+    reconstructed.push_back({facet.source_facet, tc, te});
   }
   std::sort(sources.begin(), sources.end());
   std::vector<facet_id> stored_sources;
@@ -616,6 +744,21 @@ bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
     if (h.source_facet)
       stored_sources.push_back(*h.source_facet);
   std::sort(stored_sources.begin(), stored_sources.end());
+  if (reconstructed.size() != stored.hits.size()) return false;
+  std::vector<bool> matched(reconstructed.size(), false);
+  for (const auto &h : stored.hits) {
+    if (!h.source_facet) return false;
+    bool found = false;
+    for (std::size_t i = 0; i < reconstructed.size(); ++i)
+      if (!matched[i] && reconstructed[i].facet == *h.source_facet &&
+          reconstructed[i].constant == h.parameter_constant &&
+          reconstructed[i].epsilon == h.parameter_epsilon) {
+        matched[i] = true;
+        found = true;
+        break;
+      }
+    if (!found) return false;
+  }
   return degree == stored.signed_degree &&
          stored.location == (degree == 1 ? operand_location_kind::inside
                                          : operand_location_kind::outside) &&
@@ -623,17 +766,24 @@ bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
 }
 template <class T, class I>
 bool independently_check_shell_polarity(const validated_operands<T, I> &v,
-                                         const sourced_exact_operand3 &geometry,
-                                         operand_id operand,
+                                          const sourced_exact_operand3 &geometry,
+                                          const verifier_facet_sweep &sweep,
+                                          operand_id operand,
                                         const formal_open_point_view &point,
                                         const operand_ray_evidence &stored) {
   const auto &direction = stored.direction;
   std::map<shell_id, std::int64_t> degrees;
-  for (const auto &facet : geometry.facets) {
+  for (const auto fi : verifier_ray_candidates(geometry, sweep, point, direction)) {
+    const auto &facet = geometry.facets[fi];
+    performance_count(performance_counter::exact_ray_facet_tests);
     const auto &normal = facet.source_normal;
     const auto denominator = dot(normal, direction);
-    if (denominator.is_zero())
+    if (denominator.is_zero()) {
+      if (oriented_plane_value(facet.source_plane, point.base).is_zero() &&
+          dot(normal, point.infinitesimal_direction).is_zero())
+        return false;
       continue;
+    }
     auto plane_value = oriented_plane_value(facet.source_plane, point.base);
     const auto tc = plane_value.negated() / denominator;
     const auto te = dot(normal, point.infinitesimal_direction).negated() /
@@ -697,36 +847,6 @@ operand_ray_evidence ray_record(operand_id op,
               : operand_location_kind::outside,
           location.hits,
           location_digest(op, component, location)};
-}
-bool same_ray(const operand_ray_evidence &stored,
-              const formal_operand_location &actual) {
-  if (stored.direction_index != actual.ray_direction_index ||
-      stored.direction.x != actual.ray_direction.x ||
-      stored.direction.y != actual.ray_direction.y ||
-      stored.direction.z != actual.ray_direction.z ||
-      stored.signed_degree != actual.signed_degree ||
-      stored.location != (actual.location == formal_operand_location_kind::inside
-                              ? operand_location_kind::inside
-                              : operand_location_kind::outside) ||
-      stored.hits.size() != actual.hits.size())
-    return false;
-  for (std::size_t i = 0; i < stored.hits.size(); ++i) {
-    const auto &x = stored.hits[i];
-    const auto &y = actual.hits[i];
-    if (x.triangle != y.triangle || x.source_facet != y.source_facet ||
-        x.source_primitive != y.source_primitive ||
-        x.parameter_constant != y.parameter_constant ||
-        x.parameter_epsilon != y.parameter_epsilon ||
-        x.signed_contribution != y.signed_contribution ||
-        x.parameter_group != y.parameter_group || x.ownership != y.ownership ||
-        x.source_vertex != y.source_vertex || x.source_edge != y.source_edge ||
-        x.source_vertex_fan != y.source_vertex_fan ||
-        x.source_vertex_fan_index != y.source_vertex_fan_index ||
-        x.source_edge_direction != y.source_edge_direction ||
-        x.owns_boundary_crossing != y.owns_boundary_crossing)
-      return false;
-  }
-  return true;
 }
 template <class T, class I>
 bool valid_source_attribution(const validated_operands<T, I> &v,
@@ -878,7 +998,7 @@ point_region_relation patch_relation(const arrangement_complex<T, I> &g,
 
 template <class T, class I>
 exact_point3 patch_interior_witness(const arrangement_complex<T, I> &g,
-                                    const global_patch &patch) {
+                                     const global_patch &patch) {
   const exact_scalar third = exact_scalar(1) / exact_scalar(3);
   for (std::size_t i = 0; i < patch.outer.size(); ++i)
     for (std::size_t j = i + 1; j < patch.outer.size(); ++j)
@@ -897,6 +1017,51 @@ exact_point3 patch_interior_witness(const arrangement_complex<T, I> &g,
 }
 
 template <class T, class I>
+exact_box3 global_patch_bounds(const arrangement_complex<T, I> &g,
+                               const global_patch &patch) {
+  bool first = true;
+  exact_box3 out;
+  auto include = [&](global_vertex_id id) {
+    const auto &point = g.symbolic->payload->vertices[
+        g.vertices[id.value_for_debug()].symbolic.value_for_debug()].point;
+    if (first) {
+      out = {point, point};
+      first = false;
+      return;
+    }
+    if (point.x < out.minimum.x) out.minimum.x = point.x;
+    if (out.maximum.x < point.x) out.maximum.x = point.x;
+    if (point.y < out.minimum.y) out.minimum.y = point.y;
+    if (out.maximum.y < point.y) out.maximum.y = point.y;
+    if (point.z < out.minimum.z) out.minimum.z = point.z;
+    if (out.maximum.z < point.z) out.maximum.z = point.z;
+  };
+  for (auto id : patch.outer) include(id);
+  for (const auto &hole : patch.holes)
+    for (auto id : hole) include(id);
+  if (first) throw std::logic_error("empty global patch bound");
+  return out;
+}
+
+bool segment_meets_closed_box(const exact_point3 &origin,
+                              const exact_point3 &destination,
+                              const exact_box3 &box) {
+  const std::array<const exact_scalar *, 3> origins{{&origin.x, &origin.y, &origin.z}},
+      destinations{{&destination.x, &destination.y, &destination.z}},
+      minima{{&box.minimum.x, &box.minimum.y, &box.minimum.z}},
+      maxima{{&box.maximum.x, &box.maximum.y, &box.maximum.z}};
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    const auto &segment_min = *destinations[axis] < *origins[axis]
+                                  ? *destinations[axis] : *origins[axis];
+    const auto &segment_max = *origins[axis] < *destinations[axis]
+                                  ? *destinations[axis] : *origins[axis];
+    if (segment_max < *minima[axis] || *maxima[axis] < segment_min)
+      return false;
+  }
+  return true;
+}
+
+template <class T, class I>
 exterior_attachment_result
 exterior_attachment(const arrangement_complex<T, I> &g,
                     const exact_point3 &witness) {
@@ -906,7 +1071,18 @@ exterior_attachment(const arrangement_complex<T, I> &g,
   const auto target_witness = patch_interior_witness(g, target);
   const exact_vector3 direction = target_witness - witness;
   std::vector<exterior_attachment_hit> hits;
-  for (const auto &patch : g.patches) {
+  std::vector<std::size_t> candidates;
+  candidates.reserve(g.patches.size());
+  for (std::size_t i = 0; i < g.patches.size(); ++i)
+    if (formal_ray_index_policy::test_execution_policy() ==
+            formal_ray_index_execution_policy::exhaustive ||
+        segment_meets_closed_box(witness, target_witness,
+                                 global_patch_bounds(g, g.patches[i])))
+      candidates.push_back(i);
+  performance_count(performance_counter::exterior_attachment_candidates,
+                    candidates.size());
+  for (const auto patch_index : candidates) {
+    const auto &patch = g.patches[patch_index];
     exact_vector3 normal{exact_scalar(patch.plane.a, big_uint(1)),
                          exact_scalar(patch.plane.b, big_uint(1)),
                          exact_scalar(patch.plane.c, big_uint(1))};
@@ -967,6 +1143,8 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     return false;
   const auto ta = build_verifier_operand_geometry(*a.validated->payload, operand_a());
   const auto tb = build_verifier_operand_geometry(*a.validated->payload, operand_b());
+  const auto sweep_a = build_verifier_facet_sweep(ta);
+  const auto sweep_b = build_verifier_facet_sweep(tb);
   if (a.seeds.size() != g.probes.size())
     return false;
   for (std::size_t i = 0; i < g.probes.size(); ++i) {
@@ -974,34 +1152,25 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     if (!p.has_value())
       return false;
     const auto &s = a.seeds[i];
-    auto ap = locate_formal_open_point(p.value(), ta, s.operand_a_primary.direction_index);
-    auto aa = locate_formal_open_point(p.value(), ta, s.operand_a_alternate.direction_index);
-    auto bp = locate_formal_open_point(p.value(), tb, s.operand_b_primary.direction_index);
-    auto ba = locate_formal_open_point(p.value(), tb, s.operand_b_alternate.direction_index);
-    if (!ap.has_value() || !aa.has_value() || !bp.has_value() || !ba.has_value() ||
-        !same_ray(s.operand_a_primary, ap.value()) ||
-        !same_ray(s.operand_a_alternate, aa.value()) ||
-        !same_ray(s.operand_b_primary, bp.value()) ||
-        !same_ray(s.operand_b_alternate, ba.value()) ||
-         !valid_source_attribution(*a.validated->payload, operand_a(), s.operand_a,
-                                   s.operand_a_primary) ||
+    if (!valid_source_attribution(*a.validated->payload, operand_a(), s.operand_a,
+                                    s.operand_a_primary) ||
          !valid_source_attribution(*a.validated->payload, operand_a(), s.operand_a,
                                    s.operand_a_alternate, false) ||
          !valid_source_attribution(*a.validated->payload, operand_b(), s.operand_b,
                                    s.operand_b_primary) ||
          !valid_source_attribution(*a.validated->payload, operand_b(), s.operand_b,
                                    s.operand_b_alternate, false) ||
-          !independently_reconstruct_ray(ta, p.value(), s.operand_a_primary) ||
-          !independently_reconstruct_ray(ta, p.value(), s.operand_a_alternate) ||
-           !independently_reconstruct_ray(tb, p.value(), s.operand_b_primary) ||
-           !independently_reconstruct_ray(tb, p.value(), s.operand_b_alternate) ||
-           !independently_check_shell_polarity(*a.validated->payload, ta, operand_a(),
+          !independently_reconstruct_ray(ta, sweep_a, p.value(), s.operand_a_primary) ||
+          !independently_reconstruct_ray(ta, sweep_a, p.value(), s.operand_a_alternate) ||
+           !independently_reconstruct_ray(tb, sweep_b, p.value(), s.operand_b_primary) ||
+           !independently_reconstruct_ray(tb, sweep_b, p.value(), s.operand_b_alternate) ||
+           !independently_check_shell_polarity(*a.validated->payload, ta, sweep_a, operand_a(),
                                                 p.value(), s.operand_a_primary) ||
-           !independently_check_shell_polarity(*a.validated->payload, ta, operand_a(),
+           !independently_check_shell_polarity(*a.validated->payload, ta, sweep_a, operand_a(),
                                                 p.value(), s.operand_a_alternate) ||
-           !independently_check_shell_polarity(*a.validated->payload, tb, operand_b(),
+           !independently_check_shell_polarity(*a.validated->payload, tb, sweep_b, operand_b(),
                                                 p.value(), s.operand_b_primary) ||
-           !independently_check_shell_polarity(*a.validated->payload, tb, operand_b(),
+           !independently_check_shell_polarity(*a.validated->payload, tb, sweep_b, operand_b(),
                                                 p.value(), s.operand_b_alternate))
       return false;
   }
@@ -1029,13 +1198,12 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
     }
   formal_open_point_view q{witness, {exact_scalar(0), exact_scalar(0), exact_scalar(0)},
                            {perturbation_domain::generic_ray, {}, 0}};
-  auto la = locate_formal_open_point(q, ta, a.certificate.exterior_operand_a.direction_index);
-  auto lb = locate_formal_open_point(q, tb, a.certificate.exterior_operand_b.direction_index);
-  return la.has_value() && lb.has_value() &&
-         same_ray(a.certificate.exterior_operand_a, la.value()) &&
-         same_ray(a.certificate.exterior_operand_b, lb.value()) &&
-         la.value().location == formal_operand_location_kind::outside &&
-         lb.value().location == formal_operand_location_kind::outside &&
+  return independently_reconstruct_ray(ta, sweep_a, q,
+                                       a.certificate.exterior_operand_a) &&
+          independently_reconstruct_ray(tb, sweep_b, q,
+                                       a.certificate.exterior_operand_b) &&
+          a.certificate.exterior_operand_a.location == operand_location_kind::outside &&
+          a.certificate.exterior_operand_b.location == operand_location_kind::outside &&
           a.certificate.exterior_region.value_for_debug() < a.regions.size() &&
            (!attachment ||
             (attachment->side.value_for_debug() < a.side_labels.size() &&
@@ -1204,9 +1372,9 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     std::optional<resource_reservation> scratch_charge;
     if (safe_dependencies && e.accountant) {
       auto bytes_a = classification_geometry_bytes(*a.validated->payload,
-                                                   operand_a());
+                                                   operand_a(), false);
       auto bytes_b = classification_geometry_bytes(*a.validated->payload,
-                                                   operand_b());
+                                                   operand_b(), false);
       if (!bytes_a.has_value()) return bytes_a.error();
       if (!bytes_b.has_value()) return bytes_b.error();
       auto scratch = checked_add(bytes_a.value(), bytes_b.value(),
@@ -1319,8 +1487,8 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::cell_classification,
                         "classification_strategy_mismatch");
-    auto bytes_a = classification_geometry_bytes(*g.validated->payload, operand_a());
-    auto bytes_b = classification_geometry_bytes(*g.validated->payload, operand_b());
+    auto bytes_a = classification_geometry_bytes(*g.validated->payload, operand_a(), true);
+    auto bytes_b = classification_geometry_bytes(*g.validated->payload, operand_b(), true);
     if (!bytes_a.has_value()) return bytes_a.error();
     if (!bytes_b.has_value()) return bytes_b.error();
     auto geometry_bytes = checked_add(bytes_a.value(), bytes_b.value(),
@@ -1334,6 +1502,10 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
                    *g.validated->payload, operand_a()),
                triangles_b = build_producer_operand_geometry(
                    *g.validated->payload, operand_b());
+    const auto ray_index_a = build_sourced_exact_ray_index(triangles_a),
+               ray_index_b = build_sourced_exact_ray_index(triangles_b);
+    const auto polarity_sweep_a = build_verifier_facet_sweep(triangles_a),
+               polarity_sweep_b = build_verifier_facet_sweep(triangles_b);
     std::map<open_region_component_id, classification_region_id> region_ids;
     for (std::size_t i = 0; i < g.probes.size(); ++i) {
       if (ctx.cancelled())
@@ -1347,17 +1519,17 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       auto probe = formal_probe(g, p);
       if (!probe.has_value())
         return probe.error();
-      auto la = locate_formal_open_point(probe.value(), triangles_a),
-           lb = locate_formal_open_point(probe.value(), triangles_b);
+      auto la = locate_formal_open_point(probe.value(), triangles_a, ray_index_a),
+           lb = locate_formal_open_point(probe.value(), triangles_b, ray_index_b);
       if (!la.has_value())
         return la.error();
       if (!lb.has_value())
         return lb.error();
       auto la2 = locate_formal_open_point(
-               probe.value(), triangles_a,
+               probe.value(), triangles_a, ray_index_a,
                static_cast<std::uint8_t>(la.value().ray_direction_index + 1)),
            lb2 = locate_formal_open_point(
-               probe.value(), triangles_b,
+               probe.value(), triangles_b, ray_index_b,
                static_cast<std::uint8_t>(lb.value().ray_direction_index + 1));
       if (!la2.has_value())
         return la2.error();
@@ -1373,9 +1545,11 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       const auto shell_a = ray_record(operand_a(), p.component, la.value());
       const auto shell_b = ray_record(operand_b(), p.component, lb.value());
       if (!independently_check_shell_polarity(*g.validated->payload, triangles_a,
+                                               polarity_sweep_a,
                                                operand_a(),
                                                probe.value(), shell_a) ||
           !independently_check_shell_polarity(*g.validated->payload, triangles_b,
+                                               polarity_sweep_b,
                                                operand_b(),
                                                probe.value(), shell_b))
         return make_error(boolean_error_code::internal_invariant_error,
@@ -1705,8 +1879,8 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
         a.certificate.exterior_witness,
         {exact_scalar(0), exact_scalar(0), exact_scalar(0)},
         {perturbation_domain::generic_ray, {}, 0}};
-    auto exterior_a = locate_formal_open_point(exterior_probe, triangles_a);
-    auto exterior_b = locate_formal_open_point(exterior_probe, triangles_b);
+    auto exterior_a = locate_formal_open_point(exterior_probe, triangles_a, ray_index_a);
+    auto exterior_b = locate_formal_open_point(exterior_probe, triangles_b, ray_index_b);
     if (!exterior_a.has_value()) return exterior_a.error();
     if (!exterior_b.has_value()) return exterior_b.error();
     if (exterior_a.value().location != formal_operand_location_kind::outside ||

@@ -142,6 +142,16 @@ struct sourced_exact_operand3 {
     std::vector<sourced_exact_facet3> facets;
     std::vector<sourced_exact_triangle3> triangles;
 };
+struct sourced_exact_ray_index_node3 {
+    exact_box3 bounds;
+    std::size_t begin=0,end=0,left=0,right=0;
+    bool leaf=true;
+};
+struct sourced_exact_ray_index3 {
+    std::vector<exact_box3> triangle_bounds;
+    std::vector<std::size_t> order;
+    std::vector<sourced_exact_ray_index_node3> nodes;
+};
 struct formal_operand_location {
     formal_operand_location_kind location=formal_operand_location_kind::outside;
     std::int32_t signed_degree=0;
@@ -154,6 +164,14 @@ struct formal_operand_location {
 bool validate_formal_ray_ownership_evidence(const formal_operand_location&) noexcept;
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const std::vector<exact_triangle3>&,std::uint8_t first_direction=0);
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const sourced_exact_operand3&,std::uint8_t first_direction=0);
+sourced_exact_ray_index3 build_sourced_exact_ray_index(const sourced_exact_operand3&);
+status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const sourced_exact_operand3&,const sourced_exact_ray_index3&,std::uint8_t first_direction=0);
+enum class formal_ray_index_execution_policy:std::uint8_t{accelerated,exhaustive,differential};
+namespace formal_ray_index_policy {
+// Process-wide nonsemantic seam for exhaustive differential tests.
+formal_ray_index_execution_policy exchange_test_execution_policy(formal_ray_index_execution_policy)noexcept;
+formal_ray_index_execution_policy test_execution_policy()noexcept;
+}
 
 enum class carrier_relation:std::uint8_t{skew,nonparallel_coplanar,parallel_distinct,collinear};enum class intersection_dimension:std::uint8_t{empty,point,segment};
 enum class segment_point_kind:std::uint8_t{none,proper_crossing,endpoint_endpoint,endpoint_interior};enum class overlap_kind:std::uint8_t{none,partial,first_contains_second,second_contains_first,equal_same_direction,equal_opposite_direction};

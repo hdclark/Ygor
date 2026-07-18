@@ -28,11 +28,14 @@ exact_scalar dot(const exact_vector2&a,const exact_vector2&b){return a.x*b.x+a.y
 exact_sign dot_sign_exact(const exact_vector2&a,const exact_vector2&b){return dot(a,b).sign();}exact_sign dot_sign_exact(const exact_vector3&a,const exact_vector3&b){return dot(a,b).sign();}
 namespace{
 std::atomic<predicate_execution_policy>test_execution_policy{predicate_execution_policy::automatic};
+std::atomic<formal_ray_index_execution_policy>test_ray_index_policy{formal_ray_index_execution_policy::accelerated};
 template<class Filter,class Exact>exact_sign filtered(predicate_execution_policy policy,performance_counter accepted,performance_counter fallback,Filter filter,Exact exact){
  if(policy==predicate_execution_policy::automatic)policy=test_execution_policy.load(std::memory_order_relaxed);
  if(policy!=predicate_execution_policy::exact_only&&policy!=predicate_execution_policy::force_exact_fallback){if(auto sign=filter()){performance_count(performance_counter::filter_accepts);performance_count(accepted);return *sign;}performance_count(performance_counter::filter_fallbacks);performance_count(fallback);}else if(policy==predicate_execution_policy::force_exact_fallback){performance_count(performance_counter::filter_fallbacks);performance_count(fallback);}performance_count(performance_counter::exact_fallbacks);return exact();
 }}
 predicate_execution_policy exact_filter_policy::exchange_test_execution_policy(predicate_execution_policy policy)noexcept{return test_execution_policy.exchange(policy,std::memory_order_relaxed);}
+formal_ray_index_execution_policy formal_ray_index_policy::exchange_test_execution_policy(formal_ray_index_execution_policy policy)noexcept{return test_ray_index_policy.exchange(policy,std::memory_order_relaxed);}
+formal_ray_index_execution_policy formal_ray_index_policy::test_execution_policy()noexcept{return test_ray_index_policy.load(std::memory_order_relaxed);}
 exact_sign dot_sign(const exact_vector2&a,const exact_vector2&b,predicate_execution_policy p,coordinate_tag t){performance_count(performance_counter::dot_sign_calls);return filtered(p,performance_counter::dot_sign_filter_accepts,performance_counter::dot_sign_filter_fallbacks,[&]{return exact_filter_policy::dot_sign(a,b,t);},[&]{return dot_sign_exact(a,b);});}
 exact_sign dot_sign(const exact_vector3&a,const exact_vector3&b,predicate_execution_policy p,coordinate_tag t){performance_count(performance_counter::dot_sign_calls);return filtered(p,performance_counter::dot_sign_filter_accepts,performance_counter::dot_sign_filter_fallbacks,[&]{return exact_filter_policy::dot_sign(a,b,t);},[&]{return dot_sign_exact(a,b);});}
 exact_sign orient2d_exact(const exact_point2&a,const exact_point2&b,const exact_point2&c){auto u=b-a,v=c-a;return sg(u.x*v.y-u.y*v.x);}exact_sign orient3d_exact(const exact_point3&a,const exact_point3&b,const exact_point3&c,const exact_point3&d){return sg(dot(b-a,cross(c-a,d-a)));}
@@ -64,8 +67,21 @@ struct ray_source_attribution {
   const exact_plane3* plane=nullptr;
   const exact_vector3* normal=nullptr;
 };
-template<class Triangle, class Geometry, class Source>
-status_or<formal_operand_location> locate_formal_open_point_impl(const formal_open_point_view&q,const std::vector<Triangle>&tris,std::uint8_t first_direction,Geometry geometry,Source source){
+exact_box3 triangle_bounds(const exact_triangle3&t){
+ exact_box3 b{t.a,t.a};for(const auto*p:{&t.b,&t.c}){if(p->x<b.minimum.x)b.minimum.x=p->x;if(b.maximum.x<p->x)b.maximum.x=p->x;if(p->y<b.minimum.y)b.minimum.y=p->y;if(b.maximum.y<p->y)b.maximum.y=p->y;if(p->z<b.minimum.z)b.minimum.z=p->z;if(b.maximum.z<p->z)b.maximum.z=p->z;}return b;
+}
+exact_box3 joined(const exact_box3&a,const exact_box3&b){exact_box3 q=a;if(b.minimum.x<q.minimum.x)q.minimum.x=b.minimum.x;if(q.maximum.x<b.maximum.x)q.maximum.x=b.maximum.x;if(b.minimum.y<q.minimum.y)q.minimum.y=b.minimum.y;if(q.maximum.y<b.maximum.y)q.maximum.y=b.maximum.y;if(b.minimum.z<q.minimum.z)q.minimum.z=b.minimum.z;if(q.maximum.z<b.maximum.z)q.maximum.z=b.maximum.z;return q;}
+const exact_scalar& box_min(const exact_box3&b,unsigned axis){return axis==0?b.minimum.x:axis==1?b.minimum.y:b.minimum.z;}
+const exact_scalar& box_max(const exact_box3&b,unsigned axis){return axis==0?b.maximum.x:axis==1?b.maximum.y:b.maximum.z;}
+const exact_scalar& point_axis(const exact_point3&p,unsigned axis){return axis==0?p.x:axis==1?p.y:p.z;}
+const exact_scalar& vector_axis(const exact_vector3&p,unsigned axis){return axis==0?p.x:axis==1?p.y:p.z;}
+bool ray_meets_closed_box(const exact_point3&origin,const exact_vector3&direction,const exact_box3&box){
+ struct ratio{exact_scalar numerator,denominator;};auto less=[](const ratio&a,const ratio&b){return a.numerator*b.denominator<b.numerator*a.denominator;};ratio lower{exact_scalar(0),exact_scalar(1)};std::optional<ratio>upper;
+ for(unsigned axis=0;axis<3;++axis){const auto&o=point_axis(origin,axis);const auto&d=vector_axis(direction,axis);const auto&lo=box_min(box,axis);const auto&hi=box_max(box,axis);if(d.is_zero()){if(o<lo||hi<o)return false;continue;}ratio a{lo-o,d},b{hi-o,d};if(d.sign()==exact_sign::negative){a={o-hi,d.negated()};b={o-lo,d.negated()};}if(less(lower,a))lower=std::move(a);if(!upper||less(b,*upper))upper=std::move(b);if(upper&&less(*upper,lower))return false;}return true;
+}
+std::vector<std::size_t> all_candidates(std::size_t n){std::vector<std::size_t>out(n);for(std::size_t i=0;i<n;++i)out[i]=i;return out;}
+template<class Triangle, class Geometry, class Source, class Candidates>
+status_or<formal_operand_location> locate_formal_open_point_impl(const formal_open_point_view&q,const std::vector<Triangle>&tris,std::uint8_t first_direction,Geometry geometry,Source source,Candidates candidates){
  performance_count(performance_counter::shell_location_queries);
  performance_count(performance_counter::classification_source_triangles,tris.size());
  std::vector<exact_vector3>dirs{
@@ -90,7 +106,7 @@ status_or<formal_operand_location> locate_formal_open_point_impl(const formal_op
  const auto attempts=first_direction==0?dirs.size():dirs.size()-1;
  for(std::size_t offset=0;offset<attempts;++offset){const auto di=(start+offset)%dirs.size();
   formal_operand_location out;out.ray_direction_index=static_cast<std::uint8_t>(di);out.ray_direction=dirs[di];bool ambiguous=false;std::int64_t degree=0;
-    for(std::size_t ti=0;ti<tris.size();++ti){performance_count(performance_counter::exact_ray_facet_tests);const auto&t=geometry(tris[ti]);auto attribution=source(tris[ti]);auto pl=attribution.plane?status_or<exact_plane3>(*attribution.plane):support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();
+    const auto ray_candidates=candidates(dirs[di]);performance_count(performance_counter::ray_box_candidates,ray_candidates.size());for(const auto ti:ray_candidates){if(ti>=tris.size())return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"formal_ray_candidate_range");performance_count(performance_counter::exact_ray_facet_tests);const auto&t=geometry(tris[ti]);auto attribution=source(tris[ti]);auto pl=attribution.plane?status_or<exact_plane3>(*attribution.plane):support_plane(t.a,t.b,t.c);if(!pl.has_value())return pl.error();
     exact_vector3 n=attribution.normal?*attribution.normal:exact_vector3{ri(pl.value().a),ri(pl.value().b),ri(pl.value().c)};if(!attribution.normal&&pl.value().oriented==orientation_parity::opposite)n=n*exact_scalar(-1);
     auto den=dot(n,dirs[di]);if(den.is_zero()){auto c0=eval(pl.value(),q.base);if(c0.sign()==exact_sign::zero&&dot_sign(n,q.infinitesimal_direction)==exact_sign::zero){ambiguous=true;break;}continue;}
     performance_count(performance_counter::geometric_exact_divisions,2);auto tc=eval(pl.value(),q.base).negated()/den,te=dot(n,q.infinitesimal_direction).negated()/den;
@@ -119,11 +135,41 @@ status_or<formal_operand_location> locate_formal_open_point_impl(const formal_op
  return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"formal_point_location_unresolved");
 }
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&q,const std::vector<exact_triangle3>&tris,std::uint8_t first_direction){
-   return locate_formal_open_point_impl(q,tris,first_direction,[](const exact_triangle3&t){return t;},[](const exact_triangle3&){return ray_source_attribution{};});
+    return locate_formal_open_point_impl(q,tris,first_direction,[](const exact_triangle3&t){return t;},[](const exact_triangle3&){return ray_source_attribution{};},[&](const exact_vector3&){return all_candidates(tris.size());});
 }
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&q,const sourced_exact_operand3&operand,std::uint8_t first_direction){
     std::size_t next_triangle=0;for(std::size_t i=0;i<operand.facets.size();++i){const auto&f=operand.facets[i];if(f.triangle_begin!=next_triangle||f.triangle_begin>f.triangle_end||f.triangle_end>operand.triangles.size()||f.source_ring.size()<3||f.source_ring.size()!=f.projected_ring.size()||f.source_ring.size()!=f.source_ring_vertices.size()||f.source_ring.size()!=f.source_vertex_fans.size())return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"source_facet_record");for(std::size_t j=f.triangle_begin;j<f.triangle_end;++j){const auto&t=operand.triangles[j];if(t.source_facet_index!=i||t.source_facet!=f.source_facet||t.source_primitive!=j-f.triangle_begin)return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"source_triangle_record");}next_triangle=f.triangle_end;}if(next_triangle!=operand.triangles.size())return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"source_triangle_coverage");
-    return locate_formal_open_point_impl(q,operand.triangles,first_direction,[](const sourced_exact_triangle3&t){return t.triangle;},[&](const sourced_exact_triangle3&t){const auto&f=operand.facets[t.source_facet_index];return ray_source_attribution{t.source_facet,t.source_primitive,t.source_vertices,&f.source_ring,&f.source_ring_vertices,&f.source_vertex_fans,&f.source_plane,&f.source_normal};});
+    return locate_formal_open_point_impl(q,operand.triangles,first_direction,[](const sourced_exact_triangle3&t){return t.triangle;},[&](const sourced_exact_triangle3&t){const auto&f=operand.facets[t.source_facet_index];return ray_source_attribution{t.source_facet,t.source_primitive,t.source_vertices,&f.source_ring,&f.source_ring_vertices,&f.source_vertex_fans,&f.source_plane,&f.source_normal};},[&](const exact_vector3&){return all_candidates(operand.triangles.size());});
+}
+sourced_exact_ray_index3 build_sourced_exact_ray_index(const sourced_exact_operand3&operand){
+ sourced_exact_ray_index3 index;index.triangle_bounds.reserve(operand.triangles.size());index.order.reserve(operand.triangles.size());for(std::size_t i=0;i<operand.triangles.size();++i){index.triangle_bounds.push_back(triangle_bounds(operand.triangles[i].triangle));index.order.push_back(i);}if(index.order.empty())return index;
+ std::function<std::size_t(std::size_t,std::size_t)>build=[&](std::size_t begin,std::size_t end){const auto node_index=index.nodes.size();index.nodes.push_back({});auto bounds=index.triangle_bounds[index.order[begin]];for(auto i=begin+1;i<end;++i)bounds=joined(bounds,index.triangle_bounds[index.order[i]]);index.nodes[node_index].bounds=bounds;index.nodes[node_index].begin=begin;index.nodes[node_index].end=end;if(end-begin<=8)return node_index;unsigned axis=0;auto extent=box_max(bounds,0)-box_min(bounds,0);for(unsigned candidate=1;candidate<3;++candidate){auto e=box_max(bounds,candidate)-box_min(bounds,candidate);if(extent<e){axis=candidate;extent=std::move(e);}}std::stable_sort(index.order.begin()+begin,index.order.begin()+end,[&](std::size_t a,std::size_t b){const auto ca=box_min(index.triangle_bounds[a],axis)+box_max(index.triangle_bounds[a],axis),cb=box_min(index.triangle_bounds[b],axis)+box_max(index.triangle_bounds[b],axis);return ca!=cb?ca<cb:a<b;});const auto middle=begin+(end-begin)/2;const auto left=build(begin,middle),right=build(middle,end);index.nodes[node_index].left=left;index.nodes[node_index].right=right;index.nodes[node_index].leaf=false;return node_index;};build(0,index.order.size());return index;
+}
+status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&q,const sourced_exact_operand3&operand,const sourced_exact_ray_index3&index,std::uint8_t first_direction){
+ const auto policy=test_ray_index_policy.load(std::memory_order_relaxed);if(policy==formal_ray_index_execution_policy::exhaustive)return locate_formal_open_point(q,operand,first_direction);
+ if(index.triangle_bounds.size()!=operand.triangles.size()||index.order.size()!=operand.triangles.size()||(operand.triangles.empty()!=index.nodes.empty()))return make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"formal_ray_index_shape");
+ auto candidates=[&](const exact_vector3&direction){std::vector<std::size_t>out,stack;if(!index.nodes.empty())stack.push_back(0);while(!stack.empty()){const auto ni=stack.back();stack.pop_back();if(ni>=index.nodes.size())throw std::logic_error("formal ray index node");const auto&node=index.nodes[ni];if(!ray_meets_closed_box(q.base,direction,node.bounds))continue;if(node.leaf){for(auto i=node.begin;i<node.end;++i)if(i<index.order.size()&&ray_meets_closed_box(q.base,direction,index.triangle_bounds[index.order[i]]))out.push_back(index.order[i]);}else{stack.push_back(node.right);stack.push_back(node.left);}}
+  auto sign=[](const exact_scalar&a,const exact_scalar&b){const auto s=a.sign();return s==exact_sign::zero?b.sign():s;};
+  for(const auto&facet:operand.facets){
+   const auto denominator=dot(facet.source_normal,direction);
+   if(denominator.is_zero()){
+    if(eval(facet.source_plane,q.base).is_zero()&&dot(facet.source_normal,q.infinitesimal_direction).is_zero())
+     for(auto i=facet.triangle_begin;i<facet.triangle_end;++i)out.push_back(i);
+    continue;
+   }
+   const auto tc=eval(facet.source_plane,q.base).negated()/denominator;
+   const auto te=dot(facet.source_normal,q.infinitesimal_direction).negated()/denominator;
+   if(sign(tc,te)!=exact_sign::positive)continue;
+   const auto hit=q.base+direction*tc;const auto delta=direction*te;
+   const exact_vector3 epsilon{q.infinitesimal_direction.x+delta.x,q.infinitesimal_direction.y+delta.y,q.infinitesimal_direction.z+delta.z};
+   const auto axis=dominant_projection(facet.source_plane);const auto point=project(hit,axis);
+   const exact_vector2 point_epsilon=axis==projection_axis::drop_x?exact_vector2{epsilon.y,epsilon.z}:axis==projection_axis::drop_y?exact_vector2{epsilon.z,epsilon.x}:exact_vector2{epsilon.x,epsilon.y};
+   for(auto i=facet.triangle_begin;i<facet.triangle_end;++i){const auto&t=operand.triangles[i].triangle;const std::array<exact_point2,3>p{{project(t.a,axis),project(t.b,axis),project(t.c,axis)}};bool ambiguous=false;for(std::size_t edge=0;edge<3;++edge){const auto e=p[(edge+1)%3]-p[edge],w=point-p[edge];ambiguous=ambiguous||sign(e.x*w.y-e.y*w.x,e.x*point_epsilon.y-e.y*point_epsilon.x)==exact_sign::zero;}if(ambiguous)out.push_back(i);}
+  }
+  std::sort(out.begin(),out.end());out.erase(std::unique(out.begin(),out.end()),out.end());return out;};
+ auto accelerated=locate_formal_open_point_impl(q,operand.triangles,first_direction,[](const sourced_exact_triangle3&t){return t.triangle;},[&](const sourced_exact_triangle3&t){const auto&f=operand.facets[t.source_facet_index];return ray_source_attribution{t.source_facet,t.source_primitive,t.source_vertices,&f.source_ring,&f.source_ring_vertices,&f.source_vertex_fans,&f.source_plane,&f.source_normal};},candidates);
+ if(policy==formal_ray_index_execution_policy::differential){auto exhaustive=locate_formal_open_point(q,operand,first_direction);auto same_hit=[](const formal_ray_hit&a,const formal_ray_hit&b){return a.triangle==b.triangle&&a.source_facet==b.source_facet&&a.source_primitive==b.source_primitive&&a.parameter_constant==b.parameter_constant&&a.parameter_epsilon==b.parameter_epsilon&&a.signed_contribution==b.signed_contribution&&a.parameter_group==b.parameter_group&&a.ownership==b.ownership&&a.source_vertex==b.source_vertex&&a.source_vertex_fan==b.source_vertex_fan&&a.source_vertex_fan_index==b.source_vertex_fan_index&&a.source_edge==b.source_edge&&a.source_edge_direction==b.source_edge_direction&&a.owns_boundary_crossing==b.owns_boundary_crossing;};bool same=accelerated.has_value()==exhaustive.has_value();if(same&&accelerated.has_value()){const auto&a=accelerated.value();const auto&b=exhaustive.value();same=a.location==b.location&&a.signed_degree==b.signed_degree&&a.ray_direction_index==b.ray_direction_index&&a.ray_direction.x==b.ray_direction.x&&a.ray_direction.y==b.ray_direction.y&&a.ray_direction.z==b.ray_direction.z&&a.hits.size()==b.hits.size();for(std::size_t i=0;same&&i<a.hits.size();++i)same=same_hit(a.hits[i],b.hits[i]);}if(!same){auto error=make_error(boolean_error_code::internal_invariant_error,boolean_stage::cell_classification,"formal_ray_index_differential");error.detail="first="+std::to_string(first_direction)+";accelerated="+(accelerated.has_value()?std::to_string(accelerated.value().ray_direction_index)+","+std::to_string(accelerated.value().hits.size()):"error")+";exhaustive="+(exhaustive.has_value()?std::to_string(exhaustive.value().ray_direction_index)+","+std::to_string(exhaustive.value().hits.size()):"error");return error;}}
+ return accelerated;
 }
 bool validate_formal_ray_ownership_evidence(const formal_operand_location&location) noexcept{
  std::uint32_t previous_group=0;bool first=true;std::int64_t degree=0;

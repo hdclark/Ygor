@@ -33,12 +33,18 @@ const frozen_baseline baselines[] = {
 
 performance_observation run(const frozen_baseline &baseline,
                              std::uint32_t threads,
-                             predicate_execution_policy predicates=predicate_execution_policy::automatic) {
+                             predicate_execution_policy predicates=predicate_execution_policy::automatic,
+                             formal_ray_index_execution_policy ray_index=formal_ray_index_execution_policy::accelerated) {
   struct policy_scope {
     predicate_execution_policy previous;
     explicit policy_scope(predicate_execution_policy policy):previous(exact_filter_policy::exchange_test_execution_policy(policy)){}
     ~policy_scope(){exact_filter_policy::exchange_test_execution_policy(previous);}
   } policy(predicates);
+  struct ray_policy_scope {
+    formal_ray_index_execution_policy previous;
+    explicit ray_policy_scope(formal_ray_index_execution_policy policy):previous(formal_ray_index_policy::exchange_test_execution_policy(policy)){}
+    ~ray_policy_scope(){formal_ray_index_policy::exchange_test_execution_policy(previous);}
+  } ray_policy(ray_index);
   boolean_options options;
   options.execution.max_threads = threads;
   options.verification = verification_level::mandatory;
@@ -81,6 +87,16 @@ void check_baseline(const frozen_baseline &baseline) {
   const auto single = run(baseline, 1);
   const auto parallel = run(baseline, 4);
   const auto exact_only = run(baseline, 1, predicate_execution_policy::exact_only);
+  const auto exhaustive = run(baseline, 1, predicate_execution_policy::automatic,
+                              formal_ray_index_execution_policy::exhaustive);
+  require_equal(exhaustive.semantic_digests.size(), single.semantic_digests.size(),
+                "exhaustive/indexed semantic stage count");
+  for (std::size_t i = 0; i < single.semantic_digests.size(); ++i)
+    require_equal(exhaustive.semantic_digests[i], single.semantic_digests[i],
+                  std::string("exhaustive/indexed semantic identity at ") +
+                      single.semantic_digests[i].first);
+  require_equal(exhaustive.canonical_output_bytes, single.canonical_output_bytes,
+                "exhaustive/indexed complete canonical output bytes");
   require_frozen(baseline, single);
   require_frozen(baseline, parallel);
   require_equal(parallel.typed_outcome(), single.typed_outcome(),
