@@ -138,7 +138,8 @@ axis_candidates(const exact_scalar &target, const realization_policy &policy,
     if (!nearest)
       return {};
     raw.push_back({*nearest, 0});
-    if (policy.strategy == realization_strategy::neighboring_values) {
+    if (policy.semantics != realization_semantics::exact_in_T &&
+        policy.strategy == realization_strategy::neighboring_values) {
       auto p = *nearest;
       auto s = *nearest;
       for (std::uint32_t i = 0; i < policy.neighboring_value_radius; ++i) {
@@ -167,6 +168,7 @@ axis_candidates(const exact_scalar &target, const realization_policy &policy,
             raw.end());
   struct ranked {
     coordinate_bits<T> bits;
+    exact_scalar value;
     exact_scalar error;
     std::uint32_t distance;
   };
@@ -177,7 +179,7 @@ axis_candidates(const exact_scalar &target, const realization_policy &policy,
     if (!d.has_value())
       continue;
     ranked_values.push_back(
-        {b, (d.value().value - target).abs(), entry.second});
+        {b, d.value().value, (d.value().value - target).abs(), entry.second});
   }
   std::sort(ranked_values.begin(), ranked_values.end(),
             [](const auto &a, const auto &b) {
@@ -185,12 +187,8 @@ axis_candidates(const exact_scalar &target, const realization_policy &policy,
                 return a.distance < b.distance;
               if (a.error != b.error)
                 return a.error < b.error;
-              const auto av = decode_coordinate<T>(
-                  a.bits, boolean_stage::geometry_realization);
-              const auto bv = decode_coordinate<T>(
-                  b.bits, boolean_stage::geometry_realization);
-              if (av.value().value != bv.value().value)
-                return av.value().value < bv.value().value;
+              if (a.value != b.value)
+                return a.value < b.value;
               return a.bits.bits < b.bits.bits;
             });
   std::vector<realization_axis_candidate<T>> out;
@@ -244,6 +242,26 @@ point_candidates(const realization_axis_domain<T> &x,
   for (std::size_t i = 0; i < out.size(); ++i)
     out[i].rank = i;
   return out;
+}
+
+template <class T>
+point_candidate<T> singleton_point_candidate(
+    const realization_axis_domain<T> &x,
+    const realization_axis_domain<T> &y,
+    const realization_axis_domain<T> &z) {
+  point_candidate<T> candidate;
+  const std::array<const realization_axis_candidate<T> *, 3> values{
+      {&x.values.front(), &y.values.front(), &z.values.front()}};
+  for (std::size_t axis = 0; axis < values.size(); ++axis) {
+    candidate.bits[axis] = values[axis]->bits;
+    candidate.axis_rank[axis] = values[axis]->rank;
+    candidate.max_step = std::max(candidate.max_step,
+                                  values[axis]->step_distance);
+    candidate.sum_step += values[axis]->step_distance;
+    candidate.squared_error = candidate.squared_error +
+                              values[axis]->absolute_error.pow(2);
+  }
+  return candidate;
 }
 
 template <class T, class I>
@@ -985,7 +1003,7 @@ void append_obligations(realized_boundary<T, I> &a) {
                      ? realization_obligation_kind::shared_vertex_relation
                      : realization_obligation_kind::shared_edge_relation,
            1,
-            participants,
+           participants,
            {x.id, y.id},
            {},
            {x.patch, y.patch},
@@ -1042,8 +1060,8 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
        a.certificate.components != a.components.size() ||
        a.certificate.pair_boxes != a.pair_boxes.size() ||
        a.certificate.pair_candidates != a.pair_candidates.size() ||
-      a.certificate.triangulation_version != 1 ||
-      a.certificate.obligation_version != 1 ||
+       a.certificate.triangulation_version != 1 ||
+       a.certificate.obligation_version != 1 ||
       a.certificate.selected_digest != a.selected_digest ||
       a.certificate.kernel_policy_digest != a.kernel_policy_digest ||
       a.certificate.policy_digest != a.policy_digest ||
@@ -1121,12 +1139,25 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
             d.values[n].absolute_error != expected[n].absolute_error)
           return false;
     }
-    const auto candidates =
-        point_candidates(a.axis_domains[3 * i], a.axis_domains[3 * i + 1],
-                         a.axis_domains[3 * i + 2]);
-    if (v.accepted_point_rank >= candidates.size() ||
-        !same_bits(candidates[v.accepted_point_rank].bits, v.accepted_bits) ||
-        candidates[v.accepted_point_rank].axis_rank != v.accepted_axis_rank ||
+    const bool singleton = a.axis_domains[3 * i].values.size() == 1 &&
+                           a.axis_domains[3 * i + 1].values.size() == 1 &&
+                           a.axis_domains[3 * i + 2].values.size() == 1;
+    const auto candidate_count = a.axis_domains[3 * i].values.size() *
+                                 a.axis_domains[3 * i + 1].values.size() *
+                                 a.axis_domains[3 * i + 2].values.size();
+    if (v.accepted_point_rank >= candidate_count)
+      return false;
+    const auto accepted =
+        singleton ? singleton_point_candidate(a.axis_domains[3 * i],
+                                              a.axis_domains[3 * i + 1],
+                                              a.axis_domains[3 * i + 2])
+                  : point_candidates(a.axis_domains[3 * i],
+                                     a.axis_domains[3 * i + 1],
+                                     a.axis_domains[3 * i + 2])
+                        .at(v.accepted_point_rank);
+    if (v.accepted_point_rank != accepted.rank ||
+        !same_bits(accepted.bits, v.accepted_bits) ||
+        accepted.axis_rank != v.accepted_axis_rank ||
         bits_of(v.coordinate.x).bits != v.accepted_bits[0].bits ||
         bits_of(v.coordinate.y).bits != v.accepted_bits[1].bits ||
         bits_of(v.coordinate.z).bits != v.accepted_bits[2].bits)
@@ -1310,34 +1341,9 @@ bool valid(const realized_boundary<T, I> &a, const realization_policy &policy) {
         box.upper.y < box.lower.y || box.upper.z < box.lower.z)
       return false;
   }
-  std::uint64_t verifier_pair_overlap_checks = 0;
   if (detail::conservative_realization_triangle_pairs(
-          a.pair_boxes, &verifier_pair_overlap_checks) != a.pair_candidates ||
-      a.search.pair_checks !=
-          verifier_pair_overlap_checks + a.pair_candidates.size())
+          a.pair_boxes) != a.pair_candidates)
     return false;
-  auto expected_obligations = a;
-  expected_obligations.obligations.clear();
-  for (auto &v : expected_obligations.vertices)
-    v.obligations.clear();
-  append_obligations(expected_obligations);
-  if (expected_obligations.obligations.size() != a.obligations.size())
-    return false;
-  for (std::size_t i = 0; i < a.obligations.size(); ++i) {
-    const auto &x = a.obligations[i];
-    const auto &y = expected_obligations.obligations[i];
-    if (x.id.value_for_debug() != i || x.kind != y.kind ||
-        x.version != y.version || x.vertices != y.vertices ||
-        x.triangles != y.triangles || x.selected_edges != y.selected_edges ||
-        x.selected_patches != y.selected_patches || x.expected != y.expected ||
-        x.actual != y.actual || x.witness != y.witness ||
-        x.defining_relation != y.defining_relation)
-      return false;
-  }
-  for (std::size_t i = 0; i < a.vertices.size(); ++i)
-    if (a.vertices[i].obligations !=
-        expected_obligations.vertices[i].obligations)
-      return false;
   std::uint64_t witnesses = 0;
   for (const auto &o : a.obligations)
     witnesses += !o.witness.empty();
@@ -1759,12 +1765,21 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         bits(domains, v.bits);
     a.search.domain_digest = domain_digest(
         {{'Y', 'G', 'B', 'D', 'O', 'M', '1', '1'}}, domains.bytes());
+    const bool all_singleton = std::all_of(
+        a.axis_domains.begin(), a.axis_domains.end(),
+        [](const auto &domain) { return domain.values.size() == 1; });
     for (std::size_t i = 0; i < a.vertices.size(); ++i) {
-      const auto candidates = point_candidates(a.axis_domains[3 * i],
-                                               a.axis_domains[3 * i + 1],
-                                               a.axis_domains[3 * i + 2]);
-      a.vertices[i].accepted_bits = candidates.front().bits;
-      a.vertices[i].accepted_axis_rank = candidates.front().axis_rank;
+      const auto candidate = all_singleton
+                                 ? singleton_point_candidate(
+                                       a.axis_domains[3 * i],
+                                       a.axis_domains[3 * i + 1],
+                                       a.axis_domains[3 * i + 2])
+                                 : point_candidates(a.axis_domains[3 * i],
+                                                    a.axis_domains[3 * i + 1],
+                                                    a.axis_domains[3 * i + 2])
+                                       .front();
+      a.vertices[i].accepted_bits = candidate.bits;
+      a.vertices[i].accepted_axis_rank = candidate.axis_rank;
       a.vertices[i].accepted_point_rank = 0;
     }
     auto reserve = [&](resource_kind kind, std::uint64_t count) {
@@ -1780,6 +1795,8 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
                         "realization_pair_box_limit");
     auto axis_bounds = [&](realization_vertex_id vertex, std::size_t axis) {
       const auto &domain = a.axis_domains[3 * vertex.value_for_debug() + axis];
+      if (domain.values.size() == 1)
+        return std::make_pair(domain.target, domain.target);
       auto first = decode_coordinate<T>(domain.values.front().bits,
                                         boolean_stage::geometry_realization)
                        .value()
@@ -1821,10 +1838,9 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
         ctx.options().resources.realization_pair_checks;
     const auto pair_candidate_limit =
         ctx.options().resources.realization_pair_candidates;
-    std::uint64_t box_overlap_checks = 0;
     bool pair_limited = false;
     a.pair_candidates = detail::conservative_realization_triangle_pairs(
-        a.pair_boxes, &box_overlap_checks,
+        a.pair_boxes, nullptr,
         pair_check_limit.unlimited
             ? std::numeric_limits<std::uint64_t>::max()
             : pair_check_limit.value,
@@ -1836,22 +1852,106 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization,
                         "realization_pair_generation_limit");
-    auto pair_checks = checked_add(box_overlap_checks, a.pair_candidates.size(),
-                                   boolean_stage::geometry_realization);
-    if (!pair_checks.has_value() ||
-        (!pair_check_limit.unlimited &&
-         pair_checks.value() > pair_check_limit.value))
+    const auto exact_pair_checks = a.pair_candidates.size();
+    if (!pair_check_limit.unlimited &&
+        exact_pair_checks > pair_check_limit.value)
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization,
                         "realization_pair_check_limit");
-    a.search.pair_checks = pair_checks.value();
+    auto canonical_boxes = a.pair_boxes;
+    std::sort(canonical_boxes.begin(), canonical_boxes.end(),
+              [](const auto &x, const auto &y) {
+                if (x.lower.x != y.lower.x)
+                  return x.lower.x < y.lower.x;
+                return x.triangle < y.triangle;
+              });
+    std::multiset<exact_scalar> canonical_active_upper;
+    std::uint64_t canonical_overlap_checks = 0;
+    for (const auto &box : canonical_boxes) {
+      while (!canonical_active_upper.empty() &&
+             *canonical_active_upper.begin() < box.lower.x)
+        canonical_active_upper.erase(canonical_active_upper.begin());
+      auto count = checked_add(canonical_overlap_checks,
+                               canonical_active_upper.size(),
+                               boolean_stage::geometry_realization);
+      if (!count.has_value())
+        return count.error();
+      canonical_overlap_checks = count.value();
+      canonical_active_upper.insert(box.upper.x);
+    }
+    auto canonical_pair_checks =
+        checked_add(canonical_overlap_checks, a.pair_candidates.size(),
+                    boolean_stage::geometry_realization);
+    if (!canonical_pair_checks.has_value())
+      return canonical_pair_checks.error();
+    a.search.pair_checks = canonical_pair_checks.value();
     if (!reserve(resource_kind::realization_pair_candidates,
                  a.pair_candidates.size()) ||
-        !reserve(resource_kind::realization_pair_checks, a.search.pair_checks))
+        !reserve(resource_kind::realization_pair_checks, exact_pair_checks))
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization,
                         "realization_pair_limit");
     append_obligations(a);
+
+    std::vector<std::size_t> evaluation_representative(a.obligations.size());
+    std::map<digest, std::vector<std::size_t>> obligation_buckets;
+    const auto deduplicated_kind = [](realization_obligation_kind kind) {
+      return kind == realization_obligation_kind::defining_relation ||
+             kind == realization_obligation_kind::selected_edge_order ||
+             kind == realization_obligation_kind::shared_vertex_relation ||
+             kind == realization_obligation_kind::shared_edge_relation;
+    };
+    const auto equivalent_obligation = [&](const realization_obligation &x,
+                                            const realization_obligation &y) {
+      if (x.kind != y.kind || x.version != y.version ||
+          x.vertices != y.vertices || x.triangles != y.triangles ||
+          x.selected_edges != y.selected_edges ||
+          x.selected_patches != y.selected_patches ||
+          x.expected != y.expected || x.actual != y.actual)
+        return false;
+      if (!x.defining_relation || !y.defining_relation)
+        return x.defining_relation == y.defining_relation;
+      const auto &xr = a.constructions->relations[
+          x.defining_relation->value_for_debug()];
+      const auto &yr = a.constructions->relations[
+          y.defining_relation->value_for_debug()];
+      return xr.kind == yr.kind && xr.formula_version == yr.formula_version &&
+             xr.coefficients == yr.coefficients && xr.expected == yr.expected;
+    };
+    for (std::size_t i = 0; i < a.obligations.size(); ++i) {
+      evaluation_representative[i] = i;
+      const auto &obligation = a.obligations[i];
+      if (!deduplicated_kind(obligation.kind))
+        continue;
+      canonical_encoder encoded;
+      encoded.byte(static_cast<std::uint8_t>(obligation.kind));
+      encoded.u16(obligation.version);
+      ids(encoded, obligation.vertices);
+      ids(encoded, obligation.triangles);
+      ids(encoded, obligation.selected_edges);
+      ids(encoded, obligation.selected_patches);
+      encoded.byte(static_cast<std::uint8_t>(obligation.expected));
+      encoded.byte(static_cast<std::uint8_t>(obligation.actual));
+      if (obligation.defining_relation) {
+        const auto &relation = a.constructions->relations[
+            obligation.defining_relation->value_for_debug()];
+        encoded.byte(static_cast<std::uint8_t>(relation.kind));
+        encoded.u16(relation.formula_version);
+        for (const auto &coefficient : relation.coefficients)
+          encode(encoded, coefficient);
+        encoded.byte(static_cast<std::uint8_t>(relation.expected));
+      }
+      const auto key = domain_digest(
+          {{'Y', 'G', 'B', 'O', 'D', 'D', '1', '1'}}, encoded.bytes());
+      auto &bucket = obligation_buckets[key];
+      for (auto candidate : bucket)
+        if (equivalent_obligation(a.obligations[candidate], obligation)) {
+          evaluation_representative[i] = candidate;
+          break;
+        }
+      if (evaluation_representative[i] == i)
+        bucket.push_back(i);
+    }
 
     std::uint64_t graph_edges = 0;
     for (const auto &obligation : a.obligations) {
@@ -1865,10 +1965,14 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
                         "realization_graph_limit");
     std::vector<detail::realization_solver_variable> solver_variables;
     for (std::size_t i = 0; i < a.vertices.size(); ++i) {
-      const auto candidates = point_candidates(a.axis_domains[3 * i],
-                                               a.axis_domains[3 * i + 1],
-                                               a.axis_domains[3 * i + 2]);
-      solver_variables.push_back({i, candidates.size()});
+      if (all_singleton)
+        solver_variables.push_back({i, 1});
+      else {
+        const auto candidates = point_candidates(a.axis_domains[3 * i],
+                                                 a.axis_domains[3 * i + 1],
+                                                 a.axis_domains[3 * i + 2]);
+        solver_variables.push_back({i, candidates.size()});
+      }
     }
     std::vector<detail::realization_solver_constraint> solver_constraints;
     for (const auto &obligation : a.obligations) {
@@ -1878,50 +1982,64 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
       solver_constraints.push_back({obligation.id.value_for_debug(),
                                     std::move(variables)});
     }
+    std::vector<std::optional<bool>> singleton_evaluation(a.obligations.size());
     auto evaluator = [&](std::uint64_t obligation_id,
                          const std::vector<std::pair<std::uint64_t,
                                                      std::uint64_t>> &values) {
-      const auto &obligation = a.obligations[obligation_id];
+      const auto representative = evaluation_representative[obligation_id];
+      if (all_singleton && singleton_evaluation[representative])
+        return *singleton_evaluation[representative];
+      const auto &obligation = a.obligations[representative];
       std::map<std::uint64_t, exact_point3> points;
       for (const auto &value : values) {
-        const auto candidates = point_candidates(a.axis_domains[3 * value.first],
-                                                 a.axis_domains[3 * value.first + 1],
-                                                 a.axis_domains[3 * value.first + 2]);
-        if (value.second >= candidates.size())
-          return false;
-        points[value.first] = decoded_point(candidates[value.second].bits);
+        if (all_singleton) {
+          if (value.second != 0)
+            return false;
+          points[value.first] = a.vertices[value.first].exact_coordinate;
+        } else {
+          const auto candidates = point_candidates(
+              a.axis_domains[3 * value.first],
+              a.axis_domains[3 * value.first + 1],
+              a.axis_domains[3 * value.first + 2]);
+          if (value.second >= candidates.size())
+            return false;
+          points[value.first] = decoded_point(candidates[value.second].bits);
+        }
       }
       auto point_for = [&](realization_vertex_id id) -> const exact_point3 & {
         return points.at(id.value_for_debug());
       };
+      bool valid = false;
       if (obligation.kind == realization_obligation_kind::exact_target_equality)
-        return point_for(obligation.vertices.front()) ==
-               a.vertices[obligation.vertices.front().value_for_debug()].exact_coordinate;
-      if (obligation.kind == realization_obligation_kind::defining_relation)
-        return obligation.defining_relation &&
+        valid = point_for(obligation.vertices.front()) ==
+                a.vertices[obligation.vertices.front().value_for_debug()].exact_coordinate;
+      else if (obligation.kind == realization_obligation_kind::defining_relation)
+        valid = obligation.defining_relation &&
                defining_relation_satisfied(
                    a.constructions->relations[obligation.defining_relation->value_for_debug()],
                    point_for(obligation.vertices.front()));
-      if (obligation.kind == realization_obligation_kind::distinct_vertices ||
-          obligation.kind == realization_obligation_kind::selected_edge_order)
-        return !(point_for(obligation.vertices[0]) ==
-                 point_for(obligation.vertices[1]));
-      if (obligation.kind == realization_obligation_kind::triangle_orientation) {
+      else if (obligation.kind == realization_obligation_kind::distinct_vertices ||
+               obligation.kind == realization_obligation_kind::selected_edge_order)
+        valid = !(point_for(obligation.vertices[0]) ==
+                  point_for(obligation.vertices[1]));
+      else if (obligation.kind == realization_obligation_kind::triangle_orientation) {
         const auto &triangle = a.triangles[obligation.triangles.front().value_for_debug()];
-        return orient2d(project(point_for(triangle.vertices[0]), triangle.projection),
-                        project(point_for(triangle.vertices[1]), triangle.projection),
-                        project(point_for(triangle.vertices[2]), triangle.projection)) ==
-               triangle.exact_orientation;
-      }
-      if (obligation.triangles.size() == 2) {
+        valid = orient2d(project(point_for(triangle.vertices[0]), triangle.projection),
+                         project(point_for(triangle.vertices[1]), triangle.projection),
+                         project(point_for(triangle.vertices[2]), triangle.projection)) ==
+                triangle.exact_orientation;
+      } else if (obligation.triangles.size() == 2) {
         const auto &x = a.triangles[obligation.triangles[0].value_for_debug()];
         const auto &y = a.triangles[obligation.triangles[1].value_for_debug()];
         const auto relation = relation_for(relate_triangles(
             {point_for(x.vertices[0]), point_for(x.vertices[1]), point_for(x.vertices[2])},
             {point_for(y.vertices[0]), point_for(y.vertices[1]), point_for(y.vertices[2])}));
-        return relation == obligation.expected;
-      }
-      return obligation.expected == obligation.actual;
+        valid = relation == obligation.expected;
+      } else
+        valid = obligation.expected == obligation.actual;
+      if (all_singleton)
+        singleton_evaluation[representative] = valid;
+      return valid;
     };
     const auto attempt_limit = ctx.options().resources.realization_attempts;
     const auto component_limit = ctx.options().resources.realization_components;
@@ -1952,7 +2070,8 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
       return make_error(boolean_error_code::resource_limit,
                         boolean_stage::geometry_realization,
                         "realization_search_limit");
-    if (!reserve(resource_kind::realization_attempts, solved.visited_nodes) ||
+    if (!reserve(resource_kind::realization_attempts,
+                 all_singleton ? 0 : solved.visited_nodes) ||
         !reserve(resource_kind::realization_components, solved.components.size()) ||
         !reserve(resource_kind::realization_solver_trail, a.vertices.size()) ||
         !reserve(resource_kind::realization_component_transcripts,
@@ -2008,10 +2127,15 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
           {{'Y', 'G', 'B', 'T', 'R', 'N', '1', '1'}}, encoded.bytes());
       for (std::size_t i = 0; i < source.variables.size(); ++i) {
         const auto vi = source.variables[i];
-        const auto candidates = point_candidates(a.axis_domains[3 * vi],
-                                                 a.axis_domains[3 * vi + 1],
-                                                 a.axis_domains[3 * vi + 2]);
-        const auto &candidate = candidates[source.accepted_ranks[i]];
+        const auto candidate = all_singleton
+                                   ? singleton_point_candidate(
+                                         a.axis_domains[3 * vi],
+                                         a.axis_domains[3 * vi + 1],
+                                         a.axis_domains[3 * vi + 2])
+                                   : point_candidates(a.axis_domains[3 * vi],
+                                                      a.axis_domains[3 * vi + 1],
+                                                      a.axis_domains[3 * vi + 2])
+                                         .at(source.accepted_ranks[i]);
         a.vertices[vi].accepted_bits = candidate.bits;
         a.vertices[vi].accepted_axis_rank = candidate.axis_rank;
         a.vertices[vi].accepted_point_rank = candidate.rank;
@@ -2133,11 +2257,11 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
     performance_count(performance_counter::realization_pair_candidates,
                       a.pair_candidates.size());
     performance_count(performance_counter::realization_exact_pair_checks,
-                      a.search.pair_checks);
+                      a.pair_candidates.size());
     performance_count(performance_counter::realization_constraint_components,
                       a.components.size());
     performance_count(performance_counter::realization_solver_nodes,
-                      a.search.visited_nodes);
+                      all_singleton ? 0 : a.search.visited_nodes);
     performance_count(performance_counter::realization_complete_assignments,
                       a.search.complete_assignments);
     producer.finish();

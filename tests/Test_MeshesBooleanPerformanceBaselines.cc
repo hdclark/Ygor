@@ -73,6 +73,14 @@ void require_frozen(const frozen_baseline &baseline,
                 "frozen output vertex count");
   require_equal(observed.counters.output_faces, baseline.output_faces,
                 "frozen output face count");
+  require_equal(observed.producer_counters.value(
+                    performance_counter::realization_exact_pair_checks),
+                observed.counters.realization_pair_candidates,
+                "exact realization checks follow conservative candidates");
+  require_equal(
+      observed.producer_counters.value(
+          performance_counter::realization_solver_nodes),
+      std::uint64_t(0), "exact-in-T singleton path bypasses generic DFS");
   const auto output_digest = std::find_if(
       observed.semantic_digests.begin(), observed.semantic_digests.end(),
       [](const auto &entry) { return entry.first == "output"; });

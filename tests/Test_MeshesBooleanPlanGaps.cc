@@ -74,8 +74,10 @@ void touching_case(T x, T y, T z, const char *contact) {
                     artifact_slot::realized_boundary) == 0,
                 std::string(contact) + " realization was not attempted");
     } else {
-      require(result.has_value(), std::string(contact) +
-                                      " empty/unchanged operation succeeds");
+      require(result.has_value(),
+              std::string(contact) + " empty/unchanged operation succeeds" +
+                  (result.has_value() ? std::string()
+                                      : ": " + render_error(result.error())));
         if (op == operation::regularized_intersection) {
           require_equal(boundary.topology, selected_boundary_topology::empty,
                         std::string(contact) + " empty intersection topology");
@@ -124,6 +126,19 @@ template <class T, class I> void one_third_case() {
   require(!realized.error().features.empty() ||
               !realized.error().replay_payload.empty(),
           "G2 failure binds exact symbols and unsatisfied constraints");
+  boolean_options neighboring;
+  neighboring.realization.strategy = realization_strategy::neighboring_values;
+  neighboring.realization.neighboring_value_radius = 4;
+  auto neighboring_context = classification_test::context(
+      a, b, realization_test::registry(), operation::regularized_intersection,
+      neighboring);
+  const auto neighboring_result = realize_selected_boundary(*neighboring_context);
+  require(!neighboring_result.has_value() &&
+              neighboring_result.error().code == realized.error().code &&
+              neighboring_result.error().features == realized.error().features &&
+              neighboring_result.error().replay_payload ==
+                  realized.error().replay_payload,
+          "G2 neighboring policy preserves immediate canonical failure");
 }
 
 void g1a() {
@@ -292,6 +307,14 @@ void g7a() {
                obligation.defining_relation.has_value();
       });
   require(defining > 0, "G7 realization publishes defining relation obligations");
+  std::size_t raw_defining = 0;
+  for (const auto &vertex : realized.value()->payload->vertices)
+    for (auto node : vertex.derivations)
+      raw_defining += realized.value()
+                          ->payload->constructions->nodes[node.value_for_debug()]
+                          .defining_relations.size();
+  require(static_cast<std::size_t>(defining) == raw_defining,
+          "G7 complete defining relation occurrence evidence is retained");
   require(verify_realization_exact_substitution(*realized.value()->payload),
           "G7 standalone verifier replays accepted construction relations");
 }
@@ -309,6 +332,56 @@ void g7b() {
   require(!defining_relation_satisfied(
               relation, {decoded.value().value, exact_scalar(1), exact_scalar(0)}),
           "G7b one-ULP carrier violation is rejected by exact substitution");
+
+  constexpr std::int64_t n0 = 1501199875789831LL;
+  constexpr std::int64_t d0 = 4503599627369496LL;
+  constexpr std::int64_t n1 = 1501199875789832LL;
+  constexpr std::int64_t d1 = 4503599627369499LL;
+  const auto q0 = exact_scalar(n0) / exact_scalar(d0);
+  const auto q1 = exact_scalar(n1) / exact_scalar(d1);
+  const auto rounded0 = round_binary_nearest_even<double>(q0);
+  const auto rounded1 = round_binary_nearest_even<double>(q1);
+  require(q0 != q1 && rounded0 && rounded1 &&
+              rounded0->bits == rounded1->bits,
+          "G7b distinct exact points share one nearest double");
+  require(decode_coordinate(*rounded0).value().value != q0 &&
+              decode_coordinate(*rounded1).value().value != q1,
+          "G7b rounding-collision points are both nonrepresentable");
+
+  fv_surface_mesh<double, std::uint32_t> wedge;
+  wedge.vertices = {
+      {0.0, 0.0, 0.0},
+      {static_cast<double>(n1), static_cast<double>(d1), 0.0},
+      {static_cast<double>(n0), static_cast<double>(d0), 0.0},
+      {0.0, 0.0, 1.0},
+      {static_cast<double>(n1), static_cast<double>(d1), 1.0},
+      {static_cast<double>(n0), static_cast<double>(d0), 1.0}};
+  wedge.faces = {{0, 2, 1}, {3, 4, 5}, {0, 1, 4, 3},
+                 {1, 2, 5, 4}, {2, 0, 3, 5}};
+  auto cube = input_test::cube<double, std::uint32_t>();
+  auto context = classification_test::context(
+      cube, wedge, realization_test::registry(),
+      operation::regularized_intersection);
+  const auto selected = select_boolean_boundary(*context);
+  require(selected.has_value(), "G7b rounding-collision selection succeeds");
+  bool found0 = false, found1 = false;
+  const auto &symbolic =
+      *selected.value()->payload->arrangement->payload->symbolic->payload;
+  for (const auto &vertex : selected.value()->payload->vertices) {
+    const auto &point = symbolic.vertices[vertex.symbolic.value_for_debug()].point;
+    if (point.y == exact_scalar(1)) {
+      found0 = found0 || point.x == q0;
+      found1 = found1 || point.x == q1;
+    }
+  }
+  require(found0 && found1,
+          "G7b selection retains both distinct exact collision points");
+  const auto realized = realize_selected_boundary(*context);
+  require(!realized.has_value() &&
+              realized.error().code ==
+                  boolean_error_code::output_not_representable &&
+              realized.error().stage == boolean_stage::geometry_realization,
+          "G7b rounding collision reports typed unrepresentability");
 }
 
 void g8solver() {
@@ -352,6 +425,14 @@ void g8solver() {
       variables, constraints, evaluator, 2 * n - 1);
   require(!limited.accepted && limited.limited,
           "G8 one-under linear node limit reports resource exhaustion");
+  const auto cancelled = detail::solve_realization_constraint_components(
+      {{0, 1}}, {{0, {0}}},
+      [](std::uint64_t, const auto &) { return true; },
+      std::numeric_limits<std::uint64_t>::max(),
+      std::numeric_limits<std::uint64_t>::max(),
+      std::numeric_limits<std::uint64_t>::max(), [] { return true; });
+  require(!cancelled.accepted && cancelled.limited,
+          "G8 singleton solve observes cancellation before evaluation");
   std::vector<std::uint64_t> oracle_assignment(8);
   bool oracle_found = false;
   for (std::uint64_t mask = 0; mask < (std::uint64_t(1) << 8); ++mask) {
@@ -410,6 +491,55 @@ void g8pairs() {
               realization_triangle_id::from_canonical_value(0),
               realization_triangle_id::from_canonical_value(1)}) != touching.end(),
           "G8 equality at a domain-box boundary is retained");
+
+  const auto exhaustive_pairs = [](const auto &input) {
+    std::vector<realization_triangle_pair> result;
+    const auto overlap = [](const exact_scalar &alo, const exact_scalar &ahi,
+                            const exact_scalar &blo, const exact_scalar &bhi) {
+      return !(ahi < blo) && !(bhi < alo);
+    };
+    for (std::size_t i = 0; i < input.size(); ++i)
+      for (std::size_t j = i + 1; j < input.size(); ++j)
+        if (overlap(input[i].lower.x, input[i].upper.x, input[j].lower.x,
+                    input[j].upper.x) &&
+            overlap(input[i].lower.y, input[i].upper.y, input[j].lower.y,
+                    input[j].upper.y) &&
+            overlap(input[i].lower.z, input[i].upper.z, input[j].lower.z,
+                    input[j].upper.z)) {
+          const auto ordered = std::minmax(input[i].triangle, input[j].triangle);
+          result.push_back({ordered.first, ordered.second});
+        }
+    std::sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
+      return std::tie(a.lower, a.upper) < std::tie(b.lower, b.upper);
+    });
+    return result;
+  };
+  std::vector<realization_domain_box> adversarial;
+  for (std::uint64_t i = 0; i < 31; ++i) {
+    const exact_scalar lo(static_cast<std::int64_t>(i % 7));
+    const exact_scalar width(static_cast<std::int64_t>(1 + (i * 5) % 11));
+    adversarial.push_back({
+        realization_triangle_id::from_canonical_value(i),
+        {lo, exact_scalar(static_cast<std::int64_t>((i * 3) % 5)),
+         exact_scalar(static_cast<std::int64_t>((i * 7) % 3))},
+        {lo + width, exact_scalar(static_cast<std::int64_t>((i * 3) % 5 + 2)),
+         exact_scalar(static_cast<std::int64_t>((i * 7) % 3 + 1))}});
+  }
+  const auto expected_adversarial = exhaustive_pairs(adversarial);
+  require(detail::conservative_realization_triangle_pairs(adversarial) ==
+              expected_adversarial,
+          "G8 flat hierarchy matches adversarial exhaustive oracle");
+  std::reverse(adversarial.begin(), adversarial.end());
+  require(detail::conservative_realization_triangle_pairs(adversarial) ==
+              expected_adversarial,
+          "G8 flat hierarchy is insertion-order deterministic");
+  bool limited = false;
+  std::uint64_t bounded_checks = 0;
+  (void)detail::conservative_realization_triangle_pairs(
+      adversarial, &bounded_checks, 1,
+      std::numeric_limits<std::uint64_t>::max(), &limited);
+  require(limited && bounded_checks == 1,
+          "G8 flat hierarchy preserves broad-check resource bound");
 }
 
 void g9a() {

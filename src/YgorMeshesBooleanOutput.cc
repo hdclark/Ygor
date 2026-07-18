@@ -1346,12 +1346,18 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
                             boolean_stage::output_assembly,
                             "realization_triangle_halfedge_range");
     }
-    std::set<realization_vertex_id> used;
+    std::vector<bool> used(r.vertices.size(), false);
+    std::uint64_t used_vertices = 0;
     for (const auto &t : r.triangles)
-      for (auto v : t.vertices)
-        used.insert(v);
+      for (auto v : t.vertices) {
+        const auto index = v.value_for_debug();
+        if (!used[index]) {
+          used[index] = true;
+          ++used_vertices;
+        }
+      }
     const checked_cardinality vertex_count{
-        0, static_cast<std::uint64_t>(used.size())},
+        0, used_vertices},
         face_count{0, static_cast<std::uint64_t>(r.triangles.size())};
     if (!index_capacity_accepts<I>(vertex_count) ||
         !index_capacity_accepts<I>(face_count))
@@ -1441,31 +1447,36 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
         reserve(resource_kind::output_components, a.components.size());
     if (!component_charge.has_value())
       return component_charge.error();
-    std::map<realization_vertex_id, I> indices;
+    a.mesh.vertices.reserve(static_cast<std::size_t>(vertex_count.low));
+    a.mesh.faces.reserve(static_cast<std::size_t>(face_count.low));
+    a.vertices.reserve(static_cast<std::size_t>(vertex_count.low));
+    a.faces.reserve(static_cast<std::size_t>(face_count.low));
+    std::vector<std::optional<I>> indices(r.vertices.size());
     for (std::size_t fi = 0; fi < faces.value().size(); ++fi) {
       if (ctx.cancelled())
         return make_error(boolean_error_code::resource_limit,
                           boolean_stage::output_assembly, "cancelled");
-      const auto &source = faces.value()[fi];
+      auto &source = faces.value()[fi];
       output_face_record<I> record;
       record.id = output_face_id::from_canonical_value(fi);
       record.realization = source.triangle->id;
       record.component =
           output_component_id::from_canonical_value(source.component);
       record.cyclic_rotation = source.rotation;
-      record.semantic_key = source.key;
+      record.semantic_key = std::move(source.key);
       std::vector<I> public_face;
       public_face.reserve(3);
       for (std::size_t n = 0; n < 3; ++n) {
-        auto found = indices.find(source.ring[n]);
+        const auto realization_index = source.ring[n].value_for_debug();
+        auto &found = indices[realization_index];
         I index{};
-        if (found == indices.end()) {
-          auto checked = checked_output_index<I>(indices.size());
+        if (!found) {
+          auto checked = checked_output_index<I>(a.vertices.size());
           if (!checked.has_value())
             return checked.error();
           index = checked.value();
-          indices.emplace(source.ring[n], index);
-          const auto &rv = r.vertices[source.ring[n].value_for_debug()];
+          found = index;
+          const auto &rv = r.vertices[realization_index];
           a.mesh.vertices.push_back(rv.coordinate);
           if (!raw_coordinate_matches(a.mesh.vertices.back(), rv))
             return make_error(boolean_error_code::internal_invariant_error,
@@ -1475,10 +1486,10 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
           vr.id = output_vertex_id::from_canonical_value(a.vertices.size());
           vr.realization = source.ring[n];
           vr.public_index = index;
-          vr.semantic_token = tokens[source.ring[n].value_for_debug()];
+          vr.semantic_token = std::move(tokens[realization_index]);
           a.vertices.push_back(std::move(vr));
         } else
-          index = found->second;
+          index = *found;
         record.public_vertices[n] = index;
         public_face.push_back(index);
       }
@@ -1486,6 +1497,12 @@ assemble_boolean_output_artifact(boolean_context<T, I> &ctx) {
       a.mesh.faces.push_back(std::move(public_face));
     }
     a.mesh.involved_faces.resize(a.mesh.vertices.size());
+    std::vector<std::size_t> involved_counts(a.mesh.vertices.size(), 0);
+    for (const auto &face : a.mesh.faces)
+      for (auto vertex : face)
+        ++involved_counts[vertex];
+    for (std::size_t i = 0; i < involved_counts.size(); ++i)
+      a.mesh.involved_faces[i].reserve(involved_counts[i]);
     for (std::size_t fi = 0; fi < a.mesh.faces.size(); ++fi) {
       if (ctx.cancelled())
         return make_error(boolean_error_code::resource_limit,

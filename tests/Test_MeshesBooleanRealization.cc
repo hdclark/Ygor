@@ -16,6 +16,29 @@ int main() {
     require(result.value()->report.passed(), "realization verified");
     require(x.vertices.size() == 16 && x.triangles.size() == 24,
             "disjoint cubes realized and triangulated");
+    require(std::all_of(x.axis_domains.begin(), x.axis_domains.end(),
+                        [](const auto &domain) {
+                          return domain.values.size() == 1;
+                        }),
+            "exact-in-T domains are singleton");
+    require(x.search.visited_nodes == x.vertices.size() + x.components.size() &&
+                std::all_of(x.component_transcripts.begin(),
+                            x.component_transcripts.end(), [](const auto &t) {
+                              return t.visited_nodes ==
+                                         t.accepted_ranks.size() + 1 &&
+                                     t.complete_assignments == 1;
+                            }),
+            "singleton realization preserves canonical transcript evidence");
+    std::size_t raw_defining = 0, published_defining = 0;
+    for (const auto &vertex : x.vertices)
+      for (auto node : vertex.derivations)
+        raw_defining += x.constructions->nodes[node.value_for_debug()]
+                            .defining_relations.size();
+    for (const auto &obligation : x.obligations)
+      published_defining += obligation.kind ==
+                            realization_obligation_kind::defining_relation;
+    require(published_defining == raw_defining,
+            "complete defining-relation occurrence evidence is retained");
     require(c->artifacts().latest_generation(artifact_slot::realized_boundary) == 1,
             "realization published");
     auto repeated = realize_selected_boundary(*c);
@@ -30,6 +53,8 @@ int main() {
     mutation_rejected(*r, *c, x, [](auto &v) { v.obligations.front().actual = realization_relation::disjoint; }, "obligation mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.search.complete_assignments = 0; }, "search mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.component_transcripts.front().visited_nodes++; }, "component transcript mutation rejected");
+    mutation_rejected(*r, *c, x, [](auto &v) { v.certificate.solver_version = 1; }, "stale solver evidence rejected");
+    mutation_rejected(*r, *c, x, [](auto &v) { v.certificate.obligation_version = 2; }, "stale obligation evidence rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.pair_boxes.front().upper.x = exact_scalar(-1); }, "pair box mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.canonical_bytes.push_back(0); }, "canonical mutation rejected");
     mutation_rejected(*r, *c, x, [](auto &v) { v.artifact_bytes.push_back(0); }, "artifact mutation rejected");

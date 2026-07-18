@@ -33,6 +33,14 @@ struct disjoint_set {
   std::vector<std::size_t> parent;
 };
 
+struct flat_pair_node {
+  exact_point3 lower, upper;
+  std::size_t begin = 0, end = 0;
+  std::size_t left = std::numeric_limits<std::size_t>::max();
+  std::size_t right = std::numeric_limits<std::size_t>::max();
+  bool leaf() const { return left == std::numeric_limits<std::size_t>::max(); }
+};
+
 bool overlap(const exact_scalar &alo, const exact_scalar &ahi,
              const exact_scalar &blo, const exact_scalar &bhi) {
   return !(ahi < blo) && !(bhi < alo);
@@ -117,6 +125,38 @@ realization_solver_result solve_realization_constraint_components(
         return degree[a] > degree[b];
       return a < b;
     });
+    const bool singleton = std::all_of(
+        order.begin(), order.end(), [&](auto id) {
+          return variable_by_id[id].domain_size == 1;
+        });
+    if (singleton) {
+      const auto canonical_nodes = component.variables.size() + 1;
+      if (result.visited_nodes > node_limit ||
+          canonical_nodes > node_limit - result.visited_nodes) {
+        result.limited = true;
+        return result;
+      }
+      for (auto constraint_id : component.constraints) {
+        if (cancelled && cancelled()) {
+          result.limited = true;
+          return result;
+        }
+        const auto &constraint = constraint_by_id[constraint_id];
+        std::vector<std::pair<std::uint64_t, std::uint64_t>> values;
+        values.reserve(constraint.variables.size());
+        for (auto id : constraint.variables)
+          values.push_back({id, 0});
+        if (!evaluate(constraint_id, values))
+          return result;
+      }
+      component.accepted_ranks.assign(component.variables.size(), 0);
+      component.visited_nodes = canonical_nodes;
+      component.complete_assignments = 1;
+      result.visited_nodes += component.visited_nodes;
+      ++result.complete_assignments;
+      result.components.push_back(std::move(component));
+      continue;
+    }
     std::map<std::uint64_t, std::uint64_t> assignment;
     std::map<std::uint64_t, std::uint64_t> accepted_assignment;
     bool accepted = false;
@@ -188,45 +228,119 @@ std::vector<realization_triangle_pair> conservative_realization_triangle_pairs(
     const std::vector<realization_domain_box> &input,
     std::uint64_t *overlap_checks, std::uint64_t max_overlap_checks,
     std::uint64_t max_candidates, bool *limited) {
-  auto boxes = input;
-  std::sort(boxes.begin(), boxes.end(), [](const auto &a, const auto &b) {
-    if (a.lower.x != b.lower.x)
-      return a.lower.x < b.lower.x;
-    return a.triangle < b.triangle;
+  std::vector<std::size_t> order(input.size());
+  std::iota(order.begin(), order.end(), std::size_t(0));
+  std::sort(order.begin(), order.end(), [&](auto a, auto b) {
+    const auto &x = input[a];
+    const auto &y = input[b];
+    if (x.lower.x != y.lower.x)
+      return x.lower.x < y.lower.x;
+    return x.triangle < y.triangle;
   });
-  std::vector<const realization_domain_box *> active;
+  std::vector<flat_pair_node> nodes;
+  nodes.reserve(input.empty() ? 0 : 2 * input.size() - 1);
+  std::function<std::size_t(std::size_t, std::size_t)> build =
+      [&](std::size_t begin, std::size_t end) {
+        const auto id = nodes.size();
+        nodes.push_back({});
+        auto &node = nodes[id];
+        node.begin = begin;
+        node.end = end;
+        node.lower = input[order[begin]].lower;
+        node.upper = input[order[begin]].upper;
+        for (std::size_t i = begin + 1; i < end; ++i) {
+          const auto &box = input[order[i]];
+          if (box.lower.x < node.lower.x) node.lower.x = box.lower.x;
+          if (box.lower.y < node.lower.y) node.lower.y = box.lower.y;
+          if (box.lower.z < node.lower.z) node.lower.z = box.lower.z;
+          if (node.upper.x < box.upper.x) node.upper.x = box.upper.x;
+          if (node.upper.y < box.upper.y) node.upper.y = box.upper.y;
+          if (node.upper.z < box.upper.z) node.upper.z = box.upper.z;
+        }
+        if (end - begin > 1) {
+          const auto middle = begin + (end - begin) / 2;
+          const auto left = build(begin, middle);
+          const auto right = build(middle, end);
+          nodes[id].left = left;
+          nodes[id].right = right;
+        }
+        return id;
+      };
+  if (!input.empty())
+    build(0, input.size());
+  auto boxes_overlap = [&](const flat_pair_node &a, const flat_pair_node &b) {
+    return overlap(a.lower.x, a.upper.x, b.lower.x, b.upper.x) &&
+           overlap(a.lower.y, a.upper.y, b.lower.y, b.upper.y) &&
+           overlap(a.lower.z, a.upper.z, b.lower.z, b.upper.z);
+  };
+  auto exact_boxes_overlap = [&](const realization_domain_box &a,
+                                 const realization_domain_box &b) {
+    return overlap(a.lower.x, a.upper.x, b.lower.x, b.upper.x) &&
+           overlap(a.lower.y, a.upper.y, b.lower.y, b.upper.y) &&
+           overlap(a.lower.z, a.upper.z, b.lower.z, b.upper.z);
+  };
+  std::vector<std::pair<std::size_t, std::size_t>> stack;
+  if (!nodes.empty())
+    stack.push_back({0, 0});
   std::vector<realization_triangle_pair> pairs;
   std::uint64_t checks = 0;
   if (limited)
     *limited = false;
-  for (const auto &box : boxes) {
-    active.erase(std::remove_if(active.begin(), active.end(), [&](const auto *x) {
-                   return x->upper.x < box.lower.x;
-                 }),
-                 active.end());
-    for (const auto *other : active) {
-      if (checks == max_overlap_checks) {
-        if (limited)
-          *limited = true;
-        if (overlap_checks)
-          *overlap_checks = checks;
+  const auto checked_overlap = [&](const flat_pair_node &a,
+                                   const flat_pair_node &b,
+                                   bool &limit_hit) {
+    if (checks == max_overlap_checks) {
+      limit_hit = true;
+      return false;
+    }
+    ++checks;
+    return boxes_overlap(a, b);
+  };
+  while (!stack.empty()) {
+    auto pair = stack.back();
+    stack.pop_back();
+    const auto &a = nodes[pair.first];
+    const auto &b = nodes[pair.second];
+    if (pair.first == pair.second) {
+      if (a.leaf())
+        continue;
+      stack.push_back({a.right, a.right});
+      stack.push_back({a.left, a.right});
+      stack.push_back({a.left, a.left});
+      continue;
+    }
+    bool limit_hit = false;
+    if (!checked_overlap(a, b, limit_hit)) {
+      if (limit_hit) {
+        if (limited) *limited = true;
+        if (overlap_checks) *overlap_checks = checks;
         return {};
       }
-      ++checks;
-      if (overlap(other->lower.y, other->upper.y, box.lower.y, box.upper.y) &&
-          overlap(other->lower.z, other->upper.z, box.lower.z, box.upper.z)) {
-        const auto ordered = std::minmax(other->triangle, box.triangle);
-        if (pairs.size() == max_candidates) {
-          if (limited)
-            *limited = true;
-          if (overlap_checks)
-            *overlap_checks = checks;
-          return {};
-        }
-        pairs.push_back({ordered.first, ordered.second});
-      }
+      continue;
     }
-    active.push_back(&box);
+    if (a.leaf() && b.leaf()) {
+      const auto &x = input[order[a.begin]];
+      const auto &y = input[order[b.begin]];
+      if (!exact_boxes_overlap(x, y))
+        continue;
+      if (pairs.size() == max_candidates) {
+        if (limited) *limited = true;
+        if (overlap_checks) *overlap_checks = checks;
+        return {};
+      }
+      const auto ordered = std::minmax(x.triangle, y.triangle);
+      pairs.push_back({ordered.first, ordered.second});
+      continue;
+    }
+    const bool split_a = !a.leaf() &&
+                         (b.leaf() || a.end - a.begin >= b.end - b.begin);
+    if (split_a) {
+      stack.push_back({a.right, pair.second});
+      stack.push_back({a.left, pair.second});
+    } else {
+      stack.push_back({pair.first, b.right});
+      stack.push_back({pair.first, b.left});
+    }
   }
   std::sort(pairs.begin(), pairs.end(), [](const auto &a, const auto &b) {
     return std::tie(a.lower, a.upper) < std::tie(b.lower, b.upper);

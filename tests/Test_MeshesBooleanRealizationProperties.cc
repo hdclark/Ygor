@@ -32,11 +32,16 @@ template <class T, class I> void qualification() {
   auto n = realize_selected_boundary(*cn);
   require(n.has_value(), "neighbor-domain realization");
   realization_oracle(*n.value()->payload);
-  for (const auto &v : n.value()->payload->vertices)
-    if (!v.preserved_source)
-      for (std::size_t axis = 0; axis < 3; ++axis)
-        require(n.value()->payload->axis_domains[3 * v.id.value_for_debug() + axis].values.size() >= 2,
-                "neighboring exact domain expanded");
+  require(std::all_of(n.value()->payload->axis_domains.begin(),
+                      n.value()->payload->axis_domains.end(),
+                      [](const auto &domain) {
+                        return domain.values.size() == 1;
+                      }),
+          "neighboring policy cannot expand exact-in-T domains");
+  require(n.value()->payload->search.visited_nodes ==
+              n.value()->payload->vertices.size() +
+                  n.value()->payload->components.size(),
+          "neighboring singleton preserves canonical transcript evidence");
 
   cancellation_source stop;
   auto cancelled_context = classification_test::context(a, b, realization_test::registry(),
@@ -49,27 +54,38 @@ template <class T, class I> void qualification() {
           "realization cancellation rollback");
 
   const auto attempts = x.value()->payload->search.visited_nodes;
-  require(attempts > 0, "realization attempts fixture");
-  boolean_options exact;
-  exact.resources.realization_attempts = {false, attempts};
-  auto exact_context = classification_test::context(a, b, realization_test::registry(), operation::regularized_union, exact);
-  auto accepted = realize_selected_boundary(*exact_context);
-  require(accepted.has_value(), "exact realization attempt limit");
-  require(exact_context->accountant().used(resource_kind::realization_attempts) == attempts,
-          "realization attempts charged");
-  boolean_options short_limit;
-  short_limit.resources.realization_attempts = {false, attempts - 1};
-  auto short_context = classification_test::context(a, b, realization_test::registry(), operation::regularized_union, short_limit);
-  auto rejected = realize_selected_boundary(*short_context);
-  require(!rejected.has_value() && rejected.error().code == boolean_error_code::resource_limit,
-          "one-under realization attempt rejection");
-  require(short_context->artifacts().latest_generation(artifact_slot::realized_boundary) == 0 &&
-          short_context->accountant().used(resource_kind::realization_attempts) == 0,
-          "realization resource rollback");
+  require(attempts == x.value()->payload->vertices.size() +
+                          x.value()->payload->components.size(),
+          "singleton realization preserves canonical attempt evidence");
+  boolean_options exact_attempts;
+  exact_attempts.resources.realization_attempts = {false, attempts};
+  auto exact_attempt_context = classification_test::context(
+      a, b, realization_test::registry(), operation::regularized_union,
+      exact_attempts);
+  require(realize_selected_boundary(*exact_attempt_context).has_value(),
+          "exact singleton transcript-node limit");
+  require(exact_attempt_context->accountant().used(
+              resource_kind::realization_attempts) == 0,
+          "singleton path charges no actual DFS attempts");
+  boolean_options short_attempts;
+  short_attempts.resources.realization_attempts = {false, attempts - 1};
+  auto short_attempt_context = classification_test::context(
+      a, b, realization_test::registry(), operation::regularized_union,
+      short_attempts);
+  const auto short_attempt = realize_selected_boundary(*short_attempt_context);
+  require(!short_attempt.has_value() &&
+              short_attempt.error().code == boolean_error_code::resource_limit,
+          "one-under singleton transcript-node limit rejects before publication");
 
   if constexpr (std::is_same<T, double>::value &&
                 std::is_same<I, std::uint32_t>::value) {
-    const auto pair_checks = x.value()->payload->search.pair_checks;
+    std::uint64_t hierarchy_checks = 0;
+    require(detail::conservative_realization_triangle_pairs(
+                x.value()->payload->pair_boxes, &hierarchy_checks) ==
+                x.value()->payload->pair_candidates,
+            "realization hierarchy fixture reconstructs candidates");
+    const auto pair_checks = std::max<std::uint64_t>(
+        hierarchy_checks, x.value()->payload->pair_candidates.size());
     require(pair_checks > 0, "realization pair-check fixture");
     boolean_options pair_exact;
     pair_exact.resources.realization_pair_checks = {false, pair_checks};
