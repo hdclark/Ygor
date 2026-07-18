@@ -116,20 +116,31 @@ struct formal_ray_hit {
     std::optional<std::array<original_vertex_id,2>> source_edge_direction;
     bool owns_boundary_crossing=false;
 };
+struct sourced_exact_facet3 {
+    facet_id source_facet;
+    shell_id source_shell;
+    projection_axis projection=projection_axis::drop_z;
+    exact_plane3 source_plane;
+    exact_vector3 source_normal;
+    std::vector<exact_point3> source_ring;
+    std::vector<exact_point2> projected_ring;
+    std::vector<original_vertex_id> source_ring_vertices;
+    // Aligned with source_ring_vertices; each entry is the complete cyclic
+    // outgoing-link facet order at that source vertex.
+    std::vector<std::vector<facet_id>> source_vertex_fans;
+    std::size_t triangle_begin=0;
+    std::size_t triangle_end=0;
+};
 struct sourced_exact_triangle3 {
     exact_triangle3 triangle;
     facet_id source_facet;
     std::uint32_t source_primitive=0;
     std::optional<std::array<original_vertex_id,3>> source_vertices;
-    std::vector<exact_point3> source_ring;
-    std::vector<original_vertex_id> source_ring_vertices;
-    // Aligned with source_ring_vertices; each entry is the complete cyclic
-    // outgoing-link facet order at that source vertex.
-    std::vector<std::vector<facet_id>> source_vertex_fans;
-    // Optional verified facet-level geometry avoids rebuilding the same plane
-    // and normal for every triangle query.
-    const exact_plane3 *source_plane=nullptr;
-    const exact_vector3 *source_normal=nullptr;
+    std::size_t source_facet_index=0;
+};
+struct sourced_exact_operand3 {
+    std::vector<sourced_exact_facet3> facets;
+    std::vector<sourced_exact_triangle3> triangles;
 };
 struct formal_operand_location {
     formal_operand_location_kind location=formal_operand_location_kind::outside;
@@ -142,7 +153,7 @@ struct formal_operand_location {
 };
 bool validate_formal_ray_ownership_evidence(const formal_operand_location&) noexcept;
 status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const std::vector<exact_triangle3>&,std::uint8_t first_direction=0);
-status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const std::vector<sourced_exact_triangle3>&,std::uint8_t first_direction=0);
+status_or<formal_operand_location> locate_formal_open_point(const formal_open_point_view&,const sourced_exact_operand3&,std::uint8_t first_direction=0);
 
 enum class carrier_relation:std::uint8_t{skew,nonparallel_coplanar,parallel_distinct,collinear};enum class intersection_dimension:std::uint8_t{empty,point,segment};
 enum class segment_point_kind:std::uint8_t{none,proper_crossing,endpoint_endpoint,endpoint_interior};enum class overlap_kind:std::uint8_t{none,partial,first_contains_second,second_contains_first,equal_same_direction,equal_opposite_direction};

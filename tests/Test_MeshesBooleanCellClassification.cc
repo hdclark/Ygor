@@ -13,6 +13,7 @@ int main(){try{
   auto repeated=classify_arrangement_cells(*c);require(repeated.has_value()&&repeated.value().get()==result.value().get(),"idempotent");
 
   mutation_rejected(*r,*c,x,[](auto&v){v.owner=context_owner_token{};},"owner mutation rejected");
+  mutation_rejected(*r,*c,x,[](auto&v){v.validated.reset();},"null validated dependency rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.regions.front().label.in_a=!v.regions.front().label.in_a;},"region label mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){v.seeds.front().source_component=open_region_component_id::from_canonical_value(v.regions.size());},"seed binding mutation rejected");
   mutation_rejected(*r,*c,x,[](auto&v){++v.seeds.front().operand_a_primary.signed_degree;},"ray degree mutation rejected");

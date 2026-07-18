@@ -83,22 +83,39 @@ static void formal_point_location(){std::vector<exact_triangle3>tet{{p3(0,0,0),p
 static void grouped_ray_ownership(){
   const auto facet=facet_id::from_canonical_value(0);
   const auto v0=original_vertex_id::from_canonical_value(0),v1=original_vertex_id::from_canonical_value(1),v2=original_vertex_id::from_canonical_value(2),v3=original_vertex_id::from_canonical_value(3);
+  auto add_facet=[](sourced_exact_operand3&operand,facet_id id,
+                    const std::vector<exact_point3>&ring,
+                    const std::vector<original_vertex_id>&ids,
+                    std::vector<std::vector<facet_id>>fans,
+                    const std::vector<std::pair<exact_triangle3,std::array<original_vertex_id,3>>>&triangles){
+    auto plane=support_plane(triangles[0].first.a,triangles[0].first.b,
+                             triangles[0].first.c).value();
+    exact_vector3 normal{exact_scalar(plane.a,big_uint(1)),exact_scalar(plane.b,big_uint(1)),exact_scalar(plane.c,big_uint(1))};
+    if(plane.oriented==orientation_parity::opposite)normal=normal*exact_scalar(-1);
+    if(fans.empty())fans.resize(ring.size());
+    sourced_exact_facet3 source;source.source_facet=id;source.source_shell=shell_id::from_canonical_value(0);source.projection=dominant_projection(plane);source.source_plane=plane;source.source_normal=normal;source.source_ring=ring;source.source_ring_vertices=ids;source.source_vertex_fans=std::move(fans);source.triangle_begin=operand.triangles.size();
+    for(std::size_t i=0;i<triangles.size();++i)operand.triangles.push_back({triangles[i].first,id,static_cast<std::uint32_t>(i),triangles[i].second,operand.facets.size()});
+    source.triangle_end=operand.triangles.size();for(const auto&p:ring)source.projected_ring.push_back(project(p,source.projection));operand.facets.push_back(std::move(source));
+  };
   const std::vector<exact_point3> square{p3(1,-1,-1),p3(1,1,-1),p3(1,1,1),p3(1,-1,1)};
   const std::vector<original_vertex_id> square_ids{v0,v1,v2,v3};
   formal_open_point_view center{p3(0,0,0),exact_vector3{q(0),q(1),q(0)}, {}};
-  std::vector<sourced_exact_triangle3> diagonal_a{{{square[0],square[1],square[2]},facet,0,std::array<original_vertex_id,3>{v0,v1,v2},square,square_ids},{{square[0],square[2],square[3]},facet,1,std::array<original_vertex_id,3>{v0,v2,v3},square,square_ids}};
-  std::vector<sourced_exact_triangle3> diagonal_b{{{square[0],square[1],square[3]},facet,0,std::array<original_vertex_id,3>{v0,v1,v3},square,square_ids},{{square[1],square[2],square[3]},facet,1,std::array<original_vertex_id,3>{v1,v2,v3},square,square_ids}};
+  sourced_exact_operand3 diagonal_a,diagonal_b;
+  add_facet(diagonal_a,facet,square,square_ids,{},{{{square[0],square[1],square[2]},{v0,v1,v2}},{{square[0],square[2],square[3]},{v0,v2,v3}}});
+  add_facet(diagonal_b,facet,square,square_ids,{},{{{square[0],square[1],square[3]},{v0,v1,v3}},{{square[1],square[2],square[3]},{v1,v2,v3}}});
+  require(diagonal_a.facets.size()==1&&diagonal_a.facets[0].source_ring.size()==4&&diagonal_a.triangles.size()==2&&diagonal_a.triangles[0].source_facet_index==diagonal_a.triangles[1].source_facet_index,"source facet geometry stored once");
   auto a=locate_formal_open_point(center,diagonal_a),b=locate_formal_open_point(center,diagonal_b);
   require(a.has_value()&&b.has_value()&&a.value().signed_degree==1&&b.value().signed_degree==1,"source polygon degree independent of diagonal");
   require(a.value().hits.size()==1&&b.value().hits.size()==1&&a.value().hits[0].source_facet==facet&&b.value().hits[0].source_facet==facet,"one source polygon owner");
   require(a.value().hits[0].ownership==formal_ray_ownership_kind::facet_interior&&b.value().hits[0].ownership==formal_ray_ownership_kind::facet_interior&&!a.value().hits[0].source_edge&&!b.value().hits[0].source_edge,"internal diagonals are not source edges");
+  auto malformed=diagonal_a;malformed.triangles[1].source_facet_index=1;require(!locate_formal_open_point(center,malformed).has_value(),"reject malformed source facet reference");
   formal_open_point_view edge{p3(0,0,0),exact_vector3{q(0),q(1),q(0)}, {}};
   const std::vector<exact_point3> triangle_ring{p3(1,0,-1),p3(1,1,0),p3(1,0,1)};
   const std::vector<original_vertex_id> triangle_ids{v0,v1,v2};
-  std::vector<sourced_exact_triangle3> edge_triangle{{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},facet,0,std::array<original_vertex_id,3>{v0,v1,v2},triangle_ring,triangle_ids}};
+  sourced_exact_operand3 edge_triangle;add_facet(edge_triangle,facet,triangle_ring,triangle_ids,{},{{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},{v0,v1,v2}}});
   auto e=locate_formal_open_point(edge,edge_triangle);
   require(e.has_value()&&e.value().hits.size()==1&&e.value().hits[0].ownership==formal_ray_ownership_kind::source_edge&&e.value().hits[0].source_edge==std::optional<std::array<original_vertex_id,2>>({v0,v2})&&e.value().hits[0].source_edge_direction==std::optional<std::array<original_vertex_id,2>>({v2,v0})&&e.value().hits[0].owns_boundary_crossing,"ordered source edge ownership evidence");
-  std::vector<sourced_exact_triangle3> shared_edge{edge_triangle[0],{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},facet_id::from_canonical_value(2),0,std::array<original_vertex_id,3>{v0,v3,v2},triangle_ring,std::vector<original_vertex_id>{v0,v3,v2}}};
+  sourced_exact_operand3 shared_edge=edge_triangle;add_facet(shared_edge,facet_id::from_canonical_value(2),triangle_ring,{v0,v3,v2},{},{{{triangle_ring[0],triangle_ring[1],triangle_ring[2]},{v0,v3,v2}}});
   auto se=locate_formal_open_point(edge,shared_edge);
   require(se.has_value()&&se.value().signed_degree==1&&se.value().hits.size()==2,"shared source edge contributes once");
   require(se.value().hits[0].source_edge==se.value().hits[1].source_edge&&se.value().hits[0].source_edge_direction==std::optional<std::array<original_vertex_id,2>>({v2,v0})&&se.value().hits[0].signed_contribution+se.value().hits[1].signed_contribution==1&&se.value().hits[0].owns_boundary_crossing!=se.value().hits[1].owns_boundary_crossing,"shared source edge has one ordered owner");
@@ -110,7 +127,7 @@ static void grouped_ray_ownership(){
   formal_open_point_view vertex{p3(0,0,0),exact_vector3{q(0),q(1),q(1)}, {}};
   const std::vector<exact_point3> vertex_ring{p3(1,0,0),p3(1,2,0),p3(1,0,2)};
   const std::vector<facet_id> vertex_fan{facet,facet_id::from_canonical_value(2),facet_id::from_canonical_value(3)};
-  std::vector<sourced_exact_triangle3> vertex_triangle{{{vertex_ring[0],vertex_ring[1],vertex_ring[2]},facet,0,std::array<original_vertex_id,3>{v0,v1,v2},vertex_ring,triangle_ids,{vertex_fan,{facet},{facet}}}};
+  sourced_exact_operand3 vertex_triangle;add_facet(vertex_triangle,facet,vertex_ring,triangle_ids,{vertex_fan,{facet},{facet}},{{{vertex_ring[0],vertex_ring[1],vertex_ring[2]},{v0,v1,v2}}});
   auto v=locate_formal_open_point(vertex,vertex_triangle);
   require(v.has_value()&&v.value().hits.size()==1&&v.value().hits[0].ownership==formal_ray_ownership_kind::source_vertex&&v.value().hits[0].source_vertex==v0&&v.value().hits[0].source_vertex_fan==vertex_fan&&v.value().hits[0].source_vertex_fan_index==0,"ordered source vertex fan ownership evidence");
   require(validate_formal_ray_ownership_evidence(v.value()),"source vertex fan replay evidence");
@@ -120,7 +137,7 @@ static void grouped_ray_ownership(){
   require(!validate_formal_ray_ownership_evidence(damaged_vertex),"reject duplicate source vertex fan member");
   const auto opposite=facet_id::from_canonical_value(1);
   const std::vector<exact_point3> tangent_ring{p3(1,-2,-2),p3(1,2,-2),p3(1,0,2)};
-  std::vector<sourced_exact_triangle3> tangent{{{tangent_ring[0],tangent_ring[1],tangent_ring[2]},facet,0,std::array<original_vertex_id,3>{v0,v1,v2},tangent_ring,triangle_ids},{{tangent_ring[2],tangent_ring[1],tangent_ring[0]},opposite,0,std::array<original_vertex_id,3>{v2,v1,v0},tangent_ring,triangle_ids}};
+  sourced_exact_operand3 tangent;add_facet(tangent,facet,tangent_ring,triangle_ids,{},{{{tangent_ring[0],tangent_ring[1],tangent_ring[2]},{v0,v1,v2}}});add_facet(tangent,opposite,tangent_ring,triangle_ids,{},{{{tangent_ring[2],tangent_ring[1],tangent_ring[0]},{v2,v1,v0}}});
   auto t=locate_formal_open_point(center,tangent);
   require(t.has_value()&&t.value().signed_degree==0&&t.value().hits.size()==2&&t.value().hits[0].parameter_group==t.value().hits[1].parameter_group&&t.value().hits[0].ownership==formal_ray_ownership_kind::tangent&&t.value().hits[1].ownership==formal_ray_ownership_kind::tangent&&!t.value().hits[0].owns_boundary_crossing&&!t.value().hits[1].owns_boundary_crossing,"equal parameter tangent has no owner");
   require(validate_formal_ray_ownership_evidence(t.value()),"tangent replay evidence");

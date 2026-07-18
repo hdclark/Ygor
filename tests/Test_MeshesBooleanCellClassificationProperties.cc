@@ -2,6 +2,28 @@
 #include <iostream>
 using namespace classification_test;
 template<class T,class I>
+static fv_surface_mesh<T,I> subdivided_square_prism(std::size_t subdivisions){
+  fv_surface_mesh<T,I> mesh;std::vector<std::array<T,2>> ring;
+  for(std::size_t i=0;i<subdivisions;++i)ring.push_back({T(i),T(0)});
+  for(std::size_t i=0;i<subdivisions;++i)ring.push_back({T(subdivisions),T(i)});
+  for(std::size_t i=0;i<subdivisions;++i)ring.push_back({T(subdivisions-i),T(subdivisions)});
+  for(std::size_t i=0;i<subdivisions;++i)ring.push_back({T(0),T(subdivisions-i)});
+  for(T z:{T(0),T(1)})for(const auto&p:ring)mesh.vertices.push_back({p[0],p[1],z});
+  std::vector<I> bottom,top;for(std::size_t i=0;i<ring.size();++i){bottom.push_back(static_cast<I>(ring.size()-1-i));top.push_back(static_cast<I>(ring.size()+i));}mesh.faces.push_back(std::move(bottom));mesh.faces.push_back(std::move(top));
+  for(std::size_t i=0;i<ring.size();++i){const auto next=(i+1)%ring.size();mesh.faces.push_back({static_cast<I>(i),static_cast<I>(next),static_cast<I>(ring.size()+next),static_cast<I>(ring.size()+i)});}return mesh;
+}
+template<class T,class I>
+static std::pair<std::uint64_t,std::uint64_t> classification_geometry_storage(const validated_operands<T,I>&v){
+  std::uint64_t facets=0,triangles=0,ring_entries=0,fan_members=0,duplicated_payload=0;
+  for(const auto&f:v.facets){++facets;triangles+=f.triangles.size();ring_entries+=f.ring.size();const auto&g=v.facet_geometry[f.id.value_for_debug()];std::uint64_t members=0;for(const auto&fan:g.vertex_fans)members+=fan.size();fan_members+=members;const auto per_ring=f.ring.size()*(sizeof(exact_point3)+sizeof(exact_point2)+sizeof(original_vertex_id)+sizeof(std::vector<facet_id>))+members*sizeof(facet_id);duplicated_payload+=per_ring*f.triangles.size();}
+  const auto bytes=facets*sizeof(sourced_exact_facet3)+triangles*sizeof(sourced_exact_triangle3)+ring_entries*(sizeof(exact_point3)+sizeof(exact_point2)+sizeof(original_vertex_id)+sizeof(std::vector<facet_id>))+fan_members*sizeof(facet_id);return {bytes,duplicated_payload};
+}
+static void facet_storage_accounting(){
+  auto measure=[](std::size_t subdivisions){auto a=subdivided_square_prism<double,std::uint32_t>(subdivisions);fv_surface_mesh<double,std::uint32_t>b;boolean_options options;options.tracing.collect_noncanonical_timings=true;auto c=classification_test::context(a,b,classification_test::registry(),operation::regularized_union,options);auto result=classify_arrangement_cells(*c);require(result.has_value(),"highly triangulated classification");classification_oracle(*result.value()->payload);const auto expected=classification_geometry_storage(*result.value()->payload->validated->payload);const auto&stage=c->performance()->stage(boolean_stage::cell_classification);require(stage.producer.resource(resource_kind::stage_private_bytes)==expected.first,"producer facet classification storage accounting");require(stage.verifier.resource(resource_kind::verifier_scratch_bytes)==expected.first,"verifier facet classification storage accounting");return expected;};
+  const auto small=measure(4),large=measure(8);require(large.first<small.first*3,"classification storage scales linearly with polygon triangulation");require(large.second>large.first,"ring and fan storage charged per facet rather than triangle");
+  auto a=subdivided_square_prism<double,std::uint32_t>(4);fv_surface_mesh<double,std::uint32_t>b;boolean_options short_limit;short_limit.resources.stage_private_bytes={false,small.first-1};auto c=classification_test::context(a,b,classification_test::registry(),operation::regularized_union,short_limit);auto arrangement=build_global_arrangement(*c);require(arrangement.has_value(),"classification byte-limit prerequisite");const auto before=c->accountant().used(resource_kind::stage_private_bytes);auto rejected=classify_arrangement_cells(*c);require(!rejected.has_value()&&rejected.error().code==boolean_error_code::resource_limit&&rejected.error().stage==boolean_stage::cell_classification,"classification geometry one-under byte limit");require(c->artifacts().latest_generation(artifact_slot::labeled_arrangement)==0&&c->accountant().used(resource_kind::stage_private_bytes)==before,"classification geometry byte rollback");
+}
+template<class T,class I>
 static void qualification(){
   auto a=input_test::box<T,I>(T(0),T(1)),b=input_test::box<T,I>(T(3),T(4));
   boolean_options one;one.execution.max_threads=1;auto c1=context(a,b,classification_test::registry(),operation::regularized_union,one);auto x=classify_arrangement_cells(*c1);require(x.has_value(),"classification single-thread schedule");
@@ -44,4 +66,5 @@ int main(){try{
 
   auto empty_context=context(empty,empty,classification_test::registry());auto empty_result=classify_arrangement_cells(*empty_context);if(!empty_result.has_value())throw std::runtime_error("empty classification: "+render_error(empty_result.error()));classification_oracle(*empty_result.value()->payload);require(empty_result.value()->payload->regions.size()==1,"empty universe region");require(empty_result.value()->payload->patch_labels.empty(),"empty universe has no patch labels");
   qualification<double,std::uint32_t>();
+  facet_storage_accounting();
   std::cout<<"ok\n";}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

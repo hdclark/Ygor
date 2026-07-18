@@ -253,23 +253,192 @@ digest artifact_digest_for(const labeled_arrangement<T, I> &a) {
   return domain_digest({{'Y', 'G', 'B', 'A', 'R', 'T', '0', '1'}}, e.bytes());
 }
 template <class T, class I>
-std::vector<sourced_exact_triangle3>
-operand_triangles(const validated_operands<T, I> &v, operand_id operand) {
-  std::vector<sourced_exact_triangle3> out;
-  for (const auto &f : v.facets)
-    if (f.operand == operand) {
-      std::uint32_t primitive = 0;
-      const auto &geometry=v.facet_geometry[f.id.value_for_debug()];
-      for (std::size_t i=0;i<f.triangles.size();++i) {
-        const auto&t=f.triangles[i];
-        out.push_back({geometry.triangles[i].triangle,f.id,primitive,
-                       std::array<original_vertex_id, 3>{t[0], t[1], t[2]},
-                       geometry.ring3,f.ring,geometry.vertex_fans,
-                       &geometry.plane,&geometry.oriented_normal});
-        ++primitive;
-      }
+status_or<std::uint64_t>
+classification_geometry_bytes(const validated_operands<T, I> &v,
+                              operand_id operand) {
+  std::uint64_t facets = 0, triangles = 0, ring_entries = 0, fan_members = 0;
+  for (const auto &f : v.facets) if (f.operand == operand) {
+    auto count = checked_add(facets, 1, boolean_stage::cell_classification);
+    if (!count.has_value()) return count.error();
+    facets = count.value();
+    count = checked_add(triangles, f.triangles.size(),
+                        boolean_stage::cell_classification);
+    if (!count.has_value()) return count.error();
+    triangles = count.value();
+    count = checked_add(ring_entries, f.ring.size(),
+                        boolean_stage::cell_classification);
+    if (!count.has_value()) return count.error();
+    ring_entries = count.value();
+    const auto &geometry = v.facet_geometry[f.id.value_for_debug()];
+    for (const auto &fan : geometry.vertex_fans) {
+      count = checked_add(fan_members, fan.size(),
+                          boolean_stage::cell_classification);
+      if (!count.has_value()) return count.error();
+      fan_members = count.value();
     }
+  }
+  auto facet_bytes = checked_multiply(facets, sizeof(sourced_exact_facet3),
+                                      boolean_stage::cell_classification);
+  auto triangle_bytes = checked_multiply(triangles, sizeof(sourced_exact_triangle3),
+                                         boolean_stage::cell_classification);
+  auto ring_bytes = checked_multiply(
+      ring_entries, sizeof(exact_point3) + sizeof(exact_point2) +
+                        sizeof(original_vertex_id) + sizeof(std::vector<facet_id>),
+      boolean_stage::cell_classification);
+  auto fan_bytes = checked_multiply(fan_members, sizeof(facet_id),
+                                    boolean_stage::cell_classification);
+  if (!facet_bytes.has_value()) return facet_bytes.error();
+  if (!triangle_bytes.has_value()) return triangle_bytes.error();
+  if (!ring_bytes.has_value()) return ring_bytes.error();
+  if (!fan_bytes.has_value()) return fan_bytes.error();
+  auto bytes = checked_add(facet_bytes.value(), triangle_bytes.value(),
+                           boolean_stage::cell_classification);
+  if (!bytes.has_value()) return bytes.error();
+  bytes = checked_add(bytes.value(), ring_bytes.value(),
+                      boolean_stage::cell_classification);
+  if (!bytes.has_value()) return bytes.error();
+  return checked_add(bytes.value(), fan_bytes.value(),
+                     boolean_stage::cell_classification);
+}
+
+template <class T, class I>
+bool classification_geometry_shape_valid(const validated_operands<T, I> &v) {
+  if (v.operands.size() < 2 || v.facet_geometry.size() != v.facets.size())
+    return false;
+  for (const auto &facet : v.facets) {
+    const auto fi = facet.id.value_for_debug();
+    if (fi >= v.facet_geometry.size() ||
+        facet.shell.value_for_debug() >= v.shells.size())
+      return false;
+    const auto &geometry = v.facet_geometry[fi];
+    if (geometry.triangles.size() != facet.triangles.size() ||
+        geometry.ring3.size() != facet.ring.size() ||
+        geometry.ring2.size() != facet.ring.size() ||
+        geometry.vertex_fans.size() != facet.ring.size())
+      return false;
+    for (const auto vertex : facet.ring) {
+      const auto vi = vertex.value_for_debug();
+      if (vi >= v.vertices.size()) return false;
+      for (const auto use : v.vertices[vi].ordered_outgoing_link)
+        if (use.value_for_debug() >= v.edge_uses.size()) return false;
+    }
+    for (const auto &triangle : facet.triangles)
+      for (const auto vertex : triangle)
+        if (vertex.value_for_debug() >= v.vertices.size()) return false;
+  }
+  for (const auto &operand : v.operands)
+    for (const auto shell : operand.shells)
+      if (shell.value_for_debug() >= v.shells.size()) return false;
+  return true;
+}
+
+template <class T, class I>
+sourced_exact_operand3
+build_producer_operand_geometry(const validated_operands<T, I> &v,
+                                operand_id operand) {
+  sourced_exact_operand3 out;
+  std::size_t facet_count = 0, triangle_count = 0;
+  for (const auto &f : v.facets) if (f.operand == operand) {
+    ++facet_count;
+    triangle_count += f.triangles.size();
+  }
+  out.facets.reserve(facet_count);
+  out.triangles.reserve(triangle_count);
+  for (const auto &f : v.facets) if (f.operand == operand) {
+    const auto &geometry = v.facet_geometry[f.id.value_for_debug()];
+    sourced_exact_facet3 record;
+    record.source_facet = f.id;
+    record.source_shell = f.shell;
+    record.projection = geometry.projection;
+    record.source_plane = geometry.plane;
+    record.source_normal = geometry.oriented_normal;
+    record.source_ring.reserve(geometry.ring3.size());
+    record.source_ring.insert(record.source_ring.end(), geometry.ring3.begin(),
+                              geometry.ring3.end());
+    record.projected_ring.reserve(geometry.ring2.size());
+    record.projected_ring.insert(record.projected_ring.end(), geometry.ring2.begin(),
+                                 geometry.ring2.end());
+    record.source_ring_vertices.reserve(f.ring.size());
+    record.source_ring_vertices.insert(record.source_ring_vertices.end(),
+                                       f.ring.begin(), f.ring.end());
+    record.source_vertex_fans.reserve(geometry.vertex_fans.size());
+    for (const auto &source_fan : geometry.vertex_fans) {
+      std::vector<facet_id> fan;
+      fan.reserve(source_fan.size());
+      fan.insert(fan.end(), source_fan.begin(), source_fan.end());
+      record.source_vertex_fans.push_back(std::move(fan));
+    }
+    record.triangle_begin = out.triangles.size();
+    const auto facet_index = out.facets.size();
+    for (std::size_t i = 0; i < f.triangles.size(); ++i) {
+      const auto &t = f.triangles[i];
+      out.triangles.push_back({geometry.triangles[i].triangle, f.id,
+          static_cast<std::uint32_t>(i),
+          std::array<original_vertex_id, 3>{t[0], t[1], t[2]}, facet_index});
+    }
+    record.triangle_end = out.triangles.size();
+    out.facets.push_back(std::move(record));
+  }
   return out;
+}
+
+template <class T, class I>
+sourced_exact_operand3
+build_verifier_operand_geometry(const validated_operands<T, I> &v,
+                                operand_id operand) {
+  sourced_exact_operand3 result;
+  std::size_t facet_count = 0, triangle_count = 0;
+  for (const auto &facet : v.facets) if (facet.operand == operand) {
+    ++facet_count;
+    triangle_count += facet.triangles.size();
+  }
+  result.facets.reserve(facet_count);
+  result.triangles.reserve(triangle_count);
+  for (const auto &facet : v.facets) if (facet.operand == operand) {
+    sourced_exact_facet3 source;
+    source.source_facet = facet.id;
+    source.source_shell = facet.shell;
+    source.projection = facet.projection;
+    source.source_plane = facet.plane;
+    source.source_normal = {
+        exact_scalar(facet.plane.a, big_uint(1)),
+        exact_scalar(facet.plane.b, big_uint(1)),
+        exact_scalar(facet.plane.c, big_uint(1))};
+    if (facet.plane.oriented == orientation_parity::opposite)
+      source.source_normal = source.source_normal * exact_scalar(-1);
+    source.source_ring.reserve(facet.ring.size());
+    source.projected_ring.reserve(facet.ring.size());
+    source.source_ring_vertices.reserve(facet.ring.size());
+    source.source_ring_vertices.insert(source.source_ring_vertices.end(),
+                                       facet.ring.begin(), facet.ring.end());
+    source.source_vertex_fans.reserve(facet.ring.size());
+    for (const auto vertex : facet.ring) {
+      const auto &validated_vertex = v.vertices[vertex.value_for_debug()];
+      source.source_ring.push_back(validated_vertex.exact_coordinate);
+      source.projected_ring.push_back(
+          project(validated_vertex.exact_coordinate, facet.projection));
+      std::vector<facet_id> fan;
+      fan.reserve(validated_vertex.ordered_outgoing_link.size());
+      for (const auto use : validated_vertex.ordered_outgoing_link)
+        fan.push_back(v.edge_uses[use.value_for_debug()].facet);
+      source.source_vertex_fans.push_back(std::move(fan));
+    }
+    source.triangle_begin = result.triangles.size();
+    const auto source_index = result.facets.size();
+    for (std::size_t i = 0; i < facet.triangles.size(); ++i) {
+      const auto &vertices = facet.triangles[i];
+      result.triangles.push_back({
+          {v.vertices[vertices[0].value_for_debug()].exact_coordinate,
+           v.vertices[vertices[1].value_for_debug()].exact_coordinate,
+           v.vertices[vertices[2].value_for_debug()].exact_coordinate}, facet.id,
+          static_cast<std::uint32_t>(i),
+          std::array<original_vertex_id, 3>{vertices[0], vertices[1], vertices[2]},
+          source_index});
+    }
+    source.triangle_end = result.triangles.size();
+    result.facets.push_back(std::move(source));
+  }
+  return result;
 }
 exact_sign formal_plane_sign(const exact_plane3 &plane,
                              const formal_open_point_view &point) {
@@ -364,6 +533,15 @@ exact_sign formal_sign(const exact_scalar &constant,
   return s == exact_sign::zero ? epsilon.sign() : s;
 }
 
+exact_scalar oriented_plane_value(const exact_plane3 &plane,
+                                  const exact_point3 &point) {
+  auto value = exact_scalar(plane.d, big_uint(1)) +
+               exact_scalar(plane.a, big_uint(1)) * point.x +
+               exact_scalar(plane.b, big_uint(1)) * point.y +
+               exact_scalar(plane.c, big_uint(1)) * point.z;
+  return plane.oriented == orientation_parity::agree ? value : value.negated();
+}
+
 struct formal_projected_point {
   exact_point2 constant;
   exact_vector2 epsilon;
@@ -403,31 +581,18 @@ bool formal_point_in_facet(const formal_projected_point &p,
   return inside;
 }
 
-template <class T, class I>
-bool independently_reconstruct_ray(const validated_operands<T, I> &v,
-                                   operand_id operand,
-                                   const formal_open_point_view &point,
-                                   const operand_ray_evidence &stored) {
+bool independently_reconstruct_ray(const sourced_exact_operand3 &geometry,
+                                    const formal_open_point_view &point,
+                                    const operand_ray_evidence &stored) {
   const auto &direction = stored.direction;
   std::int64_t degree = 0;
   std::vector<facet_id> sources;
-  for (const auto &facet : v.facets) {
-    if (facet.operand != operand)
-      continue;
-    exact_vector3 normal{exact_scalar(facet.plane.a, big_uint(1)),
-                         exact_scalar(facet.plane.b, big_uint(1)),
-                         exact_scalar(facet.plane.c, big_uint(1))};
-    if (facet.plane.oriented == orientation_parity::opposite)
-      normal = normal * exact_scalar(-1);
+  for (const auto &facet : geometry.facets) {
+    const auto &normal = facet.source_normal;
     const auto denominator = dot(normal, direction);
     if (denominator.is_zero())
       continue;
-    exact_scalar plane_value(facet.plane.d, big_uint(1));
-    plane_value = plane_value + exact_scalar(facet.plane.a, big_uint(1)) * point.base.x +
-                  exact_scalar(facet.plane.b, big_uint(1)) * point.base.y +
-                  exact_scalar(facet.plane.c, big_uint(1)) * point.base.z;
-    if (facet.plane.oriented == orientation_parity::opposite)
-      plane_value = plane_value.negated();
+    auto plane_value = oriented_plane_value(facet.source_plane, point.base);
     const auto tc = plane_value.negated() / denominator;
     const auto te = dot(normal, point.infinitesimal_direction).negated() /
                     denominator;
@@ -439,16 +604,11 @@ bool independently_reconstruct_ray(const validated_operands<T, I> &v,
         point.infinitesimal_direction.x + direction_epsilon.x,
         point.infinitesimal_direction.y + direction_epsilon.y,
         point.infinitesimal_direction.z + direction_epsilon.z};
-    std::vector<exact_point2> ring;
-    ring.reserve(facet.ring.size());
-    for (const auto vertex : facet.ring)
-      ring.push_back(project(v.vertices[vertex.value_for_debug()].exact_coordinate,
-                             facet.projection));
     if (!formal_point_in_facet(project_formal(hit, hit_epsilon, facet.projection),
-                               ring))
+                               facet.projected_ring))
       continue;
     degree += denominator.sign() == exact_sign::positive ? 1 : -1;
-    sources.push_back(facet.id);
+    sources.push_back(facet.source_facet);
   }
   std::sort(sources.begin(), sources.end());
   std::vector<facet_id> stored_sources;
@@ -463,28 +623,18 @@ bool independently_reconstruct_ray(const validated_operands<T, I> &v,
 }
 template <class T, class I>
 bool independently_check_shell_polarity(const validated_operands<T, I> &v,
-                                        operand_id operand,
+                                         const sourced_exact_operand3 &geometry,
+                                         operand_id operand,
                                         const formal_open_point_view &point,
                                         const operand_ray_evidence &stored) {
   const auto &direction = stored.direction;
   std::map<shell_id, std::int64_t> degrees;
-  for (const auto &facet : v.facets) {
-    if (facet.operand != operand)
-      continue;
-    exact_vector3 normal{exact_scalar(facet.plane.a, big_uint(1)),
-                         exact_scalar(facet.plane.b, big_uint(1)),
-                         exact_scalar(facet.plane.c, big_uint(1))};
-    if (facet.plane.oriented == orientation_parity::opposite)
-      normal = normal * exact_scalar(-1);
+  for (const auto &facet : geometry.facets) {
+    const auto &normal = facet.source_normal;
     const auto denominator = dot(normal, direction);
     if (denominator.is_zero())
       continue;
-    exact_scalar plane_value(facet.plane.d, big_uint(1));
-    plane_value = plane_value + exact_scalar(facet.plane.a, big_uint(1)) * point.base.x +
-                  exact_scalar(facet.plane.b, big_uint(1)) * point.base.y +
-                  exact_scalar(facet.plane.c, big_uint(1)) * point.base.z;
-    if (facet.plane.oriented == orientation_parity::opposite)
-      plane_value = plane_value.negated();
+    auto plane_value = oriented_plane_value(facet.source_plane, point.base);
     const auto tc = plane_value.negated() / denominator;
     const auto te = dot(normal, point.infinitesimal_direction).negated() /
                     denominator;
@@ -495,12 +645,9 @@ bool independently_check_shell_polarity(const validated_operands<T, I> &v,
     const exact_vector3 epsilon{point.infinitesimal_direction.x + delta.x,
                                 point.infinitesimal_direction.y + delta.y,
                                 point.infinitesimal_direction.z + delta.z};
-    std::vector<exact_point2> ring;
-    for (const auto vertex : facet.ring)
-      ring.push_back(project(v.vertices[vertex.value_for_debug()].exact_coordinate,
-                             facet.projection));
-    if (formal_point_in_facet(project_formal(hit, epsilon, facet.projection), ring))
-      degrees[facet.shell] += denominator.sign() == exact_sign::positive ? 1 : -1;
+    if (formal_point_in_facet(project_formal(hit, epsilon, facet.projection),
+                              facet.projected_ring))
+      degrees[facet.source_shell] += denominator.sign() == exact_sign::positive ? 1 : -1;
   }
   std::int64_t operand_degree = 0;
   std::set<shell_id> containing;
@@ -818,8 +965,8 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
   if (a.classification != classification_strategy::independent_patch_side_v1 ||
       g.classification != a.classification)
     return false;
-  const auto ta = operand_triangles(*a.validated->payload, operand_a());
-  const auto tb = operand_triangles(*a.validated->payload, operand_b());
+  const auto ta = build_verifier_operand_geometry(*a.validated->payload, operand_a());
+  const auto tb = build_verifier_operand_geometry(*a.validated->payload, operand_b());
   if (a.seeds.size() != g.probes.size())
     return false;
   for (std::size_t i = 0; i < g.probes.size(); ++i) {
@@ -844,22 +991,18 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
                                    s.operand_b_primary) ||
          !valid_source_attribution(*a.validated->payload, operand_b(), s.operand_b,
                                    s.operand_b_alternate, false) ||
-         !independently_reconstruct_ray(*a.validated->payload, operand_a(), p.value(),
-                                        s.operand_a_primary) ||
-         !independently_reconstruct_ray(*a.validated->payload, operand_a(), p.value(),
-                                        s.operand_a_alternate) ||
-          !independently_reconstruct_ray(*a.validated->payload, operand_b(), p.value(),
-                                         s.operand_b_primary) ||
-          !independently_reconstruct_ray(*a.validated->payload, operand_b(), p.value(),
-                                         s.operand_b_alternate) ||
-          !independently_check_shell_polarity(*a.validated->payload, operand_a(),
-                                               p.value(), s.operand_a_primary) ||
-          !independently_check_shell_polarity(*a.validated->payload, operand_a(),
-                                               p.value(), s.operand_a_alternate) ||
-          !independently_check_shell_polarity(*a.validated->payload, operand_b(),
-                                               p.value(), s.operand_b_primary) ||
-          !independently_check_shell_polarity(*a.validated->payload, operand_b(),
-                                               p.value(), s.operand_b_alternate))
+          !independently_reconstruct_ray(ta, p.value(), s.operand_a_primary) ||
+          !independently_reconstruct_ray(ta, p.value(), s.operand_a_alternate) ||
+           !independently_reconstruct_ray(tb, p.value(), s.operand_b_primary) ||
+           !independently_reconstruct_ray(tb, p.value(), s.operand_b_alternate) ||
+           !independently_check_shell_polarity(*a.validated->payload, ta, operand_a(),
+                                                p.value(), s.operand_a_primary) ||
+           !independently_check_shell_polarity(*a.validated->payload, ta, operand_a(),
+                                                p.value(), s.operand_a_alternate) ||
+           !independently_check_shell_polarity(*a.validated->payload, tb, operand_b(),
+                                                p.value(), s.operand_b_primary) ||
+           !independently_check_shell_polarity(*a.validated->payload, tb, operand_b(),
+                                                p.value(), s.operand_b_alternate))
       return false;
   }
   const auto witness = exterior_witness(*a.validated->payload, g);
@@ -1055,7 +1198,27 @@ verify_typed(const artifact_view &v, const verification_spec &s,
     r.setup_digest = e.setup_digest;
     r.artifact_digest = v.artifact_digest;
     r.invariant_set_digest = s.invariant_set_digest;
-    bool ok = valid(a);
+    const bool safe_dependencies = a.validated && a.validated->payload &&
+        a.arrangement && a.arrangement->payload &&
+        classification_geometry_shape_valid(*a.validated->payload);
+    std::optional<resource_reservation> scratch_charge;
+    if (safe_dependencies && e.accountant) {
+      auto bytes_a = classification_geometry_bytes(*a.validated->payload,
+                                                   operand_a());
+      auto bytes_b = classification_geometry_bytes(*a.validated->payload,
+                                                   operand_b());
+      if (!bytes_a.has_value()) return bytes_a.error();
+      if (!bytes_b.has_value()) return bytes_b.error();
+      auto scratch = checked_add(bytes_a.value(), bytes_b.value(),
+                                 boolean_stage::cell_classification);
+      if (!scratch.has_value()) return scratch.error();
+      auto charged = e.accountant->reserve_scoped(
+          resource_kind::verifier_scratch_bytes, scratch.value(),
+          boolean_stage::cell_classification);
+      if (!charged.has_value()) return charged.error();
+      scratch_charge.emplace(std::move(charged.value()));
+    }
+    bool ok = safe_dependencies && valid(a);
     r.outcome = ok ? verification_outcome::pass
                    : verification_outcome::invariant_failure;
     bool failed = false;
@@ -1156,10 +1319,21 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
       return make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::cell_classification,
                         "classification_strategy_mismatch");
-    const auto triangles_a =
-                   operand_triangles(*g.validated->payload, operand_a()),
-               triangles_b =
-                   operand_triangles(*g.validated->payload, operand_b());
+    auto bytes_a = classification_geometry_bytes(*g.validated->payload, operand_a());
+    auto bytes_b = classification_geometry_bytes(*g.validated->payload, operand_b());
+    if (!bytes_a.has_value()) return bytes_a.error();
+    if (!bytes_b.has_value()) return bytes_b.error();
+    auto geometry_bytes = checked_add(bytes_a.value(), bytes_b.value(),
+                                      boolean_stage::cell_classification);
+    if (!geometry_bytes.has_value()) return geometry_bytes.error();
+    auto geometry_charge = ctx.accountant().reserve_scoped(
+        resource_kind::stage_private_bytes, geometry_bytes.value(),
+        boolean_stage::cell_classification);
+    if (!geometry_charge.has_value()) return geometry_charge.error();
+    const auto triangles_a = build_producer_operand_geometry(
+                   *g.validated->payload, operand_a()),
+               triangles_b = build_producer_operand_geometry(
+                   *g.validated->payload, operand_b());
     std::map<open_region_component_id, classification_region_id> region_ids;
     for (std::size_t i = 0; i < g.probes.size(); ++i) {
       if (ctx.cancelled())
@@ -1198,9 +1372,11 @@ classify_arrangement_cells(boolean_context<T, I> &ctx) {
                            "alternate_formal_ray_disagreement");
       const auto shell_a = ray_record(operand_a(), p.component, la.value());
       const auto shell_b = ray_record(operand_b(), p.component, lb.value());
-      if (!independently_check_shell_polarity(*g.validated->payload, operand_a(),
+      if (!independently_check_shell_polarity(*g.validated->payload, triangles_a,
+                                               operand_a(),
                                                probe.value(), shell_a) ||
-          !independently_check_shell_polarity(*g.validated->payload, operand_b(),
+          !independently_check_shell_polarity(*g.validated->payload, triangles_b,
+                                               operand_b(),
                                                probe.value(), shell_b))
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::cell_classification,
