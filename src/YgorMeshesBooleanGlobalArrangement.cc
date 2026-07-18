@@ -64,54 +64,89 @@ template<class T,class I> std::vector<std::uint8_t> semantic(const arrangement_c
 template<class T,class I>std::vector<std::uint8_t> invocation(const arrangement_complex<T,I>&a){canonical_encoder e;const char tag[]="YGBARR08";e.raw(reinterpret_cast<const std::uint8_t*>(tag),8);e.u16(arrangement_complex_schema);e.raw(a.setup_digest.bytes.data(),16);e.raw(a.refined_digest.bytes.data(),16);e.raw(a.symbolic_digest.bytes.data(),16);e.raw(a.validated_digest.bytes.data(),16);e.raw(a.kernel_policy_digest.bytes.data(),16);e.byte_string(a.canonical_bytes);return e.bytes();}
 template<class T,class I>digest artifact_digest_for(const arrangement_complex<T,I>&a){canonical_encoder e;e.raw(a.setup_digest.bytes.data(),16);e.byte(static_cast<std::uint8_t>(artifact_slot::arrangement_complex));e.byte_string(a.artifact_bytes);return domain_digest({{'Y','G','B','A','R','T','0','1'}},e.bytes());}
 
-template<class T,class I> exact_point3 patch_interior(const arrangement_complex<T,I>&a,const global_patch&p){
-  const auto axis=dominant_projection(p.plane);
+struct projected_patch_cache {
+  struct edge {
+    exact_point2 u, v;
+    exact_scalar lower_x, upper_x;
+  };
+  projection_axis axis = projection_axis::drop_z;
+  std::vector<std::vector<exact_point2>> rings;
+  std::vector<exact_scalar> slab_x;
+  std::vector<edge> edges;
+  std::vector<std::vector<std::size_t>> entering, leaving;
+};
+
+template<class T,class I>
+projected_patch_cache project_patch(const arrangement_complex<T,I>&a,
+                                    const global_patch&p){
+  projected_patch_cache out;
+  out.axis=dominant_projection(p.plane);
   auto point=[&](global_vertex_id id)->const exact_point3&{return a.symbolic->payload->vertices[a.vertices[id.value_for_debug()].symbolic.value_for_debug()].point;};
-  std::vector<std::vector<exact_point2>> rings(1);
-  for(auto v:p.outer)rings.front().push_back(project(point(v),axis));
+  out.rings.resize(1);
+  for(auto v:p.outer)out.rings.front().push_back(project(point(v),out.axis));
   for(const auto&h:p.holes){
-    rings.push_back({});
-    for(auto v:h)rings.back().push_back(project(point(v),axis));
+    out.rings.push_back({});
+    for(auto v:h)out.rings.back().push_back(project(point(v),out.axis));
   }
-  std::vector<exact_scalar> xs;
-  for(const auto&ring:rings)for(const auto&q:ring)xs.push_back(q.x);
-  std::sort(xs.begin(),xs.end());
-  xs.erase(std::unique(xs.begin(),xs.end()),xs.end());
+  for(const auto&ring:out.rings)for(const auto&q:ring)out.slab_x.push_back(q.x);
+  std::sort(out.slab_x.begin(),out.slab_x.end());
+  out.slab_x.erase(std::unique(out.slab_x.begin(),out.slab_x.end()),out.slab_x.end());
+  out.entering.resize(out.slab_x.size());
+  out.leaving.resize(out.slab_x.size());
+  for(const auto&ring:out.rings)for(std::size_t i=0;i<ring.size();++i){
+    const auto&u=ring[i];const auto&v=ring[(i+1)%ring.size()];
+    if(u.x==v.x)continue;
+    projected_patch_cache::edge e{u,v,std::min(u.x,v.x),std::max(u.x,v.x)};
+    const auto id=out.edges.size();
+    const auto begin=static_cast<std::size_t>(std::lower_bound(out.slab_x.begin(),out.slab_x.end(),e.lower_x)-out.slab_x.begin());
+    const auto end=static_cast<std::size_t>(std::lower_bound(out.slab_x.begin(),out.slab_x.end(),e.upper_x)-out.slab_x.begin());
+    out.edges.push_back(std::move(e));
+    out.entering[begin].push_back(id);
+    out.leaving[end].push_back(id);
+  }
+  return out;
+}
+
+exact_point3 patch_interior(const global_patch&p,const projected_patch_cache&cache){
   const exact_scalar half=exact_scalar(1)/exact_scalar(2);
   auto lift=[&](const exact_point2&q){
     const exact_scalar A(p.plane.a,big_uint(1)),B(p.plane.b,big_uint(1));
     const exact_scalar C(p.plane.c,big_uint(1)),D(p.plane.d,big_uint(1));
-    if(axis==projection_axis::drop_x){
+    if(cache.axis==projection_axis::drop_x){
       const exact_scalar y=q.x,z=q.y;
       return exact_point3{(B*y+C*z+D).negated()/A,y,z};
     }
-    if(axis==projection_axis::drop_y){
+    if(cache.axis==projection_axis::drop_y){
       const exact_scalar z=q.x,x=q.y;
       return exact_point3{x,(A*x+C*z+D).negated()/B,z};
     }
     const exact_scalar x=q.x,y=q.y;
     return exact_point3{x,y,(A*x+B*y+D).negated()/C};
   };
-  for(std::size_t slab=1;slab<xs.size();++slab){
-    if(xs[slab-1]==xs[slab])continue;
-    const exact_scalar x=(xs[slab-1]+xs[slab])*half;
+  std::set<std::size_t> active;
+  for(std::size_t slab=1;slab<cache.slab_x.size();++slab){
+    const auto boundary=slab-1;
+    for(auto edge:cache.leaving[boundary])active.erase(edge);
+    for(auto edge:cache.entering[boundary])active.insert(edge);
+    performance_count(performance_counter::patch_witness_slabs);
+    const exact_scalar x=(cache.slab_x[slab-1]+cache.slab_x[slab])*half;
     std::vector<exact_scalar> crossings;
-    for(const auto&ring:rings)for(std::size_t i=0;i<ring.size();++i){
-      const auto&u=ring[i];const auto&v=ring[(i+1)%ring.size()];
-      const bool spans=(u.x<x&&x<v.x)||(v.x<x&&x<u.x);
-      if(!spans)continue;
-      crossings.push_back(u.y+(v.y-u.y)*(x-u.x)/(v.x-u.x));
+    crossings.reserve(active.size());
+    for(auto id:active){
+      const auto&e=cache.edges[id];
+      crossings.push_back(e.u.y+(e.v.y-e.u.y)*(x-e.u.x)/(e.v.x-e.u.x));
+      performance_count(performance_counter::patch_witness_crossings);
     }
     std::sort(crossings.begin(),crossings.end());
     crossings.erase(std::unique(crossings.begin(),crossings.end()),crossings.end());
     for(std::size_t interval=1;interval<crossings.size();++interval){
       if(crossings[interval-1]==crossings[interval])continue;
       const exact_point2 q{x,(crossings[interval-1]+crossings[interval])*half};
-      auto outer=classify_point_polygon(q,rings.front());
+      auto outer=classify_point_polygon(q,cache.rings.front());
       if(!outer.has_value()||outer.value().kind!=point_region_kind::open_interior)continue;
       bool in_hole=false;
-      for(std::size_t h=1;h<rings.size();++h){
-        auto location=classify_point_polygon(q,rings[h]);
+      for(std::size_t h=1;h<cache.rings.size();++h){
+        auto location=classify_point_polygon(q,cache.rings[h]);
         if(!location.has_value()||location.value().kind!=point_region_kind::outside){in_hole=true;break;}
       }
       if(!in_hole)return lift(q);
@@ -689,6 +724,12 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       o.link_regions.push_back(s.id);
       a.vertex_sectors.push_back(std::move(s));
     }
+    std::vector<exact_point3> patch_witnesses;
+    patch_witnesses.reserve(a.patches.size());
+    for(const auto&p:a.patches){
+      const auto projected=project_patch(a,p);
+      patch_witnesses.push_back(patch_interior(p,projected));
+    }
     for (const auto &side : a.patch_sides) {
       const auto &p = a.patches[side.patch.value_for_debug()];
       strict_cone_constraint c{normal(p.plane),
@@ -703,7 +744,7 @@ build_global_arrangement(boolean_context<T, I> &ctx) {
       probe.component = side.component;
       probe.base_kind = probe_base_stratum_kind::patch_side;
       probe.base_id = side.id.value_for_debug();
-      probe.exact_base = patch_interior(a, p);
+      probe.exact_base = patch_witnesses[p.id.value_for_debug()];
       probe.direction = witness.value().direction;
       probe.constraints.push_back({p.plane, c.required});
       probe.evidence = witness.value().evaluations;
