@@ -5,7 +5,7 @@
 - [x] component 5
 - [x] component 6
 - [x] component 7
-- [ ] component 8
+- [x] component 8
 - [ ] component 9
 - [ ] component 10
 - [ ] component 11
