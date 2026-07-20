@@ -29,7 +29,7 @@ Use Component 01 for owner tokens, strong IDs, checked arithmetic, typed outcome
 
 V1 is a deterministic sort-and-scan provider with an executable serial semantic reference. It uses contiguous immutable arrays, fixed triangle-local halfedge slots, provenance-keyed edge grouping, and exact topological fan traversal. Target complexity is `O(V + F + H log H)` time and `O(V + F + H + E)` persistent memory, where `H = 3F` and `H = 2E`. Component 17 may parallelize private proposal generation and verification, but canonical merge must reproduce the serial artifact and failure exactly.
 
-No failed, cancelled, partially paired, partially encoded, or verifier-rejected operand may publish. Mark Component 05 complete in `tracker.md` only after every requirement in Section 21 is represented by an implementable instruction and qualification gate.
+No failed, cancelled, partially paired, partially encoded, or verifier-rejected operand may publish. Mark Component 05 complete in `tracker.md` only after every requirement in Section 20 is represented by an implementable instruction and qualification gate.
 
 ## 1. Existing Ygor assessment and mandatory reuse decisions
 
