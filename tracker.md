@@ -9,7 +9,7 @@
 - [x] component 9
 - [x] component 10
 - [x] component 11
-- [ ] component 12
+- [x] component 12
 - [ ] component 13
 - [ ] component 14
 - [ ] component 15
