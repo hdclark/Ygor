@@ -1,95 +1,261 @@
 # Plan 05: Canonical Halfedge Topology
 
-## 0. Scope and non-negotiable constraints
+## 0. Scope and fixed V1 result
 
-Implement **only Component 05** from `component_05_canonical_halfedge_topology.md`. This component accepts the immutable, independently verified Component 02 and Component 04 artifacts and publishes one immutable `canonical_halfedge_operand<T,I>` per operand. The pair is wrapped as `canonical_source_manifolds<T,I>` for Component 06 and later stages.
+Implement only Component 05 from `component_05_canonical_halfedge_topology.md`.
 
-The implementation must convert accepted source triangles into exact indexed topology. It must make triangle cycles, reciprocal edge pairing, vertex links, source-facet groups, shell groups, complete provenance, conservative geometry attachments, canonical identities, immutable queries, verification evidence, and deterministic bytes explicit. It must never infer topology from coordinates or repair predecessor topology.
+The stage accepts the immutable, independently verified Component 02 and Component 04 artifacts plus Component 01 and Component 03 capabilities. It publishes exactly one immutable:
+
+```cpp
+canonical_source_manifolds<T,I>
+```
+
+containing one:
+
+```cpp
+canonical_halfedge_operand<T,I>
+```
+
+for each operand.
+
+V1 is a deterministic sort-and-scan provider with:
+
+- contiguous immutable arrays;
+- one Component 05 vertex per represented Component 04 source-vertex identity;
+- one orientation-preserving canonical record per Component 04 source triangle;
+- exactly three triangle-major halfedges per triangle;
+- provenance-keyed source-edge and internal-diagonal grouping;
+- reciprocal pairs closed only after complete run validation;
+- exact fan traversal through `pair(previous(h))`;
+- explicit source-facet and source-shell groups;
+- committed-geometry-basis-aware conservative bounds;
+- owner-free canonical semantic keys and bytes;
+- a separately implemented independent verifier; and
+- an executable serial semantic reference that every optimized or parallel provider must reproduce.
+
+Target complexity is:
+
+```text
+time:       O(V + F + H log H)
+persistent: O(V + F + H + E)
+```
+
+where:
+
+```text
+H = 3F
+H = 2E
+```
+
+No failed, cancelled, partially paired, partially encoded, resource-exhausted, or verifier-rejected artifact may publish.
+
+## 1. Non-negotiable architecture constraints
+
+The implementation must:
+
+- treat exact indexed incidence and provenance as authoritative topology;
+- consume only immutable predecessor artifacts and controlled capabilities;
+- preserve distinct source identities even when nominal coordinates, committed realized coordinates, and bounds are bit-identical;
+- preserve Component 04 triangle orientation and exact local edge-role alignment;
+- pair source edges and internal diagonals from authoritative identities, never coordinates;
+- preserve exact nominal source bits and the Component 02/04 committed coherent geometry basis as separate lineages;
+- make source-facet and shell semantics queryable without geometry;
+- keep internal diagonals available as bookkeeping topology while preventing them from becoming source-feature owners;
+- use runtime owner tokens only for lifetime and handle validation;
+- exclude raw runtime owner tokens from all canonical semantic material;
+- preflight every count, byte, offset, work unit, and index conversion;
+- build privately and publish atomically only after independent verification;
+- remain strict portable C++17; and
+- use no external, vendored, downloaded, optional, or runtime-invoked dependency.
 
 The component must not:
 
-- reread caller-owned `fv_surface_mesh<T,I>` arrays as authoritative data;
-- call or adapt `src/YgorMeshesBoolean{,2,3,4,5}*.{h,cc}`;
-- use mutable mesh repair, orientation repair, hole filling, remeshing, simplification, duplicate merging, or generic triangulation APIs;
-- pair edges by coordinate equality, unordered coordinate pairs, distance, tolerance, spatial cells, hashes alone, or Morton codes;
-- merge or alias distinct source vertex identities, including bit-identical coordinates and uncertainty envelopes;
-- reverse, remove, replace, or retriangulate a Component 04 triangle;
-- treat a facet-local diagonal as an original source feature, symbolic-contact owner, or classification barrier;
-- merge distinct coplanar source facets by approximate plane or normal comparison;
-- recompute source planes, source orientation, shell semantics, or authoritative triangle orientation through a different expression;
-- use user tolerance as a topology epsilon;
-- assign semantic IDs from pointer values, allocation order, unordered iteration, task completion order, worker number, or traversal accidents;
-- publish mutable records, schedule-dependent lazy caches, partial pairing, incomplete maps, private workspace handles, or producer summary flags without reconstructible evidence;
-- throw exceptions for expected contract, geometry, resource, cancellation, codec, or verification failure;
-- use `long double`, fast-math, reassociation, implementation-defined serialization, unchecked object padding, or transcendental functions in authoritative decisions;
-- introduce any external, vendored, downloaded, optional, or runtime-invoked dependency; or
-- compile production or normative-test code outside the strict portable C++17 target established by Component 01.
+- reread caller-owned `fv_surface_mesh<T,I>`;
+- call a legacy Boolean implementation as the provider;
+- use coordinate equality, distance, tolerance, spatial cells, Morton codes, or hashes alone to create or merge topology;
+- import Component 01 isolated non-semantic vertices;
+- reverse, omit, replace, or retriangulate a Component 04 triangle;
+- repair missing or inconsistent predecessor topology;
+- choose a new source geometry realization, plane, projection, shell orientation, or occupied side;
+- silently replace a committed constructed coherent realization with nominal geometry;
+- merge approximately coplanar source facets;
+- make a facet-local internal diagonal a source owner, symbolic owner, winding barrier, or retained output feature;
+- hide Component 06 candidate policy in a generic edge `eligible` flag;
+- assign semantic IDs from runtime owner tokens, pointers, source ordinals, allocation order, hash iteration, worker number, task completion, or traversal accidents;
+- serialize native structs, padding, pointers, container capacity, runtime owner tokens, or unordered layout;
+- throw exceptions for expected contract, geometry-basis, resource, cancellation, codec, or verification failure; or
+- allow production or normative-test translation units to inherit the parent project's unsafe fast-math behavior.
 
-Use Component 01 for owner tokens, strong IDs, checked arithmetic, typed outcomes, stage/checkpoint IDs, resource leases, cancellation, deterministic failure arbitration, diagnostics, replay, canonical encoding, SHA-256, transactions, and immutable publication. Use Component 02 as the sole authority for source vertices, source directed and undirected edges, facets, rings, shells, occupied-side semantics, and caller mappings. Use Component 03 for conservative bounds and any non-authoritative bounded geometric attachment. Use Component 04 as the sole authority for source triangles, oriented triangle cycles, edge-use roles, facet-local diagonal identities, source-facet semantic lineage, and exact triangulation lineage.
+## 2. Independent review findings and mandatory decisions
 
-V1 is a deterministic sort-and-scan provider with an executable serial semantic reference. It uses contiguous immutable arrays, fixed triangle-local halfedge slots, provenance-keyed edge grouping, and exact topological fan traversal. Target complexity is `O(V + F + H log H)` time and `O(V + F + H + E)` persistent memory, where `H = 3F` and `H = 2E`. Component 17 may parallelize private proposal generation and verification, but canonical merge must reproduce the serial artifact and failure exactly.
+### 2.1 Runtime owner tokens are validation metadata, not canonical identity
 
-No failed, cancelled, partially paired, partially encoded, or verifier-rejected operand may publish. Mark Component 05 complete in `tracker.md` only after every requirement in Section 20 is represented by an implementable instruction and qualification gate.
+The previous Component 05 plan placed `owner` inside vertex and pairing keys. That conflicts with Components 01, 02, and 04, which require build-instance- and invocation-anchor-independent canonical semantics.
 
-## 1. Existing Ygor assessment and mandatory reuse decisions
+Correct V1 rule:
 
-### 1.1 `fv_surface_mesh<T,I>` remains only a public carrier
+- records and handles carry or reference an owner token for validation;
+- semantic keys exclude the owner token;
+- canonical strong-ID encodings contain stable domain, operand role where applicable, schema version, and canonical ordinal or semantic key;
+- canonical bytes and all semantic digests exclude the owner token;
+- deterministic failure arbitration excludes raw owner values;
+- wrong-owner access still fails before dereference; and
+- semantically identical invocations under different owner anchors produce identical Component 05 semantic artifacts.
 
-`fv_surface_mesh<T,I>` is a mutable lowest-common-denominator container with vertex arrays, polygon index arrays, optional attributes, metadata, and an optional `involved_faces` convenience index. It does not provide immutable halfedges, reciprocal pairs, canonical source-feature IDs, edge semantic classes, source-facet/shell groups, cyclic vertex-link proofs, bounded geometry references, owner/version validation, transactional publication, or independent artifact verification.
+Any implementation following an owner-bearing key from an earlier draft is non-conforming.
 
-`involved_faces` may be absent or stale and is not a cyclic fan. Do not wrap or trust it as Component 05 topology. Reuse `fv_surface_mesh`, `vec2`, and `vec3` only through already frozen predecessor boundaries or as nominal carriers. Do not modify the public mesh class into the Boolean engine's internal representation.
+### 2.2 The represented vertex domain is not the raw source array
 
-### 1.2 Existing verification helpers are references, not providers
+Component 02 declares isolated snapshot vertices non-semantic and Component 04 hands off only represented topology. Therefore:
 
-`YgorMeshesVerification.h/.cc` contains useful small ideas such as ordered endpoint pairs, edge-use counts, and opposite-direction checks. It is insufficient because it reads mutable mesh arrays, identifies edges only by endpoint indices, does not preserve directed-use provenance or edge roles, does not construct twins or vertex links, reports booleans/exceptions, and has no owner, version, resource, transaction, digest, or independent-verifier contract.
+```text
+V = number of distinct Component 04 source-vertex identities referenced by source triangles
+```
 
-Do not call `ClassifyEdges`, `HasConsistentOrientation`, `IsClosedManifold`, or `ValidateClosedTriangularMesh` from the Component 05 producer or verifier. Keep their public behavior unchanged. Similar map/count patterns may be reproduced only with Component 01 strong IDs and complete provenance keys.
+not `source_snapshot.vertices.size()`.
 
-### 1.3 Orientation and hole utilities are unsuitable
+The preflight, maps, empty path, group membership, bounds, codec, verifier, and tests must all use the represented domain. A source-snapshot vertex with no accepted facet use must not appear in Component 05.
 
-`YgorMeshesOrient.cc` and `YgorMeshesHoles.cc` create epsilon-based vertex representatives, can collapse nearby endpoints, derive adjacency from those representatives, reverse faces, or fill boundaries. These behaviors violate identity-only topology and the no-repair contract. Do not reuse or refactor their representative maps, edge maps, orientation propagation, boundary traversal, or repair logic into Component 05.
+### 2.3 Nominal provenance and committed coherent geometry basis must remain distinct
 
-### 1.4 Refinement/remeshing adjacency is not a substrate
+Components 02 and 04 may accept either:
 
-Refinement and remeshing routines build temporary endpoint maps and neighborhood sets for mutable operations. They rely on caller indices, local traversal, raw geometry, and operation-specific assumptions. Do not generalize those structures into Component 05. A purpose-built immutable schema is required.
+- `nominal_embedded`; or
+- `constructed_coherent_realization`.
 
-### 1.5 Mandatory reuse
+Component 05 must retain exact nominal source bits for provenance while using the committed basis and inherited enclosures for required geometry attachments. It must never silently fall back to nominal points.
 
-Consume and validate, rather than duplicate:
+### 2.4 Internal diagonal semantics require separate axes
 
-- Component 02 canonical source vertices, directed-edge uses, undirected edges, facets, rings, shells, occupied-side evidence, canonical keys, and reversible caller maps;
-- Component 03 bounded points, precision lineage, bounded support/orientation references, conservative-bound constructors, and containment services; and
-- Component 04 source triangles, local edge-use records, source-boundary/internal-diagonal labels, facet-local diagonal records, facet groups, semantic/exact triangulation digests, and triangle/facet bounds.
+Component 04 correctly says an internal diagonal is not a source feature. Component 06 V1 deliberately includes internal diagonals as bookkeeping broad-phase edges. These statements are compatible only if Component 05 exposes separate properties.
 
-Do not create a second source-edge registry, shell classifier, plane model, orientation expression, or triangulation provenance model.
+Do not store one generic eligibility bit. Store exact class and fixed source-semantic properties; let Component 06's versioned domain policy decide candidate visibility.
 
-### 1.6 Permitted implementation machinery
+### 2.5 Existing Ygor code requires a reuse audit, not blind reuse or blanket duplication
 
-Use standard-library C++17 deterministic facilities: fixed-width integers, `std::array`, `std::vector`, `std::optional`, `std::variant`, `std::sort`, `std::lower_bound`, deterministic merge, and private ordered maps where justified. Prefer sorted vectors and linear scans for grouping and verification. `std::unordered_*` may be used only for non-authoritative private lookup with full-key collision checks and deterministic sorting before any observable result.
+The following assessment is mandatory before implementation:
 
-## 2. Exact file and target layout
+- `fv_surface_mesh<T,I>` remains the public carrier, not the internal topology.
+- `YgorMeshesVerification.h/.cc` contains useful exact-index ideas: ordered endpoint pairs, edge-use counts, and opposite-direction audits. Its public routines are not Component 05 providers because they read mutable public arrays, lack role/provenance domains, do not build twins or fans, use booleans/exceptions, and have no owner/version/transaction/verifier contract.
+- `YgorMeshesBoolean5.cc` contains halfedge-shaped records, but it makes a long-double, fixed-grid snap coordinate the topology key and clamps large values. That violates the broad plan's identity and bounded-geometry model. Its arrangement/output topology is not a source-manifold substrate.
+- orientation, hole-filling, refinement, remeshing, constrained-Delaunay, and related adjacency code use mutable topology, coordinate representatives, geometry-angle ordering, repair behavior, or unrelated semantics.
+
+Before adding a duplicate low-level exact-index utility, inspect whether a small pure helper can be extracted or generalized without weakening its existing callers. A permissible extraction must:
+
+- be independent of `fv_surface_mesh`;
+- operate on typed exact IDs or caller-provided complete keys;
+- perform no coordinate comparison or repair;
+- have deterministic ordering and checked arithmetic;
+- preserve existing public behavior;
+- be usable without sharing producer and independent-verifier high-level control flow; and
+- receive direct unit tests.
+
+If those conditions are not met, document the rejection and implement the bounded-subsystem utility locally. Do not retrofit a deficient legacy provider merely to claim reuse.
+
+## 3. Existing Ygor assessment and reuse boundaries
+
+### 3.1 Public mesh carrier
+
+Use `fv_surface_mesh<T,I>`, `vec2<T>`, and `vec3<T>` only through already frozen predecessor capabilities or as nominal value carriers. Do not mutate `fv_surface_mesh` into an internal halfedge data structure.
+
+`involved_faces` is optional, mutable, presentation-derived, and not a cyclic fan. Ignore it.
+
+### 3.2 Verification helpers
+
+Do not call these as Component 05 producer or independent-verifier authorities:
+
+- `ClassifyEdges`;
+- `HasConsistentOrientation`;
+- `IsClosedManifold`; or
+- `ValidateClosedTriangularMesh`.
+
+A newly extracted low-level ordered-edge or exact-direction audit helper may be shared only if it satisfies Section 2.5. Producer grouping and independent-verifier grouping must remain independently implemented.
+
+### 3.3 Legacy Boolean 5
+
+Do not call, adapt wholesale, or copy the control flow of `YgorMeshesBoolean5`.
+
+Its snap-key topology, fixed `1e-12` grid, `long double`, coordinate clamping, coordinate-based output vertex identity, monolithic mutable arrangement, and exception-oriented behavior are incompatible.
+
+Permitted use is limited to:
+
+- non-normative regression fixtures;
+- benchmark comparison;
+- studying names or record shapes without copying semantics; or
+- extracting a tiny pure non-geometric utility that independently passes the Section 2.5 gate.
+
+### 3.4 Repair and triangulation utilities
+
+Do not reuse coordinate-representative maps, orientation repair, hole filling, remeshing, generic triangulation, angle-sorted adjacency, or mutable neighborhood code. Component 05 is a faithful source-topology representation, not a repair stage.
+
+### 3.5 Mandatory predecessor reuse
+
+Consume rather than duplicate:
+
+From Component 01:
+
+- owner-checked strong-ID domains and publication;
+- checked count, byte, offset, and index arithmetic;
+- typed stage outcomes and stable subcodes;
+- transactions, immutable publication, resource leases, cancellation, and deterministic error arbitration;
+- canonical primitives, SHA-256, diagnostics, and replay; and
+- strict floating/build environment qualification.
+
+From Component 02:
+
+- represented canonical source vertices;
+- source directed and undirected edges;
+- normalized source rings and facets;
+- shells, nesting, orientation, and occupied-side evidence;
+- caller/source-position maps;
+- coherent geometry-basis disposition and source point realization references; and
+- source semantic digest lineage.
+
+From Component 03:
+
+- bounded points and precision lineage;
+- conservative segment, triangle, and union bounds;
+- finite/containment checks;
+- qualified optional nominal calculations; and
+- formula/version validation.
+
+From Component 04:
+
+- canonical source triangles and oriented cycles;
+- local edge-role records;
+- source-boundary uses;
+- facet-local diagonal identities and opposite uses;
+- source-facet groups;
+- support, projection, orientation, geometry-basis, and bound references;
+- source-semantic and exact-triangulation digests; and
+- independently verified disposition.
+
+Do not create a second source-edge registry, shell classifier, plane model, projection chooser, geometry realization, precision ledger, triangulation provenance system, canonical codec, hash, or transaction framework.
+
+## 4. File and target layout
 
 Add under `src/YgorMeshesBooleanBounded/`:
 
-- `CanonicalHalfedgeTypes.h` — Component 05 policy enums, strong-ID aliases, closed record tags, stable version constants, temporary proposal types, and query result types;
-- `CanonicalHalfedgeOperand.h` — immutable artifact records and checked read-only views;
+- `CanonicalHalfedgeTypes.h` — closed enums, tags, schema constants, strong-ID aliases, complete semantic key types, and query result types;
+- `CanonicalHalfedgeOperand.h` — immutable operand artifact records and checked read-only views;
 - `CanonicalSourceManifolds.h` — immutable two-operand wrapper and cross-artifact validation;
-- `CanonicalHalfedgeBuild.h/.cc` — typed entrypoint and fixed phase orchestration;
-- `CanonicalHalfedgePreflight.h/.cc` — exact counts, representability, byte/work/resource preflight;
-- `CanonicalHalfedgePairing.h/.cc` — provenance-key construction, deterministic edge grouping, reciprocal pairing, and canonical representatives;
-- `CanonicalVertexFans.h/.cc` — incidence grouping, exact fan transition, canonical traversal, and producer fan evidence;
-- `CanonicalFeatureGroups.h/.cc` — source-facet and shell group assembly plus total forward/reverse maps;
-- `CanonicalGeometryAttachments.h/.cc` — conservative feature bounds and explicitly non-authoritative nominal attachments;
-- `CanonicalHalfedgeCodec.h/.cc` — canonical encoding/decoding and digest calculation;
-- `CanonicalHalfedgeVerifier.h/.cc` — independent reconstruction and mutation rejection; and
-- `CanonicalHalfedgeQueries.h` — narrow immutable downstream query views with documented complexity.
+- `CanonicalHalfedgeBuild.h/.cc` — typed stage entrypoint and fixed phase orchestration;
+- `CanonicalHalfedgePreflight.h/.cc` — represented-domain, count, capacity, byte, work, and lease preflight;
+- `CanonicalHalfedgePairing.h/.cc` — role-specific key generation, deterministic sort/group, pair validation, edge construction, and representatives;
+- `CanonicalVertexFans.h/.cc` — exact incidence grouping, transition traversal, canonical fan records, and producer checks;
+- `CanonicalFeatureGroups.h/.cc` — source-facet/shell group construction and total maps;
+- `CanonicalGeometryAttachments.h/.cc` — committed-basis-aware bounds and non-authoritative nominal attachments;
+- `CanonicalHalfedgeCodec.h/.cc` — canonical owner-free semantic encoding/decoding and digest calculation;
+- `CanonicalHalfedgeVerifier.h/.cc` — independent reconstruction and mutation rejection;
+- `CanonicalHalfedgeQueries.h` — immutable downstream views with documented complexity; and
+- `CanonicalHalfedgeReuseAudit.md` — implementation-time record of each relevant legacy utility, reuse/extraction decision, incompatibility, and tests.
 
-Extend existing bounded-subsystem registries instead of creating parallel infrastructure:
+Extend existing bounded-subsystem registries:
 
-- `ContractVersions.h` for all Component 05 schema/provider/codec/verifier/formula versions;
-- Component 01 strong-ID, stage, checkpoint, error-subcode, resource-kind, diagnostic, and replay registries;
-- Component 03 conservative-bound formula registry only where a genuinely new aggregate formula is required; and
-- the strict bounded Boolean CMake target and floating-point qualification helper.
+- `ContractVersions.h`;
+- Component 01 strong-ID, stage, checkpoint, error-subcode, resource-kind, diagnostic, replay, and transaction registries;
+- Component 03 formula registry only for genuinely new aggregate bounds; and
+- strict CMake target and explicit-instantiation lists.
 
 Add tests under `tests/mesh_boolean_bounded/`:
 
@@ -97,104 +263,93 @@ Add tests under `tests/mesh_boolean_bounded/`:
 - `TestCanonicalHalfedgePairing.cc`;
 - `TestCanonicalHalfedgeVertexFans.cc`;
 - `TestCanonicalHalfedgeGroups.cc`;
-- `TestCanonicalHalfedgeGeometry.cc`;
+- `TestCanonicalHalfedgeGeometryBasis.cc`;
+- `TestCanonicalHalfedgeGeometryBounds.cc`;
+- `TestCanonicalHalfedgeOwnerSeparation.cc`;
 - `TestCanonicalHalfedgeCanonicalization.cc`;
 - `TestCanonicalHalfedgeAlternativeTriangulation.cc`;
+- `TestCanonicalHalfedgeBroadPhaseAdapter.cc`;
+- `TestCanonicalHalfedgeCodec.cc`;
 - `TestCanonicalHalfedgeMutation.cc`;
 - `TestCanonicalHalfedgeProperties.cc`;
 - `TestCanonicalHalfedgeAdversarial.cc`;
+- `TestCanonicalHalfedgeResourcesCancellation.cc`;
+- `TestCanonicalHalfedgeStructuralPerformance.cc`;
 - `CanonicalHalfedgeFixtures.h/.cc`;
 - `CanonicalHalfedgeExactOracle.h/.cc`; and
 - `GoldenCanonicalHalfedgeV1.h`.
 
-Register separate CTest cases for unit/cycle, pairing/provenance, vertex-link, groups/maps, geometry bounds, canonicalization/codec, alternative triangulation, mutation, properties/fuzz, and adversarial/resource/concurrency suites. Apply the strict target to every production and normative-test translation unit. No network discovery or optional test dependency is permitted.
+All production and normative-test translation units use the strict C++17 bounded-Boolean target. No network discovery or optional test package is permitted.
 
-Keep proposal records, sort workspaces, mutable pairing tables, private fan marks, diagnostic builders, and verifier scratch indexes out of installed/public headers. Templates must be header-defined or explicitly instantiated for exactly supported `float`/`double` and `uint32_t`/`uint64_t` combinations.
+Keep proposal types, mutable sort/group tables, fan marks, builders, diagnostics, verifier scratch, and mutators out of installed/public headers.
 
-## 3. Stable versions, stages, checkpoints, and failures
+## 5. Versions, stages, checkpoints, and failures
 
-### 3.1 Version registry
+### 5.1 V1 versions
 
-Add explicit nonzero V1 constants for:
+Allocate nonzero versions for:
 
-- Component 05 provider and policy;
-- internal vertex, triangle, halfedge, edge, fan, facet-group, shell-group, provenance-map, geometry-attachment, verification-evidence, operand-artifact, two-operand-wrapper, codec, and verifier schemas;
-- triangle local-rotation policy;
-- edge pairing-key policy;
-- canonical directed-representative policy;
-- vertex-fan transition/orientation policy;
-- canonical ordering policy;
-- topology, geometry, and artifact digest layouts; and
-- any Component 03 aggregate-bound formula introduced for this stage.
+- provider and policy;
+- represented-vertex-domain policy;
+- runtime-owner/semantic-separation policy;
+- geometry-basis forwarding policy;
+- internal-diagonal semantic policy;
+- vertex, triangle, halfedge, edge, fan, facet-group, shell-group, map, geometry-attachment, evidence, operand, and wrapper schemas;
+- triangle rotation;
+- edge pairing keys;
+- canonical directed representative;
+- fan transition/orientation;
+- canonical ordering;
+- topology, geometry, replay/presentation, and complete semantic digest layouts;
+- codec and verifier; and
+- any new Component 03 aggregate-bound formula.
 
-Zero is invalid. Unknown required versions, unsupported enum values, nonzero reserved bits, and mismatched predecessor versions/formulas are typed failures. Encode all required versions into artifact headers, canonical bytes, diagnostics, and replay.
+Zero, unknown required versions, nonzero reserved bits, incompatible predecessor versions, and incompatible formulas are typed failures.
 
-### 3.2 Fixed checkpoints
+### 5.2 Stable checkpoints
 
-Use the Component 05 stage and stable checkpoints in this order:
+Use these stable checkpoints in order:
 
 1. context capability and strict-environment validation;
 2. operand owner/version/digest validation;
-3. predecessor count and representability preflight;
+3. represented-domain, count, and representability preflight;
 4. work and persistent-resource reservation;
-5. internal vertex proposal construction;
+5. vertex proposal construction;
 6. triangle canonical-rotation proposal construction;
 7. fixed triangle-halfedge cycle construction;
-8. edge pairing-key generation;
-9. deterministic edge proposal sort/grouping;
+8. role-specific edge pairing-key generation;
+9. deterministic edge proposal sorting and grouping;
 10. source-edge pair validation;
 11. internal-diagonal pair validation;
-12. canonical edge ordering, ID assignment, and twin closure;
+12. canonical edge ordering, ID assignment, and reciprocal closure;
 13. vertex-incidence grouping;
 14. canonical vertex-fan traversal;
 15. source-facet group assembly;
-16. shell group and total provenance-map assembly;
-17. conservative geometry attachment construction;
+16. shell group and total map assembly;
+17. committed-basis-aware geometry attachment construction;
 18. producer structural verification;
-19. canonical encoding and digest construction;
+19. owner-free canonical encoding and digest construction;
 20. independent verification;
-21. replay/resource reconciliation; and
+21. replay and resource reconciliation; and
 22. final cancellation check and transaction commit.
 
-Do not renumber released checkpoints. Add future provider-specific checkpoints only under a new version or reserved gaps.
+Do not renumber released checkpoints. Add future provider checkpoints under a new version or reserved range.
 
-### 3.3 Required failure subcodes
+### 5.3 Required subcodes
 
-Allocate a disjoint Component 05 range with explicit values for at least:
+Reserve stable subcodes for every distinction in Component 05 Section 5, including:
 
-- unsupported policy/version/formula;
-- wrong, stale, cross-context, cross-operand, or cross-domain handle;
-- predecessor artifact/digest/disposition mismatch;
-- entity/count/byte/index/work overflow;
-- persistent or temporary resource exhaustion;
-- malformed source vertex, triangle, local edge-use, facet, shell, or provenance reference;
-- repeated triangle vertex identity;
-- triangle orientation or canonical-rotation mismatch;
-- triangle cycle missing, non-closing, repeated, or wrong length;
-- unknown/contradictory edge role;
-- edge pairing key malformed;
-- source-edge use missing, duplicated, same-direction, wrong-facet, wrong-shell, or wrong reciprocal source use;
-- internal-diagonal use missing, duplicated, same-direction, cross-facet, or incorrectly source-feature eligible;
-- edge run cardinality not two;
-- reciprocal pair one-way, self-paired, endpoint-mismatched, or cross-edge;
-- canonical directed representative mismatch;
-- vertex incidence missing, duplicated, wrong-origin, or out of range;
-- vertex fan open, repeated, disconnected, incorrectly oriented, or crossing a distinct vertex identity;
-- facet/shell membership missing, duplicated, or inconsistent;
-- forward/reverse provenance map non-total or non-bijective where required;
-- geometry attachment missing, malformed, non-finite, or non-conservative;
-- canonical key duplicate, ordering mismatch, or full-key collision mishandled;
-- codec length/count/tag/reserved-field error;
-- verifier rejection;
-- resource reconciliation or abstract-work failure;
-- cancellation; and
-- internal construction invariant failure.
+- owner leakage into semantic material;
+- represented-domain mismatch and isolated-vertex leakage;
+- geometry-basis substitution or mismatch;
+- internal-diagonal semantic contamination; and
+- candidate-visibility/source-ownership conflation.
 
-Every failure records stage/checkpoint, owner, operand, least canonical offending predecessor/internal feature keys, expected and observed counts, relevant versions/digests, resource limits, bounded evidence where relevant, and deterministic replay payload. Parallel failures use Component 01 canonical failure arbitration.
+Every failure records stable stage/checkpoint, operand, least canonical semantic feature key, expected and observed contract, versions/digests, bounded evidence, resource state, and replay reference.
 
-## 4. Public entrypoint and capability boundaries
+Raw runtime owner values are not part of deterministic canonical fields or the primary arbitration key.
 
-### 4.1 Typed entrypoint
+## 6. Public entrypoint and capability views
 
 Provide an internal entrypoint equivalent to:
 
@@ -208,53 +363,56 @@ build_canonical_source_manifolds(
     const precision_context<T>& precision);
 ```
 
-The exact wrapper naming may follow Component 01 conventions. The observable contract must validate both operand inputs before publication, build each operand in a private subtransaction, support either/both operands empty, join all work before rollback, select the same primary failure under every schedule, publish neither operand if either fails, and publish one immutable wrapper only after both independent verifiers pass.
+The exact naming may follow Component 01 conventions.
 
-A lower-level test function may construct one operand. Ordinary pipeline publication is all-or-nothing for the two-operand wrapper.
+The entrypoint must:
 
-### 4.2 Narrow predecessor views
+- validate both operands before publication;
+- use private operand subtransactions inside one stage transaction;
+- support either or both operands empty;
+- join all work before rollback;
+- choose the same primary failure under every schedule;
+- publish neither operand when either fails; and
+- publish only after both independent verifiers accept.
 
-Define read-only owner-checked views instead of exposing mutable implementation classes. Component 05 requires:
+Define narrow owner-checked read-only predecessor views. Never index predecessor private arrays directly.
 
-From Component 02:
+Required Component 02 view capabilities:
 
-- canonical source vertex enumeration and bounded-point lineage;
-- source directed-edge and reciprocal-use lookup;
-- source undirected-edge lookup with exactly two uses;
-- facet/ring boundary and caller provenance;
-- shell membership, nesting, orientation, and occupied-side semantics;
-- canonical feature keys/order; and
-- artifact versions and digests.
+- represented source-vertex enumeration;
+- source directed-edge and reciprocal lookup;
+- source undirected-edge lookup;
+- facet/ring boundary;
+- shell membership, nesting, orientation, and occupied side;
+- geometry-basis disposition and per-vertex realized-point reference;
+- source canonical keys and semantic digests; and
+- reversible caller/source-position maps.
 
-From Component 04:
+Required Component 04 view capabilities:
 
 - source triangle enumeration and oriented vertex cycle;
-- each triangle local edge use and closed role-specific provenance;
-- facet-local diagonal records and opposite uses;
-- source facet/shell membership and member lists;
-- bounded orientation/support references;
+- local edge-use tagged provenance;
+- source boundary and internal diagonal records;
+- facet groups and shell membership;
+- support/projection/orientation and geometry-basis references;
 - conservative triangle/facet bounds;
-- source semantic and exact triangulation digests; and
-- verified disposition.
+- semantic/exact triangulation digests; and
+- verifier disposition.
 
-From Component 03:
+Required Component 03 view capabilities:
 
-- bounded point/support lookup;
+- bounded source point and committed realized point lookup;
 - conservative segment, triangle, and union bounds;
-- containment tests;
-- exponent-safe optional nominal affine calculations;
+- finite and containment tests;
+- exponent-safe optional nominal operations;
 - formula/version validation; and
 - precision-lineage comparison.
 
-Every capability validates owner/domain/version. Do not index predecessor private arrays without checked views.
+Published Component 05 views never allocate or mutate hidden state and never expose implementation pointers as identity.
 
-### 4.3 Published immutability
+## 7. Exact entity and artifact schemas
 
-Published accessors accept current-artifact strong IDs, validate owner/domain/range in checked builds, never allocate or mutate hidden state, return stable values/references/spans, behave deterministically under concurrent reads, document complexity, distinguish absent optional data from malformed required data, and never expose implementation pointers as identities. Prefer eager immutable tables; no scheduling-dependent lazy cache is allowed.
-
-## 5. Exact entity and artifact schemas
-
-### 5.1 Strong ID domains
+### 7.1 Strong ID domains
 
 Add distinct domains for:
 
@@ -266,275 +424,323 @@ Add distinct domains for:
 - `source_facet_group_id`;
 - `source_shell_group_id`;
 - geometry attachment IDs; and
-- Component 05 verifier-evidence IDs where generic evidence IDs are insufficient.
+- verifier-evidence IDs where generic evidence IDs are insufficient.
 
-Do not alias these domains to `I`, `size_t`, or predecessor IDs. Dense ordinals are checked implementation details. V1 normally maps one Component 02 source vertex to one manifold vertex, but include an occurrence discriminator in the canonical key; V1 requires zero and rejects other values.
+Do not alias them to `I`, `size_t`, or predecessor IDs.
 
-### 5.2 Artifact header
+A runtime checked handle conceptually contains:
 
-Each `canonical_halfedge_operand<T,I>` header stores:
+```text
+(owner_validation_token, strong_domain, canonical_ordinal)
+```
 
-- context owner/token, operand role, and operand ID;
-- all Component 05 provider/policy/schema/codec/verifier versions;
-- required Component 01-04 versions/formulas;
-- predecessor artifact IDs/digests;
-- forwarded source semantic and exact triangulation digests;
-- exact entity counts and checked byte lengths;
-- canonical table ranges;
-- precision-ledger references;
-- independent verification disposition/version;
-- resource/statistics and replay references;
-- topology digest, geometry-attachment digest, and complete artifact digest; and
-- zeroed reserved fields.
+Its canonical semantic encoding contains:
 
-The artifact owns or immutably references every table. No mutable caller/workspace reference may escape.
+```text
+(strong_domain_version, operand_role_if_applicable, canonical_ordinal)
+```
 
-### 5.3 Internal vertex record
+The owner token is never encoded semantically.
+
+### 7.2 Artifact header
+
+Separate the header into:
+
+1. **runtime validation header**, excluded from canonical semantics:
+   - owner token/reference;
+   - invocation lifetime anchor;
+   - private publication state.
+
+2. **canonical semantic header**:
+   - operand role;
+   - Component 05 versions;
+   - required Component 01-04 semantic versions/formulas;
+   - predecessor semantic artifact IDs and digests, excluding owner anchors;
+   - represented-domain and entity counts;
+   - canonical table ranges and checked byte lengths;
+   - geometry-basis disposition summary and lineage digests;
+   - verifier disposition/version;
+   - resource/statistics schema references;
+   - source-semantic, exact-topology, geometry-attachment, replay/presentation, and complete semantic digests;
+   - zero reserved fields.
+
+Canonical codec and digests encode only the second category plus canonical tables.
+
+### 7.3 Vertex record and key
 
 Store:
 
-- strong ID and complete canonical key;
-- owner/operand;
-- exact source vertex ID;
+- strong ID;
+- complete semantic key;
+- operand role;
+- source vertex ID;
 - V1 occurrence discriminator zero;
-- source shell and shell-group ID;
-- nominal coordinate bits or immutable predecessor reference;
-- Component 03 bounded-point/precision reference;
-- caller provenance;
-- canonical incident outgoing halfedge representative;
-- fan ID and fan offset/count;
-- source/internal map references;
+- shell and shell-group ID;
+- exact nominal coordinate bits;
+- committed geometry-basis disposition and point/reference;
+- Component 03 bounded point and precision lineage;
+- caller/source-position provenance;
+- canonical outgoing halfedge;
+- fan ID and range;
+- map references;
 - optional non-authoritative local scale; and
 - zero reserved fields.
 
-Canonical key:
+V1 semantic key:
 
 ```text
-(owner, operand_role, source_vertex_id,
- occurrence_discriminator=0, vertex_schema_version)
+(operand_role,
+ source_vertex_id,
+ occurrence_discriminator = 0,
+ vertex_schema_version)
 ```
 
-Coordinates, caller ordinals, array positions, and bounds are excluded from identity. A nonempty accepted closed V1 operand may not publish a zero-incidence vertex.
+No owner token, coordinate, caller ordinal, array position, bound, or pointer enters the key.
 
-### 5.4 Triangle record and local rotation
+### 7.4 Triangle record and canonical rotation
 
 Store:
 
-- strong ID and canonical key;
-- exact source triangle ID;
-- source facet/ring/shell/operand/owner;
-- three manifold vertices in canonical orientation-preserving rotation;
-- the corresponding source vertices;
-- base halfedge and exactly three local slots;
-- inherited orientation/support references;
-- triangle-bound attachment;
-- exact triangulation/caller provenance;
-- facet-group and shell-group IDs; and
+- strong ID and semantic key;
+- source triangle ID;
+- source facet/ring/shell;
+- three Component 05 vertices in canonical orientation-preserving rotation;
+- corresponding source vertices;
+- exactly three triangle-major halfedges;
+- inherited support, projection, orientation, geometry-basis, and bound references;
+- exact triangulation and caller provenance;
+- facet/shell groups; and
 - zero reserved fields.
 
-For oriented Component 04 cycle `(v0,v1,v2)` with local edge uses `(e0,e1,e2)`, compare the three orientation-preserving full keys:
+For Component 04 cycle `(v0,v1,v2)` with edge uses `(e0,e1,e2)`, compare only:
 
 ```text
 R0 = (vertex_key(v0), edge_use_key(e0),
       vertex_key(v1), edge_use_key(e1),
       vertex_key(v2), edge_use_key(e2))
+
 R1 = (vertex_key(v1), edge_use_key(e1),
       vertex_key(v2), edge_use_key(e2),
       vertex_key(v0), edge_use_key(e0))
+
 R2 = (vertex_key(v2), edge_use_key(e2),
       vertex_key(v0), edge_use_key(e0),
       vertex_key(v1), edge_use_key(e1))
 ```
 
-Choose the least full key. Never consider reversed rotations. Reject repeated vertex identities or duplicate complete triangle keys.
+Choose the least complete key. Never consider reversed rotations.
 
-### 5.5 Halfedge record and fixed layout
+Triangle semantic key:
 
-For each canonical triangle ordinal `t`, allocate three contiguous halfedges:
+```text
+(operand_role,
+ source_triangle_id,
+ chosen_orientation_preserving_rotation_key,
+ triangle_schema_version)
+```
+
+### 7.5 Halfedge layout
+
+For canonical triangle ordinal `t`:
 
 ```text
 h(t,0) = 3*t + 0
 h(t,1) = 3*t + 1
 h(t,2) = 3*t + 2
-next(h(t,s)) = h(t,(s+1)%3)
+
+next(h(t,s))     = h(t,(s+1)%3)
 previous(h(t,s)) = h(t,(s+2)%3)
 ```
 
-Use Component 01 checked arithmetic before conversion to the storage ordinal. This layout is an implementation contract of V1 and must be versioned.
+Use checked arithmetic before every conversion.
 
-Each halfedge stores or supports constant-time derivation of:
+Each halfedge stores or derives:
 
-- strong ID, triangle ID, local slot;
-- origin and destination manifold/source vertex IDs;
+- strong ID, triangle, and local slot;
+- origin and destination Component 05/source vertex IDs;
 - next and previous;
 - reciprocal pair;
-- undirected edge ID;
-- closed edge semantic role;
-- exact role-specific predecessor edge-use identity;
-- source facet/shell/group IDs;
-- bounded segment attachment; and
+- undirected edge;
+- closed edge class and role-specific predecessor payload;
+- source facet/shell/groups;
+- geometry-basis-aware segment attachment; and
 - complete provenance.
 
-Destination is `origin(next(h))`; if redundantly stored, verify equality. Each cycle must close after exactly three steps and contain three distinct halfedges and vertices.
+### 7.6 Closed edge payloads
 
-### 5.6 Closed edge semantic classes
-
-Use a closed tagged representation:
+Use a tagged representation:
 
 ```cpp
-enum class canonical_edge_class : uint8_t {
+enum class canonical_edge_class : std::uint8_t {
     source_edge = 1,
     facet_internal_diagonal = 2
 };
 ```
 
-Unknown tags fail. For `source_edge`, store the exact Component 02 source undirected edge and the two source directed uses/facets. For `facet_internal_diagonal`, store exact source facet and Component 04 diagonal identity, and encode schema-fixed semantics:
+`source_edge` payload:
 
-- `source_feature_eligible = false`;
-- `symbolic_contact_owner = false`;
-- `classification_barrier = false`.
+- Component 02 source undirected edge;
+- its two directed uses;
+- incident source facets;
+- fixed `source_feature_owner = true`.
 
-Do not store contradictory nullable fields. Prefer tagged role-specific payloads.
+`facet_internal_diagonal` payload:
 
-### 5.7 Pairing keys
+- Component 04 source facet;
+- exact facet-local diagonal;
+- fixed `source_feature_owner = false`;
+- fixed `symbolic_contact_owner = false`;
+- fixed `classification_barrier_inside_source_facet = false`;
+- fixed `retained_surface_feature = false`.
 
-Generate pairing keys only from authoritative identity:
+Do not store `broad_phase_eligible`. Component 06 evaluates its versioned candidate-domain policy from `edge_class`.
+
+### 7.7 Pairing keys
 
 Source edge:
 
 ```text
-(owner, operand_role, source_edge_tag,
- source_undirected_edge_id, edge_pair_policy_version)
+(operand_role,
+ source_edge_tag,
+ source_undirected_edge_id,
+ edge_pair_policy_version)
 ```
 
 Internal diagonal:
 
 ```text
-(owner, operand_role, internal_diagonal_tag,
- source_facet_id, source_facet_diagonal_id,
+(operand_role,
+ internal_diagonal_tag,
+ source_facet_id,
+ facet_local_diagonal_id,
  edge_pair_policy_version)
 ```
 
-Each halfedge proposal also carries its oriented source/manifold endpoints, incident triangle, local slot, exact predecessor edge-use, facet, and shell. Sort full proposals by pairing key, then a complete directed-use tie key. Every run must contain exactly two uses. Hashes may accelerate only after full-key comparison.
+Each proposal also carries complete directed endpoints, triangle key, local slot, predecessor edge use, facet, and shell.
 
-### 5.8 Edge record and canonical representative
+Sort by pairing key followed by a complete directed-use tie key. Every maximal run must contain exactly two uses.
 
-Each edge stores:
+### 7.8 Edge record and representative
 
-- strong ID and complete key;
-- class and role-specific predecessor identity;
-- canonical endpoint pair ordered by full manifold vertex key;
-- exactly two reciprocal halfedges and incident triangles;
-- source facet/shell provenance for both uses;
-- conservative segment bound;
-- one canonical directed representative; and
-- verification evidence.
+Store:
 
-Require endpoints to reverse exactly by identity. Choose the representative as the halfedge directed from the lower canonical vertex key to the higher key. Self-endpoints are invalid. This choice is independent of face orientation, memory order, and coordinates. Preserve both face-oriented halfedges separately.
+- strong ID and complete semantic key;
+- class and role payload;
+- canonical endpoint pair ordered by full vertex key;
+- exactly two halfedges and incident triangles;
+- both source-facet uses;
+- geometry-basis-aware conservative segment bound;
+- canonical directed representative; and
+- evidence.
 
-### 5.9 Vertex incidence and fan storage
+Require exact reversed endpoints. Choose the representative directed from lower vertex key to higher vertex key. A self-edge is invalid.
 
-For an outgoing halfedge `h` at vertex `v`, define the oriented fan transition:
+### 7.9 Fan record
+
+For outgoing `h` at vertex `v`:
 
 ```text
-fan_next(h) = pair(previous(h))
+fan_next(h)     = pair(previous(h))
 fan_previous(h) = next(pair(h))
 ```
 
-Verify every intermediate halfedge exists and both transitions remain outgoing from `v`. These functions must be mutual inverses on the fan.
+Group outgoing halfedges by exact vertex ID. Choose the least full halfedge key as start. Traverse `fan_next`.
 
-Group outgoing incidences by exact manifold vertex ID. Choose the least full halfedge key as canonical representative. Traverse `fan_next` until returning to the start. Require:
+Require:
 
-- no open transition;
-- every visited halfedge has origin `v`;
+- every transition exists and remains at `v`;
+- mutual inverse transitions;
 - no repeated incidence before closure;
-- closure after exactly the incidence count;
-- all grouped outgoing incidences visited once;
-- `fan_previous(fan_next(h)) == h` and converse;
-- no second disjoint cycle; and
-- no coordinate-coincident distinct vertex enters the fan.
+- closure after exactly the grouped incidence count;
+- complete coverage;
+- no second cycle; and
+- no coordinate-coincident distinct vertex in the fan.
 
-Publish one canonical fan record per vertex with offset/count and the canonical sequence. This is exact topology, not geometric angle sorting.
+Publish one canonical fan sequence per represented vertex.
 
-### 5.10 Source-facet group record
+### 7.10 Facet group
 
-For every Component 02 source facet publish:
+For each Component 02 source facet store:
 
-- facet/ring/shell/operand/owner;
+- facet/ring/shell/operand;
 - canonical boundary ring and directed source-edge uses;
-- canonical member triangle IDs;
-- canonical member internal-diagonal IDs;
-- inherited support plane, projection frame, orientation, and bounded evidence;
+- canonical member triangles and internal diagonals;
+- inherited support, projection, orientation, geometry basis, and evidence;
 - caller provenance;
-- source semantic digest and exact triangulation digest references;
-- group bounds;
-- canonical key/digest; and
-- verifier evidence.
+- source-semantic and exact-triangulation digest references;
+- conservative group bound;
+- owner-free semantic key/digest; and
+- evidence.
 
-Member lists are sorted by complete key. Validate exactly against Component 04. Distinct coplanar facets remain distinct. Downstream traversal across an uncut internal diagonal can identify that both triangles remain in one source-facet semantic region.
+Member lists sort by complete key. Distinct coplanar facets remain distinct.
 
-### 5.11 Shell group record
+### 7.11 Shell group
 
-For every Component 02 shell publish:
+For each Component 02 shell store:
 
-- shell/operand/owner;
-- canonical member vertices, source facets, manifold triangles, and edges or immutable ranges/lists sufficient to reconstruct them;
-- orientation, nesting, parity, and occupied-side provenance inherited from Component 02;
+- shell/operand;
+- represented member vertices, source edges, facets, triangles, and Component 05 edges or reconstructible ranges;
+- inherited orientation, nesting, parity, and occupied side;
+- coherent geometry-basis lineage;
 - conservative shell bound;
-- canonical key/digest; and
-- verifier evidence.
+- owner-free semantic key/digest; and
+- evidence.
 
-Component 05 must not recompute shell nesting or occupied side. It verifies membership consistency and forwards the accepted evidence.
+Do not recompute shell semantics.
 
-### 5.12 Provenance and maps
+### 7.12 Maps
 
-Publish canonical immutable maps for:
+Publish sorted immutable maps for:
 
-- source vertex to exactly one V1 manifold vertex and inverse;
-- source triangle to exactly one manifold triangle and inverse;
-- source directed edge use to exactly one boundary halfedge;
-- source undirected edge to one source-edge record and its two halfedges;
-- facet-local diagonal to one internal edge and its two halfedges;
+- represented source vertex to one V1 Component 05 vertex and inverse;
+- source triangle to one Component 05 triangle and inverse;
+- source directed edge use to one boundary halfedge;
+- source undirected edge to one source-edge record and two halfedges;
+- facet-local diagonal to one internal edge and two halfedges;
 - triangle/local slot to halfedge and inverse;
-- source facet to facet group/member triangles/member diagonals;
-- source shell to shell group and member records;
-- caller vertex/facet/ring positions to source/internal provenance where predecessor maps provide it; and
-- canonical order permutations if physical arrays are not already canonical.
+- source facet to facet group, triangles, diagonals, and boundary;
+- source shell to shell group and members;
+- caller/source positions to semantic provenance where provided; and
+- canonical-order permutations if arrays are not physically canonical.
 
-Maps are total over documented domains, sorted by full key, range/owner checked, and independently reconstructed. Counts or digests alone are not maps.
+There is no map entry for isolated non-semantic source-snapshot vertices.
 
-### 5.13 Geometry attachments
+### 7.13 Geometry attachments
 
-Required attachments:
+Required per vertex:
 
-- inherited bounded point per vertex;
-- closed conservative segment bound per edge;
-- closed conservative triangle bound per triangle;
-- conservative source-facet group bound; and
-- conservative shell bound.
+- exact nominal bits;
+- input precision lineage;
+- geometry-basis disposition;
+- immutable committed realized-point/reference;
+- proof/reference that the committed point lies inside the source enclosure; and
+- Component 03 bounded point.
 
-All are constructed or validated through Component 03 and include inherited uncertainty, bound-construction rounding, formula/version IDs, and precision lineage. They must be finite and contain every permitted realization. Never shrink to nominal coordinates.
+Required aggregate bounds:
 
-Optional non-authoritative attachments may include scaled area vectors, dominant axes, centroids, spatial keys, and local scales. Compute only with qualified exponent-safe Component 03 services. Mark availability explicitly. These values may guide acceleration/order only and may not decide topology or relations.
+- segment per edge;
+- triangle per triangle;
+- union per facet group;
+- union per shell.
 
-### 5.14 Independent-verification evidence
+All bounds include inherited uncertainty, committed basis, bound-construction rounding, formula/version, and precision lineage. They must be finite and containment-verified.
 
-Store reconstructible evidence for triangle cycles, pairing runs, reciprocal endpoints, edge role/provenance, fan transitions and canonical traversal, facet/shell membership, map totals, bound containment inputs, canonical ordering, versions, and digest inputs. Producer booleans such as `all_edges_paired=true` are insufficient.
+Optional nominal data is explicitly non-authoritative and absent unless required by a selected downstream acceleration policy.
 
-## 6. Exact count, capacity, and resource preflight
+## 8. Count, capacity, and resource preflight
 
-### 6.1 Count identities
+Compute:
 
-From predecessor tables compute with Component 01 checked arithmetic:
-
-- `V = source vertex occurrence count`;
-- `F = source triangle count`;
-- `H = 3F`;
-- `B = source-boundary triangle edge-use count`;
-- `D = internal-diagonal triangle edge-use count`;
-- `E_s = source undirected edge count`;
-- `E_d = facet-local diagonal count`;
-- `E = E_s + E_d`.
+```text
+V   = represented source vertex count
+F   = source triangle count
+H   = 3F
+B   = source-boundary triangle edge-use count
+D   = internal-diagonal triangle edge-use count
+E_s = source undirected edge count
+E_d = facet-local diagonal count
+E   = E_s + E_d
+```
 
 Require:
 
@@ -543,323 +749,477 @@ H = B + D
 B = 2E_s
 D = 2E_d
 H = 2E
-sum(vertex outgoing incidence counts) = H
+sum(outgoing incidence counts) = H
+represented_vertex_domain =
+    distinct(source vertices referenced by all Component 04 triangles)
 ```
 
-Also require Component 04 triangle/facet-local identities and Component 02 source-edge counts to agree record by record. Empty operands require every count zero. Count equations supplement, never replace, per-record verification.
+For an empty operand require all represented entity counts zero, even if the Component 01 snapshot contains isolated finite vertices.
 
-### 6.2 Representability
+Before allocation prove fit in:
 
-Before allocation prove all counts, products, offsets, IDs, canonical byte lengths, and temporary bounds fit:
-
-- the relevant strong-ID ordinal domain;
-- the chosen checked internal storage index;
-- public `I` where a later adapter requires it;
+- every strong-ID ordinal domain;
+- checked internal storage index;
+- public `I` where later required;
 - host `size_t`;
-- Component 01 entity/byte/work limits; and
-- codec count/length fields.
+- codec count and length fields;
+- configured entity, byte, work, candidate-adapter, and diagnostic limits; and
+- temporary and independent-verifier workspace budgets.
 
-Never allocate from unchecked `size_t` arithmetic. In particular check `3F`, `2E`, prefix sums, fan offsets, map sizes, sort-key storage, verifier duplication, and canonical encoding sizes.
+Reserve persistent and temporary resources transactionally. Charge sorting comparisons and fan transitions deterministically.
 
-### 6.3 Resource reservations
-
-Reserve and account for:
-
-- persistent vertices, triangles, halfedges, edges, fans, groups, maps, bounds, evidence, canonical bytes, diagnostics, and replay;
-- temporary proposals, full keys, sort buffers, run descriptors, incidence lists, fan marks, group builders, encoding buffers, and independent-verifier workspaces; and
-- abstract work for proposal generation, comparison/sort, grouping, fan transitions, map reconstruction, bound containment, encoding, and verification.
-
-Charge comparisons/work deterministically under Component 01 policy. Pathological inputs terminate through typed work/resource failure. Reconcile reserved versus actual resources before promotion; release every temporary lease on success, failure, cancellation, or rollback.
-
-## 7. Predecessor validation
+## 9. Predecessor validation
 
 Before construction, independently validate:
 
-1. context owner, operand, strict environment, policy, and supported versions;
-2. Component 02 and 04 artifact IDs/digests and successful verifier dispositions;
-3. every source vertex/facet/shell/triangle/edge-use ID owner/domain/range;
-4. every triangle has three distinct source vertices, definite inherited orientation, support evidence, and exactly three local edge-use records matching its cycle;
-5. every edge use is exactly one supported role;
-6. every source-boundary use references the correct source directed and undirected edge, endpoints, facet, shell, and reciprocal source use;
-7. every source undirected edge has exactly two opposite validated directed uses and exactly two Component 04 boundary uses;
-8. every internal diagonal has exactly two opposite uses in one source facet and no source-edge identity;
-9. Component 04 facet groups exactly partition triangles/diagonals;
-10. Component 02 shell groups exactly cover the referenced vertices/facets and Component 04 triangle shell membership agrees; and
-11. all inherited required bounded references are present, finite, version-valid, and owner-correct.
+1. context, strict environment, runtime owner, operand, policy, and versions;
+2. Component 02/04 artifact IDs, semantic digests, exact-triangulation digest, and verifier dispositions;
+3. represented source-vertex domain equality;
+4. no isolated snapshot vertex appears in the handoff;
+5. every triangle has three distinct represented vertices and one definite inherited orientation;
+6. every triangle has exactly three local edge uses aligned with its oriented cycle;
+7. every edge use has exactly one supported class;
+8. every source-boundary use matches Component 02 source directed/undirected edge, endpoints, facet, shell, and reciprocal use;
+9. every source edge has exactly two opposite Component 04 boundary uses;
+10. every internal diagonal has exactly two opposite same-facet uses and no source-edge identity;
+11. facet groups exactly partition triangles and diagonals;
+12. shell groups exactly cover represented features;
+13. every represented point, support, projection, and triangle references the same committed geometry basis;
+14. a `constructed_coherent_realization` is complete and never replaced by nominal geometry;
+15. every inherited bound/reference is finite, owner-correct at runtime, formula-valid, and semantic-lineage compatible; and
+16. raw owner tokens are absent from predecessor semantic keys and encoded digests where predecessor contracts require exclusion.
 
-A contradiction in a committed predecessor artifact is `internal_invariant_error` attributed to the predecessor, with the least canonical conflicting records. Do not repair or reinterpret it.
+Do not repair a contradiction.
 
-## 8. Deterministic serial construction
+## 10. Deterministic serial construction
 
-### 8.1 Vertices
+### 10.1 Build represented vertices
 
-Enumerate source vertices in predecessor canonical order. Build one proposal per V1 source vertex with the canonical key from Section 5.3. Sort full keys if the predecessor view does not already prove the same order. Reject duplicates. Assign dense manifold vertex IDs only after validation.
+Derive the represented source-vertex set from Component 04 triangle cycles. Compare it exactly with Component 02/04 handoff maps.
 
-### 8.2 Triangles and cycles
+Build one proposal per represented source vertex using the owner-free key from Section 7.3. Sort complete keys if predecessor order is not already proven identical. Reject duplicates. Assign dense IDs only after validation.
 
-Enumerate source triangles, validate their edge-use cycles, compute the least orientation-preserving rotation, build full triangle proposals, sort, reject duplicates, and assign dense triangle IDs. Allocate exactly three contiguous halfedges per final triangle, with checked arithmetic. Fill origin, triangle, slot, next/previous, role payload, source provenance, and group references. Pair/edge IDs remain unresolved private handles until grouping.
+Attach nominal bits, geometry-basis reference, precision lineage, shell, caller provenance, and unresolved fan fields.
 
-### 8.3 Pairing proposal sort
+### 10.2 Build triangles and fixed cycles
 
-Emit one pairing proposal per halfedge. Sort by:
+Validate each Component 04 triangle and choose the least orientation-preserving rotation.
+
+Sort triangle proposals by complete semantic key, reject duplicates, assign dense IDs, then allocate exactly three triangle-major halfedges.
+
+Fill origin, triangle, local slot, next, previous, role payload, source provenance, support/orientation/geometry-basis reference, and group references. Pair and edge fields remain private unresolved handles.
+
+### 10.3 Generate and group pairing proposals
+
+Emit one proposal per halfedge.
+
+Sort by:
 
 ```text
 (pairing_key,
- origin_manifold_vertex_key,
- destination_manifold_vertex_key,
+ origin_vertex_key,
+ destination_vertex_key,
  triangle_key,
  local_slot,
  predecessor_edge_use_key)
 ```
 
-Use full comparisons. Partition into maximal equal pairing-key runs. Every run must have cardinality two.
+Use full comparisons. Partition maximal equal pairing-key runs. Every run must contain exactly two uses.
 
-### 8.4 Source-edge runs
+### 10.4 Validate source-edge runs
 
-For each source-edge run require:
+Require:
 
-- both uses carry the same exact source undirected edge;
-- they correspond to its two exact Component 02 directed uses;
-- directed source and manifold endpoints reverse;
-- incident source facets match the validated adjacency and are distinct when required by predecessor schema;
-- operand and shell agree;
-- neither use is an internal diagonal; and
-- no third use exists.
+- same source undirected edge;
+- exact two Component 02 directed uses;
+- reversed source and Component 05 endpoints;
+- correct incident facets;
+- common operand and shell;
+- source-edge class on both uses; and
+- no third use.
 
-### 8.5 Internal-diagonal runs
+### 10.5 Validate internal-diagonal runs
 
 Require:
 
 - same source facet and exact Component 04 diagonal;
-- two distinct incident source triangles;
-- reversed source/manifold endpoints;
-- same operand/shell/facet group;
-- neither use carries any source directed/undirected edge ID;
-- fixed non-source/non-owner/non-barrier semantics; and
+- distinct incident triangles;
+- reversed endpoints;
+- common operand, shell, and facet group;
+- no source directed or undirected edge ID;
+- fixed bookkeeping/source-ownership properties; and
 - no third use.
 
-### 8.6 Edge IDs, pairs, and representatives
+Do not assign candidate visibility.
 
-Build complete edge proposals from verified runs. Sort by complete edge key, reject duplicates, assign dense edge IDs, then resolve both halfedges' edge and reciprocal pair fields. Verify reciprocity immediately. Select the low-canonical-vertex to high-canonical-vertex halfedge as representative. Do not derive representative direction from coordinates or face order.
+### 10.6 Assign edges, close pairs, and choose representatives
 
-### 8.7 Vertex fans
+Build complete edge proposals from verified runs. Sort by semantic edge key, reject duplicates, assign dense edge IDs, resolve both halfedges' edge and pair fields, and verify reciprocity immediately.
 
-Group outgoing halfedges by origin vertex using full IDs. Sort each group by full halfedge key only to choose the start and produce deterministic diagnostics; topology traversal itself uses `pair(previous(h))`. Traverse and verify as Section 5.9. Publish the resulting canonical sequence and vertex representative. A valid nonempty closed V1 source vertex must have one nonempty closed fan.
+Choose low-vertex-key to high-vertex-key representative.
 
-### 8.8 Facet and shell groups
+### 10.7 Build vertex fans
 
-Reconstruct facet membership from triangle records and internal-edge provenance; compare with Component 04 rather than copying counts. Reconstruct shell membership from source records and compare with Component 02. Sort member lists by complete key. Build forward and inverse maps, bounds, and group digests only after membership verification.
+Group outgoing halfedges by exact vertex ID. Sort each group by full halfedge key only to select canonical start and diagnostics.
 
-### 8.9 Empty operand
+Traverse topology with `pair(previous(h))`; do not angle-sort geometry.
 
-Publish a canonical empty operand with valid owner/operand/version/predecessor links, zero entity/table counts, empty canonical ranges, verified empty disposition, resource statistics, and deterministic digests. It must still pass version, capacity, owner, codec, and independent-verifier gates.
+Publish canonical fan sequences only after closure, inverse, and coverage checks pass.
 
-## 9. Conservative geometry attachments
+### 10.8 Build facet and shell groups
 
-### 9.1 Vertex points
+Reconstruct memberships from final entity provenance and compare record-by-record with Components 02 and 04.
 
-Reference or copy the immutable Component 03 bounded point and exact nominal bit pattern for each source vertex. Verify owner, precision lineage, finiteness, and that no coordinate-based deduplication occurred.
+Sort member lists by complete semantic key. Preserve support, projection, orientation, nesting, occupied side, semantic digests, and geometry-basis lineage.
 
-### 9.2 Edge bounds
+### 10.9 Build bounds
 
-Construct each edge bound once from its two bounded endpoints through the frozen Component 03 segment-bound formula. Require a finite closed enclosure containing both endpoint enclosures and every permitted segment realization. The two halfedge uses reference the same edge attachment.
+For each represented vertex validate the committed basis reference and bounded point.
 
-### 9.3 Triangle bounds
+Construct each edge bound once from its endpoint enclosures and committed points through Component 03.
 
-Use the three inherited bounded points and frozen Component 03 triangle-bound formula, or validate a compatible Component 04 bound. Require containment of all three points and consistency with inherited triangle precision/support. Do not shrink or recompute with an incompatible formula.
+Construct or validate each triangle bound through the compatible frozen formula.
 
-### 9.4 Facet and shell bounds
+Build facet and shell union bounds in a frozen deterministic reduction order. Verify every child contained.
 
-Compute deterministic conservative unions in canonical member order using a frozen pairwise reduction. Require each child bound contained. Empty groups are allowed only where predecessor semantics permit them. Overflow/non-finite unions fail; never clamp smaller.
+No fallback to nominal geometry is permitted.
 
-### 9.5 Optional nominal data
+### 10.10 Empty operand
 
-If acceleration requires nominal area vectors, centroids, axes, or scales, use Component 03 exponent-safe scaled arithmetic, record formula/version and availability, and test overflow/extreme exponents. Absence is not malformed unless the selected downstream provider contract requires that attachment. No optional value is authoritative.
+Publish a canonical empty operand with:
 
-## 10. Producer-side structural verification
+- valid runtime owner binding outside canonical bytes;
+- operand role and predecessor semantic links;
+- zero represented entity/table counts;
+- empty canonical ranges;
+- geometry-basis disposition compatible with empty semantics;
+- verified disposition;
+- resource statistics; and
+- deterministic owner-free semantic digests.
 
-Before encoding or publication, reconstruct from private records rather than trusting counters:
+## 11. Producer structural verification
 
-### 10.1 Entities and cycles
+Before encoding, reconstruct from private records.
 
-- dense IDs are unique, owner/domain/range correct, and match canonical order;
-- every source vertex/triangle maps exactly once;
-- every triangle has exactly three distinct vertices and halfedges;
-- next/previous are total mutual inverses and close after three steps;
-- halfedge endpoints agree with the triangle cycle;
-- local roles/provenance exactly match Component 04.
+Verify entities and cycles:
 
-### 10.2 Pairing
+- dense IDs and complete keys;
+- represented vertex and source triangle bijections;
+- exact three-halfedge triangle cycles;
+- next/previous inverse closure;
+- endpoint alignment;
+- local role/provenance alignment; and
+- orientation/support/geometry-basis lineage.
 
-- every halfedge belongs to exactly one edge;
-- every edge has exactly two uses;
-- pair is total, symmetric, non-self, and remains in the same edge;
-- endpoints reverse exactly;
-- role-specific predecessor identities agree;
-- source/internal classes never mix; and
-- representative direction follows the frozen key policy.
+Verify pairing:
 
-### 10.3 Vertex links
+- one edge per halfedge;
+- exactly two uses per edge;
+- total symmetric non-self pairs;
+- exact reversed endpoints;
+- role-specific predecessor agreement;
+- no source/internal class mixing;
+- canonical representative policy; and
+- no candidate/source-ownership conflation.
 
-Independently regroup outgoing halfedges, rerun transition traversal, verify closure/inverses/coverage, compare stored canonical sequences, and reject open, duplicated, or multiple cycles.
+Verify fans:
 
-### 10.4 Groups and maps
+- regroup outgoing incidences;
+- independently rerun transitions;
+- require closure, inverse, and complete coverage;
+- compare stored sequences; and
+- prevent cross-identity linkage.
 
-Rebuild facet and shell membership from entity provenance. Verify exact partition/coverage, group lists, inherited boundary/support/orientation/nesting evidence, and every forward/reverse map. Caller maps may not influence semantic ordering.
+Verify groups and maps:
 
-### 10.5 Bounds
+- reconstruct facet and shell membership;
+- compare boundary, support, orientation, nesting, occupied side, and geometry basis;
+- verify every forward and reverse map; and
+- prove isolated snapshot vertices are absent.
 
-For each edge, triangle, facet, and shell, reconstruct required child inputs and verify closed containment through Component 03. Verify finite encoding, formula versions, precision lineage, and optional attachment semantics.
+Verify geometry:
 
-### 10.6 Canonical order and transaction eligibility
+- nominal bits unchanged;
+- committed basis unchanged;
+- no constructed-realization fallback;
+- finite/formula-valid bounds;
+- child containment; and
+- precision-lineage consistency.
 
-Recompute full keys and require strictly increasing canonical tables or exact canonical permutations. Validate all reserved fields, range descriptors, resource statistics, no temporary handles, and no active private lease. Only a producer-verified private artifact may proceed to codec and independent verifier.
+Verify canonical eligibility:
 
-## 11. Canonical ordering, digests, and codec
+- strictly increasing semantic tables or exact permutations;
+- zero reserved fields;
+- no raw owner token in semantic fields or encoding inputs;
+- correct resource statistics;
+- no private handle or active lease; and
+- no scheduling-dependent state.
 
-### 11.1 Physical order
+## 12. Canonical ordering, digests, codec, and owner separation
 
-Publish, preferably physically:
+### 12.1 Physical order
 
-- vertices by complete vertex key;
-- triangles by complete triangle key;
-- halfedges by triangle ID then local slot;
-- edges by complete role-specific edge key;
-- fans by vertex key with incidences in canonical traversal order;
-- facet/shell groups by predecessor canonical identity;
-- maps by domain/source key; and
-- evidence/attachments by owner feature key and evidence kind.
+Prefer physical order:
+
+- vertices by vertex semantic key;
+- triangles by triangle semantic key;
+- halfedges by triangle ID and local slot;
+- edges by role-specific semantic key;
+- fans by vertex key with canonical topological sequence;
+- facet and shell groups by predecessor semantic identity;
+- maps by source/domain key; and
+- attachments/evidence by semantic feature key and kind.
 
 No unordered iteration is serialized.
 
-### 11.2 Digests
+### 12.2 Digests
 
-Maintain distinct digests:
+Maintain:
 
-1. **source semantic digest** — forwarded Component 02/04 source feature/facet/shell semantics, excluding internal diagonal choice where Component 04 defines semantic invariance;
-2. **exact topology digest** — exact triangles, local rotations, halfedges, pairs, internal diagonals, fans, groups, and maps;
-3. **geometry attachment digest** — bounded points/bounds, precision lineage, formula versions, and optional nominal availability/data;
-4. **replay/presentation digest** — caller ordering/bit provenance and diagnostic policy fields; and
-5. **complete artifact digest** — header versions plus all required canonical sections.
+1. `source_semantic_digest` — forwarded source vertex/edge/facet/shell semantics, excluding internal triangulation choice;
+2. `exact_topology_digest` — exact triangles, rotations, halfedges, pairs, internal diagonals, fans, groups, and maps;
+3. `geometry_attachment_digest` — nominal bits, committed geometry basis, bounded points, bounds, precision lineage, formulas, and optional nominal data;
+4. `replay_presentation_digest` — stable caller presentation/provenance fields defined by Component 01, excluding runtime owner anchor; and
+5. `complete_semantic_artifact_digest` — canonical semantic header and all canonical sections.
 
-Source ownership in later stages must use source identities/semantic digest, not only exact triangle topology.
+Runtime owner values are excluded from all five.
 
-### 11.3 Encoding
+### 12.3 Codec
 
-Encode field-by-field with Component 01 canonical primitives: explicit widths/endian, enum tags, lengths, option discriminants, floating bit patterns, strong IDs, and zero reserved fields. Never serialize native structs, pointers, padding, capacity, map tree layout, or hash buckets. Decoder checks every length/count before allocation, rejects unknown required tags/versions and trailing required-section bytes, then runs the independent verifier before accepting an artifact.
+Encode field-by-field with Component 01 canonical primitives:
 
-Freeze golden V1 bytes for empty, tetrahedron, triangulated box, concave polygon-derived facet, disconnected shells, cavity/island, duplicate-coordinate identities, and high-valence fixtures.
+- explicit widths and endianness;
+- enum tags;
+- lengths and ranges;
+- option discriminants;
+- floating bit patterns;
+- stable semantic strong-ID encodings;
+- geometry-basis disposition and lineage;
+- formula and schema versions; and
+- zero reserved fields.
 
-## 12. Independent `CanonicalHalfedgeVerifier`
+Never encode native structs, pointers, padding, `size_t`, container capacity, hash buckets, runtime owner tokens, or task data.
 
-### 12.1 Independence boundary
+Decoder:
 
-The verifier receives immutable Component 02/03/04 artifacts, the proposed Component 05 artifact, and Component 01 verification/resource services. It must not call producer helpers for triangle rotation, pairing-key grouping, edge ID assignment, fan construction, group assembly, map construction, canonical ordering, or producer cached booleans/digests.
+1. validates counts and lengths before allocation;
+2. rejects unknown required tags/versions and nonzero reserved fields;
+3. rejects owner-bearing semantic material;
+4. reconstructs runtime owner binding from the current verified context rather than serialized bytes;
+5. validates predecessor semantic links;
+6. runs the independent verifier; and
+7. publishes only after success.
 
-It may share strong-ID/schema definitions, canonical byte primitives, and low-level Component 03 containment services. Implement separate traversal, grouping, sorting, fan reconstruction, membership reconstruction, map comparison, and encoding traversal.
+Freeze golden V1 bytes for:
 
-### 12.2 Verifier workflow
+- empty;
+- tetrahedron;
+- triangulated box;
+- concave polygon-derived facet;
+- disconnected shells;
+- cavity/island;
+- coordinate-identical distinct identities;
+- high-valence;
+- isolated snapshot vertex exclusion; and
+- constructed coherent realization.
+
+Run the same semantic fixtures under multiple owner anchors and require identical golden bytes.
+
+## 13. Independent verifier
+
+### 13.1 Independence boundary
+
+The verifier receives immutable Component 02/03/04 artifacts and the proposed Component 05 artifact.
+
+It must not call producer helpers for:
+
+- triangle rotation;
+- pairing-key grouping;
+- edge ID assignment;
+- pair closure;
+- fan construction;
+- group assembly;
+- map construction;
+- canonical sorting; or
+- digest traversal.
+
+It may share:
+
+- closed schema/type definitions;
+- strong-ID domain declarations;
+- canonical primitive encoding;
+- low-level checked arithmetic; and
+- Component 03 containment services.
+
+If a low-level exact-index helper is shared after the reuse audit, producer and verifier must still have materially different high-level grouping and traversal control flow, and mutation tests must prove independence.
+
+### 13.2 Workflow
 
 Independently:
 
-1. validate owner, operand, versions, reserved fields, predecessor links/digests, counts, and ranges;
-2. rebuild the expected source-vertex and source-triangle domain;
-3. independently compute least orientation-preserving triangle rotations;
-4. reconstruct each triangle's three directed edges from vertices/local source edge uses;
-5. reclassify edge role from Component 04 tagged provenance;
-6. rebuild role-specific edge groups and require exactly two reversed uses;
-7. rebuild expected edge keys/order/IDs, pairs, and representatives;
-8. reconstruct all outgoing incidences and fan cycles with an independently written traversal;
-9. rebuild facet/shell groups from provenance and predecessor artifacts;
-10. rebuild every forward/reverse map;
-11. independently verify all required bound containment and formula/precision references;
-12. recompute all canonical keys, arrays/permutations, digests, and bytes;
-13. compare stored data against reconstruction field by field;
-14. verify resource statistics are conservative and no temporary/private handle escaped; and
-15. return one deterministic verified disposition or least-key typed rejection.
+1. validate runtime owner binding, operand, versions, reserved fields, predecessor semantic links, counts, and ranges;
+2. prove raw owner values are absent from semantic keys and canonical bytes;
+3. rebuild the represented source-vertex domain from Component 04 triangles;
+4. reject isolated snapshot vertex leakage;
+5. recompute orientation-preserving triangle rotations;
+6. reconstruct triangle local edges from cycles and tagged predecessor provenance;
+7. rebuild source-edge and internal-diagonal groups;
+8. require exactly two reversed uses per edge;
+9. rebuild edge keys, order, IDs, pairs, and representatives;
+10. reconstruct outgoing incidences and fan cycles with independently written traversal;
+11. rebuild facet and shell groups;
+12. rebuild every forward and reverse map;
+13. verify nominal bits and committed geometry-basis references;
+14. independently verify bounds and precision/formula lineage;
+15. recompute semantic keys, arrays/permutations, digests, and canonical bytes;
+16. compare stored data field-by-field;
+17. verify resource statistics and absence of private handles; and
+18. return one verified disposition or deterministic least-key typed rejection.
 
-### 12.3 Mutation rejection
+### 13.3 Required mutations
 
-Required mutations include:
+Reject at least:
 
-- remove/duplicate/reorder a vertex or triangle;
-- reverse or inconsistently rotate one triangle;
-- alter a triangle local slot, source facet, shell, or orientation reference;
-- delete/add a halfedge or assign four halfedges to a triangle;
-- break next/previous closure;
-- alter edge class or role-specific provenance;
-- delete/duplicate a pairing use, make pair one-way/self, pair same-direction/equal endpoints, mix source/internal classes, pair diagonals across facets, or add a third use;
-- alter canonical representative;
-- change a halfedge origin/destination/edge/triangle;
-- split one vertex fan, join two identity-distinct fans, create an open fan, duplicate an incidence, or change fan order/representative;
-- alter facet/shell membership, boundary, occupied-side evidence, or group digest;
-- omit/duplicate/change any forward/reverse provenance entry;
-- merge coordinate-coincident vertices;
-- shrink/mislabel/substitute a bound or precision/formula reference;
-- permute a canonical array without updating maps;
-- alter a version, reserved field, length, count, digest, or canonical byte; and
-- forge producer counts/summary evidence while incidence remains corrupt.
+- remove, duplicate, or reorder a represented vertex or triangle;
+- add an isolated snapshot vertex to the artifact;
+- reverse or incorrectly rotate a triangle;
+- change local slot, facet, shell, support, orientation, or geometry basis;
+- delete/add a halfedge or break cycle closure;
+- change edge class or role payload;
+- delete/duplicate a use, add a third use, pair one-way/self/same-direction, mix classes, or pair diagonals across facets;
+- alter representative;
+- split one fan, join distinct fans, open a fan, duplicate incidence, or change stored order;
+- change facet/shell membership, occupied side, or group digest;
+- omit/duplicate/change a map;
+- merge coordinate-identical distinct vertices;
+- replace a constructed realization with nominal geometry;
+- mutate, shrink, mislabel, or substitute a bound;
+- set an internal diagonal as source/symbolic/barrier/output owner;
+- store a Component 06 eligibility bit as semantic truth;
+- insert owner token into a key, digest, byte stream, or failure arbitration key;
+- permute canonical arrays without corresponding maps;
+- alter version, reserved field, count, length, digest, or canonical byte; or
+- forge producer summary counts while incidence remains corrupt.
 
-Every mutation must be rejected from reconstruction, with deterministic least offending feature and stable subcode.
+Require zero surviving mandatory mutations.
 
-## 13. Immutable query contract
+## 14. Immutable downstream query contract
 
-Provide bounded deterministic, allocation-free reads for later stages.
+Provide allocation-free owner-checked reads.
 
-### 13.1 Vertex queries
+Vertex queries:
 
 - source identity, operand, shell, caller provenance;
-- bounded point/precision reference;
+- nominal bits;
+- committed geometry-basis disposition/reference;
+- bounded point and precision;
 - canonical outgoing representative;
-- fan span in oriented order; and
-- exact source/internal mapping.
+- fan span; and
+- maps.
 
-### 13.2 Triangle queries
+Triangle queries:
 
-- three vertices/halfedges in canonical orientation;
+- vertices and halfedges;
 - source triangle/facet/shell;
-- inherited orientation/support and bound;
-- facet/shell group; and
-- exact triangulation/source semantic lineage.
+- orientation, support, projection, geometry basis, and bound;
+- groups; and
+- semantic/exact triangulation lineage.
 
-### 13.3 Halfedge/edge queries
+Halfedge/edge queries:
 
-- origin/destination, next/previous, pair, triangle, edge;
-- edge class by identity alone;
-- canonical endpoints and directed representative;
+- origin, destination, next, previous, pair, triangle, edge;
+- exact edge class;
+- canonical endpoints and representative;
 - both incident halfedges/triangles/facets;
 - source edge or internal diagonal provenance;
-- whether crossing stays in one source facet; and
-- conservative segment bound.
+- source-feature, symbolic-owner, barrier, and retained-feature properties;
+- whether traversal remains within one source facet; and
+- segment bound.
 
-### 13.4 Relationship and group queries
+Relationship/group queries:
 
-By exact IDs determine whether two triangles share a vertex, edge, source facet, or shell; whether an edge is incident to a triangle; facet member triangles/internal diagonals/boundary; shell membership/occupied-side evidence; and all required bounds/digests.
+- shared vertex, edge, facet, or shell;
+- edge incident to triangle;
+- facet triangles, diagonals, and boundary;
+- shell membership and occupied side;
+- maps, bounds, and digests.
 
-Queries must not perform coordinate equality, tolerance lookup, dynamic allocation, schedule-dependent caching, or hidden recomputation of authoritative geometry. Document expected `O(1)`, `O(log n)`, or bounded span traversal complexity.
+Component 06 determines candidate visibility from edge class plus its frozen candidate-domain policy.
 
-## 14. Alternative legal triangulation semantics
+## 15. Alternative legal triangulation semantics
 
-Integrate Component 04's test-only alternative legal triangulation builder. For each accepted alternative:
+Use Component 04's test-only alternative legal triangulation builder.
 
-- run the full Component 05 producer, codec, and independent verifier;
-- allow exact triangle, internal-diagonal, halfedge, edge, fan ordering, and exact topology digest to differ where triangulation differs;
-- require forwarded source semantic digest, source vertices/edges/facets/shells, caller provenance, and occupied-side semantics unchanged;
-- require every internal diagonal remains non-source/non-owner/non-barrier;
-- require source boundary edge records and source-feature queries equivalent; and
-- feed each variant to Component 06 test adapters and later available stages to prove Boolean source semantics do not depend on diagonal choice.
+For each legal variant:
 
-Do not require byte identity between genuinely different legal triangulations. Require semantic equivalence under a frozen comparison view.
+- run full producer, codec, and independent verifier;
+- allow exact triangles, internal diagonals, halfedges, fans, exact-topology digest, and exact bytes to differ;
+- require identical or predecessor-defined-equivalent source semantic digest, source vertices/edges/facets/shells, occupied-side semantics, nominal provenance, and geometry-basis lineage;
+- require all internal diagonals remain bookkeeping-only;
+- require source boundary-edge records and source-feature queries equivalent;
+- feed each variant to Component 06 V1, which may emit different bookkeeping candidates;
+- require Component 07 reduce bookkeeping relations to the same source-feature semantics; and
+- require final Boolean topology unchanged for the covered fixtures.
 
-## 15. Resources, cancellation, transactions, and concurrency
+Do not require byte identity between genuinely different legal triangulations.
 
-### 15.1 Transactions
+## 16. Metamorphic expectation matrix
 
-Use one Component 05 stage transaction containing two private operand subtransactions. Construction order cannot grant partial publication. Persistent leases transfer only with the final wrapper. If either operand fails, select the canonical failure, join all work, discard both private candidates, release all temporary/proposed persistent resources, and publish nothing.
+Classify every metamorphic test before asserting bytes.
 
-### 15.2 Deterministic cancellation points
+### 16.1 Byte-identical presentation metamorphisms
 
-Poll at:
+Require byte identity for semantically identical predecessor artifacts under:
+
+- vertex-array permutation with remapped indices;
+- facet permutation;
+- ring rotation;
+- shell record permutation;
+- allocation/layout changes;
+- full-key hash collisions;
+- owner-anchor changes;
+- worker counts;
+- task partitions; and
+- schedule delays/reversal.
+
+This assumes Components 02-04 already produce identical semantic predecessor bytes as required.
+
+### 16.2 Remapped semantic-equivalence transforms
+
+For axis permutation, exact translation, power-of-two scale, sign flip, and corrected whole-shell orientation transformations, use the predecessor-defined remapping/equivalence contract.
+
+Require byte identity only if predecessor semantic bytes are explicitly identical. Otherwise compare:
+
+- topology;
+- exact incidence;
+- source-feature ownership;
+- remapped geometry basis and bounds;
+- shell semantics;
+- precision lineage; and
+- downstream Boolean semantics.
+
+### 16.3 Alternative triangulations
+
+Use Section 15.
+
+## 17. Transactions, resources, cancellation, and concurrency
+
+### 17.1 Transaction
+
+Use one Component 05 stage transaction with two private operand subtransactions.
+
+Persistent leases transfer only with the final wrapper. If either operand fails:
+
+- join all work;
+- select the canonical primary failure;
+- discard both candidates;
+- release all leases;
+- leave predecessors unchanged; and
+- publish nothing.
+
+### 17.2 Cancellation points
+
+Poll at stable boundaries:
 
 - operand start;
 - predecessor validation chunks;
@@ -867,193 +1227,294 @@ Poll at:
 - before/after deterministic sorts;
 - edge-run batches;
 - pair-resolution boundary;
-- vertex-incidence and fan batches;
+- incidence and fan batches;
 - facet/shell group batches;
-- geometry-attachment batches;
-- producer verification table batches;
+- geometry attachment batches;
+- producer verification batches;
 - codec section boundaries;
-- independent verifier table/group/fan/bound batches; and
+- independent-verifier batches; and
 - immediately before commit.
 
-Do not poll halfway through a local atomic record fill, pair closure, or fan transition. Finish the private local operation, then discard at the next checkpoint. Cancelled runs expose no partial artifact or leaked lease.
+Do not poll halfway through local record fill, pair closure, or fan transition. Finish private local work and discard at the next checkpoint.
 
-### 15.3 Component 17 boundary
+### 17.3 Component 17 boundary
 
-Keep an executable serial semantic provider. Parallel execution may:
+Retain an executable serial semantic provider.
 
-- generate immutable vertex/triangle/halfedge proposals in private canonical ranges;
-- locally validate proposals;
-- sort private runs and merge by full canonical key;
-- verify disjoint canonical partitions privately; and
+Parallel execution may:
+
+- generate immutable proposals in private canonical ranges;
+- validate private proposals;
+- sort private runs and merge by full semantic key;
+- compute private geometry attachments;
+- verify disjoint canonical partitions; and
 - return private failures/evidence.
 
-Parallel tasks may not assign final semantic IDs, mutate shared published records, pair across tasks without canonical merge, depend on worker floating environment without qualification, or expose completion order. Final global sort/group, ID assignment, pair closure, fan reconstruction, canonical encoding, failure arbitration, and transaction commit follow frozen deterministic semantics. Prove byte/failure/resource-accounting equivalence for thread counts 1, 2, and configured maximum plus forced schedule permutations.
+Parallel tasks may not:
 
-### 15.4 Fault injection
+- assign final semantic IDs;
+- mutate published/shared records;
+- close cross-task pairs before canonical merge;
+- choose fan order from task completion;
+- leak owner anchors into semantics;
+- depend on an unqualified floating environment; or
+- expose completion order.
 
-Inject allocation, reservation, sort, codec, bound-provider, verifier, worker-start, worker-join, and cancellation failures at every transaction boundary. Require no active reservations, no published IDs/handles, no unjoined worker, predecessor artifacts unchanged, and deterministic replayable failure.
+Final global key order, ID assignment, pair closure, fan reconstruction, encoding, failure arbitration, and commit follow serial semantics.
 
-## 16. Test and validation plan
+### 17.4 Fault injection
 
-### 16.1 Entity and cycle tests
+Inject failure at:
 
-Cover empty operands, tetrahedra, triangulated boxes, polygon-derived facets, high-valence vertices, disconnected shells, cavities/islands, canonical triangle rotation, every accessor, and index capacity boundaries. Independently reconstruct triangle cycles and exact endpoint/provenance agreement.
+- reservation;
+- allocation;
+- proposal generation;
+- sort;
+- group validation;
+- pair closure;
+- fan traversal;
+- geometry-basis lookup;
+- bound construction;
+- codec;
+- verifier;
+- worker creation/join;
+- cancellation; and
+- final commit.
 
-### 16.2 Pairing/provenance tests
+Require no leaked resource, active worker, published private ID, escaped handle, predecessor mutation, or nondeterministic failure.
 
-Fixtures must include ordinary source edges between facets, several internal diagonals in one concave facet, adjacent coplanar facets that remain separate, coordinate-identical distinct vertex IDs, repeated coordinate patterns across shells, different legal facet diagonal orientations, and IDs near capacity. Verify role discovery without geometry and exact two-use opposite pairing.
+## 18. Diagnostics, replay, and observability
 
-### 16.3 Vertex-link tests
+Every failure report includes stable:
 
-Independently reconstruct links for valence 3, 4, high valence, multiple facets around a vertex, diagonals incident to source vertices, coordinate-coincident vertices in separate components, cavity/island shells, and all canonical input permutations. Inject open fans, duplicate incidences, bow-ties, disconnected cycles, wrong twin transitions, and cross-identity links.
+- stage/checkpoint;
+- operand;
+- source and Component 05 semantic feature IDs/keys;
+- expected and observed role, endpoints, counts, transition, membership, map, geometry basis, or bound;
+- predecessor semantic artifact/digest references;
+- formula/precision evidence;
+- resource use/limit;
+- replay reference; and
+- primary arbitration key.
 
-### 16.4 Geometry-bound tests
+Raw runtime owner tokens may appear only in optional non-canonical debug fields and never affect deterministic summary, arbitration, replay, or bytes.
 
-For vertex/edge/triangle/facet/shell bounds cover exact coordinates, one-ULP uncertainty, signed zero, subnormals, large translations with small features, extreme finite exponents, long thin triangles, zero-width axes, and coordinate-coincident distinct features. An in-tree exact/higher-precision test oracle verifies containment. Shrinking a bound below any permitted realization must fail.
+Expose structural statistics for:
 
-### 16.5 Canonicalization/metamorphic tests
+- represented vertices;
+- isolated snapshot vertices excluded;
+- triangles;
+- halfedges;
+- edge classes;
+- fan valence distribution;
+- facet and shell groups;
+- sort comparisons;
+- fan transitions;
+- geometry-basis dispositions;
+- bound operations;
+- verifier work;
+- bytes; and
+- resources.
 
-Apply vertex-array permutation with remapped indices, facet/triangle/shell permutation, ring rotation, legal alternative triangulation, exact power-of-two scale, exactly representable translation, axis permutation, global orientation reversal with corrected solid policy, worker counts, task partitions, and delayed/reversed schedules.
+Replay reconstructs exact source bits, options, predecessor semantic artifacts, versions, and geometry-basis records, then reproduces the same Component 05 semantic digest or primary failure under a fresh owner anchor.
 
-Where Component 04 defines unique canonical triangles, Component 05 bytes must be identical. Where legal triangulations differ, source-semantic queries/digests and later Boolean semantics must remain equivalent even if exact topology differs.
+## 19. Test and validation plan
 
-### 16.6 Codec tests
+### 19.1 Unit and known-answer tests
 
-Golden encode/decode for all schema classes. Test truncation at every byte, count/length overflow, unknown tag/version, nonzero reserved bits, duplicate/missing sections, trailing bytes, malformed optional discriminants, bad IDs, altered floating bit patterns, and digest substitution. Decode never publishes before independent verification.
+Cover empty, tetrahedral, box, polygon-derived, high-valence, disconnected, cavity/island, duplicate-coordinate, isolated-snapshot-vertex, and constructed-realization fixtures.
 
-### 16.7 Mutation tests
+Independently reconstruct cycles, endpoints, represented domain, pairings, fans, groups, maps, and basis linkage.
 
-Implement every Section 12.3 mutation as a targeted mutator. Require zero surviving required mutations, stable rejection subcodes, least canonical offending feature, and rejection from reconstructed incidence rather than counts/checksums alone.
+### 19.2 Pairing and provenance tests
 
-### 16.8 Exact oracle, properties, fuzzing, shrinking
+Test ordinary source edges, multiple diagonals in one facet, adjacent coplanar facets, coordinate-identical distinct IDs, repeated coordinates across shells, legal diagonal alternatives, signed zero, subnormals, and capacity-edge IDs.
 
-Use test-only in-tree arbitrary-precision integer/rational facilities planned by Components 03/16, never production-linked. Generate closed triangular manifolds and polygon-derived source complexes from exact templates. The oracle independently computes endpoint identity incidence, edge multiplicity/direction, vertex links, Euler/handshake identities, and exact coordinate containment for sampled permitted realizations.
+### 19.3 Geometry-basis tests
 
-Fuzz topology-preserving subdivisions, facet triangulations, shell count/nesting, valence, source permutations, duplicate coordinates without identity merge, ULP perturbations, exponent ranges, and capacity boundaries. Also structurally mutate valid artifacts. Serialize exact bits, IDs, versions, limits, and failure key; shrink by removing nonessential shells/facets/subdivisions, reducing valence/magnitude/ULP offsets, and simplifying mutations while preserving category. Store fixed bugs permanently.
+Run identical topology with:
 
-### 16.9 Resource/cancellation/concurrency tests
+- nominal embedded points;
+- a valid constructed coherent realization;
+- a mutated realization;
+- a stale realization reference;
+- a nominal fallback mutation;
+- incompatible support/projection formula;
+- extreme finite exponents; and
+- conservative-bound shrink mutations.
 
-For every resource/work class test limit-minus-one, exact limit, and limit-plus-one. Cancel at each checkpoint. Run serial and parallel builds with delayed tasks, reversed partitions, and different worker counts. Accepted outputs must be byte-identical; failures must be category/key-identical. No run may leak resources or expose partial data.
+Require precise stable failures.
 
-### 16.10 Structural performance tests
+### 19.4 Owner separation tests
 
-Use counters, not wall time alone, to establish:
+Construct equivalent semantic predecessors under distinct owner anchors. Require identical Component 05 semantic keys, IDs, bytes, digests, statistics covered by semantic policy, and failures.
 
-- linear proposal/entity expansion;
-- `O(H log H)` or better deterministic grouping;
+Inject owner-bearing keys and encoding.
+
+### 19.5 Broad-phase adapter tests
+
+Enumerate each edge once. Confirm Component 06 V1 sees internal diagonals as bookkeeping candidates while source ownership remains false. Confirm both incident halfedges remain available.
+
+### 19.6 Canonicalization tests
+
+Use Section 16's expectation matrix. Tests must state whether they assert byte identity, remapped semantic equivalence, or source-semantic equivalence with different exact topology.
+
+### 19.7 Codec tests
+
+Test golden bytes, round-trip, truncation at every byte, overflow, malformed tags/versions/lengths/ranges, duplicate/missing sections, trailing data, nonzero reserved bits, altered scalar bits, digest substitution, geometry-basis substitution, and owner-token leakage.
+
+Decode never publishes before independent verification.
+
+### 19.8 Mutation tests
+
+Implement every Section 13.3 mutation as a targeted mutator. Require zero survivors and stable least-key subcodes.
+
+### 19.9 Exact oracle, properties, fuzzing, and shrinking
+
+Use only the test-only in-tree arbitrary-precision facilities planned by Components 03 and 16.
+
+The oracle computes:
+
+- exact endpoint-identity incidence;
+- edge multiplicity and direction;
+- triangle cycles;
+- vertex links;
+- Euler/handshake identities;
+- exact represented domain;
+- and bound containment for bounded fixture realizations.
+
+Fuzz topology-preserving subdivision, legal triangulation, shell nesting, valence, source presentation, duplicate coordinates, coherent-realization displacement, ULP/exponent ranges, owner anchors, capacity, resources, and structural mutations.
+
+Store every fixed minimized regression permanently.
+
+### 19.10 Resource, cancellation, concurrency, and replay tests
+
+For each resource class test limit-minus-one, exact, and plus-one. Cancel at every checkpoint. Force delayed/reversed tasks and worker counts 1, 2, and configured maximum.
+
+Require identical accepted semantic artifacts and primary failures, no partial publication, no leaked leases, and replay success under a fresh owner anchor.
+
+### 19.11 Structural performance tests
+
+Use counters to prove:
+
+- `O(V + F + H log H)` or better build;
 - `O(H)` total fan traversal;
-- no all-vertex, all-triangle, or all-edge pair scans;
-- linear persistent memory;
-- bounded verifier duplication/work; and
-- deterministic accounting across thread counts.
+- linear persistent storage;
+- bounded verifier duplication;
+- no all-vertex, all-triangle, or all-edge pair scan;
+- deterministic comparison/work counts; and
+- typed work/resource exit for adversarial inputs.
 
-Add large disjoint-shell, high-valence, many-triangle-per-facet, and adversarial canonical-key fixtures. Fail qualification if comparison/work counters exceed documented bounds absent a typed resource exit.
+## 20. Integration boundaries
 
-## 17. Diagnostics, replay, and observability
+### 20.1 Components 02 and 04
 
-Every failure report must contain enough structured data to identify:
+Consume their exact source identities, semantic digests, exact triangulation, shell semantics, and committed coherent geometry basis. Never alter or reinterpret them.
 
-- context/operand/stage/checkpoint and versions;
-- source and internal feature IDs/keys;
-- expected/observed role, endpoints, counts, pair/fan transition, group membership, or map entry;
-- predecessor artifact/digest references;
-- relevant bound/formula/precision evidence;
-- resource reservation/use/limit; and
-- deterministic replay payload.
+### 20.2 Component 03
 
-Expose structural statistics for vertices, triangles, halfedges, edge classes, fan valence distribution, facet/shell groups, sort comparisons, fan transitions, bound operations, verifier work, bytes, and resources. Statistics are diagnostic and do not change semantic bytes unless the frozen replay policy explicitly includes them.
+Use Component 03 exclusively for required bounds and qualified optional nominal calculations. Component 05 performs no new authoritative relation predicate.
 
-Replay must reconstruct exact input bit patterns/options/versions, rerun Component 05 without caller mesh access, and reproduce the same artifact digest or primary failure. Redact only according to Component 01 policy without changing failure arbitration.
+### 20.3 Component 06
 
-## 18. Integration boundaries
+Provide:
 
-### 18.1 Component 04
+- every canonical edge exactly once through its representative;
+- exact edge class;
+- both incident halfedges/triangles/facets;
+- source-facet/shell provenance;
+- committed-basis-aware conservative bounds; and
+- immutable query complexity guarantees.
 
-Component 05 consumes Component 04 exactly as specified. It does not alter source triangles or diagonal choices. Compile-time/query contract tests must ensure no implementation falls back to coordinates or only triangle IDs when source facet/edge lineage is required.
+Component 06 owns candidate-domain and spatial-index policy.
 
-### 18.2 Component 06
+### 20.4 Components 07-10
 
-Component 06 receives canonical vertices, triangles, undirected edges, directed representatives, both incident halfedges, exact edge class, facet/shell provenance, and conservative bounds. Provide a test adapter that enumerates the candidate-domain inputs and proves each undirected edge enters at most once through its canonical representative while both face uses remain queryable. Do not implement BVH/candidate enumeration here.
+Preserve enough source lineage that triangle-local and internal-diagonal discoveries reduce to original source features. Internal diagonals cannot own public relations, events, symbolic decisions, or winding barriers.
 
-### 18.3 Components 07-10
+### 20.5 Components 11-15
 
-Preserve source-facet/source-feature lineage across internal diagonals. A later relation/event/classification may not treat an internal diagonal as a source owner or barrier. Queries must let later stages distinguish topology adjacency from source semantic adjacency without geometry.
+Component 05 is source-side topology only. Do not reuse its records as mutable output topology. Component 15 may inspect source lineage but independently reconstructs final public topology.
 
-### 18.4 Components 11-15
+### 20.6 Legacy APIs
 
-Component 05 is source-side topology only. Do not reuse its records as mutable output topology. Components 11-14 create separate output-occurrence/edge/cycle/triangulation/cleanup/public artifacts. Component 15 may use source lineage but independently reconstructs final public topology.
+Preserve legacy public behavior. Any extracted helper requires the reuse-audit proof and direct tests. Do not broaden a legacy routine's promise to satisfy Component 05 implicitly.
 
-### 18.5 Legacy APIs
+## 21. Implementation sequence and handoff gates
 
-Do not change legacy mesh verification, orientation, hole, refinement, remeshing, or Boolean behavior. Any future extraction of generic utilities requires separate proof of source compatibility and no weakening of strong identity semantics.
+Implement in this order, leaving the branch buildable after every gate:
 
-## 19. Implementation sequence and handoff gates
+1. Record the legacy reuse audit and decisions.
+2. Add Component 05 versions, closed enums, strong-ID domains, checkpoints, subcodes, and uniqueness tests.
+3. Add runtime-owner versus semantic-identity wrappers and owner-leak tests.
+4. Add immutable schemas and checked views.
+5. Add represented-domain/count/capacity/resource preflight and isolated-vertex exclusion.
+6. Add predecessor capability views and validation.
+7. Add vertex proposals with nominal and committed-basis lineage.
+8. Add orientation-preserving triangle canonicalization.
+9. Add fixed triangle-major halfedge cycles.
+10. Add role-specific pairing keys without owner tokens.
+11. Add source-edge grouping and validation.
+12. Add internal-diagonal grouping and fixed bookkeeping semantics.
+13. Add canonical edge order, reciprocal closure, and representatives.
+14. Add producer cycle/pair reconstruction and mutations.
+15. Add incidence grouping and exact fan transitions.
+16. Add canonical fan records and fan mutations.
+17. Add facet/shell groups and total maps.
+18. Add committed-basis-aware geometry attachments.
+19. Add optional nominal attachments with explicit non-authoritative status.
+20. Add complete producer verification.
+21. Add owner-free canonical ordering, codec, digests, decoder, and golden bytes.
+22. Implement the independent verifier with separate reconstruction code.
+23. Add complete mutation suite and prove zero survivors.
+24. Add exact-oracle/property generators, fuzzing, shrinking, and regressions.
+25. Add owner-anchor, isolated-vertex, constructed-realization, duplicate-coordinate, high-valence, shell, and extreme-bound suites.
+26. Add Component 04 alternative-triangulation equivalence.
+27. Add Component 06 V1 bookkeeping-candidate adapter.
+28. Add structural counters and asymptotic gates.
+29. Add Component 17 private-task/canonical-merge hooks while retaining serial equivalence.
+30. Run Component 01-04 regressions under strict builds.
+31. Run debug/release, sanitizers, codec, owner/version, overflow, resource, cancellation, fault injection, replay, worker, schedule, LTO/IPO, and dependency-off matrices.
+32. Mark Component 05 complete in `tracker.md` only after every gate in Section 22 is represented and reviewed.
 
-Implement in this order; each gate includes tests and leaves the branch buildable:
-
-1. Add Component 05 versions, enums, strong-ID domains, checkpoints, subcodes, resources, and uniqueness tests.
-2. Add immutable schemas and checked views with no producer.
-3. Add exact count/capacity/resource preflight and empty path.
-4. Add narrow Component 02/03/04 capability views and predecessor validation.
-5. Add internal vertex proposals and total vertex maps.
-6. Add independent orientation-preserving triangle rotation and canonical proposals.
-7. Add fixed triangle-major halfedge cycles and unit tests.
-8. Add role-specific pairing keys and deterministic proposal sort.
-9. Add source-edge grouping/pairing and provenance checks.
-10. Add internal-diagonal grouping/pairing and fixed non-source semantics.
-11. Add canonical edge order/IDs, pair closure, and representatives.
-12. Add producer cycle/pair verification and pairing mutations.
-13. Add vertex incidence and `pair(previous(h))` transitions.
-14. Add canonical fan traversal/storage and fan mutations.
-15. Add facet/shell groups and total provenance maps.
-16. Add conservative geometry attachments.
-17. Add optional nominal attachments with explicit availability.
-18. Add complete producer structural verification.
-19. Add canonical order, codec, digests, decode validation, and golden bytes.
-20. Implement the independent verifier with separate reconstruction code.
-21. Add complete mutation suite and prove zero survivors.
-22. Add exact-oracle/property generators, fuzzing, shrinking, and regressions.
-23. Add duplicate-coordinate, high-valence, shell, extreme-bound, and canonical metamorphic suites.
-24. Add Component 04 alternative-triangulation integration and semantic equivalence tests.
-25. Add Component 06 query/candidate-domain adapter without implementing Component 06.
-26. Add structural counters and prove `O(V + F + H log H)`/linear-memory gates.
-27. Add Component 17 private task/canonical merge hooks while retaining serial equivalence.
-28. Run Component 01-04 full regressions under supported strict builds.
-29. Run debug/release, sanitizer, codec, owner/version, overflow, resource, cancellation, fault-injection, replay, worker-count, and schedule matrices.
-30. Update `tracker.md` only after this plan addresses every Component 05 requirement and handoff gate.
-
-## 20. Definition of done
+## 22. Definition of done
 
 Component 05 is complete only when all of the following are true:
 
-- only Component 05 scope is implemented and no ignored legacy Boolean source is called;
-- existing Ygor mesh/orientation/hole/refinement/verification code is used only as documented carriers or regression references, not as the provider;
-- Component 02/04 owner, version, digest, source incidence, triangle, facet, shell, orientation, and provenance contracts are defensively verified;
-- checked count identities establish `H=3F`, `H=2E`, `B=2E_s`, `D=2E_d`, and total outgoing incidence `H`;
-- every V1 source vertex occurrence maps exactly once without coordinate welding;
-- every source triangle maps exactly once through a canonical orientation-preserving rotation;
+- only Component 05 scope is implemented;
+- the legacy reuse audit is committed and every accepted extraction is narrow, tested, deterministic, identity-only, and source-compatible;
+- no legacy Boolean, repair, orientation, hole, remeshing, or generic triangulation provider is called;
+- Component 02/04 owner, version, digest, represented-domain, incidence, triangle, facet, shell, orientation, provenance, and geometry-basis contracts are defensively verified;
+- `V` is exactly the triangle-referenced represented vertex domain and isolated snapshot vertices are excluded;
+- checked identities establish `H=3F`, `B=2E_s`, `D=2E_d`, `H=2E`, and total outgoing incidence `H`;
+- every represented source vertex maps exactly once without coordinate welding;
+- every source triangle maps exactly once through an orientation-preserving canonical rotation;
 - every triangle owns exactly three triangle-major halfedges in a closed oriented cycle;
-- every halfedge belongs to exactly one triangle and one role-specific undirected edge;
-- every source edge pairs from exact Component 02/04 identities with two opposite uses;
-- every internal diagonal pairs only within one source facet with two opposite uses and remains non-source/non-owner/non-barrier;
-- pairing is total/symmetric, endpoints reverse exactly, and every edge has the stable low-to-high canonical representative;
-- every vertex has one independently verified closed oriented fan covering all incidences once;
-- coordinate-coincident distinct vertices never enter each other's maps, edges, or fans;
-- facet groups preserve exact boundary/support/orientation/member/provenance semantics without merging coplanar facets;
-- shell groups preserve exact membership/nesting/occupied-side evidence without recomputation;
-- all forward/reverse maps are total, canonical, owner-checked, and independently reconstructed;
-- all required bounds are finite, closed, conservative, formula-versioned, and independently containment-checked;
-- optional nominal geometry is exponent-safe, explicitly non-authoritative, and deterministically available/absent;
-- IDs, arrays, fan sequences, groups, maps, bytes, and failures are independent of caller order, allocation, hashing, tasks, workers, and schedule;
-- source semantic identity remains invariant under legal retriangulation while exact topology digest commits to changed layout;
-- immutable queries give Component 06/later stages bounded deterministic exact incidence, edge class, provenance, groups, and bounds without mutable caches;
-- producer verification reconstructs cycles, pairing, fans, groups, maps, bounds, and canonical order before encoding;
-- independent verification repeats all obligations without producer grouping/pairing/fan/canonicalization helpers or trust in counts/booleans/digests;
-- every required structural, provenance, bound, codec, owner/version, and digest mutation is rejected with stable least-key failure;
-- unit, exact-oracle, golden, duplicate-coordinate, high-valence, shell, alternative-triangulation, metamorphic, fuzz/shrink, adversarial, resource, cancellation, concurrency, codec, and performance suites pass;
-- serial V1 remains executable and optimized/parallel providers are byte- and failure-identical;
-- structural counters prove `O(V + F + H log H)` or better construction, `O(H)` fan traversal, linear persistent storage, and no accidental all-pairs scans;
-- resource, overflow, cancellation, fault-injection, transaction, and replay tests prove zero partial publication and zero leaked reservations;
-- Component 01-04 regressions remain passing under strict targets;
-- production and normative-test code are portable standard-library-only C++17 with no external dependency; and
-- `tracker.md` marks component 5 complete only after this fully complete implementation plan has been added and reviewed.
+- every halfedge belongs to exactly one triangle and one role-tagged edge;
+- every source edge pairs from exact Component 02/04 identity with two opposite uses;
+- every internal diagonal pairs only within one source facet and remains bookkeeping-only;
+- no generic eligibility field conflates candidate visibility with source ownership;
+- pairing is total, symmetric, non-self, endpoint-reversed, and canonically represented;
+- every represented vertex has one independently verified closed fan;
+- coordinate-identical distinct vertices never enter each other's maps, edges, or fans;
+- facet groups preserve boundary, support, projection, orientation, member, semantic, exact-triangulation, and geometry-basis lineage without merging coplanar facets;
+- shell groups preserve exact membership, nesting, orientation, and occupied side without recomputation;
+- nominal bits and committed coherent geometry basis are both preserved;
+- a constructed coherent realization is never silently replaced by nominal geometry;
+- all maps are total, canonical, owner-checked at runtime, and independently reconstructed;
+- all bounds are finite, closed, formula-versioned, precision-linked, committed-basis-aware, and independently containment-checked;
+- runtime owner tokens are absent from semantic keys, IDs, bytes, digests, golden records, replay, and deterministic failure arbitration;
+- semantically identical invocations under different owner anchors produce identical Component 05 semantic artifacts;
+- optional nominal geometry is exponent-safe, explicit, non-authoritative, and deterministic;
+- source-semantic identity remains invariant under legal retriangulation while exact topology records changed layout;
+- immutable queries satisfy Component 06 and later stages without coordinate tests, hidden mutation, or policy conflation;
+- producer verification reconstructs cycles, pairs, fans, groups, maps, basis linkage, bounds, and canonical order;
+- independent verification repeats every obligation without producer high-level helpers or trust in counts/booleans/digests;
+- every required structural, provenance, basis, bound, codec, owner, version, and digest mutation is rejected with stable least-key failure;
+- all required unit, known-answer, golden, exact-oracle, owner-separation, isolated-vertex, constructed-realization, duplicate-coordinate, high-valence, shell, alternative-triangulation, broad-phase-adapter, metamorphic, fuzz/shrink, adversarial, resource, cancellation, concurrency, codec, replay, and performance suites pass;
+- serial V1 remains executable and optimized/parallel providers are semantically and failure identical;
+- counters prove `O(V + F + H log H)` or better construction, `O(H)` fan traversal, linear persistent storage, and no accidental all-pairs scans;
+- resource, overflow, host-allocation, cancellation, fault-injection, transaction, and replay tests prove zero partial publication and zero leaked resources;
+- Component 01-04 regressions pass under strict targets;
+- production and normative tests are standard-library-only portable C++17 with no external dependency; and
+- `tracker.md` marks Component 05 complete only after this reviewed plan is committed.
