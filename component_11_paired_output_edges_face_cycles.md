@@ -2,810 +2,683 @@
 
 ## Status and normative language
 
-This document specifies a required component of a dependency-free bounded floating-point surface-mesh Boolean engine. Production and normative-test code must be portable C++17 and use no external dependency.
+This document specifies a required component of the dependency-free bounded floating-point surface-mesh Boolean engine described by `broad_plan.md`.
 
-The concrete halfedge storage, retained-region grouping provider, carrier merge representation, cycle-walk algorithm, contour-hierarchy representation, and deterministic graph implementation may change. The allocation of topology from Component 10 occurrence requirements, pair-at-creation rule, exact lineage-based endpoint sharing, complete incidence consumption, deterministic carrier realization, closed face-cycle construction, hole preservation, ambiguity failure, verification, and publication contracts in this document are normative.
+Production and normative-test code must:
 
-## 0. Purpose
+- be strict portable C++17;
+- use only Ygor and the C++17 standard library;
+- execute topology-affecting arithmetic under the frozen floating-point environment from Components 01 and 03;
+- preserve exact indexed topology independently of coordinate equality; and
+- publish no artifact until producer checks and an independent verifier both succeed.
 
-This component realizes the selected and occurrence-partitioned result surface from Component 10 as an explicit indexed polygonal two-manifold skeleton.
+The concrete storage layout, graph representation, cycle-walk implementation, contour representation, and serial/parallel work decomposition may change. The contracts in this document are normative.
 
-Its purposes are to:
+## 0. Purpose and scope
 
-- allocate one output vertex occurrence for every authoritative vertex/event fan requirement selected by Component 10;
-- attach each output occurrence to the one bounded source or constructed coordinate already owned by Components 03, 05, and 08;
-- realize every planned source-edge or intersection-carrier occurrence as exactly one pair of oppositely directed output halfedges;
-- preserve whole source edges, split source-edge intervals, transverse intersection edges, coplanar overlap boundaries, and topology-distinct zero-length intervals;
-- merge retained atom boundaries only where Component 10 explicitly permits transparent continuation;
-- construct deterministic oriented boundary cycles for every retained polygonal face region;
-- represent holes, nested contours, repeated coordinates, and separate coincident occurrences without coordinate-based welding;
-- prove that every retained directed boundary incidence is consumed exactly once by a paired edge and exactly once by a face cycle; and
-- provide Component 12 with a verified immutable polygonal manifold whose topology requires no Boolean reclassification or edge-repair heuristic.
+Component 11 realizes the selected and occurrence-partitioned result surface from Component 10 as an immutable polygonal two-manifold skeleton.
 
-The component realizes topology. It does not repeat Boolean truth-table evaluation, recompute intersection events, alter carrier ordering, move coordinates, collapse edges, triangulate face regions, remove degeneracies, merge coplanar output faces beyond the explicit retained-region contract, or serialize the public mesh.
+It must:
 
-The principal output is an immutable `polygonal_output_complex<T>` containing:
+1. materialize exactly one output vertex occurrence for each authoritative, nonempty Component 10 vertex occurrence requirement;
+2. attach each output occurrence to one already-authoritative bounded coordinate record without recomputation;
+3. realize every planned source-edge or intersection-carrier occurrence as one atomic pair of opposite directed halfedges;
+4. preserve whole source edges, split source-edge intervals, transverse carriers, coplanar-overlap boundaries, contact-separation boundaries, and topology-distinct zero-nominal-length intervals;
+5. merge retained atoms only across exact transparent-continuation records supplied by Component 10;
+6. construct deterministic oriented boundary cycles for every retained polygonal face region;
+7. represent holes, repeated coordinates, separate coincident occurrences, and deferred zero-measure topology without coordinate-based welding;
+8. prove complete incidence, edge, cycle, region, and vertex-link balance; and
+9. provide Component 12 with a verified immutable `polygonal_output_complex<T,I>` that requires no Boolean reclassification, edge repair, or cycle reconstruction.
 
-- canonical output vertex occurrences and their bounded coordinate references;
-- canonical paired output edges and reciprocal halfedges;
-- retained polygonal face regions;
-- one or more oriented face cycles per region;
-- explicit contour roles and nesting relationships where they are determinable without cleanup;
-- tagged degenerate or zero-measure cycles that remain topologically required for Components 12 and 13;
-- exact reverse mappings to Component 10 retained uses, occurrence requirements, and boundary incidences; and
-- complete topology, ordering, precision, resource, verification, digest, and replay evidence.
+Component 11 realizes topology. It must not:
 
-## 1. Input contract
+- repeat operation truth-table evaluation or winding classification;
+- recompute relation predicates or intersection coordinates;
+- choose a different event or carrier order;
+- alter a Component 10 occurrence partition or planned mate;
+- move, snap, average, project back, weld, collapse, or delete output coordinates;
+- triangulate polygonal regions;
+- spend cleanup budget;
+- merge coplanar result faces merely to reduce face count;
+- assemble `fv_surface_mesh<T,I>`; or
+- publish an ordinary Boolean success.
 
-### 1.1 Required inputs
+The principal output is an immutable `polygonal_output_complex<T,I>`.
 
-The component must accept:
+## 1. Required inputs
 
-- the immutable `retained_surface_complex` from Component 10;
-- the immutable `canonical_intersection_complex<T>` from Component 08;
-- the immutable `signed_feature_relations<T>` from Component 07 when relation provenance is needed to audit carrier direction or exact-tie lineage;
-- the immutable `canonical_source_manifolds` from Component 05;
-- source-facet groups, source-boundary identities, and internal-diagonal provenance from Components 04 and 05;
-- validated source shell orientation and source occupied-side conventions from Component 02;
-- the immutable `precision_context<T>`, bounded point/parameter/residual services, precision ledger, and tolerance-budget read services from Component 03;
-- the immutable Boolean context, identity domains, deterministic comparators, resources, cancellation, diagnostics, replay, and transaction services from Component 01;
-- the selected output-occurrence, paired-edge, face-region, face-cycle, contour, artifact, and serialization versions; and
-- verification settings controlling scalable and exhaustive topology-realization checks.
+The component must accept immutable checked views of:
 
-The component must not read mutable caller meshes, infer sharing from equal coordinates, repeat relation predicates, recompute a constructed point, repeat Boolean selection, invent an occurrence partition, or modify predecessor artifacts to make cycle construction succeed.
+- the `retained_surface_complex<T,I>` from Component 10;
+- the `canonical_intersection_complex<T,I>` from Component 08;
+- the `signed_feature_relations<T,I>` from Component 07 when relation provenance is required for an audit;
+- the canonical source manifolds from Component 05;
+- source-facet semantic groups, source-boundary identity, support-frame lineage, and internal-diagonal provenance from Components 04 and 05;
+- validated shell orientation and occupied-side semantics from Component 02;
+- the precision context, bounded point/parameter/residual/area/segment services, precision ledger, and read-only tolerance policy from Component 03;
+- the Boolean context, operation and operand-role mapping, strong-ID domains, canonical comparators, checked arithmetic, resource policy, cancellation, deterministic failure arbitration, diagnostics, replay, and stage transactions from Component 01;
+- Component 17 deterministic execution services when available, while retaining a serial semantic reference; and
+- explicit nonzero provider, schema, key, artifact, codec, replay, and verifier versions.
 
-### 1.2 Required predecessor guarantees
+The component must not read mutable caller meshes or mutable predecessor builders.
 
-The component may rely on predecessor artifacts having established:
+## 2. Required predecessor guarantees
+
+Component 11 may rely on Component 10 having established all of the following, but it must defensively verify them before construction:
 
 - one audited disposition for every positive-area classification atom;
 - the complete set of retained oriented surface uses;
-- exact continuation permission or prohibition across every retained atom boundary;
-- one canonical vertex/event fan occurrence requirement for each future output vertex occurrence;
-- one canonical edge/carrier occurrence requirement for each future output edge occurrence;
-- exactly two compatible opposite-directed retained boundary uses for every planned output edge occurrence;
-- deterministic start/end balance on every source-edge and carrier domain;
-- canonical source-edge interval and carrier ordering, including equal-parameter tie keys;
-- explicit multiplicity and topological separation for point-, edge-, and coincident-sheet contacts;
-- complete source, event, carrier, shell, facet, retained-use, and caller provenance;
-- one bounded coordinate and precision envelope for every source vertex and canonical event used by the result; and
+- exact boundary incidence records in authoritative retained-use order;
+- reciprocal transparent-continuation records;
+- explicit prohibited-continuation and topology-separation records;
+- one canonical planned edge occurrence for every boundary edge that must exist in the polygonal result;
+- exactly two compatible opposite-directed retained boundary incidences for each planned edge occurrence;
+- one canonical vertex occurrence requirement for every future output vertex, with one closed local link cycle and complete endpoint-port membership;
+- every planned edge endpoint already mapped to one vertex occurrence requirement;
+- authoritative source-edge and carrier interval identities and order, including equal-parameter tie keys;
+- explicit multiplicity and occurrence separation for point-, edge-, and coincident-sheet contacts;
+- one authoritative bounded coordinate source for every vertex occurrence requirement;
+- complete source, event, carrier, shell, facet, atom, retained-use, and caller provenance;
+- complete pair-feasibility and start/end balance evidence; and
 - deterministic canonical keys and digests.
 
-The component must defensively verify owner tokens, policy and artifact versions, retained-use coverage, occurrence membership, endpoint compatibility, orientation, interval references, event references, carrier references, pair-feasibility evidence, and predecessor digests.
+A contradiction in a committed predecessor artifact is an `internal_invariant_error`. Component 11 must not repair it by searching for another mate, merging fan cycles, deleting incidences, duplicating uses, or using geometry to invent adjacency.
 
-A contradiction in a committed predecessor artifact is an `internal_invariant_error`. The component must not repair a missing mate by nearest-neighbor search, duplicate a face use to balance a carrier, drop an incidence, or merge occurrence requirements.
+## 3. V1 incidence and zero-measure contract
 
-### 1.3 Topological realization domain
+### 3.1 Exhaustive incidence dispositions
 
-The realization domain consists of all retained surface uses and all boundary or transparent-continuation incidences that Component 10 associated with them.
+Every Component 10 retained incidence must appear exactly once in the Component 11 audit and have exactly one of these dispositions:
 
-Every retained incidence must be classified before construction as exactly one of:
+1. **paired boundary use** — one directed member of a planned output edge;
+2. **paired zero-measure boundary use** — one directed member of a planned output edge whose nominal or bounded geometry is zero-measure, but whose topology must remain in a face cycle;
+3. **transparent internal continuation** — one direction of a reciprocal seam consumed while forming a face region;
+4. **consumed owner seam** — an exact coincidence-partition seam consumed by the canonical owner;
+5. **support-only zero-measure evidence** — a non-boundary audit/obligation record that produces no output edge, halfedge, cycle member, local endpoint port, or output vertex;
+6. **suppressed audit-only evidence** — a non-owner or otherwise suppressed record retained only for verification; or
+7. invalid/unresolved.
 
-- a boundary incidence that becomes one directed use of an output edge occurrence;
-- a transparent internal incidence across which compatible retained atoms form one polygonal face region;
-- a topology-separation delimiter that must not be crossed;
-- a zero-measure incidence that remains represented for later degeneracy handling;
-- a consumed coincidence-partition seam whose canonical owner continues across it;
-- an explicitly suppressed non-owner incidence recorded only as audit evidence; or
-- invalid/unresolved.
+No incidence may be silently absent, multiply classified, or both realized and suppressed.
 
-No retained incidence may be silently absent from the realization audit.
+### 3.2 Boundary versus support-only zero measure
 
-### 1.4 Vertex occurrence input requirements
+The following distinction is mandatory:
 
-Every Component 10 vertex/event fan requirement supplied to this component must identify:
+- A zero-measure item that appears in a polygonal face boundary or face cycle is a **paired zero-measure boundary use**. It must belong to a Component 10 planned edge occurrence with exactly two opposite directed uses. It creates one paired output edge and two halfedges, participates in cycle and vertex-link accounting, and carries a downstream Component 12/13 obligation.
+- A **support-only zero-measure evidence** record is not part of the polygonal boundary. It creates no output topology. It must identify its retained use or region attachment, exact lineage, reason for preservation, bounded evidence, and downstream diagnostic or cleanup obligation.
 
-- its canonical occurrence key and owner context;
-- whether its coordinate source is an accepted source vertex, a canonical intersection event, or another explicitly supported bounded construction lineage;
-- all incident retained sectors and directed boundary-incidence endpoints;
-- one complete closed cyclic fan requirement, including for geometrically zero-measure configurations;
-- multiplicity and topology-separation class;
-- exact source/event/carrier provenance;
-- the bounded coordinate record and precision-ledger reference to be used without recomputation; and
-- deterministic cyclic-order evidence sufficient to connect incoming and outgoing halfedges.
+A support-only record must not:
 
-Two occurrence requirements may reference bit-identical bounded coordinates. They remain distinct output vertices unless Component 10 explicitly gave them one occurrence identity. Conversely, one occurrence requirement must produce exactly one output vertex occurrence even when several source triangles, retained uses, or event consumers refer to it.
+- create a dangling output vertex;
+- connect two positive-area regions;
+- alter a continuation component;
+- appear in a region boundary multiset;
+- appear in a successor/predecessor permutation;
+- appear in a face cycle; or
+- satisfy a missing planned edge member.
 
-### 1.5 Edge occurrence input requirements
+If a future version needs an isolated topological support occurrence, it requires a separate nonzero schema and downstream contract. V1 does not encode isolated support as an ordinary output vertex or halfedge.
 
-Every planned edge occurrence must identify:
+### 3.3 Realized-boundary equations
 
-- its canonical occurrence key;
-- exactly two retained directed boundary incidences;
-- opposite local directions after retained-use orientation is applied;
-- compatible start and end vertex occurrence requirements;
-- source-edge interval, transverse carrier interval, coplanar overlap boundary, or other supported carrier lineage;
-- endpoint event/source-vertex keys;
-- multiplicity and topology-separation class;
-- local fan membership at both endpoints;
-- whether the nominal endpoints are distinct, equal, or uncertainty-overlapping; and
-- deterministic pairing and balance evidence.
+Let `E` be the number of planned edge occurrences and `H = 2 * E` with checked arithmetic. Then:
 
-The two uses must agree on the unordered endpoint occurrence pair. Their directions must be exact reversals in topology. Nominal coordinate equality or disagreement within uncertainty is not a substitute for endpoint identity compatibility.
+- the set of paired boundary uses, including paired zero-measure boundary uses, contains exactly `H` canonical incidence identities;
+- each such incidence maps bijectively to one output halfedge;
+- support-only and audit-only records map to no halfedge;
+- total cycle-halfedge references equal `H`; and
+- every output halfedge belongs to exactly one face cycle.
 
-### 1.6 Face-region input requirements
+These are member-set equalities, not count-only checks.
 
-A retained polygonal face region may be assembled from one or more retained atoms only when Component 10 permits continuation across every internal boundary between them.
+## 4. Input validation and capacity preflight
 
-The input must make it possible to recover:
+Before allocation, validate:
 
-- the complete member retained-use set;
-- one prescribed output orientation;
-- one supporting source-facet semantic region or another explicitly versioned compatible support class;
-- all external boundary incidences;
-- all transparent internal incidences;
-- all prohibited continuation boundaries;
-- all holes, islands, coincidence seams, and zero-measure delimiters represented by the retained arrangement; and
-- complete provenance for every member and boundary.
+- context owner, operation, operand roles, policy versions, provider versions, and artifact versions;
+- predecessor verification dispositions and complete digests;
+- strong-ID domains, checked ranges, CSR offsets, sortedness promises, and duplicate constraints;
+- every source/event/carrier/interval/retained-use/incidence/continuation/planned-edge/local-port/occurrence reference;
+- retained orientation against Component 02 and Component 10 evidence;
+- coordinate-source identity and finite bounded-point validity;
+- exact planned-edge cardinality, direction, endpoint, fan, interval, multiplicity, and separation compatibility;
+- every vertex occurrence requirement is one nonempty closed port cycle and is referenced by at least one planned-edge endpoint in V1;
+- every transparent continuation is reciprocal and permitted;
+- every support-only record has no endpoint port or planned-edge membership and has a complete attachment/obligation certificate; and
+- all required downstream internal ID domains are representable.
 
-This component must not merge regions merely because they are coplanar, have parallel nominal normals, share coordinates, or could reduce face count.
+Preflight with overflow-safe arithmetic and explicit resource reservations for:
 
-### 1.7 Capacity and lifetime preconditions
-
-Before realization begins, the component must validate with overflow-safe arithmetic that it can represent and account for:
-
-- all output vertex occurrences and reverse maps;
-- all output edge occurrences and two halfedges per edge;
-- all retained-region membership and continuation edges;
-- all face cycles and cycle halfedge references;
-- all contour-nesting and degeneracy descriptors;
-- all source, event, carrier, and retained-use provenance links;
-- all temporary sorting, graph traversal, union, cycle, verification, diagnostics, and replay storage;
-- all work up to configured occurrence, edge, halfedge, face-region, cycle, and incidence limits; and
-- index domains needed by downstream internal artifacts.
-
-Published records may reference only immutable predecessor storage and immutable stage-owned storage whose lifetime covers Components 12-15.
-
-## 2. Required behavior
-
-### 2.1 Complete retained-incidence audit
-
-Before allocating final IDs, the component must create a canonical audit table over every Component 10 retained incidence.
-
-For each incidence, the audit must record:
-
-- retained-use owner;
-- source atom and source-facet lineage;
-- oriented start and end occurrence requirements;
-- carrier or transparent-seam lineage;
-- occurrence partition;
-- expected mate when it is a boundary incidence;
-- continuation neighbor when it is transparent;
-- suppression or topology-separation reason when applicable; and
-- final realization disposition.
-
-The component must verify that each retained boundary incidence belongs to exactly one edge occurrence requirement and each transparent internal incidence belongs to exactly one compatible continuation relation in each direction.
-
-Missing, duplicate, or multiply owned incidence is a failure. Counts alone are insufficient; full canonical member keys must match.
-
-### 2.2 Canonical output vertex occurrence allocation
-
-The component must allocate one immutable output vertex occurrence for each canonical vertex/event fan requirement.
-
-Allocation must:
-
-- sort complete occurrence keys canonically before assigning IDs;
-- copy or reference the authoritative bounded coordinate without recomputing it;
-- preserve the nominal `T` bit pattern and all precision-envelope metadata;
-- retain source-vertex or event lineage and every contributing retained sector;
-- retain multiplicity, coincidence, and topology-separation classes;
-- retain the expected cyclic fan membership; and
-- publish a reverse map from every retained incidence endpoint to its output vertex occurrence.
-
-An occurrence with no consumed retained incidence is invalid unless it is an explicitly preserved zero-measure support required by a documented downstream degeneracy record. An incidence endpoint that maps to more than one output occurrence is invalid unless Component 10 supplied separate endpoint occurrence keys for the separate uses.
-
-No coordinate lookup table may be used as an identity map.
-
-### 2.3 Bounded geometry attachment
-
-Each output vertex occurrence must reference exactly one authoritative bounded point record.
-
-For source-vertex occurrences, the record must derive from the accepted source coordinate and inherited precision. For event occurrences, it must be the one canonical Component 08 construction record. If a future supported lineage combines values, that construction must have been created and bounded by its authoritative producer before this component begins.
-
-This component may evaluate bounded residuals to audit admissibility, but it must not create a numerically different replacement point. A failed residual or non-finite coordinate causes a typed failure rather than a local projection.
-
-The stage must add no cleanup displacement. Its published precision contribution is therefore limited to inherited storage/serialization bounds explicitly defined by Component 03.
-
-### 2.4 Retained face-region formation
-
-The component must group retained atoms into polygonal face regions through the exact transparent-continuation relation supplied by Component 10.
-
-Grouping must satisfy:
-
-- continuation is reciprocal;
-- member orientations are compatible;
-- members belong to one occurrence/multiplicity sheet;
-- no selected carrier boundary is crossed;
-- no point- or edge-contact separation is crossed;
-- no incompatible coincident owner boundary is crossed;
-- internal source-triangulation diagonals remain transparent when permitted;
-- each connected continuation class receives one canonical region key; and
-- region IDs are assigned after canonical member sorting, not from union roots or traversal starts.
-
-A provider may use union-find, graph traversal, region growing, or another in-tree algorithm. The resulting equivalence classes and boundary incidence sets are normative.
-
-A connected continuation class that has several disjoint positive-area interiors must be split into separate face regions unless its explicit contour topology represents one face with holes. The split decision must come from the retained arrangement and boundary connectivity, not a coordinate-distance heuristic.
-
-### 2.5 Boundary extraction from region membership
-
-For each face region, the component must determine its directed boundary multiset by exact incidence cancellation:
-
-- a transparent internal incidence shared by two compatible member atoms is consumed internally and does not become an output edge;
-- a selected or topology-separating incidence remains on the region boundary;
-- an incidence with a suppressed non-owner on the opposite geometric sheet remains governed by its Component 10 edge occurrence requirement;
-- multiplicity-distinct incidences never cancel each other; and
-- two incidences cancel only when their exact lineage, occurrence partition, and continuation contract identify them as the same transparent seam in opposite directions.
-
-Boundary extraction must preserve a complete cancellation ledger. The component must not cancel two nominally coincident segments by projected overlap.
-
-### 2.6 Atomic pair-at-creation edge realization
-
-Every output edge occurrence must be realized atomically as:
-
-- one immutable undirected paired-edge record;
-- exactly two directed halfedges;
-- reciprocal pair references;
-- reversed topological endpoints;
-- one incident retained face region per directed halfedge;
-- carrier/source provenance;
-- endpoint occurrence and local-fan references; and
-- deterministic edge and halfedge keys.
-
-The pair must be created only after both directed uses have been validated. A single halfedge must never become visible in the proposed artifact.
-
-Conceptually:
-
-```text
-halfedge_0.origin == halfedge_1.destination
-halfedge_0.destination == halfedge_1.origin
-halfedge_0.pair == halfedge_1
-halfedge_1.pair == halfedge_0
-```
-
-The two halfedges may belong to different face regions or to two boundary cycles of the same region only when that topology is explicitly permitted and still yields a two-manifold edge.
-
-### 2.7 Whole and split source-edge realization
-
-For retained source edges, the component must realize:
-
-- an uncut whole source edge as one edge occurrence when Component 10 planned one occurrence;
-- each open or closed interval between ordered source-edge events as its own occurrence when selected;
-- endpoint intervals and exact event clusters using the Component 08 canonical order;
-- separate copies for multiplicity or edge-touching topology; and
-- transparent source-edge intervals as internal region continuation rather than output edges when Component 10 says they are not a result boundary.
-
-The component must not sort source-edge endpoints again from nominal coordinates. It may verify Component 08 order using bounded parameters and tie keys, but the canonical event sequence is authoritative.
-
-If predecessor ordering evidence is contradictory or an uncertainty-overlap permits geometrically crossed realization inconsistent with the planned topology, the component must return `geometric_condition_exceeds_tolerance` or `internal_invariant_error` according to whether the issue is geometric conditioning or a committed artifact contradiction.
-
-### 2.8 Intersection-carrier realization
-
-For transverse face-face carriers, coplanar overlap boundaries, and other canonical carrier domains, the component must:
-
-- consume the Component 08 carrier and interval identities;
-- respect the Component 10 occurrence partition and direction for each retained use;
-- realize each selected carrier interval as exactly one paired output edge occurrence per required multiplicity;
-- preserve equal-parameter but topology-distinct event endpoints;
-- preserve closed carrier loops and carrier chains that close through source edges;
-- retain relation and construction provenance; and
-- verify start/end balance after all carrier edge pairs are created.
-
-Carrier realization must not reconstruct intersections from planes, intersect projected lines, or choose mates by nearest parameter.
-
-### 2.9 Equal coordinates and zero-nominal-length edges
-
-Topology may require an output edge whose endpoint occurrences have equal nominal coordinates or overlapping precision envelopes.
-
-Such an edge must remain represented when:
-
-- Component 10 planned a distinct edge occurrence;
-- the endpoint occurrence identities are distinct or the local topology requires a loop-like degenerate support;
-- deleting it would alter fan connectivity, contour membership, multiplicity, or contact separation; and
-- later triangulation/cleanup requires the edge for a complete certificate.
-
-The edge must be tagged with:
-
-- nominal length bounds;
-- endpoint lineage;
-- reason it is topologically required;
-- incident face uses;
-- cleanup eligibility constraints; and
-- whether Component 12 may triangulate around it directly or must emit a degenerate-support record.
-
-This component must not collapse, delete, or weld the edge.
-
-### 2.10 Local successor and predecessor relation
-
-For every output halfedge incident to a face region, the component must determine exactly one next halfedge and one previous halfedge in the oriented boundary of that region.
-
-The successor relation must be derived from:
-
-- the output vertex occurrence's Component 10 fan requirement;
-- the retained face-region membership;
-- incoming and outgoing incidence orientation;
-- source-facet and carrier continuation lineage;
-- topology-separation constraints; and
-- deterministic cyclic-order evidence.
-
-It must not be chosen by the smallest turning angle among nominal vectors unless that ordering is merely an independently verified realization of the authoritative fan order and remains definite within the bounded model.
-
-At a high-valence or equal-coordinate event, separate occurrence requirements and fan sectors must control continuation. A halfedge may not jump to another coincident sheet, point-touching component, or multiplicity occurrence.
-
-### 2.11 Boundary-cycle extraction
-
-After all halfedges have reciprocal pairs and local successors, the component must extract maximal directed cycles.
-
-Cycle extraction must guarantee:
-
-- every region-boundary halfedge belongs to exactly one cycle;
-- every cycle closes at its starting halfedge and output vertex occurrence;
-- no directed halfedge appears twice in one cycle;
-- no directed halfedge appears in two cycles;
-- successor and predecessor links are reciprocal;
-- the cycle orientation is consistent with the retained face-region orientation;
-- a cycle has a canonical start chosen after construction; and
-- cycle IDs are assigned by canonical cycle keys, not discovery order.
-
-A walk that enters a previously visited halfedge other than its start, fails to close, or exceeds the exact halfedge count is an invariant failure. The component must not cut the walk at an arbitrary repeated coordinate.
-
-### 2.12 Canonical cycle representation
-
-Each face cycle must publish:
-
-- ordered halfedge IDs;
-- ordered output vertex occurrence IDs;
-- prescribed orientation;
-- supporting face-region and source-facet lineage;
-- carrier/source-edge role for each boundary segment;
-- a canonical rotation key;
-- bounded projected-area evidence when meaningful;
-- degeneracy and repeated-coordinate descriptors; and
-- a deterministic digest.
-
-Canonical rotation must preserve orientation. Reversing a cycle to obtain a smaller lexical key is prohibited unless the entire face-region orientation is also explicitly reversed by an authoritative predecessor decision, which this component does not perform.
-
-### 2.13 Outer contours, holes, islands, and nesting
-
-For each positive-area face region, the component must classify its cycles sufficiently for Component 12 to triangulate the intended polygonal region.
-
-The published contour structure must distinguish:
-
-- outer boundary cycles;
-- hole boundary cycles;
-- nested islands that form separate positive-area face regions or explicitly nested contour nodes;
-- zero-measure cycles pending cleanup;
-- coincident but occurrence-distinct cycles; and
-- invalid crossing or ambiguous contour relations.
-
-Contour role and nesting should be derived from the retained arrangement, oriented boundary incidence, and exact source-facet semantics. Bounded projected orientation and containment tests may be used for verification or where the arrangement contract leaves a choice, but they must return a definite or explicitly tied result.
-
-A nominal point-in-polygon test on a possibly repeated coordinate is not sufficient by itself. When geometric uncertainty makes two nonincident contours' relative order or containment indeterminate enough that different choices would change positive-area topology beyond tolerance, the stage must fail rather than guess.
-
-A face region with multiple unrelated outer contours must be split into canonical region records unless the selected representation explicitly supports a multipolygon region and Component 12's contract is versioned to consume it.
-
-### 2.14 Carrier-order and noncrossing admissibility
-
-Although predecessor ordering is authoritative, this component must verify that the realized topology is geometrically admissible within published precision envelopes.
-
-At minimum, it must check:
-
-- each edge endpoint lies within the bounded source edge or carrier interval claimed by its lineage;
-- ordered events do not admit a definite reversal;
-- two nonadjacent boundary intervals in one planar face region do not have a definite positive-length crossing that is absent from the arrangement;
-- equal-parameter tie order uses the frozen lineage key and does not imply an undocumented geometric weave;
-- cycle orientation evidence is compatible with the source-facet orientation; and
-- any uncertainty capable of changing boundary connectivity is within a specifically authorized downstream degeneracy case or causes failure.
-
-The component may preserve zero-measure overlaps and repeated-coordinate contacts for Components 12 and 13. It must not preserve a definitely self-crossing positive-area boundary as though it were a valid polygon.
-
-### 2.15 Vertex-link feasibility verification
-
-After cycle construction, the component must reconstruct the incident halfedge link around every output vertex occurrence.
-
-For an ordinary occurrence, the link must form one closed cycle consistent with the Component 10 fan requirement. For an explicitly tagged degenerate occurrence, the link must still have a complete expected combinatorial structure and a documented cleanup obligation.
-
-The verification must detect:
-
-- two disconnected fans assigned to one vertex occurrence;
-- a missing incoming or outgoing face sector;
-- duplicate halfedge incidence;
-- a fan transition crossing a topology-separation boundary;
-- inconsistent multiplicity; and
-- a mismatch between endpoint edge occurrences and face-cycle successor relations.
-
-The component must not merge disconnected links because their coordinates coincide.
-
-### 2.16 Complete edge and cycle balance
-
-Before publication, the component must verify all of the following exact counts and member sets:
-
-- each planned edge occurrence produced exactly one paired-edge record;
-- each paired edge has exactly two reciprocal halfedges;
-- each retained boundary incidence is consumed by exactly one halfedge;
-- each halfedge belongs to exactly one face cycle;
-- each transparent internal incidence is consumed exactly once in region grouping and produces no boundary edge;
-- each cycle halfedge's incident region matches the cycle owner;
-- starts and ends balance on every source-edge and carrier domain;
-- each region boundary multiset equals the union of its cycles; and
-- no extra output vertex, edge, halfedge, region, or cycle exists without predecessor lineage.
-
-Verification must compare canonical identities, not only totals.
-
-### 2.17 Empty-result behavior
-
-A valid operation whose Component 10 retained-surface complex is empty must produce a valid empty `polygonal_output_complex<T>`.
-
-The empty artifact must contain:
-
-- no output vertices, edges, halfedges, regions, or cycles;
-- complete predecessor and policy references;
-- zeroed resource and topology counts;
-- a deterministic digest; and
-- verification evidence that no retained incidence was omitted.
-
-An empty result is not a failure and must not allocate a dummy vertex or face.
-
-### 2.18 Deterministic construction and parallel merge
-
-Parallel work may prepare task-local occurrence records, region membership edges, edge-pair proposals, or per-region cycle data. Publication must:
-
-- canonicalize vertex occurrence keys before ID assignment;
-- canonicalize retained-region member sets before region ID assignment;
-- canonicalize edge occurrence keys before paired-edge and halfedge ID assignment;
-- merge carrier and source-edge realizations by full lineage keys;
-- derive successor relations from canonical fan evidence;
-- canonicalize cycle rotations and contour trees;
-- choose the same primary failure under every schedule; and
-- commit only after complete independent checks.
-
-Hash iteration order, pointer address, allocator behavior, union root, task completion order, cycle discovery start, and worker count must not affect IDs, bytes, diagnostics, or digest.
-
-### 2.19 Resource limits and pathological arrangements
-
-The component must account separately for:
-
-- output vertex occurrences;
-- occurrence-to-incidence reverse mappings;
-- retained-region graph edges and members;
-- paired edges and halfedges;
-- cycle halfedge references;
+- incidence audit rows and reverse maps;
+- output vertex occurrences and coordinate references;
+- continuation graph storage and region membership;
+- boundary darts and transparent-walk evidence;
+- paired edges and exactly two halfedges per edge;
+- successor/predecessor tables;
+- cycles and cycle references;
 - contour and nesting records;
-- zero-measure and degeneracy descriptors;
-- sorting and verification work;
-- diagnostics and replay storage; and
+- zero-measure descriptors and support-only evidence;
+- carrier/source-edge balance evidence;
+- bounded admissibility evidence;
+- vertex-link evidence;
+- canonical sort/remap buffers;
+- producer and verifier work;
+- diagnostics and replay; and
 - persistent artifact bytes.
 
-High-valence event clusters, many equal-parameter events, deep contour nesting, or large coincident multiplicity may be output-sensitive and large. The component must fail with `resource_limit` rather than drop cycles, merge occurrences, truncate provenance, or publish unpaired edges.
+Representability failure is `index_overflow`. A configured capacity failure is `resource_limit`. Neither may cause reduced evidence or partial topology.
 
-### 2.20 Cancellation and transactionality
+## 5. Required behavior
 
-Occurrence allocation, face-region grouping, boundary extraction, edge-pair creation, successor construction, cycle walking, contour classification, admissibility checks, and verification must occur in one stage transaction or private subtransactions that publish one final immutable artifact.
+### 5.1 Canonical retained-incidence audit
 
-Cancellation must be polled at deterministic safe points during each potentially large canonical sort, grouping pass, carrier domain, region boundary build, cycle extraction, contour analysis, and verification pass.
+Build one canonical audit row for every Component 10 retained incidence. Each row records:
 
-On cancellation, all workers must join, reservations must return, and no partial vertex table, halfedge pair, or face cycle may be visible. The result is `cancelled`.
+- complete incidence key and disposition;
+- retained-use and source atom/facet lineage;
+- oriented start/end occurrence requirements when the disposition is realized;
+- local ports and fan sectors when realized;
+- source-edge, carrier, transparent-seam, coincidence-seam, or support lineage;
+- multiplicity and occurrence-separation class;
+- expected planned edge and mate, reciprocal continuation, or support attachment;
+- consuming Component 11 entity, or an explicit no-entity reason; and
+- deterministic verification and replay evidence.
 
-### 2.21 Independent verification evidence
+Require exact coverage of all predecessor incidence identities. Every realized boundary incidence belongs to exactly one planned edge. Every transparent incidence belongs to exactly one reciprocal continuation pair. Support-only, consumed, and suppressed rows belong to neither.
 
-The component must publish enough evidence for an independent verifier to reconstruct and check:
+### 5.2 Canonical output vertex occurrence materialization
 
-- the one-to-one mapping from Component 10 occurrence requirements to output vertex occurrences;
-- the bounded coordinate lineage of every vertex occurrence;
-- the one-to-one mapping from edge occurrence requirements to paired edges;
-- reciprocal endpoints and halfedge pairs;
-- exact retained-incidence consumption;
-- transparent-continuation grouping;
-- region boundary multisets;
-- successor and predecessor relations;
-- every face cycle and canonical rotation;
-- contour roles and nesting;
-- source-edge and carrier start/end balance;
-- output vertex links;
-- zero-measure and degeneracy tags;
-- deterministic ID and digest inputs; and
-- absence of coordinate-based identity or adjacency.
+Sort Component 10 vertex occurrence requirements by complete key and assign dense Component 11 IDs only after validating the full set.
 
-For bounded fixtures, the verifier must rebuild regions, edge pairs, cycles, and vertex links from predecessor member tables. It must not call the producer's region grouper, edge-pair allocator, successor chooser, or cycle walker as its sole source of truth.
+For each requirement:
 
-## 3. Output contract
+- require a nonempty closed alternating local-port cycle in V1;
+- require every member port to be an endpoint of a planned edge incidence;
+- resolve exactly one authoritative source-vertex, canonical-event, or explicitly versioned predecessor construction identity;
+- reference the existing bounded point and precision-ledger entry without recomputation;
+- preserve nominal bit patterns, axis/radial bounds, provenance, multiplicity, coincidence, and separation class;
+- store the expected cyclic fan membership and endpoint reverse-map range; and
+- map every realized incidence endpoint/local port to exactly this occurrence.
 
-On success, the component must produce one immutable `polygonal_output_complex<T>` artifact containing or referencing:
+Equal or overlapping coordinates do not merge occurrences. One occurrence requirement is not split because several faces use it.
 
-- artifact, occurrence, paired-edge, halfedge, face-region, face-cycle, contour, and serialization versions;
-- canonical output vertex occurrence records and IDs;
-- one authoritative bounded coordinate and precision-ledger reference per vertex occurrence;
-- canonical paired-edge records;
-- exactly two reciprocal output halfedges per paired edge;
-- canonical retained polygonal face-region records;
-- complete region-member retained-use mappings;
-- oriented face cycles with canonical rotations;
-- outer/hole/nesting classifications or explicitly tagged deferred degeneracy states;
-- whole-source-edge, split-source-edge, transverse-carrier, coplanar-boundary, and other supported edge-role records;
-- exact retained-incidence and transparent-continuation consumption tables;
-- source, shell, facet, triangle-group, atom, event, carrier, retained-use, occurrence, and caller provenance;
-- zero-nominal-length edge and repeated-coordinate descriptors;
-- vertex-link, edge-balance, cycle-closure, and contour-admissibility evidence;
-- resource and structural statistics;
-- independent-verification evidence;
-- canonical input and output digests; and
-- replay metadata sufficient to reproduce every allocation, pairing, continuation, and cycle decision.
+### 5.3 Face-region formation
 
-The artifact must guarantee:
+Construct a graph whose vertices are retained surface uses and whose edges are exact reciprocal transparent-continuation pairs.
 
-- every Component 10 vertex occurrence requirement is realized exactly once or rejected with a typed failure;
-- every Component 10 edge occurrence requirement is realized as exactly one paired edge with two opposite directed face uses;
-- every retained boundary incidence is consumed exactly once;
-- every output halfedge has a reciprocal pair from the moment it enters the proposed artifact;
-- every output halfedge belongs to exactly one face cycle;
-- every face cycle closes and does not reuse a directed edge;
-- every output vertex occurrence has exactly the one complete closed local fan prescribed by Component 10;
-- transparent atom boundaries do not appear as result edges;
-- selected carrier and topology-separation boundaries do appear with the required multiplicity;
-- coordinate-coincident but topology-distinct occurrences remain distinct;
-- no topology was inferred from tolerance or coordinate proximity;
-- no coordinate was moved or recomputed;
-- IDs, diagnostics, and digest are independent of traversal and schedule; and
-- Component 12 can triangulate every positive-area face region without repeating Boolean selection, event construction, edge pairing, or face-cycle reconstruction.
+A continuation edge is valid only when:
 
-On failure, no polygonal output artifact is published. The typed error must identify the retained use, occurrence requirement, source edge or carrier, endpoint event/source vertices, face region, cycle walk, contour relation, numerical bounds, resource counters, policy versions, and deterministic replay payload relevant to the failure.
+- both directed continuation records are present and reciprocal;
+- seam lineage and endpoint occurrence requirements match exactly;
+- retained orientations and result-side transitions are compatible;
+- support semantic identity and frame lineage are compatible;
+- sheet owner, multiplicity occurrence, and separation class agree;
+- neither side is a selected carrier, paired boundary use, point/edge-contact separator, incompatible coincident boundary, support-only record, or suppressed record; and
+- all owner and range references are valid.
 
-## 4. Required invariants and prohibited behavior
+Connected classes form provisional regions. Positive-area final region splitting must then use authoritative retained-sector continuation evidence so that zero-measure-only connectors cannot join unrelated positive-area interiors. This split completes before paired-edge, halfedge, and cycle IDs are frozen.
 
-Required invariants:
+A provider may use checked CSR traversal or union-find internally, but final region identity is based on sorted complete member sets and split evidence, never roots or discovery order.
 
-- one output vertex occurrence per authoritative Component 10 occurrence requirement;
-- one bounded coordinate lineage per output vertex occurrence;
-- one paired edge per authoritative Component 10 edge occurrence requirement;
-- exactly two reciprocal halfedges per paired edge;
-- exact reversed topological endpoints across every pair;
-- no halfedge published without its mate;
-- every retained boundary incidence consumed exactly once;
-- every transparent continuation consumed exactly once and omitted from the boundary;
-- every halfedge belongs to exactly one closed oriented face cycle;
-- every output vertex occurrence has one closed incident face fan, including geometrically degenerate occurrences;
-- holes and nested contours are explicit rather than encoded by crossed cycles;
-- equal coordinates never imply shared vertices, edges, cycles, or regions;
-- carrier and source-edge order comes from canonical predecessor lineage;
-- no stage-local geometric cleanup occurs;
-- all artifacts are immutable, context-owned, transactional, deterministic, and independently verifiable; and
-- ambiguity that can change positive-area topology causes typed failure rather than heuristic pairing.
+### 5.4 Exact boundary extraction
 
-Prohibited behavior:
+For each final face region, derive the directed boundary multiset from retained incidence dispositions:
 
-- pairing edges by nearest endpoints, equal coordinates, or approximate collinearity;
-- allocating one output vertex for several Component 10 fan requirements because coordinates match;
-- allocating several output vertices for one fan requirement because several faces consume it;
-- creating a halfedge before its opposite use has been validated and reserved;
-- repairing unbalanced carrier counts by duplicating or deleting incidences;
-- re-sorting events from nominal coordinates instead of using Component 08 order;
-- crossing a topology-separation delimiter while forming a face region or cycle;
-- merging coplanar retained regions solely to reduce face count;
-- choosing cycle continuation solely by nominal turning angle at a repeated coordinate;
-- discarding zero-length topological edges without a Component 13 cleanup certificate;
-- reversing a retained face orientation to simplify contour classification;
-- publishing a self-crossing positive-area face boundary as a valid polygon;
-- assigning IDs from pointer addresses, hash order, worker timing, or cycle discovery order;
-- publishing partial topology after cancellation or resource exhaustion; or
-- calling an external graph, polygon, arrangement, mesh, exact-arithmetic, or geometry library.
+- paired boundary and paired zero-measure boundary uses remain on the boundary;
+- transparent internal incidences are consumed through exact reciprocal seam traversal;
+- consumed owner seams, support-only records, and suppressed records produce no boundary dart;
+- multiplicity-distinct or occurrence-distinct incidences never cancel; and
+- cancellation occurs only through an exact transparent-continuation identity.
 
-## 5. Test and validation specification
+Record a complete cancellation and transparent-walk ledger. Projected overlap, coordinate equality, approximate collinearity, and nominal opposite direction are never cancellation criteria.
 
-### 5.1 Vertex occurrence allocation tests
+The final region boundary multiset must equal the exact set of planned-edge directed members assigned to the region.
 
-Construct authoritative occurrence requirements for:
+### 5.5 Atomic pair-at-creation edge realization
 
-- one ordinary source vertex fan;
-- one canonical event shared by many source triangles;
-- two point-touching components at one bit-identical coordinate;
-- two edge-touching shells with separate endpoint fans;
-- several coincident sheets with identical coordinates and separate multiplicity;
-- a source vertex and event that round to the same coordinate but remain distinct;
-- high-valence event clusters; and
-- occurrence-key hash collisions.
+For each Component 10 planned edge occurrence, validate both directed members before materialization:
 
-Verify exact one-to-one allocation, preserved bounded coordinate lineage, closed fan membership, stable IDs, and no coordinate-based welding.
+- exactly two distinct retained incidence identities;
+- one forward and one reverse role under authoritative carrier orientation;
+- exact reversed output occurrence endpoints;
+- compatible endpoint ports and fan sectors;
+- one compatible source-edge/carrier interval identity;
+- reciprocal actual/expected surface-occurrence descriptors;
+- compatible result-side transitions;
+- compatible owner, multiplicity, and separation evidence as defined by the planned slot; and
+- explicit zero-measure or loop permission when applicable.
 
-### 5.2 Paired-edge unit tests
+Then allocate one private pair record and initialize from already validated endpoints `v0` and `v1`:
 
-Include edge occurrence fixtures for:
+```text
+h0.origin      = v0
+h0.destination = v1
+h1.origin      = v1
+h1.destination = v0
+h0.pair        = h1.id
+h1.pair        = h0.id
+```
 
-- one whole retained source edge;
-- one source edge split by one event;
-- several ordered events on one source edge;
-- one transverse carrier interval;
-- a closed carrier loop;
-- a carrier chain closing through source edges;
-- a coplanar overlap boundary;
-- equal-parameter event clusters;
-- zero-nominal-length topology-distinct intervals;
-- two multiplicity copies of one geometric interval; and
-- four geometric face uses partitioned by Component 10 into two edge occurrences.
+Only after all fields are populated must the builder assert reciprocal pair IDs and reversed endpoints. No field may be initialized from an unresolved field in the opposite halfedge. No single halfedge may enter a proposed immutable artifact.
 
-Verify reciprocal pair references, reversed endpoint occurrences, exact two-use incidence, provenance, and deterministic IDs.
+The pair retains incident region, retained-use/incidence identity, endpoint port/fan references, source/carrier role, interval/event lineage, multiplicity, separation, length bounds, and replay evidence.
 
-### 5.3 Retained-region grouping tests
+### 5.6 Whole, split, carrier, coplanar, and zero-length roles
 
-Test continuation across:
+Materialize exactly the edge occurrence planned by Component 10:
 
-- uncut source edges;
-- transparent source-facet triangulation diagonals;
-- classification decomposition seams;
-- coincident owner partition seams; and
-- several atoms forming one concave retained region.
+- one whole source edge when planned as one occurrence;
+- one pair per selected source-edge interval;
+- one pair per selected transverse carrier interval and multiplicity occurrence;
+- one pair per selected coplanar-overlap boundary occurrence;
+- one pair per topology-separation contact boundary when planned; and
+- separate pairs for equal-parameter or equal-coordinate topology-distinct intervals.
 
-Test prohibited continuation across:
+Component 08 event and interval order is authoritative. Component 11 may audit it but must not reconstruct or re-sort it from nominal coordinates.
 
-- selected transverse carriers;
-- point-only and edge-only contacts;
-- incompatible multiplicity occurrences;
-- opposite retained orientation;
-- coincident non-owner separation; and
-- a boundary where result occupancy changes in another local fan.
+For every zero-nominal-length or uncertainty-overlapping edge, publish a descriptor containing length bounds, endpoint identities, preservation reason, incident uses/regions/cycles, cleanup eligibility constraints, and Component 12/13 obligation. Do not collapse or delete it.
 
-Independently compare canonical member sets and region boundary multisets.
+### 5.7 Carrier and source-edge balance
 
-### 5.4 Face-cycle known-answer tests
+For every referenced source-edge sequence or carrier domain:
 
-Commit exact cycles for:
+- consume the authoritative ordered interval/event sequence;
+- compare exact selected member identities and directions;
+- verify each planned edge appears exactly once in one balance domain;
+- verify start/end balance on closed chains;
+- verify documented closure through source edges for open carrier chains;
+- preserve equal-parameter tie order by frozen lineage keys; and
+- reject missing, duplicate, crossed, or definitely reversed realization.
 
-- a triangle;
-- a convex polygon;
-- a concave polygon;
-- an annulus;
-- a polygon with several holes;
-- nested contours and islands;
-- several disconnected retained regions in one source facet;
-- a thin corridor;
-- repeated projected coordinates;
-- several topological vertices at one coordinate;
-- a zero-length boundary edge; and
-- a high-valence carrier event where fan partitions control successor selection.
+Counts supplement but never replace ordered member-set comparison.
 
-Verify closure, unique halfedge consumption, orientation, canonical rotation, contour role, and reverse reconstruction from halfedge records.
+### 5.8 Successor and predecessor permutation
 
-### 5.5 Carrier balance and ordering tests
+Represent each realized region-boundary incidence as an oriented dart. Use predecessor authoritative retained-use cyclic boundary order to define `face_next` and `face_prev`. Use `seam_twin` only for validated transparent continuations.
 
-Include:
+For a boundary dart `b`, the V1-equivalent topological rule is:
 
-- multiple intersections along one source edge;
-- several independent loops on one face pair;
-- equal projected parameters with distinct event IDs;
-- exact endpoint events;
-- near-overlapping parameter envelopes with a valid lineage tie order;
-- a definite order reversal mutation;
-- one missing start;
-- one duplicated end;
-- a wrong occurrence partition; and
-- a crossed carrier pairing.
+```text
+j = face_next(b)
+while j is transparent-internal:
+    j = face_next(seam_twin(j))
+return j
+```
 
-The stage must accept only the cases whose predecessor order and bounded admissibility are consistent.
+The walk must remain in the same final region, support class, sheet, multiplicity occurrence, and permitted fan. It may not encounter support-only, consumed, suppressed, or unresolved records. Bound each walk by the exact region dart count.
 
-### 5.6 Hole and nesting tests
+Map boundary darts bijectively to output halfedges. The resulting successor must satisfy:
 
-For deterministic source-facet frames, test:
+- destination of the current halfedge equals origin of the next by occurrence identity;
+- both halfedges belong to the same final region;
+- the transition corresponds to the exact retained-sector/continuation walk; and
+- no separation boundary is crossed.
 
-- one outer contour and one hole;
-- several sibling holes;
-- a hole containing an island represented as a separate region;
-- deeply nested alternating contours;
-- equal-coordinate contour touch with topology separation;
-- contours sharing a zero-length segment occurrence;
-- contour order permutations; and
-- an uncertainty-overlap that makes positive-area containment genuinely indeterminate.
+Construct predecessor as the inverse permutation. Require totality, one predecessor and one successor per halfedge, reciprocal inverse relations, and exact member coverage.
 
-Verify explicit contour trees or canonical region splitting. The indeterminate positive-area case must fail rather than choose a nominal containment.
+Turning angle, nearest endpoint, nominal polar order, source triangle order, and arbitrary outgoing choice are prohibited.
 
-### 5.7 Duplicate-coordinate and zero-measure tests
+### 5.9 Face-cycle extraction and canonical identity
 
-Include:
+Extract maximal cycles from the validated successor permutation. Each cycle must:
 
-- point-touching union components;
-- edge-touching union components;
-- coincident shells retained as separate occurrences;
-- distinct events with one rounded coordinate;
-- repeated vertices in a cycle through distinct occurrence IDs;
-- zero-nominal-length paired edges; and
-- a zero-measure cycle attached to otherwise positive-area regions.
+- close at its starting halfedge and output occurrence;
+- contain no directed halfedge twice;
+- share no directed halfedge with another cycle;
+- preserve final region orientation;
+- remain within one region; and
+- consume only realized boundary halfedges.
 
-Verify complete topology is preserved for Component 12/13 and no automatic welding or deletion occurs.
+Canonicalize each oriented cycle by its lexicographically least orientation-preserving rotation of complete directed-halfedge keys. Never reverse a cycle to obtain a smaller key.
 
-### 5.8 Independent topology verification tests
+The cycle identity key is:
 
-For every valid fixture, independently reconstruct:
+```text
+(final face-region key,
+ orientation-preserving canonical halfedge sequence,
+ cycle-key schema version)
+```
 
-- occurrence-to-incidence maps;
-- paired edges from Component 10 edge requirements;
-- retained-region equivalence classes;
-- boundary multisets;
+It must not contain a contour role that is derived later. Outer, hole, coincident, and deferred roles belong to contour records and may not renumber cycle IDs or create a cycle-identity dependency on later classification.
+
+### 5.10 Contour roles, holes, islands, and nesting
+
+Each positive-area V1 final region contains:
+
+- exactly one positive-area outer cycle;
+- zero or more direct positive-area hole cycles; and
+- zero or more explicit deferred zero-measure or occurrence-distinct contour records.
+
+Positive-area islands are separate final regions. Multiple unrelated positive-area outer cycles require the earlier exact region split; contour analysis must not perform a late topology rewrite.
+
+Determine roles primarily from:
+
+- retained arrangement and positive-area member components;
+- prescribed region orientation;
+- source-facet semantic support and side lineage;
+- oriented boundary incidence and local sectors; and
+- Component 10 ownership, multiplicity, and separation records.
+
+Bounded projected orientation and containment are independent admissibility checks or explicitly authorized disambiguators, not new topology sources.
+
+### 5.11 Certified contour witnesses
+
+A containment test must not use an arbitrary boundary vertex, an epsilon offset, or merely any adjacent retained atom.
+
+For each required containment relation, use one of:
+
+1. a predecessor-certified arrangement-cell witness with an explicit intended-side relation to the contour; or
+2. a deterministically constructed Component 03 bounded witness derived from a certified positive-area atom/sector, with proof that its enclosure is strictly on the required contour side and definitely separated from every relevant boundary segment.
+
+The witness record must identify the contour side it certifies, source atom/sector lineage, bounded construction/evidence, separation margins, and deterministic key.
+
+If no strict witness can be certified, or if its enclosure can cross a nonincident contour so that positive-area nesting could change, return `geometric_condition_exceeds_tolerance`. Do not nudge a nominal point.
+
+### 5.12 Bounded embedding and noncrossing admissibility
+
+Use Component 03 structured bounded services to verify:
+
+- every edge endpoint is admissible for its claimed source-edge/carrier interval;
+- authoritative order admits no definite reversal;
+- equal-parameter ties follow frozen lineage order;
+- positive-area cycle orientation agrees with support orientation;
+- no nonincident boundary segments have a definite unrepresented proper crossing;
+- no positive-length overlap exists without exact coincidence/owner lineage;
+- topology-distinct exact touches remain separate; and
+- uncertainty that can change positive-area connectivity or nesting is either an explicitly supported downstream degeneracy or a typed failure.
+
+Use a deterministic in-tree conservative broad phase for scalable candidate enumeration and exhaustive checks below a frozen threshold. A broad phase may only prune definitely separated pairs.
+
+### 5.13 Vertex-link reconstruction
+
+After cycle finalization, reconstruct the outgoing halfedge link around every output occurrence. For outgoing halfedge `h` at occurrence `v`, the polygonal halfedge relation is conceptually:
+
+```text
+around_origin(h) = pair(prev(h))
+```
+
+Require the result to originate at `v`. Traverse from a canonical start and require one closed cycle consuming every outgoing halfedge at `v` exactly once.
+
+Compare the reconstructed member and transition sets with the Component 10 vertex occurrence requirement, allowing cyclic rotation but no member loss, duplication, cross-separation transition, or joining of distinct cycles.
+
+### 5.14 Complete balance and lineage audit
+
+Before publication, prove exact identity equalities:
+
+- output vertex occurrence keys equal Component 10 nonempty vertex occurrence requirement keys one-to-one;
+- paired edge keys equal planned edge occurrence keys one-to-one;
+- `halfedge_count == 2 * paired_edge_count` with checked arithmetic;
+- realized boundary incidence identities equal halfedge incidence identities one-to-one;
+- support-only, consumed, and suppressed incidences map to no output halfedge;
+- transparent continuations are consumed internally and map to no edge;
+- every halfedge has one pair, region, successor, predecessor, and cycle;
+- total cycle references equal the exact halfedge set;
+- each region boundary multiset equals the union of its cycles;
+- each source-edge/carrier domain balances;
+- each output occurrence has one closed link matching Component 10; and
+- no entity lacks predecessor lineage.
+
+## 6. Empty result
+
+If Component 10 contains no retained uses, planned edges, or vertex occurrence requirements, Component 11 must publish a valid empty artifact containing:
+
+- empty topology and reverse-map sections;
+- complete predecessor, policy, provider, and version references;
+- the complete discard/suppression audit reference;
+- zero topology/resource counts;
+- deterministic section and full digests; and
+- successful producer and independent-verifier dispositions.
+
+Do not allocate dummy vertices, edges, regions, or cycles. Support-only evidence cannot make an otherwise empty regularized surface nonempty.
+
+## 7. Output contract
+
+On success, publish one immutable `polygonal_output_complex<T,I>` containing or referencing:
+
+- owner, operation, operand roles, strict floating profile, and all versions;
+- predecessor artifact identities and complete digests;
+- the complete retained-incidence audit;
+- canonical output vertex occurrences and authoritative bounded coordinate references;
+- canonical final face regions, sorted retained-use members, continuation members, and split evidence;
+- boundary darts and transparent-consumption ledgers;
+- paired output edges and exactly two reciprocal halfedges per edge;
 - successor/predecessor maps;
-- face cycles;
-- vertex links;
-- contour membership; and
-- source-edge/carrier balance.
+- oriented face cycles with role-independent canonical identities;
+- contour nodes and outer/hole/deferred roles;
+- certified containment witnesses and contour relationships;
+- paired zero-measure boundary descriptors and support-only evidence records as distinct sections;
+- source-edge/carrier order and balance evidence;
+- bounded embedding and noncrossing evidence;
+- output vertex-link evidence;
+- complete forward/reverse maps and provenance;
+- resource and structural statistics;
+- diagnostics and replay metadata;
+- producer and independent-verifier evidence;
+- canonical section digests and complete digest.
 
-The verifier must use separately implemented traversal and set-comparison code.
+The artifact guarantees that Component 12 can triangulate positive-area regions and carry deferred obligations without repeating Component 10 selection, occurrence partitioning, edge pairing, region grouping, cycle extraction, or contour topology decisions.
 
-### 5.9 Mutation tests
+On failure, publish no polygonal artifact.
 
-Corrupt valid artifacts by:
+## 8. Independent verification
 
-- merging two coordinate-equal vertex occurrences;
-- splitting one occurrence without authorization;
-- changing one bounded coordinate reference;
-- deleting one halfedge;
-- changing a pair reference;
-- reversing only one endpoint pair;
-- assigning three uses to one edge;
-- consuming one retained incidence twice;
-- leaving one incidence unused;
-- crossing a topology-separation boundary in region grouping;
-- selecting the wrong successor at a high-valence event;
-- breaking one cycle;
-- reusing one halfedge in two cycles;
-- changing an outer contour to a hole;
-- scrambling canonical IDs; and
-- forging counts or digests.
+The independent verifier must be implemented separately from producer orchestration and must not use producer grouping, pair allocation, successor construction, cycle walking, contour classification, or codec helpers as its sole proof.
 
-Independent verification must reject every mutation.
+It must independently:
 
-### 5.10 Metamorphic and determinism tests
+- reconstruct the incidence audit from Component 10;
+- verify the boundary/support-only zero-measure partition;
+- rebuild occurrence-to-output-vertex bijection from complete keys;
+- rebuild continuation components and positive-area final region splits using an alternate traversal;
+- derive exact region boundary multisets;
+- reconstruct every planned pair directly from Component 10 members and endpoints;
+- derive successor/predecessor through separately implemented transparent-dart walking;
+- extract cycles from a different start order, canonicalize, and compare complete sequences;
+- verify contour roles from arrangement lineage and independently obtained bounded evidence;
+- validate certified containment witnesses;
+- run exhaustive noncrossing/containment checks below a bounded threshold and scalable checks otherwise;
+- reconstruct vertex links from artifact topology and compare Component 10 fan cycles;
+- verify all member-set equations, resource totals, canonical IDs, and digests; and
+- verify that no coordinate-based identity or adjacency field exists in a semantic key.
 
-Apply:
+Producer/verifier disagreement is `internal_invariant_error` and prevents commit.
 
-- source vertex, facet, triangle, shell, and component permutations;
-- facet ring rotation;
-- legal source subdivision and re-triangulation;
-- operand exchange with operation remapping;
-- axis permutation;
-- sign flip with corrected orientation;
-- exactly representable translation;
-- power-of-two scaling with precision scaling;
-- thread counts 1, 2, and maximum;
-- forced task delays;
-- reversed union roots;
-- reversed carrier discovery;
-- reversed cycle walk starts; and
-- contour input permutations.
+## 9. Determinism, concurrency, cancellation, and transactionality
 
-For a fixed policy version, canonical occurrence IDs, edge pairs, halfedge IDs, region member sets, cycles, contour trees, diagnostics, and digest must be byte-identical after documented remapping.
+The executable serial implementation is the semantic reference.
 
-### 5.11 Fuzzing and shrinking
+Parallel work may prepare private complete-keyed proposals for occurrences, continuation classes, edge pairs, carrier domains, regions, cycles, contour evidence, and verifier partitions. Publication must use canonical full-key sort, exact duplicate reconciliation, checked prefix sums, deterministic failure arbitration, and dense remapping.
 
-Generate valid retained-surface complexes with controlled:
+Worker count, task partition, delays, pointer values, allocation order, hash collision, union root, graph start, edge discovery, cycle start, and contour input order must not change:
 
-- face-region concavity;
-- hole and nesting depth;
-- carrier loop count;
-- event valence;
-- equal-parameter clusters;
-- point- and edge-touch multiplicity;
-- coordinate duplication;
-- zero-nominal-length edges;
-- transparent seam graphs;
-- occurrence partition count; and
-- resource limits.
+- semantic records;
+- IDs;
+- selected primary failure;
+- diagnostics;
+- replay;
+- canonical bytes; or
+- digest.
 
-Compare bounded cases against exhaustive incidence pairing and cycle-cover oracles. Every crash, nonclosure, duplicate use, accidental weld, nondeterministic cycle, contour disagreement, or verifier mismatch must serialize predecessor artifacts and shrink while preserving the failure.
+Every worker establishes the frozen floating environment. Cancellation is polled at deterministic work-count checkpoints. On failure or cancellation, all workers join, all reservations roll back, and no partial artifact is visible.
 
-### 5.12 Resource, cancellation, and concurrency tests
+## 10. Strict build and dependency contract
 
-For occurrences, reverse maps, region members, continuation edges, paired edges, halfedges, cycle references, contour nodes, temporary bytes, work units, and persistent bytes, test limit-minus-one, limit, and limit-plus-one.
+Component 11 production and normative-test translation units must be part of the strict bounded Boolean target established by Components 01 and 03.
 
-Cancel during occurrence allocation, region grouping, boundary extraction, source-edge realization, carrier realization, successor construction, cycle extraction, contour classification, and verification. Confirm all workers join, reservations return, and no partial topology is visible.
+They must not be compiled in an ordinary target that permits:
 
-### 5.13 Definition of done
+- `-ffast-math` or equivalent;
+- reassociation;
+- finite-only assumptions;
+- an unfrozen contraction policy;
+- an unsupported rounding mode; or
+- topology-affecting arithmetic outside Component 03 services.
+
+The implementation must extend existing bounded-subsystem registries and explicit instantiation matrices rather than create parallel contract, hash, resource, or error systems. Required V1 instantiations cover `float`/`double` with `uint32_t`/`uint64_t`, subject to the public supported-type contract.
+
+No external graph, polygon, arrangement, mesh, exact-arithmetic, geometry, serialization, testing, hashing, or concurrency dependency may be added, vendored, downloaded, optionally loaded, or invoked.
+
+## 11. Existing Ygor functionality assessment
+
+Existing Ygor code may provide fixture shapes, general algorithmic ideas, and non-normative smoke checks, but it does not satisfy this component's production contract:
+
+- `fv_surface_mesh<T,I>` is a mutable public transport type and is not an intermediate occurrence/halfedge/lineage representation.
+- `FindBoundaryChains` and related `YgorMeshesHoles` code build epsilon-distance vertex representatives, skip representative-equal edges, and can choose an arbitrary remaining continuation when several exist. They must not build Component 11 topology.
+- `FillBoundaryChainsByZippering` mutates a public mesh, skips short/duplicate-index edges, and triangulates; it belongs to neither this stage nor its verifier.
+- `EnsureConsistentFaceOrientation` infers adjacency through epsilon representatives and reverses mutable face rings. Component 11 receives authoritative orientation and must fail on contradiction.
+- `YgorMathMonotoneDecomposition` normalizes duplicate/collinear vertices, rejects zero-length edges and reused coordinates, uses ordinary coordinate comparisons and `long double` area, and lacks bounded evidence and lineage. It is not a Component 11 provider.
+- `YgorMeshesVerification` checks public indices and edge counts but does not reconstruct occurrence identity, transparent consumption, face cycles, or one closed vertex link. It may be a later smoke check only.
+- legacy `YgorMeshesBoolean{,2,3,4,5}` implementations do not satisfy the bounded compute-once lineage and no-welding architecture and must not be called, adapted, or copied into this component.
+
+Small purely combinatorial helpers may be shared only when they accept strong IDs/checked ranges, have no coordinate-based normalization, are deterministic by complete keys, and are independently tested.
+
+## 12. Typed failures and diagnostics
+
+Stable Component 11 subcodes must cover at least:
+
+- unsupported provider/schema/query version;
+- wrong owner, operation, role mapping, predecessor, or digest;
+- invalid range, strong-ID domain, index capacity, or resource reservation;
+- missing, duplicate, unresolved, or multiply classified incidence;
+- invalid boundary/support-only zero-measure classification;
+- support-only evidence leaking into ports, regions, boundaries, edges, or cycles;
+- invalid/nonreciprocal transparent continuation or prohibited continuation crossing;
+- duplicate/malformed/empty vertex occurrence requirement or coordinate-source mismatch;
+- provisional/final region support, orientation, sheet, or split mismatch;
+- boundary-dart walk escape, loop, or under/over-consumption;
+- planned-edge cardinality, direction, endpoint, port, descriptor, interval, multiplicity, or owner mismatch;
+- pair initialization or reciprocity failure;
+- source-edge/carrier missing member, duplicate member, imbalance, order reversal, or crossed realization;
+- successor/predecessor missing, duplicate, noninverse, cross-region, or fan-incompatible transition;
+- cycle nonclosure, premature repeat, duplicate use, wrong orientation, or canonicalization failure;
+- role-dependent cycle identity mutation;
+- missing/multiple outer contour, wrong hole relation, unresolved island split, invalid witness, crossing, or topology-changing containment uncertainty;
+- unsupported zero-measure topology;
+- vertex-link open, branched, multi-cycle, duplicate, missing sector, or fan mismatch;
+- complete member-set/reverse-map/resource/codec/digest/verifier mismatch;
+- cancellation; and
+- internal contradiction.
+
+Use categories consistently:
+
+- `geometric_condition_exceeds_tolerance` for valid inputs whose bounded evidence cannot choose one topology safely;
+- `index_overflow` for representability;
+- `resource_limit` for configured capacity exhaustion;
+- `cancelled` after joined rollback; and
+- `internal_invariant_error` for contradictory committed artifacts, impossible exact topology, corruption, or producer/verifier disagreement.
+
+Every error records the checkpoint, least canonical witnesses, relevant expected/actual member sets, numerical evidence, versions, resource counters, and deterministic replay identity.
+
+## 13. Required tests
+
+### 13.1 Contract and incidence tests
+
+Test every incidence disposition, including paired zero-measure boundary and support-only zero-measure evidence. Inject:
+
+- missing and duplicate rows;
+- one incidence assigned to both edge and continuation;
+- support-only evidence given a local port;
+- support-only evidence placed in a region boundary or cycle;
+- a zero-measure boundary use without a planned mate;
+- a planned edge member mislabeled support-only; and
+- forged counts with wrong member sets.
+
+### 13.2 Vertex occurrence tests
+
+Cover ordinary source fans, shared events, high-valence events, point- and edge-touching separate occurrences, coincident multiplicity sheets, equal-coordinate source/event identities, zero-length boundary edges, hash collisions, and input-order permutations.
+
+Reject empty V1 occurrence requirements and disconnected cycles merged into one occurrence.
+
+### 13.3 Region and boundary tests
+
+Cover continuation across source-facet diagonals, classification seams, uncut source boundaries, and owner seams. Prohibit continuation across selected carriers, point/edge-contact separators, incompatible multiplicity, opposite orientation, non-owner seams, and support-only zero-measure records.
+
+Include a provisional class connected only by zero-measure support and require separate positive-area final regions.
+
+### 13.4 Pair-at-creation tests
+
+Cover whole edges, split intervals, transverse carriers, closed carrier loops, chains closing through source edges, coplanar boundaries, equal-parameter clusters, zero-nominal-length intervals, multiplicity copies, and cross-operand A/B seams.
+
+Use poisoned/uninitialized builder storage in a test harness to prove pair endpoint initialization depends only on validated `v0`/`v1`, not opposite unresolved fields.
+
+### 13.5 Cycle and contour tests
+
+Commit known answers for triangle, convex and concave polygons, annuli, multiple holes, separate island regions, thin corridors, repeated projected coordinates, coordinate-coincident distinct occurrences, zero-length edges, deferred zero-measure contours, and high-valence fan-controlled continuation.
+
+Verify cycle IDs remain unchanged when contour roles are assigned, independently recomputed, or input contour order is permuted.
+
+### 13.6 Certified witness and admissibility tests
+
+Test strict arrangement-cell witnesses, certified atom/sector witnesses, repeated-coordinate boundaries, topology-distinct touches, narrow holes, deep nesting, uncertain witness separation, proper crossings, overlaps, and equal-parameter ties.
+
+Reject an arbitrary adjacent-atom point that lies on the wrong contour side and any epsilon-offset witness.
+
+### 13.7 Independent verifier mutation tests
+
+Corrupt one fact at a time, repairing cached counts/digests where possible:
+
+- merge/split occurrence identities;
+- alter coordinate source;
+- change continuation or region membership;
+- leak support-only evidence into topology;
+- remove/alter a pair or endpoint;
+- change successor/predecessor;
+- break/reuse/reverse a cycle;
+- insert role into cycle identity;
+- change outer/hole/island relation;
+- alter a witness or separation bound;
+- change carrier order/balance;
+- merge vertex links;
+- scramble IDs/ranges/resources; or
+- forge digests.
+
+Every required mutation must be rejected.
+
+### 13.8 Exhaustive, fuzz, metamorphic, and replay tests
+
+For bounded fixtures, exhaustively enumerate valid continuation classes, two-use planned pairs, successor permutations implied by lineage, cycle covers, V1 one-outer/direct-hole region partitions, and vertex-link cycles.
+
+Fuzz controlled concavity, holes, carrier loops, event valence, equal-parameter clusters, point/edge contacts, duplicate coordinates, zero-length edges, support-only zero-measure records, and resource limits. Shrink every crash, arbitrary pairing, accidental weld, nonclosure, contour disagreement, or verifier mismatch.
+
+Apply source vertex/facet/triangle/shell permutations, ring rotation, legal subdivision/retriangulation, operand remapping, axis permutation, corrected sign flip, exactly representable translation, power-of-two scaling, thread counts, task delays, reversed graph starts, reversed edge discovery, reversed cycle starts, contour permutations, and forced hash collisions. Require canonical identity and bytes after documented predecessor-ID remapping.
+
+### 13.9 Resource, cancellation, sanitizer, portability, and structural performance tests
+
+Test limit-minus-one, limit, and limit-plus-one for every resource subkind. Cancel at every stable checkpoint and inside long sorts, walks, broad phases, codec, and verifier work. Confirm joined rollback and no visible partial artifact.
+
+Run supported GCC/Clang Debug/Release matrices, ASan/UBSan, TSan for parallel paths, strict floating-environment conformance, and build checks proving no forbidden external or legacy Boolean dependency is linked.
+
+Structural gates include:
+
+- output vertex count exactly equals nonempty occurrence requirement count;
+- paired edge count exactly equals planned edge count;
+- halfedge and cycle-reference counts exactly equal `2 * E`;
+- support-only evidence maps to zero topology entities;
+- zero coordinate-neighbour and tolerance-weld queries;
+- linear boundary/cycle/link traversal in visited members;
+- documented `O(n log n)` canonical sorts;
+- no unconditional scalable all-pairs noncrossing search;
+- no recursion proportional to input size; and
+- no hidden per-edge hot-loop allocation after reservation.
+
+## 14. Definition of done
 
 Component 11 is complete only when:
 
-- every Component 10 occurrence requirement is realized exactly once;
-- every planned edge occurrence is born as one reciprocal halfedge pair;
-- every retained boundary incidence is consumed exactly once;
-- every transparent continuation is consumed exactly once and omitted from the boundary;
-- every halfedge belongs to exactly one closed oriented face cycle;
-- every output vertex occurrence has one closed fan, including geometrically degenerate occurrences;
-- holes, nested contours, equal coordinates, and zero-length topological edges are represented explicitly;
-- carrier ordering ambiguity never causes heuristic pairing;
-- independent reconstruction and mutation tests are effective;
-- deterministic replay is byte-stable across traversal and schedules;
-- the artifact is a complete topology-only input to Component 12; and
-- all production and normative-test code is strict portable C++17 with no external dependencies.
+- every Component 10 nonempty vertex occurrence requirement is realized exactly once with authoritative coordinate lineage;
+- every planned edge is born as one validated reciprocal pair with explicit endpoint initialization;
+- paired zero-measure boundaries and support-only zero-measure evidence are unambiguously separated;
+- every realized boundary incidence and transparent continuation is consumed exactly once in its proper domain;
+- support-only evidence creates no output topology;
+- every halfedge belongs to exactly one closed oriented cycle;
+- cycle identity is independent of later contour role;
+- every output occurrence has one closed link matching Component 10;
+- V1 regions have one outer, direct holes, separate island regions, and explicit deferred obligations;
+- containment uses certified strict witnesses and fails closed on topology-changing uncertainty;
+- equal coordinates and zero-nominal-length edges remain distinct where required;
+- carrier ordering and geometric admissibility never invoke heuristic pairing or continuation;
+- independent reconstruction rejects all required mutations;
+- replay and canonical bytes are stable across traversal, allocation, hashing, and schedules;
+- resources, cancellation, transaction rollback, diagnostics, and strict-build integration are complete;
+- Component 12 can consume the artifact without repeating selection, occurrence partitioning, edge pairing, region grouping, or cycle construction; and
+- all production and normative-test code is strict self-contained C++17 with no external dependency.
