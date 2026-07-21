@@ -4,323 +4,466 @@
 
 This document specifies a required component of a dependency-free bounded floating-point surface-mesh Boolean engine. Production and normative-test code must be portable C++17 and use no external dependency.
 
-The specific triangulation algorithm may change. The coverage, boundary-preservation, determinism, provenance, bounded-geometry, and failure contracts in this document are normative.
+The concrete triangulation provider may change. The source-boundary, geometry-basis, coverage, provenance, determinism, verification, resource, and failure contracts in this document are normative.
 
 ## 0. Purpose
 
-This component converts every validated polygonal source facet into a deterministic triangle complex suitable for halfedge construction, collision enumeration, relation evaluation, and winding computation. The conversion must preserve the source facet's bounded planar region, source-boundary topology, orientation, and provenance.
+Component 04 converts every geometry-eligible polygonal source facet in one immutable `validated_operand<T,I>` into a deterministic oriented triangle complex suitable for Component 05 halfedge construction and the later collision, relation, event, winding, and selection stages.
 
-Internal diagonals introduced by triangulation are bookkeeping edges only. They must never be mistaken for original geometric features, used to change symbolic contact ownership, or allowed to alter the topological result of a Boolean operation.
+The conversion must preserve:
 
-The principal output is an immutable `source_triangle_complex` for each validated operand.
+- the exact indexed source ring and every retained source vertex identity;
+- every source directed-edge use and its reciprocal source-edge provenance;
+- the source facet's accepted orientation, shell membership, and semantic identity;
+- the bounded planar region certified by Component 02's coherent geometry basis;
+- complete source-to-triangle and triangle-to-source provenance; and
+- independence of Boolean source-feature semantics from the chosen legal internal triangulation.
+
+Internal diagonals are facet-local bookkeeping. They refine one source facet into triangles but are not original geometric features. They must not become source-edge collision features, symbolic-contact owners, winding barriers, or source-feature identities.
+
+The principal output is one immutable, independently verified `source_triangle_complex<T,I>` per validated operand.
 
 ## 1. Input contract
 
+### 1.1 Required inputs
+
 The component must accept:
 
-- one immutable `validated_operand` from Component 02;
-- the immutable Boolean and precision contexts from Components 01 and 03;
-- normalized facet rings, source-feature identities, orientation, shell membership, and bounded planar evidence;
-- resource, cancellation, transaction, diagnostic, and deterministic-order services; and
-- the selected source-triangulation policy version.
+- one immutable ordinary-pipeline-eligible `validated_operand<T,I>` from Component 02;
+- the immutable Boolean context, identity domains, error services, resources, cancellation, transactions, replay, canonical-byte, and deterministic-execution services from Component 01;
+- the immutable precision context and bounded operation, predicate, construction, feature-bound, and verification services from Component 03;
+- the frozen source-triangulation policy and provider versions; and
+- a narrow immutable view of Component 02 source vertices, facets, rings, corners, directed and undirected source edges, shells, projection/plane records, coherent-realization certificate, and stable facet-coverage evidence.
 
-Each input facet must already satisfy Component 02's contract:
+The runtime context owner is required for handle validation and lifetime safety. It is not semantic data and must never enter canonical keys, canonical ordering, digests, replay bytes, deterministic diagnostics, or output.
 
-- at least three distinct topological vertices;
-- one simple polygonal ring in v1;
-- bounded planarity;
-- valid source indices;
-- consistent shell orientation; and
-- deterministic source identity.
+### 1.2 Required predecessor guarantees
 
-This component must not accept an arbitrary polygon soup or repair malformed source rings.
+For every accepted non-empty facet, Component 02 must already have established and published evidence for:
+
+- one normalized simple source ring with at least three retained positions;
+- no repeated retained source vertex identity;
+- one source corner and one directed source-edge use per retained ring position;
+- exact reciprocal source-edge pairing across adjacent source facets;
+- shell membership and accepted source orientation;
+- one certified support plane and deterministic projection frame;
+- a definite non-zero projected orientation under the coherent geometry certificate;
+- a coherent operand-level geometry disposition of either `nominal_embedded` or `constructed_coherent_realization`;
+- a stable reference to the point realization used to certify the facet geometry; and
+- reconstructible boundary/coverage evidence from the validation-only decomposition or an equivalent certificate.
+
+A topology-only predecessor is ineligible for ordinary Component 04 processing.
+
+### 1.3 Authoritative geometry basis
+
+Component 04 must not choose an independent geometric realization.
+
+For each facet it must consume the exact geometry basis committed by Component 02:
+
+- for `nominal_embedded`, the committed geometry basis references the nominal source points together with their inherited Component 03 enclosures;
+- for `constructed_coherent_realization`, the committed geometry basis references the single shared realized point for each source vertex, its proof of containment in the source precision envelope, and the same support-plane/projection/orientation convention used by Component 02.
+
+All topology-affecting triangulation predicates, local embedding checks, and coverage checks must use that committed coherent geometry basis. The source nominal coordinate bits and source precision lineage remain preserved as source provenance. Consuming a constructed coherent realization is validation against an accepted representative; it is not a source-topology edit, cleanup displacement, coordinate weld, or permission to replace public source coordinate lineage.
+
+If the geometry-basis records are missing, inconsistent, stale, cross-owner, or cannot be reproduced through Component 03, the component must fail deterministically. It must not silently fall back from realized points to nominal points or select a different plane or projection.
+
+### 1.4 V1 accepted policy
+
+V1 is one-ring, no-Steiner, no-source-edge-subdivision, no-source-vertex-removal, and non-degenerate-output.
+
+For a facet with `n` retained ring positions, a successful V1 result contains exactly:
+
+- `n - 2` definitely oriented triangles;
+- `n - 3` facet-local internal diagonals;
+- `n` source-boundary triangle edge uses; and
+- `2(n - 3)` internal-diagonal triangle edge uses.
+
+Every retained source vertex identity must occur in the triangle complex. If the committed coherent geometry cannot support such a triangulation without a zero or uncertain triangle, uncertified diagonal, boundary edit, or identity merge, return a typed deterministic geometry failure.
+
+This component does not accept arbitrary polygon soup and does not repair malformed rings.
 
 ## 2. Required behavior
 
-### 2.1 Deterministic local frame
+### 2.1 Contract and capability validation
 
-For each source facet, the component must construct a deterministic projection frame from bounded geometric evidence. The frame selection must:
+Before allocating or evaluating a facet, validate:
+
+- owner, operand, type, artifact, provider, policy, formula, and codec versions;
+- predecessor semantic and geometry-certificate digest links;
+- ordinary geometry eligibility;
+- source count and ID-domain representability;
+- facet/ring/corner/edge/shell ownership and range consistency;
+- resource and work limits;
+- transaction stage and cancellation state; and
+- availability of the required Component 03 predicate families.
+
+Expected malformed-input, geometric-condition, resource, cancellation, and unsupported-version failures must remain typed. A committed predecessor contradiction is an internal invariant failure.
+
+### 2.2 Deterministic projection workspace
+
+For each facet, validate and reuse Component 02's support-plane and projection record. Materialize the projected bounded points from the committed coherent geometry basis through Component 03 using the frozen formula IDs.
+
+The workspace must:
 
 - preserve the accepted source orientation;
-- avoid an unstable projection direction when another qualified direction is available;
-- use stable feature IDs to break exact ties;
-- record the projection and its uncertainty;
-- be independent of ring rotation and input facet order; and
-- fail with a typed geometry error if no projection can support a reliable triangulation within the facet's precision.
+- retain source vertex and corner identities separately from projected values;
+- preserve exact source nominal bits and realized-point lineage for diagnostics;
+- remain independent of caller ring rotation, source array order, allocation order, and worker scheduling; and
+- fail if the stored frame cannot support finite conservative predicates.
 
-Projection is an implementation detail. The output contract is expressed in source topology and three-dimensional bounded geometry, not in projected coordinates.
+Equal or overlapping projected coordinates never merge identities. A nominal coordinate coincidence within one ring is eligible only when Component 02's coherent realization and positive-extent checks made the retained source topology geometry-eligible.
 
-### 2.2 Ring normalization for triangulation
+### 2.3 Deterministic triangle generation
 
-The component may create an internal triangulation ring that:
+The provider must partition the committed coherent source-facet region into oriented triangles whose vertices are existing retained source vertex identities.
 
-- rotates to a canonical start;
-- removes vertices proven redundant because consecutive source edges are topologically zero-length by identical indices, which should normally already be removed by Component 02;
-- marks geometrically collinear or coordinate-coincident but topologically distinct vertices without deleting them unless the source contract explicitly permits a topology-preserving representation; and
-- retains a total mapping back to source ring positions.
+A conforming provider must:
 
-Distinct source vertex identities must never be merged because projected coordinates are equal or close.
+- preserve every source boundary edge exactly and in the source ring direction;
+- introduce only facet-local diagonals between nonconsecutive retained source vertices;
+- emit no positive-area overlap and no positive-area gap;
+- emit no triangle whose bounded orientation overlaps zero or disagrees with the source orientation;
+- terminate with a complete result or a typed failure;
+- use only Component 03 bounded predicates for topology-affecting geometry;
+- use stable semantic identities for every tie and ordering decision; and
+- retain enough evidence for independent reconstruction.
 
-### 2.3 Triangle generation
+V1 should use a deterministic certified ear-clipping provider with a separately executable serial semantic reference. Another in-tree provider is permitted only if it produces the same frozen V1 result or uses a new provider/policy version with equivalent contracts.
 
-The component must partition the accepted facet region into oriented triangles. It may use any in-tree deterministic method whose provider-level implementation is selected later, provided that it:
+### 2.4 Ear eligibility and complete candidate maintenance
 
-- preserves every source boundary edge exactly as a boundary chain with the same endpoint identities;
-- introduces only internal diagonals between existing source vertex identities in v1, unless a later policy explicitly permits bounded Steiner points;
-- creates no positive-area overlaps;
-- leaves no positive-area gaps;
-- produces triangles with orientation consistent with the source facet;
-- terminates with either a complete triangulation or a typed failure;
-- handles concave polygons, long thin features, repeated-coordinate identities, and boundedly collinear sequences according to policy; and
-- records sufficient evidence for independent coverage verification.
+For an active ring node `c` with predecessor `p` and successor `q`, an ear candidate `(p,c,q)` is eligible only when all prescribed bounded relations are definite:
 
-A triangle that is numerically degenerate under the source precision must not silently receive an arbitrary orientation. The component must either produce a contract-approved degenerate bookkeeping record for later handling or fail. The default source-triangle complex supplied to Component 05 should contain only triangles whose orientation is accepted by the bounded predicate contract.
+- accepted triangle orientation;
+- diagonal inside both endpoint local cones;
+- no prohibited relation with a nonincident active boundary segment;
+- no other active source vertex on the proposed diagonal;
+- no other active source vertex in or on the closed ear triangle; and
+- all predicate evidence belongs to the frozen owner, geometry basis, and formula set.
 
-### 2.4 Boundary-edge preservation
+The selected ear is the least complete semantic candidate key. Runtime owner values, pointer values, task IDs, heap insertion order, and caller positions are excluded from the key.
 
-Every source directed edge use must map to exactly one directed triangle-boundary edge unless the triangulation policy explicitly subdivides source edges. Under the initial no-Steiner policy, subdivision is prohibited.
+An optimized incremental provider must maintain a complete eligible set. After every removal it must invalidate and re-evaluate every candidate whose result depended on:
+
+- the removed active vertex;
+- either removed active boundary segment;
+- the newly introduced active boundary segment;
+- a changed predecessor or successor relation;
+- an active point or segment whose membership in a candidate's conservative query set changed; or
+- any cached predicate/evidence object whose generation changed.
+
+A conforming implementation may satisfy this by a full canonical rescan after every removal. An optimized implementation must maintain explicit reverse dependency or blocker records and prove byte-for-byte equivalence to the full-rescan serial reference. Re-evaluating only the two new neighboring nodes is not sufficient.
+
+### 2.5 Boundary-edge preservation
+
+Every Component 02 source directed-edge use must map to exactly one directed triangle boundary edge. Under V1 no source edge may be subdivided.
 
 The mapping must preserve:
 
-- source edge identity;
-- source directed-use identity;
-- endpoint source vertex identities;
-- direction within the source facet ring;
-- paired source use on the adjacent source facet; and
-- shell provenance.
+- source directed and undirected edge IDs;
+- source corner and ring-position identity;
+- origin and destination source vertex IDs;
+- source-facet and shell identity;
+- direction within the source ring;
+- reciprocal directed source use on the adjacent source facet; and
+- caller-source provenance for diagnostics.
 
-The two incident source facets may triangulate independently, but their shared source edge must retain identical endpoint identities and opposite directed uses. No coordinate snapping is permitted.
+The two incident source facets may triangulate independently, but their shared source edge must retain the same endpoint identities and opposite directions. No snapping or coordinate-based pairing is permitted.
 
-### 2.5 Internal diagonal semantics
+### 2.6 Internal diagonal semantics
 
-Each introduced diagonal must be marked as:
+Every non-boundary triangle edge must be assigned one facet-local internal-diagonal identity and paired with exactly one opposite use in another triangle of the same source facet.
 
-- internal to one source facet;
-- not an original source edge;
-- not eligible for source-feature symbolic ownership;
-- not a barrier to connectivity or winding propagation when the original facet is uncut;
-- paired within the same source facet triangle group after Component 05 builds halfedges; and
-- removable or replaceable by an alternative legal triangulation without changing source-facet semantics.
+An internal diagonal is schema-defined as:
 
-Downstream components must be able to distinguish source edges from internal diagonals without consulting coordinates.
+- not a source edge;
+- not eligible for source-feature relation ownership;
+- not eligible for the Component 06 canonical source-edge-versus-triangle candidate domain;
+- not eligible for operation-specific symbolic contact ownership;
+- not a connectivity or winding barrier inside an uncut source facet;
+- not a source-boundary provenance substitute; and
+- replaceable by another legal triangulation without changing source-facet semantics.
 
-### 2.6 Provenance graph
+Internal diagonals may be used for triangle adjacency, local traversal, conservative triangle bounds, and verification. Downstream code must distinguish them from source edges by identity alone.
 
-The component must produce a complete provenance graph mapping:
+### 2.7 Provenance and relation lineage
 
-- source facets to generated triangles;
-- generated triangles to source facets and shells;
-- triangle vertices to source vertex identities;
-- triangle boundary edges to source directed-edge uses;
-- triangle internal edges to source-facet-local diagonal identities;
-- triangle orientation to source orientation; and
-- any accepted degeneracy marker to its source ring evidence.
+The component must publish total immutable mappings for:
 
-Provenance must be stable under source-array permutations and legal alternative internal work ordering.
+- source facet to generated triangles;
+- generated triangle to source facet, ring, shell, and operand;
+- triangle vertices to source vertex/corner provenance;
+- triangle source-boundary edges to exact source directed and undirected edge identities;
+- triangle internal edges to facet-local internal-diagonal identities and opposite uses;
+- triangle orientation and geometry-basis references;
+- caller facet/ring/vertex positions through Component 02 presentation maps; and
+- semantic source-relation lineage required by Components 05-10.
 
-### 2.7 Canonical triangle identities and order
+Triangle-local acceleration identities are layout identities, not source-feature identities. Any later relation found while testing one generated triangle must retain the authoritative source facet and applicable source edge/vertex lineage so a different legal triangulation cannot change semantic ownership.
 
-Generated triangles require stable identities. Canonicalization must use source-facet identity plus a deterministic triangle key derived from source vertex identities and orientation. It must not use allocation order or task scheduling.
+### 2.8 Canonical identities and ordering
 
-The component must publish triangles in canonical order or publish a canonical-order mapping used by Component 05. Symmetric triangulations must be resolved by the frozen triangulation tie rules.
+Canonical semantic ordering must use only versioned semantic keys derived from:
 
-### 2.8 Bounded coverage evidence
+- operand role;
+- canonical source facet, ring, shell, vertex, corner, and source-edge identities;
+- orientation-preserving vertex cycles;
+- internal-diagonal endpoint IDs;
+- frozen policy/provider/formula versions; and
+- explicit role tags.
 
-For each facet, the component must record evidence sufficient to verify:
+The runtime owner token may be stored in handles and records for validation but is excluded from all canonical keys, bytes, digests, deterministic errors, replay, and output.
 
-- the union of triangle boundaries contains exactly the source ring boundary plus paired internal diagonals;
-- each internal diagonal has two opposite uses;
-- triangle orientation is accepted;
-- triangle interiors do not overlap with positive area;
-- total accepted projected area agrees with the source polygon within conservative bounds; and
-- every source-ring segment is represented.
+Triangle IDs and diagonal IDs are dense artifact-local strong IDs assigned transactionally after complete key sorting and duplicate validation. Hashes may accelerate lookup only when full keys decide equality.
 
-Coverage verification must not depend solely on summing floating areas, because cancellation and overlapping triangles can preserve a sum. Combinatorial boundary cancellation and independent point/segment checks are required.
+### 2.9 Coverage and local-manifold evidence
 
-### 2.9 Alternative-triangulation invariance support
+For every facet, producer verification must reconstruct from final triangle proposals:
 
-The component must make source-facet identity authoritative so downstream topology is insensitive to legal source triangulation. In particular:
+- exact source boundary equality and direction;
+- exactly two opposite uses for each internal diagonal;
+- expected triangle, diagonal, edge-use, vertex, and Euler counts;
+- one connected triangle-dual tree;
+- definite accepted orientation for every triangle;
+- no forbidden triangle crossing or positive-area overlap under the committed coherent geometry basis;
+- each triangle and internal-diagonal interior lying inside the source ring;
+- stable independent source-region witness coverage;
+- conservative source-polygon versus triangle-area agreement; and
+- complete provenance and geometry-basis consistency.
 
-- candidate/event ownership must trace through the source facet, source edge, and source vertex rather than rely only on a generated triangle number;
-- intersections that cross internal diagonals must be recognized as belonging to one source facet relation lineage;
-- connectivity across uncut internal diagonals must be preserved; and
-- tests must be able to substitute alternative legal triangulations of the same source facet.
+Area agreement alone is never sufficient. Coverage evidence must combine exact indexed boundary cancellation, dual connectivity, pairwise embedding checks, interior classifications, and witnesses.
 
-### 2.10 Transactionality and limits
+Component 02 validation-decomposition records may provide additional stable source-region witnesses, but Component 04 must not treat Component 02 private triangle IDs or a producer-owned `coverage=true` flag as authority. The Component 04 independent verifier must generate or classify its own deterministic witness set from immutable source-ring and geometry-basis records.
 
-Triangulation of a facet may use private mutable work, but publication is transactional. Before publication the component must verify local coverage and provenance.
+### 2.10 Transactionality, resources, and cancellation
+
+Facet work may use private mutable state. No facet or operand result is published until all facets pass producer checks, the operand artifact is canonically assembled, and the independent verifier accepts it.
 
 Resource accounting must cover:
 
-- projected ring storage;
-- work queues or search structures;
-- generated triangles;
-- internal diagonals;
-- provenance records;
-- verification evidence; and
-- abstract triangulation work.
+- projected bounded points and geometry-basis references;
+- active-ring nodes and generation records;
+- candidate sets, reverse dependencies, blocker records, and conservative indexes;
+- predicate and coverage evidence;
+- triangle, edge-use, diagonal, provenance, and mapping proposals;
+- sort keys, canonical bytes, digests, diagnostics, replay, and verifier work; and
+- abstract work units for all potentially adversarial loops.
 
-A pathological polygon must terminate through resource or work limits rather than loop indefinitely.
+A pathological facet must terminate through a deterministic typed resource/work failure. Cancellation is polled only at stable boundaries; all private work, provisional IDs, and reservations are rolled back before return.
 
 ## 3. Output contract
 
-For each operand, the component must produce one immutable `source_triangle_complex` containing:
+For each operand, publish one immutable `source_triangle_complex<T,I>` containing at least:
 
-- canonical source vertex references and nominal coordinates;
-- all generated oriented source triangles;
-- stable triangle IDs;
-- source-facet triangle ranges or membership maps;
-- source boundary-edge labels on triangle halfedges;
-- source-facet-internal diagonal labels;
-- shell and operand provenance;
-- deterministic projection records;
-- per-triangle bounded orientation and plane evidence;
-- facet-level coverage evidence;
-- canonical ordering and digest; and
-- reverse mappings to caller facet/ring positions.
+- artifact/provider/policy/formula/codec/verifier versions;
+- runtime owner validation metadata excluded from canonical semantics;
+- operand role and predecessor semantic/geometry-certificate digest links;
+- source vertex references with nominal source bits, precision lineage, and coherent-realization references;
+- canonical oriented source triangles;
+- canonical facet-local internal diagonals;
+- one edge-role record for every directed triangle edge;
+- source-facet triangle and diagonal membership maps;
+- source directed-edge to triangle-boundary-use maps;
+- source undirected-edge to its two cross-facet triangle-boundary uses;
+- source vertex to incident triangle mappings;
+- deterministic projection and geometry-basis records;
+- per-triangle orientation, plane, bound, and provenance evidence;
+- per-facet coverage and verification evidence;
+- separate source-semantic, exact-triangulation, replay/presentation, and artifact digests;
+- canonical arrays and dense ID ranges; and
+- exact resource/work statistics and immutable predecessor lifetime references.
 
-The output must guarantee:
+The source-semantic digest excludes internal triangle/diagonal choices. The exact-triangulation digest includes them. Neither digest includes the runtime owner token or presentation-only caller ordering.
 
-- every accepted source facet is completely triangulated;
-- source boundary topology is unchanged;
-- every internal diagonal has exactly two opposite uses within one source-facet group;
-- every generated triangle has accepted orientation or an explicitly permitted marker that downstream components understand;
-- downstream code can distinguish source features from triangulation artifacts using identities alone; and
-- changing to another legal triangulation cannot change the semantic identity of the source facet.
+The output guarantees:
 
-On failure, no partial triangle complex is published. The typed error must identify the source facet, relevant ring positions, bounded predicate evidence, and replay payload.
+- every accepted source facet is completely triangulated under the committed coherent geometry basis;
+- source boundary topology and identity are unchanged;
+- every source boundary use appears exactly once in source direction;
+- every internal diagonal has exactly two opposite same-facet uses;
+- every triangle has definite accepted orientation;
+- all provenance and reverse mappings are total and immutable;
+- source features and triangulation artifacts are distinguishable by identity alone;
+- internal diagonals cannot enter the canonical source-edge candidate domain or own source semantics; and
+- no failed, partial, cancelled, resource-exhausted, or verifier-rejected artifact is published.
+
+On failure, return one typed deterministic error identifying the least canonical offending operand/facet/ring/corner/vertex/edge/relation key, relevant bounded evidence, geometry-basis reference, resource state, and replay payload.
 
 ## 4. Required invariants and prohibited behavior
 
-Required invariants:
+Required invariants include:
 
-- source-ring boundary is preserved exactly in index topology;
-- internal diagonals cancel in opposite pairs;
-- triangle orientation agrees with the source facet;
-- triangle provenance is total and immutable;
-- coordinate equality never merges source vertices;
-- triangulation ordering is deterministic;
-- legal re-triangulation does not alter source-feature semantics; and
-- only verified complete facet results enter the published artifact.
+- source-ring boundary equality in exact indexed topology;
+- one committed coherent geometry basis reused from Component 02;
+- no runtime owner value in canonical semantics;
+- exact `n - 2` triangle and `n - 3` diagonal counts under V1;
+- all retained source vertices represented;
+- definite source-consistent triangle orientation;
+- opposite-paired facet-local diagonals;
+- total immutable provenance;
+- complete eligible-ear maintenance;
+- deterministic full-key ordering and ID assignment;
+- legal source re-triangulation changes only exact layout identity, never source-feature semantics; and
+- producer and independent verifier acceptance before publication.
 
-Prohibited behavior:
+Prohibited behavior includes:
 
-- tolerance-based welding of source vertices;
-- dropping a narrow source feature merely to make triangulation easier;
-- introducing cracks along shared source edges;
-- labeling an internal diagonal as a source edge;
-- resolving an uncertain orientation with arbitrary ear selection;
-- publishing a partial triangulation;
-- using a library triangulator or any external dependency; or
-- relying only on area equality as proof of coverage.
+- tolerance-based welding or coordinate-key deduplication;
+- deleting collinear or repeated-coordinate identities to make triangulation easier;
+- choosing a different plane, projection, or point realization than Component 02 committed;
+- using nominal points when a constructed coherent realization is the committed geometry basis;
+- spending cleanup tolerance during source triangulation;
+- publishing zero/uncertain triangles under V1;
+- classifying an internal diagonal as a source edge or broad-phase source-edge feature;
+- using internal diagonals as symbolic owners or winding barriers;
+- re-evaluating only local ear neighbors without complete dependency proof;
+- including owner pointers/tokens, addresses, task order, source order, or unordered-container iteration in semantic ordering;
+- relying only on area equality or producer booleans for coverage;
+- calling a legacy triangulator as the production provider; or
+- using any external dependency.
 
 ## 5. Test and validation specification
 
-### 5.1 Known-answer polygon corpus
+### 5.1 Known-answer geometry-basis corpus
 
 Include hand-auditable facets covering:
 
-- triangles and convex polygons;
-- concave polygons with multiple reflex vertices;
-- long thin polygons;
-- repeated-coordinate but distinct-index vertices;
-- boundedly collinear chains;
-- nearly collinear ears;
-- large vertex counts;
-- projection-axis ties;
-- signed-zero and subnormal coordinates; and
-- large translations with small local features.
+- triangles, convex polygons, and concave polygons with several reflex vertices;
+- several simultaneously legal ears;
+- long thin polygons and narrow channels;
+- retained collinear boundary chains;
+- nearly collinear ears immediately inside and outside certainty;
+- large translations with small local features and mixed exponents;
+- signed zero, subnormal coordinates, and projection-axis ties;
+- nominally coincident distinct source identities separated by a valid constructed coherent realization;
+- corresponding collapsed or uncertifiable cases rejected by Component 02 or Component 04; and
+- large retained ring counts near resource limits.
 
-For each, store expected source boundary, triangle count range where not uniquely prescribed, orientation, provenance, and canonical digest under the frozen policy.
+Every successful fixture stores the Component 02 geometry-basis disposition, projection/formula versions, expected canonical triangles/diagonals, provenance, coverage evidence summary, and golden canonical bytes.
 
-### 5.2 Coverage verification tests
+### 5.2 Geometry-basis integration tests
+
+Verify that Component 04:
+
+- uses nominal geometry only for a `nominal_embedded` predecessor;
+- uses the exact committed shared realized points for `constructed_coherent_realization`;
+- preserves source nominal bits and precision lineage in both cases;
+- rejects a mutated realization point, plane, projection, formula, or predecessor digest;
+- never silently switches geometry basis; and
+- obtains identical semantic results under presentation-only input permutations.
+
+### 5.3 Coverage and independent verification tests
 
 Independently reconstruct:
 
-- directed boundary cancellation;
-- internal-diagonal pairing;
-- source-boundary equality;
-- triangle adjacency;
-- projected segment intersections;
-- representative interior coverage; and
+- source boundary use equality;
+- internal-diagonal grouping and direction;
+- triangle-dual connectivity;
+- count and Euler identities;
+- triangle orientations;
+- pairwise triangle embedding;
+- triangle and diagonal interior-in-source classifications;
+- verifier-generated source-region witness coverage;
+- Component 02 stable witness coverage where available; and
 - conservative area agreement.
 
-Do not call the producer's ear-selection or internal-diagonal helpers from the verifier.
+Tests must not call producer ear-selection, active-ring, dependency, boundary-grouping, dual-traversal, or cached-coverage helpers.
 
-### 5.3 Determinism and metamorphic tests
+### 5.4 Complete candidate-maintenance tests
 
-Apply:
+Construct polygons where removing one ear:
 
-- ring rotation;
-- facet order permutation;
-- vertex-array permutation with remapping;
-- exactly representable translation;
-- power-of-two scale;
-- axis permutation;
-- global orientation reversal with corrected shell policy; and
-- forced task scheduling permutations.
+- removes a vertex that blocked a distant candidate's point-in-ear test;
+- removes a boundary segment that blocked a distant diagonal;
+- introduces a new diagonal that invalidates another cached candidate;
+- changes conservative index query membership far from the removed node; and
+- causes several stale candidates to become eligible or ineligible simultaneously.
 
-Canonical source-triangle output must remain byte-identical when deterministic policy requires a unique triangulation. If the policy permits alternative internal diagonals, the semantic provenance and coverage digest must remain equivalent and later Boolean results must be invariant.
+Compare every optimized provider step with a full canonical rescan. Mutation tests that omit any reverse dependency or blocker invalidation must be rejected or produce a differential failure.
 
-### 5.4 Alternative-triangulation tests
+### 5.5 Determinism and owner-separation tests
 
-For facets with several legal triangulations:
+Apply ring rotation, facet/vertex/shell permutation, exactly representable translation, power-of-two scale, axis permutation, corrected whole-shell orientation reversal, worker scheduling permutation, and repeated identical invocations with different runtime owner anchors.
 
-- feed independently enumerated legal triangulations into test adapters for Component 05 and later components;
-- verify source-facet relations and final Boolean topology are unchanged;
-- test intersections passing through different internal diagonals; and
-- confirm internal diagonals do not become classification barriers.
+Require:
 
-### 5.5 Boundary-sharing tests
+- identical semantic keys, canonical bytes, and digests for semantically identical artifacts;
+- identical V1 exact triangulation when all predicate dispositions are unchanged;
+- no runtime owner bytes in canonical encoding or deterministic diagnostics; and
+- correct owner rejection for cross-context handle misuse despite semantic byte equality.
 
-Construct adjacent source facets that share edges under:
+### 5.6 Alternative-triangulation and downstream tests
 
-- ordinary coordinates;
-- reversed array order;
-- duplicate coordinate values elsewhere;
-- very long edges;
-- subnormal offsets; and
-- different local projection axes.
+For source facets with multiple legal triangulations:
 
-Verify identical endpoint identities and opposite source-edge directions survive triangulation.
+- enumerate alternative legal triangle sets with the test exact oracle;
+- run them through the same provenance, codec, and independent verifier path;
+- require identical source-semantic digests and different exact-triangulation digests when layouts differ;
+- verify Component 05 reconstructs equivalent source-facet groups;
+- verify Component 06 excludes internal diagonals from the source-edge candidate domain;
+- verify Components 07-10 use source facet/edge/vertex lineage rather than triangle layout identity; and
+- verify final Boolean topology is unchanged for cross-operand interactions that cross different internal diagonals.
 
-### 5.6 Mutation tests
+### 5.7 Boundary-sharing tests
 
-Corrupt valid output by:
+Construct adjacent source facets with different projections, long edges, high-valence vertices, duplicate coordinate values elsewhere, signed-zero endpoints, subnormal offsets, and presentation permutations. Require exactly two opposite triangle boundary uses for each Component 02 source undirected edge.
 
-- deleting one triangle;
-- duplicating a triangle;
-- flipping one triangle orientation;
-- introducing overlapping triangles;
-- omitting one internal-diagonal partner;
-- labeling a diagonal as a source edge;
-- changing one source boundary endpoint;
-- assigning a triangle to the wrong source facet; and
-- shrinking an orientation enclosure.
+### 5.8 Mutation tests
 
-Independent verification must reject each mutation.
+The independent verifier must reject at least:
 
-### 5.7 Fuzzing and shrinking
+- deleted, duplicated, reversed, overlapping, or wrong-facet triangles;
+- changed triangle vertex cycle or edge-slot alignment;
+- zero/uncertain or substituted orientation evidence;
+- missing, duplicated, same-direction, or cross-facet diagonal uses;
+- source boundary use missing, reversed, relabeled, or given wrong endpoints;
+- internal diagonal marked source-feature eligible or source-edge-candidate eligible;
+- source edge marked internal;
+- changed coherent geometry-basis disposition/reference;
+- nominal geometry substituted for a constructed realization;
+- owner token inserted into canonical bytes or keys;
+- changed semantic/exact digest separation;
+- disconnected triangle dual;
+- source coverage gap hidden by area compensation;
+- incomplete candidate dependency records in optimized-provider trace tests;
+- underreported resources or escaped private handles; and
+- unknown versions, roles, fields, or nonzero reserved bits.
 
-Generate valid simple polygons from exact rational templates, convert to `T`, and apply controlled ULP perturbations. Fuzz ring size, reflex patterns, collinear runs, and scale. Every failure must serialize exact source bits and shrink while preserving the failure category.
+### 5.9 Exact-oracle, fuzzing, and shrinking
 
-### 5.8 Performance and resource tests
+Use Component 16's in-tree test-only arbitrary-precision integer/rational facilities, or the shared provisional qualification implementation, to determine exact orientation, segment relations, legal triangulations, V1 least-ear selection, coverage, and witness classifications for bounded fixtures.
 
-Use structural counters to test:
+Fuzz valid simple polygons and controlled invalid mutations across ring size, reflex patterns, collinear runs, narrow channels, exponent range, projection ties, coherent-realization displacement, and uncertainty thresholds. Every failure must preserve exact source bits, geometry-basis records, policies, limits, and failure category during deterministic shrinking and must become a permanent regression when fixed.
 
-- expected near-linear behavior for ordinary convex and mildly concave rings;
-- bounded work for adversarial ear-blocking patterns;
-- deterministic resource-limit failure; and
-- no accidental quadratic memory growth beyond documented policy.
+### 5.10 Performance, limits, cancellation, and fault injection
 
-### 5.9 Definition of done
+Track structural counters for projected points, candidate evaluations, dependency edges, invalidations, full rescans, segment and point relations, triangles, diagonals, pair audits, verifier work, bytes, resources, and canonical encoding.
+
+Require:
+
+- linear persistent output storage;
+- no accidental quadratic persistent dependency storage beyond the documented provider;
+- near-linear or `O(n log n)` ordinary production behavior after optimized indexing is enabled;
+- byte-for-byte equivalence with the bounded full-rescan reference;
+- deterministic work-limit failure for adversarial polygons;
+- limit-minus-one, limit, and limit-plus-one tests for each resource class;
+- cancellation and allocation failure at every stable checkpoint;
+- zero partial publication, zero leaked reservations, and no predecessor mutation; and
+- identical selected failures across worker counts and schedules.
+
+### 5.11 Definition of done
 
 Component 04 is complete only when:
 
-- all accepted facet classes triangulate or fail with typed deterministic errors;
-- boundary and coverage are independently verified;
-- source versus internal-edge provenance is unambiguous;
-- legal source re-triangulation cannot change later Boolean semantics;
-- canonical output is stable under input permutations;
-- pathological inputs terminate within resource limits; and
-- production and normative tests are strict portable C++17 with no external dependencies.
+- the committed coherent geometry basis from Component 02 is explicit and reused consistently;
+- runtime owner validation is separated from all semantic ordering and encoding;
+- V1 no-Steiner/non-degenerate count and boundary contracts are implemented;
+- every topology-affecting decision uses Component 03 bounded predicates;
+- complete ear-candidate maintenance is proven against the full-rescan reference;
+- source boundary and internal diagonal roles are unambiguous and independently verified;
+- internal diagonals are excluded from source-edge collision and symbolic ownership domains;
+- canonical IDs, bytes, and digests are stable under all required metamorphisms and owner-anchor changes;
+- producer and independent coverage verification reject every required mutation;
+- alternative legal triangulations preserve downstream source-feature semantics and Boolean topology;
+- all resource, cancellation, overflow, transaction, replay, codec, fuzz, exact-oracle, and performance obligations pass; and
+- production and normative-test code remain strict portable C++17 and dependency-free.
