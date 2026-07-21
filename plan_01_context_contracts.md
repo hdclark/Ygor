@@ -1,137 +1,216 @@
-# Plan 01: Contract, Context, Identities, Errors, Transactions, and Resources
+# Plan 01: Contract, Context, Invocation Inputs, Identities, Errors, Transactions, and Resources
 
 ## 0. Scope and non-negotiable constraints
 
-Implement **only Component 01** from `component_01_context_contracts.md`. This component establishes the immutable Boolean contract and the controlled runtime services consumed by Components 02-17. It must not validate mesh topology, establish shell nesting, evaluate geometric predicates, triangulate, enumerate collisions, construct intersections, classify winding, build output topology, clean geometry, or perform final geometric verification.
+Implement **only Component 01** from `component_01_context_contracts.md`. Component 01 owns the public invocation boundary, exact immutable source capture, frozen policies, owner and identity infrastructure, typed outcomes and errors, checked resource accounting, cancellation, transactions, canonical bytes, deterministic digests, replay, and the narrow controlled services consumed by Components 02-17.
 
-The implementation must satisfy these rules from the first commit:
+It must not validate mesh topology, determine shell nesting, evaluate bounded geometric predicates, triangulate facets, build halfedges, enumerate collision candidates, construct intersections, classify winding, select Boolean surfaces, construct output cycles, triangulate output polygons, clean geometry, assemble the public result, or perform final geometric verification.
 
-- portable C++17 and the C++ standard library only in production and normative tests;
-- no new external, vendored, downloaded, runtime-invoked, or optional dependency;
-- do not use `src/YgorMeshesBoolean{,2,3,4,5}*.{h,cc}`;
-- no process-global mutable Boolean configuration, counters, registries, allocators, or cancellation state;
-- no topology or identity inference from coordinates, approximate equality, hashes alone, pointer values, allocation order, thread order, wall-clock time, locale, random-device output, build paths, invocation timestamps, or Ygor's time-derived project version;
-- all expected failures are typed values, not log-only outcomes or exceptions;
-- expected allocation, container-capacity, and operating-system resource failures are translated to typed expected failures at documented boundaries;
-- unexpected exceptions are caught at transaction/execution boundaries, all owned work is joined, and one deterministic `internal_invariant_error` is returned;
-- cancellation observed before publication returns `cancelled` after complete rollback unless joining, floating-environment restoration, or rollback itself fails;
-- no failed, cancelled, partially verified, or partially committed stage can publish an artifact;
-- all public/inter-component schemas and serialized numeric values are explicitly versioned;
-- every new Boolean source and normative test is compiled outside the repository's current global `-ffast-math` contract, including under any requested LTO/IPO mode; and
-- normative Boolean tests do not link an external test framework or require Ygor's optional external dependencies.
+The following rules apply from the first implementation commit:
 
-Mark Component 01 complete in `tracker.md` only after Section 21 is fully satisfied.
+- production and normative-test code use portable C++17 and the C++ standard library only;
+- no external, vendored, downloaded, optional, subprocess, runtime-invoked, or framework dependency is added;
+- do not call, adapt, copy, or derive implementation from `src/YgorMeshesBoolean{,2,3,4,5}*.{h,cc}`;
+- do not infer identity, adjacency, equivalence, or ordering from coordinates, tolerance, hashes alone, pointers, allocation order, source traversal order, worker completion order, wall-clock time, locale, random-device output, executable paths, build paths, or Ygor's timestamp-derived project version;
+- do not retain caller-owned mesh vectors, nested face vectors, maps, strings, or mutable references after the source-capture transaction;
+- do not inspect arbitrary `fv_surface_mesh::metadata` for Boolean semantics in V1;
+- all expected failures are typed values and no raw expected standard exception escapes the public API;
+- cancellation observed before publication returns `cancelled` only after all work is joined, floating environments are restored, and private state is rolled back;
+- no failed, cancelled, resource-exhausted, partially verified, or partially committed stage publishes an artifact;
+- every public and inter-component schema, provider, enum, stage, checkpoint, resource kind, canonical field, and replay field is explicitly versioned;
+- bounded Boolean production code and normative tests are isolated from the repository's global GNU `-ffast-math` flags and from unsafe LTO/IPO transformation;
+- normative tests do not link optional Eigen/GSL support or a downloaded test framework; and
+- `tracker.md` is marked complete for Component 01 only after the complete plan, its cross-component contracts, and its definition of done are internally consistent. The tracker mark records completion of this planning/review step, not implementation completion.
 
-## 1. Existing Ygor assessment and mandatory reuse decisions
+## 1. Review conclusions and required corrections
 
-### 1.1 Reuse unchanged
+The original Component 01 plan had a strong transaction/error/resource foundation, but this review identified four integration defects that must be corrected in the implementation plan:
 
-Reuse `vec3<T>` and `fv_surface_mesh<T,I>` from `YgorMath.h` only as public data carriers and immutable source descriptions. Read `vertices`, `faces`, and recognized Boolean metadata without mutation. Preserve coordinate bit patterns, including signed zero. Do not use `vec3::operator<` or coordinate sorting for canonical identity.
+1. **Component 02 requires an immutable source input owned by Component 01.** The original plan encoded replay input but did not define a reusable immutable source artifact. Add a first-class `immutable_invocation_sources<T,I>` artifact and checked read-only `immutable_source_mesh_view<T,I>` capability. Components 02 and 15 must never reread caller vectors.
+2. **V1 index support must match downstream qualification.** Restrict ordinary V1 production to `std::uint32_t` and `std::uint64_t`. Do not claim 8-bit or 16-bit support while Components 02-16 and the public type matrix qualify only u32/u64.
+3. **V1 mesh metadata policy must be unambiguous.** Only `vertices` and `faces` are semantic input. Normals, colours, `involved_faces`, and arbitrary metadata are ignored and excluded from canonical source/replay bytes. Input precision and shell policy come from options. V1 output metadata preservation is fixed false.
+4. **Replay order and canonical topology identity are different concepts.** Exact source order belongs in replay and the invocation digest; source positions are not canonical source IDs. Components 02-05 assign canonical topology IDs after topology-dependent keys are known. Tests must distinguish source-order mutation from internal traversal permutation.
 
-Reuse standard-library facilities such as `<array>`, `<atomic>`, `<cfenv>`, `<condition_variable>`, `<cstring>`, `<memory>`, `<mutex>`, `<new>`, `<stdexcept>`, `<string>`, `<system_error>`, `<thread>`, `<type_traits>`, `<variant>`, and `<vector>` when used under the contracts below.
+These corrections preserve the broad plan's requirements: exact topology remains separate from bounded geometry; the invocation is replayable; later stages consume immutable artifacts; canonical identities never arise from coordinate equality; and final success remains gated by Component 15.
 
-### 1.2 Reuse only through a new adapter
+## 2. Existing Ygor assessment and reuse decisions
 
-Ygor logging may display a completed public error at the eventual API boundary, but Component 01 core code must not use `YLOG*` as control flow or emit schedule-dependent diagnostics. Preserve Ygor's installed-header convention and CMake compiler detection, but isolate the new subsystem in a strict object target.
+### 2.1 Reuse unchanged as narrow public data carriers
 
-### 1.3 Do not reuse
+Reuse from `src/YgorMath.h`:
 
-- Do not call `fv_surface_mesh` mutators such as `merge_duplicate_vertices`, `convert_to_triangles`, or `remove_degenerate_faces`.
-- Do not use `YgorSerialize`; it is not a fixed-endian, schema-stable canonical codec.
-- Do not use `External/SpookyHash`, `External/MD5`, or `std::hash` as authoritative equality or canonical digest.
-- Do not use `work_queue` from `YgorThreadPool.h`; its unbounded queue, swallowed exceptions, and lack of deterministic merge/resource/cancellation semantics violate the contract.
-- Do not use `taskqueue` from `YgorContainers.h` as an execution or cancellation provider.
-- Do not use `YgorEnvironment` for floating-point qualification; it exposes unrelated platform services rather than a strict floating-point contract. Implement a portable `<cfenv>` provider.
-- Do not use `tests2/compile_and_run.sh` or downloaded doctest for normative tests. Add a dependency-free CTest harness.
+- `fv_surface_mesh<T,I>` only as the public input carrier at call entry and, much later, as the Component 14 output carrier;
+- `vec3<T>` only to read nominal x/y/z source values and to expose public result coordinates; and
+- standard-library containers and synchronization primitives behind the contracts below.
 
-### 1.4 Required build correction
+The public mesh is permissive and mutable. Its fields do not establish Boolean validity. Component 01 must read only:
 
-The root CMake currently appends GNU `-ffast-math` to `CMAKE_CXX_FLAGS`, enables optional project-wide interprocedural optimization through `USE_LTO`, and derives `PROJECT_VERSION` from an invocation timestamp. The `ygor` target can also link optional GSL support when configured.
+- `mesh.vertices`; and
+- `mesh.faces`.
 
-Do not change unrelated Ygor compilation in this component. Add a dedicated strict object library whose strict floating-point flags occur after inherited global flags. Disable IPO on the strict object and normative-test targets unless a reviewed compiler-specific configuration proves that the strict translation-unit semantics survive link-time optimization. Prove through compile commands, compile-time guards, runtime witnesses, and an LTO configuration test that the Boolean translation units are strict.
+Preserve exact scalar bit patterns, source vertex positions, face positions, ring lengths, and index values. Do not use `vec3::operator<`, `operator==`, arithmetic methods, `Dot`, `Cross`, normalization, distance, angle, or text conversion for identity or canonical source encoding.
 
-Never place `${PROJECT_VERSION}`, invocation timestamps, compiler banners, build directories, executable names, or optional dependency versions in canonical context/replay/error bytes. Retain them only in explicitly non-authoritative diagnostics.
+### 2.2 Ignore non-semantic public fields in V1
 
-Normative Boolean test executables must link the strict object code and only the standard-library/toolchain facilities they need, such as `Threads::Threads`; they must not acquire GSL, Eigen, a downloaded test framework, or other optional libraries through the general `ygor` link interface. Add a configuration test with `WITH_GNU_GSL=OFF` and `WITH_EIGEN=OFF`.
+Do not consult or canonically encode:
 
-## 2. Exact file and target layout
+- `vertex_normals`;
+- `vertex_colours`;
+- `involved_faces`; or
+- arbitrary `metadata`.
 
-### 2.1 Installed public header
+Do not validate the consistency of these ignored fields as part of the Boolean input contract. Component 02 independently reconstructs incidence and geometry from vertices/faces. Tests must prove that changing only ignored fields leaves the context digest, replay bytes, canonical diagnostics, and result unchanged.
 
-Create `src/YgorMeshesBooleanBounded.h` containing:
+A future source-contract version may recognize explicit metadata keys only after names, encoding, precedence, conflicts, replay fields, and tests are specified. V1 must not opportunistically discover precision or shell roles from metadata.
 
-- stable public operation and policy types;
+### 2.3 Do not reuse public mesh mutators
+
+Component 01 and its source adapter must not call:
+
+- `merge_duplicate_vertices`;
+- `convert_to_triangles`;
+- `remove_degenerate_faces`;
+- `remove_disconnected_vertices`;
+- `simplify_inner_triangles`;
+- `compute_vertex_normals`;
+- `recreate_involved_face_index`;
+- `apply_involved_face_index_diff`; or
+- any orientation, remeshing, slicing, hole, BSP, or legacy Boolean helper.
+
+Source capture is a byte-preserving structural copy, not normalization or validation.
+
+### 2.4 Reuse existing adaptive predicates only through Component 03
+
+`YgorMeshesAdaptivePredicates` contains useful in-tree expansion arithmetic, but Component 01 performs no geometric predicate. Platform qualification may share strict low-level floating-environment witnesses with Component 03, but Component 01 must not call `orient_sign` or any geometric predicate.
+
+Component 03 owns scale-aware floor derivation and bounded numerical services. Component 01 only provides the pending-context handshake, frozen platform record, exact source views, and transaction infrastructure.
+
+### 2.5 Existing serializers and hashes are unsuitable
+
+Do not use `YgorSerialize`, `YgorMathIOSerialization`, XML/text mesh serializers, native struct serialization, `std::hash`, `External/SpookyHash`, or `External/MD5` for canonical context, replay, error, identity, or artifact bytes.
+
+Implement one fixed-endian canonical byte codec and one clean-room in-tree streaming SHA-256 provider under the bounded subsystem. Digests are integrity and lookup accelerators; full keys or bytes remain authoritative equality.
+
+### 2.6 Existing queues are unsuitable
+
+Do not use `YgorThreadPool.h::work_queue` or `YgorContainers.h::taskqueue` for authoritative work. Their unbounded admission, generic exception behavior, missing resource/cancellation contracts, and schedule-dependent publication cannot satisfy the broad plan.
+
+Component 01 supplies a serial execution scope and the transaction/execution interface. Component 17 later supplies the invocation-owned bounded deterministic worker service without replacing Component 01 cancellation, resources, errors, or transaction semantics.
+
+### 2.7 Required build isolation
+
+The root build currently:
+
+- derives `PROJECT_VERSION` from an invocation timestamp;
+- appends GNU `-ffast-math` globally;
+- optionally enables project-wide IPO through `USE_LTO`; and
+- optionally locates/links Eigen and GSL.
+
+`src/CMakeLists.txt` globs only top-level `*cc` and links SpookyHash/MD5 into the general `ygor` target.
+
+Do not change unrelated Ygor behavior in Component 01. Add a dedicated bounded Boolean object/static target in a subdirectory, append strict floating flags after inherited global flags, disable IPO by default on strict targets, and link normative tests directly to strict bounded objects plus required toolchain facilities such as `Threads::Threads`. The bounded code may later be added to `ygor`, but canonical services must not call the general target's legacy hashes or optional libraries.
+
+## 3. Exact file and target layout
+
+### 3.1 Installed public header
+
+Create `src/YgorMeshesBooleanBounded.h` containing only stable public declarations:
+
+- explicit `boolean_operation`;
+- policy enums and value types;
 - `bounded_boolean_options<T>`;
-- stable public error category and read-only public error view;
-- public `bounded_boolean_cancellation_source` and immutable `bounded_boolean_cancellation_token` declarations and minimal value-semantics interface;
-- public digest/replay identifiers required by later result types;
-- forward declarations for `bounded_boolean_result<T,I>`;
-- the ordinary `bounded_boolean(a,b,operation,options)` overload; and
-- an explicit cancellation-aware overload taking a `const bounded_boolean_cancellation_token&` after `options`.
+- public error category and immutable public error/result views;
+- `bounded_boolean_cancellation_source` and `bounded_boolean_cancellation_token`;
+- digest/replay identifiers required by result types;
+- forward declarations of `bounded_boolean_result<T,I>`; and
+- ordinary and cancellation-aware `bounded_boolean` overloads.
 
-The ordinary overload delegates to the cancellation-aware implementation using a never-cancelled token. Do not put a mutable cancellation source inside `bounded_boolean_options<T>`. The public header contains no mutable runtime-service implementation and no implementation-only includes.
+Do not expose mutable service implementations, internal source snapshots, internal IDs, transaction types, or implementation-only includes.
 
-### 2.2 Internal implementation directory
+### 3.2 Internal Component 01 files
 
-Create `src/YgorMeshesBooleanBounded/` with:
+Create under `src/YgorMeshesBooleanBounded/`:
 
-- `CMakeLists.txt` — strict object target, strict-FP helper, IPO isolation, and dependency-free test-link helper;
-- `ContractVersions.h` — all schema/provider versions and stable numeric assignments;
-- `CheckedArithmetic.h` — checked add/subtract/multiply/count-to-byte/range/narrowing helpers;
+- `CMakeLists.txt` — strict object/static target, compiler-option probes, IPO isolation, dependency-free test helpers;
+- `StrictFloatingBuild.h` — compile-time strict-profile markers and unsafe-mode rejection;
+- `ContractVersions.h` — sole version and stable numeric registry;
+- `CheckedArithmetic.h` — checked add/subtract/multiply/range/count-to-byte/narrowing helpers;
 - `Outcome.h` — C++17 typed success/error carrier;
-- `CanonicalBytes.h/.cc` — fixed-endian writer/reader, framing, exact scalar bits, size preflight;
-- `Sha256.h/.cc` — clean-room in-tree SHA-256 used as deterministic digest/integrity key;
-- `PlatformQualification.h/.cc` — type, build, IPO, and runtime floating-environment qualification;
-- `Policies.h/.cc` — option normalization, truth table, operand remapping, symbolic-policy materialization;
-- `Identity.h/.cc` — strongly typed IDs, owner tokens, canonical publication factories;
-- `Errors.h/.cc` — internal error records, subcodes, summaries, arbitration keys, and fixed-capacity emergency error construction;
-- `Resources.h/.cc` — resource kinds, ledgers, reservations, leases, slices, snapshots, allocation-failure translation, verifier;
-- `Cancellation.h/.cc` — public source/token backing state, checkpoint IDs, canonical progress;
-- `Diagnostics.h/.cc` — bounded findings and deterministic primary-error reduction;
-- `Replay.h/.cc` — replay schema, encoder/decoder, digest and retention;
-- `Context.h/.cc` — pending/frozen context, builder, views, runtime service bundle;
-- `Transaction.h/.cc` — typed transaction state machine, exception taxonomy, and immutable artifact handle;
-- `ContextVerifier.h/.cc` — independent context/service verification.
+- `PublicMeshReadView.h` — non-owning call-entry view exposing only vertices/faces and source positions;
+- `ImmutableSourceMesh.h/.cc` — exact contiguous source snapshot, checked access, source-position references, digest fields;
+- `InvocationSources.h/.cc` — immutable A/B source bundle and capture transaction;
+- `InvocationSourcesVerifier.h/.cc` — independent source-copy, range, field-exclusion, and digest verifier;
+- `CanonicalBytes.h/.cc` — fixed-endian framed reader/writer and preflight;
+- `Sha256.h/.cc` — clean-room streaming SHA-256;
+- `PlatformQualification.h/.cc` — type/build/runtime floating qualification and call guard;
+- `Policies.h/.cc` — option normalization, execution capability, truth table, operand remapping, symbolic-policy materialization;
+- `Identity.h/.cc` — strong IDs, source-position types, owner tokens, canonical publication factories;
+- `Errors.h/.cc` — internal records, subcodes, summaries, total keys, emergency primary-error path;
+- `Resources.h/.cc` — resource manager, reservations, leases, slices, snapshots, allocation-boundary helpers, verifier support;
+- `Cancellation.h/.cc` — public source/token backing state, checkpoints, progress, finalization state;
+- `Diagnostics.h/.cc` — mandatory ordinary reducer, cancellation slot, bounded secondary findings;
+- `Replay.h/.cc` — replay schema, source embedding, retention, encode/decode, digest linkage;
+- `Context.h/.cc` — pending/frozen context, source-bundle linkage, builder, immutable views, runtime bundle;
+- `Transaction.h/.cc` — transaction state machine, execution-scope registration, commit/rollback;
+- `ContextVerifier.h/.cc` — independent context, policy, service, source-linkage, and canonical-byte verification.
 
-Keep templates header-defined or explicitly instantiate only supported type combinations. No geometric algorithms belong here.
+Keep templates header-defined or explicitly instantiate exactly the four V1 type combinations. Unsupported instantiations must fail at the public boundary or be unavailable by design; they must not compile accidentally with incomplete replay/type support.
 
-### 2.3 Tests
+### 3.3 Normative tests
 
-Create `tests/mesh_boolean_bounded/` with `CMakeLists.txt`, `TestSupport.h/.cc`, `TestMain.cc`, `TestContextUnit.cc`, `TestContextProperties.cc`, `TestContextAdversarial.cc`, `TestContextPlatform.cc`, `TestContextReplay.cc`, `TestContextTransactions.cc`, `TestContextResources.cc`, `TestContextCancellation.cc`, `TestContextBuildIsolation.cc`, and `GoldenReplayV1.h`.
+Create `tests/mesh_boolean_bounded/` with a dependency-free local test harness and at least:
 
-The harness must be a small local registration/assertion runner with a fixed deterministic PRNG. Register separate CTest cases for unit, property, adversarial, platform, replay, transaction, resource-failure, cancellation, and build-isolation suites.
+- `TestMain.cc`, `TestSupport.h/.cc`;
+- `TestInvocationSources.cc`;
+- `TestPublicMeshReadView.cc`;
+- `TestContextUnit.cc`;
+- `TestContextProperties.cc`;
+- `TestContextAdversarial.cc`;
+- `TestContextPlatform.cc`;
+- `TestContextReplay.cc`;
+- `TestContextTransactions.cc`;
+- `TestContextResources.cc`;
+- `TestContextCancellation.cc`;
+- `TestContextBuildIsolation.cc`;
+- `TestContextMutation.cc`;
+- `GoldenReplayV1.h`; and
+- deterministic failure-injection providers.
 
-### 2.4 CMake integration
+Register focused CTest cases rather than one monolith so failures identify the contract area. Use a fixed deterministic PRNG and no `random_device`.
 
-1. Add the Boolean subdirectory in `src/CMakeLists.txt` and add `$<TARGET_OBJECTS:ygor_mesh_boolean_bounded>` to `ygor`; the existing top-level `*cc` glob must not compile subdirectory files twice.
-2. Define `ygor_apply_mesh_boolean_strict_fp(target)` and apply it to the object target and every normative Boolean test.
-3. Append:
-   - GNU: `-fno-fast-math -frounding-math -fno-associative-math -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only -ffp-contract=off`;
-   - Clang: `-fno-fast-math -frounding-math -ffp-contract=off`, plus supported signed-zero/reassociation-disabling options detected with CMake;
-   - MSVC: `/fp:strict`;
-   - unknown compilers: build only if a reviewed strict option set and conformance fixture exists; otherwise context qualification returns `unsupported_platform`.
-4. Set `INTERPROCEDURAL_OPTIMIZATION FALSE` on `ygor_mesh_boolean_bounded` and normative tests by default. If a later supported compiler configuration intentionally enables IPO for these targets, require a separate reviewed profile/version and strict semantic witnesses at both compile and link stages.
-5. Define `YGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1` only on strict targets and reject `__FAST_MATH__` in a common internal header.
-6. Inspect generated compile commands in a CTest fixture and require the last effective floating options for every bounded Boolean translation unit to be strict. Add a link-time contraction/reassociation witness for `USE_LTO=ON`.
-7. Add `include(CTest)` and the new tests when `BUILD_TESTING` is true. Tests may not download or discover an external framework.
-8. Link normative tests to the object code or a dedicated internal static test target plus `Threads::Threads`; do not link optional GSL/Eigen merely through `ygor`.
-9. Add CI/configuration coverage for `WITH_GNU_GSL=OFF`, `WITH_EIGEN=OFF`, `USE_LTO=OFF`, and the supported `USE_LTO=ON` behavior.
+### 3.4 CMake integration
 
-## 3. Stable version and numeric registry
+1. Add `add_subdirectory(YgorMeshesBooleanBounded)` from `src/CMakeLists.txt`.
+2. Because the existing glob is non-recursive, subdirectory `.cc` files will not be compiled twice; preserve that property explicitly in comments/tests.
+3. Define `ygor_apply_mesh_boolean_strict_fp(target)` and apply it to every bounded production and normative-test target.
+4. For GNU, append at least `-fno-fast-math -frounding-math -fno-associative-math -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only -ffp-contract=off` after global flags, subject to compiler-option checks.
+5. For Clang, append `-fno-fast-math -frounding-math -ffp-contract=off` and every supported signed-zero/reassociation option needed by the qualified profile.
+6. For MSVC, use `/fp:strict` and add separate qualification before claiming support.
+7. Unknown compiler/profile combinations build only when a reviewed strict profile and conformance fixture exists; otherwise the public call returns `unsupported_platform` or the target is not offered.
+8. Define `YGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1` only on strict targets and reject `__FAST_MATH__` in strict source.
+9. Set `INTERPROCEDURAL_OPTIMIZATION FALSE` on strict targets by default. A later LTO profile requires a separate version and compile/link semantic witnesses.
+10. Inspect effective compile commands in a test fixture and verify the last effective floating options are strict.
+11. Link normative tests to the bounded object/static target and `Threads::Threads`, not to the general `ygor` target when that would transitively acquire GSL or legacy hash objects.
+12. Add configurations with `WITH_GNU_GSL=OFF`, `WITH_EIGEN=OFF`, `USE_LTO=OFF`, and supported `USE_LTO=ON` behavior.
 
-`ContractVersions.h` is the sole authority for serialized versions and enum values. Use explicit fixed-width underlying types and explicit numeric values.
+## 4. V1 public types, policies, and options
 
-Define V1 constants for public API, cancellation API, context, options, truth table, symbolic policy, identity, errors, resources, replay, canonical bytes, platform contract, strict build profile, transaction contract, and SHA-256 provider. Start each at `1`; reserve `0` for invalid/uninitialized where useful.
+### 4.1 Supported types
 
-Add compile-time uniqueness checks for every serialized enum. Decoders must accept every recognized value and reject gaps/unknown required versions. Never reinterpret an unknown version as the newest version.
+Freeze V1 ordinary production support to:
 
-Stable conformance-profile IDs are normative. Compiler names/versions, library names/versions, Ygor invocation versions, and build-instance data are not version authorities and must not be serialized into canonical fields.
+```text
+T: float, double
+I: std::uint32_t, std::uint64_t
+```
 
-## 4. Public operation, policies, options, and cancellation
+Require IEC 60559 binary32/binary64 properties for `T`. Require unsigned, non-bool, exact 32-bit or 64-bit `I`. Use stable explicit type descriptors; never serialize `typeid().name()`.
 
-### 4.1 Operations
+Unsupported types use a stable unsupported-type subcode. Adding another type requires a new or explicitly compatible type-profile version, complete instantiation strategy, exact bit codec, index-boundary tests, replay goldens, and all downstream qualification.
 
-Use:
+### 4.2 Operations
+
+Use an explicit fixed-width enum:
 
 ```cpp
 enum class boolean_operation : std::uint8_t {
@@ -143,23 +222,25 @@ enum class boolean_operation : std::uint8_t {
 };
 ```
 
-`swap_operands` maps union/intersection/xor to themselves and swaps the two differences. Invalid values fail decoding/freezing.
+Define `swap_operands`: union/intersection/xor map to themselves; the two differences swap. Unknown values fail before source processing beyond required replay/error preflight.
 
-### 4.2 Supported V1 policies
+### 4.3 Closed V1 policy set
 
-Expose only fixed V1 policy kinds, not callbacks or caller-supplied rule tables:
+Expose fixed value policies, not callbacks:
 
 - `solid_policy_kind::outward_oriented_alternating_shells_v1`;
 - `contact_policy_kind::regularized_symbolic_v1`;
 - `output_policy_kind::triangulated_oriented_manifold_v1`;
-- verification levels `required_scalable`, `required_scalable_with_diagnostics`, and `exhaustive_test_only` (test builds only);
+- verification levels with a mandatory scalable floor and optional diagnostics/test-only exhaustive mode;
 - `determinism_mode::canonical_v1`;
 - execution modes `serial_v1` and `deterministic_parallel_v1`;
-- replay retention `digest_only`, `full_on_failure`, and `full_always`.
+- replay retention `digest_only`, `full_on_failure`, `full_always`.
 
-Every nested policy begins logically with its schema version, uses fixed-width fields, and requires reserved V1 fields to be zero.
+Every nested policy has an explicit version and zeroed V1 reserved fields. Unknown required versions or nonzero reserved fields fail.
 
-### 4.3 Option layout
+The V1 output policy must not promise preservation of input normals, colours, `involved_faces`, or arbitrary metadata. If the public struct retains a future-facing `preserve_public_metadata` field, V1 requires `false`; `true` is a typed unsupported-option failure, not a silent no-op.
+
+### 4.4 Options
 
 Implement:
 
@@ -180,156 +261,270 @@ struct bounded_boolean_options {
 };
 ```
 
-Required nested fields:
+Validate finite non-negative tolerance and precisions. For ordinary success require each input precision `<= tolerance` and, after Component 03 bootstrap, tolerance at least the qualified scale-aware floor. Permit a larger precision only for an explicitly internal topology-only diagnostic attempt that is ineligible for ordinary success.
 
-- solid/contact: version and kind;
-- output: version, kind, `preserve_public_metadata` (false by default and non-semantic in V1);
-- verification: version and level; no `none`;
-- determinism: version and mode; canonical only in V1;
-- execution: version, mode, requested/max workers, max in-flight tasks, deterministic fallback flag, nested-parallelism flag (false in V1);
-- diagnostics: version, max retained findings/bytes, replay retention, retain-secondary flag, internal-topology-only diagnostic flag;
-- resources: version and hard/advisory ceiling for every Section 11 resource kind.
+Do not silently clamp workers, limits, diagnostic capacities, precision, or tolerance. `requested_workers == 0` remains a frozen automatic request rather than being replaced in the context by `hardware_concurrency()`. Component 17 records the actual qualified selection.
 
-Do not silently clamp invalid values. Record every permitted normalization.
+### 4.5 Cancellation API
 
-### 4.4 Public cancellation API
+Implement caller-owned source/token state with these semantics:
 
-Implement a caller-owned `bounded_boolean_cancellation_source` with a cheap copyable token:
+- source and token share lifetime-safe backing state;
+- `request_cancel` is idempotent and stores only the first stable reason code;
+- token is a cheap immutable polling view safe for concurrent reads;
+- no callbacks, detached waiters, signal hooks, process globals, pointer-derived identity, or timestamp enters semantics;
+- request time is non-authoritative; the checkpoint where cancellation is observed is authoritative;
+- source/token runtime identity is not serialized or hashed; and
+- the no-token overload delegates through a canonical never-cancelled token.
 
-```cpp
-class bounded_boolean_cancellation_token;
+## 5. Exact immutable invocation-source capture
 
-class bounded_boolean_cancellation_source {
-public:
-    bounded_boolean_cancellation_source();
-    bounded_boolean_cancellation_token token() const noexcept;
-    bool request_cancel(cancellation_reason reason = cancellation_reason::caller_requested) noexcept;
-};
+### 5.1 Public read view
+
+`PublicMeshReadView<T,I>` is created only at public call entry and exposes:
+
+- vertex count and checked vertex-at-source-position access;
+- face count, face ring length, and checked source index access;
+- exact scalar bits through a qualified `memcpy` conversion;
+- source-position objects for diagnostics; and
+- no access to normals, colours, `involved_faces`, or metadata.
+
+The view is non-owning and may exist only during the capture transaction. It must not escape into the frozen context or a later artifact.
+
+### 5.2 Snapshot schema
+
+Implement immutable `immutable_source_mesh<T,I>` with contiguous canonical storage:
+
+- source-contract version and V1 type descriptors;
+- fixed operand ID A or B;
+- vertex count;
+- contiguous exact x/y/z `T` values or exact scalar-bit records in source order;
+- face count;
+- checked `face_offsets` of length `face_count + 1` or equivalent ring-length table;
+- contiguous source indices in source order;
+- exact source-position maps;
+- section byte counts and resource leases;
+- source content bytes/digest; and
+- verification disposition.
+
+The snapshot is an exact structural copy, not a validated operand. It may contain out-of-range indices, undersized rings, repeated indices, non-finite coordinate bits, or other data that Component 02 later rejects. Capture itself rejects only unsupported memory representation, unreadable/corrupt public-container state that cannot occur without concurrent mutation/undefined caller behavior, count/byte/index-storage overflow, resource failure, cancellation, or internal contradiction.
+
+### 5.3 Capture algorithm
+
+Use one transaction for the A/B source bundle:
+
+1. validate public type profile and token lifetime;
+2. read counts without traversing geometry;
+3. check vertex count, face count, each ring length, total index count, offset arithmetic, byte arithmetic, `size_t` representability, configured hard limits, and replay-retention requirements;
+4. reserve exact source-snapshot entities and bytes before allocation;
+5. allocate contiguous destination storage through the reviewed allocation-boundary helper;
+6. copy A vertices in source order by exact bits, polling at deterministic ranges;
+7. copy A face offsets and indices in source order;
+8. repeat for B;
+9. verify actual counts equal preflight counts, detecting caller concurrent mutation as an input-contract/unsupported-use failure without out-of-bounds access;
+10. encode domain-separated source sections and compute their digests;
+11. independently verify the snapshots against a second read pass while the public view is still valid, or use captured pre/post structural epochs/count witnesses sufficient to detect mutation without borrowing after commit;
+12. promote exact persistent resource leases; and
+13. publish one immutable `immutable_invocation_sources<T,I>` bundle.
+
+After commit, release all non-owning public views. The top-level invocation and every later component use only immutable snapshots.
+
+### 5.4 Source order, canonical identities, and digests
+
+Define three separate concepts:
+
+- **source position:** exact caller array/ring position, used by replay and early diagnostics;
+- **invocation source digest:** exact vertices/faces in source order, so it changes when the public invocation bytes change;
+- **canonical source ID/artifact digest:** assigned by Component 02 or later from complete topology-dependent keys and eligible to remain invariant under equivalent input permutations.
+
+Component 01 must not assign canonical source vertex/facet/edge/shell IDs from source positions. It owns strong ID schemas and publication factories only.
+
+Tests that vary internal traversal over one frozen snapshot must preserve Component 01 bytes. Tests that physically permute source arrays create a different invocation replay digest even when later canonical artifacts/results are equivalent.
+
+### 5.5 Ignored-field invariance
+
+Create pairs of public meshes with identical vertices/faces but different:
+
+- valid/invalid/empty normals;
+- colours;
+- stale or malformed `involved_faces`; and
+- arbitrary metadata.
+
+Source snapshots, context bytes, replay bytes, operation decisions, and eventual output must be identical. This test prevents accidental use of convenience caches or undocumented metadata semantics.
+
+## 6. Stable versions and numeric registries
+
+`ContractVersions.h` is the sole authority. Add explicit nonzero V1 values for:
+
+- public API and type profile;
+- source public-read contract;
+- immutable source mesh and A/B bundle;
+- source canonical encoding/digest domains;
+- cancellation API;
+- options and every policy;
+- truth table and symbolic matrix;
+- identity and owner tokens;
+- error and diagnostic schemas;
+- resources, reservations, leases, slices, and snapshots;
+- canonical bytes and SHA-256 provider;
+- platform/strict-build profile;
+- pending/frozen context;
+- transaction/execution-scope contract;
+- replay and retention;
+- context/source verifiers.
+
+Use fixed-width underlying types and explicit numeric assignments. Reserve zero for invalid/uninitialized where applicable. Add compile-time uniqueness tests. Decoders reject unknown required versions, gaps where forbidden, and nonzero reserved V1 fields; they never reinterpret an unknown version as latest.
+
+Define stable stage IDs for public entry/source capture, context preflight, platform/precision bootstrap, Components 02-15 pipeline stages, publication, Component 16 qualification, and Component 17 execution service effects. Later plans extend reserved ranges without renumbering released values.
+
+## 7. Checked outcomes, errors, and deterministic arbitration
+
+### 7.1 Outcome carrier
+
+Implement non-default-constructible `boolean_outcome<T>` over `std::variant<T,boolean_error>` with explicit success/failure factories and a `void` specialization. Expected access does not throw. Payloads should be nothrow-destructible; moving a completed outcome must not introduce an expected allocation failure.
+
+### 7.2 Stable categories and subcodes
+
+Use explicit values for all broad-plan categories. Allocate disjoint Component 01 subcode ranges covering at least:
+
+- unsupported T/I profile;
+- unknown version/enum/reserved field;
+- non-finite/negative option;
+- precision exceeding tolerance;
+- tolerance below Component 03 floor;
+- unsupported output metadata preservation;
+- source count/ring-sum/byte/offset overflow;
+- source mutation during capture;
+- source snapshot mismatch;
+- unsupported build/rounding/signed-zero/subnormal/contraction/IPO profile;
+- resource inconsistency, arithmetic overflow, hard limit, host allocation, container capacity, worker creation;
+- emergency-error fallback;
+- wrong/stale owner, wrong ID domain/operand, duplicate complete key, task-local escape;
+- illegal transaction transition, active work at commit, verifier rejection;
+- codec truncation/overflow/unknown field/trailing data;
+- digest/replay mismatch;
+- cancellation checkpoint and cancellation rollback contradiction; and
+- unexpected exception.
+
+### 7.3 Error record
+
+`boolean_error` stores stable mandatory fields in fixed/pre-reserved capacity:
+
+- version, category, subcode;
+- component, logical stage, checkpoint;
+- context/source digest when available;
+- optional operand and up to a bounded number of typed entity/source-position references;
+- exact tolerance/precision/budget bits and other bounded witnesses;
+- sorted typed diagnostic fields;
+- stable locale-independent summary template;
+- provider/policy versions;
+- replay digest/disposition; and
+- precomputed total-order key.
+
+Optional text and secondary fields may be dropped deterministically when capacity is unavailable. Pointers, thread IDs, timestamps, allocator addresses, `exception::what()`, build paths, and compiler-generated names never enter canonical fields.
+
+### 7.4 Exception taxonomy
+
+At reviewed allocation/execution boundaries:
+
+- correctly reserved `std::bad_alloc` -> `resource_limit::host_allocation_failed`;
+- valid checked count but `std::length_error`/`max_size()` rejection -> `resource_limit::container_capacity_failed`;
+- Component 17 worker creation `std::system_error` -> typed worker/execution resource failure;
+- producer actual use above reservation or missed checked arithmetic -> `internal_invariant_error`;
+- unrelated exception -> deterministic invariant after join/restoration/rollback.
+
+Catch exact expected exception types before generic `std::exception`. Never use `what()` to classify canonically.
+
+### 7.5 Primary ordering and cancellation
+
+For ordinary candidates use a frozen total key:
+
+```text
+logical stage
+checkpoint
+category precedence
+component
+operand rank
+primary entity/source position
+secondary entity/source position
+subcode
+canonical witness bytes
 ```
 
-The exact public names may follow local style, but the semantics are fixed:
+The exact category precedence is a contract version. It is reporting order, not severity.
 
-- source and token share an internal state whose lifetime covers the call and all joined work;
-- `request_cancel` is idempotent and records only the first stable reason code;
-- tokens are immutable read-only views and safe for concurrent polling;
-- no callback registration, detached waiter, signal handler, global registry, pointer-derived ordering, or timestamp is permitted;
-- the no-token `bounded_boolean` overload delegates using a canonical never-cancelled token;
-- cancellation request time is non-authoritative; the observed checkpoint and canonical progress are authoritative;
-- cancellation source/token identity is not serialized or hashed.
+Cancellation has a separate mandatory slot. Once validly observed before publication, it becomes the public outcome after safe finalization regardless of the ordinary reducer minimum. A join/restoration/rollback contradiction becomes the primary invariant error with cancellation retained as evidence.
 
-## 5. Deterministic option and source-description normalization
+## 8. Resource accounting and allocation boundaries
 
-Implement a pure normalizer returning `normalized_boolean_options<T>` or `boolean_error`, never mutating caller data.
+### 8.1 Resource kinds
 
-### 5.1 Fixed validation phases
+Define explicit resource kinds for at least:
 
-Use this order:
+- immutable source vertices;
+- immutable source faces/offsets;
+- immutable source indices;
+- immutable source bytes;
+- source/internal vertices, rings, facets, edges, triangles, and halfedges;
+- broad-phase nodes/candidates;
+- relations, symbolic decisions, and events;
+- classification groups and retained uses;
+- output occurrences, carriers, halfedges, cycles, and triangles;
+- cleanup actions and verification findings;
+- diagnostic findings/bytes and replay bytes;
+- canonical-sort records and task descriptors;
+- temporary bytes, persistent bytes, emergency error storage; and
+- abstract work units.
 
-1. type descriptors;
-2. policy versions/enums/reserved fields;
-3. finite scalar checks;
-4. scalar sign/relationship checks;
-5. resource consistency and checked arithmetic;
-6. index compatibility;
-7. determinism/execution compatibility;
-8. diagnostics/replay capacity;
-9. build/runtime platform qualification;
-10. Component 03 precision-floor qualification;
-11. truth/symbolic table materialization;
-12. canonical input/replay encoding and final context verification.
+Keep hard correctness ceilings distinct from advisory thresholds.
 
-Within a phase, collect bounded candidate errors and choose the canonical minimum; do not let incidental field traversal determine the result.
+### 8.2 Manager semantics
 
-### 5.2 Scalar rules
+A context/invocation-owned thread-safe `resource_manager` tracks for each kind:
 
-- Require finite, non-negative tolerance and input precisions.
-- Accept policy scalar negative zero, normalize it to positive zero, and record the exact old/new bits; never normalize coordinate signed zero.
-- For ordinary-success-capable modes require each input precision `<= tolerance`.
-- Permit larger input precision only for an explicitly requested internal topology-only diagnostic attempt, and mark ordinary publication impossible.
-- After Component 03 supplies the scale-aware machine floor, require tolerance at least that floor for ordinary success.
-- Component 01 never uses these numbers as general equality epsilons.
+- hard and advisory limits;
+- currently reserved amount;
+- currently committed amount;
+- peak live amount;
+- cumulative admitted/consumed work where applicable; and
+- owner/transaction records needed by the verifier.
 
-### 5.3 Execution rules
+Clarify monotonicity:
 
-`requested_workers == 0` remains a frozen automatic-selection request; Component 01 must not replace it with `hardware_concurrency()`. Maximum workers is nonzero. Serial mode requires one effective worker and one in-flight task. Nested parallelism is false in V1. Deterministic parallel policy may be frozen before Component 17 exists, but provider capability must state that only serial execution is currently realizable; this is not silent mutation.
+- cumulative work and peak counters are monotonic;
+- precision bounds are not resource counters and remain Component 03's monotonic responsibility;
+- live reserved and committed balances may decrease only through documented release, lease destruction, promotion remainder, or rollback.
 
-### 5.4 Resource/index rules
+All arithmetic is checked. Reserve before allocation. Actual use must not exceed reservation. Advisory crossings emit bounded diagnostics but do not alter semantics unless a frozen policy explicitly makes the threshold hard.
 
-Advisory zero means disabled. Hard zero is valid only for optional resources. Nonzero advisory values are `<=` hard values. Mandatory context/error/truncation/replay-header resources are nonzero. All relationships use checked arithmetic. `I` must be unsigned integral, not bool, and 8/16/32/64 bits; an output count is representable only when zero or `count - 1 <= max(I)`. Encoded sizes must fit both `uint64_t` and `size_t`.
+### 8.3 Reservations, leases, and slices
 
-### 5.5 Normalization report
+Implement:
 
-Store canonical entries containing field ID, old exact bits/value, new exact bits/value, and stable reason code. V1 entries are limited to permitted scalar negative-zero normalization and explicit worker-selection syntax. Include this report in replay and the context digest.
+- move-only `resource_reservation` for private temporary capacity;
+- persistent `resource_lease` promoted at commit;
+- deterministic `resource_slice` for preassigned parallel ranges; and
+- immutable `resource_snapshot` for reports and verification.
 
-## 6. Typed outcomes, errors, and exception taxonomy
+Parallel stages reserve aggregate capacity or deterministic slices before workers launch. Racing worker reservations must not select which semantic records are retained.
 
-### 6.1 Outcome carrier
+### 8.4 Conservative defaults
 
-Implement non-default-constructible `boolean_outcome<T>` over `std::variant<T,boolean_error>` with `success`/`failure` factories and a `void` specialization. Expected access paths do not throw; misuse may assert in debug. Construction/destruction never logs.
+Retain reviewed explicit defaults from the existing plan, but add separate source-snapshot counts/bytes or charge them unambiguously to source entities plus persistent bytes. Defaults are limits, never eager allocations. Callers may lower consistent limits. Raising a limit does not guarantee host allocation.
 
-Use outcome payloads that are nothrow-destructible. Prefer immutable handles and fixed-capacity/fallible builders so moving a completed outcome cannot introduce a new expected allocation failure.
+Changing a default that affects canonical options/replay requires a resource schema or compatible-limit revision and golden update.
 
-### 6.2 Stable categories
+### 8.5 Allocation helper
 
-Give explicit values to all required categories: `input_contract_error`, `input_geometry_not_epsilon_valid`, `unsupported_platform`, `invalid_tolerance`, `ambiguous_shell_semantics`, `geometric_condition_exceeds_tolerance`, `cleanup_budget_exceeded`, `result_geometry_not_validated`, `index_overflow`, `resource_limit`, `cancelled`, and `internal_invariant_error`. `none = 0` is invalid in published errors.
+Provide one small reviewed family of reserved-allocation helpers. Each accepts reservation evidence and stable allocation-purpose ID, executes the standard-container allocation, translates expected exceptions, verifies actual capacity/use, and returns a typed outcome.
 
-### 6.3 Subcodes
+Use deterministic test providers to fail every allocation purpose without exhausting real memory. Do not scatter ad hoc `try/catch` classification through later components.
 
-Reserve disjoint numeric ranges by component/service. Component 01 must distinguish unknown version/enum, non-finite/negative option, precision exceeding tolerance, tolerance below floor, unsupported type/build/rounding/signed-zero/subnormal/contraction/IPO profile, resource inconsistency/overflow/hard limit, host allocation failure, container capacity failure, worker creation failure, emergency-error fallback, index capacity, wrong/stale owner, wrong ID domain, duplicate canonical key, task-local escape, illegal transaction transition, active work at commit, verifier rejection, codec truncation/overflow/unknown required field, digest mismatch, replay mismatch, cancellation checkpoint, cancellation rollback failure, and unexpected exception.
+## 9. Truth table and symbolic policy
 
-### 6.4 Internal error record
+### 9.1 Truth service
 
-`boolean_error` contains schema version, category/subcode, component, stage/checkpoint, context digest when available, optional operand, up to two canonical entity references, exact tolerance/precision/remaining-budget bits where applicable, sorted typed diagnostic fields, stable locale-independent summary, provider/policy versions, replay digest/disposition, and a precomputed total-order key.
-
-Diagnostic values are canonical variants of bool, fixed-width integers, float/double bits, digest, entity reference, bounded bytes, or bounded stable UTF-8. Sort by numeric field ID and reject duplicate singleton fields. Never place pointers, thread IDs, timestamps, allocator addresses, locale text, build paths, project timestamps, or authoritative `exception::what()` in canonical data.
-
-The mandatory canonical fields and summary template must fit a pre-reserved or fixed-capacity emergency record. Optional strings/fields may be dropped deterministically when their reservation is unavailable; the primary category/subcode/key may not be dropped.
-
-### 6.5 Expected exception translation
-
-Translate at the nearest boundary with complete stage/resource evidence:
-
-- `std::bad_alloc` during a correctly reserved allocation -> `resource_limit::host_allocation_failed`;
-- `std::length_error` or container `max_size()` rejection despite valid checked counts -> `resource_limit::container_capacity_failed`;
-- `std::system_error` from worker/thread creation in Component 17 -> `resource_limit::worker_creation_failed` or a separately versioned execution-capability failure agreed with Component 17;
-- codec length/offset/count exceptions must not be used; return typed codec failures directly;
-- producer allocation beyond its reservation, allocation after commit-ready, or a supposedly impossible `length_error` caused by missed checked arithmetic -> `internal_invariant_error`.
-
-Catch by exact standard exception type before the generic `std::exception` boundary. Never use `what()` to choose a canonical category or subcode.
-
-### 6.6 Primary-error ordering and cancellation override
-
-For ordinary failure candidates use, in order: logical stage, checkpoint, category precedence, component, operand rank, primary entity domain/ordinal, secondary entity domain/ordinal, subcode, canonical witness bytes.
-
-V1 ordinary category precedence within one stage/checkpoint is:
-
-1. internal invariant;
-2. input contract;
-3. unsupported platform;
-4. invalid tolerance;
-5. ambiguous shell semantics;
-6. input geometry invalid;
-7. geometric condition;
-8. cleanup budget;
-9. result geometry invalid;
-10. index overflow;
-11. resource limit.
-
-`cancelled` is deliberately not in the ordinary category precedence. Once a valid cancellation observation occurs before publication, return the canonical cancellation error after joining and rollback. Previously discovered ordinary failures remain secondary findings only. If joining, FP restoration, resource release, or rollback contradicts the contract, return the canonical invariant failure instead of `cancelled` and retain the cancellation observation as evidence.
-
-This is reporting order, not severity. Secondary findings are optional and bounded; the primary failure or cancellation record is mandatory.
-
-## 7. Pipeline-stage and checkpoint registry
-
-Define stable stage IDs now for context preflight, platform/precision bootstrap, operand A/B validation, source triangulation A/B, canonical topology A/B, broad phase, relations, events, classification, selection, output edge/cycle construction, output triangulation, cleanup, public assembly, final verification, and publication.
-
-Define Component 01 checkpoint IDs for public entry/cancellation-token validation, context phases, transactions, resource reservations, host allocation, diagnostics, replay, verification, join, rollback, floating-environment restoration, and commit. Later components extend reserved numeric ranges without renumbering existing IDs. Component 16/17 failures map to the logical stage whose artifact is affected.
-
-## 8. Operation truth-table service
-
-### 8.1 Exact interface and semantics
-
-The immutable service accepts an operation and four open-side occupancy bits:
+Use the four-bit side tuple:
 
 ```cpp
 struct side_occupancy {
@@ -340,7 +535,7 @@ struct side_occupancy {
 };
 ```
 
-Outward-oriented occupied boundaries have occupied material on the negative side. Evaluate each side with:
+Evaluate each conceptual side by the requested operation:
 
 - union: `a || b`;
 - intersection: `a && b`;
@@ -348,433 +543,396 @@ Outward-oriented occupied boundaries have occupied material on the negative side
 - B-A: `b && !a`;
 - xor: `a != b`.
 
-Return retain/discard, `preserve`/`reverse`/`not_applicable`, required multiplicity (V1 0 or 1 for one atom; Component 10 owns grouping into repeated occurrences), and output occupancy on both sides. Equal side occupancy discards. Negative occupied/positive empty preserves; the reverse transition reverses. Invalid wider classification states return a typed failure.
+Return result-side bits, retain/discard, preserve/reverse/not-applicable, one-atom multiplicity, remapped operation, and owner-ranking input. Equal result sides discard. Negative occupied/positive empty preserves; the inverse reverses.
 
-Generate all 80 V1 entries (`5 * 16`) deterministically, store version/table bytes in context, and independently recompute them in the verifier.
+Generate all 80 cells deterministically, encode them, store the digest in context, and independently recompute them without producer helpers. Component 10 calls this frozen service once per atom and must not duplicate Boolean logic.
 
-### 8.2 Coincident owner ranking
+### 9.2 Coincident owner ranking
 
-Rank already-established equivalent boundary candidates by: ability to realize final orientation; operation-specific operand priority; symbolic feature-dimension priority; full canonical source-feature key; directed use/occurrence discriminator.
+Rank already-established equivalent boundary candidates by a complete operation-specific key: ability to realize final orientation, frozen operand priority, symbolic feature priority, full canonical source-feature key, directed-use/occurrence discriminator.
 
-V1 priority is A before B for union/intersection/xor/A-B and B before A for B-A. Operand exchange plus `swap_operands` must exchange ranks. Equal operands retain one canonical surface for union/intersection and none for either difference/xor. This service never discovers coincidence or compares coordinates.
+V1 priority is A before B for union/intersection/xor/A-B and B before A for B-A, subject to the operation/remapping table. Equal operands retain one canonical surface for union/intersection and none for differences/xor. The service never discovers geometric coincidence.
 
-## 9. Frozen symbolic contact-policy matrix
+### 9.3 Symbolic matrix
 
-Component 01 owns the total key/value representation, versioning, validation, operand remapping, and replay. Component 07 later applies it geometrically.
+Define a complete `symbolic_rule_key` over operation, acting operand, relation family, orientation relation, ownership role, half-open endpoint/edge role, and requested transition orientation where applicable.
 
-### 9.1 Key domain
+Each rule stores conceptual offset disposition, feature priority, half-open owner, crossing contribution, contact/coincidence class, coincident owner preference, expected disposition, full tie-key description, operand-exchange transform, and stable explanation code.
 
-A `symbolic_rule_key` includes operation, acting operand, relation family (vertex-vertex, vertex-edge, vertex-face, edge-edge, edge-face, equal-edge, coplanar face-face, coincident face-face, tangent), orientation relation, feature ownership role, half-open endpoint/edge role, and requested transition orientation where applicable.
+Materialize from one reviewed declarative table or pure generator plus explicit exceptions. Verify domain totality, uniqueness, value validity, and involutive operand exchange. Rules affect classification/ownership only and never alter coordinates.
 
-Every valid key has exactly one rule. Invalid combinations are explicitly rejected; lookup has no default fallthrough.
+## 10. Strong identities, owners, and canonical publication
 
-### 9.2 Rule values
+### 10.1 Strong IDs
 
-Each rule contains conceptual offset disposition for A/B (`none`, toward occupied, toward empty, ordered rank), feature priority, half-open owner selector, conceptual crossing `-1/0/+1`, contact/crossing/coincidence class, coincident owner preference, expected retain/discard consequence, complete tie-key order, operand-exchanged key/value transform, and stable explanatory code. Rules affect classification/ownership only, never nominal coordinates.
+Implement `strong_id<Tag>` with explicit `std::uint64_t ordinal`, same-tag comparison only, and no implicit integer/cross-tag conversion. Define all domains required by the Component 01 specification and later plans.
 
-### 9.3 Materialization and verification
+Implement a distinct `source_position<Kind>` family for caller/replay positions. Source positions are never accepted where a canonical ID is required.
 
-Materialize V1 from one reviewed declarative table or pure generator plus explicit exceptions. Enumerate the complete domain during context construction and prove totality, no duplicates, valid values, and involutive operand exchange. Store canonical matrix bytes and SHA-256 digest in context/replay. Test every operation for equal operands, point/edge/face contact, same/opposite coincident facets, and every half-open owner category. Do not implement geometric predicates here.
-
-## 10. Strong identities and ownership
-
-### 10.1 Strong types
-
-Implement `strong_id<Tag>` with explicit `uint64_t ordinal`, no implicit integer or cross-tag conversion, same-tag comparisons only. Define distinct tags for context, operand, source shell/vertex/facet/ring/directed edge/undirected edge/triangle, internal vertex occurrence/halfedge, candidate, relation, symbolic decision, event, classification group, retained surface use, output vertex occurrence/carrier/halfedge/face cycle/triangle, cleanup action, verification finding, and replay record.
-
-Define `task_local_id<Tag>` with no conversion to canonical IDs. Internal hash acceleration may exist, but equality compares complete typed IDs/keys.
+Implement `task_local_id<Tag>` with no conversion to canonical IDs.
 
 ### 10.2 Context owner
 
-Separate deterministic `context_digest` from runtime `context_owner_token`. Create one non-serialized `shared_ptr<const owner_anchor>` per successfully built context. Every artifact handle carries that owner token and schema/range metadata. Cross-component validation checks owner equality, versions, then ID ranges. Owner pointer values never enter ordering, diagnostics, digest, replay, or output.
+Separate deterministic `context_digest` from runtime `context_owner_token`. Create one non-serialized owner anchor per successfully frozen context. Every artifact handle carries owner, schema, and range metadata. Owner pointer values never enter ordering, bytes, diagnostics, replay, or output.
 
-Operand IDs are fixed: A=0, B=1. No allocator exists for them.
+Operand IDs are fixed A=0, B=1. They are roles, not allocated from worker timing.
 
-### 10.3 Canonical publication factory
+### 10.3 Canonical factory
 
 `canonical_id_factory<Tag,Key>` must:
 
-1. accept private records with complete keys/task-local IDs;
-2. validate owner/domain/schema/count;
-3. sort by a complete total key;
-4. detect duplicate full keys;
-5. apply declared duplicate semantics: impossible, equivalent/coalescible, explicit multiset occurrence, or deterministic proposal selection;
-6. assign dense `[0,n)` ordinals only after order is final;
-7. produce immutable local-to-canonical and key-to-ID maps;
-8. verify no task-local ID remains; and
-9. publish only through the stage transaction.
+1. accept owner-validated private records with complete keys/task-local IDs;
+2. preflight counts and ID capacity;
+3. sort by full total key;
+4. detect full-key duplicates and validate declared duplicate semantics;
+5. assign dense `[0,n)` ordinals after final ordering;
+6. produce immutable task-local/source-position/key reverse maps where required;
+7. prove no task-local ID escaped; and
+8. publish only through a transaction.
 
-Never expose a process-global next-ID counter. Test duplicate/out-of-range/wrong-owner/wrong-domain/wrong-operand/task-local escape/hash collision/rollback reuse mutations.
+Hashes may accelerate search only with full-key comparison and canonical sort before publication.
 
-## 11. Resource accounting and physical allocation
+## 11. Cancellation, progress, and diagnostics
 
-### 11.1 Stable resource kinds
+### 11.1 Checkpoint polling
 
-Define explicit values for source vertices/facets/rings/directed edges/undirected edges/triangles, internal occurrences/halfedges, broad-phase nodes/candidates, relations, symbolic decisions, events, classification groups, retained uses, output occurrences/carriers/halfedges/cycles/triangles, cleanup actions, verification findings, diagnostic findings, replay bytes, canonical-sort records, task descriptors, temporary bytes, persistent bytes, emergency error storage, and abstract work units.
+`poll_cancellation(token, stage, checkpoint, progress)` returns success or a canonical cancellation observation. Progress contains only stable logical facts:
 
-Hard correctness limits are distinct from advisory thresholds. Advisory crossings can report diagnostics but cannot change topology unless the frozen policy explicitly makes them hard.
+- last completed and current stage;
+- completed canonical range/count;
+- checkpoint; and
+- committed predecessor digests.
 
-### 11.2 Checked arithmetic
+No timing-derived percentage, worker ID, thread ID, or request timestamp enters canonical diagnostics.
 
-Provide portable checked unsigned add/subtract/multiply/count-to-byte/range-end and narrowing to `size_t`/`I`. Return typed failure before mutation/allocation. Do not rely on wraparound, saturation, container exceptions, or host-memory exhaustion as validation.
+### 11.2 Finalization
 
-### 11.3 Manager, reservations, leases, slices
+After observation:
 
-A context-owned thread-safe `resource_manager` stores hard/advisory/committed/reserved/peak/cumulative-work values per kind. Observations are immutable snapshots.
+1. close admission;
+2. wake blocked bounded queues when Component 17 is present;
+3. join all execution scopes;
+4. restore every qualified floating environment;
+5. roll back private state/resources;
+6. verify terminal invariants; and
+7. return `cancelled` unless steps 2-6 produce a canonical invariant contradiction.
 
-Implement move-only RAII `resource_reservation`, persistent `resource_lease`, and deterministic preallocated `resource_slice`.
-
-Rules:
-
-- reserve before allocation;
-- checked `committed + reserved + request <= hard`;
-- failure records kind/request/current/limit/stage/entity;
-- destroying an unpromoted reservation releases it;
-- commit promotes exact persistent use and releases temporary remainder;
-- rollback releases all private reservations but not predecessor leases;
-- actual use never exceeds reservation;
-- advisory crossings only emit bounded findings;
-- representability failures are `index_overflow`;
-- parallel stages reserve aggregate capacity or canonical slices before launch; racing worker reservations may not select semantic winners;
-- successful logical reservation does not guarantee host allocation;
-- host allocation/capacity failure consumes no semantic winner and causes complete rollback;
-- producer use beyond reservation is an invariant error, not a resource-limit excuse.
-
-An independent snapshot verifier reconstructs totals from live records, checks limits/peaks/owners/transaction terminal state, and has test-only corrupt constructors.
-
-### 11.4 Exact conservative V1 defaults
-
-Defaults are accounting ceilings, never eager allocations:
-
-| Resource | Hard | Advisory |
-|---|---:|---:|
-| source vertices/facets/rings | 10,000,000 each | 7,500,000 each |
-| source directed/undirected edges | 60,000,000 / 30,000,000 | 45,000,000 / 22,500,000 |
-| source triangles | 40,000,000 | 30,000,000 |
-| internal occurrences/halfedges | 40,000,000 / 120,000,000 | 30,000,000 / 90,000,000 |
-| broad nodes/candidates | 40,000,000 / 200,000,000 | 30,000,000 / 150,000,000 |
-| relations/symbolic decisions | 200,000,000 each | 150,000,000 each |
-| events | 100,000,000 | 75,000,000 |
-| classification groups | 40,000,000 | 30,000,000 |
-| retained uses | 80,000,000 | 60,000,000 |
-| output occurrences/carriers/cycles/triangles | 80,000,000 each | 60,000,000 each |
-| output halfedges | 240,000,000 | 180,000,000 |
-| cleanup actions | 20,000,000 | 15,000,000 |
-| verification findings | 1,000,000 | 750,000 |
-| retained diagnostic findings | 4,096 | 3,072 |
-| replay bytes | 536,870,912 (512 MiB) | 402,653,184 (384 MiB) |
-| canonical-sort records | 200,000,000 | 150,000,000 |
-| task descriptors | 1,048,576 | 786,432 |
-| temporary bytes | 2,147,483,648 (2 GiB) | 1,610,612,736 (1.5 GiB) |
-| persistent bytes | 2,147,483,648 (2 GiB) | 1,610,612,736 (1.5 GiB) |
-| work units | 4,398,046,511,104 (`2^42`) | 3,298,534,883,328 (`3*2^40`) |
-
-Default retained diagnostic bytes are 16,777,216 (16 MiB), charged to temporary and then persistent bytes when published. Reserve a mandatory primary-error slot, truncation slot, replay header, fixed service state, and fixed-capacity emergency error representation even when ordinary finding capacity is zero. Limits are absolute, not based on detected RAM/workers. Callers may lower consistent values; raising a value never guarantees allocation. Golden default-policy bytes detect accidental changes; changing defaults requires a resource schema increment or documented compatible-limit revision.
-
-### 11.5 Allocation boundary helper
-
-Provide one reviewed helper or small family of helpers for reserved standard-container allocation. It accepts reservation evidence and a stable allocation purpose ID, invokes the allocation, translates expected standard exceptions, validates actual capacity/use against the reservation, and returns a typed outcome. Do not scatter ad hoc `try/catch` blocks whose subcodes or witnesses differ by component.
-
-Test providers must deterministically inject failure at each allocation purpose without consuming host memory.
-
-## 12. Cancellation and canonical progress
-
-Implement public `bounded_boolean_cancellation_source` over shared state, copyable read-only `bounded_boolean_cancellation_token`, first-reason capture, atomic request flag, and no callbacks/detached waiter.
-
-`poll_cancellation(token,stage,checkpoint,progress)` returns success or a canonical cancellation observation. The authoritative cancellation location is the checkpoint where observed, not request time. After observation: no new commit-producing work, active scopes stop at safe points, all work joins, private state rolls back, predecessor artifacts remain valid.
-
-Cancellation finalization is separate from ordinary failure reduction:
-
-1. record the canonical observed checkpoint/progress;
-2. stop admission and join all work;
-3. restore every qualified floating environment;
-4. roll back resources/workspace;
-5. verify terminal invariants;
-6. return `cancelled` and retain earlier failures only as bounded secondary findings.
-
-If steps 2-5 fail, return the deterministic invariant failure and retain cancellation as evidence.
-
-Progress contains only last completed/current stage, completed canonical range/count, checkpoint, and committed artifact digests. No timing/thread-derived percentages enter canonical diagnostics.
-
-## 13. Diagnostics
+### 11.3 Diagnostic collector
 
 Maintain:
 
-1. a mandatory reducer that always retains the canonical minimum ordinary failure and checked candidate count;
-2. a separate mandatory cancellation observation slot; and
-3. an optional bounded finding buffer.
+- a mandatory ordinary primary reducer and candidate count;
+- a mandatory cancellation observation slot;
+- a bounded optional secondary finding buffer; and
+- a pre-reserved truncation record.
 
-Exhausting optional capacity never changes the primary ordinary failure or cancellation outcome. Pre-reserve one truncation record and report dropped counts by kind. Concurrent submission uses a mutex or proven equivalent. Finalization sorts by complete key, coalesces only fully equal records where allowed, and reports contradictions as internal errors. Summaries use stable templates and locale-independent integer/hex formatting. `exception::what()` may appear only in non-authoritative debug data.
+Exhaustion of optional capacity cannot change the primary result. Finalization sorts complete keys and coalesces only records whose complete canonical content is equal and whose schema permits it.
 
-When cancellation is validly finalized, its record becomes the public result regardless of the ordinary reducer's current minimum. When cancellation cleanup is invalid, the ordinary reducer receives the canonical invariant contradiction.
+## 12. Canonical bytes, SHA-256, and replay
 
-## 14. Canonical bytes, SHA-256, and replay
+### 12.1 Byte codec
 
-### 14.1 Codec
+Write fixed little-endian bytes manually. Support:
 
-Write fixed little-endian bytes manually. Never serialize object memory, padding, `size_t`, pointers, capacity, implicit enum layout, build paths, invocation timestamps, or compiler-generated names. Support fixed-width integers, bool exactly 0/1, exact float/double bits via `memcpy`, checked length-prefixed bytes/UTF-8, tagged required/optional framed fields, checked sequences, and nested sections.
+- u8/u16/u32/u64 and signed fixed-width integers where specified;
+- bool exactly 0/1;
+- exact float/double bits via `memcpy`;
+- checked length-prefixed bytes and UTF-8;
+- tagged required/optional framed fields;
+- checked sequences and nested sections; and
+- size preflight before retained allocation.
 
-Reader failures include truncation, duplicate singleton fields, invalid bool/enum, length/count overflow, trailing bytes, and unknown required fields. Unknown optional fields may be skipped within limits. No allocation occurs from untrusted lengths before hard/`size_t` checks. Errors include byte offset and field tag.
+Never serialize native structs, padding, `size_t`, pointers, capacities, implementation-defined enum layout, RTTI names, map iteration order, or locale-formatted numbers.
 
-### 14.2 SHA-256
+### 12.2 SHA-256
 
-Implement clean-room streaming SHA-256 with fixed 32-byte digest and lowercase hex display. Test empty, `abc`, multi-block, and chunked updates. Hashes accelerate integrity/lookup only; full keys/bytes determine equality. Add a collision-forcing test provider.
+Implement a clean-room streaming SHA-256 provider with fixed 32-byte digest and lowercase hex display. Test standard vectors for empty input, `abc`, multi-block messages, and every meaningful chunk split. Add a collision-forcing test lookup provider to prove digests are not semantic equality.
 
-### 14.3 Replay V1
+### 12.3 Replay V1 layout
 
-Canonical field order:
+Encode in canonical field order:
 
-1. magic/schema;
-2. public/context/byte/digest/provider versions;
-3. scalar/index descriptors;
+1. magic and replay schema;
+2. public/context/source/byte/digest/provider versions;
+3. V1 scalar/index descriptors;
 4. operation;
 5. normalized options;
 6. normalization report;
-7. stable platform/strict-build conformance profile and capability bits;
-8. precision-floor record;
+7. stable platform and strict-build profile;
+8. Component 03 precision-bootstrap record;
 9. truth table bytes/digest;
 10. symbolic matrix bytes/digest;
-11. resources;
-12. exact operand A description;
-13. exact operand B description;
-14. input/context digest;
-15. expected status/output digest for regression records;
+11. resource and execution requests;
+12. exact immutable source A section in source order;
+13. exact immutable source B section in source order;
+14. source, input, and context digests;
+15. expected status/output digest for regression records; and
 16. optional canonical diagnostics.
 
-Each operand encodes role, type descriptor, vertex count and xyz bits in source order, facet count, ring lengths and indices widened to u64, input precision bits, and only versioned Boolean semantics metadata. Arbitrary mesh metadata is non-semantic in V1.
+Do not encode ignored mesh fields or nonsemantic build metadata. Replay exact source order intentionally reflects the original call.
 
-The canonical platform section stores only stable contract/provider versions, scalar capability facts, strict FP profile, rounding/contraction/subnormal results, and other semantic qualification bits. Compiler/library banners, Ygor project timestamp, build directory, executable path, host name, and optional dependency versions belong in a separate noncanonical debug record that is not hashed into the context or replay digest.
+Preflight full retained size. `digest_only` always streams complete canonical input into SHA-256 but may retain only digest after the invocation. `full_on_failure` must reserve promised full bytes before downstream geometry. `full_always` retains from construction. Failure to honor promised retention returns a typed preflight/resource failure before geometry.
 
-Preflight exact encoded bounds and reserve replay bytes. Always stream bytes into SHA-256. `digest_only` retains digest; `full_on_failure` must pre-reserve full capacity before geometry; `full_always` retains bytes immediately. If promised embedded replay cannot fit, fail before downstream work. Decoder returns a typed record and never automatically executes a Boolean. Commit permanent golden V1 bytes.
+Decoder validates versions, lengths, counts, field uniqueness, type profile, resource limits, and digests. It returns a record; it never automatically executes a Boolean.
 
-## 15. Platform and floating-point qualification
+## 13. Platform qualification and Component 03 handshake
 
-### 15.1 Types
+### 13.1 Build profile
 
-V1 `T` is exactly IEC 60559 binary32/64 (`float` size/digits 4/24; `double` 8/53, radix 2). Qualify denormal declarations/behavior. `I` is unsigned non-bool 8/16/32/64-bit. Use stable descriptors, never `typeid().name()`.
+Require the strict-build macro and reject `__FAST_MATH__`. Verify effective flags and a link-time contraction/reassociation witness. Keep bounded objects non-LTO by default even when `USE_LTO=ON`; a later supported IPO profile needs a separate version and evidence.
 
-### 15.2 Build and IPO
+Canonical platform data stores only stable profile/provider versions and semantic capability results. Compiler/library banners, command excerpts, build paths, executable names, host names, project timestamp, and optional dependency versions are separate noncanonical diagnostics.
 
-Require the strict-build macro and reject `__FAST_MATH__`. The strict target must disable inherited IPO by default. For every supported compiler/profile, verify effective compile flags after global flags and verify a link-time contraction/reassociation witness. If Ygor is configured with `USE_LTO=ON`, either keep the bounded object non-LTO and prove it remains opaque to unsafe link-time transformation, or reject/disable that profile for the bounded subsystem.
+### 13.2 Runtime guard
 
-Record the stable strict-build profile and capability result canonically. Record compiler/library identifiers, command-line excerpts, link mode, and project version for diagnostics only.
+A call/execution-scoped guard:
 
-### 15.3 Runtime guard
+- captures caller `fenv_t`;
+- establishes/verifies `FE_TONEAREST` and the frozen exception/contraction assumptions;
+- performs signed-zero, adjacent-value, normal/subnormal, conversion, and contraction-sensitive probes;
+- exposes immutable qualification evidence; and
+- restores the original environment on every exit.
 
-A scoped guard captures the caller environment with `fegetenv`, establishes/verifies `FE_TONEAREST`, applies documented exception handling, and restores the original environment on every exit. Failure to establish or restore returns `unsupported_platform`, except that a restoration contradiction during cancellation/rollback is an invariant failure because clean cancellation cannot be claimed. The guard is call/execution scoped, never global. Component 17 must apply the same provider in every worker.
+Failure to establish a supported profile returns `unsupported_platform`. Failure to restore during rollback/cancellation is an invariant contradiction because clean rollback cannot be claimed.
 
-### 15.4 Probes
+### 13.3 Two-phase precision bootstrap
 
-Probe positive/negative zero bits, adjacent values, normal/subnormal behavior, bit round trips, rounding changes, and contraction-sensitive expressions. Compile-time and link-time controls detect unsafe transformations; probes supplement but do not excuse unsafe compilation.
+Use this exact boundary:
 
-### 15.5 Two-phase Component 03 handshake
+1. `build_pending_invocation` captures sources and validates everything not requiring scale-aware precision;
+2. Component 03's narrow bootstrap capability receives immutable exact source views, declared input precisions, tolerance, and platform record;
+3. Component 03 returns a versioned machine-floor/input-precision bootstrap record;
+4. `finalize_context` validates ordinary-success eligibility, includes the record in canonical bytes/replay, independently verifies the proposal, and publishes the frozen context; and
+5. pending objects never escape to Components 02-17.
 
-Because the scale-aware floor belongs to Component 03:
+Until Component 03 exists, Component 01 tests may use a deterministic conforming test provider. The production public Boolean pipeline remains unavailable rather than assuming a zero floor.
 
-1. `build_pending_context` validates everything not requiring the floor and returns a private pending object;
-2. a narrow bootstrap adapter receives exact source coordinate descriptions/input precision/platform record and returns a versioned floor/precision-bootstrap record;
-3. `finalize_context` validates tolerance against it, includes it in replay/digest, verifies the proposal, and publishes the frozen context;
-4. no pending context is exposed to later components;
-5. until Component 03 exists, tests use a conforming deterministic stub; production public Boolean integration remains unavailable rather than assuming zero floor.
+## 14. Frozen context, source bundle, and capability boundaries
 
-## 16. Frozen context and service boundaries
+### 14.1 Immutable artifacts
 
-### 16.1 Immutable artifact
+Publish:
 
-`boolean_context<T,I>` contains normalized operation/options, type descriptors, all schema/provider versions, truth table, symbolic matrix, deterministic comparator definitions, resources, verification requirements, execution capability, stable platform/precision qualification, normalization report, context/input/replay digests, owner token, and stable operand IDs. Construction completes before publication; expose only const access.
+- `artifact_handle<const immutable_invocation_sources<T,I>>`;
+- `artifact_handle<const boolean_context<T,I>>`; and
+- an invocation-owned runtime service bundle.
 
-Noncanonical compiler/build diagnostics are not members of the canonical context artifact. They may be retained in a separate invocation diagnostic bundle whose bytes are explicitly excluded from canonical digests.
+The context links to the exact source bundle by owner-checked handle and digest. It does not duplicate source bytes unnecessarily. Both artifacts remain valid through all joined work and any predecessor retention required by later artifacts.
 
-### 16.2 Controlled runtime bundle
+### 14.2 Context contents
 
-Separate mutable controlled services from context data: resource manager, cancellation token/source view, diagnostic collector, transaction factory, canonical identity publication support, replay accumulator/finalizer, execution provider interface. Services are owned by one top-level call object and outlive all joined work. Later components receive narrow capability views, never the entire mutable bundle.
+`boolean_context<T,I>` contains normalized operation/options, V1 types, every provider/schema version, truth/symbolic tables, deterministic comparator descriptions, resource ceilings, verification requirements, requested/available execution capability, stable platform/precision records, normalization report, source/input/context/replay digests, owner token, and fixed operand IDs.
 
-### 16.3 Builder workflow
+Expose const access only. Noncanonical build diagnostics are not members of canonical context content.
 
-1. capture immutable source descriptions/options and validate the cancellation token;
-2. preflight mandatory resources, emergency error storage, and replay size;
-3. normalize/validate policy and types;
-4. establish strict environment and stable platform profile;
-5. materialize/verify truth and symbolic tables;
-6. encode source/options and initialize replay digest;
-7. obtain Component 03 floor record;
-8. validate tolerance/ordinary-publication eligibility;
-9. construct proposed context/services;
-10. independently verify;
-11. atomically publish immutable handle.
+### 14.3 Runtime bundle
 
-Failure publishes no context. Caller mesh/options are not retained mutably; borrowing immutable mesh storage is not permitted in V1 after context construction. Cancellation backing state is retained only through a lifetime-safe token until all work is joined.
+Keep mutable controlled services separate:
 
-### 16.4 Capability interfaces
+- resource manager;
+- cancellation token view;
+- diagnostic collector;
+- transaction factory;
+- canonical ID publication support;
+- replay accumulator/finalizer;
+- platform guard/execution-scope factory; and
+- Component 17 execution service handle when available.
 
-Define read-only/narrow abstract interfaces or value views for policies, truth lookup, symbolic lookup, comparators, resource reservations, cancellation polling, diagnostic submission, transaction creation, ID publication, replay/digest accumulation, and execution scopes. Avoid a mutable singleton. Every capability validates context ownership.
+Later components receive narrow owner-checked interfaces, not the entire mutable bundle.
 
-## 17. Transaction service
+## 15. Transaction implementation
 
-### 17.1 State machine
+### 15.1 State machine
 
-Use explicit states: `constructed -> workspace_open -> work_registered -> joining -> verifying -> commit_ready -> committed`, with failure/cancellation/exception transitions from nonterminal states to `rolling_back -> rolled_back`. Illegal transitions are internal invariant errors. Destruction of a nonterminal transaction performs noexcept rollback and records test-visible invariant evidence without publishing.
+Use an explicit state machine, for example:
 
-### 17.2 Workspace and predecessor rules
+```text
+constructed
+workspace_open
+work_registered
+joining
+verifying
+commit_ready
+committed
+```
 
-Each transaction owns private mutable workspace, reservations, task-local IDs, diagnostics, replay contributions, and execution scopes. It reads predecessor artifacts only through immutable owner-validated handles. No private pointer/reference escapes.
+and failure/cancellation/exception transitions through:
 
-### 17.3 Execution scope
+```text
+rolling_back
+rolled_back
+```
 
-Component 01 supplies a serial execution scope and the interface Component 17 will implement. Every scope reports active work, joins, translates expected standard resource exceptions, converts unexpected exceptions, exposes canonical progress/counters, and cannot detach. Transaction cannot verify/commit until all scopes report joined.
+Illegal transitions are invariant errors. Destruction of a nonterminal transaction performs noexcept best-effort rollback and records test-visible contradiction evidence without publication.
 
-### 17.4 Commit protocol
+### 15.2 Workspace and execution scopes
 
-1. stop admitting work;
-2. poll cancellation;
-3. join scopes;
-4. canonicalize private records/IDs;
-5. construct proposed immutable artifact using only reserved allocations;
-6. run independent verifier;
-7. finalize artifact digest/replay contribution;
-8. verify exact persistent resource use and promote leases;
-9. re-poll cancellation immediately before publication;
-10. atomically publish one `artifact_handle<const T>` and mark committed.
+Each transaction owns private workspace, reservations, task-local IDs, diagnostics, replay contributions, and execution scopes. Predecessors are immutable owner-validated handles. No mutable private pointer/reference escapes.
 
-If cancellation is observed at either poll, run the cancellation finalization path and roll back. Commit is a state transition/move of already prepared immutable state; it cannot allocate unreserved memory or execute user callbacks.
+Component 01 provides a serial execution scope. The Component 17 service implements the same interface and must register admitted/running/joined state with the transaction. No scope may detach.
 
-### 17.5 Rollback
+### 15.3 Commit protocol
 
-Join all work, restore qualified floating environments, discard workspace/provisional IDs, release reservations, retain predecessor artifacts unchanged, finalize deterministic primary error/cancellation record, verify terminal resource state, and mark rolled back. Rollback is idempotent/noexcept after owned exception capture.
+Implement the Component 01 specification's ten-step protocol exactly. In particular:
 
-If rollback cannot satisfy joined-work, environment-restoration, or resource-release invariants, record a stable invariant subcode and do not report clean cancellation.
+- cancellation is polled before and immediately before publication;
+- all scopes are joined before canonicalization/verifier execution;
+- proposed immutable state is built from reserved storage;
+- independent verification does not call producer normalization/materialization helpers;
+- exact persistent use is reconciled before lease promotion; and
+- atomic publication is a no-fail state transition/move of prepared state.
 
-### 17.6 Exception boundaries
+### 15.4 Rollback and exception boundaries
 
-Catch exact expected standard exceptions first and translate them according to Section 6.5. Then catch unrelated exceptions at transaction/execution boundaries, join first, and submit a stable `internal_invariant_error` subcode based on the boundary—not implementation-defined text. Preserve `what()` only as optional non-authoritative debug text.
+Rollback joins work, restores environments, discards private data/IDs, releases reservations, keeps predecessors intact, finalizes deterministic error/cancellation evidence, verifies terminal resource state, and becomes idempotent/noexcept after exception capture.
 
-The emergency primary-error constructor and rollback path must be noexcept after the original exception is captured.
+Catch expected standard exceptions at the nearest reviewed boundary, then catch unrelated exceptions at the transaction/execution boundary. Do not continue pipeline work after unexpected exception capture.
 
-## 18. Independent verifiers
+## 16. Independent verifiers
 
-### 18.1 Context verifier
+### 16.1 Invocation-source verifier
 
-Do not call producer normalization/materialization helpers. Recheck recognized versions/enums/reserved fields, scalar rules, type/platform records, strict-build/IPO profile, truth table by procedural recomputation, symbolic totality/remapping, resource consistency, deterministic comparator descriptors, digest/replay linkage, owner/token uniqueness, cancellation-token contract, absence of mutable caller references, and absence of noncanonical build data from canonical bytes. Emit one deterministic finding and prevent publication on contradiction.
+Without trusting producer digests/count booleans alone, verify:
 
-### 18.2 Identity verifier
+- V1 type descriptors and source-contract version;
+- operand roles and owner;
+- contiguous offsets, monotonic ranges, and final index count;
+- exact coordinate/index bit preservation from the still-live public read view during capture tests/commit preparation;
+- no borrowed caller storage in the published representation;
+- ignored fields are absent from canonical bytes;
+- source-position maps are complete and not canonical IDs;
+- resource leases match actual storage;
+- source section encoding and digest; and
+- A/B bundle linkage.
 
-Reconstruct canonical key order, dense ID ranges, uniqueness, owner/domain/operand correctness, and absence of task-local IDs. Forced hash collisions must not affect results.
+Provide test-only corrupt constructors for offsets, bits, role, owner, digest, ignored-field inclusion, and caller-pointer retention markers.
 
-### 18.3 Resource verifier
+### 16.2 Context verifier
 
-Recompute manager totals from live reservation/lease records and verify arithmetic, limits, peaks, owners, transaction state, exact actual-versus-reserved usage, emergency error storage, and no retained reservation after terminal state.
+Independently recheck versions/enums/reserved fields, V1 type support, scalar relationships, source-bundle linkage, platform/strict-build records, truth table by procedural recomputation, symbolic totality/remapping, resource consistency, comparator descriptors, normalization report, execution capability, canonical-field exclusion, replay linkage, owner uniqueness, and cancellation contract.
 
-### 18.4 Transaction verifier
+Do not call producer table or option normalization helpers as the sole evidence.
 
-Check legal state, joined scopes, restored environments, verified proposal, lease/resource consistency, owner/version/range metadata, digest finalization, cancellation override state, expected-exception translation evidence, and exactly-one-or-zero publication. Producer-reported counts/digests are not sole evidence.
+### 16.3 Identity verifier
 
-## 19. Required tests and exact coverage
+Reconstruct full-key order, dense ranges, duplicate policy, owner/domain/operand correctness, source-position/canonical-ID separation, and absence of task-local IDs. Force hash collisions.
 
-### 19.1 Unit/options/truth tests
+### 16.4 Resource verifier
 
-Cover all operations/remaps; all policy/version/enum values and invalid gaps; finite/non-finite/negative/signed-zero scalars; precision/tolerance relationships; execution compatibility; both public cancellation call paths; all 80 truth entries; symbolic complete domain, equal/touch/coincident cases, half-open ownership, operand exchange; outcome traits; every Component 01 category/subcode.
+Recompute live reserved/committed totals from reservation/lease records and verify arithmetic, hard limits, peaks, releases, owners, transaction terminal state, actual-versus-reserved use, source snapshot leases, emergency storage, and no leaked reservation after rollback/commit.
 
-### 19.2 Identity tests
+### 16.5 Transaction verifier
 
-Compile-time nonconvertibility; fixed A/B IDs; deterministic publication under insertion/task permutations; each duplicate semantics class; forced collisions; wrong/stale owner/domain/operand; task-local escape; rollback isolation.
+Check legal state, joined scopes, restored environments, verified proposal, source/predecessor owner compatibility, lease/resource consistency, digest finalization, cancellation override state, exception translation evidence, and exactly-zero-or-one publication.
 
-### 19.3 Resource and physical-allocation boundaries
+## 17. Required tests and exact coverage
 
-For every kind test limit-1/limit/limit+1, optional zero, overflow before limit, large ledger-only reservation, advisory crossing, promotion/release/rollback, count-to-byte/index boundaries, and permuted canonical slices. Never exhaust host memory.
+### 17.1 Source and public-view tests
 
-Use deterministic injectable allocators/factories to fail every allocation purpose before reservation, after reservation, during optional diagnostics, during replay retention, and during proposed-artifact construction. Require typed resource failures, fixed-capacity primary errors, complete rollback, and invariant classification only when actual use exceeds reservation or checked preflight was bypassed.
+Cover all four V1 type combinations, empty sources, large but bounded ring tables, exact signed-zero bits, non-finite source bits, invalid indices, repeated indices, malformed rings, and source counts at representability/resource boundaries.
 
-### 19.4 Cancellation
+Prove:
 
-Inject before preflight, after pending context, around every transaction transition, during fake work, after an ordinary error before arbitration, during diagnostics, immediately before commit, and while a worker is blocked on bounded admission. Require joined work, restored FP environment, no leaked reservation/artifact, deterministic checkpoint, intact predecessors, and public `cancelled` regardless of the earlier ordinary error.
+- capture does not validate/repair invalid topology;
+- later stages remain valid after caller storage is mutated/destroyed through a test-only lifetime seam after capture;
+- ignored normals/colours/involved_faces/metadata do not affect bytes;
+- exact source-order permutation changes replay/source digest;
+- internal traversal permutation over one snapshot does not;
+- unsupported scalar/index profiles fail deterministically; and
+- concurrent source mutation during capture is detected at a documented boundary without undefined internal access in the test adapter.
 
-Separately inject join, environment-restoration, and rollback contradictions and require deterministic invariant reporting with cancellation retained as evidence.
+### 17.2 Policy/truth/symbolic tests
 
-### 19.5 Arbitration/diagnostics
+Cover every operation/remap, every V1 policy/version/enum/reserved field, finite/non-finite/negative/signed-zero policy scalars, precision/tolerance relations, execution compatibility, output metadata flag rejection, all 80 truth cells, complete symbolic domain, equal/touch/coincident cases, half-open ownership, and operand exchange.
 
-Submit category/subcode/stage/operand/entity sets in all small permutations and thousands of fixed-PRNG larger permutations; vary fake thread count/delays/capacity; require identical ordinary primary bytes. Fill optional capacity, inject equal/conflicting duplicates, and test locale changes. Verify cancellation override is independent of ordinary reducer order and diagnostic capacity.
+### 17.3 Identity tests
 
-### 19.6 Codec/replay
+Compile-time nonconvertibility; fixed A/B roles; source-position versus canonical-ID nonconvertibility; deterministic publication under insertion/task permutations; every duplicate policy; forced collisions; wrong/stale owner/domain/operand; task-local escape; rollback isolation; dense range and overflow.
 
-Golden float/u32, float/u64, double/u32, double/u64 records; coordinate signed-zero preservation/policy-zero normalization; exact round trips; truncation at every byte boundary for small records; invalid lengths/counts/bools/enums/required fields/trailing bytes; retention limits; SHA vectors and chunkings; forced collisions; permanent golden compatibility bytes.
+### 17.4 Resource/allocation tests
 
-Vary compiler banner, library version string, build path, executable name, project timestamp, and optional dependency versions without changing the stable conformance profile; canonical context/replay bytes and digests must remain identical.
+For every resource kind, test limit-1/limit/limit+1, optional zero, checked overflow, large ledger-only reservation, advisory crossing, promotion/release/rollback, deterministic slices, source-copy byte/count boundaries, and u32/u64 public index representability.
 
-### 19.7 Platform/build isolation
+Inject every allocation purpose before/after reservation, during source copy, diagnostics, replay, context proposal, verifier, and transaction commit preparation. Require typed expected failure, mandatory primary error, and complete rollback.
 
-Test zero/normal/subnormal/adjacent values, NaN/Inf rejection, changed rounding before call and restoration, contraction/reassociation witness, strict-target macro, test-provider failures for every qualification field, unknown provider replay versions, and link-time optimization behavior.
+### 17.5 Cancellation tests
 
-Build at least:
+Inject cancellation before public-view creation, before/after source preflight, during A/B copy ranges, after source publication but before context freeze, around every context/transaction state, during fake serial/parallel work, after ordinary failure, during diagnostics/replay, and immediately before commit.
 
-- GCC and Clang Debug/Release strict targets;
-- `USE_LTO=OFF`;
-- `USE_LTO=ON` with bounded-object IPO disabled or a separately qualified strict profile;
-- sanitizers where supported;
-- `WITH_GNU_GSL=OFF` and `WITH_EIGEN=OFF`;
-- a deliberately unsafe fast-math fixture that must fail qualification.
+Require joined work, restored environment, released private reservations, immutable predecessor preservation, deterministic checkpoint/progress, no partial artifact, and cancellation override. Inject join/restoration/rollback contradictions separately and require invariant reporting.
 
-Inspect compile/link commands and run semantic witnesses. Do not rely on option spelling alone.
+### 17.6 Codec/replay/digest tests
 
-### 19.8 Transactions and exception taxonomy
+Golden records for float/u32, float/u64, double/u32, double/u64; exact source signed-zero; policy-zero normalization; truncation at every byte for small records; invalid lengths/counts/bools/enums/required fields/trailing bytes; source section digest mismatch; SHA vectors/chunkings; forced collisions; retention limits; and permanent compatibility bytes.
 
-Test doubles succeed, fail before/after reservation, emit competing failures, throw `std::bad_alloc`, `std::length_error`, `std::system_error`, and unrelated exceptions at workspace/join/verifier/digest boundaries, cancel before commit, claim active work after join, and return wrong owner/version/range/resources. Verify exact terminal state, rollback, leases, category/subcode, cancellation override, emergency-error availability, and immutable publication.
+Vary compiler banner, library string, build path, executable name, project timestamp, optional dependency versions, ignored mesh fields, and caller allocation addresses while preserving the semantic profile and vertices/faces. Canonical context/replay bytes remain identical.
 
-### 19.9 Determinism/properties
+### 17.7 Platform/build tests
 
-Vary caller allocation/capacity, traversal/insertion order, fake workers/delays, collisions, diagnostic capacity, noncanonical build metadata, and repeated runs. Context digest, table bytes, IDs, primary result, and replay bytes remain identical under the same semantic profile. Never use `random_device`.
+Test normals, subnormals, signed zero, adjacent values, NaN/Inf option rejection, caller rounding changes and restoration, contraction/reassociation witnesses, strict macro, unsupported profile injection, global GNU fast-math override, LTO isolation, Debug/Release, sanitizers, and dependency-off linking.
 
-### 19.10 Mutation tests
+### 17.8 Transaction/exception tests
 
-Corrupt duplicate/stale/wrong-domain IDs, task-local escape, truth entry, missing symbolic rule, remap transform, resource totals, actual-versus-reserved use, cancellation finalization state, strict-build profile, canonical inclusion of project timestamp, digest, replay byte with unchanged digest, transaction state, and partial committed artifact. Each intended independent verifier rejects it deterministically.
+Test doubles succeed; fail before/after reservation; emit competing failures; throw `bad_alloc`, `length_error`, `system_error`, and unrelated exceptions at source allocation, workspace, join, verifier, digest, and publication preparation; cancel before commit; claim active work after join; and return wrong owner/version/range/resources.
 
-### 19.11 Build matrix
+Verify exact terminal state, resource balances, error category/subcode, cancellation precedence, emergency-error availability, and immutable publication.
 
-Run supported GCC/Clang Debug and Release, ASan/UBSan, TSan for thread-safe services, and float/double with u32/u64. Strict Boolean targets remain strict under the parent's GNU fast-math and requested LTO settings. Normative tests remain buildable and linkable with optional external dependencies disabled.
+### 17.9 Determinism/property/mutation tests
 
-## 20. Implementation sequence and gates
+Vary private traversal, insertion, allocator addresses, fake workers/delays, collisions, diagnostic capacity, noncanonical build metadata, and repeated runs over one frozen source bundle. Context/source artifact bytes, canonical IDs, primary result, and replay remain identical.
 
-1. File layout, strict object target, IPO isolation, fast-math guard, dependency-free test harness. Gate: compile/link strict witnesses pass under normal and requested LTO configurations; external-dependency-off tests link; unrelated Ygor still builds.
-2. Versions, checked arithmetic, public policy/options/cancellation API, outcome. Gate: enum/type/arithmetic boundaries and both public cancellation overloads pass.
-3. Canonical codec and SHA-256. Gate: vectors/golden primitives/truncation/overflow and noncanonical-build-data exclusion pass.
-4. Errors/subcodes/payloads/emergency record/summaries/arbitration/exception taxonomy. Gate: exhaustive/random permutation, bad-allocation, and fixed-capacity fallback tests pass.
-5. Strong IDs/owner/factory/verifier. Gate: separation/permutation/collision/owner/mutation pass.
-6. Resource manager/reservations/slices/leases/defaults/allocation helper/verifier. Gate: every kind's boundary, injected host-failure, and rollback tests pass.
-7. Cancellation/progress/diagnostics. Gate: checkpoint/capacity schedule permutations, failure-before-cancel override, and rollback-contradiction tests pass.
-8. Truth and symbolic tables. Gate: all 80 entries, complete key domain, equal/touch/remap pass.
-9. Platform/build/runtime FP qualification. Gate: strict compile/link, IPO isolation, bits, rounding restoration, subnormal, contraction pass.
-10. Replay schema/preflight/codec/retention/goldens. Gate: replay/type matrix and build-metadata invariance pass.
-11. Pending/frozen context, precision handshake, services, context verifier. Gate: valid/invalid/mutation tests pass with no caller references retained.
-12. Transaction/execution scope/artifact commit/rollback/verifier. Gate: success/failure/expected-resource-exception/unexpected-exception/cancel/resource tests pass with no surviving work.
-13. Full property/adversarial/replay/platform/sanitizer/type/dependency/LTO matrix and installed-header check. Gate: Section 21 complete.
+Mutate source offsets, coordinate bits, index bits, operand role, owner, source digest, ignored-field inclusion, borrowed-pointer marker, truth cell, symbolic rule, resource totals, cancellation state, strict profile, project timestamp inclusion, context digest, replay bytes, transaction state, and partial publication. Each intended independent verifier rejects deterministically.
 
-## 21. Definition of done
+## 18. Implementation sequence and gates
 
-Component 01 is complete only when:
+1. **Strict target and dependency-free test harness.** Gate: effective flags and compile/link witnesses pass under normal and requested LTO configurations; dependency-off tests link; unrelated Ygor still builds.
+2. **Version registry, checked arithmetic, outcomes, public policy/options/cancellation declarations.** Gate: V1 type profiles, enum/version gaps, scalar and index boundaries pass.
+3. **Public mesh read view and immutable invocation-source capture.** Gate: exact bits/rings, ignored-field invariance, no borrowing, invalid-data preservation, source-order semantics, resource/cancellation tests pass.
+4. **Canonical bytes and SHA-256.** Gate: primitive goldens, standard vectors, truncation/overflow, collision tests pass.
+5. **Errors, summaries, emergency record, arbitration, exception taxonomy.** Gate: exhaustive/random failure permutations and allocation fallback pass.
+6. **Strong IDs, source-position types, owners, canonical factories, verifier.** Gate: nonconvertibility, permutation, collision, owner/domain, task-local escape pass.
+7. **Resource manager, reservations, leases, slices, allocation helper, verifier.** Gate: every kind's boundary, live-release accounting, source snapshot leases, injected host failures pass.
+8. **Cancellation, canonical progress, diagnostics.** Gate: checkpoints, capacity permutations, failure-before-cancel override, rollback contradictions pass.
+9. **Truth table and symbolic matrix.** Gate: all 80 cells, complete symbolic domain, equal/contact/remap pass.
+10. **Platform/build/runtime qualification.** Gate: strict compile/link, LTO isolation, bits, rounding restoration, subnormal and contraction profiles pass.
+11. **Replay schema, source embedding, retention, goldens.** Gate: four-type matrix, exact source replay, ignored-field/build-metadata invariance pass.
+12. **Pending/frozen context and Component 03 handshake.** Gate: valid/invalid/mutation tests pass; pending context and caller references cannot escape.
+13. **Runtime capabilities, transactions, execution scopes, commit/rollback, verifiers.** Gate: success, expected resource exception, unexpected exception, cancellation, wrong-owner/resource tests pass.
+14. **Full property/adversarial/replay/platform/sanitizer/type/dependency/LTO matrix and installed-header check.** Gate: Section 19 complete.
 
-- public operation/options/error/cancellation contracts are explicitly versioned/documented;
-- the ordinary and explicit cancellation-aware `bounded_boolean` entry paths are defined and tested;
-- all required ID domains are distinct C++ types and every artifact has a context owner;
-- IDs never derive from timing, pointers, coordinates, hashes alone, or insertion order;
-- task-local IDs cannot escape;
-- all 80 truth entries and operand remaps are independently verified;
-- symbolic key domain is total, immutable, versioned, replayed, and independently verified;
+Do not begin production Component 02 integration until the source bundle and Component 03 handshake interfaces are stable and independently verified.
+
+## 19. Definition of done
+
+Component 01 planning and implementation are complete only when:
+
+- the public invocation copies exact vertices/faces into immutable call-owned A/B snapshots;
+- no later component borrows caller mesh storage;
+- ignored normals, colours, `involved_faces`, and arbitrary metadata cannot affect canonical behavior;
+- float/double with u32/u64 are the only claimed V1 profiles and all four are qualified;
+- source positions are strongly separated from canonical topology IDs;
+- exact source-order replay semantics are documented separately from later permutation-invariant artifacts;
+- public operation/options/error/cancellation contracts are versioned and tested;
+- V1 output metadata preservation is unambiguously disabled;
+- all required identity domains are strong and owner-bound;
+- task-local IDs cannot escape and IDs never derive from coordinates, hashes alone, pointers, timing, or insertion order;
+- all 80 truth cells and operand remaps are independently verified;
+- the complete symbolic matrix is total, immutable, versioned, replayed, and independently verified;
 - all scalar/resource/execution/diagnostic validation and normalization behaves exactly as specified;
-- strict compilation and link semantics are proven despite parent fast-math and requested LTO;
-- normative tests link without optional external dependencies or downloaded frameworks;
-- platform/caller FP environment is qualified/restored and unsupported cases fail before geometry;
-- stable canonical profile data is separated from compiler/build/timestamp diagnostics;
-- Component 03 two-phase floor handshake exists and pending contexts never escape;
-- typed errors contain stable category/subcode/stage/entity/numeric/policy/replay evidence;
-- expected host allocation/container/worker failures are typed resource failures and producer reservation contradictions are invariants;
-- a fixed-capacity or pre-reserved primary-error path survives optional allocation failure;
-- ordinary primary error bytes are invariant under order, scheduling, workers, collisions, and diagnostic capacity;
-- valid cancellation observed before publication deterministically overrides earlier ordinary failures;
-- cancellation joins work, restores environments, rolls back resources, and prevents publication at every required checkpoint;
-- every transaction publishes one verified immutable artifact or nothing;
-- canonical/replay bytes are fixed-endian, bounded, versioned, golden-tested, build-instance-independent, and byte-stable;
-- in-tree SHA-256 passes standard vectors and is never authoritative equality;
-- no service depends on mutable globals, addresses, locale, time, random devices, build paths, or project invocation versions;
-- unsuitable legacy serializers/hashes/thread pools/Boolean files are not used;
-- unit, property, adversarial, mutation, replay, platform, transaction, resource-failure, cancellation, sanitizer, LTO, dependency-off, and type-matrix tests pass;
-- public/internal headers compile as strict portable C++17; and
-- later components require only the documented read-only context data and controlled capabilities.
+- strict compile/link behavior is proven despite parent fast-math and requested LTO;
+- normative tests link with optional dependencies disabled and no downloaded framework;
+- caller/platform floating environment is qualified and restored;
+- stable canonical profile data is separated from nonsemantic build diagnostics;
+- Component 03's two-phase floor handshake exists and pending contexts cannot escape;
+- typed errors contain stable category/subcode/stage/entity/source-position/numeric/policy/replay evidence;
+- expected host allocation/container/worker failures remain typed and reservation contradictions are invariants;
+- a fixed/pre-reserved primary-error path survives optional allocation failure;
+- ordinary primary error bytes are invariant under discovery order, scheduling, collisions, and optional capacity;
+- valid cancellation before publication overrides earlier ordinary failures after safe rollback;
+- every transaction publishes one independently verified immutable artifact or nothing;
+- live resource release/rollback semantics and cumulative/peak monotonic counters are correctly distinguished and verified;
+- canonical/replay bytes are fixed-endian, bounded, versioned, golden-tested, exact-source capable, and build-instance independent;
+- SHA-256 passes standard vectors and is never authoritative equality;
+- unsuitable legacy serializers, hashes, queues, mesh mutators, and Boolean implementations are not used;
+- unit, property, adversarial, mutation, replay, platform, transaction, resource-failure, cancellation, sanitizer, LTO, dependency-off, and four-type-matrix tests pass; and
+- Components 02-17 require only the documented immutable source/context artifacts and narrow controlled capabilities.
