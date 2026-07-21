@@ -14,4 +14,4 @@
 - [x] component 14
 - [x] component 15
 - [x] component 16
-- [ ] component 17
+- [x] component 17
