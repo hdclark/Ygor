@@ -26,13 +26,13 @@ Non-negotiable rules:
 - Resolve coincident/coplanar sheets jointly from Component 07-09 lineage and Component 01 symbolic owner ranking.
 - Suppress internal sheets and non-owner duplicates without losing provenance.
 - Represent multiplicity with separate retained-use and occurrence identities, never multi-use edges.
-- Pair boundary incidences only when one complete lineage-defined mate key identifies exactly one forward and one reverse use.
+- Pair boundary incidences only when one complete lineage-defined edge-occurrence slot identifies exactly one mutually compatible forward/reverse pair. The two member surface-owner lineages may differ, as they normally do on a proper transverse A/B seam.
 - Partition vertex/event occurrences by closed cycles in an exact local link graph; coordinate coincidence never joins cycles.
 - Fail closed on ambiguity, contradiction, resource exhaustion, cancellation, or verifier disagreement.
 - Use strict portable C++17 and the standard library only. No external, vendored, downloaded, optional, or runtime-invoked dependency.
 - Do not call, adapt, or copy `src/YgorMeshesBoolean{,2,3,4,5}*.{h,cc}`.
 
-Prohibited shortcuts include coordinate/tolerance welding, normal comparison, geometric nearest-neighbour matching, random or hash-dependent decisions, source-triangle-order ownership, recomputing classifications or relations, and allowing Component 11 to repair or choose among multiple mates/fans.
+Prohibited shortcuts include coordinate/tolerance welding, normal comparison, geometric nearest-neighbour matching, random or hash-dependent decisions, source-triangle-order ownership, recomputing classifications or relations, requiring paired faces to have the same source operand or sheet owner, and allowing Component 11 to repair or choose among multiple mates/fans.
 
 ## 1. Existing Ygor assessment and reuse decisions
 
@@ -56,7 +56,18 @@ Therefore:
 
 No existing Ygor graph or concurrency utility satisfies the strong-ID, exact-occurrence, deterministic merge, resource, cancellation, replay, and independent-verification contracts. Implement the required small graph machinery in the bounded subsystem with contiguous arrays, sorted complete keys, checked prefix sums, CSR ranges, and iterative traversal. Use Component 01/17 execution services, not `YgorThreadPool::work_queue`.
 
-### 1.3 Mandatory predecessor reuse
+### 1.3 Existing Boolean implementations and reusable test material
+
+The existing Boolean implementations were reviewed before choosing a greenfield Component 10 provider:
+
+- `YgorMeshesBoolean` is a volumetric grid Boolean. Its classification and grid-aligned output do not preserve source-surface atoms, event lineage, coincident ownership, or topological occurrence identity.
+- `YgorMeshesBoolean2` and `YgorMeshesBoolean3` split and classify triangles but use snapping or welding, per-fragment ray classification, and presentation-level coplanar relations. Their selection records cannot satisfy the compute-once side-label, symbolic ownership, or no-coordinate-topology contracts.
+- `YgorMeshesBoolean4` delegates to a BSP volume and converts back to `fv_surface_mesh`; the conversion discards the source/event/occurrence evidence required by Components 10, 11, and 15.
+- `YgorMeshesBoolean5` is the closest structural precedent, but it keys constructed topology on a fixed snap grid, classifies each arrangement facet through normal/ray queries, and applies operation- and operand-specific selection conditionals including a hard-coded representative operand for coincident sheets. Those decisions conflict with the Component 01 truth-table and symbolic-owner authorities and cannot preserve point-/edge-contact occurrence separation.
+
+Do not link, include, call, adapt, or copy these implementations into the bounded subsystem, and do not treat their output bytes or pass/fail behavior as a normative oracle. It is acceptable and encouraged to port geometry-only fixture builders, operation-case taxonomies, empty/identity cases, exact analytic volume expectations, deterministic input permutations, and adversarial contact examples into `tests/mesh_boolean_bounded/`. Ported fixtures must be re-expressed through the Component 01-09 artifact builders, must use the bounded subsystem's expected retained-topology oracle, and must remain independent of legacy implementation output.
+
+### 1.4 Mandatory predecessor reuse
 
 Use only narrow immutable views:
 
@@ -185,21 +196,25 @@ A sheet-cell key includes canonical support/coincidence lineage, overlap-region 
 
 A retained-use key includes the atom semantic key, final orientation, sheet owner/cancellation class, multiplicity occurrence, semantic boundary signature, and versions.
 
-An edge mate key includes:
+Define a `surface_occurrence_descriptor` for one directed retained incidence. It contains the retained-use semantic lineage, source operand role, sheet-owner lineage, multiplicity occurrence, oriented result-side transition, source/event sector at both endpoints, and occurrence-separation lineage. This descriptor identifies one face use; it is not an undirected-edge identity.
+
+An undirected edge-occurrence slot key includes:
 
 ```text
 (carrier semantic identity,
  canonical open interval/span identity,
  unordered endpoint-domain lineage,
  occurrence-separation class,
- sheet/multiplicity occurrence,
- result-side transition class,
- owner lineage,
- exact local fan compatibility descriptors,
+ canonical output-edge occurrence slot,
+ result-transition compatibility class,
+ canonical unordered pair of expected surface-occurrence descriptors,
+ exact endpoint fan-pair compatibility descriptors,
  schema versions)
 ```
 
-It must not include coordinates, nominal parameters, normals, tolerance, hash values, discovery order, or future output IDs. Directed members add a forward/reverse role under the canonical carrier orientation.
+Each directed incidence stores its own `surface_occurrence_descriptor`, the exact expected opposite descriptor, and a forward/reverse role under the canonical carrier orientation. Grouping requires reciprocal actual/expected descriptors and one shared slot key. The two descriptors may have different source operands, source facets, retained-sheet owners, and per-face multiplicity records. In particular, a proper transverse seam normally pairs one A-owned descriptor with one B-owned descriptor. Same-sheet source-edge pairs and occurrence-distinct coincident pairs are represented by their own canonical descriptor pairs and slot discriminators.
+
+The slot key and descriptors must not include coordinates, nominal parameters, normals, tolerance, hash values, discovery order, or future output IDs. A descriptor pair is canonicalized by the complete descriptor order, not by operand preference or hash order.
 
 A local-port key includes endpoint domain, retained incidence, retained use, endpoint role, source/event sector, sheet/multiplicity occurrence, and separation lineage. Face-corner and edge-mate arcs are keyed by their exact two ports plus semantic reason. A vertex occurrence key is the complete sorted cycle of ports/arcs canonicalized over both cycle directions and all rotations, with the endpoint domain and versions.
 
@@ -216,7 +231,7 @@ Use canonical contiguous tables and checked CSR ranges for:
 3. retained uses and full provenance;
 4. directed retained incidences and incidence audit dispositions;
 5. reciprocal continuation records;
-6. mate groups and planned two-use edge occurrences;
+6. edge-occurrence slot groups, expected surface-occurrence descriptor pairs, and planned two-use edge occurrences;
 7. endpoint domains, local ports, face-corner arcs, edge-mate arcs, link components, vertex occurrence requirements;
 8. carrier/source-edge balance and complete feasibility evidence;
 9. forward/reverse maps to atoms, labels, source features, relations, events, intervals, carriers, and occurrences;
@@ -296,6 +311,7 @@ For every oriented semantic boundary use of every retained atom, create exactly 
 - canonical carrier direction and local forward/reverse role;
 - source/event sectors at both endpoints;
 - owner/multiplicity/separation class;
+- its `surface_occurrence_descriptor` and exact expected opposite descriptor when it requires a planned output edge;
 - adjacent retained-use candidates and predecessor descriptors;
 - final incidence disposition.
 
@@ -318,26 +334,29 @@ Every retained incidence ends in exactly one of: transparent continuation, plann
 
 ## 7. Exact planned edge occurrences
 
-### 7.1 Mate grouping
+### 7.1 Slot construction and reciprocal mate grouping
 
-For every incidence requiring an output edge, construct its complete undirected mate key and directed role. Canonically sort/group. A valid V1 group contains exactly two members:
+For every incidence requiring an output edge, construct its complete `surface_occurrence_descriptor`, expected opposite descriptor, shared undirected edge-occurrence slot key, and directed role. Derive expected pairs from authoritative Component 05/08/09 carrier, adjacency, sector, coincidence, multiplicity, and occurrence-separation lineage before grouping. Canonically sort by slot key and descriptor. A valid V1 slot contains exactly two members:
 
 - one forward and one reverse under the carrier orientation;
 - matching unordered endpoint-domain lineage;
-- matching carrier interval/span and occurrence class;
-- matching sheet/multiplicity owner lineage;
-- compatible result-side transition;
-- compatible local sectors at both endpoints.
+- matching carrier interval/span, occurrence-separation class, and output-edge slot discriminator;
+- mutually reciprocal actual and expected `surface_occurrence_descriptor` values;
+- a canonical unordered descriptor pair equal to the slot's expected pair;
+- compatible result-side transitions; and
+- compatible local sectors and endpoint fan-pair descriptors at both endpoints.
 
-Create one `planned_edge_occurrence` only after all checks pass. Store the two directed members in canonical order, expected opposite endpoints, carrier/source provenance, endpoint sectors, multiplicity/separation, and pair-feasibility evidence.
+Do **not** require the two members to have the same source operand, source facet, retained-sheet owner, or per-face multiplicity record. Proper transverse intersection edges normally pair one retained use from A with one retained use from B. A source-edge boundary may pair two uses from one source sheet, while coincident occurrence multiplicity may create several separate descriptor-pair slots on the same geometric carrier. These cases differ by complete lineage and slot identity, never by coordinates.
 
-Cardinality 0/1/>2, two same-direction members, incompatible endpoints, or several possible pairings is failure. Do not invoke bipartite/general/minimum-cost matching. When four uses occupy one geometric carrier, their complete lineage must partition them into two distinct two-member keys; otherwise fail rather than guess.
+Create one `planned_edge_occurrence` only after all checks pass. Store the slot key, the two directed members in canonical order, both actual/expected descriptors, expected opposite endpoints, carrier/source provenance, endpoint sectors, multiplicity/separation evidence, and pair-feasibility evidence.
+
+Cardinality 0/1/>2, two same-direction members, incompatible endpoints, a non-reciprocal descriptor pair, an incorrect slot discriminator, or several possible pairings is failure. Do not invoke bipartite/general/minimum-cost matching. When four uses occupy one geometric carrier, their authoritative lineage and expected descriptor pairs must partition them into two distinct two-member slots; otherwise fail rather than guess.
 
 Zero nominal length and equal endpoint coordinates do not erase an edge occurrence. Topological endpoint identity remains authoritative.
 
 ### 7.2 Balance
 
-For each source-edge sequence and carrier chain, publish sorted membership and checked start/end accounting. Verify every planned member is consumed once, every required interval is represented, directions balance on closed chains, open local chains close through documented source-edge transitions, and equal-parameter clusters preserve all occurrence identities. Counts supplement but never replace complete member-set comparison.
+For each source-edge sequence and carrier chain, publish sorted membership and checked start/end accounting. Verify every planned member is consumed once, every required interval is represented, directions balance on closed chains, open local chains close through documented source-edge transitions, and equal-parameter clusters preserve all occurrence identities. Counts supplement but never replace complete member-set and expected-pair comparison.
 
 ## 8. Vertex/event occurrences by local link cycles
 
@@ -357,7 +376,7 @@ Reject open atom boundary order, duplicate corner consumption, incompatible endp
 
 ### 8.3 Edge-mate arcs
 
-For each planned edge and each of its two endpoint domains, connect the endpoint port of one directed member to the corresponding endpoint port of its opposite member. Validate reversed topological endpoints and compatible local sector evidence. Each planned edge creates exactly two endpoint mate arcs.
+For each planned edge and each of its two endpoint domains, connect the endpoint port of one directed member to the corresponding endpoint port of its exact reciprocal descriptor member. Validate reversed topological endpoints and compatible local sector evidence. Each planned edge creates exactly two endpoint mate arcs.
 
 ### 8.4 Degree-two graph and cycle extraction
 
@@ -383,18 +402,19 @@ Before publication, prove:
 - every retained atom boundary has one incidence audit record;
 - every incidence is consumed exactly once by continuation, a planned edge, or an explicitly permitted audit/zero-measure disposition;
 - every continuation is reciprocal and exact-lineage compatible;
-- every planned edge has exactly two opposite directed uses;
+- every planned edge has exactly two opposite directed uses whose actual/expected surface-occurrence descriptors are reciprocal and whose canonical descriptor pair matches one authoritative edge-occurrence slot;
+- valid cross-operand and cross-owner pairs are preserved rather than rejected by an owner-equality assumption;
 - every planned edge endpoint maps to one vertex occurrence;
 - every local port has one corner and one mate arc;
 - every vertex occurrence is one closed link cycle;
-- carrier/source-edge member sets and start/end balances are complete;
+- carrier/source-edge member sets, expected descriptor pairs, and start/end balances are complete;
 - no point/edge-contact or coincident occurrence separation was crossed;
 - no coordinate/tolerance/normal/hash field affected identity or grouping;
 - all reverse maps, dense IDs, CSR ranges, resources, and digests reconstruct exactly.
 
-On success, publish the immutable artifact with complete dispositions, retained uses, coincidence/ownership/multiplicity evidence, incidences, continuation, planned edge requirements, vertex/event fan requirements, balance evidence, provenance, resources, diagnostics, replay, and verifier disposition.
+On success, publish the immutable artifact with complete dispositions, retained uses, coincidence/ownership/multiplicity evidence, incidences, continuation, planned edge requirements and descriptor-pair evidence, vertex/event fan requirements, balance evidence, provenance, resources, diagnostics, replay, and verifier disposition.
 
-Component 11 receives checked iteration/access for retained uses, incidences, continuation, exact two-member edge occurrences, vertex occurrence cycles, coordinate-source references, and reverse mappings. It receives no permission to repeat selection, infer sharing from coordinates, choose a mate, merge cycles, or repair balance.
+Component 11 receives checked iteration/access for retained uses, incidences, continuation, exact two-member edge occurrences, reciprocal surface-descriptor pairs, vertex occurrence cycles, coordinate-source references, and reverse mappings. It receives no permission to repeat selection, infer sharing from coordinates, choose a mate, merge cycles, or repair balance.
 
 A valid empty Boolean result publishes an empty retained-use/occurrence domain with complete discard/suppression evidence and deterministic digest.
 
@@ -402,13 +422,13 @@ A valid empty Boolean result publishes an empty retained-use/occurrence domain w
 
 ### 10.1 Deterministic execution
 
-Permitted parallel phases are per-atom side/truth proposals, per-sheet candidate preparation, retained-use/incidence proposal generation, independent mate-key creation, and independent endpoint-domain link construction. Tasks read immutable inputs and write private deterministic slices. Canonical merge uses full-key sort, exact duplicate reconciliation, dense remapping, and Component 01 failure arbitration.
+Permitted parallel phases are per-atom side/truth proposals, per-sheet candidate preparation, retained-use/incidence proposal generation, independent edge-slot/descriptor creation, and independent endpoint-domain link construction. Tasks read immutable inputs and write private deterministic slices. Canonical merge uses full-key sort, exact duplicate reconciliation, dense remapping, and Component 01 failure arbitration.
 
 Worker count, task delay, union roots, hash collisions, allocation order, queue order, discovery order, endpoint traversal start, and input triangle order must not affect semantic records or bytes. Every worker establishes the strict floating environment and all work joins before commit/rollback.
 
 ### 10.2 Resource accounting
 
-Add distinct resource kinds/subkinds for dispositions, side/truth evidence, sheet cells/members, owner candidates/decisions, suppression/cancellation, multiplicity, retained uses/provenance, incidences, continuation, mate groups/edges, endpoint domains, ports/arcs/link components/vertex occurrences, balance/feasibility/verifier records, canonical sort records, diagnostics/replay, temporary/persistent bytes, and work units.
+Add distinct resource kinds/subkinds for dispositions, side/truth evidence, sheet cells/members, owner candidates/decisions, suppression/cancellation, multiplicity, retained uses/provenance, incidences, continuation, edge slots/descriptor pairs/planned edges, endpoint domains, ports/arcs/link components/vertex occurrences, balance/feasibility/verifier records, canonical sort records, diagnostics/replay, temporary/persistent bytes, and work units.
 
 Preflight with checked arithmetic; reserve before allocation; reconcile exact use deterministically; transfer only verified persistent leases. `resource_limit` must never trigger merged occurrences, lost evidence, skipped verification, or heuristic pairing. Representability failures are `index_overflow`.
 
@@ -422,7 +442,7 @@ Encode fixed-width fields in this order:
 4. sheet cells, ownership, suppression, cancellation, multiplicity;
 5. retained uses/provenance;
 6. incidences and continuation;
-7. mate groups/planned edges/balance;
+7. edge slots, surface-occurrence descriptor pairs, planned edges, and balance;
 8. endpoint domains, ports/arcs/link cycles/vertex occurrences;
 9. feasibility/statistics/resources/verifier disposition;
 10. section and complete digests.
@@ -431,7 +451,7 @@ Use Component 03 canonical scalar bits for referenced numeric metadata. Never se
 
 ### 10.4 Independent verifier
 
-Implement `SelectionVerifier` in a separate source module. It must not call producer orchestration, producer sheet grouping, owner chooser, mate grouping, local-link traversal, or producer codec helpers as its sole proof.
+Implement `SelectionVerifier` in a separate source module. It must not call producer orchestration, producer sheet grouping, owner chooser, edge-slot grouping, local-link traversal, or producer codec helpers as its sole proof.
 
 The verifier independently:
 
@@ -442,7 +462,8 @@ The verifier independently:
 - independently checks owner eligibility/rank, cancellation, suppression, and multiplicity;
 - reconstructs retained uses and complete incidence membership;
 - rebuilds reciprocal continuation;
-- groups edge members by independently encoded full mate keys and requires exact pairs;
+- derives expected surface-occurrence descriptors and output-edge slot discriminators independently from Component 05/08/09 lineage;
+- groups edge members by independently encoded full slot keys, requires exact reciprocal descriptor pairs, and explicitly permits valid pairs with different operands or sheet owners;
 - rebuilds endpoint ports, corners, mate arcs, and closed cycles using an alternate traversal order;
 - verifies endpoint remaps and all balance/member-set constraints;
 - scans keys/evidence for forbidden coordinate-derived identity;
@@ -452,9 +473,9 @@ Producer/verifier disagreement is `internal_invariant_error` and prevents commit
 
 ## 11. Failures and diagnostics
 
-Allocate stable Component 10 subcodes covering unsupported versions; wrong owner/operation/role/domain; predecessor digest/verification mismatch; overflow/limit; missing/duplicate atom or label; invalid side tuple/remap/truth cell; wrong retain/orientation; malformed sheet-cell membership; wrong/multiple/no owner; internal sheet retained; required sheet suppressed; multiplicity corruption; retained-use/provenance mismatch; incidence endpoint/direction/carrier error; internal diagonal leakage; invalid/nonreciprocal continuation; malformed mate key; mate cardinality/direction/endpoint incompatibility; incidence under/over-consumption; malformed endpoint domain/port/corner/mate arc; open/branched/multicycle link; separation crossing; endpoint remap mismatch; balance failure; canonical/range/reverse-map/codec/digest error; verifier rejection; resource reconciliation; cancellation; and internal construction contradiction.
+Allocate stable Component 10 subcodes covering unsupported versions; wrong owner/operation/role/domain; predecessor digest/verification mismatch; overflow/limit; missing/duplicate atom or label; invalid side tuple/remap/truth cell; wrong retain/orientation; malformed sheet-cell membership; wrong/multiple/no owner; internal sheet retained; required sheet suppressed; multiplicity corruption; retained-use/provenance mismatch; incidence endpoint/direction/carrier error; internal diagonal leakage; invalid/nonreciprocal continuation; malformed edge-slot or surface-occurrence descriptor; mate cardinality/direction/endpoint incompatibility; non-reciprocal expected mate; descriptor-pair or slot-discriminator mismatch; erroneous same-owner requirement; incidence under/over-consumption; malformed endpoint domain/port/corner/mate arc; open/branched/multicycle link; separation crossing; endpoint remap mismatch; balance failure; canonical/range/reverse-map/codec/digest error; verifier rejection; resource reconciliation; cancellation; and internal construction contradiction.
 
-Errors include the least canonical operation, atom, side tuple, truth rule, relation/symbolic decision, sheet cell, retained use, incidence, interval/carrier, endpoint domain, port/arc, planned edge, and vertex occurrence witnesses; expected/actual values; provider/policy versions; resource counters; checkpoint; and replay identity.
+Errors include the least canonical operation, atom, side tuple, truth rule, relation/symbolic decision, sheet cell, retained use, incidence, interval/carrier, edge slot, actual/expected surface-occurrence descriptors, endpoint domain, port/arc, planned edge, and vertex occurrence witnesses; expected/actual values; provider/policy versions; resource counters; checkpoint; and replay identity.
 
 Use `geometric_condition_exceeds_tolerance` only when a valid predecessor explicitly marks evidence insufficient for ordinary selection. Use `index_overflow`, `resource_limit`, and `cancelled` for their respective cases. Contradictory committed predecessor evidence, impossible pair/fan topology, or producer/verifier disagreement is `internal_invariant_error`.
 
@@ -474,7 +495,15 @@ Cover identical and radically different triangulations, subdivided facets, parti
 
 ### 12.4 Incidence, continuation, and edges
 
-Test whole/split source edges, transverse loops, coplanar boundaries, equal-parameter clusters, zero-nominal-length intervals, transparent atom seams, internal diagonals, topology-separated contacts, and four geometric uses partitioning into two lineage pairs. Exhaustively enumerate small labeled pairing fixtures and require either the unique full-key partition or deterministic failure; never accept arbitrary matching.
+Test whole/split source edges, transverse loops, coplanar boundaries, equal-parameter clusters, zero-nominal-length intervals, transparent atom seams, internal diagonals, topology-separated contacts, and four geometric uses partitioning into two lineage pairs. Include at least:
+
+- a proper transverse overlap whose output seam pairs an A-owned retained use with a B-owned retained use;
+- a source-edge pair whose two uses belong to one retained source sheet;
+- coincident multiplicity producing several separate descriptor-pair slots on the same geometric carrier;
+- an operand-swapped/remapped fixture that preserves the canonical pair after documented remapping; and
+- mutations that force owner equality, swap one expected opposite descriptor, reuse one descriptor in two slots, or erase the slot discriminator.
+
+Exhaustively enumerate small labeled pairing fixtures and require either the unique reciprocal descriptor-pair partition or deterministic failure; never accept arbitrary matching.
 
 ### 12.5 Vertex occurrence/link tests
 
@@ -486,11 +515,11 @@ Verify commutativity for union/intersection/xor, directed difference remapping, 
 
 ### 12.7 Mutation verification
 
-Corrupt each major fact independently: remove/duplicate disposition; flip side bit/truth result/orientation; choose wrong owner; retain internal/non-owner sheet; suppress required owner; alter multiplicity; add/remove retained use; lose provenance; change incidence endpoint/direction/carrier; leak internal diagonal; add/remove continuation; alter mate key/member/direction; assign three uses to one edge; omit/double-consume incidence; alter port/corner/mate arc; merge/split cycles incorrectly; cross separation; alter endpoint remap/balance; scramble canonical order; forge counts/resources/digests. Repair cached counts/digests where possible. The verifier must reject every mutation.
+Corrupt each major fact independently: remove/duplicate disposition; flip side bit/truth result/orientation; choose wrong owner; retain internal/non-owner sheet; suppress required owner; alter multiplicity; add/remove retained use; lose provenance; change incidence endpoint/direction/carrier; leak internal diagonal; add/remove continuation; alter edge-slot key/member/direction; alter actual or expected surface-occurrence descriptor; force a valid cross-owner pair to fail; pair one member with a non-reciprocal descriptor; assign three uses to one edge; omit/double-consume incidence; alter port/corner/mate arc; merge/split cycles incorrectly; cross separation; alter endpoint remap/balance; scramble canonical order; forge counts/resources/digests. Repair cached counts/digests where possible. The verifier must reject every mutation.
 
 ### 12.8 Fuzzing, resources, cancellation, and performance
 
-Generate valid exact-template classification artifacts varying operation, shell nesting, contact dimension, coincidence count/orientation, source subdivision/triangulation, event valence, duplicate coordinates, multiplicity, symbolic rules, and limits. Structure-shrink every crash, nondeterminism, wrong owner, accidental weld, ambiguous pair acceptance, invalid fan, or verifier disagreement while preserving exact replay.
+Generate valid exact-template classification artifacts varying operation, shell nesting, contact dimension, coincidence count/orientation, source subdivision/triangulation, event valence, duplicate coordinates, multiplicity, symbolic rules, and limits. Structure-shrink every crash, nondeterminism, wrong owner, accidental weld, cross-owner pair rejection, ambiguous pair acceptance, invalid fan, or verifier disagreement while preserving exact replay.
 
 For every resource kind test limit-minus-one, limit, and limit-plus-one. Cancel at every checkpoint and inside long sorts/traversals. Run GCC/Clang Debug/Release, `float`/`double`, `uint32_t`/`uint64_t`, ASan/UBSan, and TSan for parallel paths.
 
@@ -518,7 +547,7 @@ Implement in this order, with a gate after each step:
 6. retained uses/provenance;
 7. incidence normalization;
 8. reciprocal continuation;
-9. exact mate keys and two-use edge occurrences;
+9. exact edge-slot keys, reciprocal surface-occurrence descriptors, and two-use edge occurrences;
 10. endpoint domains, ports, and corners;
 11. mate arcs and closed local-link cycles;
 12. endpoint remap, balance, and complete feasibility;
@@ -541,8 +570,9 @@ Component 10 is complete only when:
 - every retained semantic boundary has one directed incidence and one final consumption disposition;
 - continuation is reciprocal, exact-lineage-defined, and separation-safe;
 - internal triangulation diagonals never affect selection topology;
-- every planned edge has exactly two opposite full-key-compatible uses;
-- no heuristic, coordinate, tolerance, normal, hash, or schedule chooses a mate;
+- every planned edge has exactly two opposite full-slot-compatible uses with mutually reciprocal actual/expected surface-occurrence descriptors;
+- valid paired members may have different source operands or retained-sheet owners, while every ambiguity in the expected pair fails closed;
+- no heuristic, coordinate, tolerance, normal, hash, source-owner equality, or schedule chooses a mate;
 - every endpoint port has one corner arc and one mate arc;
 - every vertex/event occurrence is exactly one closed local-link cycle;
 - distinct cycles at one coordinate remain distinct and no bow-tie is planned;
