@@ -1,17 +1,17 @@
-- [x] component 1
-- [x] component 2
-- [x] component 3
-- [x] component 4
-- [x] component 5
-- [x] component 6
-- [x] component 7
-- [x] component 8
-- [x] component 9
-- [x] component 10
-- [x] component 11
-- [x] component 12
-- [x] component 13
-- [x] component 14
-- [x] component 15
-- [x] component 16
-- [x] component 17
+- [ ] component 1
+- [ ] component 2
+- [ ] component 3
+- [ ] component 4
+- [ ] component 5
+- [ ] component 6
+- [ ] component 7
+- [ ] component 8
+- [ ] component 9
+- [ ] component 10
+- [ ] component 11
+- [ ] component 12
+- [ ] component 13
+- [ ] component 14
+- [ ] component 15
+- [ ] component 16
+- [ ] component 17
