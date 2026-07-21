@@ -2,7 +2,7 @@
 
 ## Status and normative language
 
-This document specifies a required component of a dependency-free bounded floating-point surface-mesh Boolean engine. The production implementation and its normative tests must use portable C++17 and the C++ standard library only. No external library may be required, linked, vendored, or invoked.
+This document specifies a required component of a dependency-free bounded floating-point surface-mesh Boolean engine. The production implementation and its normative tests must use portable C++17 and the C++ standard library only. No external library may be required, linked, vendored, downloaded, or invoked by the bounded Boolean subsystem or its normative tests.
 
 The terms **must**, **must not**, **required**, **should**, and **may** are normative. A later implementation plan may change data structures and algorithms, but it must preserve the observable contracts and invariants defined here.
 
@@ -12,7 +12,7 @@ This component establishes the immutable execution context within which every ot
 
 - the requested Boolean operation and its truth table;
 - the tolerance, input-precision, contact, output, verification, determinism, execution, diagnostic, and resource policies;
-- platform and floating-point-environment qualification;
+- platform, compiler-mode, and floating-point-environment qualification;
 - stable identities and ownership domains for all pipeline entities;
 - typed status and failure reporting;
 - stage transactions, cancellation, and rollback;
@@ -42,9 +42,11 @@ The component must accept, by value or immutable reference:
    - any declared input precision metadata; and
    - any versioned solid-semantics metadata;
 4. a compile-time and runtime platform descriptor; and
-5. an optional cancellation source whose lifetime exceeds the Boolean call.
+5. either no cancellation input or an immutable cancellation-token view associated with a caller-owned cancellation source.
 
-The component must not retain mutable references to caller-owned meshes or options.
+The ordinary public overload without a cancellation argument must be equivalent to passing a never-cancelled token. A second explicit public overload or an equivalent public control object must make cooperative cancellation usable without placing mutable cancellation state inside `bounded_boolean_options<T>`. The token/source relationship, ownership, lifetime, thread-safety, and first-request semantics must be documented. No public API may require a process-global cancellation registry.
+
+The component must not retain mutable references to caller-owned meshes or options. Any cancellation state retained for the duration of the call must be reference-counted or otherwise lifetime-safe and must not outlive all joined work.
 
 ### 1.2 Option validity requirements
 
@@ -63,7 +65,7 @@ Before any downstream component runs, this component must validate at least:
 
 Validation may be completed in two steps when Component 03 must first provide the platform roundoff floor. The context remains unpublished until all checks succeed.
 
-### 1.3 Floating-point environment requirements
+### 1.3 Floating-point and build-environment requirements
 
 The context must accept only a qualified environment for topology-affecting arithmetic. At minimum, qualification records and verifies:
 
@@ -73,8 +75,11 @@ The context must accept only a qualified environment for topology-affecting arit
 - supported subnormal behavior, or deterministic rejection if unavailable;
 - the configured floating-contraction policy;
 - prohibition of fast-math assumptions, reassociation, finite-only assumptions, and unsafe reciprocal approximations;
-- prescribed conversion and rounding points to `T`; and
-- compiler/platform conformance identifiers used by permanent bit-pattern tests.
+- prescribed conversion and rounding points to `T`;
+- strict behavior under every supported optimization mode, including link-time/interprocedural optimization; and
+- stable conformance-profile identifiers used by permanent bit-pattern tests.
+
+Canonical context, error, digest, and replay bytes may contain only stable, versioned conformance-profile identifiers and observed capability results. Compiler banners, standard-library version strings, build paths, invocation timestamps, Ygor's time-derived project version, executable names, and other build-instance data may be retained only as explicitly non-authoritative diagnostics. They must not change canonical bytes for the same supported semantic profile.
 
 The component must return `unsupported_platform` before geometry processing if these requirements are not met.
 
@@ -205,6 +210,10 @@ Each failure record must contain:
 
 Expected geometric difficulty, invalid input, unsupported tolerance, and resource exhaustion must never be reported as `internal_invariant_error`.
 
+Host allocation failure, implementation container-capacity failure, worker-creation failure, or another expected operating-system resource failure that occurs despite successful logical reservation must be translated at a documented boundary to `resource_limit`, `index_overflow`, or another specifically applicable expected category. A raw `std::bad_alloc`, `std::length_error`, or `std::system_error` must not escape the public API. If the failure reveals that a producer exceeded its prior reservation or violated a checked preflight invariant, that contradiction is an `internal_invariant_error`; the distinction must be explicit and testable.
+
+The mandatory primary-error path must remain usable when ordinary dynamic allocation is unavailable. Its canonical category, subcode, stage, checkpoint, bounded numeric witnesses, and summary template must be representable from pre-reserved or fixed-capacity storage.
+
 ### 2.6 Deterministic error arbitration
 
 Several parallel tasks may discover failures. The component must select the externally reported primary failure by a frozen total ordering, for example:
@@ -217,6 +226,8 @@ Several parallel tasks may discover failures. The component must select the exte
 6. deterministic numerical witness encoding.
 
 The exact ordering may differ, but it must be documented, total, independent of thread scheduling, and covered by tests. Additional findings may be retained in diagnostics without changing the primary status.
+
+Cancellation is an execution outcome, not an ordinary task-failure candidate. Once cancellation is observed at a required checkpoint before publication, the externally returned result must be `cancelled`; failures discovered earlier in the uncommitted transaction may be retained only as secondary diagnostics. The sole exception is a failure to join, restore the floating environment, roll back, or otherwise complete cancellation safely; such a contradiction must return the applicable `internal_invariant_error` rather than falsely claiming clean cancellation. This rule must be independent of request timing and worker scheduling.
 
 ### 2.7 Resource accounting
 
@@ -234,7 +245,7 @@ The component must account separately for at least:
 - persistent artifact bytes; and
 - abstract work units used to prevent pathological computation.
 
-Accounting must be overflow-safe and monotonic within a transaction. A component must reserve before allocating or publishing. Crossing a limit returns `resource_limit` or `index_overflow` with no partial output.
+Accounting must be overflow-safe and monotonic within a transaction. A component must reserve before allocating or publishing. Crossing a logical limit returns `resource_limit` or `index_overflow` with no partial output. Successful reservation is not a promise that host allocation will succeed; host failure must still produce a typed expected failure and complete rollback.
 
 Resource policies must distinguish hard correctness limits from advisory performance targets.
 
@@ -247,7 +258,7 @@ Cancellation must be cooperative and deterministic at stage boundaries and docum
 - all workers must be joined;
 - temporary state must be rolled back;
 - immutable predecessor artifacts remain valid;
-- the result is `cancelled`; and
+- the result is `cancelled`, subject only to the safe-rollback exception in Section 2.6; and
 - diagnostics state the latest completed transaction and the canonical progress counters.
 
 Cancellation must never produce a topology-only ordinary success.
@@ -260,14 +271,14 @@ The component must define a versioned replay format containing enough informatio
 - concrete type identifiers;
 - normalized options;
 - all policy versions;
-- platform qualification identifiers;
+- stable platform qualification profile identifiers and capability results;
 - determinism and execution settings;
 - resource limits;
 - operation;
 - canonical input digest; and
 - expected primary status or output digest when stored as a regression.
 
-Replay serialization must have a canonical byte representation and explicit versioning. Unknown required fields or versions must fail cleanly.
+Replay serialization must have a canonical byte representation and explicit versioning. Unknown required fields or versions must fail cleanly. Non-authoritative build provenance must be kept outside canonical replay fields or in an explicitly excluded diagnostic section.
 
 ### 2.10 Cross-component service boundaries
 
@@ -327,8 +338,10 @@ The implementation must preserve these invariants:
 - all published stage artifacts are immutable and verified;
 - a failed or cancelled transaction publishes nothing;
 - resource limits are checked before irreversible work;
+- host-resource failures are typed and rollback-complete;
+- cancellation observed before publication returns `cancelled` unless safe rollback itself fails;
 - error selection is scheduling-independent;
-- replay bytes are canonical;
+- replay bytes are canonical and independent of non-semantic build-instance metadata;
 - options and policies cannot change during execution; and
 - no service infers topology from floating-point proximity.
 
@@ -336,9 +349,10 @@ The implementation must not:
 
 - use process-global mutable configuration;
 - expose unchecked raw integer IDs across component boundaries;
-- rely on pointer addresses, hash iteration order, locale, wall-clock time, random-device output, or thread order for canonical results;
+- rely on pointer addresses, hash iteration order, locale, wall-clock time, random-device output, thread order, build paths, invocation timestamps, or time-derived project versions for canonical results;
 - silently clamp invalid tolerances or limits;
-- treat cancellation as successful partial completion; or
+- treat cancellation as successful partial completion;
+- translate expected host-resource exhaustion to `internal_invariant_error`; or
 - use external dependencies in production or normative tests.
 
 ## 5. Test and validation specification
@@ -356,6 +370,7 @@ Unit tests must cover:
 - finite/non-finite scalar options;
 - resource reservation, release, and overflow;
 - transaction commit and rollback;
+- public no-cancellation and explicit-cancellation call paths;
 - cancellation checkpoints; and
 - replay encode/decode.
 
@@ -373,7 +388,7 @@ Construct intentionally corrupt artifacts containing:
 
 The component verifier must reject each mutation deterministically.
 
-### 5.3 Boundary tests
+### 5.3 Boundary and failure-injection tests
 
 For every resource counter and every representable ID/index range, test:
 
@@ -384,7 +399,15 @@ For every resource counter and every representable ID/index range, test:
 - zero limits where meaningful; and
 - very large but valid limits that cannot be eagerly allocated.
 
-No test may depend on actually exhausting host memory.
+Inject deterministic failures for:
+
+- allocation before and after reservation;
+- container-capacity rejection;
+- worker creation where Component 17 uses the service;
+- primary-error construction under exhausted optional diagnostic capacity; and
+- producer use exceeding its reservation.
+
+Expected host failures must map to typed resource failures; reservation contradictions must map to invariant failures. No test may depend on actually exhausting host memory.
 
 ### 5.4 Cancellation tests
 
@@ -398,7 +421,7 @@ Inject cancellation:
 - while diagnostics are being accumulated; and
 - immediately before commit.
 
-Verify complete rollback, joined workers, deterministic `cancelled` reporting, and absence of leaked partial artifacts.
+Verify complete rollback, joined workers, deterministic `cancelled` reporting, preservation of earlier failures only as secondary findings, and absence of leaked partial artifacts. Separately inject rollback/join/restoration contradictions and require deterministic invariant reporting rather than a false `cancelled` result.
 
 ### 5.5 Determinism and replay tests
 
@@ -409,12 +432,15 @@ For identical input bytes and options, vary:
 - worker count;
 - forced task delays;
 - hash collision patterns;
-- diagnostic capacity; and
+- diagnostic capacity;
+- compiler/library diagnostic strings;
+- build directory and executable name;
+- Ygor's time-derived project version; and
 - repeated execution count.
 
-The frozen context digest, primary error, replay bytes, and all canonical IDs must remain identical.
+The frozen context digest, primary error, replay bytes, and all canonical IDs must remain identical whenever the stable semantic conformance profile is the same.
 
-### 5.6 Platform qualification tests
+### 5.6 Platform and build qualification tests
 
 Run bit-pattern tests for:
 
@@ -426,7 +452,9 @@ Run bit-pattern tests for:
 - rounding mode changes; and
 - contraction-sensitive expressions.
 
-Build configurations that enable unsafe floating-point transformations must be detected by compile-time controls, runtime conformance tests, or both, and must not pass qualification.
+Build configurations that enable unsafe floating-point transformations must be detected by compile-time controls, runtime conformance tests, or both, and must not pass qualification. Test ordinary, Release, sanitizer, and supported LTO/IPO configurations. If strict behavior cannot be guaranteed under a requested LTO/IPO mode, the bounded Boolean target must disable that mode or return `unsupported_platform`; it must not silently inherit global fast-math behavior.
+
+Normative Boolean tests must also build in a configuration with Ygor's optional external dependencies disabled and must not link an external test framework.
 
 ### 5.7 Transactional integration tests
 
@@ -436,19 +464,23 @@ Provide test doubles for later components that:
 - fail before allocation;
 - fail after large reservations;
 - emit several competing failures;
-- throw only in test builds to simulate unexpected control transfer; and
+- throw `std::bad_alloc`, `std::length_error`, `std::system_error`, and an unrelated exception only in test builds;
+- request cancellation after a failure has been recorded; and
 - request cancellation during commit preparation.
 
-Verify that the context services preserve ownership, rollback, and deterministic error semantics.
+Verify that the context services preserve ownership, rollback, typed resource classification, cancellation override semantics, and deterministic error ordering.
 
 ### 5.8 Definition of done
 
 Component 01 is complete only when:
 
 - all public policies and error categories are versioned and documented;
+- public no-cancellation and explicit cooperative-cancellation entry paths are specified and tested;
 - all identity domains are strongly separated;
 - transactions and resource accounting have independent verifiers;
-- replay is byte-stable across supported builds and thread counts;
-- cancellation cannot leak or publish partial work;
+- expected host-resource failures remain typed and never masquerade as invariants;
+- replay is byte-stable across supported builds and thread counts under the same stable conformance profile;
+- global fast-math and LTO/IPO cannot contaminate strict Boolean translation units;
+- cancellation cannot leak or publish partial work and has deterministic result precedence;
 - every later component can depend only on the documented read-only services; and
 - the implementation and tests compile as strict portable C++17 with no external dependencies.
