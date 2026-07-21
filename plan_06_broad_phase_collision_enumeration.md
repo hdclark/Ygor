@@ -64,7 +64,7 @@ The implementation must not:
 
 Use Component 01 for owner validation, strong-ID domains, checked arithmetic, typed outcomes, resources, cancellation, deterministic failure arbitration, diagnostics, replay, canonical bytes, SHA-256, transactions, immutable publication, and execution-policy validation. Use Component 03 as the sole authority for finite closed AABBs, scalar total-order keys, conservative union and containment, closed overlap, definite separation, and precision references. Use Component 05 as the sole authority for canonical vertices, edges, halfedges, triangles, source facets, shells, semantic classes, directions, provenance, and owner-free semantic keys.
 
-`tracker.md` records completion of this **planning and independent-review step**, not future implementation completion. Mark Component 06 complete after this reviewed specification and concrete plan are internally consistent, cover the implementation handoff, and align with Components 01, 03, 05, 07, 16, and 17. Section 24 remains the future implementation definition of done.
+`tracker.md` records completion of this **planning and independent-review step**, not future implementation completion. Mark Component 06 complete after this reviewed specification and concrete plan are internally consistent, cover the implementation handoff, and align with Components 01, 03, 05, 07, 16, and 17. Section 21 remains the future implementation definition of done.
 
 ## 1. Independent review conclusions and required corrections
 
@@ -89,7 +89,7 @@ A wrong, stale, or cross-context owner still fails deterministically before use.
 
 The prior wording tied the tracker checkbox to completion of future implementation and qualification. That contradicts Components 01, 03, 05, and 17 and the existing checked tracker state.
 
-The tracker checkbox is set when the specification and concrete implementation plan have passed this review. Future implementation acceptance remains governed by Section 24 and executable evidence.
+The tracker checkbox is set when the specification and concrete implementation plan have passed this review. Future implementation acceptance remains governed by Section 21 and executable evidence.
 
 ### 1.3 The existing Ygor audit must include `kdtree<T>`
 
