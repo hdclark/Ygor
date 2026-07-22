@@ -66,3 +66,5 @@ replace_once(
     '''    const auto &predecessor = source.triangles()[triangle.source_triangle];\n    const auto expected_rotation =\n''',
     '''    const auto &predecessor = source.triangles()[triangle.source_triangle];\n    if (triangle.basis.kind != predecessor.basis.kind ||\n        triangle.basis.operand != predecessor.basis.operand ||\n        triangle.basis.facet != predecessor.basis.facet ||\n        triangle.basis.ring != predecessor.basis.ring ||\n        triangle.basis.shell != predecessor.basis.shell ||\n        triangle.basis.dropped_axis != predecessor.basis.dropped_axis ||\n        triangle.basis.support_vertices != predecessor.basis.support_vertices ||\n        triangle.basis.predecessor_digest != predecessor.basis.predecessor_digest ||\n        triangle.basis.precision_digest != precision.digest() ||\n        triangle.basis.basis_digest != predecessor.basis.basis_digest)\n      return fail(canonical_halfedge_subcode::geometry_basis_mismatch);\n    const auto expected_rotation =\n''',
 )
+
+Path(".github/component05_determinism_fix.py").unlink()
