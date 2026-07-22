@@ -74,3 +74,27 @@ Resource-limit failure is distinct from a proven or policy-relative representabi
 Generate the complete obligation universe before solving. Build the bipartite variable-obligation graph, solve each connected component independently in canonical least-variable order, and compose the lexicographically first component assignments. Publish per-component variables, obligations, accepted ranks, rejected-prefix witnesses, `visited_nodes`, and `complete_assignments`; the verifier replays those certificates without a global DFS.
 
 Generate triangle-pair obligations through a deterministic conservative broad phase over exact candidate-domain AABBs. Equality counts as overlap; uncertain pairs are retained. Production uses `conservative_domain_aabb_v1`, exhaustive all-pairs remains a bounded oracle, and limits return `resource_limit` rather than incomplete pruning. The verifier independently reconstructs candidates with a different implementation family.
+
+## 5. Assessment-driven realization amendment
+
+Implement three distinct result paths. They must have distinct enums, result variants, certificates, error subcodes, and public documentation.
+
+### Exact-coordinate output
+
+Permit the durable exact stratified result to expose canonical rational coordinates or versioned exact construction records without converting to `T`. This path bypasses finite-precision realization but still requires exact-result verification, serialization checks, topology classification, and ownership/lifetime guarantees.
+
+### Strict `exact_in_T`
+
+Retain the existing semantics unchanged. A candidate succeeds only when every decoded `T` coordinate equals its exact symbolic target and every defining relation and embedding obligation passes. Neighbor search may optimize discovery of the same exact value but may not relax equality. This mode is strict/certified and must not be advertised as the ordinary CAD success path.
+
+### `certified_approximate_embedding_v1`
+
+Add a separately typed approximate mode under an explicit caller policy containing model units, maximum vertex displacement, optional per-axis limits, support-plane deviation limits for triangulated output, original-vertex movement policy, candidate/search limits, and required topology/embedding obligations.
+
+Approximate success must preserve one global variable per symbolic vertex, exact occurrence topology, orientation, non-degeneracy, required edge orders and incidences, and absence of new prohibited intersections. It must bind to the exact-result digest and report every relaxed geometric relation. The certificate records exact targets, emitted bit patterns, exact displacement vectors, maxima, obligation results, search transcript summary, and all policy-relative bounds.
+
+The result kind must state that the floating mesh is a certified nearby embedding, not the exact Boolean point set. No API may return this payload through the `exact_in_T` success alternative or describe it as exact geometry.
+
+Search exhaustion in approximate mode is a policy-relative `output_not_representable` subcode. It is not proof that no embedding exists outside the configured search/bounds. Exceeding the caller's displacement policy is `approximation_policy_rejected`; verifier disagreement or certificate mismatch is an internal blocking defect.
+
+Component 13 must independently regenerate the obligation universe and replay displacement/topology certificates from the exact result plus emitted `T` bits. `plan_16_qualification_release.md` governs promotion of any approximate policy to production use.
