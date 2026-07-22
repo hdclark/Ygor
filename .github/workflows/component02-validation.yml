@@ -1,0 +1,286 @@
+name: Component 02 validation
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: write
+
+concurrency:
+  group: component02-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-manifold-mesh-boolean-plan
+          fetch-depth: 0
+
+      - name: Apply validation corrections and regression
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
+
+          producer_path = Path("src/YgorMeshesBooleanBounded/InputValidation.h")
+          producer = producer_path.read_text()
+          producer = replace_once(
+              producer,
+              """      auto &r = source_rings_[f];
+              for (auto p = source_.face_offsets()[f];
+""",
+              """      auto &r = source_rings_[f];
+              std::size_t last_retained_record =
+                  std::numeric_limits<std::size_t>::max();
+              for (auto p = source_.face_offsets()[f];
+""",
+              "normalizer retained-record declaration",
+          )
+          producer = replace_once(
+              producer,
+              """        r.push_back(v);
+              out_.normalization_.push_back(
+                  {p, f, 0, ring_position_action::retained, r.size() - 1});
+""",
+              """        r.push_back(v);
+              last_retained_record = out_.normalization_.size();
+              out_.normalization_.push_back(
+                  {p, f, 0, ring_position_action::retained, r.size() - 1});
+""",
+              "normalizer retained-record capture",
+          )
+          producer = replace_once(
+              producer,
+              """      if (r.size() > 1 && r.front() == r.back()) {
+                r.pop_back();
+                out_.normalization_.back().action =
+                    ring_position_action::duplicate_closure;
+                out_.normalization_.back().retained_corner = 0;
+              }
+""",
+              """      if (r.size() > 1 && r.front() == r.back()) {
+                const auto removed_corner = r.size() - 1;
+                r.pop_back();
+                if (last_retained_record ==
+                        std::numeric_limits<std::size_t>::max() ||
+                    last_retained_record >= out_.normalization_.size())
+                  return error(input_validation_subcode::verifier_rejection,
+                               bounded_boolean_error_category::internal_invariant_error,
+                               "closing source position was not retained", 4);
+                auto &closing = out_.normalization_[last_retained_record];
+                closing.action = ring_position_action::duplicate_closure;
+                closing.retained_corner = 0;
+                for (std::size_t record = last_retained_record + 1;
+                     record < out_.normalization_.size(); ++record) {
+                  auto &trailing = out_.normalization_[record];
+                  if (trailing.source_facet != f)
+                    break;
+                  if (trailing.action ==
+                          ring_position_action::consecutive_duplicate &&
+                      trailing.retained_corner == removed_corner)
+                    trailing.retained_corner = 0;
+                }
+              }
+""",
+              "normalizer duplicate-closure provenance",
+          )
+          producer_path.write_text(producer)
+
+          verifier_path = Path(
+              "src/YgorMeshesBooleanBounded/ValidatedOperandVerifier.h"
+          )
+          verifier = verifier_path.read_text()
+          start_marker = (
+              "  if (a.normalization_.size() != source.indices().size())\n"
+          )
+          end_marker = (
+              "  auto imported = import_source_bounded_values(precision, source);\n"
+          )
+          start = verifier.find(start_marker)
+          end = verifier.find(end_marker, start)
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit("verifier normalization reconstruction markers missing")
+          replacement = r'''  if (a.normalization_.size() != source.indices().size())
+            return false;
+          std::vector<const normalized_position_record *> positions(
+              source.indices().size(), nullptr);
+          for (const auto &position : a.normalization_) {
+            if (position.source_position >= positions.size() ||
+                positions[position.source_position] ||
+                position.source_facet >= source.face_count() ||
+                position.canonical_facet >= a.facets_.size() ||
+                source_to_canonical_facet[position.source_facet] !=
+                    position.canonical_facet ||
+                position.retained_corner >=
+                    a.facets_[position.canonical_facet].vertices.size())
+              return false;
+            positions[position.source_position] = &position;
+          }
+          for (std::uint64_t f = 0; f < source.face_count(); ++f) {
+            const auto begin = source.face_offsets()[f];
+            const auto end = source.face_offsets()[f + 1];
+            const auto count = static_cast<std::size_t>(end - begin);
+            std::vector<ring_position_action> expected_actions(
+                count, ring_position_action::retained);
+            std::vector<std::uint64_t> normalized;
+            std::size_t last_retained = std::numeric_limits<std::size_t>::max();
+            for (auto p = begin; p < end; ++p) {
+              const auto local = static_cast<std::size_t>(p - begin);
+              const auto source_vertex =
+                  static_cast<std::uint64_t>(source.indices()[p]);
+              if (!normalized.empty() && normalized.back() == source_vertex) {
+                expected_actions[local] =
+                    ring_position_action::consecutive_duplicate;
+                continue;
+              }
+              normalized.push_back(source_vertex);
+              last_retained = local;
+            }
+            if (normalized.size() > 1 && normalized.front() == normalized.back()) {
+              normalized.pop_back();
+              if (last_retained == std::numeric_limits<std::size_t>::max())
+                return false;
+              expected_actions[last_retained] =
+                  ring_position_action::duplicate_closure;
+            }
+            const auto canonical_facet = source_to_canonical_facet[f];
+            if (canonical_facet >= a.facets_.size() ||
+                normalized.size() != a.facets_[canonical_facet].vertices.size())
+              return false;
+            for (std::size_t local = 0; local < count; ++local) {
+              const auto p = begin + local;
+              const auto *position = positions[p];
+              if (!position)
+                return false;
+              const auto source_vertex =
+                  static_cast<std::uint64_t>(source.indices()[p]);
+              if (source_vertex >= source_to_canonical.size())
+                return false;
+              const auto canonical_vertex = source_to_canonical[source_vertex];
+              if (canonical_vertex == std::numeric_limits<std::uint64_t>::max())
+                return false;
+              const auto &ring = a.facets_[canonical_facet].vertices;
+              const auto corner = std::find(ring.begin(), ring.end(),
+                                            canonical_vertex);
+              if (corner == ring.end() || position->source_facet != f ||
+                  position->canonical_facet != canonical_facet ||
+                  position->action != expected_actions[local] ||
+                  position->retained_corner !=
+                      static_cast<std::uint64_t>(corner - ring.begin()))
+                return false;
+            }
+          }
+'''
+          verifier = verifier[:start] + replacement + verifier[end:]
+          verifier_path.write_text(verifier)
+
+          test_path = Path("tests/mesh_boolean_bounded/TestInputValidation.cc")
+          test = test_path.read_text()
+          test_function = r'''
+          void test_trailing_duplicate_closure_normalization() {
+            auto mesh = tetra<double, std::uint32_t>();
+            mesh.faces[0] = {0, 2, 1, 0, 0};
+            auto result = validate_a(mesh);
+            require(result.has_value(),
+                    "closing vertex followed by duplicates remains valid");
+            const auto &records =
+                (*result.value())->presentation_normalization();
+            require(records.size() >= 5,
+                    "trailing duplicate normalization records retained");
+            const auto &closure = records[3];
+            const auto &trailing = records[4];
+            require(closure.source_position == 3 &&
+                        closure.action ==
+                            bounded::ring_position_action::duplicate_closure,
+                    "retained closing occurrence owns closure action");
+            require(trailing.source_position == 4 &&
+                        trailing.action ==
+                            bounded::ring_position_action::consecutive_duplicate,
+                    "trailing repeated occurrence remains a duplicate action");
+            require(closure.canonical_facet == trailing.canonical_facet &&
+                        closure.retained_corner == trailing.retained_corner,
+                    "closure and trailing duplicate map to the retained first corner");
+          }
+
+'''
+          test = replace_once(
+              test,
+              "void test_structural_failures() {\n",
+              test_function + "void test_structural_failures() {\n",
+              "normalization regression insertion",
+          )
+          test = replace_once(
+              test,
+              "    test_topology_and_normalization();\n",
+              "    test_topology_and_normalization();\n"
+              "    test_trailing_duplicate_closure_normalization();\n",
+              "normalization regression invocation",
+          )
+          test_path.write_text(test)
+
+          Path("component_02_partial_validation.md").write_text(
+              """# Component 02 partial-implementation validation\n\n"
+              "This validation pass audits the implementation currently tracked as "
+              "`Component 2: validate partial implementation`. It does not broaden the "
+              "implemented provider beyond its documented nominal-embedded sufficient "
+              "domain.\n\n"
+              "The audit found and corrected a provenance defect for a normalized ring "
+              "whose retained duplicate-closing vertex is followed by one or more "
+              "consecutive duplicate source positions. The producer now assigns the "
+              "`duplicate_closure` action to the retained closing occurrence, preserves "
+              "each later occurrence as `consecutive_duplicate`, and maps all of them to "
+              "the retained first canonical corner. The independent verifier reconstructs "
+              "those actions from the source stream using separate control flow.\n\n"
+              "Validation is gated by the complete Component 02 CTest group under GCC and "
+              "Clang, including the new regression and the existing topology, canonical, "
+              "relation, shell, uncertainty, resource, cancellation, mutation, and profile "
+              "coverage.\n"
+          )
+          PY
+
+      - name: Configure and test with GCC
+        run: |
+          cmake -S . -B build-gcc -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-gcc --target ygor_mesh_boolean_input_validation_tests -j2
+          ctest --test-dir build-gcc --output-on-failure -R '^mesh_boolean_bounded_component02_'
+
+      - name: Configure and test with Clang
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake -S . -B build-clang -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-clang --target ygor_mesh_boolean_input_validation_tests -j2
+          ctest --test-dir build-clang --output-on-failure -R '^mesh_boolean_bounded_component02_'
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          tracker = Path('tracker.md')
+          text = tracker.read_text()
+          old = '- [ ] Component 2: validate partial implementation.'
+          new = '- [x] Component 2: validate partial implementation.'
+          if text.count(old) != 1:
+              raise SystemExit('Component 02 validation tracker entry is not uniquely available')
+          tracker.write_text(text.replace(old, new, 1))
+          Path('.github/workflows/component02-validation.yml').unlink()
+          PY
+          git config user.name "Component 02 validation agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add .
+          git commit -m "Validate component 2 partial implementation (plan 02)"
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
