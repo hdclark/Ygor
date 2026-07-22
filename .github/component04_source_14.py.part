@@ -1,0 +1,82 @@
+56.cc
+    ToleranceBudget.cc)
+''',
+'''    Sha256.cc
+    SourceFacetGeometryBasis.cc
+    BoundedSourcePolygonKernel.cc
+    SourceEarTriangulationReference.cc
+    SourceEarTriangulationIndexed.cc
+    SourceTriangleProvenance.cc
+    SourceTriangulationCoverage.cc
+    SourceTriangleComplexCodec.cc
+    SourceTriangleComplexVerifier.cc
+    SourceTriangulation.cc
+    ToleranceBudget.cc)
+''')
+
+append_tests = r'''
+
+add_executable(ygor_mesh_boolean_source_triangulation_tests
+    TestSourceTriangulationMain.cc
+    TestSourceTriangulationUnit.cc
+    TestSourceTriangulationGeometryBasis.cc
+    TestSourceTriangulationProjection.cc
+    TestSourceTriangulationCoverage.cc
+    TestSourceTriangulationDependencies.cc
+    TestSourceTriangulationBoundarySharing.cc
+    TestSourceTriangulationCanonicalization.cc
+    TestSourceTriangulationAlternatives.cc
+    TestSourceTriangulationMutation.cc
+    TestSourceTriangulationProperties.cc
+    TestSourceTriangulationAdversarial.cc
+    SourceTriangulationFixtures.cc
+    SourceTriangulationExactOracle.cc)
+target_include_directories(ygor_mesh_boolean_source_triangulation_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_source_triangulation_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_source_triangulation_tests)
+foreach(source_triangulation_suite
+        unit geometry_basis projection coverage dependencies boundary canonical
+        alternatives mutation properties adversarial)
+    add_test(NAME mesh_boolean_bounded_component04_${source_triangulation_suite}
+        COMMAND ygor_mesh_boolean_source_triangulation_tests
+                ${source_triangulation_suite})
+endforeach()
+'''
+cmake_tests = Path('tests/mesh_boolean_bounded/CMakeLists.txt')
+text = cmake_tests.read_text()
+if 'ygor_mesh_boolean_source_triangulation_tests' not in text:
+    cmake_tests.write_text(text + append_tests)
+
+tracker = Path('tracker.md')
+text = tracker.read_text()
+old = '- [ ] Component 4: source polygon triangulation and provenance.'
+new = '- [x] Component 4: source polygon triangulation and provenance.'
+if text.count(old) != 1:
+    raise SystemExit('tracker Component 4 entry missing or duplicated')
+tracker.write_text(text.replace(old, new, 1))
+
+write('component_04_implementation.md', r'''# Component 04 implementation
+
+The bounded Boolean subsystem now contains a dependency-free C++17 source-facet
+triangulation stage. It consumes only immutable `validated_operand` data and the
+committed Component 03 precision context, materializes the predecessor projection
+basis, runs a bounded full-rescan semantic ear reference, reconstructs source
+boundary and internal-diagonal roles from final triangle cycles, encodes owner-free
+semantic and exact-layout digests, and invokes an independent topology/codec
+verifier before publication.
+
+The V1 indexed provider deliberately retains complete active-point and active-segment
+dependency sets and is differentially checked against the executable full-rescan
+reference. This prioritizes complete invalidation and deterministic bounded
+termination; the configured ring/work guards prevent unbounded adversarial work.
+Internal diagonals are schema-fixed as ineligible source features, source-edge
+broad-phase candidates, symbolic owners, and winding barriers.
+
+Normative tests cover convex and concave closed shells, coherent-basis linkage,
+projection/orientation evidence, complete candidate traces, source-edge sharing,
+presentation canonicalization, legal alternative triangulations, independent
+mutation rejection, scale/translation properties, resource limits, and cancellation.
+''')
