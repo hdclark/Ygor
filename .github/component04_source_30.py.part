@@ -1,0 +1,26 @@
+
+# Match the qualified Component 03 harness and the public entry protocol: each
+# standalone Component 04 test process must establish the default floating
+# environment before invoking precision preflight or bounded predicates.
+main_test = Path('tests/mesh_boolean_bounded/TestSourceTriangulationMain.cc')
+main_text = main_test.read_text()
+main_include_old = '''#include <iostream>
+#include <stdexcept>'''
+main_include_new = '''#include <cfenv>
+#include <iostream>
+#include <stdexcept>'''
+if main_text.count(main_include_old) != 1:
+    raise SystemExit('source triangulation test main include site missing')
+main_text = main_text.replace(main_include_old, main_include_new, 1)
+main_start_old = '''int main(int argc, char **argv) {
+  try {
+    const std::string suite = argc > 1 ? argv[1] : "all";'''
+main_start_new = '''int main(int argc, char **argv) {
+  try {
+    if (std::fesetenv(FE_DFL_ENV) != 0 ||
+        std::fesetround(FE_TONEAREST) != 0)
+      throw std::runtime_error("establish source triangulation floating environment");
+    const std::string suite = argc > 1 ? argv[1] : "all";'''
+if main_text.count(main_start_old) != 1:
+    raise SystemExit('source triangulation test main entry site missing')
+main_test.write_text(main_text.replace(main_start_old, main_start_new, 1))
