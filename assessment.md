@@ -23,10 +23,6 @@ The likely behavior on real-world data is therefore mixed:
 - A large fraction of valid CAD-like operations can be expected to return `output_not_representable` under the only implemented realization semantics.
 - Unknown-provenance meshes will often be rejected before the Boolean because no import-healing or normalization layer is provided.
 
-For a downstream user that requires a rock-solid CAD foundation, the recommended approach is to avoid making this new implementation the production authority. Use an established geometry kernel behind a small Ygor adapter, retain the strongest ideas from this plan at the API and verification boundaries, and keep this implementation as an experimental backend, diagnostic oracle, or research path until it has passed a much stronger independent qualification program.
-
-The strongest open-source exact alternative is **CGAL's exact polyhedral stack**, particularly `Nef_polyhedron_3` for exact regularized set operations and Polygon Mesh Processing corefinement for simpler manifold triangle-mesh cases. If the downstream CAD engine works with analytic or spline surfaces rather than only flat mesh facets, a mature CAD B-rep kernel such as Open CASCADE—or a commercial kernel where licensing permits—is a better architectural level for the Boolean operation. For a practical, triangle-mesh-only, approximate CAD workflow, Manifold is also a serious option, but it provides bounded approximate geometry rather than the exact-set contract claimed by this PR.
-
 ## 1. High-level overview
 
 ### What the engine is intended to do
@@ -287,100 +283,19 @@ The design should be reframed around three separable concerns:
 
 The current Components 1, 2, 11, 12, and 13 contain ideas that remain valuable around an external backend. Most of Components 3 through 10 duplicate the central work of mature geometry libraries.
 
-## 5. Simpler and more battle-tested alternatives
-
-### 5.1 CGAL `Nef_polyhedron_3`: recommended exact authority
-
-CGAL's three-dimensional Nef polyhedra are an especially close match for the plan. They provide an exact B-rep that is closed under union, intersection, difference, symmetric difference, complement, interior, closure, boundary, and regularization. Their representation includes both local vertex neighborhoods and a global incidence structure. A result can be converted back to an ordinary polyhedron when its boundary is a closed oriented two-manifold.
-
-That directly addresses several of the hardest parts of this PR:
-
-- exact regularized set semantics;
-- non-manifold intermediate and result topology;
-- local topology around vertices;
-- global arrangement and volume marking; and
-- a clean manifold-conversion gate.
-
-A Ygor adapter could:
-
-1. validate and triangulate each `fv_surface_mesh` while preserving source IDs;
-2. convert every binary input coordinate to an exact CGAL number;
-3. construct exact oriented polyhedra or Nef polyhedra;
-4. apply the regularized operation;
-5. test whether the result is simple/manifold for `fv_surface_mesh` publication;
-6. convert and triangulate the result;
-7. map source provenance where possible; and
-8. apply an explicit exact or approximate output-coordinate policy.
-
-This is not free. CGAL can be heavy, performance must be measured, attribute propagation needs adapter work, and licensing must be reviewed. Nevertheless, it replaces the riskiest majority of the new implementation with a mature exact system whose architecture already matches the broad plan.
-
-### 5.2 CGAL Polygon Mesh Processing corefinement: simpler manifold path
-
-If the accepted domain is closed, non-self-intersecting triangle meshes and the public result must be manifold, CGAL's corefinement Boolean operations are a simpler alternative. They split both meshes along their exact intersection network and compute union, intersection, and difference outputs.
-
-This path is likely easier and faster than Nef polyhedra for the common manifold case. It is less general, so the application must define what happens when the result is non-manifold. It can be used as:
-
-- the primary backend for ordinary manifold cases;
-- a fast path before an exact Nef fallback; or
-- an independent differential oracle during qualification.
-
-### 5.3 Manifold: practical approximate triangle-mesh CAD
-
-Manifold is a production-oriented library for manifold triangle meshes. It focuses on guaranteed manifold topology, parallel performance, arbitrary vertex properties, material tracking, and bounded approximate geometry. It explicitly treats geometry as approximate and tracks a precision model rather than claiming exact point-set equality.
-
-This makes it a better fit than the current PR when the downstream requirement is “reliably return a useful manifold mesh” rather than “return the exact mathematical point set or fail.” It also has a permissive license and a much broader external user and release history than this new code.
-
-Its limitations must be accepted clearly:
-
-- it is triangle-mesh based;
-- it is not an exact construction kernel;
-- it requires manifold inputs;
-- its geometric guarantee is based on an epsilon-valid model; and
-- it is not a substitute for an analytic CAD B-rep kernel.
-
-### 5.4 Open CASCADE or a commercial CAD kernel: preferred for curved CAD B-reps
-
-If the downstream CAD engine represents planes, cylinders, cones, splines, and trimmed parametric surfaces, converting to triangles before every Boolean loses the most important information in the model. Mesh refinement can only approximate the true intersection curves and surfaces.
-
-A mature CAD B-rep kernel operates on curves and surfaces directly, supports model tolerances, preserves more feature history, and provides the expected interchange path to STEP/IGES-style models. Open CASCADE offers fuse, common, cut, general-fuse, fuzzy, and gluing workflows, with extensive documentation of limitations and tolerance behavior. Commercial kernels should also be evaluated when the downstream product's reliability requirement justifies their cost.
-
-A mesh can always be generated from a CAD B-rep for rendering or analysis. Reconstructing the original analytic B-rep from a Booleaned triangle mesh is generally not reliable.
-
-### 5.5 Decision matrix
-
-| Backend | Exact set semantics | Practical floating output | Non-manifold internal result | Curved CAD surfaces | Maturity | Main concern |
-|---|---:|---:|---:|---:|---:|---|
-| Current PR | Yes internally | Poor under exact-in-`T` | Yes internally | No | New | Size, qualification, output success rate |
-| CGAL Nef | Yes | Requires explicit conversion policy | Yes | Polyhedral only | High | Weight, performance, licensing |
-| CGAL corefinement | With exact constructions | Requires conversion policy | Limited by output contract | No | High | Closed triangle-mesh domain |
-| Manifold | No; bounded approximate model | Yes | Topology is forced manifold | No | Moderate/high | Approximate geometry semantics |
-| Open CASCADE / CAD kernel | Tolerance-based CAD semantics | Yes | Kernel-specific | Yes | High | Complexity, tolerance behavior, licensing |
-
-## 6. Recommended architecture for Ygor and the downstream CAD engine
+## 5. Recommended architecture for Ygor and the downstream CAD engine
 
 ### Recommended production path
 
 1. **Define the actual downstream contract first.** Decide whether users need exact point-set semantics, a valid manifold mesh within a model tolerance, or an analytic CAD B-rep. These are different products.
 
-2. **Introduce an internal backend-neutral solid interface.** It should carry stable source IDs, shells, face provenance, operation semantics, and structured diagnostics without exposing one backend's data structures.
+2. **Add an explicit normalization API.** It should accept an application tolerance, return a repaired validated solid plus a detailed change report, and never be confused with exact Boolean evaluation.
 
-3. **Use CGAL Nef as the initial exact authority for polyhedral solids.** Use CGAL corefinement as an optional common-case fast path only after differential agreement is demonstrated.
+3. **Provide at least two output modes.** One should return exact rational/construction coordinates. The other should return a floating mesh with a documented displacement bound and complete post-rounding verification. Exact-in-`T` can remain as a strict certified mode.
 
-4. **Add an explicit normalization API.** It should accept an application tolerance, return a repaired validated solid plus a detailed change report, and never be confused with exact Boolean evaluation.
+4. **Keep a manifold publication gate.** If `fv_surface_mesh` cannot represent the exact topology, return a dedicated result containing either the exact backend object, a stratified boundary type, or the existing typed failure.
 
-5. **Provide at least two output modes.** One should return exact rational/construction coordinates. The other should return a floating mesh with a documented displacement bound and complete post-rounding verification. Exact-in-`T` can remain as a strict certified mode.
-
-6. **Keep a manifold publication gate.** If `fv_surface_mesh` cannot represent the exact topology, return a dedicated result containing either the exact backend object, a stratified boundary type, or the existing typed failure.
-
-7. **Preserve attributes and history deliberately.** Define face-origin sets, generated-intersection identities, material rules, sharp-edge propagation, and how triangulation affects metadata.
-
-8. **Use the current engine as an experimental differential backend.** Its exact artifacts, typed failures, and adversarial cases can be valuable for finding bugs in the production adapter without making it the only authority.
-
-### Why this is simpler
-
-The project would still own input semantics, adapters, normalization policy, output realization, verification, and user-facing diagnostics. It would no longer own every exact arithmetic operation, intersection arrangement, local vertex topology, cell classification, and Boolean set operation. That is a much smaller and more maintainable trust boundary.
-
-## 7. Required improvements if the current implementation is retained
+## 6. Required improvements for the current implementation
 
 The following are release blockers for a rock-solid CAD dependency.
 
@@ -398,19 +313,15 @@ The following are release blockers for a rock-solid CAD dependency.
 
 1. **Complete P13 and commit a reproducible report.** Include exact compiler versions, architectures, build modes, sanitizer runs, thread counts, filter modes, test tiers, seeds, fuzz durations, benchmark hardware, peak memory, failures, and performance results.
 
-2. **Build a substantial permanent end-to-end corpus.** It should include thousands of cases from generated exact polyhedra and real tessellated CAD models, not only boxes.
+2. **Build a substantial permanent end-to-end corpus.** It should include many cases (thousands!) from generated exact polyhedra and real tessellated CAD models, not only boxes. The cases should reflect real applications, not just simple boxes.
 
-3. **Add independent differential backends.** Compare exact selected boundaries or typed outcomes against CGAL Nef and, where applicable, CGAL corefinement and Manifold. Disagreements must be minimized and retained.
+3. **Expand full-operation degeneracy coverage.** Include rotated and skewed convex solids, concave solids, multiple cavities, nested shells, coplanar partial overlaps, repeated cuts, high-valence intersections, long thin features, severe scale differences, and alternate triangulations.
 
-4. **Expand full-operation degeneracy coverage.** Include rotated and skewed convex solids, concave solids, multiple cavities, nested shells, coplanar partial overlaps, repeated cuts, high-valence intersections, long thin features, severe scale differences, and alternate triangulations.
+4. **Fuzz valid geometry, not only disjoint boxes.** Use topology-preserving generators and exact rational construction so expected relations are known. Run continuously under sanitizers and preserve every failure.
 
-5. **Fuzz valid geometry, not only disjoint boxes.** Use topology-preserving generators and exact rational construction so expected relations are known. Run continuously under sanitizers and preserve every failure.
+5. **Test chains of operations.** CAD workloads perform many Booleans in sequence. Every successful output should be re-ingested and used in further operations under varied orderings.
 
-6. **Test chains of operations.** CAD workloads perform many Booleans in sequence. Every successful output should be re-ingested and used in further operations under varied orderings.
-
-7. **Run external corpus campaigns.** Use publicly available manifold meshes and CAD tessellations, classify rejection reasons, measure success rate, and manually audit a representative sample.
-
-8. **Measure false success, not only crashes and failures.** The most dangerous outcome is a verified-looking but incorrect solid. Independent point classification, exact volume comparisons where applicable, and external backends are essential.
+6. **Measure false success, not only crashes and failures.** The most dangerous outcome is a verified-looking but incorrect solid. Independent point classification, exact volume comparisons where applicable, and comparisons with external providers/projects/samples are essential.
 
 ### P1: engineering improvements
 
@@ -426,15 +337,9 @@ The following are release blockers for a rock-solid CAD dependency.
 
 The PR is a serious and thoughtful research implementation, not a superficial mesh Boolean. Its broad plan is valuable and many of its correctness principles should become requirements for any chosen backend.
 
-It should **not yet be described as a robust production surface-mesh Boolean engine for a downstream CAD system**. The present implementation has insufficient independent qualification, too narrow a real-world corpus, an unfinished release gate, and an output contract that makes ordinary exact intersections unpublishable as `float` or `double` meshes.
-
 The recommended decision is:
 
-1. do not merge it as the only production Boolean backend;
-2. retain it behind an experimental API if continued research is desired;
-3. build a backend adapter around CGAL Nef or CGAL corefinement for the exact polyhedral path;
-4. evaluate Manifold for a practical approximate triangle-mesh path;
-5. use a mature CAD B-rep kernel when curved surfaces and CAD history matter; and
-6. make normalization, exact output, certified approximate output, provenance, and qualification first-class parts of the product architecture.
+1. accept and retain this engine as an experimental API until more evidence can be gathered to validate it; and
+2. make normalization, exact output, certified approximate output, provenance, and qualification first-class parts of the product architecture.
 
 A production claim should be reconsidered only after the downstream application's representative corpus passes a published, reproducible, multi-backend qualification program with an acceptable success rate, no unexplained disagreements, and measured performance and memory bounds.
