@@ -1,17 +1,17 @@
-- [ ] component 1
-- [ ] component 2
-- [ ] component 3
-- [ ] component 4
-- [ ] component 5
-- [ ] component 6
-- [ ] component 7
-- [ ] component 8
-- [ ] component 9
-- [ ] component 10
-- [ ] component 11
-- [ ] component 12
-- [ ] component 13
-- [ ] component 14
-- [ ] component 15
-- [ ] component 16
-- [ ] component 17
+- [ ] Component 1: contract, IDs, errors, resources, transactions, and replay.
+- [ ] Component 3: precision model and bounded arithmetic, together with the exact test oracle.
+- [ ] Component 2: input topology, shell semantics, and independent validation.
+- [ ] Component 4: source polygon triangulation and provenance.
+- [ ] Component 5: canonical halfedge topology.
+- [ ] Component 6: broad phase, gated against exhaustive enumeration.
+- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix.
+- [ ] Component 8: canonical event registry and shared construction lineage.
+- [ ] Component 9: connectivity and winding classification.
+- [ ] Component 10: Boolean selection and topological occurrence accounting.
+- [ ] Component 11: paired output edges and polygonal face cycles.
+- [ ] Component 12: degeneracy-tolerant triangulation.
+- [ ] Component 13: budgeted cleanup and simplification.
+- [ ] Component 14: output assembly and canonical serialization.
+- [ ] Component 15: full independent final verification and replay diagnostics.
+- [ ] Component 17: performance optimization and deterministic concurrency.
+- [ ] Component 16: full qualification matrix and release report.
