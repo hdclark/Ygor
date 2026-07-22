@@ -1,0 +1,53 @@
+
+# Complete the strict-profile ODR repair for the macro-dependent template
+# wrappers that call the translation-unit-local build probe. Without local
+# linkage an instantiation emitted by a non-strict consumer can still be chosen
+# by the linker even though the strict provider was compiled correctly.
+floating_bits = Path('src/YgorMeshesBooleanBounded/FloatingBits.h')
+floating_text = floating_bits.read_text()
+old_runtime = '''template<class T>
+bool runtime_floating_profile_qualified() noexcept {'''
+new_runtime = '''template<class T>
+static bool runtime_floating_profile_qualified() noexcept {'''
+if floating_text.count(old_runtime) != 1:
+    raise SystemExit('runtime floating profile template declaration missing')
+floating_bits.write_text(floating_text.replace(old_runtime, new_runtime, 1))
+
+bootstrap = Path('src/YgorMeshesBooleanBounded/PrecisionBootstrap.h')
+bootstrap_text = bootstrap.read_text()
+old_profile = '''template<class T, class I>
+bool runtime_precision_profile_qualified() noexcept {'''
+new_profile = '''template<class T, class I>
+static bool runtime_precision_profile_qualified() noexcept {'''
+if bootstrap_text.count(old_profile) != 1:
+    raise SystemExit('runtime precision profile template declaration missing')
+bootstrap.write_text(bootstrap_text.replace(old_profile, new_profile, 1))
+
+fixtures = Path('tests/mesh_boolean_bounded/SourceTriangulationFixtures.h')
+fixture_text = fixtures.read_text()
+old_preflight = '''  auto preflight = bounded::preflight_precision(*pending.value());
+  if (!preflight.has_value())
+    throw std::runtime_error(std::string("precision preflight for source triangulation: ") +
+                             preflight.error()->summary + " [subcode " +
+                             std::to_string(preflight.error()->subcode) + "]");'''
+new_preflight = '''  bounded::precision_bootstrap_capabilities bootstrap_capabilities;
+  if (!bootstrap_capabilities.strict_build ||
+      !bounded::strict_floating_build_enabled() ||
+      !bounded::runtime_floating_profile_qualified<T>() ||
+      std::fegetround() != FE_TONEAREST)
+    throw std::runtime_error(
+        std::string("source triangulation strict profile diagnostic: capability=") +
+        (bootstrap_capabilities.strict_build ? "1" : "0") +
+        " build=" + (bounded::strict_floating_build_enabled() ? "1" : "0") +
+        " runtime=" +
+        (bounded::runtime_floating_profile_qualified<T>() ? "1" : "0") +
+        " rounding=" + std::to_string(std::fegetround()));
+  auto preflight = bounded::preflight_precision(*pending.value(),
+                                                 bootstrap_capabilities);
+  if (!preflight.has_value())
+    throw std::runtime_error(std::string("precision preflight for source triangulation: ") +
+                             preflight.error()->summary + " [subcode " +
+                             std::to_string(preflight.error()->subcode) + "]");'''
+if fixture_text.count(old_preflight) != 1:
+    raise SystemExit('diagnostic source triangulation preflight site missing')
+fixtures.write_text(fixture_text.replace(old_preflight, new_preflight, 1))
