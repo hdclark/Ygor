@@ -45,42 +45,35 @@ replace_once(
     const int w = value(cd_b, b.source_vertex == c.source_vertex ||
                                    b.source_vertex == d.source_vertex);''')
 
-# Temporary differential diagnostic for the remaining canonicalization failure.
+# The full precision-context digest contains source-presentation, context-owner,
+# and replay bindings.  Keep it in the artifact for runtime contract validation,
+# but do not let those bindings contaminate owner-free semantic identity.
 replace_once(
-    'tests/mesh_boolean_bounded/TestSourceTriangulationCanonicalization.cc',
-    r'''  require((*first.value())->source_semantic_digest() ==
-              (*second.value())->source_semantic_digest(),
-          "presentation permutations preserve source semantics");''',
-    r'''  if ((*first.value())->source_semantic_digest() !=
-      (*second.value())->source_semantic_digest()) {
-    const auto &a = (*first.value())->semantic_bytes();
-    const auto &b = (*second.value())->semantic_bytes();
-    std::size_t first_difference = std::min(a.size(), b.size());
-    for (std::size_t i = 0; i < std::min(a.size(), b.size()); ++i)
-      if (a[i] != b[i]) { first_difference = i; break; }
-    throw std::runtime_error(
-        std::string("canonical diagnostic: operand_digest=") +
-        std::to_string(first_fixture.operand->digest() == second_fixture.operand->digest()) +
-        " source_digest=" +
-        std::to_string(first_fixture.operand->source_digest() == second_fixture.operand->source_digest()) +
-        " operand_bytes=" +
-        std::to_string(first_fixture.operand->canonical_bytes() == second_fixture.operand->canonical_bytes()) +
-        " predecessor=" +
-        std::to_string((*first.value())->predecessor_digest() == (*second.value())->predecessor_digest()) +
-        " vertices=" +
-        std::to_string((*first.value())->vertices().size() == (*second.value())->vertices().size()) +
-        " facets=" +
-        std::to_string((*first.value())->facets().size() == (*second.value())->facets().size()) +
-        " exact=" +
-        std::to_string((*first.value())->exact_triangulation_digest() ==
-                       (*second.value())->exact_triangulation_digest()) +
-        " sizes=" + std::to_string(a.size()) + "/" + std::to_string(b.size()) +
-        " diff=" + std::to_string(first_difference) +
-        " stats=" +
-        std::to_string(first_fixture.operand->statistics().triangle_pairs) + "/" +
-        std::to_string(second_fixture.operand->statistics().triangle_pairs) + "," +
-        std::to_string(first_fixture.operand->statistics().relation_calls) + "/" +
-        std::to_string(second_fixture.operand->statistics().relation_calls) + "," +
-        std::to_string(first_fixture.operand->statistics().canonical_branches) + "/" +
-        std::to_string(second_fixture.operand->statistics().canonical_branches));
-  }''')
+    'src/YgorMeshesBooleanBounded/SourceTriangulation.h',
+    r'''  write_digest(writer, artifact.predecessor_digest());
+  write_digest(writer, artifact.precision_digest());
+  writer.u64(artifact.vertices().size());''',
+    r'''  write_digest(writer, artifact.predecessor_digest());
+  writer.u64(artifact.vertices().size());''')
+
+# Likewise, a facet geometry-basis digest commits the actual source identities,
+# projected carriers, finite enclosures, formulas, and predecessor semantics;
+# the presentation-bound precision-context digest remains a separately validated
+# reference and is carried by replay rather than exact triangulation identity.
+replace_once(
+    'src/YgorMeshesBooleanBounded/SourceTriangulation.h',
+    r'''  write_digest(writer, out.basis.predecessor_digest);
+  write_digest(writer, out.basis.precision_digest);
+  writer.u64(out.points.size());''',
+    r'''  write_digest(writer, out.basis.predecessor_digest);
+  writer.u64(out.points.size());''')
+
+replace_once(
+    'src/YgorMeshesBooleanBounded/SourceTriangulation.h',
+    r'''    source_triangulation_detail::write_digest(
+        replay, operand_->source_presentation_digest());
+    replay.u16(contract_versions::source_triangle_complex_codec);''',
+    r'''    source_triangulation_detail::write_digest(
+        replay, operand_->source_presentation_digest());
+    source_triangulation_detail::write_digest(replay, precision_.digest());
+    replay.u16(contract_versions::source_triangle_complex_codec);''')
