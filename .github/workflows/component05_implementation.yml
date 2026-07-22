@@ -15,69 +15,137 @@ jobs:
   implement-and-validate:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
 
-      - name: Recover complete files from Component 05 archive prefix
+      - name: Apply final Component 05 integration
         shell: bash
         run: |
           set -o pipefail
-          cat .github/component05_payload_0[0-4].b64 | base64 --decode > /tmp/component05-prefix.tar.gz
-          python3 - <<'PY'
-          from hashlib import sha256
-          from pathlib import Path, PurePosixPath
-          import zlib
+          python3 -m py_compile .github/component05_finalize.py
+          python3 .github/component05_finalize.py
+          git diff --check
 
-          compressed = Path('/tmp/component05-prefix.tar.gz').read_bytes()
-          inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
-          data = inflater.decompress(compressed)
-          manifest = [
-              f'compressed_bytes {len(compressed)}',
-              f'compressed_sha256 {sha256(compressed).hexdigest()}',
-              f'decompressed_prefix_bytes {len(data)}',
-          ]
-          position = 0
-          recovered = []
-          while position + 512 <= len(data):
-              header = data[position:position + 512]
-              if header == bytes(512):
-                  break
-              name = header[:100].split(b'\0', 1)[0].decode('utf-8', 'strict')
-              prefix = header[345:500].split(b'\0', 1)[0].decode('utf-8', 'strict')
-              if prefix:
-                  name = prefix + '/' + name
-              size_text = header[124:136].split(b'\0', 1)[0].strip() or b'0'
-              size = int(size_text, 8)
-              typeflag = header[156:157]
-              payload_start = position + 512
-              payload_end = payload_start + size
-              padded_end = payload_start + ((size + 511) // 512) * 512
-              if padded_end > len(data):
-                  manifest.append(f'incomplete {name} size {size} available {max(0, len(data)-payload_start)}')
-                  break
-              path = PurePosixPath(name)
-              if path.is_absolute() or '..' in path.parts:
-                  raise SystemExit(f'unsafe archive path: {name}')
-              if typeflag in (b'0', b'\0'):
-                  target = Path(*path.parts)
-                  target.parent.mkdir(parents=True, exist_ok=True)
-                  payload = data[payload_start:payload_end]
-                  target.write_bytes(payload)
-                  recovered.append((name, size, sha256(payload).hexdigest()))
-              position = padded_end
-          manifest.append(f'complete_files {len(recovered)}')
-          manifest.extend(f'{name} {size} {digest}' for name, size, digest in recovered)
-          Path('.github/component05_recovery_manifest.txt').write_text('\n'.join(manifest) + '\n')
-          print('\n'.join(manifest))
+      - name: Configure and test with GCC
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component05-gcc \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Debug 2>&1 | tee component05-validation.log
+          cmake --build build-component05-gcc \
+            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
+            tee -a component05-validation.log
+          ctest --test-dir build-component05-gcc --output-on-failure \
+            -R '^mesh_boolean_bounded_component05_' 2>&1 | \
+            tee -a component05-validation.log
+          cmake --build build-component05-gcc --target \
+            ygor_mesh_boolean_bounded_tests \
+            ygor_mesh_boolean_input_validation_tests \
+            ygor_mesh_boolean_precision_tests \
+            ygor_mesh_boolean_precision_numeric_tests \
+            ygor_mesh_boolean_precision_operations_tests \
+            ygor_mesh_boolean_precision_state_tests \
+            ygor_mesh_boolean_adaptive_compatibility_tests \
+            ygor_mesh_boolean_precision_codec_tests \
+            ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
+            tee -a component05-validation.log
+          ctest --test-dir build-component05-gcc --output-on-failure \
+            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
+            tee -a component05-validation.log
+
+      - name: Configure and test with Clang
+        shell: bash
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component05-clang \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Release 2>&1 | tee -a component05-validation.log
+          cmake --build build-component05-clang \
+            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
+            tee -a component05-validation.log
+          ctest --test-dir build-component05-clang --output-on-failure \
+            -R '^mesh_boolean_bounded_component05_' 2>&1 | \
+            tee -a component05-validation.log
+          cmake --build build-component05-clang --target \
+            ygor_mesh_boolean_bounded_tests \
+            ygor_mesh_boolean_input_validation_tests \
+            ygor_mesh_boolean_precision_tests \
+            ygor_mesh_boolean_precision_numeric_tests \
+            ygor_mesh_boolean_precision_operations_tests \
+            ygor_mesh_boolean_precision_state_tests \
+            ygor_mesh_boolean_adaptive_compatibility_tests \
+            ygor_mesh_boolean_precision_codec_tests \
+            ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
+            tee -a component05-validation.log
+          ctest --test-dir build-component05-clang --output-on-failure \
+            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
+            tee -a component05-validation.log
+
+      - name: Configure sanitizer qualification
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component05-sanitizer \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
+            -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=address,undefined' 2>&1 | \
+            tee -a component05-validation.log
+          cmake --build build-component05-sanitizer \
+            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
+            tee -a component05-validation.log
+          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
+            ctest --test-dir build-component05-sanitizer --output-on-failure \
+              -R '^mesh_boolean_bounded_component05_' 2>&1 | \
+              tee -a component05-validation.log
+
+      - name: Commit Component 05
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tracker.md')
+          text = path.read_text()
+          old = '- [ ] Component 5: canonical halfedge topology.'
+          new = '- [x] Component 5: canonical halfedge topology.'
+          if text.count(old) != 1:
+              raise SystemExit('tracker Component 5 entry not found exactly once')
+          path.write_text(text.replace(old, new, 1))
           PY
-          git status --short
+          rm -f .github/component05_payload_*.b64
+          rm -f .github/component05_transport_diagnostic.txt
+          rm -f .github/component05_recovery_manifest.txt
+          rm -f .github/component05_finalize.py
+          rm -f .github/workflows/component05_implementation.yml
+          rm -rf build-component05-gcc build-component05-clang build-component05-sanitizer
+          rm -f component05-validation.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .
           git diff --cached --check
-          git commit -m 'Recover component 05 implementation archive prefix'
+          git commit -m 'Implement component 05 canonical halfedge topology (plan 05)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Upload validation log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component05-validation-log
+          path: component05-validation.log
+          if-no-files-found: ignore
