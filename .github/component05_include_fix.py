@@ -29,4 +29,14 @@ if basis_check not in text:
     text = text.replace(needle, needle + basis_check, 1)
 path.write_text(text)
 
+determinism_path = Path(".github/component05_determinism_fix.py")
+determinism = determinism_path.read_text()
+marker = '\nreplace_once(\n    "src/YgorMeshesBooleanBounded/CanonicalHalfedgeVerifier.h",'
+position = determinism.find(marker)
+if position >= 0:
+    determinism_path.write_text(
+        determinism[:position] +
+        '\n\nPath(".github/component05_determinism_fix.py").unlink()\n'
+    )
+
 Path(".github/component05_include_fix.py").unlink()
