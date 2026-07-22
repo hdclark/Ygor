@@ -22,14 +22,25 @@ jobs:
           ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
 
-      - name: Apply Component 04 implementation
+      - name: Apply Component 04 implementation fix
         id: apply
         shell: bash
         run: |
           set -o pipefail
-          cat .github/component04_source_*.py.part > /tmp/component04_implementation.py
-          python3 -m py_compile /tmp/component04_implementation.py
-          python3 /tmp/component04_implementation.py 2>&1 | tee component04-validation.log
+          cat > /tmp/component04_hotfix.py <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence, found {count}')
+              target.write_text(text.replace(old, new, 1))
+          PY
+          cat .github/component04_source_36.py.part >> /tmp/component04_hotfix.py
+          python3 -m py_compile /tmp/component04_hotfix.py
+          python3 /tmp/component04_hotfix.py 2>&1 | tee component04-validation.log
 
       - name: Snapshot implemented checkout
         shell: bash
