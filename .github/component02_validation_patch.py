@@ -8,17 +8,19 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+Path("component_02_validation_failure.md").unlink(missing_ok=True)
+
 producer_path = Path("src/YgorMeshesBooleanBounded/InputValidation.h")
 producer = producer_path.read_text()
 producer = replace_once(
     producer,
     """      auto &r = source_rings_[f];
-    for (auto p = source_.face_offsets()[f];
+      for (auto p = source_.face_offsets()[f];
 """,
     """      auto &r = source_rings_[f];
-    std::size_t last_retained_record =
-        std::numeric_limits<std::size_t>::max();
-    for (auto p = source_.face_offsets()[f];
+      std::size_t last_retained_record =
+          std::numeric_limits<std::size_t>::max();
+      for (auto p = source_.face_offsets()[f];
 """,
     "normalizer retained-record declaration",
 )
