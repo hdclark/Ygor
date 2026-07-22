@@ -71,3 +71,25 @@ Failure conditions include a violated artifact invariant, malformed/stale certif
 - Certificate versioning and stale-artifact detection are tested.
 - Production mandatory checks have bounded documented cost or explicit resource accounting.
 - Self-consistent producer-shaped mutations are rejected after counts, IDs, certificates, bytes, and digests are rebuilt.
+
+## 5. Assessment-driven cross-layer verification amendment
+
+Apply the verification boundary to every layer introduced by `plan_15_assessment_amendment.md`.
+
+Add independent checkers for:
+
+- normalization reports, edit ordering, displacement bounds, source-to-prepared provenance, and post-normalization strict validation;
+- backend capability declarations, adapter version/build identity, semantic compatibility, fallback records, and producing-backend bindings;
+- durable exact-result ownership, canonical serialization/deserialization, construction/rational coordinates, topology classification, and stale evidence;
+- certified approximate realization, including independent obligation regeneration, exact displacement replay, relaxed-relation accounting, and exact-result digest binding;
+- result-envelope consistency when exact success coexists with mesh-publication or realization failure;
+- attribute/provenance transfer maps, deterministic conflict behavior, and reported omissions; and
+- qualification-manifest authorization for any qualified-default backend or result mode.
+
+An external backend's self-reported success is never sufficient. The adapter must expose enough information for Ygor-side validation of the declared output contract. Where exact internal data are unavailable, the result must be capability-limited and verified with independent topology, embedding, occupancy, provenance, and policy checks appropriate to its declared semantics.
+
+Multi-backend agreement is supporting evidence only. Disagreement triggers a preserved diagnostic case and independent adjudication; it must not be resolved by majority vote. Verifier disagreement, stale certificates, adapter semantic mismatch, or an unexplained backend disagreement blocks fallback and production publication.
+
+Approximate certificates must be replayable from the durable exact result, emitted coordinate bits, policy, and canonical certificate alone. Decimal tolerances, triangle-count similarity, or approximate volume agreement cannot replace the certificate obligations.
+
+The qualification program in `plan_16_qualification_release.md` must mutation-test the new cross-layer bindings, including forged capability claims, stale preparation reports, mismatched exact-result digests, omitted relaxed relations, understated displacement maxima, incorrect backend provenance, and silent attribute loss.
