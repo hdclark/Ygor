@@ -1,0 +1,16 @@
+
+# Surface the precise predecessor-stage failure in Component 04 fixtures so
+# qualification failures remain actionable rather than collapsing to a generic
+# assertion message.
+fixtures = Path('tests/mesh_boolean_bounded/SourceTriangulationFixtures.h')
+fixture_text = fixtures.read_text()
+fixture_old = '''  auto preflight = bounded::preflight_precision(*pending.value());
+  require(preflight.has_value(), "precision preflight for source triangulation");'''
+fixture_new = '''  auto preflight = bounded::preflight_precision(*pending.value());
+  if (!preflight.has_value())
+    throw std::runtime_error(std::string("precision preflight for source triangulation: ") +
+                             preflight.error()->summary + " [subcode " +
+                             std::to_string(preflight.error()->subcode) + "]");'''
+if fixture_text.count(fixture_old) != 1:
+    raise SystemExit('source triangulation preflight diagnostic site missing')
+fixtures.write_text(fixture_text.replace(fixture_old, fixture_new, 1))
