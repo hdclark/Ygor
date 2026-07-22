@@ -46,3 +46,21 @@ Failure conditions are missing/contradictory labels, an open or contradictory st
 - Independent side reclassification confirms every selected and discarded patch decision.
 - Selected-boundary topology checks pass before realization.
 - Vertex- and edge-touching solids retain distinct surface occurrences over their common geometric strata, and occurrence-welding mutations are rejected.
+
+## 5. Assessment-driven exact-result publication amendment
+
+The verified selected exact boundary is a product artifact, not merely an invocation-private handoff to finite-precision realization.
+
+Promote it to a durable `exact_stratified_boundary` or equivalent handle with:
+
+- ownership independent of temporary stage stores and context stack lifetime;
+- canonical versioned serialization and deserialization;
+- canonical exact rational coordinates or versioned construction references;
+- all surface occurrences, links, topology classification, and obstruction records;
+- complete source, preparation, backend, operation, and event provenance;
+- artifact and verifier digests; and
+- a supported API for deferred realization into one or more output coordinate types.
+
+A valid exact result is successful even when it is stratified non-manifold or cannot be realized exactly in `T`. Later publication policy may reject an `fv_surface_mesh` payload, but it must not erase the exact result when the caller requested exact-result retention.
+
+Serialization round trips must preserve topology, exact coordinates/constructions, canonical IDs, provenance, and verifier bindings. Corruption, stale schemas, or missing owner data are explicit failures. Component 13 must be able to verify a deserialized exact result without relying on the original producer stores.
