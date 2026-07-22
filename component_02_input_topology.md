@@ -80,3 +80,19 @@ Failure conditions identify the smallest known offending source features and exa
 - Self-intersection detection is checked against exhaustive facet pairs.
 - Reversing all facets has the documented effect under each shell policy.
 - The verifier reconstructs every adjacency relation independently from emitted facet rings.
+
+## 5. Assessment-driven preparation-boundary amendment
+
+Component 2 remains the strict validator and canonicalizer. It must not absorb tolerance-based repair or modeling-intent heuristics.
+
+Implement the normalization service specified by `plan_15_assessment_amendment.md` as a separate product layer. Component 2 may receive either a raw strict operand or a `prepared_operand` accompanied by an immutable normalization report. For prepared input it must:
+
+- bind the report, prepared geometry, source digest, output digest, policy, and tolerance units;
+- verify every source-to-prepared provenance map is internally consistent;
+- reject stale, mismatched, partially applied, or unverifiable reports;
+- run the complete strict audit on the prepared geometry; and
+- publish the validation certificate only after normalization output independently satisfies this component.
+
+Normalization may diagnose or repair cracks, near-duplicate vertices, orientation, overlapping facets, non-planarity, self-intersection, shell nesting, and slivers only under explicit caller policy. Every edit and displacement must be reported in canonical order. A Boolean invocation must never trigger such edits implicitly.
+
+Until a normalization policy is implemented and qualified under `plan_16_qualification_release.md`, unknown-provenance imported meshes are outside the supported end-to-end product workflow. Documentation must distinguish strict accepted-domain support from application-facing mesh preparation.
