@@ -116,7 +116,7 @@ inline bounded_boolean_error precision_bootstrap_error(
 namespace precision_detail {
 
 template<class T, class I>
-bool runtime_precision_profile_qualified() noexcept {
+static bool runtime_precision_profile_qualified() noexcept {
     return supported_type_profile<T,I>() && runtime_floating_profile_qualified<T>() &&
            std::fegetround() == FE_TONEAREST;
 }

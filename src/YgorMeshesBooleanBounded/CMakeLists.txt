@@ -44,6 +44,15 @@ add_library(ygor_mesh_boolean_bounded_strict
     PredicateResults.cc
     Resources.cc
     Sha256.cc
+    SourceFacetGeometryBasis.cc
+    BoundedSourcePolygonKernel.cc
+    SourceEarTriangulationReference.cc
+    SourceEarTriangulationIndexed.cc
+    SourceTriangleProvenance.cc
+    SourceTriangulationCoverage.cc
+    SourceTriangleComplexCodec.cc
+    SourceTriangleComplexVerifier.cc
+    SourceTriangulation.cc
     ToleranceBudget.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC

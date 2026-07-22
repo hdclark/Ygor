@@ -64,6 +64,21 @@ struct contract_versions final {
     static constexpr std::uint16_t validated_operand = 1;
     static constexpr std::uint16_t validated_operand_codec = 1;
     static constexpr std::uint16_t validated_operand_verifier = 1;
+    static constexpr std::uint16_t source_triangulation_provider = 1;
+    static constexpr std::uint16_t source_triangulation_policy = 1;
+    static constexpr std::uint16_t facet_geometry_basis_ref = 1;
+    static constexpr std::uint16_t projected_source_workspace = 1;
+    static constexpr std::uint16_t bounded_source_polygon_kernel = 1;
+    static constexpr std::uint16_t source_ear_reference_trace = 1;
+    static constexpr std::uint16_t source_ear_dependency_trace = 1;
+    static constexpr std::uint16_t source_triangle_schema = 1;
+    static constexpr std::uint16_t source_triangle_edge_use_schema = 1;
+    static constexpr std::uint16_t source_internal_diagonal_schema = 1;
+    static constexpr std::uint16_t source_facet_coverage_schema = 1;
+    static constexpr std::uint16_t source_verifier_witness_schema = 1;
+    static constexpr std::uint16_t source_triangle_complex = 1;
+    static constexpr std::uint16_t source_triangle_complex_codec = 1;
+    static constexpr std::uint16_t source_triangle_complex_verifier = 1;
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -73,6 +88,7 @@ enum class stage_id : std::uint16_t {
     public_entry = 1, source_capture = 2, context_preflight = 3,
     precision_bootstrap = 4, publication = 20, qualification = 21,
     execution_service = 22, input_validation_a = 23, input_validation_b = 24,
+    source_triangulation_a = 25, source_triangulation_b = 26,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

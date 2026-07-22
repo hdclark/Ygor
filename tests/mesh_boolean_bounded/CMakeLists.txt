@@ -84,3 +84,33 @@ foreach(consumer_component 02 04 06 07 13 15 16 17)
     ygor_apply_mesh_boolean_strict_fp(
         ygor_mesh_boolean_component${consumer_component}_capability_compile)
 endforeach()
+
+
+add_executable(ygor_mesh_boolean_source_triangulation_tests
+    TestSourceTriangulationMain.cc
+    TestSourceTriangulationUnit.cc
+    TestSourceTriangulationGeometryBasis.cc
+    TestSourceTriangulationProjection.cc
+    TestSourceTriangulationCoverage.cc
+    TestSourceTriangulationDependencies.cc
+    TestSourceTriangulationBoundarySharing.cc
+    TestSourceTriangulationCanonicalization.cc
+    TestSourceTriangulationAlternatives.cc
+    TestSourceTriangulationMutation.cc
+    TestSourceTriangulationProperties.cc
+    TestSourceTriangulationAdversarial.cc
+    SourceTriangulationFixtures.cc
+    SourceTriangulationExactOracle.cc)
+target_include_directories(ygor_mesh_boolean_source_triangulation_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_source_triangulation_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_source_triangulation_tests)
+foreach(source_triangulation_suite
+        unit geometry_basis projection coverage dependencies boundary canonical
+        alternatives mutation properties adversarial)
+    add_test(NAME mesh_boolean_bounded_component04_${source_triangulation_suite}
+        COMMAND ygor_mesh_boolean_source_triangulation_tests
+                ${source_triangulation_suite})
+endforeach()

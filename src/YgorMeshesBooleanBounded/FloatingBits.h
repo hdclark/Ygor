@@ -87,7 +87,7 @@ bool finite_numeric_less(T a, T b) noexcept {
     return finite_total_less(a, b);
 }
 
-inline constexpr bool strict_floating_build_enabled() noexcept {
+static constexpr bool strict_floating_build_enabled() noexcept {
 #if defined(YGOR_MESH_BOOLEAN_STRICT_FP_BUILD) && YGOR_MESH_BOOLEAN_STRICT_FP_BUILD == 1 && !defined(__FAST_MATH__)
     return true;
 #else
@@ -97,7 +97,7 @@ inline constexpr bool strict_floating_build_enabled() noexcept {
 
 // Exercise properties that compiler flags and a caller-provided capability bit cannot prove.
 template<class T>
-bool runtime_floating_profile_qualified() noexcept {
+static bool runtime_floating_profile_qualified() noexcept {
     static_assert(supported_precision_scalar_v<T>);
     if (!strict_floating_build_enabled() || std::numeric_limits<T>::has_denorm != std::denorm_present) {
         return false;
