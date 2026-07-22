@@ -1,0 +1,250 @@
+
+# Strengthen Component 04 publication and resource finalization. Temporary
+# reservations are released with actual usage zero, persistent usage is checked,
+# and publication is routed through the repository stage transaction protocol.
+triangulation_header = Path('src/YgorMeshesBooleanBounded/SourceTriangulation.h')
+triangulation_text = triangulation_header.read_text()
+
+def patch_triangulation(old, new, label):
+    global triangulation_text
+    if triangulation_text.count(old) != 1:
+        raise SystemExit(f'{label}: expected one source triangulation occurrence')
+    triangulation_text = triangulation_text.replace(old, new, 1)
+
+patch_triangulation(
+'''#include "Sha256.h"
+#include "SourceTriangleComplex.h"''',
+'''#include "Sha256.h"
+#include "Transaction.h"
+#include "SourceTriangleComplex.h"''',
+'publication include')
+
+patch_triangulation(
+'''  artifact_type out_;
+  std::vector<resource_reservation> reservations_;
+''',
+'''  struct typed_reservation final {
+    resource_kind kind;
+    resource_reservation reservation;
+  };
+  artifact_type out_;
+  std::vector<typed_reservation> reservations_;
+''',
+'typed reservations')
+
+patch_triangulation(
+'''    reservations_.push_back(std::move(*reservation));
+    return true;
+  }
+
+  bool preflight() {
+''',
+'''    reservations_.push_back({kind, std::move(*reservation)});
+    return true;
+  }
+
+  bool actual_usage(resource_kind kind, std::uint64_t &usage) const {
+    switch (kind) {
+    case resource_kind::source_triangles:
+      usage = out_.triangles_.size();
+      return true;
+    case resource_kind::source_edges:
+      usage = out_.diagonals_.size();
+      return true;
+    case resource_kind::source_indices:
+      usage = out_.edge_uses_.size();
+      return true;
+    case resource_kind::work_units:
+      return checked_add(out_.statistics_.work_units,
+                         out_.statistics_.verifier_work, usage);
+    case resource_kind::temporary_bytes:
+    case resource_kind::verification_findings:
+      usage = 0;
+      return true;
+    case resource_kind::persistent_bytes:
+      usage = out_.statistics_.persistent_bytes;
+      return true;
+    case resource_kind::canonical_sort_records:
+      if (!checked_add(static_cast<std::uint64_t>(out_.triangles_.size()),
+                       static_cast<std::uint64_t>(out_.diagonals_.size()), usage))
+        return false;
+      return checked_add(usage,
+                         static_cast<std::uint64_t>(out_.edge_uses_.size()),
+                         usage);
+    default:
+      return false;
+    }
+  }
+
+  bool preflight() {
+''',
+'actual resource usage')
+
+patch_triangulation(
+'''    if (!checked_multiply(work, std::uint64_t{8}, temporary) ||
+        !checked_multiply(edge_uses + triangles + diagonals,
+                          std::uint64_t{512}, persistent) ||
+        work > capabilities_.maximum_work_units)
+      return false;
+    return reserve(resource_kind::source_triangles, triangles) &&
+           reserve(resource_kind::source_edges, diagonals) &&
+           reserve(resource_kind::source_indices, edge_uses) &&
+           reserve(resource_kind::work_units, work) &&
+           reserve(resource_kind::temporary_bytes, temporary + 4096) &&
+           reserve(resource_kind::persistent_bytes, persistent + 4096) &&
+           reserve(resource_kind::verification_findings,
+                   triangles + diagonals + operand_->facets().size()) &&
+           reserve(resource_kind::canonical_sort_records,
+                   triangles + diagonals + edge_uses);
+  }
+''',
+'''    std::uint64_t records = 0, findings = 0, temporary_bound = 0,
+                  persistent_bound = 0;
+    if (!checked_add(triangles, diagonals, records) ||
+        !checked_add(records, edge_uses, records) ||
+        !checked_multiply(work, std::uint64_t{8}, temporary) ||
+        !checked_multiply(records, std::uint64_t{512}, persistent) ||
+        !checked_add(temporary, std::uint64_t{4096}, temporary_bound) ||
+        !checked_add(persistent, std::uint64_t{4096}, persistent_bound) ||
+        !checked_add(triangles, diagonals, findings) ||
+        !checked_add(findings,
+                     static_cast<std::uint64_t>(operand_->facets().size()),
+                     findings) ||
+        work > capabilities_.maximum_work_units)
+      return false;
+    return reserve(resource_kind::source_triangles, triangles) &&
+           reserve(resource_kind::source_edges, diagonals) &&
+           reserve(resource_kind::source_indices, edge_uses) &&
+           reserve(resource_kind::work_units, work) &&
+           reserve(resource_kind::temporary_bytes, temporary_bound) &&
+           reserve(resource_kind::persistent_bytes, persistent_bound) &&
+           reserve(resource_kind::verification_findings, findings) &&
+           reserve(resource_kind::canonical_sort_records, records);
+  }
+''',
+'checked preflight bounds')
+
+patch_triangulation(
+'''public:
+  source_triangulation_builder(
+''',
+'''  class publication final : public transaction_participant {
+  public:
+    publication(std::shared_ptr<const artifact_type> candidate,
+                const validated_operand<T, I> &operand,
+                const precision_context<T> &precision)
+        : candidate_(std::move(candidate)), operand_(operand),
+          precision_(precision) {}
+    bool prepare() override {
+      return candidate_ &&
+             source_triangulation_detail::independent_topology_verification(
+                 *candidate_, operand_, precision_, true);
+    }
+    void commit() noexcept override { published_ = candidate_; }
+    void rollback() noexcept override {
+      published_.reset();
+      candidate_.reset();
+    }
+    std::shared_ptr<const artifact_type> published_;
+
+  private:
+    std::shared_ptr<const artifact_type> candidate_;
+    const validated_operand<T, I> &operand_;
+    const precision_context<T> &precision_;
+  };
+
+public:
+  source_triangulation_builder(
+''',
+'transaction participant')
+
+patch_triangulation(
+'''    out_.statistics_.persistent_bytes =
+        out_.semantic_bytes_.size() + out_.exact_bytes_.size() +
+        out_.canonical_bytes_.size() +
+        out_.triangles_.size() * sizeof(source_triangle_record<T>) +
+        out_.edge_uses_.size() * sizeof(source_triangle_edge_use) +
+        out_.diagonals_.size() * sizeof(source_internal_diagonal_record);
+    if (source_triangulation_detail::cancelled(capabilities_))
+      return failure(source_triangulation_subcode::cancelled,
+                     bounded_boolean_error_category::cancelled,
+                     "source triangulation cancelled before commit",
+                     source_triangulation_checkpoint::commit);
+    for (auto &reservation : reservations_)
+      if (!reservation.commit(reservation.amount()))
+        return failure(source_triangulation_subcode::resource_preflight,
+                       bounded_boolean_error_category::internal_invariant_error,
+                       "source triangulation resource commit failed",
+                       source_triangulation_checkpoint::commit);
+    return boolean_outcome<std::shared_ptr<const artifact_type>>::success(
+        std::make_shared<const artifact_type>(std::move(out_)));
+''',
+'''    std::uint64_t persistent_bytes = 0, record_bytes = 0;
+    auto add_persistent = [&](std::uint64_t value) {
+      return checked_add(persistent_bytes, value, persistent_bytes);
+    };
+    auto add_records = [&](std::uint64_t count, std::uint64_t size) {
+      return checked_multiply(count, size, record_bytes) &&
+             add_persistent(record_bytes);
+    };
+    if (!add_persistent(out_.semantic_bytes_.size()) ||
+        !add_persistent(out_.exact_bytes_.size()) ||
+        !add_persistent(out_.canonical_bytes_.size()) ||
+        !add_records(out_.triangles_.size(), sizeof(source_triangle_record<T>)) ||
+        !add_records(out_.edge_uses_.size(), sizeof(source_triangle_edge_use)) ||
+        !add_records(out_.diagonals_.size(),
+                     sizeof(source_internal_diagonal_record)))
+      return failure(source_triangulation_subcode::count_overflow,
+                     bounded_boolean_error_category::resource_limit,
+                     "source triangulation persistent size overflow",
+                     source_triangulation_checkpoint::commit);
+    out_.statistics_.persistent_bytes = persistent_bytes;
+    std::vector<std::uint64_t> usage;
+    usage.reserve(reservations_.size());
+    for (const auto &reservation : reservations_) {
+      std::uint64_t actual = 0;
+      if (!actual_usage(reservation.kind, actual) ||
+          actual > reservation.reservation.amount())
+        return failure(source_triangulation_subcode::resource_preflight,
+                       bounded_boolean_error_category::resource_limit,
+                       "source triangulation exceeded its reservation",
+                       source_triangulation_checkpoint::commit);
+      usage.push_back(actual);
+    }
+    auto candidate =
+        std::make_shared<const artifact_type>(std::move(out_));
+    publication participant(candidate, *operand_, precision_);
+    stage_transaction transaction;
+    if (!transaction.open() || !transaction.enlist(participant) ||
+        !transaction.begin_join() || !transaction.begin_verify() ||
+        !transaction.ready())
+      return failure(source_triangulation_subcode::verifier_rejection,
+                     bounded_boolean_error_category::internal_invariant_error,
+                     "source triangulation publication verifier rejected proposal",
+                     source_triangulation_checkpoint::commit);
+    if (source_triangulation_detail::cancelled(capabilities_)) {
+      transaction.rollback();
+      return failure(source_triangulation_subcode::cancelled,
+                     bounded_boolean_error_category::cancelled,
+                     "source triangulation cancelled before commit",
+                     source_triangulation_checkpoint::commit);
+    }
+    for (std::size_t i = 0; i < reservations_.size(); ++i)
+      if (!reservations_[i].reservation.commit(usage[i])) {
+        transaction.rollback();
+        return failure(source_triangulation_subcode::resource_preflight,
+                       bounded_boolean_error_category::internal_invariant_error,
+                       "source triangulation resource commit failed",
+                       source_triangulation_checkpoint::commit);
+      }
+    if (!transaction.commit() || !participant.published_)
+      return failure(source_triangulation_subcode::verifier_rejection,
+                     bounded_boolean_error_category::internal_invariant_error,
+                     "source triangulation publication commit failed",
+                     source_triangulation_checkpoint::commit);
+    return boolean_outcome<std::shared_ptr<const artifact_type>>::success(
+        std::move(participant.published_));
+''',
+'transactional finalization')
+
+triangulation_header.write_text(triangulation_text)
