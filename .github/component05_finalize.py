@@ -47,6 +47,13 @@ ensure_replaced(
     "                         bounded::bounded_boolean_error_category::resource_limit,\n",
     "                         bounded_boolean_error_category::resource_limit,\n",
 )
+ensure_replaced(
+    "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
+    "                         statistics.edges + statistics.halfedges * 2,\n",
+    "                         statistics.source_edges +\n"
+    "                             statistics.internal_diagonals +\n"
+    "                             statistics.halfedges * 2,\n",
+)
 
 cmake_path = Path("tests/mesh_boolean_bounded/CMakeLists.txt")
 cmake = cmake_path.read_text()
