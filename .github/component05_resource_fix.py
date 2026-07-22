@@ -1,8 +1,12 @@
 from pathlib import Path
 
-fix_path = Path(".github/component05_determinism_fix.py")
-if fix_path.exists():
-    exec(compile(fix_path.read_text(), str(fix_path), "exec"))
+for name in (
+    ".github/component05_include_fix.py",
+    ".github/component05_determinism_fix.py",
+):
+    fix_path = Path(name)
+    if fix_path.exists():
+        exec(compile(fix_path.read_text(), str(fix_path), "exec"))
 
 path = Path("src/YgorMeshesBooleanBounded/CanonicalHalfedgeBuildCore.h")
 text = path.read_text()
