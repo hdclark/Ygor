@@ -1,0 +1,332 @@
+     proposal.triangles.push_back({facet, proposal.shell, triangle});
+      } else if (capabilities_.provider ==
+                 source_triangulation_provider_kind::full_rescan_reference_v1) {
+        auto result = source_triangulation_detail::triangulate_facet_reference(
+            workspaces.back(), capabilities_, out_.statistics_);
+        if (!result.has_value())
+          return boolean_outcome<std::shared_ptr<const artifact_type>>::failure(
+              *result.error());
+        proposal = std::move(*result.value());
+      } else if (capabilities_.provider ==
+                 source_triangulation_provider_kind::indexed_dependency_v1) {
+        auto result = source_triangulation_detail::triangulate_facet_indexed(
+            workspaces.back(), capabilities_, out_.statistics_);
+        if (!result.has_value())
+          return boolean_outcome<std::shared_ptr<const artifact_type>>::failure(
+              *result.error());
+        proposal = std::move(*result.value());
+        if (capabilities_.compare_with_reference) {
+          source_triangulation_statistics reference_statistics;
+          auto reference = source_triangulation_detail::triangulate_facet_reference(
+              workspaces.back(), capabilities_, reference_statistics);
+          if (!reference.has_value() ||
+              !source_triangulation_detail::same_reference_trace<T, I>(
+                  proposal, *reference.value()))
+            return failure(source_triangulation_subcode::provider_trace_mismatch,
+                           bounded_boolean_error_category::internal_invariant_error,
+                           "indexed source triangulation diverged from reference",
+                           source_triangulation_checkpoint::ear_loop);
+        }
+      } else {
+        return failure(source_triangulation_subcode::unsupported_policy,
+                       bounded_boolean_error_category::input_contract_error,
+                       "unsupported source triangulation provider",
+                       source_triangulation_checkpoint::contract_validation);
+      }
+      proposals.push_back(std::move(proposal));
+    }
+    if (!assemble(workspaces, proposals))
+      return failure(source_triangulation_subcode::provenance_incomplete,
+                     bounded_boolean_error_category::internal_invariant_error,
+                     "source triangle provenance reconstruction failed",
+                     source_triangulation_checkpoint::provenance);
+    out_.statistics_.triangles = out_.triangles_.size();
+    out_.statistics_.diagonals = out_.diagonals_.size();
+    for (std::uint64_t facet_id = 0; facet_id < out_.facets_.size(); ++facet_id) {
+      auto &facet = out_.facets_[facet_id];
+      if (facet.triangles.size() + 2 != facet.source_vertices.size() ||
+          facet.diagonals.size() + 3 != facet.source_vertices.size())
+        return failure(source_triangulation_subcode::count_mismatch,
+                       bounded_boolean_error_category::internal_invariant_error,
+                       "source triangulation combinatorial counts failed",
+                       source_triangulation_checkpoint::combinatorial_coverage);
+      if (!source_triangulation_detail::generate_witnesses(
+              out_, workspaces[facet_id], facet, false,
+              capabilities_.maximum_witnesses_per_facet) ||
+          !source_triangulation_detail::generate_witnesses(
+              out_, workspaces[facet_id], facet, true,
+              capabilities_.maximum_witnesses_per_facet))
+        return failure(source_triangulation_subcode::witness_coverage,
+                       bounded_boolean_error_category::geometric_condition_exceeds_tolerance,
+                       "source triangulation witness coverage failed",
+                       source_triangulation_checkpoint::geometric_coverage);
+      out_.statistics_.witness_audits += facet.producer_witnesses.size() +
+                                         facet.verifier_witnesses.size();
+    }
+    finalize_encoding();
+    for (auto &facet : out_.facets_) {
+      canonical_writer semantic;
+      semantic.u64(facet.facet);
+      semantic.u64(facet.source_vertices.size());
+      for (auto vertex : facet.source_vertices)
+        semantic.u64(vertex);
+      facet.semantic_digest = sha256::digest(semantic.bytes());
+      canonical_writer exact;
+      exact.u64(facet.facet);
+      for (auto triangle : facet.triangles)
+        exact.u64(triangle);
+      for (auto diagonal : facet.diagonals)
+        exact.u64(diagonal);
+      facet.exact_digest = sha256::digest(exact.bytes());
+    }
+    // Re-encode because facet digests are presentation-independent derived fields
+    // and intentionally excluded from artifact identity.
+    if (!source_triangulation_detail::independent_topology_verification(
+            out_, *operand_, precision_, true))
+      return failure(source_triangulation_subcode::verifier_rejection,
+                     bounded_boolean_error_category::internal_invariant_error,
+                     "independent source triangle complex verifier rejected artifact",
+                     source_triangulation_checkpoint::independent_verification);
+    out_.statistics_.persistent_bytes =
+        out_.semantic_bytes_.size() + out_.exact_bytes_.size() +
+        out_.canonical_bytes_.size() +
+        out_.triangles_.size() * sizeof(source_triangle_record<T>) +
+        out_.edge_uses_.size() * sizeof(source_triangle_edge_use) +
+        out_.diagonals_.size() * sizeof(source_internal_diagonal_record);
+    if (source_triangulation_detail::cancelled(capabilities_))
+      return failure(source_triangulation_subcode::cancelled,
+                     bounded_boolean_error_category::cancelled,
+                     "source triangulation cancelled before commit",
+                     source_triangulation_checkpoint::commit);
+    for (auto &reservation : reservations_)
+      if (!reservation.commit(reservation.amount()))
+        return failure(source_triangulation_subcode::resource_preflight,
+                       bounded_boolean_error_category::internal_invariant_error,
+                       "source triangulation resource commit failed",
+                       source_triangulation_checkpoint::commit);
+    return boolean_outcome<std::shared_ptr<const artifact_type>>::success(
+        std::make_shared<const artifact_type>(std::move(out_)));
+  }
+};
+
+template <class T, class I>
+boolean_outcome<std::shared_ptr<const source_triangle_complex<T, I>>>
+triangulate_source_operand(
+    std::shared_ptr<const validated_operand<T, I>> operand,
+    const boolean_context<T, I> &context, const precision_context<T> &precision,
+    source_triangulation_capabilities capabilities) {
+  return source_triangulation_builder<T, I>(std::move(operand), context, precision,
+                                            std::move(capabilities))
+      .run();
+}
+
+template <class T, class I>
+boolean_outcome<std::shared_ptr<const source_triangle_complex<T, I>>>
+assemble_source_triangle_complex_from_triangles(
+    std::shared_ptr<const validated_operand<T, I>> operand,
+    const boolean_context<T, I> &context, const precision_context<T> &precision,
+    source_triangulation_capabilities capabilities,
+    const std::vector<std::vector<std::array<std::uint64_t, 3>>> &triangles) {
+  return source_triangulation_builder<T, I>(std::move(operand), context, precision,
+                                            std::move(capabilities))
+      .run(&triangles);
+}
+
+template <class T, class I>
+bool verify_source_triangle_complex(const source_triangle_complex<T, I> &artifact,
+                                    const validated_operand<T, I> &operand,
+                                    const precision_context<T> &precision) {
+  return source_triangulation_detail::independent_topology_verification(
+      artifact, operand, precision, true);
+}
+
+} // namespace ygor::mesh_boolean::bounded
+''')
+
+for header in [
+    'SourceFacetGeometryBasis.h',
+    'SourceEarTriangulationReference.h',
+    'SourceEarTriangulationIndexed.h',
+    'SourceTriangleProvenance.h',
+    'SourceTriangulationCoverage.h',
+    'SourceTriangleComplexCodec.h',
+    'SourceTriangleComplexVerifier.h',
+]:
+    write(f'src/YgorMeshesBooleanBounded/{header}', '#pragma once\n\n#include "SourceTriangulation.h"\n')
+
+for source, header in [
+    ('SourceFacetGeometryBasis.cc', 'SourceFacetGeometryBasis.h'),
+    ('BoundedSourcePolygonKernel.cc', 'BoundedSourcePolygonKernel.h'),
+    ('SourceEarTriangulationReference.cc', 'SourceEarTriangulationReference.h'),
+    ('SourceEarTriangulationIndexed.cc', 'SourceEarTriangulationIndexed.h'),
+    ('SourceTriangleProvenance.cc', 'SourceTriangleProvenance.h'),
+    ('SourceTriangulationCoverage.cc', 'SourceTriangulationCoverage.h'),
+    ('SourceTriangleComplexCodec.cc', 'SourceTriangleComplexCodec.h'),
+    ('SourceTriangleComplexVerifier.cc', 'SourceTriangleComplexVerifier.h'),
+    ('SourceTriangulation.cc', 'SourceTriangulation.h'),
+]:
+    write(f'src/YgorMeshesBooleanBounded/{source}',
+          f'#include "StrictFloatingBuild.h"\n#include "{header}"\n')
+
+write('tests/mesh_boolean_bounded/SourceTriangulationFixtures.h', r'''#pragma once
+
+#include "YgorMeshesBooleanBounded/InputValidation.h"
+#include "YgorMeshesBooleanBounded/PrecisionBootstrap.h"
+#include "YgorMeshesBooleanBounded/SourceTriangulation.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace source_triangulation_tests {
+namespace bounded = ygor::mesh_boolean::bounded;
+
+inline void require(bool value, const char *message) {
+  if (!value)
+    throw std::runtime_error(message);
+}
+
+template <class T, class I> fv_surface_mesh<T, I> box() {
+  fv_surface_mesh<T, I> mesh;
+  mesh.vertices = {{T(0), T(0), T(0)}, {T(1), T(0), T(0)},
+                   {T(1), T(1), T(0)}, {T(0), T(1), T(0)},
+                   {T(0), T(0), T(1)}, {T(1), T(0), T(1)},
+                   {T(1), T(1), T(1)}, {T(0), T(1), T(1)}};
+  mesh.faces = {{I(0), I(3), I(2), I(1)},
+                {I(4), I(5), I(6), I(7)},
+                {I(0), I(1), I(5), I(4)},
+                {I(1), I(2), I(6), I(5)},
+                {I(2), I(3), I(7), I(6)},
+                {I(3), I(0), I(4), I(7)}};
+  return mesh;
+}
+
+template <class T, class I> fv_surface_mesh<T, I> concave_prism() {
+  const std::vector<std::array<T, 2>> polygon{{T(0), T(0)}, {T(2), T(0)},
+                                              {T(2), T(1)}, {T(1), T(1)},
+                                              {T(1), T(2)}, {T(0), T(2)}};
+  fv_surface_mesh<T, I> mesh;
+  for (const auto &point : polygon)
+    mesh.vertices.push_back({point[0], point[1], T(0)});
+  for (const auto &point : polygon)
+    mesh.vertices.push_back({point[0], point[1], T(1)});
+  const I n = static_cast<I>(polygon.size());
+  std::vector<I> bottom, top;
+  for (I i = 0; i < n; ++i) {
+    bottom.push_back(static_cast<I>(n - 1 - i));
+    top.push_back(static_cast<I>(n + i));
+  }
+  mesh.faces.push_back(bottom);
+  mesh.faces.push_back(top);
+  for (I i = 0; i < n; ++i) {
+    const I j = static_cast<I>((i + 1) % n);
+    mesh.faces.push_back({i, j, static_cast<I>(n + j), static_cast<I>(n + i)});
+  }
+  return mesh;
+}
+
+template <class T, class I> struct fixture final {
+  bounded::boolean_context<T, I> context;
+  std::shared_ptr<const bounded::precision_context<T>> precision;
+  std::shared_ptr<const bounded::validated_operand<T, I>> operand;
+  std::unique_ptr<bounded::resource_manager> resources;
+};
+
+template <class T, class I>
+fixture<T, I> make_fixture(const fv_surface_mesh<T, I> &mesh,
+                           T input_precision = T(0)) {
+  fv_surface_mesh<T, I> empty;
+  bounded_boolean_options<T> options;
+  options.tolerance = T(0.25);
+  options.input_precision_a = input_precision;
+  auto pending = bounded::build_pending_invocation(
+      mesh, empty, boolean_operation::set_union, options);
+  require(pending.has_value(), "pending source triangulation fixture");
+  auto preflight = bounded::preflight_precision(*pending.value());
+  require(preflight.has_value(), "precision preflight for source triangulation");
+  auto context = bounded::finalize_context(
+      std::move(*pending.value()),
+      bounded::make_precision_bootstrap_record(*preflight.value()));
+  require(context.has_value(), "source triangulation context");
+  bounded::precision_runtime_capabilities precision_capabilities;
+  precision_capabilities.expected_owner = &context.value()->owner;
+  auto precision = bounded::build_precision_context(
+      *preflight.value(), *context.value(), precision_capabilities);
+  require(precision.has_value(), "source triangulation precision context");
+  auto resources =
+      std::make_unique<bounded::resource_manager>(context.value()->options.resources);
+  bounded::input_validation_capabilities validation_capabilities;
+  validation_capabilities.owner = context.value()->owner;
+  validation_capabilities.resources = resources.get();
+  auto operand = bounded::validate_operand(
+      bounded::operand_id::a, context.value()->sources->a, *context.value(),
+      **precision.value(), validation_capabilities);
+  require(operand.has_value(), "validated source triangulation operand");
+  return {std::move(*context.value()), std::move(*precision.value()),
+          std::move(*operand.value()), std::move(resources)};
+}
+
+template <class T, class I>
+auto triangulate(fixture<T, I> &fixture,
+                 bounded::source_triangulation_provider_kind provider =
+                     bounded::source_triangulation_provider_kind::indexed_dependency_v1,
+                 bool compare_reference = true) {
+  bounded::source_triangulation_capabilities capabilities;
+  capabilities.owner = fixture.context.owner;
+  capabilities.resources = fixture.resources.get();
+  capabilities.provider = provider;
+  capabilities.compare_with_reference = compare_reference;
+  return bounded::triangulate_source_operand(fixture.operand, fixture.context,
+                                              *fixture.precision, capabilities);
+}
+
+} // namespace source_triangulation_tests
+''')
+
+write('tests/mesh_boolean_bounded/SourceTriangulationFixtures.cc', '#include "SourceTriangulationFixtures.h"\n')
+write('tests/mesh_boolean_bounded/SourceTriangulationExactOracle.h', r'''#pragma once
+#include <array>
+#include <cstdint>
+#include <vector>
+namespace source_triangulation_tests {
+inline std::uint64_t exact_expected_triangle_count(std::size_t ring_size) {
+  return ring_size >= 3 ? static_cast<std::uint64_t>(ring_size - 2) : 0;
+}
+inline std::uint64_t exact_expected_diagonal_count(std::size_t ring_size) {
+  return ring_size >= 3 ? static_cast<std::uint64_t>(ring_size - 3) : 0;
+}
+} // namespace source_triangulation_tests
+''')
+write('tests/mesh_boolean_bounded/SourceTriangulationExactOracle.cc', '#include "SourceTriangulationExactOracle.h"\n')
+write('tests/mesh_boolean_bounded/GoldenSourceTriangulationV1.h', r'''#pragma once
+#include <cstdint>
+namespace source_triangulation_tests {
+inline constexpr std::uint16_t golden_source_triangulation_version = 1;
+}
+''')
+
+write('tests/mesh_boolean_bounded/TestSourceTriangulationMain.cc', r'''#include <iostream>
+#include <stdexcept>
+#include <string>
+
+void test_source_triangulation_unit();
+void test_source_triangulation_geometry_basis();
+void test_source_triangulation_projection();
+void test_source_triangulation_coverage();
+void test_source_triangulation_dependencies();
+void test_source_triangulation_boundary_sharing();
+void test_source_triangulation_canonicalization();
+void test_source_triangulation_alternatives();
+void test_source_triangulation_mutation();
+void test_source_triangulation_properties();
+void test_source_triangulation_adversarial();
+
+int main(int argc, char **argv) {
+  try {
+    const std::string suite = argc > 1 ? argv[1] : "all";
+    if (suite == "all" || suite == "unit") test_source_triangulation_unit();
+    if (suite == "all" || suite == "geometry_basis") test_source_triangulation_geometry_basis();
+    if (suite == "all" || suite == "projection") test_source_triangulation_projecti
