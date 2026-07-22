@@ -15,62 +15,69 @@ jobs:
   implement-and-validate:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
 
-      - name: Persist Component 05 archive diagnostic
+      - name: Recover complete files from Component 05 archive prefix
         shell: bash
         run: |
           set -o pipefail
-          git show e7528352ab77a0eed2ba2df03ae96d5b2d8168ff:.github/component05_payload_00.b64 > /tmp/component05-original.b64
-          cat .github/component05_payload_0[0-4].b64 > /tmp/component05-prefix.b64
+          cat .github/component05_payload_0[0-4].b64 | base64 --decode > /tmp/component05-prefix.tar.gz
           python3 - <<'PY'
           from hashlib import sha256
-          from pathlib import Path
+          from pathlib import Path, PurePosixPath
+          import zlib
 
-          original = Path('/tmp/component05-original.b64').read_bytes()
-          prefix = Path('/tmp/component05-prefix.b64').read_bytes()
-          lines = []
-          add = lines.append
-          add(f'original_length {len(original)}')
-          add(f'prefix_length {len(prefix)}')
-          add(f'original_sha256 {sha256(original).hexdigest()}')
-          add(f'prefix_sha256 {sha256(prefix).hexdigest()}')
-          mismatch = next((i for i, (a, b) in enumerate(zip(original, prefix)) if a != b), None)
-          add(f'first_prefix_mismatch {mismatch}')
-          add(f'original_starts_with_prefix {original.startswith(prefix)}')
-          allowed = set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n')
-          bad = [i for i, value in enumerate(original) if value not in allowed]
-          add(f'bad_count {len(bad)}')
-          add(f'bad_positions {bad[:100]}')
-          for marker in (b'ELLIPSIZATION', b'[...', b'... (truncated)', b'...'):
-              positions = []
-              start = 0
-              while True:
-                  found = original.find(marker, start)
-                  if found < 0:
-                      break
-                  positions.append(found)
-                  start = found + 1
-              add(f'marker {marker!r} positions {positions[:20]} count {len(positions)}')
-          if mismatch is not None:
-              lo = max(0, mismatch - 120)
-              hi = min(len(original), mismatch + 240)
-              add(f'mismatch_original_context {original[lo:hi]!r}')
-              add(f'mismatch_prefix_context {prefix[lo:min(len(prefix), hi)]!r}')
-          if bad:
-              lo = max(0, bad[0] - 120)
-              hi = min(len(original), bad[0] + 240)
-              add(f'bad_context {original[lo:hi]!r}')
-          Path('.github/component05_transport_diagnostic.txt').write_text('\n'.join(lines) + '\n')
+          compressed = Path('/tmp/component05-prefix.tar.gz').read_bytes()
+          inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+          data = inflater.decompress(compressed)
+          manifest = [
+              f'compressed_bytes {len(compressed)}',
+              f'compressed_sha256 {sha256(compressed).hexdigest()}',
+              f'decompressed_prefix_bytes {len(data)}',
+          ]
+          position = 0
+          recovered = []
+          while position + 512 <= len(data):
+              header = data[position:position + 512]
+              if header == bytes(512):
+                  break
+              name = header[:100].split(b'\0', 1)[0].decode('utf-8', 'strict')
+              prefix = header[345:500].split(b'\0', 1)[0].decode('utf-8', 'strict')
+              if prefix:
+                  name = prefix + '/' + name
+              size_text = header[124:136].split(b'\0', 1)[0].strip() or b'0'
+              size = int(size_text, 8)
+              typeflag = header[156:157]
+              payload_start = position + 512
+              payload_end = payload_start + size
+              padded_end = payload_start + ((size + 511) // 512) * 512
+              if padded_end > len(data):
+                  manifest.append(f'incomplete {name} size {size} available {max(0, len(data)-payload_start)}')
+                  break
+              path = PurePosixPath(name)
+              if path.is_absolute() or '..' in path.parts:
+                  raise SystemExit(f'unsafe archive path: {name}')
+              if typeflag in (b'0', b'\0'):
+                  target = Path(*path.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  payload = data[payload_start:payload_end]
+                  target.write_bytes(payload)
+                  recovered.append((name, size, sha256(payload).hexdigest()))
+              position = padded_end
+          manifest.append(f'complete_files {len(recovered)}')
+          manifest.extend(f'{name} {size} {digest}' for name, size, digest in recovered)
+          Path('.github/component05_recovery_manifest.txt').write_text('\n'.join(manifest) + '\n')
+          print('\n'.join(manifest))
           PY
-          cat .github/component05_transport_diagnostic.txt
+          git status --short
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/component05_transport_diagnostic.txt
-          git commit -m 'Record component 05 archive transport diagnostic'
+          git add .
+          git diff --cached --check
+          git commit -m 'Recover component 05 implementation archive prefix'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
