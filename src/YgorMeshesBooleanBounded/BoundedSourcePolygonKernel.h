@@ -176,7 +176,10 @@ public:
     const auto ab_d = orientation(a, b, d);
     const auto cd_a = orientation(c, d, a);
     const auto cd_b = orientation(c, d, b);
-    const auto value = [](const source_orientation_evidence<T> &evidence) {
+    const auto value = [](const source_orientation_evidence<T> &evidence,
+                           bool identity_zero) {
+      if (identity_zero)
+        return 0;
       if (evidence.bounded_sign == bounded_planar_sign::negative)
         return -1;
       if (evidence.bounded_sign == bounded_planar_sign::positive)
@@ -190,7 +193,14 @@ public:
         return 0;
       return 2;
     };
-    const int x = value(ab_c), y = value(ab_d), z = value(cd_a), w = value(cd_b);
+    const int x = value(ab_c, c.source_vertex == a.source_vertex ||
+                                   c.source_vertex == b.source_vertex);
+    const int y = value(ab_d, d.source_vertex == a.source_vertex ||
+                                   d.source_vertex == b.source_vertex);
+    const int z = value(cd_a, a.source_vertex == c.source_vertex ||
+                                   a.source_vertex == d.source_vertex);
+    const int w = value(cd_b, b.source_vertex == c.source_vertex ||
+                                   b.source_vertex == d.source_vertex);
     if (x == 2 || y == 2 || z == 2 || w == 2)
       return bounded_segment_relation::uncertain;
     if (x * y < 0 && z * w < 0)

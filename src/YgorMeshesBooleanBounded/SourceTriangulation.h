@@ -180,7 +180,6 @@ boolean_outcome<facet_workspace<T, I>> materialize_facet_geometry_basis(
   for (auto vertex : out.basis.support_vertices)
     writer.u64(vertex);
   write_digest(writer, out.basis.predecessor_digest);
-  write_digest(writer, out.basis.precision_digest);
   writer.u64(out.points.size());
   for (const auto &point : out.points) {
     writer.u64(point.source_vertex);
@@ -447,7 +446,6 @@ encode_source_triangle_complex_semantic(const source_triangle_complex<T, I> &art
   writer.u16(contract_versions::bounded_source_polygon_kernel);
   writer.u8(static_cast<std::uint8_t>(artifact.operand()));
   write_digest(writer, artifact.predecessor_digest());
-  write_digest(writer, artifact.precision_digest());
   writer.u64(artifact.vertices().size());
   for (const auto &vertex : artifact.vertices()) {
     writer.u64(vertex.source_vertex);
@@ -1227,6 +1225,7 @@ template <class T, class I> class source_triangulation_builder final {
     canonical_writer replay;
     source_triangulation_detail::write_digest(
         replay, operand_->source_presentation_digest());
+    source_triangulation_detail::write_digest(replay, precision_.digest());
     replay.u16(contract_versions::source_triangle_complex_codec);
     out_.replay_presentation_digest_ = sha256::digest(replay.bytes());
     canonical_writer canonical;
