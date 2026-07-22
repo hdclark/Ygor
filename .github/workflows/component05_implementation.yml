@@ -22,122 +22,44 @@ jobs:
           ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
 
-      - name: Apply Component 05 implementation
+      - name: Diagnose Component 05 archive transport
         shell: bash
         run: |
           set -o pipefail
-          cat .github/component05_payload_*.b64 | base64 --decode | tar -xzf -
-          python3 -m py_compile .github/component05_apply.py
-          python3 .github/component05_apply.py
-          git diff --check
-
-      - name: Configure and test with GCC
-        shell: bash
-        run: |
-          set -o pipefail
-          cmake -S . -B build-component05-gcc \
-            -DBUILD_TESTING=ON \
-            -DWITH_EIGEN=OFF \
-            -DWITH_GNU_GSL=OFF \
-            -DCMAKE_BUILD_TYPE=Debug 2>&1 | tee component05-validation.log
-          cmake --build build-component05-gcc \
-            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
-            tee -a component05-validation.log
-          ctest --test-dir build-component05-gcc --output-on-failure \
-            -R '^mesh_boolean_bounded_component05_' 2>&1 | \
-            tee -a component05-validation.log
-          cmake --build build-component05-gcc --target \
-            ygor_mesh_boolean_bounded_tests \
-            ygor_mesh_boolean_input_validation_tests \
-            ygor_mesh_boolean_precision_tests \
-            ygor_mesh_boolean_precision_numeric_tests \
-            ygor_mesh_boolean_precision_operations_tests \
-            ygor_mesh_boolean_precision_state_tests \
-            ygor_mesh_boolean_adaptive_compatibility_tests \
-            ygor_mesh_boolean_precision_codec_tests \
-            ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
-            tee -a component05-validation.log
-          ctest --test-dir build-component05-gcc --output-on-failure \
-            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
-            tee -a component05-validation.log
-
-      - name: Configure and test with Clang
-        shell: bash
-        env:
-          CC: clang
-          CXX: clang++
-        run: |
-          set -o pipefail
-          cmake -S . -B build-component05-clang \
-            -DBUILD_TESTING=ON \
-            -DWITH_EIGEN=OFF \
-            -DWITH_GNU_GSL=OFF \
-            -DCMAKE_BUILD_TYPE=Release 2>&1 | tee -a component05-validation.log
-          cmake --build build-component05-clang \
-            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
-            tee -a component05-validation.log
-          ctest --test-dir build-component05-clang --output-on-failure \
-            -R '^mesh_boolean_bounded_component05_' 2>&1 | \
-            tee -a component05-validation.log
-          cmake --build build-component05-clang --target \
-            ygor_mesh_boolean_bounded_tests \
-            ygor_mesh_boolean_input_validation_tests \
-            ygor_mesh_boolean_precision_tests \
-            ygor_mesh_boolean_precision_numeric_tests \
-            ygor_mesh_boolean_precision_operations_tests \
-            ygor_mesh_boolean_precision_state_tests \
-            ygor_mesh_boolean_adaptive_compatibility_tests \
-            ygor_mesh_boolean_precision_codec_tests \
-            ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
-            tee -a component05-validation.log
-          ctest --test-dir build-component05-clang --output-on-failure \
-            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
-            tee -a component05-validation.log
-
-      - name: Configure sanitizer qualification
-        shell: bash
-        run: |
-          set -o pipefail
-          cmake -S . -B build-component05-sanitizer \
-            -DBUILD_TESTING=ON \
-            -DWITH_EIGEN=OFF \
-            -DWITH_GNU_GSL=OFF \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
-            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
-            -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=address,undefined' 2>&1 | \
-            tee -a component05-validation.log
-          cmake --build build-component05-sanitizer \
-            --target ygor_mesh_boolean_canonical_halfedge_tests -j2 2>&1 | \
-            tee -a component05-validation.log
-          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
-            ctest --test-dir build-component05-sanitizer --output-on-failure \
-              -R '^mesh_boolean_bounded_component05_' 2>&1 | \
-              tee -a component05-validation.log
-
-      - name: Commit Component 05
-        shell: bash
-        run: |
+          git show e7528352ab77a0eed2ba2df03ae96d5b2d8168ff:.github/component05_payload_00.b64 > /tmp/component05-original.b64
+          cat .github/component05_payload_0[0-4].b64 > /tmp/component05-prefix.b64
           python3 - <<'PY'
+          from hashlib import sha256
           from pathlib import Path
-          path = Path('tracker.md')
-          text = path.read_text()
-          old = '- [ ] Component 5: canonical halfedge topology.'
-          new = '- [x] Component 5: canonical halfedge topology.'
-          if text.count(old) != 1:
-              raise SystemExit('tracker Component 5 entry not found exactly once')
-          path.write_text(text.replace(old, new, 1))
+
+          original = Path('/tmp/component05-original.b64').read_bytes()
+          prefix = Path('/tmp/component05-prefix.b64').read_bytes()
+          print('original_length', len(original))
+          print('prefix_length', len(prefix))
+          print('original_sha256', sha256(original).hexdigest())
+          print('prefix_sha256', sha256(prefix).hexdigest())
+          mismatch = next((i for i, (a, b) in enumerate(zip(original, prefix)) if a != b), None)
+          print('first_prefix_mismatch', mismatch)
+          allowed = set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n')
+          bad = [i for i, value in enumerate(original) if value not in allowed]
+          print('bad_count', len(bad))
+          print('bad_positions', bad[:100])
+          for marker in (b'ELLIPSIZATION', b'[...', b'... (truncated)', b'...'):
+              positions = []
+              start = 0
+              while True:
+                  found = original.find(marker, start)
+                  if found < 0:
+                      break
+                  positions.append(found)
+                  start = found + 1
+              print('marker', marker, positions[:20], 'count', len(positions))
+          if bad:
+              lo = max(0, bad[0] - 80)
+              hi = min(len(original), bad[0] + 160)
+              print('bad_context', repr(original[lo:hi]))
+          raise SystemExit('archive transport diagnostic complete')
           PY
-          rm -f .github/component05_payload_*.b64 .github/component05_apply.py
-          rm -f .github/workflows/component05_implementation.yml
-          rm -rf build-component05-gcc build-component05-clang build-component05-sanitizer
-          rm -f component05-validation.log
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .
-          git diff --cached --check
-          git commit -m 'Implement component 05 canonical halfedge topology (plan 05)'
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload validation log on failure
         if: failure()
