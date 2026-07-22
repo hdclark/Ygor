@@ -68,12 +68,21 @@ struct resource_policy {
     resource_limit_policy source_faces;
     resource_limit_policy source_indices;
     resource_limit_policy work_units;
+    resource_limit_policy precision_trace_nodes;
+    resource_limit_policy precision_ledger_records;
+    resource_limit_policy budget_proposals;
+    resource_limit_policy budget_reservations;
+    resource_limit_policy budget_commits;
+    resource_limit_policy precision_verifier_work;
     std::uint32_t reserved = 0;
 
     static constexpr resource_policy conservative_defaults() noexcept {
         return {1, {1ULL << 29, 1ULL << 30}, {1ULL << 29, 1ULL << 30},
                 {10'000'000, 20'000'000}, {10'000'000, 20'000'000},
-                {60'000'000, 120'000'000}, {1ULL << 34, 1ULL << 35}, 0};
+                {60'000'000, 120'000'000}, {1ULL << 34, 1ULL << 35},
+                {4'000'000, 8'000'000}, {4'000'000, 8'000'000},
+                {1'000'000, 2'000'000}, {1'000'000, 2'000'000},
+                {1'000'000, 2'000'000}, {1ULL << 32, 1ULL << 33}, 0};
     }
 };
 struct diagnostic_policy {

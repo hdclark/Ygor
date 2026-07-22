@@ -1,6 +1,8 @@
 #include "StrictFloatingBuild.h"
 #include "Context.h"
 #include "PlatformQualification.h"
+#include "PrecisionContext.h"
+#include "PrecisionVerifier.h"
 
 #include <iomanip>
 #include <new>
@@ -21,7 +23,14 @@ bounded_boolean_result<T,I> invoke(const fv_surface_mesh<T,I>&a,const fv_surface
         auto pending=build_pending_invocation(a,b,operation,options);if(!pending.has_value())return bounded_boolean_result<T,I>(*pending.error());
         if(!verify_pending(*pending.value()))return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::internal_invariant_error,5001,"pending invocation verification failed"));
         if(token.cancellation_requested()){auto e=entry_error(bounded_boolean_error_category::cancelled,4002,"bounded Boolean cancelled after source capture");e.replay_digest=pending.value()->replay_digest;e.witnesses[0]=token.reason();e.witness_count=1;return bounded_boolean_result<T,I>(e);}
-        auto e=entry_error(bounded_boolean_error_category::unsupported_platform,3002,"Component 03 precision bootstrap is not installed");e.context_digest=pending.value()->sources.digest;e.replay_digest=pending.value()->replay_digest;return bounded_boolean_result<T,I>(e);
+        auto preflight=preflight_precision(*pending.value());if(!preflight.has_value())return bounded_boolean_result<T,I>(*preflight.error());
+        if(!verify_precision_preflight(*preflight.value(),*pending.value()))return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::internal_invariant_error,30024,"precision preflight verification failed"));
+        auto frozen=finalize_context(std::move(*pending.value()),make_precision_bootstrap_record(*preflight.value()));if(!frozen.has_value())return bounded_boolean_result<T,I>(*frozen.error());
+        precision_runtime_capabilities capabilities;capabilities.expected_owner=&frozen.value()->owner;
+        auto precision=build_precision_context(*preflight.value(),*frozen.value(),capabilities);if(!precision.has_value())return bounded_boolean_result<T,I>(*precision.error());
+        if(!verify_precision_context(**precision.value(),*preflight.value(),*frozen.value(),capabilities))return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::internal_invariant_error,30025,"precision context verification failed"));
+        if(token.cancellation_requested()){auto e=entry_error(bounded_boolean_error_category::cancelled,4003,"bounded Boolean cancelled after precision bootstrap");e.context_digest=(*precision.value())->digest();e.replay_digest=frozen.value()->replay_digest;e.witnesses[0]=token.reason();e.witness_count=1;return bounded_boolean_result<T,I>(e);}
+        auto e=entry_error(bounded_boolean_error_category::result_geometry_not_validated,2002,"Component 02 input validation is not installed");e.component=2;e.stage=static_cast<std::uint16_t>(stage_id::publication);e.context_digest=(*precision.value())->digest();e.replay_digest=frozen.value()->replay_digest;return bounded_boolean_result<T,I>(e);
     } catch(const std::bad_alloc &) {
         return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::resource_limit,1201,"host allocation failed"));
     } catch(const std::length_error &) {

@@ -22,6 +22,23 @@ class strong_id {
 template<class Kind> struct source_position { std::uint64_t ordinal; };
 template<class Tag> struct task_local_id { std::uint64_t ordinal; };
 
+struct bounded_value_tag;
+struct operation_trace_tag;
+struct precision_trace_node_tag;
+struct exact_relation_tag;
+struct construction_tag;
+struct precision_ledger_entry_tag;
+struct geometric_lineage_tag;
+struct budget_proposal_tag;
+struct budget_reservation_tag;
+struct budget_commit_tag;
+struct displacement_certificate_tag;
+struct finite_bound_tag;
+struct precision_verifier_finding_tag;
+
+using operation_trace_id = strong_id<operation_trace_tag>;
+using precision_verifier_finding_id = strong_id<precision_verifier_finding_tag>;
+
 struct context_owner_token {
     std::shared_ptr<const std::uint8_t> anchor;
     static context_owner_token create() { return {std::make_shared<const std::uint8_t>(0)}; }

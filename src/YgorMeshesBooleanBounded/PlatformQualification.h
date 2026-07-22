@@ -9,7 +9,9 @@
 namespace ygor::mesh_boolean::bounded {
 class floating_environment_guard {
   public:
-    floating_environment_guard() noexcept : captured_(std::fegetenv(&saved_)==0) { qualified_=captured_&&std::fesetround(FE_TONEAREST)==0&&std::fegetround()==FE_TONEAREST; }
+    floating_environment_guard() noexcept : captured_(std::fegetenv(&saved_)==0) {
+        qualified_=captured_&&std::fesetenv(FE_DFL_ENV)==0&&std::fesetround(FE_TONEAREST)==0&&std::fegetround()==FE_TONEAREST;
+    }
     ~floating_environment_guard(){if(captured_)std::fesetenv(&saved_);}
     bool qualified()const noexcept{return qualified_;}
   private:std::fenv_t saved_{};bool captured_=false,qualified_=false;

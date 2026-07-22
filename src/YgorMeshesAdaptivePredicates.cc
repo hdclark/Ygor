@@ -14,6 +14,7 @@
 #include <limits>
 
 #include "YgorMeshesAdaptivePredicates.h"
+#include "YgorMeshesExactFloatExpansionCore.h"
 
 namespace adaptive_predicate {
 
@@ -224,14 +225,11 @@ void two_product(T a, T b, T &hi, T &lo){
     // Logic: split each input into high/low limbs, compute the rounded product,
     // and then recover the discarded roundoff by subtracting the products of the
     // limb combinations exactly as described by Shewchuk (1996).
-    hi = a * b;
-    T ahi, alo, bhi, blo;
-    detail::split(a, ahi, alo);
-    detail::split(b, bhi, blo);
-    T err1 = hi - (ahi * bhi);
-    T err2 = err1 - (alo * bhi);
-    T err3 = err2 - (ahi * blo);
-    lo = (alo * blo) - err3;
+    const auto status = ygor::exact_float_expansion_core::two_product(a, b, hi, lo);
+    if(status != ygor::exact_float_expansion_core::status::success){
+        hi = a * b;
+        lo = static_cast<T>(0);
+    }
 }
 
 template <class T>
@@ -243,12 +241,7 @@ void two_sum(T a, T b, T &hi, T &lo){
     //
     // Logic: reconstruct which portions of the inputs survived into hi, then
     // recover the lost low-order bits as the residual lo.
-    hi = a + b;
-    T bvirt = hi - a;
-    T avirt = hi - bvirt;
-    T bround = b - bvirt;
-    T around = a - avirt;
-    lo = around + bround;
+    ygor::exact_float_expansion_core::two_sum(a, b, hi, lo);
 }
 
 template <class T>
