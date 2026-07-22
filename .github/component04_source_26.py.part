@@ -1,0 +1,13 @@
+
+# `strict_floating_build_enabled()` depends on compile definitions. Giving that
+# header function external inline linkage allows a non-strict object from the
+# general Ygor library to satisfy a strict consumer's weak definition. Keep the
+# probe translation-unit-local so every caller observes its own reviewed build
+# flags and the program has no macro-dependent ODR collision.
+floating_bits = Path('src/YgorMeshesBooleanBounded/FloatingBits.h')
+floating_text = floating_bits.read_text()
+floating_old = 'inline constexpr bool strict_floating_build_enabled() noexcept {'
+floating_new = 'static constexpr bool strict_floating_build_enabled() noexcept {'
+if floating_text.count(floating_old) != 1:
+    raise SystemExit('strict floating build probe declaration missing')
+floating_bits.write_text(floating_text.replace(floating_old, floating_new, 1))
