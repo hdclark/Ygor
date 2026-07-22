@@ -12,6 +12,8 @@ add_library(ygor
     External/SpookyHash/SpookyV2.cpp
     External/MD5/md5.cc
 )
+# The bounded Boolean implementation is nested and is not part of the non-recursive source glob above.
+add_subdirectory(YgorMeshesBooleanBounded)
 #set_target_properties(ygor PROPERTIES
 #    POSITION_INDEPENDENT_CODE TRUE
 #)
@@ -47,4 +49,3 @@ install(TARGETS ygor
 install(FILES ${ygor_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-

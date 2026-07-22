@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
 STRING(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
 project(Ygor VERSION ${INVOCATION_TIMESTAMP} LANGUAGES CXX)
 
+include(CTest)
+
 ####################################################################################
 #                                  User Options
 ####################################################################################

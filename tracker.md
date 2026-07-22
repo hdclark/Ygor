@@ -1,4 +1,4 @@
-- [ ] Component 1: contract, IDs, errors, resources, transactions, and replay.
+- [x] Component 1: contract, IDs, errors, resources, transactions, and replay.
 - [ ] Component 3: precision model and bounded arithmetic, together with the exact test oracle.
 - [ ] Component 2: input topology, shell semantics, and independent validation.
 - [ ] Component 4: source polygon triangulation and provenance.

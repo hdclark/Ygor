@@ -1,0 +1,5 @@
+add_executable(ygor_mesh_boolean_bounded_tests TestMain.cc)
+target_include_directories(ygor_mesh_boolean_bounded_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(ygor_mesh_boolean_bounded_tests PRIVATE ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_bounded_tests)
+add_test(NAME mesh_boolean_bounded_component01 COMMAND ygor_mesh_boolean_bounded_tests)
