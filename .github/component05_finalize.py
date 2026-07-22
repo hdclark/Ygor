@@ -116,6 +116,11 @@ ensure_replaced(
 
 ensure_replaced(
     "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
+    "#include <cstdint>\n",
+    "#include <cfenv>\n#include <cstdint>\n",
+)
+ensure_replaced(
+    "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
     "  bounded::bounded_boolean_cancellation_source cancellation;\n",
     "  bounded_boolean_cancellation_source cancellation;\n",
 )
@@ -135,6 +140,15 @@ ensure_replaced(
     "                         statistics.source_edges +\n"
     "                             statistics.internal_diagonals +\n"
     "                             statistics.halfedges * 2,\n",
+)
+ensure_replaced(
+    "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
+    "int main(int argc, char **argv) {\n  try {\n",
+    "int main(int argc, char **argv) {\n  try {\n"
+    "    if (std::fesetenv(FE_DFL_ENV) != 0 ||\n"
+    "        std::fesetround(FE_TONEAREST) != 0)\n"
+    "      throw std::runtime_error(\n"
+    "          \"establish canonical halfedge floating environment\");\n",
 )
 
 cmake_path = Path("tests/mesh_boolean_bounded/CMakeLists.txt")
