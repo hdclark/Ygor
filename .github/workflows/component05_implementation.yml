@@ -22,7 +22,7 @@ jobs:
           ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
 
-      - name: Diagnose Component 05 archive transport
+      - name: Persist Component 05 archive diagnostic
         shell: bash
         run: |
           set -o pipefail
@@ -34,16 +34,19 @@ jobs:
 
           original = Path('/tmp/component05-original.b64').read_bytes()
           prefix = Path('/tmp/component05-prefix.b64').read_bytes()
-          print('original_length', len(original))
-          print('prefix_length', len(prefix))
-          print('original_sha256', sha256(original).hexdigest())
-          print('prefix_sha256', sha256(prefix).hexdigest())
+          lines = []
+          add = lines.append
+          add(f'original_length {len(original)}')
+          add(f'prefix_length {len(prefix)}')
+          add(f'original_sha256 {sha256(original).hexdigest()}')
+          add(f'prefix_sha256 {sha256(prefix).hexdigest()}')
           mismatch = next((i for i, (a, b) in enumerate(zip(original, prefix)) if a != b), None)
-          print('first_prefix_mismatch', mismatch)
+          add(f'first_prefix_mismatch {mismatch}')
+          add(f'original_starts_with_prefix {original.startswith(prefix)}')
           allowed = set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n')
           bad = [i for i, value in enumerate(original) if value not in allowed]
-          print('bad_count', len(bad))
-          print('bad_positions', bad[:100])
+          add(f'bad_count {len(bad)}')
+          add(f'bad_positions {bad[:100]}')
           for marker in (b'ELLIPSIZATION', b'[...', b'... (truncated)', b'...'):
               positions = []
               start = 0
@@ -53,18 +56,21 @@ jobs:
                       break
                   positions.append(found)
                   start = found + 1
-              print('marker', marker, positions[:20], 'count', len(positions))
+              add(f'marker {marker!r} positions {positions[:20]} count {len(positions)}')
+          if mismatch is not None:
+              lo = max(0, mismatch - 120)
+              hi = min(len(original), mismatch + 240)
+              add(f'mismatch_original_context {original[lo:hi]!r}')
+              add(f'mismatch_prefix_context {prefix[lo:min(len(prefix), hi)]!r}')
           if bad:
-              lo = max(0, bad[0] - 80)
-              hi = min(len(original), bad[0] + 160)
-              print('bad_context', repr(original[lo:hi]))
-          raise SystemExit('archive transport diagnostic complete')
+              lo = max(0, bad[0] - 120)
+              hi = min(len(original), bad[0] + 240)
+              add(f'bad_context {original[lo:hi]!r}')
+          Path('.github/component05_transport_diagnostic.txt').write_text('\n'.join(lines) + '\n')
           PY
-
-      - name: Upload validation log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: component05-validation-log
-          path: component05-validation.log
-          if-no-files-found: ignore
+          cat .github/component05_transport_diagnostic.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/component05_transport_diagnostic.txt
+          git commit -m 'Record component 05 archive transport diagnostic'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
