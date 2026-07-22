@@ -42,12 +42,6 @@ jobs:
           python3 -m py_compile /tmp/component04_hotfix.py
           python3 /tmp/component04_hotfix.py 2>&1 | tee component04-validation.log
 
-      - name: Snapshot implemented checkout
-        shell: bash
-        run: |
-          tar --exclude=.git --exclude='build-component04-*' \
-            -czf component04-implemented-tree.tar.gz .
-
       - name: Configure and test with GCC
         id: gcc
         shell: bash
@@ -139,7 +133,7 @@ jobs:
           rm -f .github/component04_source_*.py.part .github/component04_payload_*
           rm -f .github/workflows/component04_implementation.yml
           rm -rf build-component04-gcc build-component04-clang build-component04-sanitizer
-          rm -f component04-validation.log component04-implemented-tree.tar.gz
+          rm -f component04-validation.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .
@@ -147,12 +141,10 @@ jobs:
           git commit -m 'Implement component 04 source facet triangulation (plan 04)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Upload validation artifacts on failure
+      - name: Upload validation log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component04-validation-artifacts
-          path: |
-            component04-validation.log
-            component04-implemented-tree.tar.gz
+          name: component04-validation-log
+          path: component04-validation.log
           if-no-files-found: ignore
