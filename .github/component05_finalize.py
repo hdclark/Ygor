@@ -1,22 +1,27 @@
 from pathlib import Path
 
 
-def replace_once(path: str, old: str, new: str) -> None:
+def ensure_replaced(path: str, old: str, new: str) -> None:
     target = Path(path)
     text = target.read_text()
-    count = text.count(old)
-    if count != 1:
-        raise SystemExit(f"{path}: expected one occurrence, found {count}: {old!r}")
-    target.write_text(text.replace(old, new, 1))
+    if old in text:
+        text = text.replace(old, new)
+        target.write_text(text)
+        return
+    if new and new in text:
+        return
+    if not new and old not in text:
+        return
+    raise SystemExit(f"{path}: neither pending nor finalized form found")
 
 
-replace_once(
+ensure_replaced(
     "src/YgorMeshesBooleanBounded/CanonicalHalfedgeCodec.h",
     "    writer.u64(vertex.presentation_vertex);\n",
     "",
 )
 
-replace_once(
+ensure_replaced(
     "src/YgorMeshesBooleanBounded/CanonicalHalfedgeBuildCore.h",
     "  if (persistent > capabilities_.maximum_canonical_bytes +\n"
     "                       counts_.estimated_persistent_bytes + extra &&\n"
@@ -27,17 +32,17 @@ replace_once(
     "",
 )
 
-replace_once(
+ensure_replaced(
     "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
     "  bounded::bounded_boolean_cancellation_source cancellation;\n",
     "  bounded_boolean_cancellation_source cancellation;\n",
 )
-replace_once(
+ensure_replaced(
     "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
     "                         bounded::bounded_boolean_error_category::cancelled,\n",
     "                         bounded_boolean_error_category::cancelled,\n",
 )
-replace_once(
+ensure_replaced(
     "tests/mesh_boolean_bounded/TestCanonicalHalfedge.cc",
     "                         bounded::bounded_boolean_error_category::resource_limit,\n",
     "                         bounded_boolean_error_category::resource_limit,\n",
@@ -46,11 +51,11 @@ replace_once(
 cmake_path = Path("tests/mesh_boolean_bounded/CMakeLists.txt")
 cmake = cmake_path.read_text()
 old_loop = "foreach(consumer_component 02 04 06 07 13 15 16 17)"
-if cmake.count(old_loop) != 1:
+new_loop = "foreach(consumer_component 02 04 05 06 07 13 15 16 17)"
+if old_loop in cmake:
+    cmake = cmake.replace(old_loop, new_loop, 1)
+elif new_loop not in cmake:
     raise SystemExit("precision capability consumer loop did not match")
-cmake = cmake.replace(
-    old_loop, "foreach(consumer_component 02 04 05 06 07 13 15 16 17)", 1
-)
 block = r'''
 
 add_executable(ygor_mesh_boolean_canonical_halfedge_tests
@@ -69,6 +74,6 @@ foreach(canonical_halfedge_suite
                 ${canonical_halfedge_suite})
 endforeach()
 '''
-if "ygor_mesh_boolean_canonical_halfedge_tests" in cmake:
-    raise SystemExit("canonical halfedge CMake target already exists")
-cmake_path.write_text(cmake + block)
+if "ygor_mesh_boolean_canonical_halfedge_tests" not in cmake:
+    cmake += block
+cmake_path.write_text(cmake)
