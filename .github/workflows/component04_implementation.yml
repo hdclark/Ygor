@@ -1,0 +1,114 @@
+name: Component 04 implementation
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: write
+
+concurrency:
+  group: component04-implementation
+  cancel-in-progress: false
+
+jobs:
+  implement-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-manifold-mesh-boolean-plan
+          fetch-depth: 0
+
+      - name: Apply Component 04 implementation
+        id: apply
+        shell: bash
+        run: |
+          set -o pipefail
+          cat .github/component04_source_*.py.part > /tmp/component04_implementation.py
+          python3 -m py_compile /tmp/component04_implementation.py
+          python3 /tmp/component04_implementation.py 2>&1 | tee component04-validation.log
+
+      - name: Configure and test with GCC
+        id: gcc
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component04-gcc \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Debug 2>&1 | tee -a component04-validation.log
+          cmake --build build-component04-gcc \
+            --target ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
+            tee -a component04-validation.log
+          ctest --test-dir build-component04-gcc --output-on-failure \
+            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
+            tee -a component04-validation.log
+
+      - name: Configure and test with Clang
+        id: clang
+        shell: bash
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component04-clang \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Release 2>&1 | tee -a component04-validation.log
+          cmake --build build-component04-clang \
+            --target ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
+            tee -a component04-validation.log
+          ctest --test-dir build-component04-clang --output-on-failure \
+            -R '^mesh_boolean_bounded_component0[1-4]' 2>&1 | \
+            tee -a component04-validation.log
+
+      - name: Configure sanitizer qualification
+        id: sanitizer
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-component04-sanitizer \
+            -DBUILD_TESTING=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
+            -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=address,undefined' 2>&1 | \
+            tee -a component04-validation.log
+          cmake --build build-component04-sanitizer \
+            --target ygor_mesh_boolean_source_triangulation_tests -j2 2>&1 | \
+            tee -a component04-validation.log
+          ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
+            ctest --test-dir build-component04-sanitizer --output-on-failure \
+              -R '^mesh_boolean_bounded_component04_' 2>&1 | \
+              tee -a component04-validation.log
+
+      - name: Commit Component 04
+        shell: bash
+        run: |
+          rm -f .github/component04_source_*.py.part .github/component04_payload_*
+          rm -f .github/workflows/component04_implementation.yml
+          rm -rf build-component04-gcc build-component04-clang build-component04-sanitizer
+          rm -f component04-validation.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git diff --cached --check
+          git commit -m 'Implement component 04 source facet triangulation (plan 04)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Upload validation log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component04-validation-log
+          path: component04-validation.log
+          if-no-files-found: ignore
