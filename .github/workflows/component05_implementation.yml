@@ -26,8 +26,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 -m py_compile .github/component05_finalize.py
+          python3 -m py_compile \
+            .github/component05_finalize.py \
+            .github/component05_resource_fix.py
           python3 .github/component05_finalize.py
+          python3 .github/component05_resource_fix.py
           git diff --check
 
       - name: Configure and test with GCC
@@ -132,6 +135,7 @@ jobs:
           rm -f .github/component05_transport_diagnostic.txt
           rm -f .github/component05_recovery_manifest.txt
           rm -f .github/component05_finalize.py
+          rm -f .github/component05_resource_fix.py
           rm -f .github/workflows/component05_implementation.yml
           rm -rf build-component05-gcc build-component05-clang build-component05-sanitizer
           rm -f component05-validation.log
