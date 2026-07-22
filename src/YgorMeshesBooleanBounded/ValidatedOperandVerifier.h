@@ -146,8 +146,8 @@ bool verify_validated_operand(const validated_operand<T, I> &a,
 
   if (a.normalization_.size() != source.indices().size())
     return false;
-  std::vector<const normalized_position_record *> positions(source.indices().size(),
-                                                             nullptr);
+  std::vector<const normalized_position_record *> positions(
+      source.indices().size(), nullptr);
   for (const auto &position : a.normalization_) {
     if (position.source_position >= positions.size() ||
         positions[position.source_position] ||
@@ -161,22 +161,55 @@ bool verify_validated_operand(const validated_operand<T, I> &a,
     positions[position.source_position] = &position;
   }
   for (std::uint64_t f = 0; f < source.face_count(); ++f) {
-    std::uint64_t previous = std::numeric_limits<std::uint64_t>::max();
-    for (auto p = source.face_offsets()[f]; p < source.face_offsets()[f + 1]; ++p) {
-      const auto &position = *positions[p];
-      const auto source_vertex = static_cast<std::uint64_t>(source.indices()[p]);
-      auto expected = source_vertex == previous
-                          ? ring_position_action::consecutive_duplicate
-                          : ring_position_action::retained;
-      if (p + 1 == source.face_offsets()[f + 1] && previous != source_vertex &&
-          source.indices()[source.face_offsets()[f]] == source.indices()[p])
-        expected = ring_position_action::duplicate_closure;
-      if (position.source_facet != f || position.action != expected ||
-          a.facets_[position.canonical_facet]
-                  .vertices[position.retained_corner] !=
-              source_to_canonical[source_vertex])
+    const auto begin = source.face_offsets()[f];
+    const auto end = source.face_offsets()[f + 1];
+    const auto count = static_cast<std::size_t>(end - begin);
+    std::vector<ring_position_action> expected_actions(
+        count, ring_position_action::retained);
+    std::vector<std::uint64_t> normalized;
+    std::size_t last_retained = std::numeric_limits<std::size_t>::max();
+    for (auto p = begin; p < end; ++p) {
+      const auto local = static_cast<std::size_t>(p - begin);
+      const auto source_vertex =
+          static_cast<std::uint64_t>(source.indices()[p]);
+      if (!normalized.empty() && normalized.back() == source_vertex) {
+        expected_actions[local] = ring_position_action::consecutive_duplicate;
+        continue;
+      }
+      normalized.push_back(source_vertex);
+      last_retained = local;
+    }
+    if (normalized.size() > 1 && normalized.front() == normalized.back()) {
+      normalized.pop_back();
+      if (last_retained == std::numeric_limits<std::size_t>::max())
         return false;
-      previous = source_vertex;
+      expected_actions[last_retained] = ring_position_action::duplicate_closure;
+    }
+    const auto canonical_facet = source_to_canonical_facet[f];
+    if (canonical_facet >= a.facets_.size() ||
+        normalized.size() != a.facets_[canonical_facet].vertices.size())
+      return false;
+    for (std::size_t local = 0; local < count; ++local) {
+      const auto p = begin + local;
+      const auto *position = positions[p];
+      if (!position)
+        return false;
+      const auto source_vertex =
+          static_cast<std::uint64_t>(source.indices()[p]);
+      if (source_vertex >= source_to_canonical.size())
+        return false;
+      const auto canonical_vertex = source_to_canonical[source_vertex];
+      if (canonical_vertex == std::numeric_limits<std::uint64_t>::max())
+        return false;
+      const auto &ring = a.facets_[canonical_facet].vertices;
+      const auto corner =
+          std::find(ring.begin(), ring.end(), canonical_vertex);
+      if (corner == ring.end() || position->source_facet != f ||
+          position->canonical_facet != canonical_facet ||
+          position->action != expected_actions[local] ||
+          position->retained_corner !=
+              static_cast<std::uint64_t>(corner - ring.begin()))
+        return false;
     }
   }
   auto imported = import_source_bounded_values(precision, source);

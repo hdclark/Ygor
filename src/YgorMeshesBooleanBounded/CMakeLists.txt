@@ -23,6 +23,7 @@ add_library(ygor_exact_float_expansion_core
 set_property(TARGET ygor_exact_float_expansion_core PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_exact_float_expansion_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 ygor_apply_mesh_boolean_strict_fp(ygor_exact_float_expansion_core)
 
@@ -47,6 +48,7 @@ add_library(ygor_mesh_boolean_bounded_strict
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(ygor_mesh_boolean_bounded_strict PUBLIC ygor_exact_float_expansion_core)
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_bounded_strict)
@@ -68,7 +70,9 @@ add_library(ygor_mesh_boolean_bounded_facade OBJECT
     Cancellation.cc
     YgorMeshesBooleanBounded.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_facade PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-target_include_directories(ygor_mesh_boolean_bounded_facade PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_include_directories(ygor_mesh_boolean_bounded_facade PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    "${CMAKE_CURRENT_BINARY_DIR}/..")
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_bounded_facade)
 target_sources(ygor PRIVATE $<TARGET_OBJECTS:ygor_mesh_boolean_bounded_facade>)
 

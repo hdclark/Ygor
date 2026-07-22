@@ -188,6 +188,8 @@ template <class T, class I> class input_validation_builder final {
     source_rings_.resize(source_.face_count());
     for (std::size_t f = 0; f < source_rings_.size(); ++f) {
       auto &r = source_rings_[f];
+      std::size_t last_retained_record =
+          std::numeric_limits<std::size_t>::max();
       for (auto p = source_.face_offsets()[f];
            p < source_.face_offsets()[f + 1]; ++p) {
         auto v = static_cast<std::uint64_t>(source_.indices()[p]);
@@ -203,14 +205,32 @@ template <class T, class I> class input_validation_builder final {
           continue;
         }
         r.push_back(v);
+        last_retained_record = out_.normalization_.size();
         out_.normalization_.push_back(
             {p, f, 0, ring_position_action::retained, r.size() - 1});
       }
       if (r.size() > 1 && r.front() == r.back()) {
+        const auto removed_corner = r.size() - 1;
         r.pop_back();
-        out_.normalization_.back().action =
-            ring_position_action::duplicate_closure;
-        out_.normalization_.back().retained_corner = 0;
+        if (last_retained_record ==
+                std::numeric_limits<std::size_t>::max() ||
+            last_retained_record >= out_.normalization_.size())
+          return error(input_validation_subcode::verifier_rejection,
+                       bounded_boolean_error_category::internal_invariant_error,
+                       "closing source position was not retained", 4);
+        auto &closing = out_.normalization_[last_retained_record];
+        closing.action = ring_position_action::duplicate_closure;
+        closing.retained_corner = 0;
+        for (std::size_t record = last_retained_record + 1;
+             record < out_.normalization_.size(); ++record) {
+          auto &trailing = out_.normalization_[record];
+          if (trailing.source_facet != f)
+            break;
+          if (trailing.action ==
+                  ring_position_action::consecutive_duplicate &&
+              trailing.retained_corner == removed_corner)
+            trailing.retained_corner = 0;
+        }
       }
       if (r.size() < 3)
         record(input_validation_subcode::undersized_ring,

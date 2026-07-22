@@ -158,6 +158,31 @@ void test_topology_and_normalization() {
   require(duplicate && closure, "normalization actions retained");
 }
 
+
+void test_trailing_duplicate_closure_normalization() {
+  auto mesh = tetra<double, std::uint32_t>();
+  mesh.faces[0] = {0, 2, 1, 0, 0};
+  auto result = validate_a(mesh);
+  require(result.has_value(),
+          "closing vertex followed by duplicates remains valid");
+  const auto &records = (*result.value())->presentation_normalization();
+  require(records.size() >= 5,
+          "trailing duplicate normalization records retained");
+  const auto &closure = records[3];
+  const auto &trailing = records[4];
+  require(closure.source_position == 3 &&
+              closure.action ==
+                  bounded::ring_position_action::duplicate_closure,
+          "retained closing occurrence owns closure action");
+  require(trailing.source_position == 4 &&
+              trailing.action ==
+                  bounded::ring_position_action::consecutive_duplicate,
+          "trailing repeated occurrence remains a duplicate action");
+  require(closure.canonical_facet == trailing.canonical_facet &&
+              closure.retained_corner == trailing.retained_corner,
+          "closure and trailing duplicate map to the retained first corner");
+}
+
 void test_structural_failures() {
   auto mesh = tetra<double, std::uint32_t>();
   mesh.faces.pop_back();
@@ -807,6 +832,7 @@ int main() {
     require(guard.qualified(), "strict floating environment");
     test_empty_and_isolated();
     test_topology_and_normalization();
+    test_trailing_duplicate_closure_normalization();
     test_structural_failures();
     test_precanonical_bow_tie_link();
     test_presentation_invariance();
