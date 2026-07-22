@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: write
