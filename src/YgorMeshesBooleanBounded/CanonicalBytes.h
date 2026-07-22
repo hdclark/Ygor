@@ -3,7 +3,9 @@
 #include "CheckedArithmetic.h"
 
 #include <cstdint>
+#include <cmath>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -22,6 +24,37 @@ class canonical_writer {
         U bits = 0;
         std::memcpy(&bits, &value, sizeof(bits));
         integer(bits);
+    }
+    void long_floating(long double value) {
+        static_assert(std::numeric_limits<long double>::radix == 2,
+                      "canonical long-double encoding requires binary radix");
+        boolean(std::signbit(value));
+        value = std::fabs(value);
+        if (value == 0) {
+            u8(0);
+            return;
+        }
+        if (!std::isfinite(value)) {
+            u8(std::isnan(value) ? 3 : 2);
+            return;
+        }
+        u8(1);
+        int exponent = 0;
+        long double fraction = std::frexp(value, &exponent);
+        u32(static_cast<std::uint32_t>(static_cast<std::int32_t>(exponent)));
+        u16(static_cast<std::uint16_t>(std::numeric_limits<long double>::digits));
+        std::uint8_t byte = 0;
+        for (int bit = 0; bit < std::numeric_limits<long double>::digits; ++bit) {
+            fraction = std::ldexp(fraction, 1);
+            if (fraction >= 1) {
+                byte |= static_cast<std::uint8_t>(1U << (bit % 8));
+                fraction -= 1;
+            }
+            if (bit % 8 == 7 || bit + 1 == std::numeric_limits<long double>::digits) {
+                u8(byte);
+                byte = 0;
+            }
+        }
     }
     bool sized_bytes(const std::vector<std::uint8_t> &bytes) {
         std::uint64_t final_size = 0;

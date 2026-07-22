@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstddef>
+#include <vector>
 
 namespace ygor::mesh_boolean::bounded {
 
@@ -201,6 +202,74 @@ exact_relation_record exact_orient_3d(const std::array<T, 3> &a,
                                     c[0], c[1], c[2], T(1),
                                     d[0], d[1], d[2], T(1)}};
     return exact_determinant<T, 4>(matrix, exact_relation_formula_code::orient_3d);
+}
+
+template <class T>
+exact_relation_record
+exact_polygon_area_2d(const std::vector<std::array<T, 2>> &polygon) noexcept {
+    using namespace exact_float_expansion_core;
+    if (polygon.size() < 3)
+        return detail::relation_failure(exact_relation_formula_code::determinant_2x2,
+                                        numeric_status::invalid_argument,
+                                        exact_relation_default_capacity);
+    std::array<int, 2> shifts{};
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+        int maximum = std::numeric_limits<int>::min();
+        for (const auto &point : polygon) {
+            if (!finite_bits(point[axis]))
+                return detail::relation_failure(
+                    exact_relation_formula_code::determinant_2x2,
+                    numeric_status::non_finite_input,
+                    exact_relation_default_capacity);
+            if (point[axis] != T(0)) {
+                int exponent = 0;
+                (void)std::frexp(point[axis], &exponent);
+                maximum = std::max(maximum, exponent);
+            }
+        }
+        shifts[axis] = maximum == std::numeric_limits<int>::min() ? 0 : -2 - maximum;
+    }
+    expansion<T, exact_relation_default_capacity> total;
+    total.size = 1;
+    total.limbs[0] = T(0);
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        const auto &a = polygon[i];
+        const auto &b = polygon[(i + 1) % polygon.size()];
+        const T ax = std::scalbn(a[0], shifts[0]);
+        const T ay = std::scalbn(a[1], shifts[1]);
+        const T bx = std::scalbn(b[0], shifts[0]);
+        const T by = std::scalbn(b[1], shifts[1]);
+        if (!finite(ax) || !finite(ay) || !finite(bx) || !finite(by) ||
+            (a[0] != T(0) && std::scalbn(ax, -shifts[0]) != a[0]) ||
+            (a[1] != T(0) && std::scalbn(ay, -shifts[1]) != a[1]) ||
+            (b[0] != T(0) && std::scalbn(bx, -shifts[0]) != b[0]) ||
+            (b[1] != T(0) && std::scalbn(by, -shifts[1]) != b[1]))
+            return detail::relation_failure(
+                exact_relation_formula_code::determinant_2x2,
+                numeric_status::exact_scaling_unavailable,
+                exact_relation_default_capacity);
+        T first = T(0), first_error = T(0), second = T(0), second_error = T(0);
+        auto operation_status = two_product(ax, by, first, first_error);
+        if (operation_status == status::success)
+            operation_status = two_product(bx, ay, second, second_error);
+        expansion<T, exact_relation_default_capacity> next;
+        if (operation_status == status::success) operation_status = grow(total, first_error, next);
+        if (operation_status == status::success) operation_status = grow(next, first, total);
+        if (operation_status == status::success) operation_status = grow(total, -second_error, next);
+        if (operation_status == status::success) operation_status = grow(next, -second, total);
+        if (operation_status != status::success)
+            return detail::relation_failure(exact_relation_formula_code::determinant_2x2,
+                                            detail::numeric_status_from_core(operation_status),
+                                            exact_relation_default_capacity);
+    }
+    exact_relation_record record;
+    record.formula = exact_relation_formula_code::determinant_2x2;
+    record.status = detail::exact_status_from_core(expansion_sign(total));
+    record.evaluation_status = numeric_status::success;
+    record.normalization_exponent = shifts[0] + shifts[1];
+    record.capacity_used = total.size;
+    record.capacity_limit = exact_relation_default_capacity;
+    return record;
 }
 
 } // namespace ygor::mesh_boolean::bounded

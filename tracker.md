@@ -1,6 +1,7 @@
 - [x] Component 1: contract, IDs, errors, resources, transactions, and replay.
 - [x] Component 3: precision model and bounded arithmetic, together with the exact test oracle.
-- [ ] Component 2: input topology, shell semantics, and independent validation.
+- [x] Component 2: input topology, shell semantics, and independent validation.
+- [ ] Component 2: validate partial implementation.
 - [ ] Component 4: source polygon triangulation and provenance.
 - [ ] Component 5: canonical halfedge topology.
 - [ ] Component 6: broad phase, gated against exhaustive enumeration.

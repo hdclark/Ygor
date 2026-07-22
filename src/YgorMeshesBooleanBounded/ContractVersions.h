@@ -44,12 +44,35 @@ struct contract_versions final {
     static constexpr std::uint16_t precision_import = 1;
     static constexpr std::uint16_t precision_codec = 1;
     static constexpr std::uint16_t precision_verifier = 1;
+    static constexpr std::uint16_t input_validation_provider = 1;
+    static constexpr std::uint16_t normalized_ring_schema = 1;
+    static constexpr std::uint16_t source_incidence_schema = 1;
+    static constexpr std::uint16_t vertex_link_schema = 1;
+    static constexpr std::uint16_t source_topology_canonicalizer = 1;
+    static constexpr std::uint16_t presentation_correspondence_schema = 1;
+    static constexpr std::uint16_t input_facet_geometry_schema = 1;
+    static constexpr std::uint16_t input_facet_geometry_provider = 1;
+    static constexpr std::uint16_t coherent_realization_schema = 1;
+    static constexpr std::uint16_t coherent_realization_provider = 1;
+    static constexpr std::uint16_t input_geometry_relations = 1;
+    static constexpr std::uint16_t shell_pair_relation_schema = 1;
+    static constexpr std::uint16_t shell_pair_relation_provider = 1;
+    static constexpr std::uint16_t shell_semantics_schema = 1;
+    static constexpr std::uint16_t shell_semantics_provider = 1;
+    static constexpr std::uint16_t input_geometry_assessment_schema = 1;
+    static constexpr std::uint16_t input_geometry_assessment_provider = 1;
+    static constexpr std::uint16_t validated_operand = 1;
+    static constexpr std::uint16_t validated_operand_codec = 1;
+    static constexpr std::uint16_t validated_operand_verifier = 1;
+    static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
+    static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
+    static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
 };
 enum class operand_id : std::uint8_t { a = 0, b = 1 };
 enum class stage_id : std::uint16_t {
     public_entry = 1, source_capture = 2, context_preflight = 3,
     precision_bootstrap = 4, publication = 20, qualification = 21,
-    execution_service = 22,
+    execution_service = 22, input_validation_a = 23, input_validation_b = 24,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

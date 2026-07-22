@@ -3,6 +3,7 @@
 #include "PlatformQualification.h"
 #include "PrecisionContext.h"
 #include "PrecisionVerifier.h"
+#include "InputValidation.h"
 
 #include <iomanip>
 #include <new>
@@ -30,7 +31,10 @@ bounded_boolean_result<T,I> invoke(const fv_surface_mesh<T,I>&a,const fv_surface
         auto precision=build_precision_context(*preflight.value(),*frozen.value(),capabilities);if(!precision.has_value())return bounded_boolean_result<T,I>(*precision.error());
         if(!verify_precision_context(**precision.value(),*preflight.value(),*frozen.value(),capabilities))return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::internal_invariant_error,30025,"precision context verification failed"));
         if(token.cancellation_requested()){auto e=entry_error(bounded_boolean_error_category::cancelled,4003,"bounded Boolean cancelled after precision bootstrap");e.context_digest=(*precision.value())->digest();e.replay_digest=frozen.value()->replay_digest;e.witnesses[0]=token.reason();e.witness_count=1;return bounded_boolean_result<T,I>(e);}
-        auto e=entry_error(bounded_boolean_error_category::result_geometry_not_validated,2002,"Component 02 input validation is not installed");e.component=2;e.stage=static_cast<std::uint16_t>(stage_id::publication);e.context_digest=(*precision.value())->digest();e.replay_digest=frozen.value()->replay_digest;return bounded_boolean_result<T,I>(e);
+        resource_manager input_resources(frozen.value()->options.resources);input_validation_capabilities input_caps;input_caps.owner=frozen.value()->owner;input_caps.cancellation=&token;input_caps.resources=&input_resources;
+        auto validated_a=validate_operand(operand_id::a,frozen.value()->sources->a,*frozen.value(),**precision.value(),input_caps);if(!validated_a.has_value())return bounded_boolean_result<T,I>(*validated_a.error());
+        auto validated_b=validate_operand(operand_id::b,frozen.value()->sources->b,*frozen.value(),**precision.value(),input_caps);if(!validated_b.has_value())return bounded_boolean_result<T,I>(*validated_b.error());
+        auto e=entry_error(bounded_boolean_error_category::result_geometry_not_validated,2004,"Component 04 source triangulation is not installed");e.component=4;e.stage=static_cast<std::uint16_t>(stage_id::publication);e.context_digest=(*precision.value())->digest();e.replay_digest=frozen.value()->replay_digest;e.witnesses[0]=(*validated_a.value())->facets().size();e.witnesses[1]=(*validated_b.value())->facets().size();e.witness_count=2;return bounded_boolean_result<T,I>(e);
     } catch(const std::bad_alloc &) {
         return bounded_boolean_result<T,I>(entry_error(bounded_boolean_error_category::resource_limit,1201,"host allocation failed"));
     } catch(const std::length_error &) {

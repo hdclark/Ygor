@@ -5,6 +5,24 @@ target_link_libraries(ygor_mesh_boolean_bounded_tests PRIVATE
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_bounded_tests)
 add_test(NAME mesh_boolean_bounded_component01 COMMAND ygor_mesh_boolean_bounded_tests)
 
+add_executable(ygor_mesh_boolean_input_validation_tests
+    TestInputValidation.cc
+    qualification/ExactUnsignedInteger.cc
+    qualification/ExactInteger.cc
+    qualification/ExactRational.cc
+    qualification/ExactGeometryOracle.cc)
+target_include_directories(ygor_mesh_boolean_input_validation_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(ygor_mesh_boolean_input_validation_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_source_contract COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_topology COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_canonicalization COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_permutation COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_mutation COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_shell_semantics COMMAND ygor_mesh_boolean_input_validation_tests)
+add_test(NAME mesh_boolean_bounded_component02_public_gate COMMAND ygor_mesh_boolean_input_validation_tests)
+
 add_executable(ygor_mesh_boolean_precision_tests
     TestPrecision.cc
     qualification/ExactUnsignedInteger.cc
