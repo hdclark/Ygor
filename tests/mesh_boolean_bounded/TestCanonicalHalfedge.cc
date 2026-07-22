@@ -5,6 +5,7 @@
 #include "YgorMeshesBooleanBounded/Sha256.h"
 
 #include <algorithm>
+#include <cfenv>
 #include <cstdint>
 #include <iostream>
 #include <set>
@@ -318,7 +319,7 @@ template <class T, class I> void mutation_suite() {
 template <class T, class I> void resources_suite() {
   auto fixture = tests::build<T, I>(
       source_triangulation_tests::box<T, I>());
-  bounded::bounded_boolean_cancellation_source cancellation;
+  bounded_boolean_cancellation_source cancellation;
   auto token = cancellation.token();
   cancellation.request_cancel(17);
   auto cancelled_capabilities = tests::capabilities(fixture);
@@ -356,7 +357,9 @@ template <class T, class I> void structural_suite() {
                  "fan traversal is linear");
   tests::require(statistics.work_units <=
                      statistics.represented_vertices + statistics.triangles +
-                         statistics.edges + statistics.halfedges * 2,
+                         statistics.source_edges +
+                             statistics.internal_diagonals +
+                             statistics.halfedges * 2,
                  "work-unit accounting follows structural bound");
   std::uint64_t levels = 0;
   for (auto n = statistics.halfedges; n > 1; n >>= 1)
@@ -403,6 +406,10 @@ void run_suite(const std::string &suite) {
 
 int main(int argc, char **argv) {
   try {
+    if (std::fesetenv(FE_DFL_ENV) != 0 ||
+        std::fesetround(FE_TONEAREST) != 0)
+      throw std::runtime_error(
+          "establish canonical halfedge floating environment");
     if (argc == 1) {
       for (const char *suite : {"unit", "pairing", "fans", "groups",
                                 "geometry", "owner", "canonical", "codec",

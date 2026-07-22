@@ -116,6 +116,8 @@ bool verify_canonical_halfedge_operand(
   if (artifact.validated_operand_digest_ != validated.digest() ||
       artifact.source_triangle_complex_digest_ != source.digest() ||
       artifact.precision_digest_ != precision.digest() ||
+      artifact.precision_attachment_digest_ !=
+          canonical_precision_attachment_digest(precision) ||
       source.predecessor_digest() != validated.digest() ||
       source.precision_digest() != precision.digest())
     return fail(canonical_halfedge_subcode::predecessor_digest_mismatch);
@@ -173,6 +175,17 @@ bool verify_canonical_halfedge_operand(
       return fail(canonical_halfedge_subcode::triangle_cycle_mismatch);
     source_triangle_seen[triangle.source_triangle] = true;
     const auto &predecessor = source.triangles()[triangle.source_triangle];
+    if (triangle.basis.kind != predecessor.basis.kind ||
+        triangle.basis.operand != predecessor.basis.operand ||
+        triangle.basis.facet != predecessor.basis.facet ||
+        triangle.basis.ring != predecessor.basis.ring ||
+        triangle.basis.shell != predecessor.basis.shell ||
+        triangle.basis.dropped_axis != predecessor.basis.dropped_axis ||
+        triangle.basis.support_vertices != predecessor.basis.support_vertices ||
+        triangle.basis.predecessor_digest != predecessor.basis.predecessor_digest ||
+        triangle.basis.precision_digest != precision.digest() ||
+        triangle.basis.basis_digest != predecessor.basis.basis_digest)
+      return fail(canonical_halfedge_subcode::geometry_basis_mismatch);
     const auto expected_rotation =
         least_rotation(artifact.operand_, predecessor, source.edge_uses());
     if (!(triangle.key.rotation == expected_rotation) ||

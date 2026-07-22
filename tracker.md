@@ -3,7 +3,7 @@
 - [x] Component 2: input topology, shell semantics, and independent validation.
 - [x] Component 2: validate partial implementation.
 - [x] Component 4: source polygon triangulation and provenance.
-- [ ] Component 5: canonical halfedge topology.
+- [x] Component 5: canonical halfedge topology.
 - [ ] Component 6: broad phase, gated against exhaustive enumeration.
 - [ ] Component 7: relation kernel and frozen symbolic perturbation matrix.
 - [ ] Component 8: canonical event registry and shared construction lineage.

@@ -72,7 +72,7 @@ ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_precision_codec_tests)
 add_test(NAME mesh_boolean_bounded_component03_codecs
     COMMAND ygor_mesh_boolean_precision_codec_tests)
 
-foreach(consumer_component 02 04 06 07 13 15 16 17)
+foreach(consumer_component 02 04 05 06 07 13 15 16 17)
     add_library(ygor_mesh_boolean_component${consumer_component}_capability_compile OBJECT
         PrecisionCapabilityIntegration.cc)
     target_compile_definitions(
@@ -113,4 +113,21 @@ foreach(source_triangulation_suite
     add_test(NAME mesh_boolean_bounded_component04_${source_triangulation_suite}
         COMMAND ygor_mesh_boolean_source_triangulation_tests
                 ${source_triangulation_suite})
+endforeach()
+
+
+add_executable(ygor_mesh_boolean_canonical_halfedge_tests
+    TestCanonicalHalfedge.cc)
+target_include_directories(ygor_mesh_boolean_canonical_halfedge_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_canonical_halfedge_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_canonical_halfedge_tests)
+foreach(canonical_halfedge_suite
+        unit pairing fans groups geometry owner canonical codec mutation resources
+        profiles structural)
+    add_test(NAME mesh_boolean_bounded_component05_${canonical_halfedge_suite}
+        COMMAND ygor_mesh_boolean_canonical_halfedge_tests
+                ${canonical_halfedge_suite})
 endforeach()

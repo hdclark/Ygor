@@ -207,6 +207,9 @@ public:
   const bounded_boolean_digest &geometry_attachment_digest() const noexcept {
     return geometry_attachment_digest_;
   }
+  const bounded_boolean_digest &precision_attachment_digest() const noexcept {
+    return precision_attachment_digest_;
+  }
   const bounded_boolean_digest &replay_presentation_digest() const noexcept {
     return replay_presentation_digest_;
   }
@@ -251,6 +254,7 @@ private:
   bounded_boolean_digest validated_operand_digest_{};
   bounded_boolean_digest source_triangle_complex_digest_{};
   bounded_boolean_digest precision_digest_{};
+  bounded_boolean_digest precision_attachment_digest_{};
   std::shared_ptr<const validated_operand<T, I>> validated_;
   std::shared_ptr<const source_triangle_complex<T, I>> source_triangles_;
   std::vector<canonical_manifold_vertex_record<T>> vertices_;

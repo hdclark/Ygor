@@ -259,7 +259,21 @@ bool canonical_halfedge_builder<T, I>::finalize_and_verify() {
   artifact_->canonical_bytes_ = encode_canonical_halfedge_complete(
       *artifact_, artifact_->source_semantic_bytes_,
       artifact_->exact_topology_bytes_, artifact_->geometry_attachment_bytes_);
+  artifact_->statistics_.persistent_bytes = persistent_bytes();
+  artifact_->canonical_bytes_ = encode_canonical_halfedge_complete(
+      *artifact_, artifact_->source_semantic_bytes_,
+      artifact_->exact_topology_bytes_, artifact_->geometry_attachment_bytes_);
   artifact_->digest_ = sha256::digest(artifact_->canonical_bytes_);
+  const auto used = persistent_bytes();
+  if (used == std::numeric_limits<std::uint64_t>::max() ||
+      used != artifact_->statistics_.persistent_bytes ||
+      !persistent_reservation_ || used > persistent_reservation_->amount() ||
+      !work_reservation_ ||
+      artifact_->statistics_.work_units > work_reservation_->amount())
+    return fail(canonical_halfedge_subcode::resource_preflight,
+                bounded_boolean_error_category::resource_limit,
+                "canonical halfedge actual resource use exceeds reservation",
+                canonical_halfedge_checkpoint::resource_reconciliation);
   if (artifact_->canonical_bytes_.size() >
       capabilities_.maximum_canonical_bytes)
     return fail(canonical_halfedge_subcode::resource_preflight,
@@ -283,16 +297,6 @@ bool canonical_halfedge_builder<T, I>::finalize_and_verify() {
     error_.witness_count = 1;
     return false;
   }
-  const auto used = persistent_bytes();
-  if (used == std::numeric_limits<std::uint64_t>::max() ||
-      !persistent_reservation_ || used > persistent_reservation_->amount() ||
-      !work_reservation_ ||
-      artifact_->statistics_.work_units > work_reservation_->amount())
-    return fail(canonical_halfedge_subcode::resource_preflight,
-                bounded_boolean_error_category::resource_limit,
-                "canonical halfedge actual resource use exceeds reservation",
-                canonical_halfedge_checkpoint::resource_reconciliation);
-  artifact_->statistics_.persistent_bytes = used;
   if (!work_reservation_->commit(artifact_->statistics_.work_units) ||
       !persistent_reservation_->commit(used))
     return fail(canonical_halfedge_subcode::transaction_failure,
@@ -318,6 +322,8 @@ canonical_halfedge_builder<T, I>::run() {
     artifact_->validated_operand_digest_ = validated_->digest();
     artifact_->source_triangle_complex_digest_ = source_->digest();
     artifact_->precision_digest_ = precision_.digest();
+    artifact_->precision_attachment_digest_ =
+        canonical_precision_attachment_digest(precision_);
     artifact_->validated_ = validated_;
     artifact_->source_triangles_ = source_;
     if (!build_vertices() || !build_triangles_and_halfedges() ||

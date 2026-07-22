@@ -85,24 +85,18 @@ bool canonical_halfedge_builder<T, I>::reserve_resources() {
   if (!checked_add(counts_.represented_vertices, counts_.triangles, entities) ||
       !checked_add(entities, counts_.halfedges, entities) ||
       !checked_add(entities, counts_.edges, entities) ||
-      !checked_multiply(entities, std::uint64_t{512}, extra) ||
+      !checked_multiply(entities, std::uint64_t{4096}, extra) ||
       !checked_add(counts_.estimated_persistent_bytes, extra, persistent) ||
-      !checked_multiply(validated_->facets().size(), std::uint64_t{2048}, extra) ||
+      !checked_multiply(validated_->facets().size(), std::uint64_t{8192}, extra) ||
       !checked_add(persistent, extra, persistent) ||
-      !checked_multiply(validated_->shells().size(), std::uint64_t{2048}, extra) ||
+      !checked_multiply(validated_->shells().size(), std::uint64_t{8192}, extra) ||
       !checked_add(persistent, extra, persistent) ||
-      !checked_multiply(source_->canonical_bytes().size(), std::uint64_t{8}, extra) ||
+      !checked_multiply(source_->canonical_bytes().size(), std::uint64_t{16}, extra) ||
       !checked_add(persistent, extra, persistent))
     return fail(canonical_halfedge_subcode::count_overflow,
                 bounded_boolean_error_category::resource_limit,
                 "canonical halfedge resource estimate overflow",
                 canonical_halfedge_checkpoint::resource_reservation);
-  if (persistent > capabilities_.maximum_canonical_bytes +
-                       counts_.estimated_persistent_bytes + extra &&
-      capabilities_.maximum_canonical_bytes != 0) {
-    // The explicit byte cap is checked against the finished canonical stream;
-    // this branch merely keeps the arithmetic above intentional.
-  }
   auto persistent_reservation = capabilities_.resources->reserve(
       resource_kind::persistent_bytes, persistent);
   auto temporary_reservation = capabilities_.resources->reserve(
@@ -168,14 +162,21 @@ bool canonical_halfedge_builder<T, I>::build_vertices() {
     vertex.radial_error = source_record.radial_error;
     vertex.presentation_vertex = source_record.presentation_vertex;
     vertex.bound = *bound;
-    if (!source_record.incident_triangles.empty()) {
-      const auto triangle_id = source_record.incident_triangles.front();
+    bool have_geometry_basis = false;
+    for (const auto triangle_id : source_record.incident_triangles) {
       if (triangle_id >= source_->triangles().size())
         return fail(canonical_halfedge_subcode::malformed_reference,
                     bounded_boolean_error_category::internal_invariant_error,
                     "source vertex incident triangle is invalid",
                     canonical_halfedge_checkpoint::geometry_attachments);
-      vertex.geometry_basis = source_->triangles()[triangle_id].basis.kind;
+      const auto kind = source_->triangles()[triangle_id].basis.kind;
+      if (have_geometry_basis && vertex.geometry_basis != kind)
+        return fail(canonical_halfedge_subcode::geometry_basis_mismatch,
+                    bounded_boolean_error_category::internal_invariant_error,
+                    "source vertex incident geometry bases disagree",
+                    canonical_halfedge_checkpoint::geometry_attachments);
+      vertex.geometry_basis = kind;
+      have_geometry_basis = true;
     }
     artifact_->source_vertex_to_vertex_[source_vertex] = vertex.canonical_id;
     artifact_->vertex_to_source_vertex_.push_back(source_vertex);

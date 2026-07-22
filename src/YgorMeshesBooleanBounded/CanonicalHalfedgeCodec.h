@@ -90,7 +90,6 @@ encode_canonical_halfedge_source_semantics(
     writer.u64(vertex.shell);
     for (auto word : vertex.nominal_bits)
       writer.u64(word);
-    writer.u64(vertex.presentation_vertex);
   }
   writer.u64(artifact.facet_groups_.size());
   for (const auto &group : artifact.facet_groups_) {
@@ -234,7 +233,7 @@ encode_canonical_halfedge_geometry_attachments(
   writer.u32(0x35474843U); // CHG5
   writer.u16(contract_versions::canonical_halfedge_codec);
   writer.u8(static_cast<std::uint8_t>(artifact.operand_));
-  write_digest(writer, artifact.precision_digest_);
+  write_digest(writer, artifact.precision_attachment_digest_);
   writer.u64(artifact.vertices_.size());
   for (const auto &vertex : artifact.vertices_) {
     writer.u64(vertex.canonical_id);
@@ -259,7 +258,6 @@ encode_canonical_halfedge_geometry_attachments(
     for (auto value : triangle.basis.support_vertices)
       writer.u64(value);
     write_digest(writer, triangle.basis.predecessor_digest);
-    write_digest(writer, triangle.basis.precision_digest);
     write_digest(writer, triangle.basis.basis_digest);
     writer.u8(static_cast<std::uint8_t>(triangle.orientation.bounded_sign));
     writer.u8(static_cast<std::uint8_t>(triangle.orientation.exact_sign));
