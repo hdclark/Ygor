@@ -29,7 +29,10 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 .github/component02_validation_patch.py 2>&1 | tee component02-validation.log
+          {
+            python3 .github/component02_validation_patch.py
+            python3 .github/component02_validation_cmake_patch.py
+          } 2>&1 | tee component02-validation.log
 
       - name: Configure and test with GCC
         id: gcc
@@ -92,7 +95,9 @@ jobs:
           tracker.write_text(text.replace(old, new, 1))
           Path('.github/workflows/component02-validation.yml').unlink()
           Path('.github/component02_validation_patch.py').unlink()
+          Path('.github/component02_validation_cmake_patch.py').unlink()
           Path('component02-validation.log').unlink(missing_ok=True)
+          Path('component_02_validation_failure.md').unlink(missing_ok=True)
           PY
             git add .
             git commit -m "Validate component 2 partial implementation (plan 02)"
