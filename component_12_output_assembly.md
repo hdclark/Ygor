@@ -68,3 +68,25 @@ Failure conditions are result topology not supported, index overflow, resource e
 - Check output re-ingestion through Component 2.
 - Verify optional simplification on/off produces equivalent exact selected boundaries.
 - Test maximum `I` boundaries, empty meshes, many components, cavities, and high-valence vertices.
+
+## 5. Assessment-driven product-publication amendment
+
+The product boundary is a tagged `boolean_product_result`, not a mesh-only success alternative.
+
+Component 12 assembles a mesh only when requested and authorized. The result envelope may contain:
+
+- a durable verified exact stratified boundary;
+- a canonical strict exact-in-`T` mesh;
+- a canonical certified approximate mesh with its displacement/topology certificate;
+- the failed realization or topology-publication attempt when exact-result retention was requested;
+- backend, preparation, operation, and qualification provenance;
+- attribute-transfer mappings and conflict/omission reports; and
+- final verification evidence binding every payload to the same exact-result digest.
+
+A stratified non-manifold exact result is not discarded by the manifold mesh gate. The mesh alternative returns `result_topology_not_supported`, while the exact result remains a successful retained artifact when requested. Likewise, finite-`T` realization failure does not convert an independently verified exact result into total operation failure unless the caller requested mesh-only behavior.
+
+For certified approximate output, canonicalization and simplification must stay within the accepted realization certificate. Any operation that changes coordinates, topology, displacement maxima, relaxed relations, or attribute mapping requires certificate regeneration and independent verification; otherwise it is prohibited.
+
+Define and test stable attribute/provenance transfer policies for source bodies, shells, facets, materials, normals, sharp edges, texture seams, metadata, and opaque channels. Attributes never control topology. Multi-source derivations require deterministic merge/split/conflict behavior, and silent omission is prohibited in the product API.
+
+Add a one-call service that constructs the default kernel, verifiers, executor, backend adapter, and publication pipeline internally. Expert dependency injection remains separate. Every returned mesh is re-ingested through strict Component 2 validation and bound to the exact result, producing backend, and qualification manifest.
