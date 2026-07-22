@@ -82,10 +82,10 @@ Invariants:
 
 - Every random failure is exactly replayable from recorded data.
 - Expected outcomes are exact relations or explicit typed failures.
-- Test tolerances are used only for non-authoritative performance/diagnostic metrics.
+- Test tolerances are used only for non-authoritative performance/diagnostic metrics or as explicit inputs to separately typed normalization/approximate-realization policies.
 - A representability failure is accepted only when it follows the declared policy and exact internal boundary still verifies.
-- An exact-in-`T` success requires bit-decoded equality to every exact target; any future approximate success has a distinct result kind and nonzero displacement evidence.
-- No external geometry/Boolean dependency is required by the engine or normative tests.
+- An exact-in-`T` success requires bit-decoded equality to every exact target; approximate success has a distinct result kind and nonzero displacement evidence.
+- The in-tree exact engine and normative component tests remain independently buildable without an external Boolean dependency. Qualification may use optional external providers as independent comparators or candidate product backends under explicit adapters.
 
 Failure of a test blocks the relevant component/release. Flaky scheduling or non-reproducible output is itself a deterministic-correctness defect.
 
@@ -97,3 +97,19 @@ Failure of a test blocks the relevant component/release. Flaky scheduling or non
 - Continuous tests run bounded suites on each change; scheduled qualification runs broad fuzz/property/platform matrices.
 - A release has zero unexplained oracle disagreements, invariant failures, sanitizer failures, or nondeterministic replays.
 - Every G1-G9 case in `tests/MeshBooleanPlanGapCases.md` is executable and passes with its exact success or typed-failure expectation. Standalone verifier targets fail to link if they reference forbidden producer helpers.
+
+## 5. Assessment-driven qualification amendment
+
+`plan_16_qualification_release.md` is the normative P13 completion plan and release gate.
+
+The permanent end-to-end corpus must no longer be box-dominated. Before a production claim it must contain thousands of generated construction-known cases, representative CAD-like tessellated cases, deterministic operation chains, and every minimized regression. Coverage must include rotated/skewed and concave solids, cavities and nested shells, extensive coplanar overlap, high-valence contacts, alternate subdivisions, severe scales, non-dyadic intersections, non-manifold exact results, normalization defects, and attribute/provenance cases.
+
+Fuzzing must generate valid intersecting geometry and operation chains, not only disjoint axis-aligned boxes. Invalid-input and normalization fuzzing must verify precise reports and strict post-preparation validation. Every unique failure or disagreement is serialized, minimized, and added to the permanent corpus.
+
+At least one independently implemented mature backend participates in diagnostic comparison for the candidate workload. Agreement is evidence rather than proof; disagreement is preserved and adjudicated with independent occupancy/topology checks. No majority vote or silent fallback resolves a material disagreement.
+
+Every success is checked for false success by re-ingestion, independent topology reconstruction, guarded side classification, embedding/intersection checks, certificate replay, exact-result binding, and subsequent chain operations. Reports separate safe typed failures from incorrect successes.
+
+Qualification must commit exact commands, compiler/library/platform versions, flags, sanitizer and thread matrices, seeds, fuzz durations, corpus manifests, backend versions, outcome tables, unresolved exclusions, performance, peak memory, exact-number growth, cancellation latency, and verifier overhead. CI definitions without a committed passing report are not release evidence.
+
+A backend/result-mode/workload profile is production-qualified only with zero known false successes, zero unexplained verifier or material backend disagreements, zero nondeterministic canonical outcomes, passing sanitizer/platform matrices, met corpus floors, acceptable product-approved success/failure and resource rates, and a reproducible report bound to a frozen qualification manifest. Discovery of a false success or unexplained disagreement revokes qualification until resolved.
