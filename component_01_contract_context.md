@@ -12,7 +12,7 @@ Accept:
 - One operation: regularized union, intersection, `A - B`, `B - A`, or symmetric difference.
 - A documented solid policy. The default interprets consistently outward-oriented shells as boundaries of regular closed solids and uses nesting/orientation for cavities.
 - Determinism options, mandatory verification level, tracing controls, execution/thread budget, and resource limits.
-- A result-topology policy and a realization-semantics policy. Schema v1 supports `closed_embedded_two_manifold` output and `exact_in_T` geometry; search strategy is separate from semantic meaning and may not weaken either policy.
+- A result-topology policy and a realization-semantics policy. Legacy schema v1 supports `closed_embedded_two_manifold` output and `exact_in_T` geometry; later schemas add durable exact-stratified output and separately typed certified approximate realization. Search strategy is separate from semantic meaning and may not weaken any policy.
 
 Preconditions:
 
@@ -88,7 +88,7 @@ Failure conditions:
 - ID ordering and serialization are stable across compilers, allocation patterns, and thread counts.
 - Transaction fault injection proves failed stages cannot leak partial artifacts.
 - Every public failure contains stage and replay metadata.
-- Context APIs contain no geometry-specific tolerance.
+- Context APIs contain no geometry-specific tolerance for exact Boolean evaluation. Any normalization or approximate-realization tolerance belongs to its separately typed policy and is recorded in replay data.
 
 ## 5. Plan-gap contract amendment
 
@@ -97,3 +97,24 @@ Freeze `result_topology_policy::closed_embedded_two_manifold`, `realization_sema
 Add strong domains for topological vertex/edge occurrences, spherical-link entities, defining relations, realization constraint components, and topology obstructions. Add `boolean_error_code::result_topology_not_supported` and a `result_topology_preflight` stage between selection and realization. A valid stratified result rejected by the public manifold policy is not malformed input, unrepresentable geometry, or an internal defect.
 
 Schema changes must bump option, artifact, error, and replay versions. Resource policy must separately bound occurrence/link construction, probe constraints, defining relations, realization graph nodes/edges/components, broad-phase pair candidates/checks, solver nodes, component transcripts, verifier witnesses, and canonical bytes.
+
+## 6. Assessment-driven productization amendment
+
+Apply `plan_15_assessment_amendment.md` as a normative extension of this component.
+
+The frozen context must additionally identify:
+
+- strict-validation versus explicitly normalized input preparation, including a bound preparation-report digest;
+- backend identity, adapter version, capability digest, maturity state, and any caller-authorized fallback chain;
+- requested result representation: durable exact stratified result, strict exact-in-`T` mesh, or separately typed certified approximate mesh;
+- attribute/provenance transfer policy;
+- exact-result retention behavior when mesh realization or manifold publication fails; and
+- the qualification manifest authorizing any qualified-default backend choice.
+
+The in-tree exact arithmetic and topology implementation may remain self-contained and dependency-free. That is not a product-level prohibition on optional backend adapters or independent providers used by qualification. Backend selection and adapter behavior are explicit contract data and must not affect the semantics silently.
+
+A product result is a tagged envelope, not merely mesh-or-error. A verified exact boundary may be a successful result even when `fv_surface_mesh<T, I>` publication is unsupported or a requested realization fails. Such a result records the failed realization attempt without relabeling the exact success.
+
+Add stable errors/subcodes for normalization failure or requirement, backend unavailability/capability mismatch/disagreement/unqualified use, exact-result serialization failure, attribute-transfer conflict, approximation-policy rejection, and qualification-policy violation. Fallback is forbidden after internal invariant failure, stale evidence, or verifier disagreement.
+
+The ordinary service API must construct the standard kernel/verifier/backend set internally. Expert dependency injection remains available separately; ordinary callers must not register every verifier implementation manually.
