@@ -53,6 +53,14 @@ add_library(ygor_mesh_boolean_bounded_strict
     SourceTriangleComplexCodec.cc
     SourceTriangleComplexVerifier.cc
     SourceTriangulation.cc
+    CanonicalGeometryAttachments.cc
+    CanonicalHalfedgeBuild.cc
+    CanonicalHalfedgeCodec.cc
+    CanonicalHalfedgePairing.cc
+    CanonicalHalfedgePreflight.cc
+    CanonicalHalfedgeVerifier.cc
+    CanonicalFeatureGroups.cc
+    CanonicalVertexFans.cc
     ToleranceBudget.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
