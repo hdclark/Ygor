@@ -1,0 +1,37 @@
+name: Component 04 snapshot
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/bounded-manifold-mesh-boolean-plan
+          fetch-depth: 0
+
+      - name: Apply Component 04 implementation
+        shell: bash
+        run: |
+          cat .github/component04_source_*.py.part > /tmp/component04_implementation.py
+          python3 -m py_compile /tmp/component04_implementation.py
+          python3 /tmp/component04_implementation.py
+
+      - name: Archive implemented checkout
+        shell: bash
+        run: |
+          tar --exclude=.git -czf component04-implemented-tree.tar.gz .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: component04-implemented-tree
+          path: component04-implemented-tree.tar.gz
+          if-no-files-found: error
