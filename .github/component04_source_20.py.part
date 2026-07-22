@@ -1,0 +1,224 @@
+
+# Expand the independent verifier beyond table shape: reconstruct vertex and
+# diagonal projections, audit canonical feature ranges, reject pairwise overlap,
+# and require the accumulated triangle-area enclosure to agree with the source
+# polygon enclosure.
+triangulation_header = Path('src/YgorMeshesBooleanBounded/SourceTriangulation.h')
+triangulation_text = triangulation_header.read_text()
+
+def patch_verifier(old, new, label):
+    global triangulation_text
+    if triangulation_text.count(old) != 1:
+        raise SystemExit(f'{label}: expected one verifier occurrence')
+    triangulation_text = triangulation_text.replace(old, new, 1)
+
+patch_verifier(
+'''template <class T, class I>
+bool independent_topology_verification(
+''',
+'''template <class T, class I>
+bool triangles_geometrically_compatible(
+    const source_triangle_record<T> &a,
+    const source_triangle_record<T> &b,
+    const facet_workspace<T, I> &workspace) {
+  std::size_t shared_vertices = 0;
+  for (auto av : a.vertices)
+    shared_vertices += static_cast<std::size_t>(
+        std::find(b.vertices.begin(), b.vertices.end(), av) != b.vertices.end());
+  if (shared_vertices == 3)
+    return false;
+  for (std::size_t ai = 0; ai < 3; ++ai) {
+    const auto a0 = a.vertices[ai];
+    const auto a1 = a.vertices[(ai + 1) % 3];
+    for (std::size_t bi = 0; bi < 3; ++bi) {
+      const auto b0 = b.vertices[bi];
+      const auto b1 = b.vertices[(bi + 1) % 3];
+      const bool same_undirected = ordered_endpoints(a0, a1) ==
+                                   ordered_endpoints(b0, b1);
+      if (same_undirected) {
+        if (a0 != b1 || a1 != b0)
+          return false;
+        continue;
+      }
+      const bool shares_endpoint = a0 == b0 || a0 == b1 ||
+                                   a1 == b0 || a1 == b1;
+      const auto relation = bounded_source_polygon_kernel<T>::segment_relation(
+          point(workspace, a0), point(workspace, a1), point(workspace, b0),
+          point(workspace, b1));
+      if (relation == bounded_segment_relation::uncertain ||
+          relation == bounded_segment_relation::proper_crossing ||
+          relation == bounded_segment_relation::collinear_overlap)
+        return false;
+      if (!shares_endpoint &&
+          relation != bounded_segment_relation::definitely_disjoint)
+        return false;
+    }
+  }
+  for (auto vertex : a.vertices) {
+    if (std::find(b.vertices.begin(), b.vertices.end(), vertex) !=
+        b.vertices.end())
+      continue;
+    if (bounded_source_polygon_kernel<T>::point_in_or_on_triangle(
+            point(workspace, vertex), point(workspace, b.vertices[0]),
+            point(workspace, b.vertices[1]), point(workspace, b.vertices[2]),
+            workspace.orientation) !=
+        source_candidate_disposition::definitely_rejected)
+      return false;
+  }
+  for (auto vertex : b.vertices) {
+    if (std::find(a.vertices.begin(), a.vertices.end(), vertex) !=
+        a.vertices.end())
+      continue;
+    if (bounded_source_polygon_kernel<T>::point_in_or_on_triangle(
+            point(workspace, vertex), point(workspace, a.vertices[0]),
+            point(workspace, a.vertices[1]), point(workspace, a.vertices[2]),
+            workspace.orientation) !=
+        source_candidate_disposition::definitely_rejected)
+      return false;
+  }
+  return true;
+}
+
+template <class T, class I>
+bool independent_topology_verification(
+''',
+'pairwise geometry helper')
+
+patch_verifier(
+'''  if (artifact.facets().size() != operand.facets().size() ||
+      artifact.source_directed_use_to_edge_use().size() !=
+          operand.directed_uses().size())
+    return false;
+  std::vector<std::uint64_t> boundary_seen(operand.directed_uses().size(), 0);
+''',
+'''  if (artifact.facets().size() != operand.facets().size() ||
+      artifact.vertices().size() != operand.vertices().size() ||
+      artifact.source_vertex_to_triangles().size() != operand.vertices().size() ||
+      artifact.source_directed_use_to_edge_use().size() !=
+          operand.directed_uses().size())
+    return false;
+  for (std::uint64_t vertex = 0; vertex < artifact.vertices().size(); ++vertex) {
+    const auto &record = artifact.vertices()[vertex];
+    const auto &source = operand.vertices()[vertex];
+    const auto &bounded = operand.bounded_vertices()[vertex];
+    if (record.source_vertex != vertex || record.nominal_bits != source.coordinate_bits ||
+        record.lower != bounded.lower || record.upper != bounded.upper ||
+        record.radial_error != bounded.radial_error ||
+        record.presentation_vertex != source.presentation_vertex ||
+        record.incident_triangles != artifact.source_vertex_to_triangles()[vertex])
+      return false;
+    for (auto triangle : record.incident_triangles)
+      if (triangle >= artifact.triangles().size() ||
+          std::find(artifact.triangles()[triangle].vertices.begin(),
+                    artifact.triangles()[triangle].vertices.end(), vertex) ==
+              artifact.triangles()[triangle].vertices.end())
+        return false;
+  }
+  std::vector<std::uint64_t> boundary_seen(operand.directed_uses().size(), 0);
+''',
+'vertex reconstruction')
+
+patch_verifier(
+'''  for (const auto &entry : diagonals) {
+    if (entry.second.size() != 2)
+      return false;
+    const auto &a = artifact.edge_uses()[entry.second[0]];
+    const auto &b = artifact.edge_uses()[entry.second[1]];
+    if (a.origin != b.destination || a.destination != b.origin ||
+        a.triangle == b.triangle || a.diagonal != b.diagonal ||
+        a.opposite_edge_use != entry.second[1] ||
+        b.opposite_edge_use != entry.second[0])
+      return false;
+  }
+  for (const auto &facet : artifact.facets()) {
+''',
+'''  for (const auto &entry : diagonals) {
+    if (entry.second.size() != 2)
+      return false;
+    const auto &a = artifact.edge_uses()[entry.second[0]];
+    const auto &b = artifact.edge_uses()[entry.second[1]];
+    if (a.origin != b.destination || a.destination != b.origin ||
+        a.triangle == b.triangle || a.diagonal != b.diagonal ||
+        a.opposite_edge_use != entry.second[1] ||
+        b.opposite_edge_use != entry.second[0])
+      return false;
+  }
+  if (artifact.source_edge_feature_range().size() != operand.directed_uses().size() ||
+      artifact.facet_internal_diagonal_range().size() != artifact.diagonals().size())
+    return false;
+  std::set<std::uint64_t> boundary_range(artifact.source_edge_feature_range().begin(),
+                                         artifact.source_edge_feature_range().end());
+  if (boundary_range.size() != artifact.source_edge_feature_range().size())
+    return false;
+  for (auto use : boundary_range)
+    if (use >= artifact.edge_uses().size() ||
+        artifact.edge_uses()[use].role != source_triangle_edge_role::source_boundary)
+      return false;
+  for (std::uint64_t diagonal_id = 0; diagonal_id < artifact.diagonals().size();
+       ++diagonal_id) {
+    if (artifact.facet_internal_diagonal_range()[diagonal_id] != diagonal_id)
+      return false;
+    const auto &record = artifact.diagonals()[diagonal_id];
+    if (record.canonical_id != diagonal_id || record.key.facet >= operand.facets().size() ||
+        record.source_feature_eligible || record.source_edge_candidate_eligible ||
+        record.symbolic_owner_eligible || record.classification_barrier ||
+        record.edge_uses[0] >= artifact.edge_uses().size() ||
+        record.edge_uses[1] >= artifact.edge_uses().size() ||
+        record.triangle_uses[0] >= artifact.triangles().size() ||
+        record.triangle_uses[1] >= artifact.triangles().size())
+      return false;
+    const auto &first = artifact.edge_uses()[record.edge_uses[0]];
+    const auto &second = artifact.edge_uses()[record.edge_uses[1]];
+    if (first.diagonal != diagonal_id || second.diagonal != diagonal_id ||
+        ordered_endpoints(first.origin, first.destination) != record.key.endpoints ||
+        record.triangle_uses[0] != first.triangle ||
+        record.triangle_uses[1] != second.triangle)
+      return false;
+  }
+  for (const auto &facet : artifact.facets()) {
+''',
+'diagonal and feature ranges')
+
+patch_verifier(
+'''    for (auto triangle : facet.triangles) {
+      if (triangle >= artifact.triangles().size() ||
+          artifact.triangles()[triangle].key.facet != facet.facet)
+        return false;
+      incident.insert(triangle);
+    }
+    for (auto diagonal : facet.diagonals) {
+''',
+'''    for (auto triangle : facet.triangles) {
+      if (triangle >= artifact.triangles().size() ||
+          artifact.triangles()[triangle].key.facet != facet.facet)
+        return false;
+      incident.insert(triangle);
+    }
+    auto workspace_out =
+        materialize_facet_geometry_basis(operand, precision, facet.facet);
+    if (!workspace_out.has_value())
+      return false;
+    const auto &workspace = *workspace_out.value();
+    auto accumulated_area = finite_interval<T>::checked_singleton(T(0));
+    if (!accumulated_area)
+      return false;
+    for (std::size_t i = 0; i < facet.triangles.size(); ++i) {
+      const auto &first = artifact.triangles()[facet.triangles[i]];
+      auto next_area = interval_add(*accumulated_area, first.orientation.determinant);
+      if (!next_area)
+        return false;
+      accumulated_area = next_area.value;
+      for (std::size_t j = i + 1; j < facet.triangles.size(); ++j)
+        if (!triangles_geometrically_compatible(
+                first, artifact.triangles()[facet.triangles[j]], workspace))
+          return false;
+    }
+    if (finite_numeric_less(accumulated_area->upper(), workspace.area.determinant.lower()) ||
+        finite_numeric_less(workspace.area.determinant.upper(),
+                            accumulated_area->lower()))
+      return false;
+    for (auto diagonal : facet.diagonals) {
+''',
+'geometric coverage audit')
+
+triangulation_header.write_text(triangulation_text)
