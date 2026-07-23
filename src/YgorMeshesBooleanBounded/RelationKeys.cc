@@ -69,7 +69,7 @@ bool valid_relation_event_seed_key(const relation_event_seed_key &key) noexcept 
 
 relation_feature_key remap_relation_feature_key(
     relation_feature_key key) noexcept {
-  key.operand = opposite_operand(key.operand);
+  key.operand = key.operand == operand_id::a ? operand_id::b : operand_id::a;
   return key;
 }
 
