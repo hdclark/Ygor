@@ -42,6 +42,10 @@ predecessor_fixture build_predecessors(
     const mesh_type &a, const mesh_type &b,
     bounded::source_triangulation_provider_kind provider,
     bool compare_reference) {
+  bounded::floating_environment_guard floating_environment;
+  require(floating_environment.qualified(),
+          "broad-phase floating environment qualification");
+
   bounded_boolean_options<scalar> options;
   options.tolerance = scalar(0.25);
   options.verification.level = verification_level::exhaustive_diagnostics_v1;
