@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BoundedOperations.h"
+#include "ContractVersions.h"
 
 #include <cstdint>
 #include <vector>
