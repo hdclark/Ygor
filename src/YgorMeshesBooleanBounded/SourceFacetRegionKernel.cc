@@ -1,4 +1,4 @@
-#include "SourceFacetRegionKernel.h"
+#include "SourceFacetRegionSegmentBuild.h"
 
 namespace ygor::mesh_boolean::bounded {
 
