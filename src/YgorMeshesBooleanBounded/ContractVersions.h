@@ -125,6 +125,9 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_graph_policy = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
     static constexpr std::uint16_t relation_truth_policy = 1;
+    static constexpr std::uint16_t relation_primitive_formula_binding = 1;
+    static constexpr std::uint16_t relation_source_facet_region_schema = 1;
+    static constexpr std::uint16_t relation_source_facet_region_policy = 1;
     static constexpr std::uint16_t relation_feature_key_schema = 1;
     static constexpr std::uint16_t relation_request_key_schema = 1;
     static constexpr std::uint16_t relation_event_seed_key_schema = 1;
