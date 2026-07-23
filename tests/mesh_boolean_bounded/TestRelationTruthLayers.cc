@@ -105,6 +105,39 @@ void test_predicate_layer_mutation_rejected() {
         "Component 07 must reject mutated Component 03 truth evidence");
 }
 
+void test_unknown_exact_status_rejected() {
+  const auto owner = context_owner_token::create();
+  auto scalar = checked_bounded_singleton(owner, 1.0);
+  check(scalar.has_value(), "positive bounded singleton should build");
+  if (!scalar.has_value())
+    return;
+
+  exact_relation_evidence exact;
+  exact.owner = owner;
+  exact.formula_code = static_cast<std::uint16_t>(
+      exact_relation_formula_code::finite_scalar_comparison);
+  exact.status = static_cast<exact_relation_status>(255);
+  auto predicate = assemble_predicate_result(*scalar.value(), exact);
+  check(predicate.has_value(),
+        "legacy assembler leaves unknown exact status for validation");
+  if (!predicate.has_value())
+    return;
+  check(!valid_predicate_result(*predicate.value()),
+        "unknown exact-relation status must fail validation");
+
+  relation_truth_record record;
+  record.rounded_nominal_bits = to_bits(1.0);
+  record.bounded_sign = bounded_sign_status::definitely_positive;
+  record.exact_relation = static_cast<exact_relation_status>(255);
+  record.disposition = predicate_disposition::accept_numeric_sign;
+  record.rounded_formula =
+      static_cast<std::uint16_t>(rounded_operation_code::source_import);
+  record.exact_formula = static_cast<std::uint16_t>(
+      exact_relation_formula_code::finite_scalar_comparison);
+  check(!valid_relation_truth_record(record),
+        "unknown exact status in stored relation truth must fail validation");
+}
+
 void test_failed_exact_evaluation_rejected() {
   const auto owner = context_owner_token::create();
   auto scalar = checked_bounded_singleton(owner, 1.0);
@@ -160,6 +193,7 @@ int main() {
   test_exact_tie_layers();
   test_formula_mismatch_rejected();
   test_predicate_layer_mutation_rejected();
+  test_unknown_exact_status_rejected();
   test_failed_exact_evaluation_rejected();
   test_unavailable_exact_is_not_tie();
   if (failures != 0)
