@@ -84,6 +84,19 @@ boolean_outcome<predicate_result<T>> assemble_predicate_result(
 }
 
 namespace predicate_results_detail {
+inline bool valid_exact_relation_status(exact_relation_status value) noexcept {
+    switch (value) {
+    case exact_relation_status::exact_negative:
+    case exact_relation_status::exact_zero:
+    case exact_relation_status::exact_positive:
+    case exact_relation_status::unavailable:
+        return true;
+    case exact_relation_status::invalid:
+        return false;
+    }
+    return false;
+}
+
 inline bool same_uncertainty_contributors(
     const uncertainty_contributors &a,
     const uncertainty_contributors &b) noexcept {
@@ -109,7 +122,8 @@ bool valid_predicate_result(const predicate_result<T> &value) noexcept {
                                                       value.rounded_and_bounded.identity.owner) ||
         !bounded_operations_detail::same_bound_owner(value.owner,
                                                       value.exact_relation.owner) ||
-        value.exact_relation.status == exact_relation_status::invalid)
+        !predicate_results_detail::valid_exact_relation_status(
+            value.exact_relation.status))
         return false;
 
     const auto classified =
