@@ -111,6 +111,19 @@ interpolate_projected_segment(const projected_source_point<T> &a,
             "Component 07 segment witness complement interval is unavailable"));
 
   for (std::size_t axis = 0; axis < 2; ++axis) {
+    // Exact constant-coordinate lineage must remain exact.  Applying the
+    // generic interpolation graph to equal singleton endpoints would add a
+    // spurious rounding enclosure and can turn a certified boundary carrier
+    // into an unresolved near-boundary query.
+    if (singleton(a.enclosure[axis]) && singleton(b.enclosure[axis]) &&
+        to_bits(a.nominal[axis]) == to_bits(b.nominal[axis]) &&
+        to_bits(a.enclosure[axis].lower()) ==
+            to_bits(b.enclosure[axis].lower())) {
+      result.nominal[axis] = a.nominal[axis];
+      result.enclosure[axis] = a.enclosure[axis];
+      continue;
+    }
+
     const auto left = interval_multiply(*one_minus.value, a.enclosure[axis]);
     const auto right = interval_multiply(parameter, b.enclosure[axis]);
     if (!left || !right)
@@ -160,6 +173,30 @@ interpolate_projected_segment(const projected_source_point<T> &a,
             "Component 07 segment witness construction is invalid"));
   return boolean_outcome<projected_source_point<T>>::success(
       std::move(result));
+}
+
+template <class T>
+bool parameter_matches_projected_point(
+    const projected_source_point<T> &segment_start,
+    const projected_source_point<T> &segment_end,
+    T rounded_parameter, const finite_interval<T> &parameter,
+    const projected_source_point<T> &point) {
+  auto reconstructed = interpolate_projected_segment(
+      segment_start, segment_end, rounded_parameter, parameter);
+  if (!reconstructed.has_value())
+    return false;
+  for (std::size_t axis = 0; axis < 2; ++axis)
+    if (!intervals_overlap(
+            reconstructed.value()->enclosure[axis],
+            point.enclosure[axis]))
+      return false;
+  return true;
+}
+
+inline bool nonzero_digest(
+    const bounded_boolean_digest &digest) noexcept {
+  return std::any_of(digest.bytes.begin(), digest.bytes.end(),
+                     [](std::uint8_t byte) { return byte != 0; });
 }
 
 template <class T>
