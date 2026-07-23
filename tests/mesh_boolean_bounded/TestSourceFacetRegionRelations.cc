@@ -48,6 +48,15 @@ void test_interior_and_outside() {
           "one orientation record is retained per original boundary edge");
     check(interior.value()->parity_crossing_count == 1,
           "half-open parity counts one positive-ray crossing");
+    auto mutated = *interior.value();
+    mutated.orientation_evidence.front().formula_version = 0;
+    check(!valid_source_facet_point_region_record(mutated),
+          "mutated edge-orientation evidence must fail validation");
+    mutated = *interior.value();
+    mutated.polygon_orientation_evidence.bounded_sign =
+        bounded_planar_sign::uncertain;
+    check(!valid_source_facet_point_region_record(mutated),
+          "mutated polygon-orientation evidence must fail validation");
   }
 
   auto outside = classify_source_facet_point(
