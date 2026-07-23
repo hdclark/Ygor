@@ -1,0 +1,24 @@
+name: Component 07 temporary validation
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+jobs:
+  candidate-source-edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+          -DCMAKE_BUILD_TYPE=Release
+          -DMEMORY_CONSTRAINED_BUILD=ON
+      - name: Build focused target
+        run: cmake --build build --target ygor_mesh_boolean_candidate_source_edge_relation_tests --parallel 2
+      - name: Run focused qualification
+        run: ctest --test-dir build --output-on-failure -R mesh_boolean_bounded_component07_candidate_source_edge_relations
