@@ -4,7 +4,7 @@
 - [x] Component 2: validate partial implementation.
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
-- [ ] Component 6: broad phase, gated against exhaustive enumeration.
+- [x] Component 6: broad phase, gated against exhaustive enumeration.
 - [ ] Component 7: relation kernel and frozen symbolic perturbation matrix.
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
