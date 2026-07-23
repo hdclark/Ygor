@@ -26,6 +26,12 @@ mesh_boolean_strict_fp(Test_MeshesBooleanContract)
 add_test(NAME MeshesBooleanContract COMMAND Test_MeshesBooleanContract)
 set_tests_properties(MeshesBooleanContract PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component1;continuous")
 
+add_executable(Test_MeshesBooleanProductContract Test_MeshesBooleanProductContract.cc)
+target_link_libraries(Test_MeshesBooleanProductContract PRIVATE ygor Threads::Threads)
+mesh_boolean_strict_fp(Test_MeshesBooleanProductContract)
+add_test(NAME MeshesBooleanProductContract COMMAND Test_MeshesBooleanProductContract)
+set_tests_properties(MeshesBooleanProductContract PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component1;p0;continuous")
+
 function(add_exact_kernel_test target name)
     add_executable(${target} ${target}.cc)
     target_link_libraries(${target} PRIVATE ygor Threads::Threads)
