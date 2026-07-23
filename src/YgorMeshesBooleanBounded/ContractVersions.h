@@ -128,6 +128,11 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_primitive_formula_binding = 1;
     static constexpr std::uint16_t relation_source_facet_region_schema = 1;
     static constexpr std::uint16_t relation_source_facet_region_policy = 1;
+    static constexpr std::uint16_t relation_source_facet_segment_schema = 1;
+    static constexpr std::uint16_t relation_source_facet_segment_policy = 1;
+    static constexpr std::uint16_t relation_source_facet_segment_witness_policy = 1;
+    static constexpr std::uint16_t relation_triangle_local_reconciliation_schema = 1;
+    static constexpr std::uint16_t relation_alternative_triangulation_semantics_policy = 1;
     static constexpr std::uint16_t relation_feature_key_schema = 1;
     static constexpr std::uint16_t relation_request_key_schema = 1;
     static constexpr std::uint16_t relation_event_seed_key_schema = 1;
@@ -165,4 +170,4 @@ enum class precision_checkpoint : std::uint32_t {
     conservative_bounds = 19, prior_precision_import = 20, independent_verification = 21,
     canonical_encoding = 22, publication_commit = 23,
 };
-} 
+} // namespace ygor::mesh_boolean::bounded
