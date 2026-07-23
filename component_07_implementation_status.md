@@ -99,28 +99,74 @@ headers for records, canonicalization, validation, and construction. The strict
 Component 07 translation unit includes the complete provider, and the public
 point-region header and behavior remain source compatible.
 
+## Implemented canonical source-edge/source-edge numerical slice
+
+The Plan 07 source-edge/source-edge numerical kernel is now implemented as a
+self-contained, fail-closed provider ready for request-graph integration:
+
+- exact stored-coordinate bindings classify direction parallelism, point/line
+  collinearity, and four-point coplanarity without treating rounded differences
+  or rounded zero as exact evidence;
+- only canonical, opposite-operand, original source-edge pairs are accepted;
+  internal triangulation diagonals cannot publish a public source-edge relation;
+- both source directions must have definitely positive bounded squared norms;
+  degenerate or uncertainty-overlapping directions fail with stable typed errors;
+- nonparallel support is split into skew separation and exact coplanar ties using
+  independent bounded and exact truth records;
+- the solve plane is selected by the greatest definitely-positive squared lower
+  bound of the cross-product component, with deterministic X/Y/Z tie order;
+- the fixed 2x2 solve retains bounded parameter enclosures, exact zero/one
+  relations, domain margins, uncertainty contributors, and trace roots;
+- proper crossings, endpoint crossings, and non-contact solves are distinguished
+  without nominal fallback when a parameter enclosure overlaps a topology
+  boundary;
+- accepted source vertices are reused exactly, otherwise one bounded carrier
+  construction is produced and independently checked against both source edges;
+- parallel support is split into separated and exactly collinear cases, then the
+  dominant stable source-edge axis is used for a complete one-dimensional
+  interval classification;
+- disjoint, point contact, partial overlap, first-contains-second,
+  second-contains-first, equal-same-orientation, and equal-opposite-orientation
+  cases retain canonical endpoint parameters, source ownership masks, overlap
+  constructions, and orientation evidence;
+- every published construction retains per-axis residual intervals against both
+  carriers and is rejected unless zero is enclosed within the configured
+  residual boundary;
+- canonical semantic bytes, semantic digests, reserved-field checks, category
+  invariants, parameter invariants, construction invariants, and mutation-sensitive
+  validation are provided; and
+- a strict-FP C++17 qualification target covers float and double known-answer
+  cases for every support/contact category, exact-binding checks, wrong-owner and
+  internal-diagonal rejection, record mutation, and unresolved-direction failure.
+
+This slice intentionally does not bypass the existing transactional boundary.
+The non-empty `RelationBuild` path remains fail closed until these records are
+inserted into the canonical request graph and reconciled with authoritative
+construction ownership and downstream event publication.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Complete all genuinely missing Component 03 formula/capability bindings and
-   integrate the primitive truth adapter into the non-empty `RelationBuild`
-   transaction and request graph.
-2. Canonical source-edge/source-edge relations and bounded constructions.
-3. Complete source-edge/source-facet composites, including endpoint, tangent,
-   coplanar, and multi-event cases.
-4. Source-facet/source-facet support, transverse carriers, coplanar overlay,
-   containment, equality, and distinct sheet occurrences.
-5. Authoritative construction selection, residual and conditioning evidence,
-   numeric crossing multiplicity, half-open source-fan ownership, and local
-   conservation.
-6. Full symbolic eligibility categories, event seeds, incidence, candidate
-   dispositions, canonical partitions, replay diagnostics, and decode support.
-7. The independent exact-rational/exhaustive oracle, all known-answer and
-   mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
+1. Complete any genuinely missing Component 03 formula/capability bindings and
+   integrate the primitive truth adapter, source-facet records, and the new
+   source-edge/source-edge records into the non-empty `RelationBuild` transaction,
+   dependency graph, canonical artifact, codec, and independent verifier.
+2. Complete source-edge/source-facet composites, including endpoint, tangent,
+   coplanar, boundary-overlap, and multi-event cases.
+3. Complete source-facet/source-facet support, transverse carriers, coplanar
+   overlay, containment, equality, and distinct sheet occurrences.
+4. Complete authoritative construction selection and deduplication, residual and
+   conditioning evidence, numeric crossing multiplicity, half-open source-fan
+   ownership, and local conservation.
+5. Complete all symbolic eligibility categories, frozen matrix lookups, event
+   seeds, incidence, candidate dispositions, canonical partitions, replay
+   diagnostics, and decode support.
+6. Add the independent exact-rational/exhaustive oracle, complete known-answer
+   and mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
    structural performance gates, and serial/parallel equivalence evidence.
-8. Component 08-10 handoff qualification proving no authoritative geometric
-   recomputation and that Component 10 alone performs final selection.
+7. Complete Component 08-10 handoff qualification proving no authoritative
+   geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed
 identity, or external dependency has been introduced to bridge the outstanding
