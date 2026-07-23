@@ -56,17 +56,17 @@ The P0-P12 items in `plan_speed.md` are complete for the original exact-engine c
 
 Do not begin normalization repair, approximate realization, or backend fallback implementation until this phase is reviewed and complete.
 
-- [ ] **P0 complete — freeze the amended product boundary.**
-  - [ ] Approve and implement the immutable tagged `boolean_product_result`/result-envelope model with `exact_stratified`, `exact_in_T_mesh`, and `certified_approximate_mesh` representations.
-  - [ ] Add the explicit maturity model (`experimental`, `candidate`, `qualified`, `deprecated`) and ensure the current in-tree engine defaults to `experimental_exact_v1` with explicit opt-in.
-  - [ ] Add versioned backend-selection, backend-capability, preparation, normalization, result-representation, realization-semantic, attribute-transfer, and qualification-manifest policies to Component 1.
-  - [ ] Separate realization semantic meaning from candidate/search strategy; prohibit search settings from changing an exact result into approximate success.
-  - [ ] Define stable backend identity/version/build/capability provenance and bind it into every result, diagnostic, certificate, and replay.
-  - [ ] Add the amended error categories/subcodes: `normalization_required`, `normalization_failed`, `backend_unavailable`, `backend_capability_mismatch`, `backend_disagreement`, `backend_unqualified`, `exact_result_serialization_error`, `attribute_transfer_conflict`, `approximation_policy_rejected`, and `qualification_policy_violation`.
-  - [ ] Bump option, artifact, error, certificate, and replay schemas together; add strict decode rejection for stale bindings, unknown capabilities/enums, incompatible schemas, and semantic reinterpretation.
-  - [ ] Define the lifetime/ownership contract for a durable exact result independently of `boolean_context`.
-  - [ ] Update public API documentation to state that strict already-valid operands are currently required, `exact_in_T` is a strict special-purpose mode, and no backend/result profile is production-qualified merely because the original engine tests pass.
-  - [ ] Add contract, serialization, compatibility, invalid-policy, maturity-selection, and fail-closed fallback tests for every P0 policy combination.
+- [x] **P0 complete — freeze the amended product boundary.**
+  - [x] Approve and implement the immutable tagged `boolean_product_result`/result-envelope model with `exact_stratified`, `exact_in_T_mesh`, and `certified_approximate_mesh` representations.
+  - [x] Add the explicit maturity model (`experimental`, `candidate`, `qualified`, `deprecated`) and ensure the current in-tree engine defaults to `experimental_exact_v1` with explicit opt-in.
+  - [x] Add versioned backend-selection, backend-capability, preparation, normalization, result-representation, realization-semantic, attribute-transfer, and qualification-manifest policies to Component 1.
+  - [x] Separate realization semantic meaning from candidate/search strategy; prohibit search settings from changing an exact result into approximate success.
+  - [x] Define stable backend identity/version/build/capability provenance and bind it into every result, diagnostic, certificate, and replay.
+  - [x] Add the amended error categories/subcodes: `normalization_required`, `normalization_failed`, `backend_unavailable`, `backend_capability_mismatch`, `backend_disagreement`, `backend_unqualified`, `exact_result_serialization_error`, `attribute_transfer_conflict`, `approximation_policy_rejected`, and `qualification_policy_violation`.
+  - [x] Bump option, artifact, error, certificate, and replay schemas together; add strict decode rejection for stale bindings, unknown capabilities/enums, incompatible schemas, and semantic reinterpretation.
+  - [x] Define the lifetime/ownership contract for a durable exact result independently of `boolean_context`.
+  - [x] Update public API documentation to state that strict already-valid operands are currently required, `exact_in_T` is a strict special-purpose mode, and no backend/result profile is production-qualified merely because the original engine tests pass.
+  - [x] Add contract, serialization, compatibility, invalid-policy, maturity-selection, and fail-closed fallback tests for every P0 policy combination.
 
 **P0 exit gate:** all amended contracts are frozen and reviewed; schema/replay golden vectors pass; no product-facing API can silently normalize, fall back, discard an exact success, or label approximate geometry as exact.
 
