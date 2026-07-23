@@ -24,6 +24,8 @@ bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
     break;
   case bounded_sign_status::invalid:
     return false;
+  default:
+    return false;
   }
 
   switch (record.exact_relation) {
@@ -33,6 +35,8 @@ bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
   case exact_relation_status::unavailable:
     break;
   case exact_relation_status::invalid:
+    return false;
+  default:
     return false;
   }
 
@@ -57,6 +61,8 @@ bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
     return record.bounded_sign == bounded_sign_status::overlaps_boundary &&
            record.exact_relation != exact_relation_status::exact_zero;
   case predicate_disposition::fail_invalid:
+    return false;
+  default:
     return false;
   }
   return false;
