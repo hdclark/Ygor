@@ -12,7 +12,9 @@ namespace ygor {
 namespace mesh_boolean {
 
 #include "YgorMeshesBooleanProductContractInternal.inc"
-#include "YgorMeshesBooleanProductContractOptions.inc"
+#include "YgorMeshesBooleanProductContractOptionsErrors.inc"
+#include "YgorMeshesBooleanProductContractOptionsValidation.inc"
+#include "YgorMeshesBooleanProductContractOptionsCodec.inc"
 #include "YgorMeshesBooleanProductContractBackend.inc"
 #include "YgorMeshesBooleanProductContractReplay.inc"
 
