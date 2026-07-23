@@ -4,6 +4,64 @@
 
 namespace ygor::mesh_boolean::bounded {
 
+namespace source_facet_region_detail {
+
+template <class T>
+bool make_declared_overlap_region(
+    std::uint64_t source_facet, std::uint64_t ring,
+    const projected_source_point<T> &point,
+    const std::vector<projected_source_point<T>> &polygon,
+    const source_orientation_evidence<T> &polygon_orientation_evidence,
+    const std::vector<source_facet_boundary_edge_owner> &owners,
+    source_facet_point_region_record<T> &record) {
+  if (owners.empty() ||
+      !std::is_sorted(owners.begin(), owners.end()) ||
+      std::adjacent_find(owners.begin(), owners.end()) != owners.end())
+    return false;
+
+  record = {};
+  record.classification =
+      source_facet_point_region_class::original_edge;
+  record.source_facet = source_facet;
+  record.ring = ring;
+  record.query_source_identity_valid = false;
+  record.complete_boundary_traversal = true;
+  record.boundary_ownership_resolved = true;
+  record.boundary_test_count = polygon.size();
+  record.source_edge_owners = owners;
+  record.polygon_orientation_evidence =
+      polygon_orientation_evidence;
+  record.orientation_evidence.reserve(polygon.size());
+
+  for (std::size_t edge = 0; edge < polygon.size(); ++edge) {
+    const auto &a = polygon[edge];
+    const auto &b = polygon[(edge + 1) % polygon.size()];
+    const auto evidence =
+        bounded_source_polygon_kernel<T>::orientation(a, b, point);
+    if (!valid_source_orientation_evidence(evidence))
+      return false;
+    record.orientation_evidence.push_back(evidence);
+  }
+
+  for (const auto &owner : owners) {
+    if (!valid_edge_owner_for_polygon(owner, polygon))
+      return false;
+    const auto &a = polygon[owner.edge_ordinal];
+    const auto &b =
+        polygon[(owner.edge_ordinal + 1) % polygon.size()];
+    const auto &evidence =
+        record.orientation_evidence[owner.edge_ordinal];
+    if (!evidence.determinant.contains(T(0)) ||
+        source_polygon_kernel_detail::point_box_disjoint(
+            point, a, b))
+      return false;
+  }
+
+  return valid_source_facet_point_region_record(record);
+}
+
+} // namespace source_facet_region_detail
+
 template <class T>
 boolean_outcome<source_facet_segment_partition_record<T>>
 partition_source_facet_segment(
@@ -289,42 +347,37 @@ partition_source_facet_segment(
 
         std::vector<std::uint64_t> no_vertices;
         canonicalize_owners(no_vertices, overlap_owners);
-        auto region = classify_source_facet_point(
-            source_facet, ring, *point.value(), false, polygon,
-            polygon_orientation);
-        if (!region.has_value())
-          continue;
 
-        const auto classification =
-            region.value()->classification;
+        source_facet_point_region_record<T> witness_region;
         if (!overlap_owners.empty()) {
-          if (classification !=
-                  source_facet_point_region_class::original_edge ||
-              !std::all_of(
-                  overlap_owners.begin(), overlap_owners.end(),
-                  [&region](
-                      const source_facet_boundary_edge_owner &owner) {
-                    return std::binary_search(
-                        region.value()->source_edge_owners.begin(),
-                        region.value()->source_edge_owners.end(),
-                        owner);
-                  }))
+          if (!make_declared_overlap_region(
+                  source_facet, ring, *point.value(), polygon,
+                  *polygon_orientation_evidence, overlap_owners,
+                  witness_region))
             continue;
           interval_record.classification =
               source_facet_segment_interval_class::
                   original_edge_overlap;
           interval_record.source_edge_owners =
-              std::move(overlap_owners);
-        } else if (classification ==
-                   source_facet_point_region_class::interior) {
-          interval_record.classification =
-              source_facet_segment_interval_class::interior;
-        } else if (classification ==
-                   source_facet_point_region_class::outside) {
-          interval_record.classification =
-              source_facet_segment_interval_class::outside;
+              overlap_owners;
         } else {
-          continue;
+          auto region = classify_source_facet_point(
+              source_facet, ring, *point.value(), false, polygon,
+              polygon_orientation);
+          if (!region.has_value())
+            continue;
+          witness_region = *region.value();
+          if (witness_region.classification ==
+              source_facet_point_region_class::interior) {
+            interval_record.classification =
+                source_facet_segment_interval_class::interior;
+          } else if (witness_region.classification ==
+                     source_facet_point_region_class::outside) {
+            interval_record.classification =
+                source_facet_segment_interval_class::outside;
+          } else {
+            continue;
+          }
         }
 
         interval_record.rounded_witness_parameter =
@@ -332,7 +385,8 @@ partition_source_facet_segment(
         interval_record.witness_parameter =
             parameter_value.second;
         interval_record.witness_point = *point.value();
-        interval_record.witness_region = *region.value();
+        interval_record.witness_region =
+            std::move(witness_region);
         interval_record.dyadic_attempt_ordinal = attempt;
         accepted = true;
       }
