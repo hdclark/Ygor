@@ -1,25 +1,96 @@
 #include <YgorMeshesBooleanProductContract.h>
+
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
-#include <type_traits>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <vector>
+
 using namespace ygor::mesh_boolean;
-static void require(bool value,const char*message){if(!value)throw std::runtime_error(message);}
-static std::string hex_bytes(const std::vector<std::uint8_t>& bytes){std::ostringstream os;os<<std::hex<<std::setfill('0');for(const auto b:bytes)os<<std::setw(2)<<unsigned(b);return os.str();}
-static digest test_digest(const char suffix){canonical_encoder e;e.byte(static_cast<std::uint8_t>(suffix));return domain_digest({{'Y','G','B','T','E','S','T',suffix}},e.bytes());}
-static backend_capabilities experimental_capabilities(){backend_capabilities c;c.set(backend_capability::exact_set_semantics);c.set(backend_capability::exact_coordinates);c.set(backend_capability::stratified_output);c.set(backend_capability::manifold_mesh_output);c.set(backend_capability::deterministic_canonical_output);c.set(backend_capability::certified_failure_categories);c.set(backend_capability::provenance_mapping);c.set(backend_capability::strict_prepared_operands);c.set(backend_capability::exact_in_T_output);return c;}
-static backend_identity experimental_identity(){auto made=make_backend_identity(backend_id::experimental_exact_v1,{1,0,0},"test-build",experimental_capabilities(),backend_maturity::experimental);require(made.has_value(),"experimental identity");return made.value();}
-static backend_provenance experimental_provenance(){backend_provenance p;p.producer=experimental_identity();p.selection=backend_selection_mode::explicit_backend;p.attempted_backends={backend_id::experimental_exact_v1};return p;}
-static boolean_product_options explicit_experimental_options(){boolean_product_options o;o.backend.mode=backend_selection_mode::explicit_backend;o.backend.requested_backend=backend_id::experimental_exact_v1;o.backend.allow_experimental_backend=true;o.qualification.mode=qualification_policy_mode::allow_explicit_unqualified;return o;}
-static void product_policy_round_trip() {
-  boolean_product_options o;
-  require(validate_product_options(o).has_value(),
-          "default product options are a valid fail-closed request");
-  auto encoded = encode_product_options(o);
+
+namespace {
+
+void require(bool value, const char *message) {
+  if (!value)
+    throw std::runtime_error(message);
+}
+
+std::string hex_bytes(const std::vector<std::uint8_t> &bytes) {
+  std::ostringstream out;
+  out << std::hex << std::setfill('0');
+  for (const auto byte : bytes)
+    out << std::setw(2) << static_cast<unsigned>(byte);
+  return out.str();
+}
+
+digest test_digest(char suffix) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(suffix));
+  return domain_digest({{'Y', 'G', 'B', 'T', 'E', 'S', 'T', suffix}},
+                       encoder.bytes());
+}
+
+digest sequence_digest(std::uint8_t first) {
+  digest out;
+  for (std::size_t i = 0; i != out.bytes.size(); ++i)
+    out.bytes[i] = static_cast<std::uint8_t>(first + i);
+  return out;
+}
+
+backend_capabilities experimental_capabilities() {
+  backend_capabilities capabilities;
+  capabilities.set(backend_capability::exact_set_semantics);
+  capabilities.set(backend_capability::exact_coordinates);
+  capabilities.set(backend_capability::stratified_output);
+  capabilities.set(backend_capability::manifold_mesh_output);
+  capabilities.set(backend_capability::deterministic_canonical_output);
+  capabilities.set(backend_capability::certified_failure_categories);
+  capabilities.set(backend_capability::provenance_mapping);
+  capabilities.set(backend_capability::strict_prepared_operands);
+  capabilities.set(backend_capability::exact_in_T_output);
+  return capabilities;
+}
+
+backend_identity make_test_identity(
+    backend_maturity maturity = backend_maturity::experimental,
+    std::string build = "test-build", backend_version version = {1, 0, 0}) {
+  auto made = make_backend_identity(backend_id::experimental_exact_v1, version,
+                                    std::move(build),
+                                    experimental_capabilities(), maturity);
+  require(made.has_value(), "test backend identity");
+  return made.value();
+}
+
+backend_provenance experimental_provenance() {
+  backend_provenance provenance;
+  provenance.producer = make_test_identity();
+  provenance.selection = backend_selection_mode::explicit_backend;
+  provenance.attempted_backends = {backend_id::experimental_exact_v1};
+  return provenance;
+}
+
+boolean_product_options explicit_experimental_options() {
+  boolean_product_options options;
+  options.backend.mode = backend_selection_mode::explicit_backend;
+  options.backend.requested_backend = backend_id::experimental_exact_v1;
+  options.backend.allow_experimental_backend = true;
+  options.qualification.mode =
+      qualification_policy_mode::allow_explicit_unqualified;
+  return options;
+}
+
+void product_policy_round_trip() {
+  boolean_product_options options;
+  require(validate_product_options(options).has_value(),
+          "default options are a valid fail-closed request");
+
+  auto encoded = encode_product_options(options);
   require(encoded.has_value(), "product options encode");
   const std::string golden =
       "594742504f503033000300000000000000a60003000300030003000300030100"
@@ -30,27 +101,42 @@ static void product_policy_round_trip() {
       "000000000000000003000000030000000000000000000001";
   require(hex_bytes(encoded.value()) == golden,
           "schema-3 product option golden vector");
+
   auto decoded = decode_product_options(encoded.value());
   require(decoded.has_value(), "product options decode");
-  require(product_options_digest(decoded.value()) == product_options_digest(o),
+  require(product_options_digest(decoded.value()) ==
+              product_options_digest(options),
           "product options canonical round trip");
+
+  auto stale_schema = options;
+  stale_schema.schemas.replay = product_contract_schema_version - 1;
+  require(!validate_product_options(stale_schema).has_value(),
+          "coordinated schema mismatch rejected");
+
+  auto outer_schema = encoded.value();
+  outer_schema[9] =
+      static_cast<std::uint8_t>(product_contract_schema_version - 1);
+  require(!decode_product_options(outer_schema).has_value(),
+          "outer record schema mismatch rejected");
 
   auto unknown = encoded.value();
   require(unknown.size() > 30, "product option vector size");
   unknown[30] = 0xff;
   require(!decode_product_options(unknown).has_value(),
           "unknown selection enum rejected");
+
   auto trailing = encoded.value();
   trailing.push_back(0);
   require(!decode_product_options(trailing).has_value(),
           "trailing bytes rejected");
+
   product_decode_limits limits;
   limits.max_record_bytes = encoded.value().size() - 1;
   require(!decode_product_options(encoded.value(), limits).has_value(),
           "decode limit enforced before allocation");
 }
 
-static void product_policy_validation() {
+void product_policy_validation() {
   auto strict = boolean_product_options{};
   strict.preparation.normalization.mode = normalization_mode::diagnosis_only;
   require(!validate_product_options(strict).has_value(),
@@ -61,6 +147,20 @@ static void product_policy_validation() {
   diagnosis.preparation.normalization.mode = normalization_mode::diagnosis_only;
   require(validate_product_options(diagnosis).has_value(),
           "diagnosis-only preparation is non-mutating");
+
+  auto structural = boolean_product_options{};
+  structural.preparation.mode = preparation_mode::normalized;
+  structural.preparation.normalization.mode =
+      normalization_mode::structural_only;
+  structural.preparation.normalization.enabled_operations =
+      normalization_operation_bit(
+          normalization_operation::exact_duplicate_consolidation);
+  require(validate_product_options(structural).has_value(),
+          "structural normalization remains geometry preserving");
+  structural.preparation.normalization.enabled_operations =
+      normalization_operation_bit(normalization_operation::crack_closure);
+  require(!validate_product_options(structural).has_value(),
+          "structural normalization rejects geometry-changing operations");
 
   auto normalized = boolean_product_options{};
   normalized.preparation.mode = preparation_mode::normalized;
@@ -77,20 +177,22 @@ static void product_policy_validation() {
   require(!validate_product_options(normalized).has_value(),
           "non-finite normalization tolerance rejected");
 
-  auto exact_t = boolean_product_options{};
-  exact_t.result.representation = result_representation::exact_in_T_mesh;
-  exact_t.realization.semantics = product_realization_semantics::exact_in_T;
-  exact_t.realization.search.strategy = realization_search_strategy::nearest_only;
-  require(validate_product_options(exact_t).has_value(),
+  auto exact_in_t = boolean_product_options{};
+  exact_in_t.result.representation = result_representation::exact_in_T_mesh;
+  exact_in_t.realization.semantics =
+      product_realization_semantics::exact_in_T;
+  exact_in_t.realization.search.strategy =
+      realization_search_strategy::nearest_only;
+  require(validate_product_options(exact_in_t).has_value(),
           "strict exact-in-T result contract");
-  exact_t.realization.search.strategy =
+  exact_in_t.realization.search.strategy =
       realization_search_strategy::neighboring_values;
-  exact_t.realization.search.max_candidates = 32;
-  require(validate_product_options(exact_t).has_value(),
+  exact_in_t.realization.search.max_candidates = 32;
+  require(validate_product_options(exact_in_t).has_value(),
           "search policy does not change exact semantics");
-  require(exact_t.result.representation ==
+  require(exact_in_t.result.representation ==
               result_representation::exact_in_T_mesh &&
-              exact_t.realization.semantics ==
+              exact_in_t.realization.semantics ==
                   product_realization_semantics::exact_in_T,
           "search and semantic fields remain separate");
 
@@ -133,8 +235,8 @@ static void product_policy_validation() {
           "declared backend unavailability may be listed for fallback");
 }
 
-static void backend_maturity_and_qualification() {
-  const auto experimental = experimental_identity();
+void backend_maturity_and_qualification() {
+  const auto experimental = make_test_identity();
   auto backend_bytes = encode_backend_identity(experimental);
   require(backend_bytes.has_value(), "backend identity encode");
   auto backend_round_trip = decode_backend_identity(backend_bytes.value());
@@ -145,22 +247,31 @@ static void backend_maturity_and_qualification() {
   backend_trailing.push_back(0);
   require(!decode_backend_identity(backend_trailing).has_value(),
           "backend identity trailing bytes rejected");
+
   auto explicit_options = explicit_experimental_options();
   require(authorize_backend(explicit_options, experimental).has_value(),
-          "experimental backend requires and accepts explicit opt-in");
+          "experimental backend accepts explicit opt-in");
   explicit_options.backend.allow_experimental_backend = false;
   require(!authorize_backend(explicit_options, experimental).has_value(),
           "experimental backend is not silently selected");
+
+  const auto candidate = make_test_identity(
+      backend_maturity::candidate, "candidate-test-build", {1, 1, 0});
+  explicit_options.backend.allow_experimental_backend = true;
+  require(authorize_backend(explicit_options, candidate).has_value(),
+          "candidate backend also requires explicit opt-in");
+
+  const auto deprecated = make_test_identity(
+      backend_maturity::deprecated, "deprecated-test-build", {1, 0, 1});
+  require(!authorize_backend(explicit_options, deprecated).has_value(),
+          "deprecated backend is never authorized");
 
   boolean_product_options default_options;
   require(!authorize_backend(default_options, experimental).has_value(),
           "qualified default rejects experimental backend");
 
-  auto qualified_made = make_backend_identity(
-      backend_id::experimental_exact_v1, {1, 0, 0}, "qualified-test-build",
-      experimental_capabilities(), backend_maturity::qualified);
-  require(qualified_made.has_value(), "qualified identity shape");
-  const auto qualified = qualified_made.value();
+  const auto qualified = make_test_identity(
+      backend_maturity::qualified, "qualified-test-build");
   qualification_profile profile;
   profile.backend = qualified.id;
   profile.capability_digest = qualified.capability_digest;
@@ -192,13 +303,12 @@ static void backend_maturity_and_qualification() {
           "unknown capability rejected");
 }
 
-static void exact_result_lifetime_and_envelope() {
+void exact_result_lifetime_and_envelope() {
   auto provenance = experimental_provenance();
-  std::vector<std::uint8_t> bytes{1, 2, 3, 4};
   auto made = make_exact_result_handle(
       operation::regularized_union,
       exact_result_topology::closed_embedded_two_manifold, provenance,
-      std::move(bytes));
+      {1, 2, 3, 4});
   require(made.has_value(), "durable exact result handle");
   auto exact = made.value();
   auto retained = exact;
@@ -251,11 +361,18 @@ static void exact_result_lifetime_and_envelope() {
   result.realization->failure.reset();
   require(validate_product_result(result).has_value(),
           "exact-in-T mesh bound to exact authority");
+
+  auto stale_certificate = result;
+  stale_certificate.mesh->certificate.backend.build_identifier += "-stale";
+  require(!validate_product_result(stale_certificate).has_value(),
+          "certificate backend identity drift rejected");
+
   auto frozen = freeze_boolean_product_result(std::move(result));
   require(frozen.has_value() && frozen.value()->mesh.has_value(),
-          "validated product result freezes into immutable shared ownership");
-  static_assert(std::is_const<typename std::remove_reference<
-                    decltype(*frozen.value())>::type>::value,
+          "validated result freezes into immutable shared ownership");
+  using frozen_pointee =
+      typename std::remove_reference<decltype(*frozen.value())>::type;
+  static_assert(std::is_const<frozen_pointee>::value,
                 "published product results are immutable");
 
   auto mislabeled = *frozen.value();
@@ -264,9 +381,33 @@ static void exact_result_lifetime_and_envelope() {
           "exact mesh cannot be relabeled approximate");
 }
 
-static void replay_contract() {
+void replay_contract() {
+  product_replay_binding golden_replay;
+  golden_replay.options_digest = sequence_digest(0);
+  golden_replay.preparation_policy_digest = sequence_digest(16);
+  golden_replay.preparation_report_digest = sequence_digest(32);
+  golden_replay.adapter_version = {1, 2, 3};
+  golden_replay.build_identifier = "b";
+  golden_replay.capability_digest = sequence_digest(48);
+  golden_replay.exact_result_digest = sequence_digest(64);
+  golden_replay.realization_policy_digest = sequence_digest(80);
+  golden_replay.attribute_policy_digest = sequence_digest(96);
+  golden_replay.verifier_set_digest = sequence_digest(112);
+  golden_replay.qualification_manifest_digest = sequence_digest(128);
+  auto golden_encoded = encode_product_replay_binding(golden_replay);
+  require(golden_encoded.has_value(), "replay golden encode");
+  const std::string replay_golden =
+      "5947425052503033000300000000000000ab0003000102030405060708090a0b"
+      "0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b"
+      "2c2d2e2f0001000100020003000000000000000162303132333435363738393a"
+      "3b3c3d3e3f0000000000000000404142434445464748494a4b4c4d4e4f5051"
+      "52535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70"
+      "7172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f";
+  require(hex_bytes(golden_encoded.value()) == replay_golden,
+          "schema-3 replay golden vector");
+
   auto options = explicit_experimental_options();
-  const auto backend = experimental_identity();
+  const auto backend = make_test_identity();
   const auto provenance = experimental_provenance();
   auto exact_made = make_exact_result_handle(
       operation::regularized_union,
@@ -290,6 +431,7 @@ static void replay_contract() {
   require(validate_product_replay_binding(replay, options, backend, &exact)
               .has_value(),
           "replay cross-layer bindings");
+
   auto encoded = encode_product_replay_binding(replay);
   require(encoded.has_value(), "replay encode");
   auto decoded = decode_product_replay_binding(encoded.value());
@@ -303,10 +445,37 @@ static void replay_contract() {
                                            &exact)
                .has_value(),
           "stale backend replay binding rejected");
+
   auto trailing = encoded.value();
   trailing.push_back(0);
   require(!decode_product_replay_binding(trailing).has_value(),
           "replay trailing bytes rejected");
 }
 
-int main(){struct T{const char*n;void(*f)();};T ts[]={{"round",product_policy_round_trip},{"validation",product_policy_validation},{"backend",backend_maturity_and_qualification},{"exact",exact_result_lifetime_and_envelope},{"replay",replay_contract}};int n=0;for(auto&t:ts)try{t.f();std::cout<<"PASS "<<t.n<<"\n";}catch(const std::exception&e){++n;std::cerr<<"FAIL "<<t.n<<": "<<e.what()<<"\n";}return n?1:0;}
+} // namespace
+
+int main() {
+  struct test_case {
+    const char *name;
+    void (*run)();
+  };
+  const test_case tests[] = {
+      {"round", product_policy_round_trip},
+      {"validation", product_policy_validation},
+      {"backend", backend_maturity_and_qualification},
+      {"exact", exact_result_lifetime_and_envelope},
+      {"replay", replay_contract},
+  };
+
+  int failures = 0;
+  for (const auto &test : tests) {
+    try {
+      test.run();
+      std::cout << "PASS " << test.name << '\n';
+    } catch (const std::exception &error) {
+      ++failures;
+      std::cerr << "FAIL " << test.name << ": " << error.what() << '\n';
+    }
+  }
+  return failures == 0 ? 0 : 1;
+}
