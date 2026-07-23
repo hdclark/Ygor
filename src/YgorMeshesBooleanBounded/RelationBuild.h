@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CandidateSourceEdgeRelations.h"
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
@@ -37,6 +38,7 @@ public:
   boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>> run() {
     try {
       if (!validate_contracts() || !preflight_and_reserve() ||
+          !build_candidate_edge_relations() || !require_remaining_families() ||
           !build_foundation_artifact() || !encode_and_verify())
         return failure();
       auto published =
@@ -71,6 +73,7 @@ private:
   using artifact_type = signed_feature_relations<T, I>;
   using outcome_type =
       boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>>;
+  using edge_stage_type = candidate_source_edge_relation_stage<T>;
 
   outcome_type failure() {
     relation_build_detail::bind_relation_error(
@@ -113,10 +116,13 @@ private:
                   "Component 07 context, precision, or candidate handshake failed",
                   relation_checkpoint::context_policy_capability_validation);
     if (capabilities_.provider_version != contract_versions::relation_provider ||
-        capabilities_.graph_policy_version != contract_versions::relation_graph_policy ||
-        capabilities_.truth_policy_version != contract_versions::relation_truth_policy ||
+        capabilities_.graph_policy_version !=
+            contract_versions::relation_graph_policy ||
+        capabilities_.truth_policy_version !=
+            contract_versions::relation_truth_policy ||
         capabilities_.codec_version != contract_versions::relation_codec ||
-        capabilities_.verifier_version != contract_versions::relation_verifier || capabilities_.reserved != 0)
+        capabilities_.verifier_version != contract_versions::relation_verifier ||
+        capabilities_.reserved != 0)
       return fail(relation_subcode::unsupported_version,
                   bounded_boolean_error_category::input_contract_error,
                   "Component 07 capability version is unsupported",
@@ -134,14 +140,6 @@ private:
     if (!preflight_relation_foundation(*candidates_, capabilities_, preflight_,
                                        error_))
       return false;
-    // The reviewed numerical kernels are deliberately not approximated here.
-    // Until those phases land, every non-empty candidate stream fails closed.
-    if (preflight_.candidate_count != 0)
-      return fail(
-          relation_subcode::unsupported_relation_kernel,
-          bounded_boolean_error_category::result_geometry_not_validated,
-          "Component 07 numerical relation families are not yet implemented",
-          relation_checkpoint::candidate_scan);
 
     std::uint64_t persistent_reserve = 0;
     if (!checked_add<std::uint64_t>(
@@ -168,6 +166,30 @@ private:
                 bounded_boolean_error_category::internal_invariant_error,
                 "Component 07 transaction could not register work",
                 relation_checkpoint::discovery_resource_reservation);
+  }
+
+  bool build_candidate_edge_relations() {
+    if (!check_cancel(relation_checkpoint::candidate_scan))
+      return false;
+    auto stage = build_candidate_source_edge_relations(
+        *candidates_, context_.context_digest, precision_.tolerance(),
+        capabilities_);
+    if (!stage.has_value()) {
+      error_ = *stage.error();
+      return false;
+    }
+    edge_stage_.emplace(std::move(*stage.value()));
+    return true;
+  }
+
+  bool require_remaining_families() {
+    if (preflight_.candidate_count == 0)
+      return true;
+    return fail(
+        relation_subcode::unsupported_relation_kernel,
+        bounded_boolean_error_category::result_geometry_not_validated,
+        "Component 07 candidate-derived source-edge/source-edge relations are verified; source-edge/source-facet and later relation families are not yet implemented",
+        relation_checkpoint::edge_facet_evaluation);
   }
 
   bool build_foundation_artifact() {
@@ -244,6 +266,7 @@ private:
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
   relation_capabilities capabilities_;
   relation_preflight_plan preflight_{};
+  std::optional<edge_stage_type> edge_stage_;
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;
   std::optional<resource_reservation> persistent_reservation_;
