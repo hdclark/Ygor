@@ -1,0 +1,26 @@
+name: Component 06 validation
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: read
+
+jobs:
+  gcc-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev libgsl-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DMEMORY_CONSTRAINED_BUILD=ON
+      - name: Build Component 06 tests
+        run: cmake --build build --target ygor_mesh_boolean_broad_phase_tests --parallel 2
+      - name: Run Component 06 tests
+        run: ctest --test-dir build --output-on-failure -R mesh_boolean_bounded_component06_
