@@ -91,6 +91,34 @@ struct contract_versions final {
     static constexpr std::uint16_t canonical_halfedge_codec = 1;
     static constexpr std::uint16_t canonical_halfedge_verifier = 1;
     static constexpr std::uint16_t canonical_source_manifolds_schema = 1;
+
+    // Component 06 broad-phase collision enumeration.
+    static constexpr std::uint16_t broad_phase_artifact_schema = 1;
+    static constexpr std::uint16_t broad_phase_provider = 1;
+    static constexpr std::uint16_t broad_phase_candidate_domain_policy = 1;
+    static constexpr std::uint16_t broad_phase_primitive_schema = 1;
+    static constexpr std::uint16_t broad_phase_axis_key_schema = 1;
+    static constexpr std::uint16_t broad_phase_dense_rank_schema = 1;
+    static constexpr std::uint16_t broad_phase_rank_morton_schema = 1;
+    static constexpr std::uint16_t broad_phase_hierarchy_node_schema = 1;
+    static constexpr std::uint16_t broad_phase_count_plan_schema = 1;
+    static constexpr std::uint16_t broad_phase_witness_schema = 1;
+    static constexpr std::uint16_t broad_phase_candidate_key_schema = 1;
+    static constexpr std::uint16_t broad_phase_candidate_record_schema = 1;
+    static constexpr std::uint16_t broad_phase_partition_schema = 1;
+    static constexpr std::uint16_t broad_phase_statistics_schema = 1;
+    static constexpr std::uint16_t broad_phase_evidence_schema = 1;
+    static constexpr std::uint16_t broad_phase_codec = 1;
+    static constexpr std::uint16_t broad_phase_replay = 1;
+    static constexpr std::uint16_t broad_phase_verifier = 1;
+    static constexpr std::uint16_t broad_phase_leaf_layout_policy = 1;
+    static constexpr std::uint16_t broad_phase_spatial_order_policy = 1;
+    static constexpr std::uint16_t broad_phase_node_id_policy = 1;
+    static constexpr std::uint16_t broad_phase_traversal_policy = 1;
+    static constexpr std::uint16_t broad_phase_candidate_order_policy = 1;
+    static constexpr std::uint16_t broad_phase_duplicate_policy = 1;
+    static constexpr std::uint16_t broad_phase_encoding_policy = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -102,6 +130,7 @@ enum class stage_id : std::uint16_t {
     execution_service = 22, input_validation_a = 23, input_validation_b = 24,
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
+    broad_phase = 29,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

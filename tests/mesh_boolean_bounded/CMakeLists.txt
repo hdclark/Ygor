@@ -85,7 +85,6 @@ foreach(consumer_component 02 04 05 06 07 13 15 16 17)
         ygor_mesh_boolean_component${consumer_component}_capability_compile)
 endforeach()
 
-
 add_executable(ygor_mesh_boolean_source_triangulation_tests
     TestSourceTriangulationMain.cc
     TestSourceTriangulationUnit.cc
@@ -115,7 +114,6 @@ foreach(source_triangulation_suite
                 ${source_triangulation_suite})
 endforeach()
 
-
 add_executable(ygor_mesh_boolean_canonical_halfedge_tests
     TestCanonicalHalfedge.cc)
 target_include_directories(ygor_mesh_boolean_canonical_halfedge_tests PRIVATE
@@ -130,4 +128,38 @@ foreach(canonical_halfedge_suite
     add_test(NAME mesh_boolean_bounded_component05_${canonical_halfedge_suite}
         COMMAND ygor_mesh_boolean_canonical_halfedge_tests
                 ${canonical_halfedge_suite})
+endforeach()
+
+add_executable(ygor_mesh_boolean_broad_phase_tests
+    TestBroadPhaseMain.cc
+    TestBroadPhaseDomain.cc
+    TestBroadPhaseRankMorton.cc
+    TestBroadPhaseHierarchy.cc
+    TestBroadPhaseOverlap.cc
+    TestBroadPhaseTraversal.cc
+    TestBroadPhaseKnownCandidates.cc
+    TestBroadPhaseAllPairsOracle.cc
+    TestBroadPhaseProvenance.cc
+    TestBroadPhaseCanonicalization.cc
+    TestBroadPhaseCodecReplay.cc
+    TestBroadPhaseAlternativeTriangulation.cc
+    TestBroadPhaseMutation.cc
+    TestBroadPhaseProperties.cc
+    TestBroadPhaseAdversarial.cc
+    TestBroadPhaseResourcesCancellation.cc
+    TestBroadPhaseStructuralPerformance.cc
+    BroadPhaseFixtures.cc
+    BroadPhaseExactOracle.cc)
+target_include_directories(ygor_mesh_boolean_broad_phase_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_broad_phase_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_broad_phase_tests)
+foreach(broad_phase_suite
+        domain rank_morton hierarchy overlap traversal known_candidates all_pairs
+        provenance canonicalization codec_replay alternative mutation properties
+        adversarial resources structural)
+    add_test(NAME mesh_boolean_bounded_component06_${broad_phase_suite}
+        COMMAND ygor_mesh_boolean_broad_phase_tests ${broad_phase_suite})
 endforeach()

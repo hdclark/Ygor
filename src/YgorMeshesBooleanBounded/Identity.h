@@ -35,9 +35,11 @@ struct budget_commit_tag;
 struct displacement_certificate_tag;
 struct finite_bound_tag;
 struct precision_verifier_finding_tag;
+struct candidate_tag;
 
 using operation_trace_id = strong_id<operation_trace_tag>;
 using precision_verifier_finding_id = strong_id<precision_verifier_finding_tag>;
+using candidate_id = strong_id<candidate_tag>;
 
 struct context_owner_token {
     std::shared_ptr<const std::uint8_t> anchor;

@@ -61,6 +61,16 @@ add_library(ygor_mesh_boolean_bounded_strict
     CanonicalHalfedgeVerifier.cc
     CanonicalFeatureGroups.cc
     CanonicalVertexFans.cc
+    CandidateDomainPolicy.cc
+    BroadPhasePrimitiveTables.cc
+    RankMortonKey.cc
+    TriangleAABBHierarchy.cc
+    BroadPhasePreflight.cc
+    BroadPhaseTraverse.cc
+    CandidateCanonicalization.cc
+    BroadPhaseBuild.cc
+    BroadPhaseCodec.cc
+    BroadPhaseVerifier.cc
     ToleranceBudget.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
