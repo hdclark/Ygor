@@ -1,5 +1,6 @@
 name: Mesh Boolean P0 contracts
 
+# Verification branches use a documentation-only workflow delta.
 on:
   push:
     branches:
