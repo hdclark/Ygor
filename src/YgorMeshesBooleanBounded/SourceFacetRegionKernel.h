@@ -281,6 +281,11 @@ classify_source_facet_point(
         source_facet_region_error(
             relation_subcode::malformed_source_polygon,
             "Component 07 frozen facet orientation disagrees with the complete polygon"));
+  if (orientation->bounded_sign == bounded_planar_sign::uncertain)
+    return boolean_outcome<source_facet_point_region_record<T>>::failure(
+        source_facet_region_error(
+            relation_subcode::source_facet_region_unresolved,
+            "Component 07 complete source-facet orientation is unresolved"));
 
   source_facet_point_region_record<T> result;
   result.source_facet = source_facet;
