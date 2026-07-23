@@ -76,6 +76,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     RelationRequestGraph.cc
     PrimitiveRelationKernel.cc
     SourceFacetRegionKernel.cc
+    SourceEdgeRelationKernel.cc
     RelationCanonicalization.cc
     RelationEventSeeds.cc
     SymbolicPerturbation.cc
