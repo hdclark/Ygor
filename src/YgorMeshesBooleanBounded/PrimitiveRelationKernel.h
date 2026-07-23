@@ -23,7 +23,10 @@ boolean_outcome<relation_truth_record> make_relation_truth_record(
     exact_relation_formula_code exact_formula) {
   static_assert(supported_precision_scalar_v<T>);
 
-  if (!registered_rounded_operation(rounded_formula) ||
+  if (predicate.schema_version != contract_versions::predicate_truth_layers ||
+      predicate.exact_relation.schema_version !=
+          contract_versions::predicate_truth_layers ||
+      !registered_rounded_operation(rounded_formula) ||
       !valid_exact_formula_code(static_cast<std::uint16_t>(exact_formula)))
     return boolean_outcome<relation_truth_record>::failure(
         primitive_relation_error(
