@@ -1,28 +1,28 @@
 Component 06 validation
-commit=d441a9a2b5c820889752b1f761281dba3b0439b1
-runner=Linux runnervm3jd5f 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:09:14 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+commit=d4e7f11159c348389b403bcb8d44299b19807b8d
+runner=Linux runnervmvrwv9 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:09:14 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 compiler=g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
 
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
 Hit:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease
+Get:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
 Hit:6 https://packages.microsoft.com/repos/azure-cli noble InRelease
 Get:7 https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease [3600 B]
-Get:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
 Get:4 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
 Get:5 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease [126 kB]
 Get:8 https://dl.google.com/linux/chrome-stable/deb stable InRelease [2548 B]
-Get:9 https://packages.microsoft.com/ubuntu/24.04/prod noble/main armhf Packages [11.7 kB]
-Get:10 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [202 kB]
-Get:11 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [236 kB]
-Get:12 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1127 kB]
-Get:13 http://azure.archive.ubuntu.com/ubuntu noble-updates/main Translation-en [275 kB]
-Get:14 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Components [180 kB]
-Get:15 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1676 kB]
-Get:16 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [333 kB]
-Get:17 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Components [388 kB]
-Get:18 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [1277 kB]
-Get:19 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted Translation-en [291 kB]
-Get:20 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Components [940 B]
+Get:9 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1127 kB]
+Get:10 http://azure.archive.ubuntu.com/ubuntu noble-updates/main Translation-en [275 kB]
+Get:11 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Components [180 kB]
+Get:12 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1676 kB]
+Get:13 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [333 kB]
+Get:14 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Components [388 kB]
+Get:15 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [1277 kB]
+Get:16 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted Translation-en [291 kB]
+Get:17 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Components [940 B]
+Get:18 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [202 kB]
+Get:19 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [236 kB]
+Get:20 https://packages.microsoft.com/ubuntu/24.04/prod noble/main armhf Packages [11.7 kB]
 Get:21 http://azure.archive.ubuntu.com/ubuntu noble-backports/main amd64 Components [5772 B]
 Get:22 http://azure.archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [32.5 kB]
 Get:23 http://azure.archive.ubuntu.com/ubuntu noble-backports/universe amd64 Components [10.5 kB]
@@ -35,7 +35,7 @@ Get:29 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Comp
 Get:30 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [1185 kB]
 Get:31 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted Translation-en [273 kB]
 Get:32 https://dl.google.com/linux/chrome-stable/deb stable/main amd64 Packages [1417 B]
-Fetched 10.5 MB in 1s (8279 kB/s)
+Fetched 10.5 MB in 1s (8483 kB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -47,7 +47,7 @@ Suggested packages:
   | gsl-ref-html
 The following NEW packages will be installed:
   libeigen3-dev libgsl-dev libgsl27 libgslcblas0
-0 upgraded, 4 newly installed, 0 to remove and 73 not upgraded.
+0 upgraded, 4 newly installed, 0 to remove and 54 not upgraded.
 Need to get 3406 kB of archives.
 After this operation, 19.7 MB of additional disk space will be used.
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
@@ -55,9 +55,9 @@ Get:2 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 libgslcblas0 a
 Get:3 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 libgsl27 amd64 2.7.1+dfsg-6ubuntu2 [987 kB]
 Get:4 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 libgsl-dev amd64 2.7.1+dfsg-6ubuntu2 [1259 kB]
 Get:5 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 libeigen3-dev all 3.4.0-4build0.1 [1057 kB]
-Fetched 3406 kB in 0s (29.1 MB/s)
+Fetched 3406 kB in 1s (4429 kB/s)
 Selecting previously unselected package libgslcblas0:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 202507 files and directories currently installed.)
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 202954 files and directories currently installed.)
 Preparing to unpack .../libgslcblas0_2.7.1+dfsg-6ubuntu2_amd64.deb ...
 Unpacking libgslcblas0:amd64 (2.7.1+dfsg-6ubuntu2) ...
 Selecting previously unselected package libgsl27:amd64.
@@ -110,18 +110,18 @@ Assuming libstdc++fs library '/usr/lib/gcc/x86_64-linux-gnu/12/libstdc++fs.a;/us
 -- Assuming Linux-specific sys interfaces are available.
 -- Assuming Eigen is available.
 -- Assuming GNU GSL is available.
--- Configuring done (104.7s)
+-- Configuring done (135.6s)
 -- Generating done (0.1s)
 -- Build files have been written to: /home/runner/work/Ygor/Ygor/build
 
 === build ===
-[  0%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_exact_float_expansion_core.dir/__/YgorMeshesExactFloatExpansionCore.cc.o
 [  0%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_facade.dir/Cancellation.cc.o
+[  0%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_exact_float_expansion_core.dir/__/YgorMeshesExactFloatExpansionCore.cc.o
 [  1%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_exact_float_expansion_core.dir/__/YgorMeshesAdaptivePredicates.cc.o
 [  1%] Linking CXX shared library ../../lib/libygor_exact_float_expansion_core.so
 [  1%] Built target ygor_exact_float_expansion_core
-[  1%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_strict.dir/BoundedOperations.cc.o
 [  3%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_facade.dir/YgorMeshesBooleanBounded.cc.o
+[  3%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_strict.dir/BoundedOperations.cc.o
 [  4%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_strict.dir/ConservativeBounds.cc.o
 [  4%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_strict.dir/ConstructionConditioning.cc.o
 [  6%] Building CXX object src/YgorMeshesBooleanBounded/CMakeFiles/ygor_mesh_boolean_bounded_strict.dir/DirectedRounding.cc.o
@@ -226,6 +226,7 @@ Assuming libstdc++fs library '/usr/lib/gcc/x86_64-linux-gnu/12/libstdc++fs.a;/us
 [ 69%] Building CXX object src/CMakeFiles/ygor.dir/YgorMeshesRemeshing.cc.o
 [ 69%] Building CXX object src/CMakeFiles/ygor.dir/YgorMeshesTetrahedralize.cc.o
 [ 71%] Building CXX object src/CMakeFiles/ygor.dir/YgorMeshesVerification.cc.o
+[ 71%] Building CXX object src/CMakeFiles/ygor.dir/YgorNetworking.cc.o
 /home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc: In instantiation of ‘[01m[Kbool[01;32m[K HasConsistentOrientation[m[K(const fv_surface_mesh<T, I>&) [35m[K[with T = float; I = unsigned int][m[K[m[K’:
 [01m[K/home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc:237:84:[m[K   required from here
 [01m[K/home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc:164:25:[m[K [01;35m[Kwarning: [m[Kunused variable ‘[01m[Kf_idx[m[K’ [[01;35m[K-Wunused-variable[m[K]
@@ -240,7 +241,6 @@ Assuming libstdc++fs library '/usr/lib/gcc/x86_64-linux-gnu/12/libstdc++fs.a;/us
 /home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc: In instantiation of ‘[01m[Kbool[01;32m[K HasConsistentOrientation[m[K(const fv_surface_mesh<T, I>&) [35m[K[with T = double; I = long unsigned int][m[K[m[K’:
 [01m[K/home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc:264:84:[m[K   required from here
 [01m[K/home/runner/work/Ygor/Ygor/src/YgorMeshesVerification.cc:164:25:[m[K [01;35m[Kwarning: [m[Kunused variable ‘[01m[Kf_idx[m[K’ [[01;35m[K-Wunused-variable[m[K]
-[ 71%] Building CXX object src/CMakeFiles/ygor.dir/YgorNetworking.cc.o
 [ 72%] Building CXX object src/CMakeFiles/ygor.dir/YgorNoise.cc.o
 [ 72%] Building CXX object src/CMakeFiles/ygor.dir/YgorOptimizeBFGS.cc.o
 [ 74%] Building CXX object src/CMakeFiles/ygor.dir/YgorOptimizeLM.cc.o
@@ -300,10 +300,7 @@ test 38
 38: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "domain"
 38: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 38: Test timeout computed to be: 1500
-38: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 1/16 Test #38: mesh_boolean_bounded_component06_domain .............***Failed    0.35 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 1/16 Test #38: mesh_boolean_bounded_component06_domain .............   Passed    0.34 sec
 test 39
       Start 39: mesh_boolean_bounded_component06_rank_morton
 
@@ -317,7 +314,7 @@ test 40
 40: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "hierarchy"
 40: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 40: Test timeout computed to be: 1500
- 3/16 Test #40: mesh_boolean_bounded_component06_hierarchy ..........   Passed    0.01 sec
+ 3/16 Test #40: mesh_boolean_bounded_component06_hierarchy ..........   Passed    0.00 sec
 test 41
       Start 41: mesh_boolean_bounded_component06_overlap
 
@@ -331,100 +328,70 @@ test 42
 42: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "traversal"
 42: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 42: Test timeout computed to be: 1500
-42: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 5/16 Test #42: mesh_boolean_bounded_component06_traversal ..........***Failed    0.34 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 5/16 Test #42: mesh_boolean_bounded_component06_traversal ..........   Passed    0.34 sec
 test 43
       Start 43: mesh_boolean_bounded_component06_known_candidates
 
 43: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "known_candidates"
 43: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 43: Test timeout computed to be: 1500
-43: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 6/16 Test #43: mesh_boolean_bounded_component06_known_candidates ...***Failed    0.68 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 6/16 Test #43: mesh_boolean_bounded_component06_known_candidates ...   Passed    0.67 sec
 test 44
       Start 44: mesh_boolean_bounded_component06_all_pairs
 
 44: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "all_pairs"
 44: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 44: Test timeout computed to be: 1500
-44: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 7/16 Test #44: mesh_boolean_bounded_component06_all_pairs ..........***Failed    0.35 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 7/16 Test #44: mesh_boolean_bounded_component06_all_pairs ..........   Passed    0.34 sec
 test 45
       Start 45: mesh_boolean_bounded_component06_provenance
 
 45: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "provenance"
 45: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 45: Test timeout computed to be: 1500
-45: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 8/16 Test #45: mesh_boolean_bounded_component06_provenance .........***Failed    0.35 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 8/16 Test #45: mesh_boolean_bounded_component06_provenance .........   Passed    0.34 sec
 test 46
       Start 46: mesh_boolean_bounded_component06_canonicalization
 
 46: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "canonicalization"
 46: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 46: Test timeout computed to be: 1500
-46: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
- 9/16 Test #46: mesh_boolean_bounded_component06_canonicalization ...***Failed    0.34 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+ 9/16 Test #46: mesh_boolean_bounded_component06_canonicalization ...   Passed    0.34 sec
 test 47
       Start 47: mesh_boolean_bounded_component06_codec_replay
 
 47: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "codec_replay"
 47: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 47: Test timeout computed to be: 1500
-47: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-10/16 Test #47: mesh_boolean_bounded_component06_codec_replay .......***Failed    0.35 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+10/16 Test #47: mesh_boolean_bounded_component06_codec_replay .......   Passed    0.37 sec
 test 48
       Start 48: mesh_boolean_bounded_component06_alternative
 
 48: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "alternative"
 48: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 48: Test timeout computed to be: 1500
-48: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-11/16 Test #48: mesh_boolean_bounded_component06_alternative ........***Failed    0.34 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+11/16 Test #48: mesh_boolean_bounded_component06_alternative ........   Passed    0.69 sec
 test 49
       Start 49: mesh_boolean_bounded_component06_mutation
 
 49: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "mutation"
 49: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 49: Test timeout computed to be: 1500
-49: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-12/16 Test #49: mesh_boolean_bounded_component06_mutation ...........***Failed    0.34 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+12/16 Test #49: mesh_boolean_bounded_component06_mutation ...........   Passed    0.35 sec
 test 50
       Start 50: mesh_boolean_bounded_component06_properties
 
 50: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "properties"
 50: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 50: Test timeout computed to be: 1500
-50: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-13/16 Test #50: mesh_boolean_bounded_component06_properties .........***Failed    0.34 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+13/16 Test #50: mesh_boolean_bounded_component06_properties .........   Passed    1.02 sec
 test 51
       Start 51: mesh_boolean_bounded_component06_adversarial
 
 51: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "adversarial"
 51: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 51: Test timeout computed to be: 1500
-51: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-14/16 Test #51: mesh_boolean_bounded_component06_adversarial ........***Failed    0.36 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+14/16 Test #51: mesh_boolean_bounded_component06_adversarial ........   Passed    0.65 sec
 test 52
       Start 52: mesh_boolean_bounded_component06_resources
 
@@ -438,37 +405,31 @@ test 53
 53: Test command: /home/runner/work/Ygor/Ygor/build/bin/ygor_mesh_boolean_broad_phase_tests "structural"
 53: Working Directory: /home/runner/work/Ygor/Ygor/build/tests/mesh_boolean_bounded
 53: Test timeout computed to be: 1500
-53: broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-16/16 Test #53: mesh_boolean_bounded_component06_structural .........***Failed    0.35 sec
-broad-phase actual work exceeds reserved work [subcode 60045, checkpoint 32]
-
+16/16 Test #53: mesh_boolean_bounded_component06_structural .........   Passed    0.34 sec
 
 The following tests passed:
+	mesh_boolean_bounded_component06_domain
 	mesh_boolean_bounded_component06_rank_morton
 	mesh_boolean_bounded_component06_hierarchy
 	mesh_boolean_bounded_component06_overlap
+	mesh_boolean_bounded_component06_traversal
+	mesh_boolean_bounded_component06_known_candidates
+	mesh_boolean_bounded_component06_all_pairs
+	mesh_boolean_bounded_component06_provenance
+	mesh_boolean_bounded_component06_canonicalization
+	mesh_boolean_bounded_component06_codec_replay
+	mesh_boolean_bounded_component06_alternative
+	mesh_boolean_bounded_component06_mutation
+	mesh_boolean_bounded_component06_properties
+	mesh_boolean_bounded_component06_adversarial
 	mesh_boolean_bounded_component06_resources
+	mesh_boolean_bounded_component06_structural
 
-25% tests passed, 12 tests failed out of 16
+100% tests passed, 0 tests failed out of 16
 
-Total Test time (real) =   4.99 sec
-
-The following tests FAILED:
-	 38 - mesh_boolean_bounded_component06_domain (Failed)
-	 42 - mesh_boolean_bounded_component06_traversal (Failed)
-	 43 - mesh_boolean_bounded_component06_known_candidates (Failed)
-	 44 - mesh_boolean_bounded_component06_all_pairs (Failed)
-	 45 - mesh_boolean_bounded_component06_provenance (Failed)
-	 46 - mesh_boolean_bounded_component06_canonicalization (Failed)
-	 47 - mesh_boolean_bounded_component06_codec_replay (Failed)
-	 48 - mesh_boolean_bounded_component06_alternative (Failed)
-	 49 - mesh_boolean_bounded_component06_mutation (Failed)
-	 50 - mesh_boolean_bounded_component06_properties (Failed)
-	 51 - mesh_boolean_bounded_component06_adversarial (Failed)
-	 53 - mesh_boolean_bounded_component06_structural (Failed)
-Errors while running CTest
+Total Test time (real) =   6.21 sec
 
 apt_status=0
 configure_status=0
 build_status=0
-test_status=8
+test_status=0
