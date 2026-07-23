@@ -58,6 +58,7 @@ template <class T> struct source_facet_point_region_record final {
   std::uint64_t parity_crossing_count = 0;
   std::vector<std::uint64_t> source_vertex_owners;
   std::vector<source_facet_boundary_edge_owner> source_edge_owners;
+  source_orientation_evidence<T> polygon_orientation_evidence{};
   std::vector<source_orientation_evidence<T>> orientation_evidence;
   std::uint32_t reserved = 0;
 };
@@ -71,7 +72,11 @@ bool valid_source_facet_point_region_record(
           contract_versions::relation_source_facet_region_policy ||
       record.sweep_axis != 1 || !record.complete_boundary_traversal ||
       !record.boundary_ownership_resolved || record.reserved != 0 ||
-      record.boundary_test_count != record.orientation_evidence.size())
+      record.boundary_test_count != record.orientation_evidence.size() ||
+      record.polygon_orientation_evidence.formula_version !=
+          contract_versions::bounded_source_polygon_kernel ||
+      (record.polygon_orientation_evidence.exact_sign != -1 &&
+       record.polygon_orientation_evidence.exact_sign != 1))
     return false;
 
   if (!std::is_sorted(record.source_vertex_owners.begin(),
@@ -266,10 +271,22 @@ classify_source_facet_point(
             relation_subcode::malformed_source_polygon,
             "Component 07 source-facet boundary repeats a source vertex identity"));
 
+  const auto orientation =
+      bounded_source_polygon_kernel<T>::polygon_orientation(polygon);
+  const int expected_orientation = static_cast<int>(polygon_orientation);
+  if (!orientation || orientation->exact_sign != expected_orientation ||
+      (orientation->bounded_sign != bounded_planar_sign::uncertain &&
+       orientation->bounded_sign != polygon_orientation))
+    return boolean_outcome<source_facet_point_region_record<T>>::failure(
+        source_facet_region_error(
+            relation_subcode::malformed_source_polygon,
+            "Component 07 frozen facet orientation disagrees with the complete polygon"));
+
   source_facet_point_region_record<T> result;
   result.source_facet = source_facet;
   result.ring = ring;
   result.query_source_identity_valid = query_source_identity_valid;
+  result.polygon_orientation_evidence = *orientation;
   result.orientation_evidence.reserve(polygon.size());
 
   std::uint64_t identity_matches = 0;
