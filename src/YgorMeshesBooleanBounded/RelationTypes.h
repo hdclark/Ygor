@@ -184,6 +184,12 @@ enum class relation_subcode : std::uint32_t {
   symbolic_ineligible = 70031,
   symbolic_geometry_change = 70032,
   symbolic_selection_boundary = 70033,
+  bounded_operation_invalid = 70034,
+  exact_relation_invalid = 70035,
+  truth_layer_mismatch = 70036,
+  source_facet_region_unresolved = 70037,
+  malformed_source_polygon = 70038,
+  source_facet_boundary_ownership = 70039,
 };
 
 inline bounded_boolean_error relation_error(
