@@ -32,6 +32,7 @@ target_compile_features(ygor_mesh_boolean_realization_verifier_isolation PRIVATE
 # Predicate-bearing Boolean sources must override repository-wide fast-math flags.
 set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanProductContract.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactArithmetic.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactKernel.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactKernelFilters.cc
