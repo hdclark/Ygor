@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: read
