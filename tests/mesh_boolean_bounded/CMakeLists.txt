@@ -163,3 +163,17 @@ foreach(broad_phase_suite
     add_test(NAME mesh_boolean_bounded_component06_${broad_phase_suite}
         COMMAND ygor_mesh_boolean_broad_phase_tests ${broad_phase_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_relation_foundation_tests
+    TestRelationFoundation.cc)
+target_include_directories(ygor_mesh_boolean_relation_foundation_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_relation_foundation_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_relation_foundation_tests)
+foreach(relation_foundation_suite graph owner canonical symbolic)
+    add_test(NAME mesh_boolean_bounded_component07_foundation_${relation_foundation_suite}
+        COMMAND ygor_mesh_boolean_relation_foundation_tests
+                ${relation_foundation_suite})
+endforeach()
