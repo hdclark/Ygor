@@ -71,6 +71,15 @@ add_library(ygor_mesh_boolean_bounded_strict
     BroadPhaseBuild.cc
     BroadPhaseCodec.cc
     BroadPhaseVerifier.cc
+    RelationKeys.cc
+    RelationPreflight.cc
+    RelationRequestGraph.cc
+    RelationCanonicalization.cc
+    RelationEventSeeds.cc
+    SymbolicPerturbation.cc
+    RelationBuild.cc
+    RelationCodec.cc
+    RelationVerifier.cc
     ToleranceBudget.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
