@@ -1,5 +1,6 @@
 #include "BroadPhaseFixtures.h"
 
+#include <cfenv>
 #include <iostream>
 #include <map>
 #include <string>
@@ -25,6 +26,11 @@ int main(int argc, char **argv) {
       {"structural", &broad_phase_tests::test_structural_performance},
   };
   try {
+    if (std::fesetenv(FE_DFL_ENV) != 0 ||
+        std::fesetround(FE_TONEAREST) != 0) {
+      std::cerr << "unable to establish broad-phase floating environment\n";
+      return 2;
+    }
     if (argc != 2 || tests.find(argv[1]) == tests.end()) {
       std::cerr << "expected one broad-phase suite name\n";
       return 2;

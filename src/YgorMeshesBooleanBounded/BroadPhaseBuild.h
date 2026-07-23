@@ -113,6 +113,10 @@ public:
           !build_primitives_and_hierarchies() || !count_and_materialize() ||
           !canonicalize_and_verify())
         return failure();
+      // Construct the immutable publication handle before the no-fail commit
+      // boundary. Moving a shared_ptr after commit is non-allocating.
+      auto published = std::shared_ptr<const canonical_candidate_stream<T, I>>(
+          std::move(artifact_));
       if (!transaction_.begin_join() || !transaction_.begin_verify() ||
           !transaction_.ready() || !transaction_.commit()) {
         fail(broad_phase_subcode::transaction_failure,
@@ -121,8 +125,6 @@ public:
              broad_phase_checkpoint::transaction_commit);
         return failure();
       }
-      auto published = std::shared_ptr<const canonical_candidate_stream<T, I>>(
-          std::move(artifact_));
       return boolean_outcome<
           std::shared_ptr<const canonical_candidate_stream<T, I>>>::success(
           std::move(published));
@@ -229,6 +231,14 @@ private:
         !broad_phase_build_detail::checked_accumulate(node_edge_work_b, traversal_work) ||
         !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
         !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
         !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
         !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
         traversal_work > capabilities_.maximum_work_units) {
