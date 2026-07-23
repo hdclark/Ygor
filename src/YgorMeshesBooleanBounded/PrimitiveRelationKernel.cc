@@ -40,6 +40,15 @@ bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
     return false;
   }
 
+  const bool exact_formula_requested =
+      record.exact_formula !=
+      static_cast<std::uint16_t>(exact_relation_formula_code::invalid);
+  if ((exact_formula_requested &&
+       record.exact_relation == exact_relation_status::unavailable) ||
+      (!exact_formula_requested &&
+       record.exact_relation != exact_relation_status::unavailable))
+    return false;
+
   if ((record.bounded_sign == bounded_sign_status::definitely_negative &&
        (record.exact_relation == exact_relation_status::exact_zero ||
         record.exact_relation == exact_relation_status::exact_positive)) ||
