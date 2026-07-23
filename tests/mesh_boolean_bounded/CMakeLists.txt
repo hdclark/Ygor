@@ -177,3 +177,25 @@ foreach(relation_foundation_suite graph owner canonical symbolic)
         COMMAND ygor_mesh_boolean_relation_foundation_tests
                 ${relation_foundation_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_relation_truth_tests
+    TestRelationTruthLayers.cc)
+target_include_directories(ygor_mesh_boolean_relation_truth_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_relation_truth_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_relation_truth_tests)
+add_test(NAME mesh_boolean_bounded_component07_truth_layers
+    COMMAND ygor_mesh_boolean_relation_truth_tests)
+
+add_executable(ygor_mesh_boolean_source_facet_region_tests
+    TestSourceFacetRegionRelations.cc)
+target_include_directories(ygor_mesh_boolean_source_facet_region_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_source_facet_region_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_source_facet_region_tests)
+add_test(NAME mesh_boolean_bounded_component07_source_facet_region
+    COMMAND ygor_mesh_boolean_source_facet_region_tests)
