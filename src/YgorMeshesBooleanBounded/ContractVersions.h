@@ -119,6 +119,26 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_duplicate_policy = 1;
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
+    // Component 07 canonical relation graph and symbolic perturbation.
+    static constexpr std::uint16_t relation_artifact_schema = 1;
+    static constexpr std::uint16_t relation_provider = 1;
+    static constexpr std::uint16_t relation_graph_policy = 1;
+    static constexpr std::uint16_t relation_family_precedence_policy = 1;
+    static constexpr std::uint16_t relation_truth_policy = 1;
+    static constexpr std::uint16_t relation_feature_key_schema = 1;
+    static constexpr std::uint16_t relation_request_key_schema = 1;
+    static constexpr std::uint16_t relation_event_seed_key_schema = 1;
+    static constexpr std::uint16_t relation_request_graph_schema = 1;
+    static constexpr std::uint16_t relation_construction_schema = 1;
+    static constexpr std::uint16_t relation_symbolic_eligibility_schema = 1;
+    static constexpr std::uint16_t relation_symbolic_decision_schema = 1;
+    static constexpr std::uint16_t relation_event_seed_schema = 1;
+    static constexpr std::uint16_t relation_candidate_disposition_schema = 1;
+    static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
+    static constexpr std::uint16_t relation_selection_boundary_policy = 1;
+    static constexpr std::uint16_t relation_codec = 1;
+    static constexpr std::uint16_t relation_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -130,7 +150,7 @@ enum class stage_id : std::uint16_t {
     execution_service = 22, input_validation_a = 23, input_validation_b = 24,
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
-    broad_phase = 29,
+    broad_phase = 29, relation_kernel = 30,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,
