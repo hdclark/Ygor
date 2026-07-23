@@ -1,0 +1,39 @@
+name: Component 06 finalize
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Finalize Component 06 tracker state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          tracker = Path('tracker.md')
+          text = tracker.read_text()
+          old = '- [ ] Component 6: broad phase, gated against exhaustive enumeration.'
+          new = '- [x] Component 6: broad phase, gated against exhaustive enumeration.'
+          if text.count(old) != 1:
+              raise SystemExit('Component 06 tracker entry is not uniquely pending')
+          tracker.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/component06-validation.log
+          rm -f .github/workflows/component06-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --check
+          git commit -m "Complete component 06 broad-phase collision enumeration (plan 06)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
