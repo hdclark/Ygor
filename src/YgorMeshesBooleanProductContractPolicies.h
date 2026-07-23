@@ -256,8 +256,7 @@ struct product_error {
   std::uint32_t subcode = 0;
   std::string message_key;
   std::string detail;
-  std::optional<backend_id> backend;
-  std::optional<digest> backend_capability_digest;
+  std::optional<backend_identity> backend;
   digest replay_binding_digest;
 };
 
