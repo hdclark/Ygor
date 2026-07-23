@@ -29,6 +29,10 @@ The foundation establishes the fail-closed first implementation slice required b
 
 The next Plan 07 slice is now implemented:
 
+- Component 03 exposes `valid_predicate_result` so downstream consumers can
+  independently reconstruct and validate predicate schema, owner binding,
+  bounded sign, disposition, width, margin, uncertainty contributors, and trace
+  identity without reaching into Component 03 implementation details;
 - `PrimitiveRelationKernel` adapts Component 03 bounded scalar and exact-relation
   evidence without collapsing the four independent truth layers: rounded nominal
   bits, bounded sign, exact stored-coordinate relation, and consumer disposition;
@@ -40,15 +44,17 @@ The next Plan 07 slice is now implemented:
 - `SourceFacetRegionKernel` classifies a point against the complete original
   source-facet boundary with a fixed Y-axis lower-inclusive/upper-exclusive
   parity rule and one retained orientation record per boundary edge;
+- the complete polygon orientation is independently reconstructed and required
+  to agree with the frozen source-facet orientation supplied by the predecessor;
 - original source-edge and source-vertex ownership is retained canonically,
   including both incident boundary edges at a source vertex;
 - source identity that disagrees with accepted projected geometry is rejected;
 - inherited uncertainty that can change boundary, parity, or region semantics is
   rejected rather than guessed; and
 - independent record-invariant checks and focused strict C++17 tests cover exact
-  truth-layer preservation, formula/evaluation failures, convex and concave
-  polygons, reversed ring orientation, edge/vertex ownership, and uncertain
-  boundary rejection.
+  truth-layer preservation, formula/evaluation failures, mutated predicate
+  evidence, convex and concave polygons, reversed ring orientation, frozen
+  orientation mismatch, edge/vertex ownership, and uncertain boundary rejection.
 
 No new low-level numerical formula was embedded in Component 07. The primitive
 adapter consumes the registered Component 03 truth services, and the point-region
