@@ -102,7 +102,7 @@ point-region header and behavior remain source compatible.
 ## Implemented canonical source-edge/source-edge numerical slice
 
 The Plan 07 source-edge/source-edge numerical kernel is now implemented as a
-self-contained, fail-closed provider ready for request-graph integration:
+self-contained, fail-closed provider:
 
 - exact stored-coordinate bindings classify direction parallelism, point/line
   collinearity, and four-point coplanarity without treating rounded differences
@@ -139,19 +139,53 @@ self-contained, fail-closed provider ready for request-graph integration:
   cases for every support/contact category, exact-binding checks, wrong-owner and
   internal-diagonal rejection, record mutation, and unresolved-direction failure.
 
-This slice intentionally does not bypass the existing transactional boundary.
-The non-empty `RelationBuild` path remains fail closed until these records are
-inserted into the canonical request graph and reconciled with authoritative
-construction ownership and downstream event publication.
+## Implemented candidate-derived source-edge request integration slice
+
+The standalone source-edge/source-edge provider is now connected to the
+non-empty transactional path without permitting a partial Component 07 artifact:
+
+- every canonical broad-phase edge/source-triangle candidate is validated against
+  the immutable primitive tables and canonical manifold predecessor;
+- public candidate source edges are paired with every original source edge on the
+  opposite source triangle, while facet-internal diagonals are excluded from
+  public ownership and produce no public source-edge request;
+- candidate discoveries are emitted as canonical request proposals, then sorted,
+  grouped, and deduplicated by the existing relation request graph so duplicate
+  discoveries share exactly one numerical producer;
+- canonical manifold vertex bounds are imported as owner-bound bounded points
+  with deterministic provenance, lineage, uncertainty contributors, and stable
+  source-edge feature keys;
+- every unique source-edge/source-edge request is evaluated exactly once by the
+  qualified numerical kernel, and each candidate receives a deterministic range
+  of all relations discovered from its opposite source-triangle boundary;
+- owner-free integration semantics cover the graph, detailed numerical records,
+  candidate coverage ranges, evaluation count, and a mutation-sensitive digest;
+- an independent verifier reconstructs candidate proposals, rebuilds the request
+  graph, reimports endpoint geometry, re-evaluates every numerical relation, and
+  checks complete candidate coverage, canonical ranges, digest integrity, and
+  runtime-owner exclusion; and
+- a focused C++17 qualification target covers overlapping and separated fixtures,
+  compute-once producer sharing, record mutation rejection, independent
+  reconstruction, owner exclusion, and the non-empty no-partial-publication gate.
+
+`RelationBuild` now performs this complete source-edge/source-edge stage for a
+non-empty candidate stream before failing closed at the next unavailable family,
+`source_edge_source_facet`. The verified transaction-local stage is discarded on
+that failure; no incomplete `signed_feature_relations` artifact is published.
+
+The focused target was added to CMake, but it could not be executed in the current
+implementation environment because no repository checkout or usable PR/Actions
+runner was available. This is recorded as outstanding validation rather than
+being represented as passing evidence.
 
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
 1. Complete any genuinely missing Component 03 formula/capability bindings and
-   integrate the primitive truth adapter, source-facet records, and the new
-   source-edge/source-edge records into the non-empty `RelationBuild` transaction,
-   dependency graph, canonical artifact, codec, and independent verifier.
+   integrate the primitive truth adapter, source-facet records, and the verified
+   transaction-local source-edge stage into the final non-empty canonical
+   artifact, codec, independent verifier, and decode/replay surface.
 2. Complete source-edge/source-facet composites, including endpoint, tangent,
    coplanar, boundary-overlap, and multi-event cases.
 3. Complete source-facet/source-facet support, transverse carriers, coplanar
@@ -162,8 +196,9 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 5. Complete all symbolic eligibility categories, frozen matrix lookups, event
    seeds, incidence, candidate dispositions, canonical partitions, replay
    diagnostics, and decode support.
-6. Add the independent exact-rational/exhaustive oracle, complete known-answer
-   and mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
+6. Execute the new candidate-derived source-edge integration target, then add the
+   independent exact-rational/exhaustive oracle, complete known-answer and
+   mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
    structural performance gates, and serial/parallel equivalence evidence.
 7. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
