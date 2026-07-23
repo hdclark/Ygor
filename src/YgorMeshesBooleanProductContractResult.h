@@ -69,6 +69,7 @@ struct realization_certificate_reference {
   std::uint16_t schema = product_contract_schema_version;
   product_realization_semantics semantics =
       product_realization_semantics::not_requested;
+  backend_identity backend;
   digest exact_result_digest;
   digest certificate_digest;
 };
@@ -115,7 +116,7 @@ template <class T, class I> struct certified_mesh_payload {
 template <class T, class I> struct boolean_product_result {
   product_schema_versions schemas;
   result_representation representation = result_representation::exact_stratified;
-  operation selected_operation = operation::regularized_union;
+  operation_contract operation{operation::regularized_union};
   backend_provenance backend;
   preparation_provenance preparation;
   exact_result_handle exact_result;
@@ -151,7 +152,8 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
     return fail(product_error_code::stale_binding,
                 "product_result.exact_result_missing");
   const auto &exact = r.exact_result.get();
-  if (exact.selected_operation != r.selected_operation ||
+  const auto selected_operation = r.operation.selected_operation();
+  if (exact.selected_operation != selected_operation ||
       !same_backend_identity(exact.backend.producer, r.backend.producer) ||
       exact.canonical_bytes.empty() ||
       product_digest_is_zero(exact.canonical_digest))
@@ -191,10 +193,12 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
     if (r.mesh->semantics != expected_semantics ||
         r.mesh->certificate.schema != product_contract_schema_version ||
         r.mesh->certificate.semantics != expected_semantics ||
+        !same_backend_identity(r.mesh->certificate.backend,
+                               r.backend.producer) ||
         r.mesh->exact_result_digest != exact.canonical_digest ||
         r.mesh->certificate.exact_result_digest != exact.canonical_digest ||
         product_digest_is_zero(r.mesh->certificate.certificate_digest) ||
-        r.mesh->success->selected_operation != r.selected_operation)
+        r.mesh->success->selected_operation != selected_operation)
       return fail(product_error_code::stale_binding,
                   "product_result.realization_binding");
   }
@@ -231,6 +235,25 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
                 "product_result.qualified_backend_without_manifest");
   }
   return true;
+}
+
+template <class T, class I>
+using boolean_product_result_handle =
+    std::shared_ptr<const boolean_product_result<T, I>>;
+
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+freeze_boolean_product_result(boolean_product_result<T, I> result) {
+  auto valid = validate_product_result(result);
+  if (!valid.has_value())
+    return valid.error();
+  try {
+    return std::make_shared<const boolean_product_result<T, I>>(
+        std::move(result));
+  } catch (const std::bad_alloc &) {
+    return make_product_error(product_error_code::resource_limit,
+                              "product_result.allocation");
+  }
 }
 
 struct product_replay_binding {
