@@ -139,6 +139,19 @@ void test_uncertainty_fails_closed() {
         "unresolved boundary has stable Component 07 failure");
 }
 
+void test_orientation_mismatch_rejected() {
+  const auto polygon = square();
+  auto result = classify_source_facet_point(
+      4, 2, point(300, 0.5, 0.5), false, polygon,
+      bounded_planar_sign::negative);
+  check(!result.has_value(),
+        "frozen orientation that disagrees with the polygon must fail");
+  check(result.error() &&
+            result.error()->subcode == static_cast<std::uint32_t>(
+                                         relation_subcode::malformed_source_polygon),
+        "orientation mismatch has stable Component 07 failure");
+}
+
 void test_identity_geometry_mismatch_rejected() {
   const auto polygon = square();
   auto query = point(10, 0.25, 0.25);
@@ -158,6 +171,7 @@ int main() {
   test_concave_and_reversed_rings();
   test_boundary_ownership();
   test_uncertainty_fails_closed();
+  test_orientation_mismatch_rejected();
   test_identity_geometry_mismatch_rejected();
   if (failures != 0)
     std::cerr << failures << " Component 07 source-facet region checks failed\n";
