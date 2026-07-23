@@ -41,6 +41,55 @@ struct source_facet_boundary_edge_owner final {
   }
 };
 
+template <class T>
+bool valid_source_orientation_evidence(
+    const source_orientation_evidence<T> &evidence) noexcept {
+  if (evidence.formula_version !=
+          contract_versions::bounded_source_polygon_kernel ||
+      !finite_bits(evidence.determinant.lower()) ||
+      !finite_bits(evidence.determinant.upper()) ||
+      finite_numeric_less(evidence.determinant.upper(),
+                          evidence.determinant.lower()))
+    return false;
+
+  switch (evidence.exact_sign) {
+  case -1:
+  case 0:
+  case 1:
+    break;
+  default:
+    return false;
+  }
+  switch (evidence.bounded_sign) {
+  case bounded_planar_sign::negative:
+  case bounded_planar_sign::uncertain:
+  case bounded_planar_sign::positive:
+    break;
+  default:
+    return false;
+  }
+
+  const auto reconstructed_bounded_sign =
+      finite_numeric_less(T(0), evidence.determinant.lower())
+          ? bounded_planar_sign::positive
+          : finite_numeric_less(evidence.determinant.upper(), T(0))
+                ? bounded_planar_sign::negative
+                : bounded_planar_sign::uncertain;
+  if (reconstructed_bounded_sign != evidence.bounded_sign)
+    return false;
+
+  if ((evidence.bounded_sign == bounded_planar_sign::negative &&
+       evidence.exact_sign != -1) ||
+      (evidence.bounded_sign == bounded_planar_sign::positive &&
+       evidence.exact_sign != 1) ||
+      (evidence.exact_sign == 0 &&
+       evidence.bounded_sign != bounded_planar_sign::uncertain) ||
+      (evidence.exact_sign == 0 &&
+       !evidence.determinant.contains(T(0))))
+    return false;
+  return true;
+}
+
 template <class T> struct source_facet_point_region_record final {
   std::uint16_t schema_version =
       contract_versions::relation_source_facet_region_schema;
@@ -73,11 +122,16 @@ bool valid_source_facet_point_region_record(
       record.sweep_axis != 1 || !record.complete_boundary_traversal ||
       !record.boundary_ownership_resolved || record.reserved != 0 ||
       record.boundary_test_count != record.orientation_evidence.size() ||
-      record.polygon_orientation_evidence.formula_version !=
-          contract_versions::bounded_source_polygon_kernel ||
+      !valid_source_orientation_evidence(
+          record.polygon_orientation_evidence) ||
+      record.polygon_orientation_evidence.bounded_sign ==
+          bounded_planar_sign::uncertain ||
       (record.polygon_orientation_evidence.exact_sign != -1 &&
        record.polygon_orientation_evidence.exact_sign != 1))
     return false;
+  for (const auto &evidence : record.orientation_evidence)
+    if (!valid_source_orientation_evidence(evidence))
+      return false;
 
   if (!std::is_sorted(record.source_vertex_owners.begin(),
                       record.source_vertex_owners.end()) ||
@@ -274,7 +328,8 @@ classify_source_facet_point(
   const auto orientation =
       bounded_source_polygon_kernel<T>::polygon_orientation(polygon);
   const int expected_orientation = static_cast<int>(polygon_orientation);
-  if (!orientation || orientation->exact_sign != expected_orientation ||
+  if (!orientation || !valid_source_orientation_evidence(*orientation) ||
+      orientation->exact_sign != expected_orientation ||
       (orientation->bounded_sign != bounded_planar_sign::uncertain &&
        orientation->bounded_sign != polygon_orientation))
     return boolean_outcome<source_facet_point_region_record<T>>::failure(
@@ -319,6 +374,11 @@ classify_source_facet_point(
 
     const auto evidence =
         bounded_source_polygon_kernel<T>::orientation(a, b, query);
+    if (!valid_source_orientation_evidence(evidence))
+      return boolean_outcome<source_facet_point_region_record<T>>::failure(
+          source_facet_region_error(
+              relation_subcode::malformed_source_polygon,
+              "Component 07 source-facet orientation evidence is invalid"));
     result.orientation_evidence.push_back(evidence);
     ++result.boundary_test_count;
 
