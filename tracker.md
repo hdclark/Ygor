@@ -5,7 +5,7 @@
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
 - [x] Component 6: broad phase, gated against exhaustive enumeration.
-- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix. Foundation, four-layer primitive truth adapter, point/source-facet classification, source-facet segment partitioning, deterministic witnesses, and triangle-local reconciliation are implemented; remaining numerical relation families and qualification are tracked in `component_07_implementation_status.md`.
+- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix. Foundation, four-layer primitive truth adapter, point/source-facet classification, source-facet segment partitioning, deterministic witnesses, triangle-local reconciliation, and the canonical source-edge/source-edge numerical kernel with qualification are implemented; non-empty request-graph integration and the remaining relation/symbolic families are tracked in `component_07_implementation_status.md`.
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.
