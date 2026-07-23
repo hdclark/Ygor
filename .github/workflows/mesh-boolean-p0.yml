@@ -1,0 +1,51 @@
+name: Mesh Boolean P0 contracts
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanProductContract.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p0.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  product-contract:
+    name: ${{ matrix.compiler }} product contract
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p0 -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build contract tests
+        run: >-
+          cmake --build build-p0
+          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract
+          --parallel 2
+      - name: Run contract tests
+        run: >-
+          ctest --test-dir build-p0 --output-on-failure
+          -R '^(MeshesBooleanContract|MeshesBooleanProductContract)$'
+          --timeout 360
