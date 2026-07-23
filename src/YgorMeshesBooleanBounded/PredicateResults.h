@@ -82,4 +82,62 @@ boolean_outcome<predicate_result<T>> assemble_predicate_result(
     return boolean_outcome<predicate_result<T>>::success(std::move(out));
 }
 
+namespace predicate_results_detail {
+inline bool same_uncertainty_contributors(
+    const uncertainty_contributors &a,
+    const uncertainty_contributors &b) noexcept {
+    return to_bits(a.inherited_a) == to_bits(b.inherited_a) &&
+           to_bits(a.inherited_b) == to_bits(b.inherited_b) &&
+           to_bits(a.machine_floor) == to_bits(b.machine_floor) &&
+           to_bits(a.construction) == to_bits(b.construction) &&
+           to_bits(a.conditioning) == to_bits(b.conditioning) &&
+           to_bits(a.conversion) == to_bits(b.conversion) &&
+           to_bits(a.prior_cleanup) == to_bits(b.prior_cleanup) &&
+           to_bits(a.current_cleanup) == to_bits(b.current_cleanup);
+}
+} // namespace predicate_results_detail
+
+template<class T>
+bool valid_predicate_result(const predicate_result<T> &value) noexcept {
+    static_assert(supported_precision_scalar_v<T>);
+    if (value.schema_version != contract_versions::predicate_truth_layers ||
+        value.exact_relation.schema_version != contract_versions::predicate_truth_layers ||
+        !bounded_operations_detail::bounded_scalar_valid(value.rounded_and_bounded) ||
+        !bounded_operations_detail::finite_contributors(value.rounded_and_bounded.contributors) ||
+        !bounded_operations_detail::same_bound_owner(value.owner,
+                                                      value.rounded_and_bounded.identity.owner) ||
+        !bounded_operations_detail::same_bound_owner(value.owner,
+                                                      value.exact_relation.owner) ||
+        value.exact_relation.status == exact_relation_status::invalid)
+        return false;
+
+    const auto classified =
+        classify_bounded_sign(value.rounded_and_bounded.uncertainty_enclosure);
+    if (classified == bounded_sign_status::invalid ||
+        classified != value.bounded_sign)
+        return false;
+
+    const bool alternate_available =
+        value.disposition == predicate_disposition::try_permitted_alternate;
+    if (assemble_predicate_disposition(value.bounded_sign,
+                                       value.exact_relation.status,
+                                       alternate_available) != value.disposition)
+        return false;
+
+    const auto &interval = value.rounded_and_bounded.uncertainty_enclosure;
+    const auto width = directed_subtract(interval.upper(), interval.lower());
+    if (!width || to_bits(width.value.upper) != to_bits(value.uncertainty_width))
+        return false;
+
+    T expected_margin = T(0);
+    if (value.bounded_sign == bounded_sign_status::definitely_negative)
+        expected_margin = -interval.upper();
+    if (value.bounded_sign == bounded_sign_status::definitely_positive)
+        expected_margin = interval.lower();
+    return to_bits(expected_margin) == to_bits(value.separation_margin) &&
+           predicate_results_detail::same_uncertainty_contributors(
+               value.contributors, value.rounded_and_bounded.contributors) &&
+           value.trace_root == value.rounded_and_bounded.identity.trace_root;
+}
+
 } // namespace ygor::mesh_boolean::bounded
