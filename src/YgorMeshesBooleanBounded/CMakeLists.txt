@@ -117,4 +117,5 @@ target_sources(ygor PRIVATE $<TARGET_OBJECTS:ygor_mesh_boolean_bounded_facade>)
 
 if(BUILD_TESTING)
     add_subdirectory("${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded" "${CMAKE_BINARY_DIR}/tests/mesh_boolean_bounded")
+    include("${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/Component07SourceEdge.cmake")
 endif()
