@@ -61,6 +61,44 @@ adapter consumes the registered Component 03 truth services, and the point-regio
 classifier consumes `BoundedSourcePolygonKernel::orientation` and its exact
 stored-coordinate relation evidence.
 
+## Implemented source-facet segment partition and reconciliation slice
+
+The next coherent Plan 07 slice is also implemented:
+
+- source-facet segment partitioning consumes a complete set of canonical
+  original-boundary contact constructions and explicitly does not recompute
+  source-edge/source-edge predicates inside the polygon kernel;
+- the closed query-segment parameter domain is partitioned by point contacts and
+  boundary-overlap endpoints while retaining authoritative contact lineage,
+  bounded parameter enclosures, projected constructions, source-vertex owners,
+  and original source-edge owners;
+- canonical breakpoint order is accepted only when complete parameter
+  enclosures prove strict separation, or when exact singleton parameters and
+  projected constructions are identical; overlapping unresolved enclosures fail
+  closed with a typed Component 07 error rather than being nominally sorted;
+- every open parameter cell receives a deterministic certified dyadic witness
+  from a fixed finite sequence, and the witness is reclassified against the
+  complete original source polygon as interior, outside, or an explicit
+  original-edge overlap;
+- overlap endpoints, zero-length point contacts, endpoint masks, complete
+  boundary traversal, and original-boundary ownership are preserved in typed
+  partition records with mutation-sensitive independent invariants;
+- triangle-local witnesses are absorbed only into matching public breakpoints or
+  intervals, while internal diagonals are restricted to bookkeeping-only
+  witnesses and are forbidden from becoming public owners;
+- canonical semantic bytes and the semantic digest deliberately exclude
+  triangle-local triangulation bookkeeping, while retaining the full public
+  source-feature partition; and
+- focused strict C++17 qualification covers transverse partitions, boundary
+  overlaps, unresolved parameter order, digest/invariant mutation, illegal
+  internal-diagonal ownership, and equal public semantics under distinct legal
+  triangulations.
+
+The segment partition implementation is decomposed into private Component 07
+headers for records, canonicalization, validation, and construction. The strict
+Component 07 translation unit includes the complete provider, and the public
+point-region header and behavior remain source compatible.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -68,22 +106,20 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 1. Complete all genuinely missing Component 03 formula/capability bindings and
    integrate the primitive truth adapter into the non-empty `RelationBuild`
    transaction and request graph.
-2. Complete source-facet segment partitioning, deterministic interval witnesses,
-   triangle-local reconciliation, and alternative-triangulation qualification.
-3. Canonical source-edge/source-edge relations and bounded constructions.
-4. Complete source-edge/source-facet composites, including endpoint, tangent,
+2. Canonical source-edge/source-edge relations and bounded constructions.
+3. Complete source-edge/source-facet composites, including endpoint, tangent,
    coplanar, and multi-event cases.
-5. Source-facet/source-facet support, transverse carriers, coplanar overlay,
+4. Source-facet/source-facet support, transverse carriers, coplanar overlay,
    containment, equality, and distinct sheet occurrences.
-6. Authoritative construction selection, residual and conditioning evidence,
+5. Authoritative construction selection, residual and conditioning evidence,
    numeric crossing multiplicity, half-open source-fan ownership, and local
    conservation.
-7. Full symbolic eligibility categories, event seeds, incidence, candidate
+6. Full symbolic eligibility categories, event seeds, incidence, candidate
    dispositions, canonical partitions, replay diagnostics, and decode support.
-8. The independent exact-rational/exhaustive oracle, all known-answer and
+7. The independent exact-rational/exhaustive oracle, all known-answer and
    mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
    structural performance gates, and serial/parallel equivalence evidence.
-9. Component 08-10 handoff qualification proving no authoritative geometric
+8. Component 08-10 handoff qualification proving no authoritative geometric
    recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed
