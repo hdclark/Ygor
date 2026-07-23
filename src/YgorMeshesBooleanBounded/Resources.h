@@ -27,7 +27,10 @@ enum class resource_kind : std::uint8_t {
     directed_rounding_evidence=32,exact_expansion_limbs=33,precision_trace_nodes=34,
     precision_trace_parents=35,precision_ledger_records=36,budget_proposals=37,
     budget_reservations=38,budget_commits=39,finite_bounds=40,precision_import_records=41,
-    precision_codec_bytes=42,precision_verifier_work=43,count=44
+    precision_codec_bytes=42,precision_verifier_work=43,
+    relation_requests=44,relation_dependencies=45,relation_consumers=46,
+    relation_constructions=47,relation_overlays=48,relation_interval_partitions=49,
+    relation_event_incidence=50,count=51
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
@@ -51,4 +54,4 @@ class resource_manager {
     void release(resource_kind,std::uint64_t)noexcept;bool commit(resource_kind,std::uint64_t,std::uint64_t)noexcept;
     mutable std::mutex mutex_;std::array<resource_counter,static_cast<std::size_t>(resource_kind::count)> counters_{};friend class resource_reservation;
 };
-}
+} 
