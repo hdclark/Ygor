@@ -26,7 +26,8 @@ bool triangle_witness_valid(
   if (witness.schema_version !=
           contract_versions::relation_triangle_local_reconciliation_schema ||
       witness.triangle == 0 || witness.local_witness == 0 ||
-      witness.reserved != 0 || !interval_valid(witness.parameter))
+      witness.reserved != 0 || !interval_valid(witness.parameter) ||
+      !nonzero_digest(witness.exact_triangulation_digest))
     return false;
 
   auto vertices = witness.source_vertex_owners;
@@ -134,9 +135,10 @@ bool valid_source_facet_segment_partition_record(
         !unit_parameter(contact.first_parameter,
                         contact.first_rounded_parameter) ||
         !valid_projected_point(contact.first_point) ||
-        !exact_point_on_query_segment(record.segment_start,
-                                      record.segment_end,
-                                      contact.first_point))
+        !parameter_matches_projected_point(
+            record.segment_start, record.segment_end,
+            contact.first_rounded_parameter, contact.first_parameter,
+            contact.first_point))
       return false;
 
     auto first_vertices = contact.first_source_vertex_owners;
@@ -190,9 +192,10 @@ bool valid_source_facet_segment_partition_record(
       if (!unit_parameter(contact.second_parameter,
                           contact.second_rounded_parameter) ||
           !valid_projected_point(contact.second_point) ||
-          !exact_point_on_query_segment(record.segment_start,
-                                        record.segment_end,
-                                        contact.second_point) ||
+          !parameter_matches_projected_point(
+              record.segment_start, record.segment_end,
+              contact.second_rounded_parameter, contact.second_parameter,
+              contact.second_point) ||
           !definitely_before(contact.first_parameter,
                              contact.second_parameter) ||
           contact.overlap_source_edge_owners.empty())
@@ -223,6 +226,10 @@ bool valid_source_facet_segment_partition_record(
     if (!unit_parameter(breakpoint.parameter,
                         breakpoint.rounded_parameter) ||
         !valid_projected_point(breakpoint.point) ||
+        !parameter_matches_projected_point(
+            record.segment_start, record.segment_end,
+            breakpoint.rounded_parameter, breakpoint.parameter,
+            breakpoint.point) ||
         !valid_source_facet_point_region_record(breakpoint.region) ||
         breakpoint.region.source_facet != record.source_facet ||
         breakpoint.region.ring != record.ring ||
@@ -232,6 +239,22 @@ bool valid_source_facet_segment_partition_record(
         std::adjacent_find(breakpoint.contact_lineages.begin(),
                            breakpoint.contact_lineages.end()) !=
             breakpoint.contact_lineages.end())
+      return false;
+    if (breakpoint.segment_endpoint_mask > 3 ||
+        (breakpoint.segment_endpoint_mask == 0 &&
+         breakpoint.contact_lineages.empty()))
+      return false;
+    if ((breakpoint.segment_endpoint_mask & 1U) != 0 &&
+        (!singleton(breakpoint.parameter) ||
+         breakpoint.parameter.lower() != T(0) ||
+         !same_projected_geometry(breakpoint.point,
+                                  record.segment_start)))
+      return false;
+    if ((breakpoint.segment_endpoint_mask & 2U) != 0 &&
+        (!singleton(breakpoint.parameter) ||
+         breakpoint.parameter.lower() != T(1) ||
+         !same_projected_geometry(breakpoint.point,
+                                  record.segment_end)))
       return false;
     if (i != 0 &&
         !definitely_before(record.breakpoints[i - 1].parameter,
@@ -251,6 +274,10 @@ bool valid_source_facet_segment_partition_record(
             record.breakpoints[interval.left_breakpoint].parameter,
             record.breakpoints[interval.right_breakpoint].parameter) ||
         !valid_projected_point(interval.witness_point) ||
+        !parameter_matches_projected_point(
+            record.segment_start, record.segment_end,
+            interval.rounded_witness_parameter,
+            interval.witness_parameter, interval.witness_point) ||
         !valid_source_facet_point_region_record(
             interval.witness_region) ||
         interval.witness_region.source_facet != record.source_facet ||
