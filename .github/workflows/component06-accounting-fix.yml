@@ -1,0 +1,98 @@
+name: Component 06 accounting fix
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply reviewed Component 06 fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          build = Path('src/YgorMeshesBooleanBounded/BroadPhaseBuild.h')
+          text = build.read_text()
+          old_publish = '''      if (!transaction_.begin_join() || !transaction_.begin_verify() ||
+                !transaction_.ready() || !transaction_.commit()) {
+              fail(broad_phase_subcode::transaction_failure,
+                   bounded_boolean_error_category::internal_invariant_error,
+                   "broad-phase transaction could not commit",
+                   broad_phase_checkpoint::transaction_commit);
+              return failure();
+            }
+            auto published = std::shared_ptr<const canonical_candidate_stream<T, I>>(
+                std::move(artifact_));'''
+          new_publish = '''      // Construct the immutable publication handle before the no-fail commit
+            // boundary. Moving a shared_ptr after commit is non-allocating.
+            auto published = std::shared_ptr<const canonical_candidate_stream<T, I>>(
+                std::move(artifact_));
+            if (!transaction_.begin_join() || !transaction_.begin_verify() ||
+                !transaction_.ready() || !transaction_.commit()) {
+              fail(broad_phase_subcode::transaction_failure,
+                   bounded_boolean_error_category::internal_invariant_error,
+                   "broad-phase transaction could not commit",
+                   broad_phase_checkpoint::transaction_commit);
+              return failure();
+            }'''
+          if old_publish not in text:
+              raise SystemExit('publication block not found')
+          text = text.replace(old_publish, new_publish, 1)
+
+          old_work = '''        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                traversal_work > capabilities_.maximum_work_units) {'''
+          new_work = '''        !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[0], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                !broad_phase_build_detail::checked_accumulate(preflight_.pair_products[1], traversal_work) ||
+                traversal_work > capabilities_.maximum_work_units) {'''
+          if old_work not in text:
+              raise SystemExit('work reservation block not found')
+          build.write_text(text.replace(old_work, new_work, 1))
+
+          main = Path('tests/mesh_boolean_bounded/TestBroadPhaseMain.cc')
+          text = main.read_text()
+          if '#include <cfenv>\n' not in text:
+              text = text.replace('#include "BroadPhaseFixtures.h"\n\n',
+                                  '#include "BroadPhaseFixtures.h"\n\n#include <cfenv>\n', 1)
+          old_try = '''  try {
+              if (argc != 2 || tests.find(argv[1]) == tests.end()) {'''
+          new_try = '''  try {
+              if (std::fesetenv(FE_DFL_ENV) != 0 ||
+                  std::fesetround(FE_TONEAREST) != 0) {
+                std::cerr << "unable to establish broad-phase floating environment\\n";
+                return 2;
+              }
+              if (argc != 2 || tests.find(argv[1]) == tests.end()) {'''
+          if old_try not in text:
+              raise SystemExit('test main setup block not found')
+          main.write_text(text.replace(old_try, new_try, 1))
+          PY
+          rm -f .github/workflows/component06-accounting-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Fix Component 06 work accounting and publication boundary"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
