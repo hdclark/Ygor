@@ -1,11 +1,15 @@
 #include <YgorMeshesBooleanProductContract.h>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <type_traits>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 using namespace ygor::mesh_boolean;
 static void require(bool value,const char*message){if(!value)throw std::runtime_error(message);}
+static std::string hex_bytes(const std::vector<std::uint8_t>& bytes){std::ostringstream os;os<<std::hex<<std::setfill('0');for(const auto b:bytes)os<<std::setw(2)<<unsigned(b);return os.str();}
 static digest test_digest(const char suffix){canonical_encoder e;e.byte(static_cast<std::uint8_t>(suffix));return domain_digest({{'Y','G','B','T','E','S','T',suffix}},e.bytes());}
 static backend_capabilities experimental_capabilities(){backend_capabilities c;c.set(backend_capability::exact_set_semantics);c.set(backend_capability::exact_coordinates);c.set(backend_capability::stratified_output);c.set(backend_capability::manifold_mesh_output);c.set(backend_capability::deterministic_canonical_output);c.set(backend_capability::certified_failure_categories);c.set(backend_capability::provenance_mapping);c.set(backend_capability::strict_prepared_operands);c.set(backend_capability::exact_in_T_output);return c;}
 static backend_identity experimental_identity(){auto made=make_backend_identity(backend_id::experimental_exact_v1,{1,0,0},"test-build",experimental_capabilities(),backend_maturity::experimental);require(made.has_value(),"experimental identity");return made.value();}
@@ -17,6 +21,15 @@ static void product_policy_round_trip() {
           "default product options are a valid fail-closed request");
   auto encoded = encode_product_options(o);
   require(encoded.has_value(), "product options encode");
+  const std::string golden =
+      "594742504f503033000300000000000000a60003000300030003000300030100"
+      "0000000000000000000000000000000000000000000000000000030000030000"
+      "0000000000000000000000000000000000030001000300000300000000000000"
+      "0000000000000000000000030000000000000000000000000000000000000000"
+      "0000000000000000000000000000000000000000000000000000000000000000"
+      "000000000000000003000000030000000000000000000001";
+  require(hex_bytes(encoded.value()) == golden,
+          "schema-3 product option golden vector");
   auto decoded = decode_product_options(encoded.value());
   require(decoded.has_value(), "product options decode");
   require(product_options_digest(decoded.value()) == product_options_digest(o),
@@ -122,6 +135,16 @@ static void product_policy_validation() {
 
 static void backend_maturity_and_qualification() {
   const auto experimental = experimental_identity();
+  auto backend_bytes = encode_backend_identity(experimental);
+  require(backend_bytes.has_value(), "backend identity encode");
+  auto backend_round_trip = decode_backend_identity(backend_bytes.value());
+  require(backend_round_trip.has_value() &&
+              same_backend_identity(backend_round_trip.value(), experimental),
+          "backend identity canonical round trip");
+  auto backend_trailing = backend_bytes.value();
+  backend_trailing.push_back(0);
+  require(!decode_backend_identity(backend_trailing).has_value(),
+          "backend identity trailing bytes rejected");
   auto explicit_options = explicit_experimental_options();
   require(authorize_backend(explicit_options, experimental).has_value(),
           "experimental backend requires and accepts explicit opt-in");
@@ -189,7 +212,7 @@ static void exact_result_lifetime_and_envelope() {
           "empty exact serialization rejected");
 
   boolean_product_result<double, std::uint64_t> result;
-  result.selected_operation = operation::regularized_union;
+  result.operation = operation_contract(operation::regularized_union);
   result.backend = provenance;
   result.exact_result = exact;
   result.preparation.input_digest = test_digest('a');
@@ -219,6 +242,7 @@ static void exact_result_lifetime_and_envelope() {
   payload.semantics = product_realization_semantics::exact_in_T;
   payload.exact_result_digest = exact->canonical_digest;
   payload.certificate.semantics = product_realization_semantics::exact_in_T;
+  payload.certificate.backend = result.backend.producer;
   payload.certificate.exact_result_digest = exact->canonical_digest;
   payload.certificate.certificate_digest = test_digest('f');
   result.representation = result_representation::exact_in_T_mesh;
@@ -227,9 +251,16 @@ static void exact_result_lifetime_and_envelope() {
   result.realization->failure.reset();
   require(validate_product_result(result).has_value(),
           "exact-in-T mesh bound to exact authority");
+  auto frozen = freeze_boolean_product_result(std::move(result));
+  require(frozen.has_value() && frozen.value()->mesh.has_value(),
+          "validated product result freezes into immutable shared ownership");
+  static_assert(std::is_const<typename std::remove_reference<
+                    decltype(*frozen.value())>::type>::value,
+                "published product results are immutable");
 
-  result.representation = result_representation::certified_approximate_mesh;
-  require(!validate_product_result(result).has_value(),
+  auto mislabeled = *frozen.value();
+  mislabeled.representation = result_representation::certified_approximate_mesh;
+  require(!validate_product_result(mislabeled).has_value(),
           "exact mesh cannot be relabeled approximate");
 }
 
