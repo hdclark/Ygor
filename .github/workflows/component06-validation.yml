@@ -1,6 +1,9 @@
 name: Component 06 validation
 
 on:
+  pull_request:
+    branches:
+      - master
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
