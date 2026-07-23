@@ -340,16 +340,16 @@ void test_segment_parameter_order_fails_closed() {
   const auto end = point(1201, 2.0, 0.5);
 
   auto first = point_contact(
-      41, 0.4, point(0, 0.0, 0.5), {},
+      41, 1.0 / 3.0, point(0, 0.0, 0.5), {},
       {edge_owner(polygon, 3)});
   first.first_parameter =
       *finite_interval<double>::create(0.3, 0.5);
   first.second_parameter = first.first_parameter;
   auto second = point_contact(
-      42, 0.5, point(0, 1.0, 0.5), {},
+      42, 2.0 / 3.0, point(0, 1.0, 0.5), {},
       {edge_owner(polygon, 1)});
   second.first_parameter =
-      *finite_interval<double>::create(0.4, 0.6);
+      *finite_interval<double>::create(0.4, 0.7);
   second.second_parameter = second.first_parameter;
 
   auto result = partition_source_facet_segment(
@@ -426,6 +426,15 @@ void test_triangle_local_reconciliation_and_retriangulation() {
   check(equivalent_source_facet_segment_semantics(
             *reconciled_a.value(), *reconciled_b.value()),
         "alternative triangulations preserve complete public partition semantics");
+
+  auto missing_digest_partition = crossing_partition();
+  auto missing_digest = a;
+  missing_digest.exact_triangulation_digest = {};
+  auto missing_digest_result =
+      reconcile_source_facet_triangle_local_witnesses(
+          std::move(missing_digest_partition), {missing_digest});
+  check(!missing_digest_result.has_value(),
+        "triangle-local evidence requires a nonzero exact-triangulation digest");
 
   auto invalid = crossing_partition();
   a.absorption =
