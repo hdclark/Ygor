@@ -1,0 +1,202 @@
+#pragma once
+
+#include "CanonicalCandidateStream.h"
+#include "RelationRequestGraph.h"
+#include "SymbolicPerturbation.h"
+
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+namespace ygor::mesh_boolean::bounded {
+
+struct relation_truth_record final {
+  std::uint64_t rounded_nominal_bits = 0;
+  bounded_sign_status bounded_sign = bounded_sign_status::invalid;
+  exact_relation_status exact_relation = exact_relation_status::unavailable;
+  predicate_disposition disposition = predicate_disposition::fail_invalid;
+  std::uint16_t rounded_formula = 0;
+  std::uint16_t exact_formula = 0;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_construction_record final {
+  relation_construction_id id{0};
+  relation_request_id producer{0};
+  relation_construction_kind kind = relation_construction_kind::bounded_point;
+  std::uint8_t component_count = 0;
+  std::array<std::uint64_t, 4> nominal_bits{};
+  std::array<std::uint64_t, 4> lower_bits{};
+  std::array<std::uint64_t, 4> upper_bits{};
+  std::uint64_t residual_truth_begin = 0;
+  std::uint64_t residual_truth_count = 0;
+  bool finite = false;
+  bool tolerance_compatible = false;
+  std::uint32_t reserved = 0;
+};
+
+struct feature_relation_record final {
+  feature_relation_id id{0};
+  relation_request_id producer{0};
+  feature_relation_family family =
+      feature_relation_family::source_vertex_source_facet;
+  relation_record_scope scope = relation_record_scope::public_source_feature;
+  feature_relation_status status = feature_relation_status::not_evaluated;
+  std::uint64_t truth_begin = 0;
+  std::uint64_t truth_count = 0;
+  std::int32_t numeric_crossing_multiplicity = 0;
+  std::uint32_t occurrence = 0;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_event_seed_record final {
+  relation_event_seed_id id{0};
+  relation_event_seed_key key{};
+  feature_relation_id source_relation{0};
+  relation_construction_id construction{0};
+  std::uint64_t incidence_begin = 0;
+  std::uint64_t incidence_count = 0;
+  bool distinct_occurrence_required = false;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_candidate_disposition_record final {
+  relation_candidate_disposition_id id{0};
+  candidate_id candidate{0};
+  candidate_relation_disposition_kind disposition =
+      candidate_relation_disposition_kind::no_public_relation;
+  feature_relation_id public_relation{0};
+  relation_request_id bookkeeping_request{0};
+  std::uint32_t reserved = 0;
+};
+
+struct relation_verification_evidence final {
+  relation_verifier_evidence_id id{0};
+  std::uint16_t verifier_version = contract_versions::relation_verifier;
+  bool graph_reconstructed = false;
+  bool owner_exclusion_checked = false;
+  bool selection_boundary_checked = false;
+  bool candidate_dispositions_complete = false;
+  std::uint64_t verifier_work_units = 0;
+  bounded_boolean_digest semantic_digest{};
+  std::uint32_t reserved = 0;
+};
+
+template <class T, class I> class signed_feature_relations final {
+public:
+  std::uint16_t schema_version() const noexcept { return schema_version_; }
+  std::uint16_t provider_version() const noexcept { return provider_version_; }
+  std::uint16_t graph_policy_version() const noexcept {
+    return graph_policy_version_;
+  }
+  std::uint16_t truth_policy_version() const noexcept {
+    return truth_policy_version_;
+  }
+  std::uint16_t codec_version() const noexcept { return codec_version_; }
+  std::uint16_t verifier_version() const noexcept { return verifier_version_; }
+  relation_provider_kind provider() const noexcept { return provider_; }
+  relation_verification_disposition verification() const noexcept {
+    return verification_;
+  }
+  const context_owner_token &owner() const noexcept { return owner_; }
+  const std::shared_ptr<const canonical_candidate_stream<T, I>> &candidates()
+      const noexcept {
+    return candidates_;
+  }
+  const relation_request_graph &request_graph() const noexcept {
+    return request_graph_;
+  }
+  const std::vector<relation_truth_record> &truth_records() const noexcept {
+    return truth_records_;
+  }
+  const std::vector<feature_relation_record> &relations() const noexcept {
+    return relations_;
+  }
+  const std::vector<relation_construction_record> &constructions() const noexcept {
+    return constructions_;
+  }
+  const std::vector<symbolic_relation_decision_record> &symbolic_decisions()
+      const noexcept {
+    return symbolic_decisions_;
+  }
+  const std::vector<relation_event_seed_record> &event_seeds() const noexcept {
+    return event_seeds_;
+  }
+  const std::vector<relation_feature_key> &event_seed_incidence() const noexcept {
+    return event_seed_incidence_;
+  }
+  const std::vector<relation_candidate_disposition_record> &
+  candidate_dispositions() const noexcept {
+    return candidate_dispositions_;
+  }
+  const relation_statistics &statistics() const noexcept { return statistics_; }
+  const relation_verification_evidence &verification_evidence() const noexcept {
+    return verification_evidence_;
+  }
+  const bounded_boolean_digest &context_digest() const noexcept {
+    return context_digest_;
+  }
+  const bounded_boolean_digest &precision_digest() const noexcept {
+    return precision_digest_;
+  }
+  const bounded_boolean_digest &candidate_digest() const noexcept {
+    return candidate_digest_;
+  }
+  const bounded_boolean_digest &graph_digest() const noexcept {
+    return graph_digest_;
+  }
+  const std::vector<std::uint8_t> &canonical_bytes() const noexcept {
+    return canonical_bytes_;
+  }
+  const bounded_boolean_digest &digest() const noexcept { return digest_; }
+
+  const feature_relation_record *relation(
+      feature_relation_id id, const context_owner_token &owner) const noexcept {
+    if (!owner.same_owner(owner_) || id.ordinal() >= relations_.size())
+      return nullptr;
+    return &relations_[id.ordinal()];
+  }
+
+private:
+  std::uint16_t schema_version_ = contract_versions::relation_artifact_schema;
+  std::uint16_t provider_version_ = contract_versions::relation_provider;
+  std::uint16_t graph_policy_version_ = contract_versions::relation_graph_policy;
+  std::uint16_t truth_policy_version_ = contract_versions::relation_truth_policy;
+  std::uint16_t codec_version_ = contract_versions::relation_codec;
+  std::uint16_t verifier_version_ = contract_versions::relation_verifier;
+  relation_provider_kind provider_ =
+      relation_provider_kind::canonical_source_feature_relation_graph_v1;
+  relation_verification_disposition verification_ =
+      relation_verification_disposition::unverified;
+  context_owner_token owner_{};
+  std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
+  relation_request_graph request_graph_{};
+  std::vector<relation_truth_record> truth_records_;
+  std::vector<feature_relation_record> relations_;
+  std::vector<relation_construction_record> constructions_;
+  std::vector<symbolic_relation_decision_record> symbolic_decisions_;
+  std::vector<relation_event_seed_record> event_seeds_;
+  std::vector<relation_feature_key> event_seed_incidence_;
+  std::vector<relation_candidate_disposition_record> candidate_dispositions_;
+  relation_statistics statistics_{};
+  relation_verification_evidence verification_evidence_{};
+  bounded_boolean_digest context_digest_{};
+  bounded_boolean_digest precision_digest_{};
+  bounded_boolean_digest candidate_digest_{};
+  bounded_boolean_digest graph_digest_{};
+  std::vector<std::uint8_t> canonical_bytes_;
+  bounded_boolean_digest digest_{};
+
+  template <class U, class J> friend class relation_builder;
+  template <class U, class J>
+  friend std::vector<std::uint8_t>
+  encode_signed_feature_relations(const signed_feature_relations<U, J> &);
+  template <class U, class J>
+  friend bool verify_relation_codec(
+      const signed_feature_relations<U, J> &, bounded_boolean_error &);
+  template <class U, class J>
+  friend bool verify_signed_feature_relations(
+      const signed_feature_relations<U, J> &, bounded_boolean_error &);
+};
+
+} // namespace ygor::mesh_boolean::bounded
