@@ -136,6 +136,15 @@ void test_unknown_exact_status_rejected() {
       exact_relation_formula_code::finite_scalar_comparison);
   check(!valid_relation_truth_record(record),
         "unknown exact status in stored relation truth must fail validation");
+
+  record.exact_relation = exact_relation_status::unavailable;
+  check(!valid_relation_truth_record(record),
+        "requested exact formula cannot store unavailable exact evidence");
+  record.exact_formula =
+      static_cast<std::uint16_t>(exact_relation_formula_code::invalid);
+  record.exact_relation = exact_relation_status::exact_positive;
+  check(!valid_relation_truth_record(record),
+        "exact evidence cannot omit its registered formula");
 }
 
 void test_failed_exact_evaluation_rejected() {
