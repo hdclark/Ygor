@@ -31,8 +31,9 @@ bool valid_contact_proposal(
       !unit_parameter(contact.first_parameter,
                       contact.first_rounded_parameter) ||
       !valid_projected_point(contact.first_point) ||
-      !exact_point_on_query_segment(segment_start, segment_end,
-                                    contact.first_point))
+      !parameter_matches_projected_point(
+          segment_start, segment_end, contact.first_rounded_parameter,
+          contact.first_parameter, contact.first_point))
     return false;
 
   auto first_vertices = contact.first_source_vertex_owners;
@@ -77,8 +78,10 @@ bool valid_contact_proposal(
     return unit_parameter(contact.second_parameter,
                           contact.second_rounded_parameter) &&
            valid_projected_point(contact.second_point) &&
-           exact_point_on_query_segment(segment_start, segment_end,
-                                        contact.second_point) &&
+           parameter_matches_projected_point(
+               segment_start, segment_end,
+               contact.second_rounded_parameter,
+               contact.second_parameter, contact.second_point) &&
            definitely_before(contact.first_parameter,
                              contact.second_parameter) &&
            !contact.overlap_source_edge_owners.empty();
