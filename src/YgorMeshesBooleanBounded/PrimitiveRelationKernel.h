@@ -23,27 +23,13 @@ boolean_outcome<relation_truth_record> make_relation_truth_record(
     exact_relation_formula_code exact_formula) {
   static_assert(supported_precision_scalar_v<T>);
 
-  if (predicate.schema_version != contract_versions::predicate_truth_layers ||
-      predicate.exact_relation.schema_version !=
-          contract_versions::predicate_truth_layers ||
+  if (!valid_predicate_result(predicate) ||
       !registered_rounded_operation(rounded_formula) ||
       !valid_exact_formula_code(static_cast<std::uint16_t>(exact_formula)))
     return boolean_outcome<relation_truth_record>::failure(
         primitive_relation_error(
             relation_subcode::bounded_operation_invalid,
             "Component 07 primitive formula binding is unsupported",
-            relation_checkpoint::rounded_primitive_evaluation));
-
-  if (!bounded_operations_detail::bounded_scalar_valid(
-          predicate.rounded_and_bounded) ||
-      !bounded_operations_detail::same_bound_owner(
-          predicate.owner, predicate.rounded_and_bounded.identity.owner) ||
-      !bounded_operations_detail::same_bound_owner(
-          predicate.owner, predicate.exact_relation.owner))
-    return boolean_outcome<relation_truth_record>::failure(
-        primitive_relation_error(
-            relation_subcode::bounded_operation_invalid,
-            "Component 07 primitive predicate owner or bounded value is invalid",
             relation_checkpoint::rounded_primitive_evaluation));
 
   const bool exact_formula_requested =
