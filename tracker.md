@@ -5,7 +5,7 @@
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
 - [x] Component 6: broad phase, gated against exhaustive enumeration.
-- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix.
+- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix. Foundation implemented; outstanding numerical relation families and qualification are tracked in `component_07_implementation_status.md`.
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.
