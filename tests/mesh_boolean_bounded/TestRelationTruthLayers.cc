@@ -78,6 +78,33 @@ void test_formula_mismatch_rejected() {
         "formula mismatch has stable Component 07 failure");
 }
 
+void test_predicate_layer_mutation_rejected() {
+  const auto owner = context_owner_token::create();
+  auto scalar = checked_bounded_singleton(owner, 1.0);
+  check(scalar.has_value(), "positive bounded singleton should build");
+  if (!scalar.has_value())
+    return;
+
+  exact_relation_evidence exact;
+  exact.owner = owner;
+  exact.formula_code = static_cast<std::uint16_t>(
+      exact_relation_formula_code::finite_scalar_comparison);
+  exact.status = exact_relation_status::exact_positive;
+  auto predicate = assemble_predicate_result(*scalar.value(), exact);
+  check(predicate.has_value(), "positive predicate should assemble");
+  if (!predicate.has_value())
+    return;
+
+  predicate.value()->uncertainty_width = 1.0;
+  check(!valid_predicate_result(*predicate.value()),
+        "mutated Component 03 truth evidence must fail validation");
+  auto truth = make_relation_truth_record(
+      *predicate.value(), rounded_operation_code::source_import,
+      exact_relation_formula_code::finite_scalar_comparison);
+  check(!truth.has_value(),
+        "Component 07 must reject mutated Component 03 truth evidence");
+}
+
 void test_failed_exact_evaluation_rejected() {
   const auto owner = context_owner_token::create();
   auto scalar = checked_bounded_singleton(owner, 1.0);
@@ -132,6 +159,7 @@ void test_unavailable_exact_is_not_tie() {
 int main() {
   test_exact_tie_layers();
   test_formula_mismatch_rejected();
+  test_predicate_layer_mutation_rejected();
   test_failed_exact_evaluation_rejected();
   test_unavailable_exact_is_not_tie();
   if (failures != 0)
