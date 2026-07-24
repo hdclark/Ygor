@@ -25,8 +25,9 @@ model unit, positive tolerance, and enabled operation set. Diagnosis-only
 normalization, structural irrelevant-storage removal, and policy-authorized
 exact duplicate consolidation and orientation repair are available. Explicit
 geometry-changing, attribute-seam-aware near-duplicate vertex consolidation is
-also available; all other geometry-changing repair classes remain later P2
-work.
+also available. Crack and small-gap diagnosis and conservative unmatched-
+boundary vertex closure are available under an explicit tolerance; all other
+geometry-changing repair classes remain later P2 work.
 
 ## Strict operand preparation
 
@@ -90,6 +91,18 @@ consolidation records every nonzero movement. Diagnosis-only remains the default
 and performs no edits. The legacy strict-policy field
 `remove_unused_storage=true` continues to fail closed so edits cannot bypass the
 normalization report.
+
+The geometry-changing `crack_closure` policy diagnoses every edge with one
+facet use and every non-edge pair of boundary vertices within the exact dyadic
+model tolerance. Closure is deliberately narrower than general welding: a
+candidate pair must be attribute-compatible, neither endpoint may have another
+candidate, the vertices must not already share an edge, and the higher source
+ordinal merges into the lower source ordinal. Every merge and nonzero movement
+is reported with canonical topology and bounded-displacement evidence. The
+operation never inserts or splits entities. Ambiguous matching, attribute
+conflicts, gaps outside tolerance, or cases requiring bridging geometry remain
+unchanged typed failures. Full Component 2 validation must accept the resulting
+closed, embedded, oriented solid before publication.
 
 ## Authoritative result and representations
 

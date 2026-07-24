@@ -648,6 +648,168 @@ void seam_preservation_and_tolerance_rejection() {
           "geometry-changing consolidation requires explicit model units");
 }
 
+normalization_policy crack_closure_policy() {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.unit = model_unit::millimetre;
+  policy.model_tolerance = 0.01;
+  policy.enabled_operations =
+      normalization_operation_bit(normalization_operation::crack_closure);
+  return policy;
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I> cracked_tetra(T gap = T(0.005)) {
+  auto source = tetra<T, I>();
+  source.vertices.push_back(source.vertices[0]);
+  source.vertices.back().x += gap;
+  source.faces[0][0] = I(4);
+  return source;
+}
+
+template <class T, class I> void crack_closure_basic() {
+  const auto source = cracked_tetra<T, I>();
+  const auto expected = tetra<T, I>();
+
+  normalization_policy diagnosis_policy;
+  diagnosis_policy.unit = model_unit::millimetre;
+  diagnosis_policy.model_tolerance = 0.01;
+  normalization_report diagnosis;
+  require(!normalize_operand(source, diagnosis_policy, diagnosis).has_value() &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(), [](const auto &d) {
+                            return d.code ==
+                                   normalization_defect_code::open_boundary_edge;
+                          }) &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(), [](const auto &d) {
+                            return d.code == normalization_defect_code::
+                                                 small_gap_candidate &&
+                                   d.primary_ordinal == 0 &&
+                                   d.secondary_ordinal == 4;
+                          }),
+          "diagnosis identifies unmatched edges and exact gap candidates");
+
+  normalization_report report;
+  auto prepared = normalize_operand(source, crack_closure_policy(), report);
+  require(prepared.has_value() && prepared.value().mesh() == expected,
+          "unique unmatched-boundary vertex pair closes a small crack");
+  require(report.vertices.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3, 0}) &&
+              report.edits.size() == 1 &&
+              report.edits[0].operation ==
+                  normalization_operation::crack_closure &&
+              report.edits[0].source_ordinal == 4 &&
+              report.topology_changes.size() == 1 &&
+              report.topology_changes[0].justification_subcode == 2 &&
+              report.displacement ==
+                  normalization_displacement_claim::records_present &&
+              report.displacements.size() == 1 &&
+              report.displacements[0].source_vertex == 4 &&
+              report.unresolved_defects.empty() &&
+              report.shells.status == normalization_map_status::unavailable,
+          "crack closure records maps, topology, displacement, and resolution");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "independent verifier reconstructs crack closure and strict output");
+  auto prepared_bytes = encode_prepared_operand(prepared.value());
+  require(prepared_bytes.has_value() &&
+              decode_prepared_operand<T, I>(prepared_bytes.value()).has_value(),
+          "crack-normalized prepared operand round trips");
+
+  auto forged = report;
+  forged.topology_changes[0].justification_subcode = 1;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "verifier rejects forged crack topology evidence");
+
+  normalization_report repeat;
+  auto repeated = normalize_operand(source, crack_closure_policy(), repeat);
+  require(repeated.has_value() && repeat.report_digest == report.report_digest,
+          "crack closure is deterministic");
+  normalization_report identity;
+  auto unchanged = normalize_operand(expected, crack_closure_policy(), identity);
+  require(unchanged.has_value() && unchanged.value().mesh() == expected &&
+              identity.edits.empty() && identity.displacements.empty(),
+          "crack closure is an identity on a closed strict operand");
+}
+
+void crack_closure_fail_closed() {
+  using T = double;
+  using I = std::uint32_t;
+  auto outside = cracked_tetra<T, I>(0.02);
+  normalization_report outside_report;
+  auto rejected =
+      normalize_operand(outside, crack_closure_policy(), outside_report);
+  require(!rejected.has_value() &&
+              !outside_report.prepared_operand_available &&
+              outside_report.edits.empty() &&
+              std::none_of(outside_report.unresolved_defects.begin(),
+                           outside_report.unresolved_defects.end(),
+                           [](const auto &d) {
+                             return d.code == normalization_defect_code::
+                                                  small_gap_candidate;
+                           }),
+          "cracks outside tolerance remain diagnosed and unchanged");
+  auto outside_bytes = encode_normalization_report(outside_report);
+  require(outside_bytes.has_value() &&
+              verify_normalization_report(
+                  outside_bytes.value(), outside,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "failed outside-tolerance closure independently verifies");
+
+  auto ambiguous = tetra<T, I>();
+  ambiguous.vertices.push_back({T(0.004), T(0), T(0)});
+  ambiguous.vertices.push_back({T(0), T(0.004), T(0)});
+  ambiguous.faces[0][0] = I(4);
+  ambiguous.faces[1][0] = I(5);
+  normalization_report ambiguous_report;
+  auto ambiguity =
+      normalize_operand(ambiguous, crack_closure_policy(), ambiguous_report);
+  require(!ambiguity.has_value() && !ambiguous_report.prepared_operand_available &&
+              ambiguous_report.edits.empty(),
+          "ambiguous boundary matching fails closed without partial edits");
+  auto ambiguous_bytes = encode_normalization_report(ambiguous_report);
+  require(ambiguous_bytes.has_value() &&
+              verify_normalization_report(
+                  ambiguous_bytes.value(), ambiguous,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "ambiguous crack failure report independently reconstructs");
+
+  auto conflict = attributed_tetra<T, I>();
+  conflict.vertices.push_back(conflict.vertices[0]);
+  conflict.vertices.back().x += 0.005;
+  conflict.vertex_normals.push_back(conflict.vertex_normals[0]);
+  conflict.vertex_normals.back().x = 0.25;
+  conflict.vertex_colours.push_back(conflict.vertex_colours[0]);
+  conflict.faces[0][0] = I(4);
+  conflict.recreate_involved_face_index();
+  normalization_report conflict_report;
+  auto conflict_result =
+      normalize_operand(conflict, crack_closure_policy(), conflict_report);
+  require(!conflict_result.has_value() && conflict_report.edits.empty(),
+          "attribute-incompatible crack endpoints are not welded");
+
+  auto limited_policy = crack_closure_policy();
+  limited_policy.resources.max_defect_records = 1;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto exhausted = normalize_operand(cracked_tetra<T, I>(), limited_policy,
+                                     unpublished);
+  require(!exhausted.has_value() &&
+              exhausted.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "crack diagnosis resource exhaustion is transactional");
+}
+
 normalization_policy orientation_policy() {
   normalization_policy policy;
   policy.mode = normalization_mode::structural_only;
@@ -1016,6 +1178,11 @@ int main() {
     seam_aware_vertex_consolidation_basic<double, std::uint32_t>();
     seam_aware_vertex_consolidation_basic<double, std::uint64_t>();
     seam_preservation_and_tolerance_rejection();
+    crack_closure_basic<float, std::uint32_t>();
+    crack_closure_basic<float, std::uint64_t>();
+    crack_closure_basic<double, std::uint32_t>();
+    crack_closure_basic<double, std::uint64_t>();
+    crack_closure_fail_closed();
     orientation_repair_basic<float, std::uint32_t>();
     orientation_repair_basic<float, std::uint64_t>();
     orientation_repair_basic<double, std::uint32_t>();

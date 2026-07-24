@@ -28,7 +28,9 @@ enum class normalization_defect_code : std::uint16_t {
   exact_duplicate_vertex = 5,
   exact_duplicate_facet = 6,
   unused_vertex = 7,
-  component2_rejection = 8
+  component2_rejection = 8,
+  open_boundary_edge = 9,
+  small_gap_candidate = 10
 };
 
 enum class normalization_map_status : std::uint8_t {
