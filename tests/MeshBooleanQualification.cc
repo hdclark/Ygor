@@ -74,8 +74,9 @@ int main() {
     unique_sorted_ids(rows);
     for (const auto &row : rows)
       require(row[1] == "boolean_case" || row[1] == "codec_golden" ||
-                  row[1] == "predicate_vector",
-              "known corpus record kind");
+                   row[1] == "predicate_vector" ||
+                   row[1] == "normalization_case",
+               "known corpus record kind");
   });
   tests.add("C14.QUAL.configuration", [] {
     const auto config = load_test_config();

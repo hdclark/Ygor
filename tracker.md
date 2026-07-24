@@ -111,7 +111,7 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Crack and small-gap diagnosis/closure under explicit model tolerance.
   - [x] Non-planar polygon diagnosis followed by explicitly selected triangulation or refitting policy.
   - [x] Duplicate/overlapping facet resolution with deterministic ownership and attribute conflict reporting.
-  - [ ] Sliver feature diagnosis and any policy-approved handling with complete topology/displacement evidence.
+  - [x] Sliver feature diagnosis and any policy-approved handling with complete topology/displacement evidence.
   - [ ] Self-intersection diagnosis and, only if separately approved, repair as the final/highest-risk normalization class.
 
 - [ ] **P2.4 — Correct the product claim boundary and examples.**

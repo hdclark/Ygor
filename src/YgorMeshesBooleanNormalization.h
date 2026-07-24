@@ -11,8 +11,8 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t normalization_policy_schema = 2;
-constexpr std::uint16_t normalization_report_schema = 2;
+constexpr std::uint16_t normalization_policy_schema = 3;
+constexpr std::uint16_t normalization_report_schema = 3;
 constexpr std::uint64_t normalization_removed_ordinal =
     std::numeric_limits<std::uint64_t>::max();
 
@@ -35,7 +35,8 @@ enum class normalization_defect_code : std::uint16_t {
   positive_area_coplanar_facet_overlap = 12,
   opposite_oriented_coplanar_facet_overlap = 13,
   overlapping_facet_attribute_conflict = 14,
-  partial_overlapping_facet_requires_remeshing = 15
+  partial_overlapping_facet_requires_remeshing = 15,
+  triangular_sliver_below_tolerance = 16
 };
 
 enum class normalization_map_status : std::uint8_t {

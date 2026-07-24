@@ -24,9 +24,9 @@ namespace ygor {
 namespace mesh_boolean {
 namespace {
 
-constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '2'}};
-constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '2'}};
-constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '2'}};
+constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '3'}};
+constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '3'}};
+constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '3'}};
 constexpr std::array<char, 8> certificate_tag{{'Y', 'G', 'B', 'P', 'C', 'E', '0', '1'}};
 constexpr std::array<char, 8> removal_before_tag{{'Y', 'G', 'B', 'N', 'R', 'B', '0', '1'}};
 constexpr std::array<char, 8> removal_after_tag{{'Y', 'G', 'B', 'N', 'R', 'A', '0', '1'}};
@@ -100,7 +100,7 @@ bool known(normalization_cancellation_policy v) {
 }
 bool known(normalization_defect_code v) {
   return v >= normalization_defect_code::nonfinite_coordinate &&
-          v <= normalization_defect_code::partial_overlapping_facet_requires_remeshing;
+           v <= normalization_defect_code::triangular_sliver_below_tolerance;
 }
 bool known(nonplanar_facet_policy v) {
   return v >= nonplanar_facet_policy::reject &&
@@ -160,6 +160,8 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::nonplanar_facet_handling);
   const auto overlapping = normalization_operation_bit(
       normalization_operation::overlapping_facet_resolution);
+  const auto sliver = normalization_operation_bit(
+      normalization_operation::sliver_handling);
   if ((p.enabled_operations == nonplanar) !=
       (p.nonplanar_facets != nonplanar_facet_policy::reject))
     return normalization_error("normalization_nonplanar_policy_mismatch");
@@ -175,8 +177,9 @@ status_or<bool> validate_policy(const normalization_policy &p,
              p.enabled_operations == orientation)) ||
           (p.mode == normalization_mode::geometry_changing &&
             (p.enabled_operations == seam_vertices ||
-              p.enabled_operations == crack_closure ||
-              p.enabled_operations == nonplanar) &&
+             p.enabled_operations == crack_closure ||
+             p.enabled_operations == nonplanar ||
+             p.enabled_operations == sliver) &&
             p.model_tolerance > 0.0 && p.unit != model_unit::unspecified &&
             p.model_tolerance <= 2147483647.0) ||
           (p.mode == normalization_mode::geometry_changing &&
@@ -854,6 +857,107 @@ status_or<std::optional<normalization_defect>> diagnose_nonplanar_facet(
   return std::optional<normalization_defect>{};
 }
 
+template <class T, class I>
+status_or<std::optional<normalization_defect>> diagnose_sliver_triangle(
+    const fv_surface_mesh<T, I> &mesh, std::uint64_t facet,
+    double tolerance) {
+  const auto &ring = mesh.faces[static_cast<std::size_t>(facet)];
+  if (ring.size() != 3 || tolerance <= 0.0)
+    return std::optional<normalization_defect>{};
+  std::array<exact_point3, 3> points;
+  for (std::size_t i = 0; i != points.size(); ++i) {
+    const auto ordinal = static_cast<std::uint64_t>(ring[i]);
+    if (ordinal >= mesh.vertices.size())
+      return std::optional<normalization_defect>{};
+    const auto &point = mesh.vertices[static_cast<std::size_t>(ordinal)];
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+        !std::isfinite(point.z))
+      return std::optional<normalization_defect>{};
+    auto exact = normalization_exact_point(point);
+    if (!exact.has_value()) return exact.error();
+    points[i] = std::move(exact.value());
+  }
+  auto decoded_tolerance = decode_coordinate(tolerance);
+  if (!decoded_tolerance.has_value()) return decoded_tolerance.error();
+  std::array<exact_scalar, 3> squared_edges;
+  for (std::size_t i = 0; i != squared_edges.size(); ++i) {
+    const auto edge = points[(i + 1) % 3] - points[i];
+    squared_edges[i] = dot(edge, edge);
+  }
+  std::size_t longest = 0;
+  for (std::size_t i = 1; i != squared_edges.size(); ++i)
+    if (squared_edges[longest] < squared_edges[i]) longest = i;
+  if (squared_edges[longest].is_zero())
+    return std::optional<normalization_defect>{};
+  const auto first = points[1] - points[0];
+  const auto second = points[2] - points[0];
+  const auto area_vector = cross(first, second);
+  const auto squared_double_area = dot(area_vector, area_vector);
+  if (squared_double_area.is_zero())
+    return std::optional<normalization_defect>{};
+  const auto squared_tolerance = decoded_tolerance.value().value *
+                                 decoded_tolerance.value().value;
+  if (squared_double_area < squared_tolerance * squared_edges[longest])
+    return std::optional<normalization_defect>(normalization_defect{
+        normalization_defect_code::triangular_sliver_below_tolerance, facet,
+        static_cast<std::uint64_t>(longest), 1});
+  return std::optional<normalization_defect>{};
+}
+
+template <class T, class I>
+status_or<std::optional<normalization_defect>> verify_sliver_triangle(
+    const fv_surface_mesh<T, I> &mesh, std::uint64_t facet,
+    double tolerance) {
+  const auto &ring = mesh.faces[static_cast<std::size_t>(facet)];
+  if (ring.size() != 3 || tolerance <= 0.0)
+    return std::optional<normalization_defect>{};
+  std::array<exact_point3, 3> p;
+  for (std::size_t i = 0; i != 3; ++i) {
+    const auto index = static_cast<std::uint64_t>(ring[i]);
+    if (index >= mesh.vertices.size())
+      return std::optional<normalization_defect>{};
+    const auto &source = mesh.vertices[static_cast<std::size_t>(index)];
+    if (!(std::isfinite(source.x) && std::isfinite(source.y) &&
+          std::isfinite(source.z)))
+      return std::optional<normalization_defect>{};
+    auto x = decode_coordinate(source.x);
+    auto y = decode_coordinate(source.y);
+    auto z = decode_coordinate(source.z);
+    if (!x.has_value() || !y.has_value() || !z.has_value())
+      return normalization_error("normalization_sliver_coordinate");
+    p[i] = {x.value().value, y.value().value, z.value().value};
+  }
+  auto threshold = decode_coordinate(tolerance);
+  if (!threshold.has_value()) return threshold.error();
+  const auto squared_length = [](const exact_point3 &a,
+                                 const exact_point3 &b) {
+    const auto dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    return dx * dx + dy * dy + dz * dz;
+  };
+  std::array<exact_scalar, 3> lengths{{squared_length(p[0], p[1]),
+                                      squared_length(p[1], p[2]),
+                                      squared_length(p[2], p[0])}};
+  std::size_t longest = 0;
+  for (std::size_t i = 1; i != 3; ++i)
+    if (lengths[longest] < lengths[i]) longest = i;
+  if (lengths[longest].is_zero())
+    return std::optional<normalization_defect>{};
+  const auto ux = p[1].x - p[0].x, uy = p[1].y - p[0].y,
+             uz = p[1].z - p[0].z;
+  const auto vx = p[2].x - p[0].x, vy = p[2].y - p[0].y,
+             vz = p[2].z - p[0].z;
+  const auto cx = uy * vz - uz * vy, cy = uz * vx - ux * vz,
+             cz = ux * vy - uy * vx;
+  const auto area2 = cx * cx + cy * cy + cz * cz;
+  if (area2.is_zero()) return std::optional<normalization_defect>{};
+  const auto tolerance2 = threshold.value().value * threshold.value().value;
+  if (area2 < tolerance2 * lengths[longest])
+    return std::optional<normalization_defect>(normalization_defect{
+        normalization_defect_code::triangular_sliver_below_tolerance, facet,
+        static_cast<std::uint64_t>(longest), 1});
+  return std::optional<normalization_defect>{};
+}
+
 struct overlap_facet_geometry {
   exact_plane3 plane;
   projection_axis projection = projection_axis::drop_z;
@@ -1138,6 +1242,12 @@ status_or<diagnosis_result> producer_diagnosis(const fv_surface_mesh<T, I> &m,
         auto a = add(*nonplanar.value());
         if (!a.has_value()) return a.error();
       }
+      auto sliver = diagnose_sliver_triangle(m, f, b.policy.model_tolerance);
+      if (!sliver.has_value()) return sliver.error();
+      if (sliver.value()) {
+        auto a = add(*sliver.value());
+        if (!a.has_value()) return a.error();
+      }
     }
   }
   for (std::uint64_t i = 0; i != used.size(); ++i) {
@@ -1358,6 +1468,13 @@ verifier_diagnosis(const fv_surface_mesh<T, I> &m, verification_budget &budget) 
       if (!nonplanar.has_value()) return nonplanar.error();
       if (nonplanar.value()) {
         auto added = add(*nonplanar.value());
+        if (!added.has_value()) return added.error();
+      }
+      auto sliver =
+          verify_sliver_triangle(m, ordinal, budget.policy.model_tolerance);
+      if (!sliver.has_value()) return sliver.error();
+      if (sliver.value()) {
+        auto added = add(*sliver.value());
         if (!added.has_value()) return added.error();
       }
     }
@@ -4160,6 +4277,9 @@ status_or<prepared_operand<T, I>> normalize_operand(
     const bool overlap_repair =
         policy.enabled_operations == normalization_operation_bit(
             normalization_operation::overlapping_facet_resolution);
+    const bool sliver_handling =
+        policy.enabled_operations == normalization_operation_bit(
+            normalization_operation::sliver_handling);
     const bool proximity_repair = seam_repair || crack_repair;
     const bool repairable_orientation_error =
         source_validation_error &&
@@ -4184,6 +4304,15 @@ status_or<prepared_operand<T, I>> normalize_operand(
         !(orientation_repair && repairable_orientation_error)) {
       return publish_failure(*source_validation_error);
     }
+    const bool has_sliver = std::any_of(
+        candidate.unresolved_defects.begin(), candidate.unresolved_defects.end(),
+        [](const normalization_defect &defect) {
+          return defect.code ==
+                 normalization_defect_code::triangular_sliver_below_tolerance;
+        });
+    if (sliver_handling && has_sliver)
+      return publish_failure(
+          normalization_error("normalization_sliver_rejected"));
 
     fv_surface_mesh<T, I> normalized_mesh = source;
     if (policy.mode == normalization_mode::structural_only || proximity_repair ||
@@ -4441,6 +4570,9 @@ status_or<bool> verify_normalization_report(
   const bool overlap_repair =
       report.policy.enabled_operations == normalization_operation_bit(
           normalization_operation::overlapping_facet_resolution);
+  const bool sliver_handling =
+      report.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::sliver_handling);
   const bool proximity_repair = seam_repair || crack_repair;
   const auto proximity_operation = crack_repair
       ? normalization_operation::crack_closure
@@ -4498,6 +4630,89 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (sliver_handling) {
+    const bool has_sliver = std::any_of(
+        independent.value().defects.begin(), independent.value().defects.end(),
+        [](const normalization_defect &defect) {
+          return defect.code ==
+                 normalization_defect_code::triangular_sliver_below_tolerance;
+        });
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      independent.value().defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(independent.value().defects.begin(),
+                independent.value().defects.end(), [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      independent.value().defects.erase(
+          std::unique(independent.value().defects.begin(),
+                      independent.value().defects.end()),
+          independent.value().defects.end());
+    }
+    if (has_sliver || !replay.has_value()) {
+      if (output || report.prepared_operand_available || report.strict_certificate ||
+          report.output_digest != report.source_digest || !report.edits.empty() ||
+          !report.topology_changes.empty() || !report.displacements.empty() ||
+          report.displacement != normalization_displacement_claim::exact_zero ||
+          report.reversibility != normalization_reversibility::identity ||
+          report.shells.status != normalization_map_status::unavailable ||
+          !identity_mapping(report.vertices, source.vertices.size()) ||
+          !identity_mapping(report.edges, independent.value().edges.size()) ||
+          !identity_mapping(report.facets, source.faces.size()) ||
+          !attribute_identity_valid(report.attributes.vertex_normals,
+                                    !source.vertex_normals.empty(),
+                                    source.vertex_normals.size()) ||
+          !attribute_identity_valid(report.attributes.vertex_colours,
+                                    !source.vertex_colours.empty(),
+                                    source.vertex_colours.size()) ||
+          !attribute_identity_valid(report.attributes.involved_faces,
+                                    !source.involved_faces.empty(),
+                                    source.involved_faces.size()) ||
+          !attribute_identity_valid(report.attributes.metadata,
+                                    !source.metadata.empty(),
+                                    source.metadata.size()) ||
+          report.unresolved_defects != independent.value().defects)
+        return normalization_error("normalization_report_sliver_failure");
+      return true;
+    }
+    if (!output || !(*output == source) ||
+        output->involved_faces != source.involved_faces ||
+        !report.prepared_operand_available || !report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() || !report.displacements.empty() ||
+        report.displacement != normalization_displacement_claim::exact_zero ||
+        report.reversibility != normalization_reversibility::identity ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_normals,
+                                  !source.vertex_normals.empty(),
+                                  source.vertex_normals.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_colours,
+                                  !source.vertex_colours.empty(),
+                                  source.vertex_colours.size()) ||
+        !attribute_identity_valid(report.attributes.involved_faces,
+                                  !source.involved_faces.empty(),
+                                  source.involved_faces.size()) ||
+        !attribute_identity_valid(report.attributes.metadata,
+                                  !source.metadata.empty(),
+                                  source.metadata.size()) ||
+        report.unresolved_defects != independent.value().defects ||
+        !same_certificate(replay.value().certificate(),
+                          *report.strict_certificate))
+      return normalization_error("normalization_report_sliver_success");
+    auto shells = component2_shell_count(source, cancel);
+    if (!shells.has_value()) return shells.error();
+    if (!identity_mapping(report.shells, shells.value()))
+      return normalization_error("normalization_report_sliver_shells");
+    return true;
+  }
   if (overlap_repair) {
     verification_budget reconstruction_resources{report.policy, cancel};
     auto reconstructed = resolve_overlapping_facets(

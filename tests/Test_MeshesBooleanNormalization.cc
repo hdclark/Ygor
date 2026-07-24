@@ -1222,6 +1222,150 @@ void overlapping_facet_resolution_fail_closed() {
           "overlap planning resource exhaustion is transactional");
 }
 
+template <class T, class I> fv_surface_mesh<T, I> thin_tetrahedron() {
+  auto mesh = tetra<T, I>();
+  mesh.vertices[2].y = T(1) / T(1024);
+  return mesh;
+}
+
+normalization_policy sliver_policy(double tolerance) {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.unit = model_unit::millimetre;
+  policy.model_tolerance = tolerance;
+  policy.enabled_operations =
+      normalization_operation_bit(normalization_operation::sliver_handling);
+  return policy;
+}
+
+template <class T, class I> void sliver_diagnosis_and_rejection() {
+  const auto source = thin_tetrahedron<T, I>();
+  normalization_policy diagnosis_policy;
+  diagnosis_policy.unit = model_unit::millimetre;
+  diagnosis_policy.model_tolerance = 1.0 / 512.0;
+  normalization_report diagnosis;
+  auto prepared = normalize_operand(source, diagnosis_policy, diagnosis);
+  const auto is_sliver = [](const normalization_defect &defect) {
+    return defect.code ==
+           normalization_defect_code::triangular_sliver_below_tolerance;
+  };
+  require(prepared.has_value() &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(), is_sliver) &&
+              diagnosis.edits.empty() && diagnosis.topology_changes.empty() &&
+              diagnosis.displacements.empty(),
+          "nonzero slivers are exact advisory findings in diagnosis mode");
+  auto diagnosis_bytes = encode_normalization_report(diagnosis);
+  require(diagnosis_bytes.has_value() &&
+              verify_normalization_report(diagnosis_bytes.value(), source,
+                                           &source)
+                  .has_value(),
+          "independent verifier reproduces exact sliver diagnosis");
+
+  normalization_report rejected_report;
+  auto rejected =
+      normalize_operand(source, sliver_policy(1.0 / 512.0), rejected_report);
+  require(!rejected.has_value() &&
+              rejected.error().code == boolean_error_code::input_contract_error &&
+              !rejected_report.prepared_operand_available &&
+              std::any_of(rejected_report.unresolved_defects.begin(),
+                          rejected_report.unresolved_defects.end(), is_sliver) &&
+              rejected_report.edits.empty() &&
+              rejected_report.topology_changes.empty() &&
+              rejected_report.displacements.empty(),
+          "explicit sliver handling rejects without heuristic geometry edits");
+  auto rejected_bytes = encode_normalization_report(rejected_report);
+  require(rejected_bytes.has_value() &&
+              verify_normalization_report(
+                  rejected_bytes.value(), source,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "sliver rejection report independently replays");
+
+  normalization_report below_report;
+  auto below = normalize_operand(source, sliver_policy(1.0 / 2048.0),
+                                 below_report);
+  require(below.has_value() && below.value().mesh() == source &&
+              std::none_of(below_report.unresolved_defects.begin(),
+                           below_report.unresolved_defects.end(), is_sliver) &&
+              below_report.source_digest == below_report.output_digest,
+          "features above the declared threshold remain an identity");
+  auto below_bytes = encode_normalization_report(below_report);
+  require(below_bytes.has_value() &&
+              verify_normalization_report(below_bytes.value(), source, &source)
+                  .has_value(),
+          "non-sliver identity handling independently verifies");
+
+  auto forged = rejected_report;
+  forged.unresolved_defects.erase(
+      std::remove_if(forged.unresolved_defects.begin(),
+                     forged.unresolved_defects.end(), is_sliver),
+      forged.unresolved_defects.end());
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(
+                   forged_bytes.value(), source,
+                   static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                   .has_value(),
+          "verifier rejects omitted sliver evidence");
+
+  auto attributed = attributed_tetra<T, I>();
+  attributed.vertices[2].y = T(1) / T(1024);
+  normalization_report attributed_report;
+  require(!normalize_operand(attributed, sliver_policy(1.0 / 512.0),
+                             attributed_report)
+               .has_value(),
+          "attributed sliver fixture is rejected");
+  auto forged_attributes = attributed_report;
+  forged_attributes.attributes.vertex_colours.source_to_prepared[0] = 1;
+  forged_attributes.report_digest =
+      normalization_report_digest(forged_attributes).value();
+  auto forged_attribute_bytes = encode_normalization_report(forged_attributes);
+  require(forged_attribute_bytes.has_value() &&
+              !verify_normalization_report(
+                   forged_attribute_bytes.value(), attributed,
+                   static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                   .has_value(),
+          "verifier rejects forged sliver attribute mappings");
+
+  auto threshold_source = tetra<T, I>();
+  threshold_source.vertices[2] = {T(0.5), T(0.25), T(0)};
+  threshold_source.vertices[3] = {T(0.5), T(0.125), T(1)};
+  normalization_report threshold_report;
+  auto threshold =
+      normalize_operand(threshold_source, sliver_policy(0.25), threshold_report);
+  require(threshold.has_value() &&
+              std::none_of(threshold_report.unresolved_defects.begin(),
+                           threshold_report.unresolved_defects.end(),
+                           [](const normalization_defect &defect) {
+                             return defect.code == normalization_defect_code::
+                                                       triangular_sliver_below_tolerance &&
+                                    defect.primary_ordinal == 0;
+                           }),
+          "a triangle exactly at the threshold is not labelled below it");
+
+  auto degenerate = source;
+  degenerate.vertices[2].y = T(0);
+  normalization_report degenerate_report;
+  auto degenerate_result = normalize_operand(
+      degenerate, sliver_policy(1.0 / 512.0), degenerate_report);
+  require(!degenerate_result.has_value() &&
+              std::none_of(degenerate_report.unresolved_defects.begin(),
+                           degenerate_report.unresolved_defects.end(), is_sliver),
+          "exact degeneracy remains a strict contract failure, not a sliver");
+
+  auto limited_policy = sliver_policy(1.0 / 512.0);
+  limited_policy.resources.max_work_units = 1;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto limited = normalize_operand(source, limited_policy, unpublished);
+  require(!limited.has_value() &&
+              limited.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "sliver diagnosis resource exhaustion is transactional");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -1439,6 +1583,10 @@ int main() {
     overlapping_facet_resolution_basic<double, std::uint32_t>();
     overlapping_facet_resolution_basic<double, std::uint64_t>();
     overlapping_facet_resolution_fail_closed();
+    sliver_diagnosis_and_rejection<float, std::uint32_t>();
+    sliver_diagnosis_and_rejection<float, std::uint64_t>();
+    sliver_diagnosis_and_rejection<double, std::uint32_t>();
+    sliver_diagnosis_and_rejection<double, std::uint64_t>();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();

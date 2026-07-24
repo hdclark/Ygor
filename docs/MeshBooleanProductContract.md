@@ -134,6 +134,18 @@ remeshing is diagnosed explicitly and remains unsupported by this policy. The
 result is published only after full strict Component 2 revalidation, and a
 valid input is an idempotent identity.
 
+Triangular slivers are diagnosed with an exact scale-aware test. For a triangle,
+the minimum altitude is the altitude to its longest edge; the
+`triangular_sliver_below_tolerance` defect is emitted exactly when that altitude
+is strictly below the caller's positive model tolerance. Exact-zero-area facets
+remain Component 2 contract failures, while nonzero slivers remain valid input
+under strict validation and diagnosis-only preparation. Enabling
+`sliver_handling` explicitly rejects a diagnosed sliver and publishes no edits.
+No edge collapse, facet deletion, or vertex movement is currently approved:
+each can change the regular closed solid or cross an attribute seam without a
+separate remeshing contract. Non-triangular facets are therefore not assigned a
+triangulation-dependent sliver label by this policy.
+
 ## Authoritative result and representations
 
 `exact_result_handle` is an immutable, shared-lifetime owner populated from a
