@@ -83,7 +83,7 @@ Component 12 assembles a mesh only when requested and authorized. The result env
 - attribute-transfer mappings and conflict/omission reports; and
 - final verification evidence binding every payload to the same exact-result digest.
 
-A stratified non-manifold exact result is not discarded by the manifold mesh gate. The mesh alternative returns `result_topology_not_supported`, while the exact result remains a successful retained artifact. Likewise, finite-`T` realization failure does not convert an independently verified exact result into total operation failure. Product schema 3 retains exact authority unconditionally and rejects mesh-only discard policies.
+A stratified non-manifold exact result is not discarded by the manifold mesh gate. The mesh alternative returns `result_topology_not_supported`, while the exact result remains a successful retained artifact. Likewise, finite-`T` realization failure does not convert an independently verified exact result into total operation failure. Product schema 6 retains exact authority unconditionally and rejects mesh-only discard policies.
 
 For certified approximate output, canonicalization and simplification must stay within the accepted realization certificate. Any operation that changes coordinates, topology, displacement maxima, relaxed relations, or attribute mapping requires certificate regeneration and independent verification; otherwise it is prohibited.
 

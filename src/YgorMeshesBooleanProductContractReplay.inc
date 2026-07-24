@@ -70,7 +70,7 @@ encode_product_replay_binding(const product_replay_binding &r) {
   encode_digest(e, r.attribute_policy_digest);
   encode_digest(e, r.verifier_set_digest);
   encode_digest(e, r.qualification_manifest_digest);
-  return record_bytes({{'Y', 'G', 'B', 'P', 'R', 'P', '0', '3'}},
+  return record_bytes({{'Y', 'G', 'B', 'P', 'R', 'P', '0', '6'}},
                       product_contract_schema_version, e.bytes());
 }
 
@@ -78,7 +78,7 @@ product_status_or<product_replay_binding>
 decode_product_replay_binding(const std::vector<std::uint8_t> &bytes,
                               const product_decode_limits &limits) {
   auto payload = extract_payload(
-      bytes, {{'Y', 'G', 'B', 'P', 'R', 'P', '0', '3'}}, limits);
+      bytes, {{'Y', 'G', 'B', 'P', 'R', 'P', '0', '6'}}, limits);
   if (!payload.has_value())
     return payload.error();
   try {

@@ -17,7 +17,7 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t product_contract_schema_version = 3;
+constexpr std::uint16_t product_contract_schema_version = 6;
 
 struct product_schema_versions {
   std::uint16_t options = product_contract_schema_version;
@@ -166,7 +166,14 @@ struct realization_search_policy {
   std::uint16_t schema = product_contract_schema_version;
   realization_search_strategy strategy = realization_search_strategy::none;
   std::uint64_t max_candidates = 0;
-  std::uint64_t max_backtracks = 0;
+  std::uint64_t max_candidate_evaluations = 0;
+  std::uint64_t max_search_nodes = 0;
+  std::uint64_t max_obligations = 0;
+  std::uint64_t max_triangle_pairs = 0;
+  std::uint64_t max_predicate_checks = 0;
+  std::uint64_t max_verifier_work = 0;
+  std::uint64_t max_verifier_records = 0;
+  std::uint64_t max_verifier_bytes = 0;
 };
 
 struct approximation_policy_contract {
@@ -174,11 +181,16 @@ struct approximation_policy_contract {
   bool enabled = false;
   model_unit unit = model_unit::unspecified;
   double max_vertex_displacement = 0.0;
+  bool has_max_axis_displacement_x = false;
   double max_axis_displacement_x = 0.0;
+  bool has_max_axis_displacement_y = false;
   double max_axis_displacement_y = 0.0;
+  bool has_max_axis_displacement_z = false;
   double max_axis_displacement_z = 0.0;
   double max_support_plane_deviation = 0.0;
   bool allow_original_vertex_movement = false;
+  std::uint16_t candidate_generation_version = 1;
+  std::uint32_t candidate_ulp_radius = 0;
   double declared_model_tolerance = 0.0;
   std::string application_acceptance_metadata;
 };

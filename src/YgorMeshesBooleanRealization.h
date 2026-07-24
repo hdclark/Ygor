@@ -205,7 +205,7 @@ struct realization_solver_constraint {
   std::vector<std::uint64_t> variables;
 };
 struct realization_solver_component_result {
-  std::vector<std::uint64_t> variables, constraints, accepted_ranks,
+  std::vector<std::uint64_t> variables, variable_order, constraints, accepted_ranks,
       rejected_prefix_witnesses;
   std::uint64_t visited_nodes = 0, complete_assignments = 0;
 };
@@ -239,6 +239,10 @@ template <class T, class I>
 status_or<std::shared_ptr<const published_artifact<realized_boundary<T, I>>>>
 realize_selected_boundary(boolean_context<T, I> &);
 template <class T, class I>
+status_or<std::vector<realization_triangle>>
+triangulate_selected_boundary_for_realization(
+    const selected_exact_boundary<T, I> &);
+template <class T, class I>
 bool verify_realization_exact_substitution(const realized_boundary<T, I>&);
 template <class T, class I>
 bool verify_realization_constraint_evidence(const realized_boundary<T, I>&);
@@ -254,6 +258,16 @@ YGOR_REALIZATION_EXTERN(float, std::uint64_t);
 YGOR_REALIZATION_EXTERN(double, std::uint32_t);
 YGOR_REALIZATION_EXTERN(double, std::uint64_t);
 #undef YGOR_REALIZATION_EXTERN
+
+#define YGOR_REALIZATION_TRIANGULATION_EXTERN(T, I)                            \
+  extern template status_or<std::vector<realization_triangle>>                \
+  triangulate_selected_boundary_for_realization(                              \
+      const selected_exact_boundary<T, I> &)
+YGOR_REALIZATION_TRIANGULATION_EXTERN(float, std::uint32_t);
+YGOR_REALIZATION_TRIANGULATION_EXTERN(float, std::uint64_t);
+YGOR_REALIZATION_TRIANGULATION_EXTERN(double, std::uint32_t);
+YGOR_REALIZATION_TRIANGULATION_EXTERN(double, std::uint64_t);
+#undef YGOR_REALIZATION_TRIANGULATION_EXTERN
 
 } // namespace mesh_boolean
 } // namespace ygor

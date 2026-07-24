@@ -1512,6 +1512,80 @@ callback(const artifact_view &v, const verification_spec &s,
 
 } // namespace
 
+template <class T, class I>
+status_or<std::vector<realization_triangle>>
+triangulate_selected_boundary_for_realization(
+    const selected_exact_boundary<T, I> &selected) {
+  try {
+    realized_boundary<T, I> topology;
+    topology.vertices.reserve(selected.vertices.size());
+    const auto symbolic_artifact = selected.arrangement->payload->symbolic;
+    if (!symbolic_artifact)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "approximate_symbolic_missing");
+    const auto &symbolic = *symbolic_artifact->payload;
+    for (const auto &source : selected.vertices) {
+      if (source.symbolic.value_for_debug() >= symbolic.vertices.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "approximate_symbolic_range");
+      realization_vertex<T> vertex;
+      vertex.id = realization_vertex_id::from_canonical_value(
+          topology.vertices.size());
+      vertex.selected = source.id;
+      vertex.symbolic = source.symbolic;
+      vertex.exact_coordinate =
+          symbolic.vertices[source.symbolic.value_for_debug()].point;
+      topology.vertices.push_back(std::move(vertex));
+    }
+    for (const auto &patch : selected.patches) {
+      if (patch.source.value_for_debug() >=
+          selected.arrangement->payload->patches.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "approximate_patch_source_range");
+      const auto projection = dominant_projection(
+          selected.arrangement->payload->patches[patch.source.value_for_debug()]
+              .plane);
+      auto rings = selected_patch_rings(selected, topology, patch, projection);
+      if (!rings.has_value())
+        return rings.error();
+      auto triangulated = triangulate_patch(std::move(rings.value()));
+      if (!triangulated.has_value())
+        return triangulated.error();
+      for (const auto &vertices : triangulated.value().triangles) {
+        realization_triangle triangle;
+        triangle.id = realization_triangle_id::from_canonical_value(
+            topology.triangles.size());
+        triangle.patch = patch.id;
+        triangle.vertices = vertices;
+        triangle.projection = projection;
+        triangle.exact_orientation = orient2d(
+            project(topology.vertices[vertices[0].value_for_debug()]
+                        .exact_coordinate,
+                    projection),
+            project(topology.vertices[vertices[1].value_for_debug()]
+                        .exact_coordinate,
+                    projection),
+            project(topology.vertices[vertices[2].value_for_debug()]
+                        .exact_coordinate,
+                    projection));
+        topology.triangles.push_back(std::move(triangle));
+      }
+    }
+    return topology.triangles;
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::geometry_realization,
+                      "approximate_triangulation_allocation");
+  } catch (...) {
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "approximate_triangulation_exception");
+  }
+}
+
 status_or<bool> register_geometry_realization_verifier(verifier_registry &r,
                                                        coordinate_tag c,
                                                        index_tag i) {
@@ -2348,7 +2422,10 @@ realize_selected_boundary(boolean_context<T, I> &ctx) {
 #define INST(T, I)                                                             \
   template status_or<                                                          \
       std::shared_ptr<const published_artifact<realized_boundary<T, I>>>>      \
-  realize_selected_boundary(boolean_context<T, I> &)
+  realize_selected_boundary(boolean_context<T, I> &);                          \
+  template status_or<std::vector<realization_triangle>>                       \
+  triangulate_selected_boundary_for_realization(                              \
+      const selected_exact_boundary<T, I> &)
 INST(float, std::uint32_t);
 INST(float, std::uint64_t);
 INST(double, std::uint32_t);

@@ -1,4 +1,4 @@
-# Mesh Boolean product contract (schema 3)
+# Mesh Boolean product contract (schema 6)
 
 This document defines the product boundary introduced by Plan 15 P0, the
 durable exact-result authority introduced by P1, and the explicit strict and
@@ -258,14 +258,19 @@ uses a separate export-envelope parser, checks both digests and metadata, and
 replays the exact-result verifier from bytes. Both reject corruption,
 truncation, trailing bytes, stale bindings, and non-canonical encoding;
 `validate_exact_coordinate_export_binding` additionally rejects mutated
-in-memory boundary data. Strict finite-`T` realization is integrated with the
-product envelope; certified approximate execution remains later P3 work.
+in-memory boundary data. Strict finite-`T` realization and certified
+approximate embedding are integrated with the product envelope.
 
 `evaluate_boolean_product_result` is the expert productization path for the
 current in-tree backend. It publishes the verified exact authority before
 calling Components 11 and 12. A topology rejection or strict finite-`T`
 realization failure therefore returns an `exact_stratified` envelope with the
 failed realization attempt instead of erasing the exact success.
+
+The five-argument overload additionally accepts a complete
+`product_realization_policy`. The four-argument overload remains the strict
+`exact_in_T` compatibility path. Approximate requests must use the full-policy
+overload and are returned only as `certified_approximate_mesh`.
 
 `boolean_product_result<T,I>` is a tagged envelope with exactly three result
 representations:
@@ -280,7 +285,7 @@ representations:
   exact point-set equality.
 
 A failed mesh realization may be recorded while the exact result remains a
-successful, retained product result. Schema 3 retains that authority
+successful, retained product result. Schema 6 retains that authority
 unconditionally, and product-option validation rejects any policy that permits
 discarding it.
 
@@ -289,8 +294,82 @@ discarding it.
 `product_realization_semantics` states what a success means.
 `realization_search_policy` states how candidates may be explored. They are
 separate fields and are validated against the requested representation.
-Changing nearest-value, neighbouring-value, candidate, or backtrack limits
+Changing nearest-value, neighbouring-value, candidate, or search-node limits
 cannot turn an exact request into approximate success.
+
+`certified_approximate_embedding_v1` uses candidate-generation version 1:
+correctly rounded nearest value followed by a symmetric predecessor/successor
+ULP neighborhood. Values and Cartesian candidates have deterministic exact
+error, ULP-step, rank, and bit-pattern tie breaks. `candidate_ulp_radius` and
+`max_candidates` is the retained valid Cartesian candidate cap per realized
+vertex. `max_candidate_evaluations` separately bounds all streamed Cartesian
+tuples examined across the request; cancellation and counter overflow are
+resource failures. `max_search_nodes` counts visited deterministic DFS nodes,
+including component roots, and is a resource limit rather than a backtrack
+count. Completed bounded-domain exhaustion returns
+`output_not_representable` with subcode `approximate_search_exhausted_subcode`;
+hitting the solver limit returns `resource_limit`.
+
+Schema 6 also requires explicit `max_obligations`, `max_triangle_pairs`,
+`max_predicate_checks`, `max_verifier_work`, `max_verifier_records`, and
+`max_verifier_bytes` values. Independent checked counters advance from actual
+bytes and records parsed, candidates materialized, topology and ear-clipping
+work, exact predicates executed, and search nodes replayed. Topology replay
+receives a verifier-owned charging callback and cannot use certificate counters
+for gating. Cancellation, arithmetic overflow, and reaching one of these limits
+return typed `resource_limit` failures rather than completed search exhaustion.
+
+Axis limits have separate `has_max_axis_displacement_*` presence fields. A
+present zero is a real zero bound. Global displacement uses exact squared
+Euclidean comparison. For support plane `(a,b,c,d)`, every triangulated vertex
+is checked exactly using
+`|ax+by+cz+d|^2 <= bound^2*(a^2+b^2+c^2)`.
+
+Durable exact-result schema/checker 2 records every original source's coordinate
+type and raw bits. Detachment and independent exact-result validation require
+each record to decode to the exact selected coordinate, but preserve differing
+source encodings such as signed zero. When original movement is disabled, an
+ambiguous set of source encodings returns policy-relative
+`output_not_representable`; when movement is allowed, ordinary candidate
+generation may proceed.
+
+Independent in-memory and serialized verification repeats the all-record
+identity check when movement is disabled. A certificate selecting only the
+first raw encoding is rejected even if its certificate bytes and digest were
+canonicalized after the forgery.
+
+The approximate payload contains a distinct
+`certified_approximate_certificate<T,I>`, not strict vertex bindings. It records
+exact targets, output bits, exact displacement vectors/maxima, exact selected
+strata counts, triangulation/support evidence, the complete mandatory
+obligation inventory, all relaxed relations, component assignments, search
+transcripts, and the durable exact-result digest. Mandatory topology,
+orientation, incidence, noncollapse, link/radial-order, and prohibited-
+intersection obligations are not caller-disableable.
+
+`verify_certified_approximate_embedding` independently reconstructs candidate
+domains, exact dyadic points, displacement/plane bounds, orientation,
+noncollapse, edge incidence, vertex links, patch partitions, triangle
+intersections, occurrence maps, patch adjacency, cyclic vertex links, edge
+radial sequences, obligations, relaxed relations, and all output/certificate
+digests. It independently rebuilds deterministic hole-aware triangulation from
+durable cycles and support planes; certificate-selected patches, projections,
+triangles, and orientations are never authoritative. Every defining relation
+reachable through a realized vertex's construction graph is inventoried, with
+canonical normalized squared residual evidence for every relaxation.
+
+The verifier also reruns component formation and deterministic DFS, checking
+variable order, accepted ranks, rejected-prefix witnesses, visited nodes,
+complete assignments, and component/search transcript digests. Empty output is
+a valid approximate mesh with versioned nonempty zero-domain bytes.
+
+`encode_certified_approximate_embedding` creates a canonical envelope containing
+the durable exact-result bytes, output bits/faces, and full certificate.
+`verify_serialized_certified_approximate_embedding` begins from those bytes,
+performs bounded canonical decoding, reruns verification, and requires identical
+re-encoding. Corruption, truncation, trailing/noncanonical data, and decode
+limits fail closed. `ygor_mesh_boolean_approximate_verifier_isolation` links no
+approximate producer, candidate search, solver, or realization object.
 
 ## Backend selection and fallback
 
@@ -311,7 +390,7 @@ P0 freezes these rules but does not execute a fallback chain.
 
 ## Versioning and decoding
 
-Options, artifacts, errors, certificates, and replay bindings use schema 3.
+Options, artifacts, errors, certificates, and replay bindings use schema 6.
 Canonical records contain an eight-byte domain tag, schema, exact payload
 length, and positional payload. Decoders reject:
 
@@ -344,8 +423,8 @@ The current productized scope does not:
 - change Components 3 through 10 or their exact semantics;
 - automatically choose, combine, or qualify normalization repairs for an
   unknown-provenance import;
-- execute strict finite-`T` or approximate embedding search from a deferred
-  realization request;
+- execute finite-`T` realization from a deferred realization request (the
+  executable context product path is supported);
 - wrap backend execution or run independent adapters;
 - transfer application attributes; or
 - claim any production-qualified backend/result/preparation profile.

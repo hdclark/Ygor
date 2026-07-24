@@ -7,6 +7,14 @@
 namespace ygor {
 namespace mesh_boolean {
 
+class exact_result_handle;
+template <class T, class I> struct certified_approximate_certificate;
+template <class T, class I>
+product_status_or<bool> verify_certified_approximate_embedding(
+    const exact_result_handle &, const product_realization_policy &,
+    const boolean_success<T, I> &,
+    const certified_approximate_certificate<T, I> &) noexcept;
+
 enum class exact_result_topology : std::uint8_t {
   empty,
   closed_embedded_two_manifold,
@@ -135,6 +143,9 @@ template <class T, class I> struct certified_mesh_payload {
   std::vector<std::uint8_t> realization_canonical_bytes;
   std::vector<std::uint8_t> output_canonical_bytes;
   std::vector<strict_vertex_binding> strict_vertices;
+  product_realization_policy policy;
+  std::shared_ptr<const certified_approximate_certificate<T, I>>
+      approximate_certificate;
   std::uint64_t obligation_count = 0;
   std::uint64_t defining_relation_obligation_count = 0;
   std::uint64_t constraint_component_count = 0;
@@ -298,6 +309,23 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
           return fail(product_error_code::verifier_disagreement,
                       "product_result.strict_vertex_binding");
       }
+      if (m.approximate_certificate)
+        return fail(product_error_code::verifier_disagreement,
+                    "product_result.strict_has_approximate_certificate");
+    } else {
+      const auto &m = *r.mesh;
+      if (!m.approximate_certificate || !m.strict_vertices.empty() ||
+          m.realization_canonical_bytes.empty() ||
+          m.output_canonical_bytes.empty() ||
+          m.output_semantic_digest != m.success->canonical_output_digest ||
+          m.output_semantic_digest != m.success->summary.semantic_digest ||
+          m.policy.semantics != expected_semantics)
+        return fail(product_error_code::verifier_disagreement,
+                    "product_result.approximate_evidence");
+      auto replay = verify_certified_approximate_embedding(
+          r.exact_result, m.policy, *m.success, *m.approximate_certificate);
+      if (!replay.has_value())
+        return replay.error();
     }
   }
   if (r.realization) {

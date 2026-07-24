@@ -108,3 +108,31 @@ The result kind must state that the floating mesh is a certified nearby embeddin
 Search exhaustion in approximate mode is a policy-relative `output_not_representable` subcode. It is not proof that no embedding exists outside the configured search/bounds. Exceeding the caller's displacement policy is `approximation_policy_rejected`; verifier disagreement or certificate mismatch is an internal blocking defect.
 
 Component 13 must independently regenerate the obligation universe and replay displacement/topology certificates from the exact result plus emitted `T` bits. `plan_16_qualification_release.md` governs promotion of any approximate policy to production use.
+
+### Implemented v1 details
+
+The context product evaluator accepts a complete `product_realization_policy`
+overload and retains its earlier strict overload. Candidate generation v1 is a
+bounded symmetric nearest-neighbor ULP enumeration. Optional axis limits use
+explicit presence fields. Global displacement is compared as exact squared
+Euclidean distance, and support-plane deviation is checked as
+`|ax+by+cz+d|^2 <= bound^2*(a^2+b^2+c^2)`.
+
+The producer reuses selected-boundary triangulation and component-solving
+machinery but emits a distinct `certified_approximate_certificate`. The
+standalone approximate verifier regenerates domains and mandatory
+topology/embedding obligations from the durable exact result and emitted bits;
+its isolation target does not link the approximate producer or solver.
+
+Durable exact-result schema 2 retains canonical original source coordinate bits
+and rejects conflicting sources. Original-preserving domains use those bits
+directly, including negative zero. Candidate policy distinguishes a per-vertex
+retained cap, a request-wide streamed candidate-evaluation limit, and a
+deterministic DFS node limit.
+
+The verifier independently reconstructs hole-aware triangulation from exact
+cycles, occurrence maps, patch adjacency, vertex-link cyclic sequences, and
+edge radial sequences. It inventories every defining relation reachable from
+each selected vertex and independently replays component search, counters, and
+rejected-prefix witnesses. Canonical approximate envelopes have bounded decoders
+and serialized replay; empty results use versioned nonempty zero-domain bytes.

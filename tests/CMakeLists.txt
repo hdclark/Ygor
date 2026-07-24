@@ -76,6 +76,36 @@ add_boolean_component_test(Test_MeshesBooleanSelectionAdversarial MeshBooleanSel
 add_boolean_component_test(Test_MeshesBooleanExactResult MeshBooleanExactResult.Unit "mesh_boolean;component10;component11;component12;component13;p1;p3;p3.2;continuous")
 add_boolean_component_test(Test_MeshesBooleanRealization MeshBooleanRealization.Unit "mesh_boolean;component11")
 add_boolean_component_test(Test_MeshesBooleanRealizationProperties MeshBooleanRealization.Properties "mesh_boolean;component11")
+add_boolean_component_test(Test_MeshesBooleanApproximate MeshBooleanApproximate.Adversarial "mesh_boolean;component11;component13;p3;p3.3;adversarial;continuous")
+add_executable(Test_MeshesBooleanApproximateFixtureGenerator
+    Test_MeshesBooleanApproximateFixtureGenerator.cc)
+target_link_libraries(Test_MeshesBooleanApproximateFixtureGenerator PRIVATE
+    mesh_boolean_test_support)
+mesh_boolean_strict_fp(Test_MeshesBooleanApproximateFixtureGenerator)
+set(approximate_isolation_fixture
+    "${CMAKE_CURRENT_BINARY_DIR}/approximate-isolation-fixture.bin")
+add_test(NAME MeshBooleanApproximate.VerifierIsolationFixture
+    COMMAND Test_MeshesBooleanApproximateFixtureGenerator
+            "${approximate_isolation_fixture}")
+set_tests_properties(MeshBooleanApproximate.VerifierIsolationFixture PROPERTIES
+    FIXTURES_SETUP ApproximateVerifierFixture
+    TIMEOUT 60
+    LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
+add_executable(Test_MeshesBooleanApproximateVerifierIsolation
+    Test_MeshesBooleanApproximateVerifierIsolation.cc)
+target_include_directories(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE
+    ${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
+target_link_libraries(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE
+    ygor_mesh_boolean_approximate_verifier_isolation)
+target_compile_features(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE cxx_std_17)
+mesh_boolean_strict_fp(Test_MeshesBooleanApproximateVerifierIsolation)
+add_test(NAME MeshBooleanApproximate.VerifierIsolation
+    COMMAND Test_MeshesBooleanApproximateVerifierIsolation
+            "${approximate_isolation_fixture}")
+set_tests_properties(MeshBooleanApproximate.VerifierIsolation PROPERTIES
+    FIXTURES_REQUIRED ApproximateVerifierFixture
+    TIMEOUT 60
+    LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
 add_boolean_component_test(Test_MeshesBooleanOutput MeshBooleanOutput.Unit "mesh_boolean;component12")
 add_boolean_component_test(Test_MeshesBooleanOutputProperties MeshBooleanOutput.Properties "mesh_boolean;component12")
 set_tests_properties(MeshBooleanCellClassification.Adversarial MeshBooleanSelection.Adversarial PROPERTIES TIMEOUT 600)

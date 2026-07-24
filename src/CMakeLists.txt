@@ -4,6 +4,8 @@ configure_file(YgorDefinitions.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
 FILE(GLOB ygor_sources "*cc")
+list(REMOVE_ITEM ygor_sources
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateVerifierMeshSupport.cc)
 FILE(GLOB ygor_headers "*.h"
                        ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
@@ -58,6 +60,29 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_link_options(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE "LINKER:--no-undefined")
 endif()
 
+# Approximate replay links exact-result decoding and policy encoding, but no
+# approximate candidate generator, solver, or realization producer object.
+add_library(ygor_mesh_boolean_approximate_verifier_isolation SHARED
+    YgorMeshesBooleanExactResult.cc
+    YgorMeshesBooleanApproximatePolicy.cc
+    YgorMeshesBooleanApproximateVerifier.cc
+    YgorMeshesBooleanApproximateTopologyVerifier.cc
+    YgorMeshesBooleanApproximateSerialization.cc
+    YgorMeshesBooleanApproximateVerifierMeshSupport.cc
+    YgorMeshesExactKernel.cc
+    YgorMeshesExactKernelFilters.cc)
+target_include_directories(ygor_mesh_boolean_approximate_verifier_isolation
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_approximate_verifier_isolation PRIVATE cxx_std_17)
+target_link_libraries(ygor_mesh_boolean_approximate_verifier_isolation PRIVATE
+    ygor_mesh_boolean_exact_result_verifier_support
+    Threads::Threads
+    m
+    "${STD_FS_LIB}")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_link_options(ygor_mesh_boolean_approximate_verifier_isolation PRIVATE "LINKER:--no-undefined")
+endif()
+
 # Predicate-bearing Boolean sources must override repository-wide fast-math flags.
 set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc
@@ -79,6 +104,11 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSelection.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealization.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanRealizationVerifier.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximate.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximatePolicy.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateVerifier.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateTopologyVerifier.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateSerialization.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanOutput.cc
 )
 if(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

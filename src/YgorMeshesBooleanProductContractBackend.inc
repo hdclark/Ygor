@@ -50,7 +50,7 @@ encode_backend_identity(const backend_identity &b) {
   e.u64(b.capabilities.bits);
   encode_digest(e, b.capability_digest);
   e.byte(static_cast<std::uint8_t>(b.maturity));
-  return record_bytes({{'Y', 'G', 'B', 'B', 'I', 'D', '0', '3'}},
+  return record_bytes({{'Y', 'G', 'B', 'B', 'I', 'D', '0', '6'}},
                       product_contract_schema_version, e.bytes());
 }
 
@@ -58,7 +58,7 @@ product_status_or<backend_identity>
 decode_backend_identity(const std::vector<std::uint8_t> &bytes,
                         const product_decode_limits &limits) {
   auto payload = extract_payload(
-      bytes, {{'Y', 'G', 'B', 'B', 'I', 'D', '0', '3'}}, limits);
+      bytes, {{'Y', 'G', 'B', 'B', 'I', 'D', '0', '6'}}, limits);
   if (!payload.has_value())
     return payload.error();
   try {
@@ -112,7 +112,7 @@ make_qualification_manifest(std::string identifier,
   m.profiles = std::move(profiles);
   const auto payload = encode_manifest_payload(m.identifier, m.profiles);
   m.manifest_digest =
-      domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '3'}}, payload);
+      domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '6'}}, payload);
   return m;
 }
 
@@ -135,7 +135,7 @@ validate_qualification_manifest(const qualification_manifest &m) noexcept {
     }
     const auto payload = encode_manifest_payload(m.identifier, m.profiles);
     const auto expected =
-        domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '3'}}, payload);
+        domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '6'}}, payload);
     if (m.manifest_digest != expected)
       return bad(product_error_code::stale_binding,
                  "qualification.manifest_digest");

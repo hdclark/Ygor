@@ -135,13 +135,13 @@ Start only after P2. Preserve the existing strict `exact_in_T` algorithm as a re
   - [x] Preserve surface occurrences and non-manifold topology where the exact result requires them.
   - [x] Add canonical serialization, public lifetime, indexing/capacity policy, provenance, and independent verification.
 
-- [ ] **P3.3 — Implement `certified_approximate_embedding_v1`.**
-  - [ ] Define caller-supplied global/per-axis displacement bounds, original-vertex movement policy, support-plane deviation, model-tolerance metadata, deterministic candidate generation, and search/resource limits.
-  - [ ] Generate the complete variable/obligation graph and require occurrence-isomorphic topology, preserved orientation/order/incidence, non-collapse, and no introduced prohibited intersections.
-  - [ ] Emit exact target/output bits, displacement vectors/maxima, relaxed-relation inventory/deviations, accepted assignment transcript, and exact-result digest binding.
-  - [ ] Return policy-relative `output_not_representable` on bounded search exhaustion; never claim mathematical impossibility unless proved.
-  - [ ] Extend Component 13 with an independently implemented certificate generator/replayer family and standalone link-separation tests.
-  - [ ] Add adversarial non-dyadic, rounding collision, thin/sliver, high-valence, coplanar, large-range, subnormal, candidate-boundary, solver-limit, and mutation tests.
+- [x] **P3.3 — Implement `certified_approximate_embedding_v1`.**
+  - [x] Define caller-supplied global/per-axis displacement bounds, original-vertex movement policy, support-plane deviation, model-tolerance metadata, deterministic candidate generation, and search/resource limits.
+  - [x] Generate the complete variable/obligation graph and require occurrence-isomorphic topology, preserved orientation/order/incidence, non-collapse, and no introduced prohibited intersections.
+  - [x] Emit exact target/output bits, displacement vectors/maxima, relaxed-relation inventory/deviations, accepted assignment transcript, and exact-result digest binding.
+  - [x] Return policy-relative `output_not_representable` on bounded search exhaustion; never claim mathematical impossibility unless proved.
+  - [x] Extend Component 13 with an independently implemented certificate generator/replayer family and standalone link-separation tests.
+  - [x] Add adversarial non-dyadic, rounding collision, thin/sliver, high-valence, coplanar, large-range, subnormal, candidate-boundary, solver-limit, and mutation tests.
 
 **P3 exit gate:** exact, strict finite-`T`, and certified approximate outputs are semantically distinct; each is bound to one durable exact result and independently verified under its declared contract.
 

@@ -1,5 +1,6 @@
 #include "YgorMeshesBooleanExactResult.h"
 #include "YgorMeshesBooleanExactResultInternal.h"
+#include "YgorMeshesBooleanApproximate.h"
 #include "YgorMeshesBooleanOutput.h"
 
 #include <algorithm>
@@ -151,6 +152,7 @@ detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &s,
         return error(product_error_code::stale_binding,
                      "exact_result.vertex_symbolic");
       std::vector<original_vertex_ref> originals;
+      std::vector<exact_result_vertex::original_raw_bits_record> original_bits;
       for (auto original : sv.original_vertices) {
         auto found = std::find_if(
             validated.vertices.begin(), validated.vertices.end(),
@@ -159,14 +161,29 @@ detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &s,
           return error(product_error_code::stale_binding,
                        "exact_result.original_vertex_source");
         originals.push_back({found->operand, original});
+        exact_result_vertex::original_raw_bits_record raw;
+        raw.source = originals.back();
+        raw.coordinate = exact_result_coordinate_type<T>();
+        for (std::size_t axis = 0; axis < 3; ++axis)
+          raw.bits[axis] = found->raw_bits[axis].bits;
+        original_bits.push_back(std::move(raw));
       }
-      std::sort(originals.begin(), originals.end(),
-                [](const auto &x, const auto &y) {
-                  return std::tie(x.operand, x.vertex) <
-                         std::tie(y.operand, y.vertex);
-                });
+      std::vector<std::size_t> original_order(originals.size());
+      for (std::size_t i = 0; i < original_order.size(); ++i)
+        original_order[i] = i;
+      std::sort(original_order.begin(), original_order.end(), [&](auto x, auto y) {
+        return std::tie(originals[x].operand, originals[x].vertex) <
+               std::tie(originals[y].operand, originals[y].vertex);
+      });
+      std::vector<original_vertex_ref> sorted_originals;
+      std::vector<exact_result_vertex::original_raw_bits_record> sorted_bits;
+      for (const auto index : original_order) {
+        sorted_originals.push_back(originals[index]);
+        sorted_bits.push_back(original_bits[index]);
+      }
       a.vertices.push_back({v.id, v.source, v.symbolic, sv.point,
-                            std::move(originals), sv.constructions});
+                            std::move(sorted_originals), std::move(sorted_bits),
+                            sv.constructions});
     }
     for (const auto &e : s.edges) {
       if (e.source.value_for_debug() >= g.edges.size())
@@ -334,9 +351,10 @@ publish_exact_boolean_result(boolean_context<T, I> &context,
 template <class T, class I>
 product_status_or<boolean_product_result_handle<T, I>>
 evaluate_boolean_product_result(boolean_context<T, I> &context,
-                                exact_result_backend_binding backend,
+                                 exact_result_backend_binding backend,
                                  exact_result_preparation_binding preparation,
-                                 result_representation representation) {
+                                 result_representation representation,
+                                 product_realization_policy realization_policy) {
   if (const auto &bound = context.preparation_provenance()) {
     if (preparation.mode != preparation_mode::strict_validation ||
         preparation.input_digest != bound->input_digest ||
@@ -357,12 +375,25 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
     return exact.error();
   if (representation == result_representation::exact_stratified)
     return exact.value();
-  if (representation == result_representation::certified_approximate_mesh)
-    return record_failed_realization(
-        exact.value(), representation,
-        product_realization_semantics::certified_approximate_embedding_v1,
-        make_product_error(product_error_code::approximation_policy_rejected,
-                           "exact_result.approximation_not_implemented"));
+  if (representation == result_representation::certified_approximate_mesh) {
+    auto realized = realize_certified_approximate_embedding(
+        context, exact.value()->exact_result, exact.value()->backend.producer,
+        realization_policy);
+    if (!realized.has_value())
+      return record_failed_realization(
+          exact.value(), representation,
+          product_realization_semantics::certified_approximate_embedding_v1,
+          realized.error());
+    auto result = *exact.value();
+    result.representation = result_representation::certified_approximate_mesh;
+    result.mesh = std::move(realized.value());
+    result.realization = realization_attempt_record{};
+    result.realization->requested = representation;
+    result.realization->semantics =
+        product_realization_semantics::certified_approximate_embedding_v1;
+    result.realization->succeeded = true;
+    return freeze_boolean_product_result(std::move(result));
+  }
 
   auto assembled = assemble_boolean_output_artifact(context);
   if (!assembled.has_value())
@@ -422,6 +453,22 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
   return freeze_boolean_product_result(std::move(result));
 }
 
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+evaluate_boolean_product_result(boolean_context<T, I> &context,
+                                 exact_result_backend_binding backend,
+                                 exact_result_preparation_binding preparation,
+                                 result_representation representation) {
+  product_realization_policy policy;
+  if (representation == result_representation::exact_in_T_mesh) {
+    policy.semantics = product_realization_semantics::exact_in_T;
+    policy.search.strategy = realization_search_strategy::nearest_only;
+  }
+  return evaluate_boolean_product_result(
+      context, std::move(backend), std::move(preparation), representation,
+      std::move(policy));
+}
+
 #define YGOR_EXACT_RESULT_DEFINE(T, I)                                         \
   template product_status_or<exact_stratified_boundary>                        \
   detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &,      \
@@ -434,7 +481,12 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
   template product_status_or<boolean_product_result_handle<T, I>>              \
   evaluate_boolean_product_result(                                             \
       boolean_context<T, I> &, exact_result_backend_binding,                   \
-      exact_result_preparation_binding, result_representation)
+      exact_result_preparation_binding, result_representation);                \
+  template product_status_or<boolean_product_result_handle<T, I>>              \
+  evaluate_boolean_product_result(                                             \
+      boolean_context<T, I> &, exact_result_backend_binding,                   \
+      exact_result_preparation_binding, result_representation,                 \
+      product_realization_policy)
 YGOR_EXACT_RESULT_DEFINE(float, std::uint32_t);
 YGOR_EXACT_RESULT_DEFINE(float, std::uint64_t);
 YGOR_EXACT_RESULT_DEFINE(double, std::uint32_t);

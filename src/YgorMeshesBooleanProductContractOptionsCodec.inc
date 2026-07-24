@@ -39,16 +39,28 @@ encode_product_options(const boolean_product_options &o) {
   e.u16(o.realization.search.schema);
   e.byte(static_cast<std::uint8_t>(o.realization.search.strategy));
   e.u64(o.realization.search.max_candidates);
-  e.u64(o.realization.search.max_backtracks);
+  e.u64(o.realization.search.max_candidate_evaluations);
+  e.u64(o.realization.search.max_search_nodes);
+  e.u64(o.realization.search.max_obligations);
+  e.u64(o.realization.search.max_triangle_pairs);
+  e.u64(o.realization.search.max_predicate_checks);
+  e.u64(o.realization.search.max_verifier_work);
+  e.u64(o.realization.search.max_verifier_records);
+  e.u64(o.realization.search.max_verifier_bytes);
   e.u16(o.realization.approximation.schema);
   e.boolean(o.realization.approximation.enabled);
   e.byte(static_cast<std::uint8_t>(o.realization.approximation.unit));
   encode_double(e, o.realization.approximation.max_vertex_displacement);
+  e.boolean(o.realization.approximation.has_max_axis_displacement_x);
   encode_double(e, o.realization.approximation.max_axis_displacement_x);
+  e.boolean(o.realization.approximation.has_max_axis_displacement_y);
   encode_double(e, o.realization.approximation.max_axis_displacement_y);
+  e.boolean(o.realization.approximation.has_max_axis_displacement_z);
   encode_double(e, o.realization.approximation.max_axis_displacement_z);
   encode_double(e, o.realization.approximation.max_support_plane_deviation);
   e.boolean(o.realization.approximation.allow_original_vertex_movement);
+  e.u16(o.realization.approximation.candidate_generation_version);
+  e.u32(o.realization.approximation.candidate_ulp_radius);
   encode_double(e, o.realization.approximation.declared_model_tolerance);
   e.string(o.realization.approximation.application_acceptance_metadata);
   e.u16(o.attributes.schema);
@@ -64,7 +76,7 @@ encode_product_options(const boolean_product_options &o) {
     encode_digest(e, o.qualification.manifest->manifest_digest);
   }
   e.boolean(o.mandatory_verification);
-  return record_bytes({{'Y', 'G', 'B', 'P', 'O', 'P', '0', '3'}},
+  return record_bytes({{'Y', 'G', 'B', 'P', 'O', 'P', '0', '6'}},
                       product_contract_schema_version, e.bytes());
 }
 
@@ -72,7 +84,7 @@ product_status_or<boolean_product_options>
 decode_product_options(const std::vector<std::uint8_t> &bytes,
                        const product_decode_limits &limits) {
   auto payload = extract_payload(
-      bytes, {{'Y', 'G', 'B', 'P', 'O', 'P', '0', '3'}}, limits);
+      bytes, {{'Y', 'G', 'B', 'P', 'O', 'P', '0', '6'}}, limits);
   if (!payload.has_value())
     return payload.error();
   try {
@@ -122,16 +134,28 @@ decode_product_options(const std::vector<std::uint8_t> &bytes,
     o.realization.search.strategy =
         decode_u8_enum<realization_search_strategy>(r, known);
     o.realization.search.max_candidates = r.u64();
-    o.realization.search.max_backtracks = r.u64();
+    o.realization.search.max_candidate_evaluations = r.u64();
+    o.realization.search.max_search_nodes = r.u64();
+    o.realization.search.max_obligations = r.u64();
+    o.realization.search.max_triangle_pairs = r.u64();
+    o.realization.search.max_predicate_checks = r.u64();
+    o.realization.search.max_verifier_work = r.u64();
+    o.realization.search.max_verifier_records = r.u64();
+    o.realization.search.max_verifier_bytes = r.u64();
     o.realization.approximation.schema = r.u16();
     o.realization.approximation.enabled = r.boolean();
     o.realization.approximation.unit = decode_u8_enum<model_unit>(r, known);
     o.realization.approximation.max_vertex_displacement = r.floating64();
+    o.realization.approximation.has_max_axis_displacement_x = r.boolean();
     o.realization.approximation.max_axis_displacement_x = r.floating64();
+    o.realization.approximation.has_max_axis_displacement_y = r.boolean();
     o.realization.approximation.max_axis_displacement_y = r.floating64();
+    o.realization.approximation.has_max_axis_displacement_z = r.boolean();
     o.realization.approximation.max_axis_displacement_z = r.floating64();
     o.realization.approximation.max_support_plane_deviation = r.floating64();
     o.realization.approximation.allow_original_vertex_movement = r.boolean();
+    o.realization.approximation.candidate_generation_version = r.u16();
+    o.realization.approximation.candidate_ulp_radius = r.u32();
     o.realization.approximation.declared_model_tolerance = r.floating64();
     o.realization.approximation.application_acceptance_metadata = r.string();
     o.attributes.schema = r.u16();
@@ -168,7 +192,7 @@ digest product_options_digest(const boolean_product_options &o) {
   const auto bytes = encode_product_options(o);
   if (!bytes.has_value())
     return {};
-  return domain_digest({{'Y', 'G', 'B', 'P', 'O', 'D', '0', '3'}},
+  return domain_digest({{'Y', 'G', 'B', 'P', 'O', 'D', '0', '6'}},
                        bytes.value());
 }
 
@@ -176,5 +200,5 @@ digest backend_capability_digest(const backend_capabilities &c) {
   canonical_encoder e;
   e.u16(c.schema);
   e.u64(c.bits);
-  return domain_digest({{'Y', 'G', 'B', 'C', 'A', 'P', '0', '3'}}, e.bytes());
+  return domain_digest({{'Y', 'G', 'B', 'C', 'A', 'P', '0', '6'}}, e.bytes());
 }

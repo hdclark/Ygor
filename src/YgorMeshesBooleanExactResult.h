@@ -17,10 +17,10 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t exact_stratified_boundary_schema = 1;
-constexpr std::uint16_t exact_stratified_boundary_checker_version = 1;
-constexpr std::uint16_t exact_coordinate_export_schema = 1;
-constexpr std::uint16_t exact_coordinate_export_checker_version = 1;
+constexpr std::uint16_t exact_stratified_boundary_schema = 2;
+constexpr std::uint16_t exact_stratified_boundary_checker_version = 2;
+constexpr std::uint16_t exact_coordinate_export_schema = 2;
+constexpr std::uint16_t exact_coordinate_export_checker_version = 2;
 
 struct exact_result_decode_limits {
   std::uint64_t max_record_bytes = 64U * 1024U * 1024U;
@@ -88,6 +88,12 @@ struct exact_result_vertex {
   symbolic_vertex_id symbolic;
   exact_point3 coordinate;
   std::vector<original_vertex_ref> original_vertices;
+  struct original_raw_bits_record {
+    original_vertex_ref source;
+    coordinate_tag coordinate = coordinate_tag::binary64;
+    std::array<std::uint64_t, 3> bits{{0, 0, 0}};
+  };
+  std::vector<original_raw_bits_record> original_raw_bits;
   std::vector<construction_node_id> constructions;
 };
 
@@ -367,6 +373,14 @@ evaluate_boolean_product_result(boolean_context<T, I> &,
 
 template <class T, class I>
 product_status_or<boolean_product_result_handle<T, I>>
+evaluate_boolean_product_result(boolean_context<T, I> &,
+                                exact_result_backend_binding,
+                                exact_result_preparation_binding,
+                                result_representation,
+                                product_realization_policy);
+
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
 record_failed_realization(const boolean_product_result_handle<T, I> &exact,
                           result_representation requested,
                           product_realization_semantics semantics,
@@ -397,7 +411,12 @@ record_failed_realization(const boolean_product_result_handle<T, I> &exact,
   extern template product_status_or<boolean_product_result_handle<T, I>>       \
   evaluate_boolean_product_result(                                             \
       boolean_context<T, I> &, exact_result_backend_binding,                   \
-      exact_result_preparation_binding, result_representation)
+      exact_result_preparation_binding, result_representation);                \
+  extern template product_status_or<boolean_product_result_handle<T, I>>       \
+  evaluate_boolean_product_result(                                             \
+      boolean_context<T, I> &, exact_result_backend_binding,                   \
+      exact_result_preparation_binding, result_representation,                 \
+      product_realization_policy)
 YGOR_EXACT_RESULT_EXTERN(float, std::uint32_t);
 YGOR_EXACT_RESULT_EXTERN(float, std::uint64_t);
 YGOR_EXACT_RESULT_EXTERN(double, std::uint32_t);

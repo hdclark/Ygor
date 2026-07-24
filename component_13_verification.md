@@ -92,4 +92,12 @@ Multi-backend agreement is supporting evidence only. Disagreement triggers a pre
 
 Approximate certificates must be replayable from the durable exact result, emitted coordinate bits, policy, and canonical certificate alone. Decimal tolerances, triangle-count similarity, or approximate volume agreement cannot replace the certificate obligations.
 
+The approximate checker reconstructs authorized triangulation from durable
+cycles and planes and compares occurrence maps, patch adjacency, cyclic vertex
+links, and edge radial sequences. It replays defining relations, relaxed
+residuals, deterministic component search, rejected-prefix witnesses, and exact
+counters. Its bounded serialized entry starts from canonical exact-result,
+output, and certificate bytes and requires canonical re-encoding. The standalone
+isolation executable links no approximate producer, realization, or solver.
+
 The qualification program in `plan_16_qualification_release.md` must mutation-test the new cross-layer bindings, including forged capability claims, stale preparation reports, mismatched exact-result digests, omitted relaxed relations, understated displacement maxima, incorrect backend provenance, and silent attribute loss.

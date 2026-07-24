@@ -144,6 +144,7 @@ realization_solver_result solve_realization_constraint_components(
         return degree[a] > degree[b];
       return a < b;
     });
+    component.variable_order = order;
     item.singleton = std::all_of(
         order.begin(), order.end(), [&](auto id) {
           return variable_by_id.at(id).domain_size == 1;

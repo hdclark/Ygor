@@ -117,12 +117,18 @@ validate_product_options(const boolean_product_options &o) noexcept {
     }
 
     const auto &a = o.realization.approximation;
+    const auto &search = o.realization.search;
+    const bool approximate_limits_disabled =
+        search.max_obligations == 0 && search.max_triangle_pairs == 0 &&
+        search.max_predicate_checks == 0 && search.max_verifier_work == 0 &&
+        search.max_verifier_records == 0 && search.max_verifier_bytes == 0;
     if (!finite_nonnegative(a.max_vertex_displacement) ||
         !finite_nonnegative(a.max_axis_displacement_x) ||
         !finite_nonnegative(a.max_axis_displacement_y) ||
         !finite_nonnegative(a.max_axis_displacement_z) ||
         !finite_nonnegative(a.max_support_plane_deviation) ||
-        !finite_nonnegative(a.declared_model_tolerance))
+        !finite_nonnegative(a.declared_model_tolerance) ||
+        a.candidate_generation_version != 1)
       return bad(product_error_code::approximation_policy_rejected,
                  "product_options.approximation_nonfinite");
     switch (o.result.representation) {
@@ -131,7 +137,9 @@ validate_product_options(const boolean_product_options &o) noexcept {
               product_realization_semantics::not_requested ||
           o.realization.search.strategy != realization_search_strategy::none ||
           o.realization.search.max_candidates != 0 ||
-          o.realization.search.max_backtracks != 0 || a.enabled)
+          o.realization.search.max_candidate_evaluations != 0 ||
+          o.realization.search.max_search_nodes != 0 ||
+          !approximate_limits_disabled || a.enabled)
         return bad(product_error_code::input_contract_error,
                    "product_options.exact_stratified_realization");
       break;
@@ -144,12 +152,14 @@ validate_product_options(const boolean_product_options &o) noexcept {
                realization_search_strategy::neighboring_values) ||
           (o.realization.search.strategy ==
                realization_search_strategy::nearest_only &&
-           (o.realization.search.max_candidates != 0 ||
-            o.realization.search.max_backtracks != 0)) ||
-          (o.realization.search.strategy ==
-               realization_search_strategy::neighboring_values &&
-           o.realization.search.max_candidates == 0) ||
-          a.enabled)
+            (o.realization.search.max_candidates != 0 ||
+             o.realization.search.max_candidate_evaluations != 0 ||
+             o.realization.search.max_search_nodes != 0 ||
+             !approximate_limits_disabled)) ||
+           (o.realization.search.strategy ==
+                realization_search_strategy::neighboring_values &&
+            o.realization.search.max_candidates == 0) ||
+           !approximate_limits_disabled || a.enabled)
         return bad(product_error_code::input_contract_error,
                    "product_options.exact_in_T_semantics");
       break;
@@ -159,14 +169,35 @@ validate_product_options(const boolean_product_options &o) noexcept {
                   certified_approximate_embedding_v1 ||
           o.realization.search.strategy !=
               realization_search_strategy::deterministic_bounded_search ||
-          !a.enabled || a.unit == model_unit::unspecified ||
-          a.max_vertex_displacement <= 0.0 ||
-          a.declared_model_tolerance <= 0.0 ||
+           !a.enabled || a.unit == model_unit::unspecified ||
+           a.max_vertex_displacement <= 0.0 ||
+           a.max_support_plane_deviation < 0.0 ||
+           a.declared_model_tolerance <= 0.0 ||
+           a.candidate_ulp_radius == 0 ||
           o.realization.search.max_candidates == 0 ||
-          o.realization.search.max_backtracks == 0 ||
+          o.realization.search.max_candidate_evaluations == 0 ||
+            o.realization.search.max_search_nodes == 0 ||
+           o.realization.search.max_obligations == 0 ||
+           o.realization.search.max_triangle_pairs == 0 ||
+           o.realization.search.max_predicate_checks == 0 ||
+           o.realization.search.max_verifier_work == 0 ||
+           o.realization.search.max_verifier_records == 0 ||
+           o.realization.search.max_verifier_bytes == 0 ||
           a.application_acceptance_metadata.empty())
         return bad(product_error_code::approximation_policy_rejected,
-                   "product_options.approximation_contract");
+                    "product_options.approximation_contract");
+      if (a.candidate_ulp_radius >
+              (o.realization.search.max_candidate_evaluations - 1) / 2)
+        return bad(product_error_code::approximation_policy_rejected,
+                   "product_options.candidate_radius_cap");
+      if ((!a.has_max_axis_displacement_x &&
+           a.max_axis_displacement_x != 0.0) ||
+          (!a.has_max_axis_displacement_y &&
+           a.max_axis_displacement_y != 0.0) ||
+          (!a.has_max_axis_displacement_z &&
+           a.max_axis_displacement_z != 0.0))
+        return bad(product_error_code::approximation_policy_rejected,
+                   "product_options.axis_bound_presence");
       break;
     }
     if (!o.result.retain_exact_result_on_realization_failure)

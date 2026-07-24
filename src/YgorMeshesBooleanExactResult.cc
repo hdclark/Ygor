@@ -441,6 +441,14 @@ void vertex(canonical_encoder &e, const exact_result_vertex &v) {
       [](canonical_encoder &x, const original_vertex_ref &y) {
         original_vertex(x, y);
       });
+  vec(e, v.original_raw_bits,
+      [](canonical_encoder &x,
+         const exact_result_vertex::original_raw_bits_record &raw) {
+        original_vertex(x, raw.source);
+        en(x, raw.coordinate);
+        for (const auto bits : raw.bits)
+          x.u64(bits);
+      });
   ids(e, v.constructions);
 }
 exact_result_vertex vertex(reader &r) {
@@ -451,6 +459,15 @@ exact_result_vertex vertex(reader &r) {
   v.coordinate = point(r);
   v.original_vertices =
       vec<original_vertex_ref>(r, [](reader &x) { return original_vertex(x); });
+  v.original_raw_bits = vec<exact_result_vertex::original_raw_bits_record>(
+      r, [](reader &x) {
+        exact_result_vertex::original_raw_bits_record raw;
+        raw.source = original_vertex(x);
+        raw.coordinate = de<coordinate_tag>(x, 1);
+        for (auto &bits : raw.bits)
+          bits = x.u64();
+        return raw;
+      });
   v.constructions = ids<construction_node_id>(r);
   return v;
 }
@@ -1073,8 +1090,37 @@ product_status_or<bool> validate_impl(const exact_stratified_boundary &a) {
               return x.operand == y.operand && x.vertex == y.vertex;
             }) != v.original_vertices.end() ||
         !strict_ids(v.constructions) ||
-        !refs(v.constructions, a.constructions.size()))
+        !refs(v.constructions, a.constructions.size()) ||
+        v.original_raw_bits.size() != v.original_vertices.size())
       return fail("exact_result.vertex_references");
+    for (std::size_t source = 0; source < v.original_raw_bits.size(); ++source) {
+      const auto &raw = v.original_raw_bits[source];
+      if (raw.source.operand != v.original_vertices[source].operand ||
+          raw.source.vertex != v.original_vertices[source].vertex)
+        return fail("exact_result.original_raw_bits");
+      for (std::size_t axis = 0; axis < raw.bits.size(); ++axis) {
+        const auto bits = raw.bits[axis];
+        std::optional<exact_scalar> decoded;
+        if (raw.coordinate == coordinate_tag::binary32) {
+          if (bits <= std::numeric_limits<std::uint32_t>::max()) {
+            auto value = decode_coordinate(
+                coordinate_bits<float>{static_cast<std::uint32_t>(bits)},
+                boolean_stage::final_verification);
+            if (value.has_value()) decoded = value.value().value;
+          }
+        } else {
+          auto value = decode_coordinate(coordinate_bits<double>{bits},
+                                         boolean_stage::final_verification);
+          if (value.has_value()) decoded = value.value().value;
+        }
+        const std::array<exact_scalar, 3> coordinate{
+            {v.coordinate.x, v.coordinate.y, v.coordinate.z}};
+        if (!decoded || *decoded != coordinate[axis] ||
+            (raw.coordinate == coordinate_tag::binary32 &&
+             bits > std::numeric_limits<std::uint32_t>::max()))
+          return fail("exact_result.original_raw_bits_encoding");
+      }
+    }
   }
   for (const auto &c : a.curves) {
     if (c.carrier.direction.x.is_zero() && c.carrier.direction.y.is_zero() &&

@@ -123,14 +123,9 @@ void product_policy_round_trip() {
   auto encoded = encode_product_options(options);
   require(encoded.has_value(), "product options encode");
   const std::string golden =
-      "594742504f503033000300000000000000a60003000300030003000300030100"
-      "0000000000000000000000000000000000000000000000000000030000030000"
-      "0000000000000000000000000000000000030001000300000300000000000000"
-      "0000000000000000000000030000000000000000000000000000000000000000"
-      "0000000000000000000000000000000000000000000000000000000000000000"
-      "000000000000000003000000030000000000000000000001";
+      "594742504f503036000600000000000000e7000600060006000600060006010000000000000000000000000000000000000000000000000000000600000600000000000000000000000000000000000000060001000600000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000006000000060000000000000000000001";
   require(hex_bytes(encoded.value()) == golden,
-          "schema-3 product option golden vector");
+          "schema-6 product option golden vector");
 
   auto decoded = decode_product_options(encoded.value());
   require(decoded.has_value(), "product options decode");
@@ -239,11 +234,25 @@ void product_policy_validation() {
   approximate.realization.approximation.max_vertex_displacement = 0.001;
   approximate.realization.approximation.declared_model_tolerance = 0.01;
   approximate.realization.search.max_candidates = 64;
-  approximate.realization.search.max_backtracks = 256;
+  approximate.realization.search.max_candidate_evaluations = 4096;
+  approximate.realization.search.max_search_nodes = 256;
+  approximate.realization.search.max_obligations = 4096;
+  approximate.realization.search.max_triangle_pairs = 4096;
+  approximate.realization.search.max_predicate_checks = 65536;
+  approximate.realization.search.max_verifier_work = 65536;
+  approximate.realization.search.max_verifier_records = 65536;
+  approximate.realization.search.max_verifier_bytes = 1048576;
+  approximate.realization.approximation.candidate_ulp_radius = 1;
   approximate.realization.approximation.application_acceptance_metadata =
       "fixture-model-tolerance";
   require(validate_product_options(approximate).has_value(),
           "explicit approximate contract accepted");
+  approximate.realization.approximation.max_axis_displacement_y = 0.0005;
+  require(!validate_product_options(approximate).has_value(),
+          "axis bound value requires explicit presence");
+  approximate.realization.approximation.has_max_axis_displacement_y = true;
+  require(validate_product_options(approximate).has_value(),
+          "explicit optional axis bound accepted");
   approximate.result.retain_exact_result_on_realization_failure = false;
   require(!validate_product_options(approximate).has_value(),
           "exact authority cannot be discarded");
@@ -408,14 +417,14 @@ void replay_contract() {
   auto golden_encoded = encode_product_replay_binding(golden_replay);
   require(golden_encoded.has_value(), "replay golden encode");
   const std::string replay_golden =
-      "5947425052503033000300000000000000ab0003000102030405060708090a0b"
+      "5947425052503036000600000000000000ab0006000102030405060708090a0b"
       "0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b"
       "2c2d2e2f0001000100020003000000000000000162303132333435363738393a"
       "3b3c3d3e3f0000000000000000404142434445464748494a4b4c4d4e4f5051"
       "52535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70"
       "7172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f";
   require(hex_bytes(golden_encoded.value()) == replay_golden,
-          "schema-3 replay golden vector");
+          "schema-6 replay golden vector");
 
   auto options = explicit_experimental_options();
   const auto backend = make_test_identity();
