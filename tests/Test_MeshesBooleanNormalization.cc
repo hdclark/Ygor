@@ -984,6 +984,126 @@ void orientation_nested_shells_and_fail_closed() {
           "orientation planning work is bounded and transactional");
 }
 
+normalization_policy nonplanar_policy(nonplanar_facet_policy handling) {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.unit = model_unit::millimetre;
+  policy.model_tolerance = 0.125;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::nonplanar_facet_handling);
+  policy.nonplanar_facets = handling;
+  return policy;
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I> warped_cube(T displacement = T(0.0625)) {
+  auto mesh = cube<T, I>();
+  mesh.vertices[6].z += displacement;
+  return mesh;
+}
+
+template <class T, class I> void nonplanar_triangulation_basic() {
+  const auto source = warped_cube<T, I>();
+  normalization_report diagnosis;
+  auto rejected = normalize_operand(source, normalization_policy{}, diagnosis);
+  require(!rejected.has_value() &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(), [](const auto &d) {
+                            return d.code ==
+                                       normalization_defect_code::nonplanar_facet &&
+                                   d.primary_ordinal == 1;
+                          }),
+          "non-planar polygon diagnosis identifies the source facet");
+  auto diagnosis_bytes = encode_normalization_report(diagnosis);
+  require(diagnosis_bytes.has_value() &&
+              verify_normalization_report(
+                  diagnosis_bytes.value(), source,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "independent diagnosis replays exact non-planarity");
+
+  const auto policy = nonplanar_policy(nonplanar_facet_policy::triangulate);
+  normalization_report report;
+  auto prepared = normalize_operand(source, policy, report);
+  require(prepared.has_value() && prepared.value().mesh().faces.size() == 7 &&
+              prepared.value().mesh().faces[1].size() == 3 &&
+              prepared.value().mesh().faces[2].size() == 3,
+          "selected triangulation replaces a non-planar quad deterministically");
+  require(report.displacement == normalization_displacement_claim::exact_zero &&
+              report.displacements.empty() && report.edits.size() == 1 &&
+              report.topology_changes.size() == 2 &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 3, 4, 5, 6}) &&
+              report.edits[0].operation ==
+                  normalization_operation::nonplanar_facet_handling &&
+              report.topology_changes[0].justification_subcode == 1 &&
+              report.topology_changes[1].source_ordinal == 1,
+          "triangulation reports first-descendant mapping and every new facet");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source,
+                                           &prepared.value().mesh())
+                  .has_value(),
+          "triangulation report reconstructs and strictly validates independently");
+  normalization_report repeat;
+  auto repeated = normalize_operand(source, policy, repeat);
+  require(repeated.has_value() &&
+              repeated.value().mesh() == prepared.value().mesh() &&
+              repeat.report_digest == report.report_digest,
+          "non-planar triangulation is deterministic");
+
+  auto forged = report;
+  forged.topology_changes[0].evidence_digest.bytes[0] ^= 1U;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &prepared.value().mesh())
+                   .has_value(),
+          "verifier rejects forged triangulation provenance");
+}
+
+template <class T, class I> void nonplanar_refit_basic() {
+  const auto source = warped_cube<T, I>();
+  const auto expected = cube<T, I>();
+  const auto policy =
+      nonplanar_policy(nonplanar_facet_policy::axis_aligned_refit);
+  normalization_report report;
+  auto prepared = normalize_operand(source, policy, report);
+  require(prepared.has_value() && prepared.value().mesh() == expected,
+          "selected bounded axis-aligned refit restores a planar shell");
+  require(report.edits.size() == 1 && report.edits[0].source_ordinal == 6 &&
+              report.edits[0].entity == normalization_entity_kind::vertex &&
+              report.topology_changes.empty() &&
+              report.displacement ==
+                  normalization_displacement_claim::records_present &&
+              report.displacements.size() == 1 &&
+              report.displacements[0].source_vertex == 6 &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3, 4, 5}),
+          "refit preserves incidence and reports every moved vertex");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "bounded refit report reconstructs and strictly validates independently");
+
+  auto outside_policy = policy;
+  outside_policy.model_tolerance = 0.01;
+  normalization_report failure;
+  auto outside = normalize_operand(source, outside_policy, failure);
+  require(!outside.has_value() && !failure.prepared_operand_available &&
+              failure.edits.empty() && failure.displacements.empty(),
+          "refit outside the declared tolerance fails without partial edits");
+  auto failure_bytes = encode_normalization_report(failure);
+  require(failure_bytes.has_value() &&
+              verify_normalization_report(
+                  failure_bytes.value(), source,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "bounded refit failure report independently rejects false success");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -1188,6 +1308,14 @@ int main() {
     orientation_repair_basic<double, std::uint32_t>();
     orientation_repair_basic<double, std::uint64_t>();
     orientation_nested_shells_and_fail_closed();
+    nonplanar_triangulation_basic<float, std::uint32_t>();
+    nonplanar_triangulation_basic<float, std::uint64_t>();
+    nonplanar_triangulation_basic<double, std::uint32_t>();
+    nonplanar_triangulation_basic<double, std::uint64_t>();
+    nonplanar_refit_basic<float, std::uint32_t>();
+    nonplanar_refit_basic<float, std::uint64_t>();
+    nonplanar_refit_basic<double, std::uint32_t>();
+    nonplanar_refit_basic<double, std::uint64_t>();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();

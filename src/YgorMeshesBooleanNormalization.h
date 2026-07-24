@@ -11,8 +11,8 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t normalization_policy_schema = 1;
-constexpr std::uint16_t normalization_report_schema = 1;
+constexpr std::uint16_t normalization_policy_schema = 2;
+constexpr std::uint16_t normalization_report_schema = 2;
 constexpr std::uint64_t normalization_removed_ordinal =
     std::numeric_limits<std::uint64_t>::max();
 
@@ -30,7 +30,8 @@ enum class normalization_defect_code : std::uint16_t {
   unused_vertex = 7,
   component2_rejection = 8,
   open_boundary_edge = 9,
-  small_gap_candidate = 10
+  small_gap_candidate = 10,
+  nonplanar_facet = 11
 };
 
 enum class normalization_map_status : std::uint8_t {
@@ -83,6 +84,7 @@ struct normalization_policy {
   model_unit unit = model_unit::unspecified;
   double model_tolerance = 0.0;
   std::uint64_t enabled_operations = 0;
+  nonplanar_facet_policy nonplanar_facets = nonplanar_facet_policy::reject;
   std::uint16_t edit_ordering_version = 1;
   std::uint16_t diagnosis_version = 1;
   normalization_resource_limits resources;

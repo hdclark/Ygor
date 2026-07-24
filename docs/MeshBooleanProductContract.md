@@ -26,8 +26,10 @@ normalization, structural irrelevant-storage removal, and policy-authorized
 exact duplicate consolidation and orientation repair are available. Explicit
 geometry-changing, attribute-seam-aware near-duplicate vertex consolidation is
 also available. Crack and small-gap diagnosis and conservative unmatched-
-boundary vertex closure are available under an explicit tolerance; all other
-geometry-changing repair classes remain later P2 work.
+boundary vertex closure are available under an explicit tolerance. Non-planar
+polygon diagnosis and explicitly selected triangulation or bounded axis-aligned
+refitting are also available; all other geometry-changing repair classes remain
+later P2 work.
 
 ## Strict operand preparation
 
@@ -103,6 +105,21 @@ operation never inserts or splits entities. Ambiguous matching, attribute
 conflicts, gaps outside tolerance, or cases requiring bridging geometry remain
 unchanged typed failures. Full Component 2 validation must accept the resulting
 closed, embedded, oriented solid before publication.
+
+The geometry-changing `nonplanar_facet_handling` operation requires exactly one
+non-default `nonplanar_facet_policy`. `triangulate` derives a deterministic
+projection from the first exact non-collinear support triple, requires every
+ring vertex to lie within the declared exact dyadic support-plane distance,
+and performs exact-predicate ear clipping without moving vertices. Each source
+facet maps to its first prepared descendant, while topology records enumerate
+and bind every generated triangle. `axis_aligned_refit` selects the coordinate
+axis having the smallest ring range, uses the first ring vertex as the plane
+anchor, and moves shared vertices only when all affected-facet proposals agree
+and each exact dyadic displacement is within tolerance. It preserves incidence
+and reports every moved vertex. Both modes fail closed on degenerate projection,
+conflicting refit proposals, tolerance rejection, index/resource limits, or any
+post-repair Component 2 failure. Neither mode is implicit and neither is a
+general best-fit surface reconstruction policy.
 
 ## Authoritative result and representations
 

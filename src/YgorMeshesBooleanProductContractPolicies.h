@@ -119,6 +119,12 @@ enum class normalization_operation : std::uint8_t {
   count
 };
 
+enum class nonplanar_facet_policy : std::uint8_t {
+  reject = 0,
+  triangulate = 1,
+  axis_aligned_refit = 2
+};
+
 constexpr std::uint64_t
 normalization_operation_bit(normalization_operation o) noexcept {
   return std::uint64_t(1) << static_cast<unsigned>(o);
@@ -130,6 +136,7 @@ struct normalization_policy_contract {
   model_unit unit = model_unit::unspecified;
   double model_tolerance = 0.0;
   std::uint64_t enabled_operations = 0;
+  nonplanar_facet_policy nonplanar_facets = nonplanar_facet_policy::reject;
 };
 
 struct preparation_policy_contract {

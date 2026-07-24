@@ -24,9 +24,9 @@ namespace ygor {
 namespace mesh_boolean {
 namespace {
 
-constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '1'}};
-constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '1'}};
-constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '1'}};
+constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '2'}};
+constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '2'}};
+constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '2'}};
 constexpr std::array<char, 8> certificate_tag{{'Y', 'G', 'B', 'P', 'C', 'E', '0', '1'}};
 constexpr std::array<char, 8> removal_before_tag{{'Y', 'G', 'B', 'N', 'R', 'B', '0', '1'}};
 constexpr std::array<char, 8> removal_after_tag{{'Y', 'G', 'B', 'N', 'R', 'A', '0', '1'}};
@@ -46,6 +46,11 @@ constexpr std::array<char, 8> seam_displacement_tag{{'Y', 'G', 'B', 'N', 'S', 'D
 constexpr std::array<char, 8> crack_edit_tag{{'Y', 'G', 'B', 'N', 'C', 'E', '0', '1'}};
 constexpr std::array<char, 8> crack_topology_tag{{'Y', 'G', 'B', 'N', 'C', 'T', '0', '1'}};
 constexpr std::array<char, 8> crack_displacement_tag{{'Y', 'G', 'B', 'N', 'C', 'D', '0', '1'}};
+constexpr std::array<char, 8> nonplanar_before_tag{{'Y', 'G', 'B', 'N', 'P', 'B', '0', '1'}};
+constexpr std::array<char, 8> nonplanar_after_tag{{'Y', 'G', 'B', 'N', 'P', 'A', '0', '1'}};
+constexpr std::array<char, 8> nonplanar_edit_tag{{'Y', 'G', 'B', 'N', 'P', 'E', '0', '1'}};
+constexpr std::array<char, 8> nonplanar_topology_tag{{'Y', 'G', 'B', 'N', 'P', 'T', '0', '1'}};
+constexpr std::array<char, 8> nonplanar_displacement_tag{{'Y', 'G', 'B', 'N', 'P', 'D', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -91,7 +96,11 @@ bool known(normalization_cancellation_policy v) {
 }
 bool known(normalization_defect_code v) {
   return v >= normalization_defect_code::nonfinite_coordinate &&
-         v <= normalization_defect_code::small_gap_candidate;
+          v <= normalization_defect_code::nonplanar_facet;
+}
+bool known(nonplanar_facet_policy v) {
+  return v >= nonplanar_facet_policy::reject &&
+         v <= nonplanar_facet_policy::axis_aligned_refit;
 }
 bool known(normalization_map_status v) {
   return v >= normalization_map_status::total &&
@@ -123,7 +132,8 @@ status_or<bool> validate_policy(const normalization_policy &p,
   if (p.schema != normalization_policy_schema || !known(p.mode) ||
       !known(p.unit) || !std::isfinite(p.model_tolerance) ||
       p.model_tolerance < 0.0 || p.edit_ordering_version != 1 ||
-      p.diagnosis_version != 1 || !known(p.cancellation) ||
+      p.diagnosis_version != 1 || !known(p.nonplanar_facets) ||
+      !known(p.cancellation) ||
       p.checkpoint_interval == 0 || p.resources.max_report_bytes == 0 ||
       (p.model_tolerance > 0.0 && p.unit == model_unit::unspecified) ||
       (p.model_tolerance == 0.0 && std::signbit(p.model_tolerance)) ||
@@ -142,6 +152,14 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::seam_aware_vertex_consolidation);
   const auto crack_closure = normalization_operation_bit(
       normalization_operation::crack_closure);
+  const auto nonplanar = normalization_operation_bit(
+      normalization_operation::nonplanar_facet_handling);
+  if ((p.enabled_operations == nonplanar) !=
+      (p.nonplanar_facets != nonplanar_facet_policy::reject))
+    return normalization_error("normalization_nonplanar_policy_mismatch");
+  if (p.enabled_operations != nonplanar &&
+      p.nonplanar_facets != nonplanar_facet_policy::reject)
+    return normalization_error("normalization_nonplanar_policy_mismatch");
   if (executable &&
       !((p.mode == normalization_mode::diagnosis_only &&
           p.enabled_operations == 0) ||
@@ -151,7 +169,8 @@ status_or<bool> validate_policy(const normalization_policy &p,
              p.enabled_operations == orientation)) ||
          (p.mode == normalization_mode::geometry_changing &&
            (p.enabled_operations == seam_vertices ||
-            p.enabled_operations == crack_closure) &&
+             p.enabled_operations == crack_closure ||
+             p.enabled_operations == nonplanar) &&
            p.model_tolerance > 0.0 &&
           p.unit != model_unit::unspecified &&
           p.model_tolerance <= 2147483647.0)))
@@ -165,6 +184,7 @@ void encode_policy_body(canonical_encoder &e, const normalization_policy &p) {
   e.byte(static_cast<std::uint8_t>(p.unit));
   e.floating(p.model_tolerance);
   e.u64(p.enabled_operations);
+  e.byte(static_cast<std::uint8_t>(p.nonplanar_facets));
   e.u16(p.edit_ordering_version);
   e.u16(p.diagnosis_version);
   e.u64(p.resources.max_work_units);
@@ -306,6 +326,7 @@ normalization_policy decode_policy_body(reader &r) {
   p.unit = static_cast<model_unit>(r.byte());
   p.model_tolerance = r.floating64();
   p.enabled_operations = r.u64();
+  p.nonplanar_facets = static_cast<nonplanar_facet_policy>(r.byte());
   p.edit_ordering_version = r.u16();
   p.diagnosis_version = r.u16();
   p.resources.max_work_units = r.u64();
@@ -560,6 +581,12 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
   const bool crack_repair =
       r.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::crack_closure);
+  const bool nonplanar_repair =
+      r.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::nonplanar_facet_handling);
+  const bool nonplanar_triangulation =
+      nonplanar_repair &&
+      r.policy.nonplanar_facets == nonplanar_facet_policy::triangulate;
   if (r.schema != normalization_report_schema || r.producer_version != 1 ||
       r.coordinate > coordinate_tag::binary64 || r.index > index_tag::uint64 ||
       r.policy_digest != normalization_policy_digest(r.policy).value() ||
@@ -570,14 +597,18 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
        (r.displacement == normalization_displacement_claim::exact_zero
             ? !r.displacements.empty()
             : r.displacement != normalization_displacement_claim::records_present ||
-                  (!seam_repair && !crack_repair) || r.displacements.empty()) ||
+                   (!seam_repair && !crack_repair && !nonplanar_repair) ||
+                   r.displacements.empty()) ||
        !canonical_topology_records(r.topology_changes) ||
-       (((!duplicate_repair && !seam_repair && !crack_repair) ||
-         !r.prepared_operand_available) &&
+        (((!duplicate_repair && !seam_repair && !crack_repair &&
+           !nonplanar_triangulation) ||
+          !r.prepared_operand_available) &&
          !r.topology_changes.empty()) ||
         ((duplicate_repair || seam_repair || crack_repair) &&
          r.prepared_operand_available &&
-         r.topology_changes.size() != r.edits.size()) ||
+          r.topology_changes.size() != r.edits.size()) ||
+       (nonplanar_triangulation && r.prepared_operand_available &&
+        (r.edits.empty() || r.topology_changes.size() < r.edits.size())) ||
       !canonical_defects(r.unresolved_defects) ||
       !known(r.vertices.status) || !known(r.edges.status) ||
       !known(r.facets.status) || !known(r.shells.status) ||
@@ -593,7 +624,8 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       !canonical_mapping(r.vertices) || !canonical_mapping(r.edges) ||
       !canonical_mapping(r.facets) || !canonical_mapping(r.shells) ||
        (r.prepared_operand_available
-             ? (duplicate_repair || seam_repair || crack_repair
+              ? (duplicate_repair || seam_repair || crack_repair ||
+                         nonplanar_repair
                     ? r.shells.status != normalization_map_status::unavailable
                    : r.shells.status != normalization_map_status::total)
             : r.shells.status != normalization_map_status::unavailable) ||
@@ -767,6 +799,50 @@ template <class T>
 status_or<bool> vertices_within_tolerance(const vec3<T> &, const vec3<T> &,
                                           double);
 
+template <class T>
+status_or<exact_point3> normalization_exact_point(const vec3<T> &point) {
+  auto x = decode_coordinate(point.x);
+  auto y = decode_coordinate(point.y);
+  auto z = decode_coordinate(point.z);
+  if (!x.has_value() || !y.has_value() || !z.has_value())
+    return normalization_error("normalization_nonplanar_coordinate");
+  return exact_point3{x.value().value, y.value().value, z.value().value};
+}
+
+template <class T, class I>
+status_or<std::optional<normalization_defect>> diagnose_nonplanar_facet(
+    const fv_surface_mesh<T, I> &mesh, std::uint64_t facet) {
+  const auto &ring = mesh.faces[static_cast<std::size_t>(facet)];
+  if (ring.size() < 4) return std::optional<normalization_defect>{};
+  std::vector<exact_point3> points;
+  points.reserve(ring.size());
+  for (I index_value : ring) {
+    const auto index = static_cast<std::uint64_t>(index_value);
+    if (index >= mesh.vertices.size())
+      return std::optional<normalization_defect>{};
+    const auto &point = mesh.vertices[static_cast<std::size_t>(index)];
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+        !std::isfinite(point.z))
+      return std::optional<normalization_defect>{};
+    auto exact = normalization_exact_point(point);
+    if (!exact.has_value()) return exact.error();
+    points.push_back(std::move(exact.value()));
+  }
+  for (std::size_t second = 1; second + 1 < points.size(); ++second) {
+    for (std::size_t third = second + 1; third < points.size(); ++third) {
+      auto plane = support_plane_dyadic(points[0], points[second], points[third]);
+      if (!plane.has_value()) continue;
+      for (std::size_t offset = 0; offset != points.size(); ++offset)
+        if (plane_side_exact(plane.value(), points[offset]) != exact_sign::zero)
+          return std::optional<normalization_defect>(normalization_defect{
+              normalization_defect_code::nonplanar_facet, facet, offset,
+              (std::uint64_t(second) << 32) | std::uint64_t(third)});
+      return std::optional<normalization_defect>{};
+    }
+  }
+  return std::optional<normalization_defect>{};
+}
+
 struct diagnosis_result {
   std::vector<normalization_defect> defects;
   std::vector<std::array<std::uint64_t, 2>> edges;
@@ -844,6 +920,14 @@ status_or<diagnosis_result> producer_diagnosis(const fv_surface_mesh<T, I> &m,
         if (y < x) std::swap(x, y);
         ++edges[{x, y}];
       }
+    if (indices_valid) {
+      auto nonplanar = diagnose_nonplanar_facet(m, f);
+      if (!nonplanar.has_value()) return nonplanar.error();
+      if (nonplanar.value()) {
+        auto a = add(*nonplanar.value());
+        if (!a.has_value()) return a.error();
+      }
+    }
   }
   for (std::uint64_t i = 0; i != used.size(); ++i) {
     auto checked = b.checkpoint(1);
@@ -1056,6 +1140,14 @@ verifier_diagnosis(const fv_surface_mesh<T, I> &m, verification_budget &budget) 
         auto c = static_cast<std::uint64_t>(ring[(offset + 1) % ring.size()]);
         ++unique_edges[{std::min(a, c), std::max(a, c)}];
       }
+    if (safe) {
+      auto nonplanar = diagnose_nonplanar_facet(m, ordinal);
+      if (!nonplanar.has_value()) return nonplanar.error();
+      if (nonplanar.value()) {
+        auto added = add(*nonplanar.value());
+        if (!added.has_value()) return added.error();
+      }
+    }
   }
   for (std::uint64_t ordinal = 0; ordinal != referenced.size(); ++ordinal) {
     auto work = budget.checkpoint(1);
@@ -1939,6 +2031,337 @@ template <class T, class I> struct orientation_repair_result {
   std::uint64_t shell_count = 0;
   std::vector<normalization_edit> edits;
 };
+
+template <class I>
+void encode_normalization_ring(canonical_encoder &encoder,
+                               const std::vector<I> &ring) {
+  encoder.u64(ring.size());
+  for (I index : ring) encoder.u64(static_cast<std::uint64_t>(index));
+}
+
+template <class T, class I>
+digest nonplanar_facet_evidence(const std::array<char, 8> &tag,
+                                const fv_surface_mesh<T, I> &mesh,
+                                std::uint64_t facet,
+                                std::uint64_t source_facet) {
+  canonical_encoder encoder;
+  encoder.u64(source_facet);
+  encoder.u64(facet);
+  const auto &ring = mesh.faces[static_cast<std::size_t>(facet)];
+  encode_normalization_ring(encoder, ring);
+  for (I index : ring) {
+    const auto &point = mesh.vertices[static_cast<std::size_t>(index)];
+    encoder.floating(point.x);
+    encoder.floating(point.y);
+    encoder.floating(point.z);
+  }
+  return domain_digest(tag, encoder.bytes());
+}
+
+digest nonplanar_edit_digest(const normalization_edit &edit) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(edit.operation));
+  encoder.u64(edit.canonical_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(edit.entity));
+  encoder.u64(edit.source_ordinal);
+  encoder.u64(edit.prepared_ordinal);
+  encode_digest(encoder, edit.before_evidence_digest);
+  encode_digest(encoder, edit.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(nonplanar_edit_tag, encoder.bytes());
+}
+
+digest nonplanar_topology_digest(const normalization_topology_change &change) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(change.operation));
+  encoder.u64(change.source_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.entity));
+  encoder.u64(change.prepared_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.justification));
+  encoder.u32(change.justification_subcode);
+  encode_digest(encoder, change.before_evidence_digest);
+  encode_digest(encoder, change.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(change.reversibility));
+  return domain_digest(nonplanar_topology_tag, encoder.bytes());
+}
+
+template <class T, class I>
+status_or<std::vector<std::vector<I>>> triangulate_nonplanar_ring(
+    const fv_surface_mesh<T, I> &source, std::uint64_t facet,
+    double tolerance) {
+  const auto &ring = source.faces[static_cast<std::size_t>(facet)];
+  std::vector<exact_point3> points;
+  points.reserve(ring.size());
+  for (I index : ring) {
+    auto point = normalization_exact_point(
+        source.vertices[static_cast<std::size_t>(index)]);
+    if (!point.has_value()) return point.error();
+    points.push_back(std::move(point.value()));
+  }
+  std::optional<exact_plane3> plane;
+  for (std::size_t second = 1; !plane && second + 1 < points.size(); ++second)
+    for (std::size_t third = second + 1; !plane && third < points.size(); ++third) {
+      auto candidate = support_plane_dyadic(points[0], points[second], points[third]);
+      if (candidate.has_value()) plane = std::move(candidate.value());
+    }
+  if (!plane) return normalization_error("normalization_nonplanar_degenerate");
+  auto decoded_tolerance = decode_coordinate(tolerance);
+  if (!decoded_tolerance.has_value())
+    return normalization_error("normalization_nonplanar_tolerance");
+  const exact_scalar a(plane->a, big_uint(1));
+  const exact_scalar b(plane->b, big_uint(1));
+  const exact_scalar c(plane->c, big_uint(1));
+  const exact_scalar norm_squared = a * a + b * b + c * c;
+  const exact_scalar tolerance_squared =
+      decoded_tolerance.value().value * decoded_tolerance.value().value;
+  for (const auto &point : points) {
+    const exact_scalar signed_value = a * point.x + b * point.y + c * point.z +
+                                      exact_scalar(plane->d, big_uint(1));
+    if ((signed_value * signed_value).compare(tolerance_squared * norm_squared) > 0)
+      return normalization_error("normalization_nonplanar_outside_tolerance");
+  }
+  const auto axis = dominant_projection(*plane);
+  std::vector<exact_point2> projected;
+  projected.reserve(points.size());
+  for (const auto &point : points) projected.push_back(project(point, axis));
+  exact_scalar twice_area(0);
+  for (std::size_t i = 0; i != projected.size(); ++i) {
+    const auto &p = projected[i];
+    const auto &q = projected[(i + 1) % projected.size()];
+    twice_area = twice_area + p.x * q.y - p.y * q.x;
+  }
+  const auto winding = twice_area.sign();
+  if (winding == exact_sign::zero)
+    return normalization_error("normalization_nonplanar_projection");
+  std::vector<std::size_t> remaining(projected.size());
+  std::iota(remaining.begin(), remaining.end(), std::size_t(0));
+  std::vector<std::vector<I>> triangles;
+  triangles.reserve(ring.size() - 2);
+  while (remaining.size() > 3) {
+    bool clipped = false;
+    for (std::size_t cursor = 0; cursor != remaining.size(); ++cursor) {
+      const auto previous = remaining[(cursor + remaining.size() - 1) % remaining.size()];
+      const auto current = remaining[cursor];
+      const auto next = remaining[(cursor + 1) % remaining.size()];
+      if (orient2d_exact(projected[previous], projected[current], projected[next]) != winding)
+        continue;
+      bool contains = false;
+      for (std::size_t candidate : remaining) {
+        if (candidate == previous || candidate == current || candidate == next)
+          continue;
+        const auto s0 = orient2d_exact(projected[previous], projected[current], projected[candidate]);
+        const auto s1 = orient2d_exact(projected[current], projected[next], projected[candidate]);
+        const auto s2 = orient2d_exact(projected[next], projected[previous], projected[candidate]);
+        if ((s0 == winding || s0 == exact_sign::zero) &&
+            (s1 == winding || s1 == exact_sign::zero) &&
+            (s2 == winding || s2 == exact_sign::zero)) {
+          contains = true;
+          break;
+        }
+      }
+      if (contains) continue;
+      triangles.push_back({ring[previous], ring[current], ring[next]});
+      remaining.erase(remaining.begin() + static_cast<std::ptrdiff_t>(cursor));
+      clipped = true;
+      break;
+    }
+    if (!clipped) return normalization_error("normalization_nonplanar_triangulation");
+  }
+  triangles.push_back(
+      {ring[remaining[0]], ring[remaining[1]], ring[remaining[2]]});
+  return triangles;
+}
+
+template <class T, class I> struct nonplanar_repair_result {
+  fv_surface_mesh<T, I> mesh;
+  normalization_mapping vertices;
+  normalization_mapping edges;
+  normalization_mapping facets;
+  normalization_mapping vertex_normals;
+  normalization_mapping vertex_colours;
+  normalization_mapping involved_faces;
+  normalization_mapping metadata;
+  std::vector<normalization_edit> edits;
+  std::vector<normalization_topology_change> topology_changes;
+  std::vector<normalization_displacement_record> displacements;
+};
+
+template <class T, class I, class Budget>
+status_or<nonplanar_repair_result<T, I>> repair_nonplanar_facets(
+    const fv_surface_mesh<T, I> &source,
+    const std::vector<std::array<std::uint64_t, 2>> &source_edges,
+    const normalization_policy &policy, Budget &resources) {
+  nonplanar_repair_result<T, I> result;
+  result.mesh = source;
+  result.vertices = identity(source.vertices.size());
+  result.facets.status = normalization_map_status::total;
+  const bool triangulate =
+      policy.nonplanar_facets == nonplanar_facet_policy::triangulate;
+  std::vector<std::uint64_t> affected;
+  for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+    auto diagnosis = diagnose_nonplanar_facet(source, facet);
+    if (!diagnosis.has_value()) return diagnosis.error();
+    if (diagnosis.value()) affected.push_back(facet);
+  }
+  if (triangulate) {
+    result.mesh.faces.clear();
+    for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+      result.facets.source_to_prepared.push_back(result.mesh.faces.size());
+      if (!std::binary_search(affected.begin(), affected.end(), facet)) {
+        result.mesh.faces.push_back(source.faces[static_cast<std::size_t>(facet)]);
+        continue;
+      }
+      auto triangles = triangulate_nonplanar_ring(source, facet,
+                                                   policy.model_tolerance);
+      if (!triangles.has_value()) return triangles.error();
+      auto edit_record = resources.record();
+      if (!edit_record.has_value()) return edit_record.error();
+      normalization_edit edit;
+      edit.operation = normalization_operation::nonplanar_facet_handling;
+      edit.canonical_ordinal = result.edits.size();
+      edit.entity = normalization_entity_kind::facet;
+      edit.source_ordinal = facet;
+      edit.prepared_ordinal = result.mesh.faces.size();
+      edit.before_evidence_digest = nonplanar_facet_evidence(
+          nonplanar_before_tag, source, facet, facet);
+      edit.reversibility = normalization_reversibility::irreversible;
+      for (auto &triangle : triangles.value()) {
+        const auto prepared_facet = result.mesh.faces.size();
+        result.mesh.faces.push_back(std::move(triangle));
+        auto topology_record = resources.record();
+        if (!topology_record.has_value()) return topology_record.error();
+        normalization_topology_change change;
+        change.operation = normalization_operation::nonplanar_facet_handling;
+        change.source_ordinal = facet;
+        change.entity = normalization_entity_kind::facet;
+        change.prepared_ordinal = prepared_facet;
+        change.justification = normalization_topology_justification::caller_authorized_repair;
+        change.justification_subcode = 1;
+        change.before_evidence_digest = edit.before_evidence_digest;
+        change.after_evidence_digest = nonplanar_facet_evidence(
+            nonplanar_after_tag, result.mesh, prepared_facet, facet);
+        change.reversibility = normalization_reversibility::irreversible;
+        change.evidence_digest = nonplanar_topology_digest(change);
+        result.topology_changes.push_back(std::move(change));
+      }
+      edit.after_evidence_digest = result.topology_changes.back().after_evidence_digest;
+      edit.evidence_digest = nonplanar_edit_digest(edit);
+      result.edits.push_back(std::move(edit));
+    }
+  } else {
+    result.facets = identity(source.faces.size());
+    std::map<std::uint64_t, vec3<T>> replacements;
+    for (std::uint64_t facet : affected) {
+      const auto &ring = source.faces[static_cast<std::size_t>(facet)];
+      std::array<T, 3> minimum{{source.vertices[ring[0]].x,
+                               source.vertices[ring[0]].y,
+                               source.vertices[ring[0]].z}};
+      auto maximum = minimum;
+      for (I index : ring) {
+        const auto &point = source.vertices[static_cast<std::size_t>(index)];
+        minimum[0] = std::min(minimum[0], point.x); maximum[0] = std::max(maximum[0], point.x);
+        minimum[1] = std::min(minimum[1], point.y); maximum[1] = std::max(maximum[1], point.y);
+        minimum[2] = std::min(minimum[2], point.z); maximum[2] = std::max(maximum[2], point.z);
+      }
+      unsigned axis = 0;
+      for (unsigned candidate = 1; candidate != 3; ++candidate)
+        if (maximum[candidate] - minimum[candidate] < maximum[axis] - minimum[axis])
+          axis = candidate;
+      const auto &anchor = source.vertices[static_cast<std::size_t>(ring[0])];
+      const T target = axis == 0 ? anchor.x : axis == 1 ? anchor.y : anchor.z;
+      for (I index_value : ring) {
+        const auto index = static_cast<std::uint64_t>(index_value);
+        auto replacement = source.vertices[static_cast<std::size_t>(index)];
+        if (axis == 0) replacement.x = target;
+        else if (axis == 1) replacement.y = target;
+        else replacement.z = target;
+        auto close = vertices_within_tolerance(
+            source.vertices[static_cast<std::size_t>(index)], replacement,
+            policy.model_tolerance);
+        if (!close.has_value()) return close.error();
+        if (!close.value())
+          return normalization_error("normalization_nonplanar_outside_tolerance");
+        const auto inserted = replacements.emplace(index, replacement);
+        if (!inserted.second && bits_key(inserted.first->second.x,
+                                         inserted.first->second.y,
+                                         inserted.first->second.z) !=
+                                    bits_key(replacement.x, replacement.y,
+                                             replacement.z))
+          return normalization_error("normalization_nonplanar_refit_conflict");
+      }
+    }
+    for (const auto &replacement : replacements) {
+      const auto source_vertex = replacement.first;
+      const auto &before = source.vertices[static_cast<std::size_t>(source_vertex)];
+      const auto &after = replacement.second;
+      if (bits_key(before.x, before.y, before.z) ==
+          bits_key(after.x, after.y, after.z))
+        continue;
+      result.mesh.vertices[static_cast<std::size_t>(source_vertex)] = after;
+      auto edit_record = resources.record();
+      if (!edit_record.has_value()) return edit_record.error();
+      normalization_edit edit;
+      edit.operation = normalization_operation::nonplanar_facet_handling;
+      edit.canonical_ordinal = result.edits.size();
+      edit.entity = normalization_entity_kind::vertex;
+      edit.source_ordinal = source_vertex;
+      edit.prepared_ordinal = source_vertex;
+      edit.before_evidence_digest = duplicate_before_digest(
+          source, normalization_entity_kind::vertex, source_vertex, source_vertex);
+      edit.after_evidence_digest = duplicate_after_digest(
+          result.mesh, normalization_entity_kind::vertex, source_vertex,
+          source_vertex);
+      edit.reversibility = normalization_reversibility::irreversible;
+      edit.evidence_digest = nonplanar_edit_digest(edit);
+      result.edits.push_back(edit);
+      auto displacement_record = resources.record();
+      if (!displacement_record.has_value()) return displacement_record.error();
+      normalization_displacement_record displacement;
+      displacement.source_vertex = source_vertex;
+      displacement.prepared_vertex = source_vertex;
+      displacement.kind = normalization_displacement_kind::bounded;
+      displacement.squared_distance_bound = displacement_bound(policy.model_tolerance);
+      displacement.unit = policy.unit;
+      canonical_encoder encoder;
+      encoder.u64(source_vertex);
+      encoder.floating(policy.model_tolerance);
+      encode_duplicate_vertex(encoder, source, source_vertex);
+      encode_duplicate_vertex(encoder, result.mesh, source_vertex);
+      encode_rational(encoder, displacement.squared_distance_bound);
+      encoder.byte(static_cast<std::uint8_t>(displacement.unit));
+      displacement.evidence_digest = domain_digest(nonplanar_displacement_tag,
+                                                    encoder.bytes());
+      result.displacements.push_back(std::move(displacement));
+    }
+  }
+  if (!source.involved_faces.empty()) result.mesh.recreate_involved_face_index();
+  result.vertex_normals = attribute_identity(!source.vertex_normals.empty(),
+                                              source.vertex_normals.size());
+  result.vertex_colours = attribute_identity(!source.vertex_colours.empty(),
+                                              source.vertex_colours.size());
+  result.involved_faces = !source.involved_faces.empty()
+      ? identity(source.vertices.size())
+      : normalization_mapping{normalization_map_status::absent, {}};
+  result.metadata = attribute_identity(!source.metadata.empty(), source.metadata.size());
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &ring : result.mesh.faces)
+    for (std::size_t offset = 0; offset != ring.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(ring[offset]);
+      auto b = static_cast<std::uint64_t>(ring[(offset + 1) % ring.size()]);
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &edge : output_edges) edge.second = edge_ordinal++;
+  result.edges.status = normalization_map_status::total;
+  for (const auto &edge : source_edges) {
+    const auto found = output_edges.find(edge);
+    if (found == output_edges.end())
+      return normalization_error("normalization_nonplanar_edge");
+    result.edges.source_to_prepared.push_back(found->second);
+  }
+  return result;
+}
 
 template <class I>
 void encode_oriented_ring(canonical_encoder &encoder,
@@ -3307,7 +3730,10 @@ status_or<prepared_operand<T, I>> normalize_operand(
                                              seam_aware_vertex_consolidation);
     const bool crack_repair =
         policy.enabled_operations == normalization_operation_bit(
-                                         normalization_operation::crack_closure);
+                                          normalization_operation::crack_closure);
+    const bool nonplanar_repair =
+        policy.enabled_operations == normalization_operation_bit(
+            normalization_operation::nonplanar_facet_handling);
     const bool proximity_repair = seam_repair || crack_repair;
     const bool repairable_orientation_error =
         source_validation_error &&
@@ -3320,18 +3746,49 @@ status_or<prepared_operand<T, I>> normalize_operand(
     const bool repairable_crack_error =
         source_validation_error &&
         source_validation_error->subcode == static_cast<std::uint32_t>(
-                                                input_validation_subcode::boundary_edge);
+                                                 input_validation_subcode::boundary_edge);
+    const bool repairable_nonplanar_error =
+        source_validation_error &&
+        source_validation_error->subcode == static_cast<std::uint32_t>(
+                                                input_validation_subcode::nonplanar_facet);
     if (source_validation_error && !duplicate_repair && !seam_repair &&
         !(crack_repair && repairable_crack_error) &&
+        !(nonplanar_repair && repairable_nonplanar_error) &&
         !(orientation_repair && repairable_orientation_error)) {
       return publish_failure(*source_validation_error);
     }
 
     fv_surface_mesh<T, I> normalized_mesh = source;
-    if (policy.mode == normalization_mode::structural_only || proximity_repair) {
+    if (policy.mode == normalization_mode::structural_only || proximity_repair ||
+        nonplanar_repair) {
       auto structural_work = resources.checkpoint(binding_work.value());
       if (!structural_work.has_value()) return structural_work.error();
-      if (proximity_repair) {
+      if (nonplanar_repair) {
+        auto repaired = repair_nonplanar_facets(
+            source, candidate.source_edges, policy, resources);
+        if (!repaired.has_value() &&
+            repaired.error().code == boolean_error_code::resource_limit)
+          return repaired.error();
+        if (!repaired.has_value()) return publish_failure(repaired.error());
+        normalized_mesh = std::move(repaired.value().mesh);
+        candidate.vertices = std::move(repaired.value().vertices);
+        candidate.edges = std::move(repaired.value().edges);
+        candidate.facets = std::move(repaired.value().facets);
+        candidate.attributes.vertex_normals =
+            std::move(repaired.value().vertex_normals);
+        candidate.attributes.vertex_colours =
+            std::move(repaired.value().vertex_colours);
+        candidate.attributes.involved_faces =
+            std::move(repaired.value().involved_faces);
+        candidate.attributes.metadata = std::move(repaired.value().metadata);
+        candidate.edits = std::move(repaired.value().edits);
+        candidate.topology_changes =
+            std::move(repaired.value().topology_changes);
+        candidate.displacements = std::move(repaired.value().displacements);
+        candidate.displacement = candidate.displacements.empty()
+            ? normalization_displacement_claim::exact_zero
+            : normalization_displacement_claim::records_present;
+      } else if (proximity_repair) {
         auto seam = consolidate_seam_aware_vertices(
             source, candidate.source_edges, policy,
             crack_repair ? normalization_operation::crack_closure
@@ -3437,7 +3894,8 @@ status_or<prepared_operand<T, I>> normalize_operand(
 
     candidate.prepared_operand_available = true;
     candidate.strict_certificate = prepared.value().certificate();
-    if (!duplicate_repair && !seam_repair && !crack_repair) {
+    if (!duplicate_repair && !seam_repair && !crack_repair &&
+        !nonplanar_repair) {
       auto shells = component2_shell_count(normalized_mesh, cancel);
       if (!shells.has_value()) return shells.error();
       auto shell_resources = resources.mapping(shells.value());
@@ -3529,6 +3987,9 @@ status_or<bool> verify_normalization_report(
   const bool crack_repair =
       report.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::crack_closure);
+  const bool nonplanar_repair =
+      report.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::nonplanar_facet_handling);
   const bool proximity_repair = seam_repair || crack_repair;
   const auto proximity_operation = crack_repair
       ? normalization_operation::crack_closure
@@ -3586,6 +4047,106 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (nonplanar_repair) {
+    verification_budget reconstruction_resources{report.policy, cancel};
+    auto reconstructed = repair_nonplanar_facets(
+        source, report.source_edges, report.policy, reconstruction_resources);
+    if (!reconstructed.has_value() &&
+        reconstructed.error().code == boolean_error_code::resource_limit)
+      return reconstructed.error();
+    if (output) {
+      if (!reconstructed.has_value() ||
+          !(reconstructed.value().mesh == *output) ||
+          reconstructed.value().mesh.involved_faces != output->involved_faces ||
+          !same_mapping(reconstructed.value().vertices, report.vertices) ||
+          !same_mapping(reconstructed.value().edges, report.edges) ||
+          !same_mapping(reconstructed.value().facets, report.facets) ||
+          !same_mapping(reconstructed.value().vertex_normals,
+                        report.attributes.vertex_normals) ||
+          !same_mapping(reconstructed.value().vertex_colours,
+                        report.attributes.vertex_colours) ||
+          !same_mapping(reconstructed.value().involved_faces,
+                        report.attributes.involved_faces) ||
+          !same_mapping(reconstructed.value().metadata,
+                        report.attributes.metadata) ||
+          reconstructed.value().edits.size() != report.edits.size() ||
+          reconstructed.value().topology_changes.size() !=
+              report.topology_changes.size() ||
+          reconstructed.value().displacements.size() !=
+              report.displacements.size())
+        return normalization_error("normalization_report_nonplanar_replay");
+      for (std::size_t i = 0; i != report.edits.size(); ++i)
+        if (!same_edit(reconstructed.value().edits[i], report.edits[i]))
+          return normalization_error("normalization_report_nonplanar_edit");
+      for (std::size_t i = 0; i != report.topology_changes.size(); ++i)
+        if (!same_topology_change(reconstructed.value().topology_changes[i],
+                                  report.topology_changes[i]))
+          return normalization_error("normalization_report_nonplanar_topology");
+      for (std::size_t i = 0; i != report.displacements.size(); ++i)
+        if (!same_displacement(reconstructed.value().displacements[i],
+                               report.displacements[i]))
+          return normalization_error(
+              "normalization_report_nonplanar_displacement");
+      auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+      if (!output_diagnosis.has_value()) return output_diagnosis.error();
+      auto output_replay = validate_operand_strict(
+          *output, strict_validation_policy{}, boolean_options{}, kernel,
+          verifier, cancel);
+      if (!output_replay.has_value())
+        return normalization_error("normalization_report_nonplanar_validation");
+      if (!report.prepared_operand_available || !report.strict_certificate ||
+          report.unresolved_defects != output_diagnosis.value().defects ||
+          report.shells.status != normalization_map_status::unavailable ||
+          !report.shells.source_to_prepared.empty() ||
+          !same_certificate(output_replay.value().certificate(),
+                            *report.strict_certificate) ||
+          report.reversibility !=
+              (report.edits.empty() ? normalization_reversibility::identity
+                                    : normalization_reversibility::irreversible))
+        return normalization_error("normalization_report_nonplanar_success");
+      return true;
+    }
+    auto expected_defects = independent.value().defects;
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      expected_defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(expected_defects.begin(), expected_defects.end(),
+                [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      expected_defects.erase(
+          std::unique(expected_defects.begin(), expected_defects.end()),
+          expected_defects.end());
+    }
+    if (report.prepared_operand_available || report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() || !report.displacements.empty() ||
+        report.displacement != normalization_displacement_claim::exact_zero ||
+        report.reversibility != normalization_reversibility::identity ||
+        report.shells.status != normalization_map_status::unavailable ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        report.unresolved_defects != expected_defects)
+      return normalization_error("normalization_report_nonplanar_failure");
+    if (reconstructed.has_value()) {
+      auto reconstructed_replay = validate_operand_strict(
+          reconstructed.value().mesh, strict_validation_policy{},
+          boolean_options{}, kernel, verifier, cancel);
+      if (reconstructed_replay.has_value())
+        return normalization_error("normalization_report_nonplanar_false_failure");
+      if (reconstructed_replay.error().code !=
+          boolean_error_code::input_contract_error)
+        return reconstructed_replay.error();
+    }
+    return true;
+  }
   if (proximity_repair) {
     const auto count = static_cast<std::uint64_t>(source.vertices.size());
     if (count != 0 && count >
