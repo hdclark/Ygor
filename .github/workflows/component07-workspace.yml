@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
+  pull_request:
+    branches:
+      - master
+    types:
+      - edited
 
 permissions:
   contents: write
@@ -17,6 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
       - name: Verify, apply, commit, and restore
         shell: bash
         run: |
@@ -59,6 +65,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Implement Component 07 source-edge/source-facet relations'
-          git push
-
-# Handoff trigger: activate the prepared checksum-verified patch.
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
