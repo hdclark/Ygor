@@ -4,6 +4,16 @@
 
 Realize each selected symbolic vertex once, convert exact coordinates to `vec3<T>`, and prove that the finite-precision embedding preserves the exact selected boundary's required topology and geometry. Explicitly reject results that cannot be represented safely in `T`.
 
+Exact-coordinate export is the non-converting Component 11 path. It wraps the
+durable exact authority in an immutable, versioned record while retaining
+canonical rational coordinates, constructions, selected surface occurrences,
+non-manifold topology, spherical links, and provenance. Its requested unsigned
+index type applies only to the dense selected strata; stable source and
+construction IDs remain 64-bit. Export performs capacity and resource checks,
+binds canonical bytes to the durable exact-result digest, and is independently
+replayed from serialized bytes. It does not invoke `exact_in_T`, round a
+coordinate, merge coincident occurrences, or require manifold topology.
+
 ## 1. Input contract
 
 Accept a topology-authorized verified selected exact boundary, canonical symbolic registry, exact kernel, target `T`, explicit realization semantics, search limits, and all defining-relation and embedding obligations.

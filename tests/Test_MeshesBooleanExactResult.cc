@@ -118,6 +118,47 @@ void round_trip_and_lifetime() {
               float_request.value().exact_result_digest ==
                   durable->canonical_digest,
           "later realization requests bind coordinate and index types");
+  auto export32 = export_exact_coordinates<std::uint32_t>(durable);
+  auto export64 = export_exact_coordinates<std::uint64_t>(durable);
+  require(export32.has_value() && export64.has_value() &&
+              export32.value()->index == index_tag::uint32 &&
+              export64.value()->index == index_tag::uint64 &&
+              export32.value()->entity_capacity ==
+                  std::numeric_limits<std::uint32_t>::max() &&
+              export32.value()->canonical_bytes !=
+                  export64.value()->canonical_bytes,
+          "exact-coordinate export binds index width");
+  auto decoded_export =
+      decode_exact_coordinate_export(export32.value()->canonical_bytes);
+  require(decoded_export.has_value() && decoded_export.value()->boundary &&
+              decoded_export.value()->boundary->vertices.empty() &&
+              verify_serialized_exact_coordinate_export(
+                  export32.value()->canonical_bytes)
+                  .has_value() &&
+              validate_exact_coordinate_export_binding(decoded_export.value(),
+                                                       durable)
+                  .has_value(),
+          "exact-coordinate export canonical round trip and binding");
+  const auto export_replay_path =
+      std::filesystem::temp_directory_path() /
+      ("ygor-exact-coordinate-export-" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()) +
+       ".bin");
+  {
+    std::ofstream output(export_replay_path, std::ios::binary);
+    const auto &export_bytes = export32.value()->canonical_bytes;
+    output.write(reinterpret_cast<const char *>(export_bytes.data()),
+                 export_bytes.size());
+    require(output.good(), "write exact-coordinate export replay fixture");
+  }
+  const auto export_command = "\"" + executable_path +
+                              "\" --verify-export-file \"" +
+                              export_replay_path.string() + "\"";
+  const auto export_child_status = std::system(export_command.c_str());
+  std::filesystem::remove(export_replay_path);
+  require(export_child_status == 0,
+          "cross-process exact-coordinate export replay");
   product_realization_policy invalid_mesh_policy;
   invalid_mesh_policy.semantics = product_realization_semantics::exact_in_T;
   require(
@@ -152,6 +193,48 @@ void malformed_and_limits() {
   require(!limited.has_value() &&
               limited.error().code == product_error_code::resource_limit,
           "record resource limit is typed");
+
+  auto handle = make_exact_result_handle(frozen.value());
+  require(handle.has_value(), "make exact result for export mutation");
+  auto exported = export_exact_coordinates<std::uint64_t>(handle.value());
+  require(exported.has_value(), "make exact-coordinate export for mutation");
+  auto export_corrupt = exported.value()->canonical_bytes;
+  export_corrupt[export_corrupt.size() / 2] ^= 1U;
+  require(!decode_exact_coordinate_export(export_corrupt).has_value(),
+          "exact-coordinate export corruption rejected");
+  auto export_truncated = exported.value()->canonical_bytes;
+  export_truncated.pop_back();
+  require(!decode_exact_coordinate_export(export_truncated).has_value(),
+          "exact-coordinate export truncation rejected");
+  exact_coordinate_export_limits export_limits;
+  export_limits.max_record_bytes = exported.value()->canonical_bytes.size() - 1;
+  auto export_limited = decode_exact_coordinate_export(
+      exported.value()->canonical_bytes, export_limits);
+  require(!export_limited.has_value() &&
+              export_limited.error().code == product_error_code::resource_limit,
+          "exact-coordinate export record limit is typed");
+  export_limits.max_record_bytes = exported.value()->canonical_bytes.size();
+  auto exact_limit_export = export_exact_coordinates<std::uint64_t>(
+      handle.value(), export_limits);
+  require(exact_limit_export.has_value() &&
+              exact_limit_export.value()->canonical_bytes.size() ==
+                  export_limits.max_record_bytes,
+          "exact-coordinate export accepts exact record limit");
+  exact_coordinate_export_limits inner_limits;
+  inner_limits.exact_result.max_record_bytes =
+      handle.value()->canonical_bytes.size() - 1;
+  auto inner_limited = verify_serialized_exact_coordinate_export(
+      exported.value()->canonical_bytes, inner_limits);
+  require(!inner_limited.has_value() &&
+              inner_limited.error().code == product_error_code::resource_limit,
+          "exact-coordinate verifier types embedded record limit");
+  auto stale_export =
+      std::make_shared<exact_coordinate_export>(*exported.value());
+  stale_export->exact_result_digest.bytes[0] ^= 1U;
+  require(!validate_exact_coordinate_export_binding(stale_export,
+                                                    handle.value())
+               .has_value(),
+          "exact-coordinate export stale binding rejected");
 }
 
 void stale_bindings() {
@@ -237,6 +320,47 @@ void retain_nonmanifold_after_context_destruction() {
     }
     auto decoded = read_exact_result(published.value()->exact_result);
     require(decoded.has_value(), "read published stratified result");
+    auto exported = export_exact_coordinates<std::uint32_t>(
+        published.value()->exact_result);
+    require(exported.has_value() &&
+                exported.value()->topology ==
+                    selected_boundary_topology::closed_stratified_nonmanifold &&
+                exported.value()->boundary->vertex_occurrences.size() ==
+                    decoded.value()->vertex_occurrences.size() &&
+                exported.value()->boundary->halfedges.size() ==
+                    decoded.value()->halfedges.size() &&
+                !exported.value()->boundary->topology_obstructions.empty(),
+            "exact-coordinate export preserves non-manifold occurrences");
+    auto encoded_export = encode_exact_coordinate_export(exported.value());
+    require(encoded_export.has_value(),
+            "encode non-empty exact-coordinate export");
+    auto decoded_export =
+        decode_exact_coordinate_export(encoded_export.value());
+    require(decoded_export.has_value() &&
+                decoded_export.value()->canonical_bytes ==
+                    exported.value()->canonical_bytes,
+            "non-empty exact-coordinate export round trip");
+    auto mutated_export =
+        std::make_shared<exact_coordinate_export>(*exported.value());
+    auto mutated_boundary = std::make_shared<exact_stratified_boundary>(
+        *mutated_export->boundary);
+    require(!mutated_boundary->vertices.empty(),
+            "exact-coordinate boundary mutation fixture");
+    mutated_boundary->vertices.front().coordinate.x =
+        mutated_boundary->vertices.front().coordinate.x + exact_scalar(1);
+    mutated_export->boundary = std::move(mutated_boundary);
+    require(!validate_exact_coordinate_export_binding(
+                 mutated_export, published.value()->exact_result)
+                 .has_value(),
+            "mutated in-memory exact-coordinate boundary rejected");
+    exact_coordinate_export_limits export_limits;
+    export_limits.max_indexed_entities = 1;
+    auto limited_export = decode_exact_coordinate_export(
+        exported.value()->canonical_bytes, export_limits);
+    require(!limited_export.has_value() &&
+                limited_export.error().code ==
+                    product_error_code::resource_limit,
+            "exact-coordinate export entity capacity is enforced");
     auto stale_certificate = *decoded.value();
     ++stale_certificate.certificate.selected_vertices;
     require(!freeze_exact_stratified_boundary(std::move(stale_certificate))
@@ -360,6 +484,37 @@ void product_evaluator_mesh_paths() {
                       result.value()->realization->failure
                           ->replay_binding_digest),
               "failed realization retains exact authority");
+      auto exact_export = export_exact_coordinates<std::uint64_t>(
+          result.value()->exact_result);
+      require(exact_export.has_value() &&
+                  !exact_export.value()->boundary->vertices.empty(),
+              "failed finite realization remains exactly exportable");
+      if (expected_failure == product_error_code::output_not_representable) {
+        const auto third = exact_scalar(1) / exact_scalar(3);
+        const auto has_third = std::any_of(
+            exact_export.value()->boundary->vertices.begin(),
+            exact_export.value()->boundary->vertices.end(),
+            [&](const auto &vertex) {
+              return vertex.coordinate.x == third ||
+                     vertex.coordinate.y == third ||
+                     vertex.coordinate.z == third;
+            });
+        require(has_third,
+                "non-dyadic exact coordinate exports without rounding");
+        auto encoded = encode_exact_coordinate_export(exact_export.value());
+        require(encoded.has_value(), "encode non-dyadic exact export");
+        auto decoded = decode_exact_coordinate_export(encoded.value());
+        require(decoded.has_value() &&
+                    std::any_of(
+                        decoded.value()->boundary->vertices.begin(),
+                        decoded.value()->boundary->vertices.end(),
+                        [&](const auto &vertex) {
+                          return vertex.coordinate.x == third ||
+                                 vertex.coordinate.y == third ||
+                                 vertex.coordinate.z == third;
+                        }),
+                "non-dyadic exact coordinate survives canonical replay");
+      }
     }
   };
 
@@ -445,6 +600,15 @@ int main(int argc, char **argv) {
                                     std::istreambuf_iterator<char>());
     return input.bad() || !verify_serialized_exact_stratified_boundary(bytes)
                                .has_value()
+               ? 1
+               : 0;
+  }
+  if (argc == 3 && std::string(argv[1]) == "--verify-export-file") {
+    std::ifstream input(argv[2], std::ios::binary);
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)),
+                                    std::istreambuf_iterator<char>());
+    return input.bad() ||
+                   !verify_serialized_exact_coordinate_export(bytes).has_value()
                ? 1
                : 0;
   }

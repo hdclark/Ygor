@@ -29,8 +29,9 @@ target_include_directories(ygor_mesh_boolean_realization_verifier_isolation
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_features(ygor_mesh_boolean_realization_verifier_isolation PRIVATE cxx_std_17)
 
-# The durable-result reader starts from canonical bytes. Build it as a linked
-# library so unresolved references cannot be hidden by an OBJECT-only check.
+# The durable-result and exact-coordinate export readers start from canonical
+# bytes. Build them as a linked library so unresolved references cannot be
+# hidden by an OBJECT-only check.
 add_library(ygor_mesh_boolean_exact_result_verifier_support STATIC
     YgorMeshesBooleanContract.cc
     YgorMeshesBooleanProductContract.cc

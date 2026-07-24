@@ -17,6 +17,10 @@ constexpr std::array<char, 8> record_tag{
     {'Y', 'G', 'B', 'E', 'X', 'R', '0', '1'}};
 constexpr std::array<char, 8> digest_tag{
     {'Y', 'G', 'B', 'E', 'X', 'D', '0', '1'}};
+constexpr std::array<char, 8> exact_export_record_tag{
+    {'Y', 'G', 'B', 'E', 'X', 'C', '0', '1'}};
+constexpr std::array<char, 8> exact_export_digest_tag{
+    {'Y', 'G', 'B', 'E', 'C', 'D', '0', '1'}};
 constexpr std::uint16_t feature_reference_schema = 1;
 
 product_error error(product_error_code code, const char *key) {
@@ -1462,6 +1466,76 @@ product_status_or<bool> validate_impl(const exact_stratified_boundary &a) {
   return true;
 }
 
+std::uint64_t entity_capacity_for(index_tag index) {
+  return index == index_tag::uint32
+             ? std::uint64_t(std::numeric_limits<std::uint32_t>::max())
+             : std::numeric_limits<std::uint64_t>::max();
+}
+
+std::uint64_t largest_export_collection(const exact_stratified_boundary &a) {
+  std::uint64_t largest = 0;
+  const std::array<std::size_t, 6> sizes{{
+      a.vertices.size(),
+      a.vertex_occurrences.size(),
+      a.edges.size(),
+      a.halfedges.size(),
+      a.cycles.size(),
+      a.patches.size(),
+  }};
+  for (const auto size : sizes)
+    largest = std::max(largest, static_cast<std::uint64_t>(size));
+  return largest;
+}
+
+product_status_or<bool> validate_export_capacity(
+    const exact_stratified_boundary &a, index_tag index,
+    const exact_coordinate_export_limits &limits) {
+  if (index != index_tag::uint32 && index != index_tag::uint64)
+    return error(product_error_code::input_contract_error,
+                 "exact_coordinate_export.index_tag");
+  const auto largest = largest_export_collection(a);
+  if (largest > limits.max_indexed_entities)
+    return error(product_error_code::resource_limit,
+                 "exact_coordinate_export.entity_limit");
+  // The all-ones value remains reserved as the invalid canonical ID, so the
+  // numeric maximum is also the maximum number of dense entities.
+  if (largest > entity_capacity_for(index))
+    return error(product_error_code::index_overflow,
+                 "exact_coordinate_export.index_capacity");
+  return true;
+}
+
+std::vector<std::uint8_t> exact_export_payload(
+    index_tag index, operation op, selected_boundary_topology topology,
+    const digest &exact_result_digest,
+    const std::vector<std::uint8_t> &exact_result_bytes) {
+  canonical_encoder e;
+  e.raw(reinterpret_cast<const std::uint8_t *>(exact_export_record_tag.data()),
+        exact_export_record_tag.size());
+  e.u16(exact_coordinate_export_schema);
+  e.u16(exact_coordinate_export_checker_version);
+  en(e, index);
+  e.u64(entity_capacity_for(index));
+  en(e, op);
+  en(e, topology);
+  dg(e, exact_result_digest);
+  e.byte_string(exact_result_bytes);
+  return e.bytes();
+}
+
+digest exact_export_digest(const std::vector<std::uint8_t> &payload_bytes) {
+  return domain_digest(exact_export_digest_tag, payload_bytes);
+}
+
+std::vector<std::uint8_t>
+exact_export_record(const std::vector<std::uint8_t> &payload_bytes,
+                    const digest &canonical_digest) {
+  canonical_encoder e;
+  e.raw(payload_bytes.data(), payload_bytes.size());
+  dg(e, canonical_digest);
+  return e.bytes();
+}
+
 } // namespace
 
 namespace detail {
@@ -1622,6 +1696,281 @@ read_exact_result(const exact_result_handle &handle,
     return error(product_error_code::stale_binding,
                  "exact_result.handle_binding");
   return decoded.value();
+}
+
+product_status_or<exact_coordinate_export_handle> export_exact_coordinates(
+    const exact_result_handle &exact, index_tag index,
+    const exact_coordinate_export_limits &limits) {
+  try {
+    if (!exact.valid())
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.empty_exact_result");
+    auto boundary = read_exact_result(exact, limits.exact_result);
+    if (!boundary.has_value())
+      return boundary.error();
+    auto capacity = validate_export_capacity(*boundary.value(), index, limits);
+    if (!capacity.has_value())
+      return capacity.error();
+    const std::uint64_t framing_bytes =
+        8U + 2U + 2U + 1U + 8U + 1U + 1U + 8U +
+        2U * digest{}.bytes.size();
+    if (exact->canonical_bytes.size() >
+            std::numeric_limits<std::uint64_t>::max() - framing_bytes ||
+        exact->canonical_bytes.size() + framing_bytes > limits.max_record_bytes)
+      return error(product_error_code::resource_limit,
+                   "exact_coordinate_export.record_limit");
+    auto payload_bytes = exact_export_payload(
+        index, boundary.value()->selected_operation, boundary.value()->topology,
+        exact->canonical_digest, exact->canonical_bytes);
+    const auto export_digest = exact_export_digest(payload_bytes);
+    auto record_bytes = exact_export_record(payload_bytes, export_digest);
+    auto result = std::make_shared<exact_coordinate_export>();
+    result->index = index;
+    result->entity_capacity = entity_capacity_for(index);
+    result->selected_operation = boundary.value()->selected_operation;
+    result->topology = boundary.value()->topology;
+    result->exact_result_digest = exact->canonical_digest;
+    result->canonical_digest = export_digest;
+    result->exact_result = exact;
+    result->boundary = std::move(boundary.value());
+    result->canonical_bytes = std::move(record_bytes);
+    return exact_coordinate_export_handle(std::move(result));
+  } catch (const std::bad_alloc &) {
+    return error(product_error_code::resource_limit,
+                 "exact_coordinate_export.allocation");
+  } catch (...) {
+    return error(product_error_code::exact_result_serialization_error,
+                 "exact_coordinate_export.exception");
+  }
+}
+
+product_status_or<exact_coordinate_export_handle> decode_exact_coordinate_export(
+    const std::vector<std::uint8_t> &bytes,
+    const exact_coordinate_export_limits &limits) {
+  try {
+    exact_result_decode_limits wrapper_limits;
+    wrapper_limits.max_record_bytes = limits.max_record_bytes;
+    wrapper_limits.max_entities = limits.max_indexed_entities;
+    wrapper_limits.max_references = limits.max_record_bytes;
+    wrapper_limits.max_exact_hex_bytes = limits.max_record_bytes;
+    wrapper_limits.max_string_bytes = limits.max_record_bytes;
+    reader r(bytes, wrapper_limits);
+    std::array<std::uint8_t, 8> magic{};
+    r.raw(magic.data(), magic.size());
+    if (!std::equal(magic.begin(), magic.end(), exact_export_record_tag.begin()))
+      throw decode_failure("exact_coordinate_export.magic");
+    if (r.u16() != exact_coordinate_export_schema ||
+        r.u16() != exact_coordinate_export_checker_version)
+      throw decode_failure("exact_coordinate_export.schema");
+    const auto index = de<index_tag>(r, 1);
+    const auto entity_capacity = r.u64();
+    if (entity_capacity != entity_capacity_for(index))
+      throw decode_failure("exact_coordinate_export.index_capacity");
+    const auto op = de<operation>(r, 4);
+    const auto topology = de<selected_boundary_topology>(r, 2);
+    const auto exact_digest = dg(r);
+    auto exact_bytes = r.byte_string();
+    const auto export_digest = dg(r);
+    if (!r.done())
+      throw decode_failure("exact_coordinate_export.trailing_bytes");
+
+    const auto expected_payload =
+        exact_export_payload(index, op, topology, exact_digest, exact_bytes);
+    if (export_digest != exact_export_digest(expected_payload) ||
+        bytes != exact_export_record(expected_payload, export_digest))
+      throw decode_failure("exact_coordinate_export.noncanonical_record");
+    auto boundary =
+        decode_exact_stratified_boundary(exact_bytes, limits.exact_result);
+    if (!boundary.has_value())
+      return boundary.error();
+    if (boundary.value()->selected_operation != op ||
+        boundary.value()->topology != topology)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.exact_metadata_binding");
+    auto capacity = validate_export_capacity(*boundary.value(), index, limits);
+    if (!capacity.has_value())
+      return capacity.error();
+    auto exact = make_exact_result_handle(boundary.value());
+    if (!exact.has_value())
+      return exact.error();
+    if (exact.value()->canonical_digest != exact_digest)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.exact_digest_binding");
+
+    auto result = std::make_shared<exact_coordinate_export>();
+    result->index = index;
+    result->entity_capacity = entity_capacity;
+    result->selected_operation = op;
+    result->topology = topology;
+    result->exact_result_digest = exact_digest;
+    result->canonical_digest = export_digest;
+    result->exact_result = std::move(exact.value());
+    result->boundary = std::move(boundary.value());
+    result->canonical_bytes = bytes;
+    return exact_coordinate_export_handle(std::move(result));
+  } catch (const decode_failure &e) {
+    return error(e.code, e.what());
+  } catch (const std::bad_alloc &) {
+    return error(product_error_code::resource_limit,
+                 "exact_coordinate_export.allocation");
+  } catch (...) {
+    return error(product_error_code::exact_result_serialization_error,
+                 "exact_coordinate_export.decode_exception");
+  }
+}
+
+product_status_or<bool> validate_exact_coordinate_export_binding(
+    const exact_coordinate_export_handle &exported,
+    const exact_result_handle &exact) noexcept {
+  try {
+    if (!exported || !exact.valid() || !exported->boundary ||
+        !exported->exact_result.valid())
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.empty_binding");
+    auto decoded = decode_exact_coordinate_export(exported->canonical_bytes);
+    if (!decoded.has_value())
+      return decoded.error();
+    const auto &verified = *decoded.value();
+    if (exported->schema != exact_coordinate_export_schema ||
+        exported->index != verified.index ||
+        exported->entity_capacity != verified.entity_capacity ||
+        exported->selected_operation != verified.selected_operation ||
+        exported->topology != verified.topology ||
+        exported->exact_result_digest != verified.exact_result_digest ||
+        exported->canonical_digest != verified.canonical_digest ||
+        exported->exact_result->canonical_digest !=
+            verified.exact_result->canonical_digest ||
+        exported->exact_result_digest != exact->canonical_digest ||
+        exported->exact_result->canonical_bytes != exact->canonical_bytes)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.binding");
+    auto boundary_bytes =
+        encode_exact_stratified_boundary(*exported->boundary);
+    if (!boundary_bytes.has_value() ||
+        boundary_bytes.value() != exported->exact_result->canonical_bytes)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.boundary_binding");
+    return true;
+  } catch (const std::bad_alloc &) {
+    return error(product_error_code::resource_limit,
+                 "exact_coordinate_export.allocation");
+  } catch (...) {
+    return error(product_error_code::exact_result_serialization_error,
+                 "exact_coordinate_export.binding_exception");
+  }
+}
+
+product_status_or<std::vector<std::uint8_t>>
+encode_exact_coordinate_export(const exact_coordinate_export_handle &exported) {
+  if (!exported)
+    return error(product_error_code::input_contract_error,
+                 "exact_coordinate_export.empty_handle");
+  auto valid =
+      validate_exact_coordinate_export_binding(exported, exported->exact_result);
+  if (!valid.has_value())
+    return valid.error();
+  return exported->canonical_bytes;
+}
+
+product_status_or<bool> verify_serialized_exact_coordinate_export(
+    const std::vector<std::uint8_t> &bytes,
+    const exact_coordinate_export_limits &limits) noexcept {
+  try {
+    if (bytes.size() > limits.max_record_bytes)
+      return error(product_error_code::resource_limit,
+                   "exact_coordinate_export.verify_record_limit");
+    std::size_t at = 0;
+    auto byte = [&]() {
+      if (at == bytes.size())
+        throw decode_failure("exact_coordinate_export.verify_truncated");
+      return bytes[at++];
+    };
+    auto u16 = [&]() {
+      std::uint16_t value = 0;
+      for (unsigned i = 0; i != 2; ++i)
+        value = std::uint16_t((value << 8) | byte());
+      return value;
+    };
+    auto u64 = [&]() {
+      std::uint64_t value = 0;
+      for (unsigned i = 0; i != 8; ++i)
+        value = (value << 8) | byte();
+      return value;
+    };
+    auto read_digest = [&]() {
+      digest value;
+      for (auto &part : value.bytes)
+        part = byte();
+      return value;
+    };
+    for (const auto expected : exact_export_record_tag)
+      if (byte() != static_cast<std::uint8_t>(expected))
+        throw decode_failure("exact_coordinate_export.verify_magic");
+    if (u16() != exact_coordinate_export_schema ||
+        u16() != exact_coordinate_export_checker_version)
+      throw decode_failure("exact_coordinate_export.verify_schema");
+    const auto index_value = byte();
+    if (index_value > 1)
+      throw decode_failure("exact_coordinate_export.verify_index_tag");
+    const auto index = static_cast<index_tag>(index_value);
+    if (u64() != entity_capacity_for(index))
+      throw decode_failure("exact_coordinate_export.verify_index_capacity");
+    const auto operation_value = byte();
+    const auto topology_value = byte();
+    if (operation_value > 4 || topology_value > 2)
+      throw decode_failure("exact_coordinate_export.verify_enum");
+    const auto exact_digest = read_digest();
+    const auto exact_size = u64();
+    if (exact_size > limits.exact_result.max_record_bytes)
+      return error(product_error_code::resource_limit,
+                   "exact_coordinate_export.verify_exact_record_limit");
+    if (exact_size > bytes.size() - at ||
+        bytes.size() - at - static_cast<std::size_t>(exact_size) !=
+            digest{}.bytes.size())
+      throw decode_failure("exact_coordinate_export.verify_exact_size");
+    std::vector<std::uint8_t> exact_bytes(
+        bytes.begin() + static_cast<std::ptrdiff_t>(at),
+        bytes.begin() + static_cast<std::ptrdiff_t>(at + exact_size));
+    at += static_cast<std::size_t>(exact_size);
+    const auto recorded_export_digest = read_digest();
+    if (at != bytes.size())
+      throw decode_failure("exact_coordinate_export.verify_trailing_bytes");
+    std::vector<std::uint8_t> payload_bytes(bytes.begin(),
+                                            bytes.end() - digest{}.bytes.size());
+    if (recorded_export_digest != exact_export_digest(payload_bytes))
+      throw decode_failure("exact_coordinate_export.verify_digest");
+    auto exact_verified = verify_serialized_exact_stratified_boundary(
+        exact_bytes, limits.exact_result);
+    if (!exact_verified.has_value())
+      return exact_verified.error();
+    auto boundary =
+        decode_exact_stratified_boundary(exact_bytes, limits.exact_result);
+    if (!boundary.has_value())
+      return boundary.error();
+    if (static_cast<std::uint8_t>(boundary.value()->selected_operation) !=
+            operation_value ||
+        static_cast<std::uint8_t>(boundary.value()->topology) != topology_value)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.verify_metadata_binding");
+    auto capacity = validate_export_capacity(*boundary.value(), index, limits);
+    if (!capacity.has_value())
+      return capacity.error();
+    auto exact = make_exact_result_handle(boundary.value());
+    if (!exact.has_value())
+      return exact.error();
+    if (exact.value()->canonical_digest != exact_digest)
+      return error(product_error_code::stale_binding,
+                   "exact_coordinate_export.verify_exact_binding");
+    return true;
+  } catch (const decode_failure &e) {
+    return error(e.code, e.what());
+  } catch (const std::bad_alloc &) {
+    return error(product_error_code::resource_limit,
+                 "exact_coordinate_export.allocation");
+  } catch (...) {
+    return error(product_error_code::exact_result_serialization_error,
+                 "exact_coordinate_export.verify_exception");
+  }
 }
 
 product_status_or<bool> validate_canonical_exact_result_bytes(

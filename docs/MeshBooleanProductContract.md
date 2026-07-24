@@ -236,9 +236,30 @@ checks the canonical digest, all cross-references and certificate counts, exact
 topology, backend and preparation bindings, resource limits, and canonical
 re-encoding. `request_later_realization<T,I>` records a type- and policy-bound
 request against the retained exact-result digest. Exact-coordinate consumers
-can use the decoded rational boundary immediately. Strict finite-`T`
-realization is integrated with the product envelope; exact-coordinate export
-and certified approximate execution remain later P3 work.
+can use the decoded rational boundary immediately or call
+`export_exact_coordinates<I>`. The immutable export owns canonical bytes and a
+fully decoded exact boundary independently of the originating context. It
+preserves selected surface occurrences, halfedge occurrence endpoints,
+spherical links, topology obstructions, construction records, and source and
+backend provenance; coincident coordinates never cause occurrence welding.
+
+Exact-coordinate export schema 1 embeds the authoritative exact-result record
+and binds it to the durable exact-result digest. Coordinates remain normalized
+canonical rationals and are never rounded to a floating-point type. The export
+index policy applies `I` to the dense selected vertex, occurrence, edge,
+halfedge, cycle, and patch strata. Stable source, construction, and provenance
+IDs remain 64-bit. The all-ones index value is reserved, so `entity_capacity`
+is the maximum dense collection size. Export fails with `index_overflow` or
+`resource_limit` before publication when that contract cannot be met.
+
+`decode_exact_coordinate_export` performs bounded canonical decoding and full
+embedded exact-result verification. `verify_serialized_exact_coordinate_export`
+uses a separate export-envelope parser, checks both digests and metadata, and
+replays the exact-result verifier from bytes. Both reject corruption,
+truncation, trailing bytes, stale bindings, and non-canonical encoding;
+`validate_exact_coordinate_export_binding` additionally rejects mutated
+in-memory boundary data. Strict finite-`T` realization is integrated with the
+product envelope; certified approximate execution remains later P3 work.
 
 `evaluate_boolean_product_result` is the expert productization path for the
 current in-tree backend. It publishes the verified exact authority before

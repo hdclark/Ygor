@@ -130,10 +130,10 @@ Start only after P2. Preserve the existing strict `exact_in_T` algorithm as a re
   - [x] Remove any public wording that treats strict `exact_in_T` success rate as the ordinary CAD-output target.
   - [x] Re-run all G2/G7/G8/G9c, one-third, rounding-collision, mutation, replay, re-ingestion, and speed-baseline gates through the new envelope.
 
-- [ ] **P3.2 — Add exact-coordinate export.**
-  - [ ] Define a stable exact-coordinate mesh/stratified representation using canonical rationals or versioned constructions.
-  - [ ] Preserve surface occurrences and non-manifold topology where the exact result requires them.
-  - [ ] Add canonical serialization, public lifetime, indexing/capacity policy, provenance, and independent verification.
+- [x] **P3.2 — Add exact-coordinate export.**
+  - [x] Define a stable exact-coordinate mesh/stratified representation using canonical rationals or versioned constructions.
+  - [x] Preserve surface occurrences and non-manifold topology where the exact result requires them.
+  - [x] Add canonical serialization, public lifetime, indexing/capacity policy, provenance, and independent verification.
 
 - [ ] **P3.3 — Implement `certified_approximate_embedding_v1`.**
   - [ ] Define caller-supplied global/per-axis displacement bounds, original-vertex movement policy, support-plane deviation, model-tolerance metadata, deterministic candidate generation, and search/resource limits.

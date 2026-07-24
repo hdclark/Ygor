@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -18,6 +19,8 @@ namespace mesh_boolean {
 
 constexpr std::uint16_t exact_stratified_boundary_schema = 1;
 constexpr std::uint16_t exact_stratified_boundary_checker_version = 1;
+constexpr std::uint16_t exact_coordinate_export_schema = 1;
+constexpr std::uint16_t exact_coordinate_export_checker_version = 1;
 
 struct exact_result_decode_limits {
   std::uint64_t max_record_bytes = 64U * 1024U * 1024U;
@@ -25,6 +28,12 @@ struct exact_result_decode_limits {
   std::uint64_t max_references = 32U * 1024U * 1024U;
   std::uint64_t max_exact_hex_bytes = 8U * 1024U * 1024U;
   std::uint64_t max_string_bytes = 16U * 1024U;
+};
+
+struct exact_coordinate_export_limits {
+  std::uint64_t max_record_bytes = 72U * 1024U * 1024U;
+  std::uint64_t max_indexed_entities = 4U * 1024U * 1024U;
+  exact_result_decode_limits exact_result;
 };
 
 struct exact_result_backend_binding {
@@ -219,6 +228,45 @@ product_status_or<std::shared_ptr<const exact_stratified_boundary>>
 read_exact_result(const exact_result_handle &,
                   const exact_result_decode_limits & = {});
 
+// Exact-coordinate export keeps canonical selected IDs and surface
+// occurrences distinct. The index tag covers the dense selected vertex,
+// occurrence, edge, halfedge, cycle, and patch strata. Source and construction
+// provenance retain their stable 64-bit IDs. Coordinates stay canonical
+// rationals and are never converted to a floating-point type.
+struct exact_coordinate_export {
+  std::uint16_t schema = exact_coordinate_export_schema;
+  index_tag index = index_tag::uint64;
+  std::uint64_t entity_capacity = std::numeric_limits<std::uint64_t>::max();
+  operation selected_operation = operation::regularized_union;
+  selected_boundary_topology topology = selected_boundary_topology::empty;
+  digest exact_result_digest;
+  digest canonical_digest;
+  exact_result_handle exact_result;
+  std::shared_ptr<const exact_stratified_boundary> boundary;
+  std::vector<std::uint8_t> canonical_bytes;
+};
+
+using exact_coordinate_export_handle =
+    std::shared_ptr<const exact_coordinate_export>;
+
+product_status_or<exact_coordinate_export_handle> export_exact_coordinates(
+    const exact_result_handle &, index_tag,
+    const exact_coordinate_export_limits & = {});
+
+product_status_or<std::vector<std::uint8_t>>
+encode_exact_coordinate_export(const exact_coordinate_export_handle &);
+
+product_status_or<exact_coordinate_export_handle> decode_exact_coordinate_export(
+    const std::vector<std::uint8_t> &,
+    const exact_coordinate_export_limits & = {});
+
+product_status_or<bool> verify_serialized_exact_coordinate_export(
+    const std::vector<std::uint8_t> &,
+    const exact_coordinate_export_limits & = {}) noexcept;
+
+product_status_or<bool> validate_exact_coordinate_export_binding(
+    const exact_coordinate_export_handle &, const exact_result_handle &) noexcept;
+
 template <class T> constexpr coordinate_tag exact_result_coordinate_type() {
   static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
                 "durable exact results support binary32 and binary64 targets");
@@ -232,6 +280,13 @@ template <class I> constexpr index_tag exact_result_index_type() {
                 "durable exact results support 32-bit and 64-bit indices");
   return std::is_same<I, std::uint32_t>::value ? index_tag::uint32
                                                : index_tag::uint64;
+}
+
+template <class I>
+product_status_or<exact_coordinate_export_handle> export_exact_coordinates(
+    const exact_result_handle &exact,
+    const exact_coordinate_export_limits &limits = {}) {
+  return export_exact_coordinates(exact, exact_result_index_type<I>(), limits);
 }
 
 template <class T, class I> struct exact_result_realization_request {
