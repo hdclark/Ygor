@@ -1104,6 +1104,124 @@ template <class T, class I> void nonplanar_refit_basic() {
           "bounded refit failure report independently rejects false success");
 }
 
+normalization_policy overlapping_facet_policy() {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::overlapping_facet_resolution);
+  return policy;
+}
+
+template <class T, class I> void overlapping_facet_resolution_basic() {
+  const auto expected = cube<T, I>();
+  auto source = expected;
+  source.faces.push_back({I(4), I(5), I(6)});
+  source.faces.push_back({I(4), I(6), I(7)});
+
+  normalization_report diagnosis;
+  auto rejected = normalize_operand(source, normalization_policy{}, diagnosis);
+  require(!rejected.has_value() &&
+              std::count_if(diagnosis.unresolved_defects.begin(),
+                            diagnosis.unresolved_defects.end(), [](const auto &d) {
+                              return d.code == normalization_defect_code::
+                                                   positive_area_coplanar_facet_overlap;
+                            }) == 2,
+          "diagnosis reports every positive-area redundant facet overlap");
+
+  normalization_report report;
+  auto prepared = normalize_operand(source, overlapping_facet_policy(), report);
+  require(prepared.has_value() && prepared.value().mesh() == expected,
+          "lowest source facet deterministically owns contained overlap area");
+  require(report.displacement == normalization_displacement_claim::exact_zero &&
+              report.displacements.empty() && report.edits.size() == 2 &&
+              report.topology_changes.size() == 2 &&
+              report.facets.source_to_prepared[6] == 1 &&
+              report.facets.source_to_prepared[7] == 1 &&
+              report.edits[0].operation ==
+                  normalization_operation::overlapping_facet_resolution,
+          "overlap removal records ownership, mappings, and zero displacement");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "overlap report reconstructs ownership and strict output");
+
+  auto forged = report;
+  forged.edits[0].evidence_digest.bytes[0] ^= 1U;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "verifier rejects forged overlap ownership evidence");
+
+  normalization_report repeated;
+  auto again = normalize_operand(source, overlapping_facet_policy(), repeated);
+  require(again.has_value() && repeated.report_digest == report.report_digest,
+          "overlap resolution is deterministic");
+  normalization_report identity;
+  auto unchanged =
+      normalize_operand(expected, overlapping_facet_policy(), identity);
+  require(unchanged.has_value() && unchanged.value().mesh() == expected &&
+              identity.edits.empty(),
+          "overlap resolution is idempotent on strict input");
+}
+
+void overlapping_facet_resolution_fail_closed() {
+  using T = double;
+  using I = std::uint32_t;
+  auto opposite = cube<T, I>();
+  opposite.faces.push_back({I(6), I(5), I(4)});
+  normalization_report opposite_report;
+  auto rejected = normalize_operand(opposite, overlapping_facet_policy(),
+                                    opposite_report);
+  require(!rejected.has_value() && !opposite_report.prepared_operand_available &&
+              std::any_of(opposite_report.unresolved_defects.begin(),
+                          opposite_report.unresolved_defects.end(),
+                          [](const auto &d) {
+                            return d.code == normalization_defect_code::
+                                                 opposite_oriented_coplanar_facet_overlap;
+                          }),
+          "opposite-oriented overlap remains an explicit failure");
+  auto opposite_bytes = encode_normalization_report(opposite_report);
+  require(opposite_bytes.has_value() &&
+              verify_normalization_report(
+                  opposite_bytes.value(), opposite,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "opposite-oriented failure report replays");
+
+  auto conflict = cube<T, I>();
+  conflict.vertex_colours.assign(conflict.vertices.size(), 1U);
+  for (I index : {I(4), I(5), I(6)}) {
+    conflict.vertices.push_back(conflict.vertices[index]);
+    conflict.vertex_colours.push_back(2U);
+  }
+  conflict.faces.push_back({I(8), I(9), I(10)});
+  normalization_report conflict_report;
+  auto conflicted = normalize_operand(conflict, overlapping_facet_policy(),
+                                      conflict_report);
+  require(!conflicted.has_value() &&
+              std::any_of(conflict_report.unresolved_defects.begin(),
+                          conflict_report.unresolved_defects.end(),
+                          [](const auto &d) {
+                            return d.code == normalization_defect_code::
+                                                 overlapping_facet_attribute_conflict;
+                          }),
+          "owner and loser attribute disagreement is reported and rejected");
+
+  auto limited_policy = overlapping_facet_policy();
+  limited_policy.resources.max_work_units = 100;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto limited = normalize_operand(opposite, limited_policy, unpublished);
+  require(!limited.has_value() &&
+              limited.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "overlap planning resource exhaustion is transactional");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -1316,6 +1434,11 @@ int main() {
     nonplanar_refit_basic<float, std::uint64_t>();
     nonplanar_refit_basic<double, std::uint32_t>();
     nonplanar_refit_basic<double, std::uint64_t>();
+    overlapping_facet_resolution_basic<float, std::uint32_t>();
+    overlapping_facet_resolution_basic<float, std::uint64_t>();
+    overlapping_facet_resolution_basic<double, std::uint32_t>();
+    overlapping_facet_resolution_basic<double, std::uint64_t>();
+    overlapping_facet_resolution_fail_closed();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();

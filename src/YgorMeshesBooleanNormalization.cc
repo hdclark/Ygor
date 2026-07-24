@@ -51,6 +51,10 @@ constexpr std::array<char, 8> nonplanar_after_tag{{'Y', 'G', 'B', 'N', 'P', 'A',
 constexpr std::array<char, 8> nonplanar_edit_tag{{'Y', 'G', 'B', 'N', 'P', 'E', '0', '1'}};
 constexpr std::array<char, 8> nonplanar_topology_tag{{'Y', 'G', 'B', 'N', 'P', 'T', '0', '1'}};
 constexpr std::array<char, 8> nonplanar_displacement_tag{{'Y', 'G', 'B', 'N', 'P', 'D', '0', '1'}};
+constexpr std::array<char, 8> overlap_before_tag{{'Y', 'G', 'B', 'N', 'F', 'B', '0', '1'}};
+constexpr std::array<char, 8> overlap_after_tag{{'Y', 'G', 'B', 'N', 'F', 'A', '0', '1'}};
+constexpr std::array<char, 8> overlap_edit_tag{{'Y', 'G', 'B', 'N', 'F', 'E', '0', '1'}};
+constexpr std::array<char, 8> overlap_topology_tag{{'Y', 'G', 'B', 'N', 'F', 'T', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -96,7 +100,7 @@ bool known(normalization_cancellation_policy v) {
 }
 bool known(normalization_defect_code v) {
   return v >= normalization_defect_code::nonfinite_coordinate &&
-          v <= normalization_defect_code::nonplanar_facet;
+          v <= normalization_defect_code::partial_overlapping_facet_requires_remeshing;
 }
 bool known(nonplanar_facet_policy v) {
   return v >= nonplanar_facet_policy::reject &&
@@ -154,6 +158,8 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::crack_closure);
   const auto nonplanar = normalization_operation_bit(
       normalization_operation::nonplanar_facet_handling);
+  const auto overlapping = normalization_operation_bit(
+      normalization_operation::overlapping_facet_resolution);
   if ((p.enabled_operations == nonplanar) !=
       (p.nonplanar_facets != nonplanar_facet_policy::reject))
     return normalization_error("normalization_nonplanar_policy_mismatch");
@@ -167,13 +173,15 @@ status_or<bool> validate_policy(const normalization_policy &p,
            (p.enabled_operations == removal ||
              p.enabled_operations == duplicates ||
              p.enabled_operations == orientation)) ||
-         (p.mode == normalization_mode::geometry_changing &&
-           (p.enabled_operations == seam_vertices ||
-             p.enabled_operations == crack_closure ||
-             p.enabled_operations == nonplanar) &&
-           p.model_tolerance > 0.0 &&
-          p.unit != model_unit::unspecified &&
-          p.model_tolerance <= 2147483647.0)))
+          (p.mode == normalization_mode::geometry_changing &&
+            (p.enabled_operations == seam_vertices ||
+              p.enabled_operations == crack_closure ||
+              p.enabled_operations == nonplanar) &&
+            p.model_tolerance > 0.0 && p.unit != model_unit::unspecified &&
+            p.model_tolerance <= 2147483647.0) ||
+          (p.mode == normalization_mode::geometry_changing &&
+           p.enabled_operations == overlapping &&
+           p.model_tolerance == 0.0 && p.unit == model_unit::unspecified)))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -584,6 +592,9 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
   const bool nonplanar_repair =
       r.policy.enabled_operations == normalization_operation_bit(
           normalization_operation::nonplanar_facet_handling);
+  const bool overlap_repair =
+      r.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::overlapping_facet_resolution);
   const bool nonplanar_triangulation =
       nonplanar_repair &&
       r.policy.nonplanar_facets == nonplanar_facet_policy::triangulate;
@@ -601,10 +612,10 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
                    r.displacements.empty()) ||
        !canonical_topology_records(r.topology_changes) ||
         (((!duplicate_repair && !seam_repair && !crack_repair &&
-           !nonplanar_triangulation) ||
+           !nonplanar_triangulation && !overlap_repair) ||
           !r.prepared_operand_available) &&
          !r.topology_changes.empty()) ||
-        ((duplicate_repair || seam_repair || crack_repair) &&
+         ((duplicate_repair || seam_repair || crack_repair || overlap_repair) &&
          r.prepared_operand_available &&
           r.topology_changes.size() != r.edits.size()) ||
        (nonplanar_triangulation && r.prepared_operand_available &&
@@ -624,8 +635,8 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       !canonical_mapping(r.vertices) || !canonical_mapping(r.edges) ||
       !canonical_mapping(r.facets) || !canonical_mapping(r.shells) ||
        (r.prepared_operand_available
-              ? (duplicate_repair || seam_repair || crack_repair ||
-                         nonplanar_repair
+               ? (duplicate_repair || seam_repair || crack_repair ||
+                          nonplanar_repair || overlap_repair
                     ? r.shells.status != normalization_map_status::unavailable
                    : r.shells.status != normalization_map_status::total)
             : r.shells.status != normalization_map_status::unavailable) ||
@@ -843,6 +854,206 @@ status_or<std::optional<normalization_defect>> diagnose_nonplanar_facet(
   return std::optional<normalization_defect>{};
 }
 
+struct overlap_facet_geometry {
+  exact_plane3 plane;
+  projection_axis projection = projection_axis::drop_z;
+  std::vector<exact_point2> ring;
+};
+
+template <class T, class I>
+status_or<std::optional<overlap_facet_geometry>> overlap_geometry(
+    const fv_surface_mesh<T, I> &mesh, std::uint64_t facet) {
+  const auto &indices = mesh.faces[static_cast<std::size_t>(facet)];
+  if (indices.size() < 3) return std::optional<overlap_facet_geometry>{};
+  std::vector<exact_point3> points;
+  points.reserve(indices.size());
+  for (I value : indices) {
+    const auto ordinal = static_cast<std::uint64_t>(value);
+    if (ordinal >= mesh.vertices.size())
+      return std::optional<overlap_facet_geometry>{};
+    auto point = normalization_exact_point(
+        mesh.vertices[static_cast<std::size_t>(ordinal)]);
+    if (!point.has_value()) return std::optional<overlap_facet_geometry>{};
+    points.push_back(std::move(point.value()));
+  }
+  std::optional<exact_plane3> plane;
+  for (std::size_t second = 1; second + 1 < points.size() && !plane; ++second)
+    for (std::size_t third = second + 1; third < points.size() && !plane; ++third) {
+      auto candidate =
+          support_plane_dyadic(points[0], points[second], points[third]);
+      if (candidate.has_value()) plane = std::move(candidate.value());
+    }
+  if (!plane) return std::optional<overlap_facet_geometry>{};
+  for (const auto &point : points)
+    if (plane_side_exact(*plane, point) != exact_sign::zero)
+      return std::optional<overlap_facet_geometry>{};
+  overlap_facet_geometry result;
+  result.plane = std::move(*plane);
+  result.projection = dominant_projection(result.plane);
+  result.ring.reserve(points.size());
+  for (const auto &point : points)
+    result.ring.push_back(project(point, result.projection));
+  return std::optional<overlap_facet_geometry>(std::move(result));
+}
+
+bool ring_contains_ring(const std::vector<exact_point2> &outer,
+                        const std::vector<exact_point2> &inner) {
+  for (const auto &point : inner) {
+    auto relation = classify_point_polygon(point, outer);
+    if (!relation.has_value() ||
+        relation.value().kind == point_region_kind::outside)
+      return false;
+  }
+  const exact_scalar half(big_int(1), big_uint(2));
+  for (std::size_t i = 0; i != inner.size(); ++i) {
+    const exact_segment2 edge{inner[i], inner[(i + 1) % inner.size()]};
+    const auto midpoint = affine_interpolate(edge.origin, edge.destination, half);
+    auto midpoint_relation = classify_point_polygon(midpoint, outer);
+    if (!midpoint_relation.has_value() ||
+        midpoint_relation.value().kind == point_region_kind::outside)
+      return false;
+    for (std::size_t j = 0; j != outer.size(); ++j)
+      if (relate_segments(edge, {outer[j], outer[(j + 1) % outer.size()]})
+              .point_kind == segment_point_kind::proper_crossing)
+        return false;
+  }
+  return true;
+}
+
+struct overlap_relation {
+  bool positive_area = false;
+  bool first_contains_second = false;
+  bool same_orientation = false;
+};
+
+overlap_relation relate_overlap_facets(const overlap_facet_geometry &first,
+                                       const overlap_facet_geometry &second) {
+  const auto planes = intersect_planes(first.plane, second.plane);
+  if (planes.kind != plane_plane_kind::coincident_same &&
+      planes.kind != plane_plane_kind::coincident_opposite)
+    return {};
+  std::vector<exact_point2> second_ring;
+  second_ring.reserve(second.ring.size());
+  // Re-projecting is unnecessary only when the canonical dominant axes agree.
+  if (first.projection != second.projection) return {};
+  second_ring = second.ring;
+  const bool contains = ring_contains_ring(first.ring, second_ring);
+  bool positive = contains;
+  if (!positive) {
+    for (const auto &point : first.ring) {
+      auto relation = classify_point_polygon(point, second_ring);
+      if (relation.has_value() &&
+          relation.value().kind == point_region_kind::open_interior) {
+        positive = true;
+        break;
+      }
+    }
+  }
+  if (!positive) {
+    for (const auto &point : second_ring) {
+      auto relation = classify_point_polygon(point, first.ring);
+      if (relation.has_value() &&
+          relation.value().kind == point_region_kind::open_interior) {
+        positive = true;
+        break;
+      }
+    }
+  }
+  if (!positive)
+    for (std::size_t i = 0; i != first.ring.size() && !positive; ++i)
+      for (std::size_t j = 0; j != second_ring.size(); ++j)
+        if (relate_segments({first.ring[i], first.ring[(i + 1) % first.ring.size()]},
+                            {second_ring[j], second_ring[(j + 1) % second_ring.size()]})
+                .point_kind == segment_point_kind::proper_crossing) {
+          positive = true;
+          break;
+        }
+  return {positive, contains,
+          planes.kind == plane_plane_kind::coincident_same};
+}
+
+template <class T, class I>
+bool overlapping_attributes_conflict(const fv_surface_mesh<T, I> &mesh,
+                                     std::uint64_t owner,
+                                     std::uint64_t candidate) {
+  if (mesh.vertex_normals.empty() && mesh.vertex_colours.empty()) return false;
+  if ((!mesh.vertex_normals.empty() &&
+       mesh.vertex_normals.size() != mesh.vertices.size()) ||
+      (!mesh.vertex_colours.empty() &&
+       mesh.vertex_colours.size() != mesh.vertices.size()))
+    return false;
+  for (I candidate_index : mesh.faces[static_cast<std::size_t>(candidate)]) {
+    const auto candidate_ordinal = static_cast<std::size_t>(candidate_index);
+    const auto &point = mesh.vertices[candidate_ordinal];
+    for (I owner_index : mesh.faces[static_cast<std::size_t>(owner)]) {
+      const auto owner_ordinal = static_cast<std::size_t>(owner_index);
+      const auto &other = mesh.vertices[owner_ordinal];
+      if (bits_key(point.x, point.y, point.z) !=
+          bits_key(other.x, other.y, other.z))
+        continue;
+      if ((!mesh.vertex_normals.empty() &&
+           mesh.vertex_normals[candidate_ordinal] !=
+               mesh.vertex_normals[owner_ordinal]) ||
+          (!mesh.vertex_colours.empty() &&
+           mesh.vertex_colours[candidate_ordinal] !=
+               mesh.vertex_colours[owner_ordinal]))
+        return true;
+    }
+  }
+  return false;
+}
+
+status_or<std::uint64_t> overlap_pair_work(std::uint64_t first,
+                                           std::uint64_t second) {
+  if (first != 0 && second >
+                        (std::numeric_limits<std::uint64_t>::max() - 16) / first)
+    return limit_error("normalization_work_overflow");
+  return 16 + first * second;
+}
+
+template <class T, class I, class Budget, class Add>
+status_or<bool> diagnose_overlapping_facets(const fv_surface_mesh<T, I> &mesh,
+                                            Budget &resources, Add add) {
+  std::vector<std::optional<overlap_facet_geometry>> geometry(mesh.faces.size());
+  for (std::uint64_t facet = 0; facet != mesh.faces.size(); ++facet) {
+    auto decoded = overlap_geometry(mesh, facet);
+    if (!decoded.has_value()) return decoded.error();
+    geometry[static_cast<std::size_t>(facet)] = std::move(decoded.value());
+  }
+  for (std::uint64_t first = 0; first != mesh.faces.size(); ++first) {
+    if (!geometry[static_cast<std::size_t>(first)]) continue;
+    for (std::uint64_t second = first + 1; second != mesh.faces.size(); ++second) {
+      if (!geometry[static_cast<std::size_t>(second)]) continue;
+      auto required = overlap_pair_work(mesh.faces[first].size(),
+                                        mesh.faces[second].size());
+      if (!required.has_value()) return required.error();
+      auto work = resources.checkpoint(required.value());
+      if (!work.has_value()) return work.error();
+      const auto relation = relate_overlap_facets(
+          *geometry[static_cast<std::size_t>(first)],
+          *geometry[static_cast<std::size_t>(second)]);
+      if (!relation.positive_area) continue;
+      auto added = add({relation.same_orientation
+                            ? normalization_defect_code::positive_area_coplanar_facet_overlap
+                            : normalization_defect_code::opposite_oriented_coplanar_facet_overlap,
+                        first, second, relation.first_contains_second ? 1U : 0U});
+      if (!added.has_value()) return added.error();
+      if (relation.same_orientation && relation.first_contains_second &&
+          overlapping_attributes_conflict(mesh, first, second)) {
+        added = add({normalization_defect_code::overlapping_facet_attribute_conflict,
+                     first, second, 0});
+        if (!added.has_value()) return added.error();
+      } else if (relation.same_orientation &&
+                 !relation.first_contains_second) {
+        added = add({normalization_defect_code::partial_overlapping_facet_requires_remeshing,
+                     first, second, 0});
+        if (!added.has_value()) return added.error();
+      }
+    }
+  }
+  return true;
+}
+
 struct diagnosis_result {
   std::vector<normalization_defect> defects;
   std::vector<std::array<std::uint64_t, 2>> edges;
@@ -937,6 +1148,8 @@ status_or<diagnosis_result> producer_diagnosis(const fv_surface_mesh<T, I> &m,
       if (!a.has_value()) return a.error();
     }
   }
+  auto overlaps = diagnose_overlapping_facets(m, b, add);
+  if (!overlaps.has_value()) return overlaps.error();
   for (auto mappings : {m.vertices.size(), m.faces.size(), edges.size(),
                         edges.size(),
                         m.vertex_normals.size(), m.vertex_colours.size(),
@@ -1197,6 +1410,8 @@ verifier_diagnosis(const fv_surface_mesh<T, I> &m, verification_budget &budget) 
       }
     }
   }
+  auto overlaps = diagnose_overlapping_facets(m, budget, add);
+  if (!overlaps.has_value()) return overlaps.error();
   auto sorting = sort_work(result.defects.size());
   if (!sorting.has_value()) return sorting.error();
   auto sort_allowed = budget.checkpoint(sorting.value());
@@ -1690,6 +1905,214 @@ status_or<exact_duplicate_result<T, I>> consolidate_exact_duplicates(
     if (!added.has_value()) return added.error();
   }
   return out;
+}
+
+template <class T, class I>
+digest overlap_facet_evidence(const std::array<char, 8> &tag,
+                              const fv_surface_mesh<T, I> &mesh,
+                              std::uint64_t first, std::uint64_t second) {
+  canonical_encoder encoder;
+  encoder.u64(first);
+  encoder.u64(second);
+  for (std::uint64_t facet : {first, second}) {
+    const auto &ring = mesh.faces[static_cast<std::size_t>(facet)];
+    encoder.u64(ring.size());
+    for (I index : ring) {
+      encoder.u64(static_cast<std::uint64_t>(index));
+      const auto &point = mesh.vertices[static_cast<std::size_t>(index)];
+      encoder.floating(point.x);
+      encoder.floating(point.y);
+      encoder.floating(point.z);
+    }
+  }
+  return domain_digest(tag, encoder.bytes());
+}
+
+digest overlap_edit_digest(const normalization_edit &edit) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(edit.operation));
+  encoder.u64(edit.canonical_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(edit.entity));
+  encoder.u64(edit.source_ordinal);
+  encoder.u64(edit.prepared_ordinal);
+  encode_digest(encoder, edit.before_evidence_digest);
+  encode_digest(encoder, edit.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(overlap_edit_tag, encoder.bytes());
+}
+
+digest overlap_topology_digest(const normalization_topology_change &change) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(change.operation));
+  encoder.u64(change.source_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.entity));
+  encoder.u64(change.prepared_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.justification));
+  encoder.u32(change.justification_subcode);
+  encode_digest(encoder, change.before_evidence_digest);
+  encode_digest(encoder, change.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(change.reversibility));
+  return domain_digest(overlap_topology_tag, encoder.bytes());
+}
+
+template <class T, class I, class Budget>
+status_or<exact_duplicate_result<T, I>> resolve_overlapping_facets(
+    const fv_surface_mesh<T, I> &source,
+    const std::vector<std::array<std::uint64_t, 2>> &source_edges,
+    Budget &resources) {
+  exact_duplicate_result<T, I> result;
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return normalization_error("normalization_overlap_attributes");
+
+  std::vector<std::optional<overlap_facet_geometry>> geometry(source.faces.size());
+  for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+    auto decoded = overlap_geometry(source, facet);
+    if (!decoded.has_value()) return decoded.error();
+    geometry[static_cast<std::size_t>(facet)] = std::move(decoded.value());
+  }
+  std::vector<std::uint64_t> owner(source.faces.size(), normalization_removed_ordinal);
+  std::vector<std::uint64_t> retained;
+  for (std::uint64_t candidate = 0; candidate != source.faces.size(); ++candidate) {
+    auto work = resources.checkpoint(1);
+    if (!work.has_value()) return work.error();
+    for (std::uint64_t prior : retained) {
+      if (!geometry[static_cast<std::size_t>(prior)] ||
+          !geometry[static_cast<std::size_t>(candidate)])
+        continue;
+      auto required = overlap_pair_work(
+          source.faces[static_cast<std::size_t>(prior)].size(),
+          source.faces[static_cast<std::size_t>(candidate)].size());
+      if (!required.has_value()) return required.error();
+      work = resources.checkpoint(required.value());
+      if (!work.has_value()) return work.error();
+      const auto relation = relate_overlap_facets(
+          *geometry[static_cast<std::size_t>(prior)],
+          *geometry[static_cast<std::size_t>(candidate)]);
+      if (!relation.positive_area || !relation.same_orientation ||
+          !relation.first_contains_second)
+        continue;
+      if (overlapping_attributes_conflict(source, prior, candidate))
+        return normalization_error("normalization_overlap_attribute_conflict");
+      owner[static_cast<std::size_t>(candidate)] = prior;
+      break;
+    }
+    if (owner[static_cast<std::size_t>(candidate)] == normalization_removed_ordinal)
+      retained.push_back(candidate);
+  }
+  result.facets.status = normalization_map_status::total;
+  std::vector<std::uint64_t> source_facet_to_prepared(
+      source.faces.size(), normalization_removed_ordinal);
+  for (std::uint64_t source_facet : retained) {
+    source_facet_to_prepared[static_cast<std::size_t>(source_facet)] =
+        result.mesh.faces.size();
+    result.mesh.faces.push_back(source.faces[static_cast<std::size_t>(source_facet)]);
+  }
+  for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+    const auto retained_source = owner[static_cast<std::size_t>(facet)] ==
+                                         normalization_removed_ordinal
+                                     ? facet
+                                     : owner[static_cast<std::size_t>(facet)];
+    result.facets.source_to_prepared.push_back(
+        source_facet_to_prepared[static_cast<std::size_t>(retained_source)]);
+  }
+
+  std::vector<bool> used(source.vertices.size(), false);
+  for (const auto &ring : result.mesh.faces)
+    for (I index : ring) used[static_cast<std::size_t>(index)] = true;
+  result.vertices.status = normalization_map_status::total;
+  result.vertices.source_to_prepared.assign(source.vertices.size(),
+                                             normalization_removed_ordinal);
+  for (std::uint64_t vertex = 0; vertex != source.vertices.size(); ++vertex) {
+    if (!used[static_cast<std::size_t>(vertex)]) continue;
+    const auto prepared = static_cast<std::uint64_t>(result.mesh.vertices.size());
+    result.vertices.source_to_prepared[static_cast<std::size_t>(vertex)] = prepared;
+    result.mesh.vertices.push_back(source.vertices[static_cast<std::size_t>(vertex)]);
+    if (normals)
+      result.mesh.vertex_normals.push_back(
+          source.vertex_normals[static_cast<std::size_t>(vertex)]);
+    if (colours)
+      result.mesh.vertex_colours.push_back(
+          source.vertex_colours[static_cast<std::size_t>(vertex)]);
+  }
+  for (auto &ring : result.mesh.faces)
+    for (I &index : ring)
+      index = static_cast<I>(result.vertices.source_to_prepared[
+          static_cast<std::size_t>(index)]);
+  result.mesh.metadata = source.metadata;
+  if (involved) result.mesh.recreate_involved_face_index();
+  result.vertex_normals = normals ? result.vertices
+                                  : normalization_mapping{normalization_map_status::absent, {}};
+  result.vertex_colours = colours ? result.vertices
+                                  : normalization_mapping{normalization_map_status::absent, {}};
+  result.involved_faces = involved ? result.vertices
+                                   : normalization_mapping{normalization_map_status::absent, {}};
+  result.metadata = attribute_identity(!source.metadata.empty(), source.metadata.size());
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &ring : result.mesh.faces)
+    for (std::size_t offset = 0; offset != ring.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(ring[offset]);
+      auto b = static_cast<std::uint64_t>(ring[(offset + 1) % ring.size()]);
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &edge : output_edges) edge.second = edge_ordinal++;
+  result.edges.status = normalization_map_status::total;
+  for (const auto &edge : source_edges) {
+    auto a = result.vertices.source_to_prepared[static_cast<std::size_t>(edge[0])];
+    auto b = result.vertices.source_to_prepared[static_cast<std::size_t>(edge[1])];
+    if (a == normalization_removed_ordinal || b == normalization_removed_ordinal) {
+      result.edges.source_to_prepared.push_back(normalization_removed_ordinal);
+      continue;
+    }
+    if (b < a) std::swap(a, b);
+    const auto found = output_edges.find({{a, b}});
+    result.edges.source_to_prepared.push_back(
+        found == output_edges.end() ? normalization_removed_ordinal
+                                    : found->second);
+  }
+
+  for (std::uint64_t candidate = 0; candidate != source.faces.size(); ++candidate) {
+    const auto retained_source = owner[static_cast<std::size_t>(candidate)];
+    if (retained_source == normalization_removed_ordinal) continue;
+    auto edit_record = resources.record();
+    if (!edit_record.has_value()) return edit_record.error();
+    auto topology_record = resources.record();
+    if (!topology_record.has_value()) return topology_record.error();
+    const auto prepared = result.facets.source_to_prepared[static_cast<std::size_t>(candidate)];
+    normalization_edit edit;
+    edit.operation = normalization_operation::overlapping_facet_resolution;
+    edit.canonical_ordinal = result.edits.size();
+    edit.entity = normalization_entity_kind::facet;
+    edit.source_ordinal = candidate;
+    edit.prepared_ordinal = prepared;
+    edit.before_evidence_digest = overlap_facet_evidence(
+        overlap_before_tag, source, retained_source, candidate);
+    edit.after_evidence_digest = overlap_facet_evidence(
+        overlap_after_tag, result.mesh, prepared, prepared);
+    edit.reversibility = normalization_reversibility::irreversible;
+    edit.evidence_digest = overlap_edit_digest(edit);
+    result.edits.push_back(edit);
+    normalization_topology_change change;
+    change.operation = normalization_operation::overlapping_facet_resolution;
+    change.source_ordinal = candidate;
+    change.entity = normalization_entity_kind::facet;
+    change.prepared_ordinal = prepared;
+    change.justification = normalization_topology_justification::caller_authorized_repair;
+    change.justification_subcode = 1;
+    change.before_evidence_digest = edit.before_evidence_digest;
+    change.after_evidence_digest = edit.after_evidence_digest;
+    change.reversibility = normalization_reversibility::irreversible;
+    change.evidence_digest = overlap_topology_digest(change);
+    result.topology_changes.push_back(std::move(change));
+  }
+  return result;
 }
 
 template <class T>
@@ -3734,6 +4157,9 @@ status_or<prepared_operand<T, I>> normalize_operand(
     const bool nonplanar_repair =
         policy.enabled_operations == normalization_operation_bit(
             normalization_operation::nonplanar_facet_handling);
+    const bool overlap_repair =
+        policy.enabled_operations == normalization_operation_bit(
+            normalization_operation::overlapping_facet_resolution);
     const bool proximity_repair = seam_repair || crack_repair;
     const bool repairable_orientation_error =
         source_validation_error &&
@@ -3752,6 +4178,7 @@ status_or<prepared_operand<T, I>> normalize_operand(
         source_validation_error->subcode == static_cast<std::uint32_t>(
                                                 input_validation_subcode::nonplanar_facet);
     if (source_validation_error && !duplicate_repair && !seam_repair &&
+        !overlap_repair &&
         !(crack_repair && repairable_crack_error) &&
         !(nonplanar_repair && repairable_nonplanar_error) &&
         !(orientation_repair && repairable_orientation_error)) {
@@ -3760,10 +4187,31 @@ status_or<prepared_operand<T, I>> normalize_operand(
 
     fv_surface_mesh<T, I> normalized_mesh = source;
     if (policy.mode == normalization_mode::structural_only || proximity_repair ||
-        nonplanar_repair) {
+        nonplanar_repair || overlap_repair) {
       auto structural_work = resources.checkpoint(binding_work.value());
       if (!structural_work.has_value()) return structural_work.error();
-      if (nonplanar_repair) {
+      if (overlap_repair) {
+        auto repaired = resolve_overlapping_facets(
+            source, candidate.source_edges, resources);
+        if (!repaired.has_value() &&
+            repaired.error().code == boolean_error_code::resource_limit)
+          return repaired.error();
+        if (!repaired.has_value()) return publish_failure(repaired.error());
+        normalized_mesh = std::move(repaired.value().mesh);
+        candidate.vertices = std::move(repaired.value().vertices);
+        candidate.edges = std::move(repaired.value().edges);
+        candidate.facets = std::move(repaired.value().facets);
+        candidate.attributes.vertex_normals =
+            std::move(repaired.value().vertex_normals);
+        candidate.attributes.vertex_colours =
+            std::move(repaired.value().vertex_colours);
+        candidate.attributes.involved_faces =
+            std::move(repaired.value().involved_faces);
+        candidate.attributes.metadata = std::move(repaired.value().metadata);
+        candidate.edits = std::move(repaired.value().edits);
+        candidate.topology_changes =
+            std::move(repaired.value().topology_changes);
+      } else if (nonplanar_repair) {
         auto repaired = repair_nonplanar_facets(
             source, candidate.source_edges, policy, resources);
         if (!repaired.has_value() &&
@@ -3895,7 +4343,7 @@ status_or<prepared_operand<T, I>> normalize_operand(
     candidate.prepared_operand_available = true;
     candidate.strict_certificate = prepared.value().certificate();
     if (!duplicate_repair && !seam_repair && !crack_repair &&
-        !nonplanar_repair) {
+        !nonplanar_repair && !overlap_repair) {
       auto shells = component2_shell_count(normalized_mesh, cancel);
       if (!shells.has_value()) return shells.error();
       auto shell_resources = resources.mapping(shells.value());
@@ -3990,6 +4438,9 @@ status_or<bool> verify_normalization_report(
   const bool nonplanar_repair =
       report.policy.enabled_operations == normalization_operation_bit(
           normalization_operation::nonplanar_facet_handling);
+  const bool overlap_repair =
+      report.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::overlapping_facet_resolution);
   const bool proximity_repair = seam_repair || crack_repair;
   const auto proximity_operation = crack_repair
       ? normalization_operation::crack_closure
@@ -4047,6 +4498,98 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (overlap_repair) {
+    verification_budget reconstruction_resources{report.policy, cancel};
+    auto reconstructed = resolve_overlapping_facets(
+        source, report.source_edges, reconstruction_resources);
+    if (!reconstructed.has_value() &&
+        reconstructed.error().code == boolean_error_code::resource_limit)
+      return reconstructed.error();
+    if (output) {
+      if (!reconstructed.has_value() || !(reconstructed.value().mesh == *output) ||
+          reconstructed.value().mesh.involved_faces != output->involved_faces ||
+          !same_mapping(reconstructed.value().vertices, report.vertices) ||
+          !same_mapping(reconstructed.value().edges, report.edges) ||
+          !same_mapping(reconstructed.value().facets, report.facets) ||
+          !same_mapping(reconstructed.value().vertex_normals,
+                        report.attributes.vertex_normals) ||
+          !same_mapping(reconstructed.value().vertex_colours,
+                        report.attributes.vertex_colours) ||
+          !same_mapping(reconstructed.value().involved_faces,
+                        report.attributes.involved_faces) ||
+          !same_mapping(reconstructed.value().metadata,
+                        report.attributes.metadata) ||
+          reconstructed.value().edits.size() != report.edits.size() ||
+          reconstructed.value().topology_changes.size() !=
+              report.topology_changes.size())
+        return normalization_error("normalization_report_overlap_replay");
+      for (std::size_t i = 0; i != report.edits.size(); ++i)
+        if (!same_edit(reconstructed.value().edits[i], report.edits[i]))
+          return normalization_error("normalization_report_overlap_edit");
+      for (std::size_t i = 0; i != report.topology_changes.size(); ++i)
+        if (!same_topology_change(reconstructed.value().topology_changes[i],
+                                  report.topology_changes[i]))
+          return normalization_error("normalization_report_overlap_topology");
+      auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+      if (!output_diagnosis.has_value()) return output_diagnosis.error();
+      auto output_replay = validate_operand_strict(
+          *output, strict_validation_policy{}, boolean_options{}, kernel,
+          verifier, cancel);
+      if (!output_replay.has_value())
+        return normalization_error("normalization_report_overlap_validation");
+      if (!report.prepared_operand_available || !report.strict_certificate ||
+          report.unresolved_defects != output_diagnosis.value().defects ||
+          report.shells.status != normalization_map_status::unavailable ||
+          !report.shells.source_to_prepared.empty() ||
+          !same_certificate(output_replay.value().certificate(),
+                            *report.strict_certificate) ||
+          report.reversibility !=
+              (report.edits.empty() ? normalization_reversibility::identity
+                                    : normalization_reversibility::irreversible))
+        return normalization_error("normalization_report_overlap_success");
+      return true;
+    }
+    auto expected_defects = independent.value().defects;
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      expected_defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(expected_defects.begin(), expected_defects.end(),
+                [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      expected_defects.erase(
+          std::unique(expected_defects.begin(), expected_defects.end()),
+          expected_defects.end());
+    }
+    if (report.prepared_operand_available || report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() || !report.displacements.empty() ||
+        report.displacement != normalization_displacement_claim::exact_zero ||
+        report.reversibility != normalization_reversibility::identity ||
+        report.shells.status != normalization_map_status::unavailable ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        report.unresolved_defects != expected_defects)
+      return normalization_error("normalization_report_overlap_failure");
+    if (reconstructed.has_value()) {
+      auto reconstructed_replay = validate_operand_strict(
+          reconstructed.value().mesh, strict_validation_policy{},
+          boolean_options{}, kernel, verifier, cancel);
+      if (reconstructed_replay.has_value())
+        return normalization_error("normalization_report_overlap_false_failure");
+      if (reconstructed_replay.error().code !=
+          boolean_error_code::input_contract_error)
+        return reconstructed_replay.error();
+    }
+    return true;
+  }
   if (nonplanar_repair) {
     verification_budget reconstruction_resources{report.policy, cancel};
     auto reconstructed = repair_nonplanar_facets(

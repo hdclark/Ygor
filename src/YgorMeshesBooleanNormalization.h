@@ -31,7 +31,11 @@ enum class normalization_defect_code : std::uint16_t {
   component2_rejection = 8,
   open_boundary_edge = 9,
   small_gap_candidate = 10,
-  nonplanar_facet = 11
+  nonplanar_facet = 11,
+  positive_area_coplanar_facet_overlap = 12,
+  opposite_oriented_coplanar_facet_overlap = 13,
+  overlapping_facet_attribute_conflict = 14,
+  partial_overlapping_facet_requires_remeshing = 15
 };
 
 enum class normalization_map_status : std::uint8_t {

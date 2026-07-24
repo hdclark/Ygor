@@ -121,6 +121,19 @@ conflicting refit proposals, tolerance rejection, index/resource limits, or any
 post-repair Component 2 failure. Neither mode is implicit and neither is a
 general best-fit surface reconstruction policy.
 
+The exact-zero `overlapping_facet_resolution` operation assigns ownership by
+lowest source facet ordinal and removes a later same-oriented coplanar facet
+only when its complete closed polygon is proved contained by one retained
+owner. It accepts no tolerance and moves no vertex. Removed facets and storage
+are mapped to their retained owner or the removed-ordinal sentinel, and every
+removal has canonical edit and topology evidence. Vertex normals and colours at
+coincident owner/loser vertices must agree exactly; disagreement is reported as
+an attribute conflict and fails closed. Opposite-oriented overlap is never
+interpreted as cancellation. Partial overlap that would require splitting or
+remeshing is diagnosed explicitly and remains unsupported by this policy. The
+result is published only after full strict Component 2 revalidation, and a
+valid input is an idempotent identity.
+
 ## Authoritative result and representations
 
 `exact_result_handle` is an immutable, shared-lifetime owner populated from a
