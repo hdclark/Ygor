@@ -31,6 +31,10 @@ constexpr std::array<char, 8> certificate_tag{{'Y', 'G', 'B', 'P', 'C', 'E', '0'
 constexpr std::array<char, 8> removal_before_tag{{'Y', 'G', 'B', 'N', 'R', 'B', '0', '1'}};
 constexpr std::array<char, 8> removal_after_tag{{'Y', 'G', 'B', 'N', 'R', 'A', '0', '1'}};
 constexpr std::array<char, 8> removal_edit_tag{{'Y', 'G', 'B', 'N', 'R', 'E', '0', '1'}};
+constexpr std::array<char, 8> duplicate_before_tag{{'Y', 'G', 'B', 'N', 'D', 'B', '0', '1'}};
+constexpr std::array<char, 8> duplicate_after_tag{{'Y', 'G', 'B', 'N', 'D', 'A', '0', '1'}};
+constexpr std::array<char, 8> duplicate_edit_tag{{'Y', 'G', 'B', 'N', 'D', 'E', '0', '1'}};
+constexpr std::array<char, 8> duplicate_topology_tag{{'Y', 'G', 'B', 'N', 'D', 'T', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -119,11 +123,14 @@ status_or<bool> validate_policy(const normalization_policy &p,
     return normalization_error("normalization_policy_malformed");
   const auto removal = normalization_operation_bit(
       normalization_operation::irrelevant_storage_removal);
+  const auto duplicates = normalization_operation_bit(
+      normalization_operation::exact_duplicate_consolidation);
   if (executable &&
       !((p.mode == normalization_mode::diagnosis_only &&
-         p.enabled_operations == 0) ||
-        (p.mode == normalization_mode::structural_only &&
-         p.enabled_operations == removal)))
+          p.enabled_operations == 0) ||
+         (p.mode == normalization_mode::structural_only &&
+          (p.enabled_operations == removal ||
+           p.enabled_operations == duplicates))))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -514,6 +521,10 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
   auto policy = validate_policy(r.policy, true);
   if (!policy.has_value()) return policy.error();
   const bool diagnosis = r.policy.mode == normalization_mode::diagnosis_only;
+  const bool duplicate_repair =
+      r.policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             exact_duplicate_consolidation);
   if (r.schema != normalization_report_schema || r.producer_version != 1 ||
       r.coordinate > coordinate_tag::binary64 || r.index > index_tag::uint64 ||
       r.policy_digest != normalization_policy_digest(r.policy).value() ||
@@ -521,9 +532,12 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       (diagnosis && r.output_digest != r.source_digest) ||
       !canonical_edit_records(r.edits) || (diagnosis && !r.edits.empty()) ||
       r.displacement != normalization_displacement_claim::exact_zero ||
-      !canonical_displacements(r.displacements) || !r.displacements.empty() ||
-      !canonical_topology_records(r.topology_changes) ||
-      !r.topology_changes.empty() ||
+       !canonical_displacements(r.displacements) || !r.displacements.empty() ||
+       !canonical_topology_records(r.topology_changes) ||
+       ((!duplicate_repair || !r.prepared_operand_available) &&
+        !r.topology_changes.empty()) ||
+       (duplicate_repair && r.prepared_operand_available &&
+        r.topology_changes.size() != r.edits.size()) ||
       !canonical_defects(r.unresolved_defects) ||
       !known(r.vertices.status) || !known(r.edges.status) ||
       !known(r.facets.status) || !known(r.shells.status) ||
@@ -538,9 +552,11 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
                   [](const auto &edge) { return edge[1] < edge[0]; }) ||
       !canonical_mapping(r.vertices) || !canonical_mapping(r.edges) ||
       !canonical_mapping(r.facets) || !canonical_mapping(r.shells) ||
-      (r.prepared_operand_available
-           ? r.shells.status != normalization_map_status::total
-           : r.shells.status != normalization_map_status::unavailable) ||
+       (r.prepared_operand_available
+            ? (duplicate_repair
+                   ? r.shells.status != normalization_map_status::unavailable
+                   : r.shells.status != normalization_map_status::total)
+            : r.shells.status != normalization_map_status::unavailable) ||
       r.attributes.schema != normalization_report_schema ||
       !canonical_mapping(r.attributes.vertex_normals) ||
       !canonical_mapping(r.attributes.vertex_colours) ||
@@ -1158,6 +1174,312 @@ status_or<structural_removal_result<T, I>> remove_irrelevant_storage(
   return out;
 }
 
+template <class T, class I> struct exact_duplicate_result {
+  fv_surface_mesh<T, I> mesh;
+  normalization_mapping vertices;
+  normalization_mapping edges;
+  normalization_mapping facets;
+  normalization_mapping vertex_normals;
+  normalization_mapping vertex_colours;
+  normalization_mapping involved_faces;
+  normalization_mapping metadata;
+  std::vector<normalization_edit> edits;
+  std::vector<normalization_topology_change> topology_changes;
+};
+
+template <class T, class I>
+void encode_duplicate_vertex(canonical_encoder &e,
+                             const fv_surface_mesh<T, I> &mesh,
+                             std::uint64_t ordinal) {
+  const auto position = static_cast<std::size_t>(ordinal);
+  const auto &vertex = mesh.vertices[position];
+  e.floating(vertex.x);
+  e.floating(vertex.y);
+  e.floating(vertex.z);
+  e.boolean(!mesh.vertex_normals.empty());
+  if (!mesh.vertex_normals.empty()) {
+    const auto &normal = mesh.vertex_normals[position];
+    e.floating(normal.x);
+    e.floating(normal.y);
+    e.floating(normal.z);
+  }
+  e.boolean(!mesh.vertex_colours.empty());
+  if (!mesh.vertex_colours.empty()) e.u32(mesh.vertex_colours[position]);
+  e.boolean(!mesh.involved_faces.empty());
+  if (!mesh.involved_faces.empty()) {
+    e.u64(mesh.involved_faces[position].size());
+    for (I facet : mesh.involved_faces[position])
+      e.u64(static_cast<std::uint64_t>(facet));
+  }
+}
+
+template <class T, class I>
+digest duplicate_before_digest(const fv_surface_mesh<T, I> &source,
+                               normalization_entity_kind entity,
+                               std::uint64_t source_ordinal,
+                               std::uint64_t retained_source_ordinal) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(entity));
+  e.u64(source_ordinal);
+  e.u64(retained_source_ordinal);
+  if (entity == normalization_entity_kind::vertex) {
+    encode_duplicate_vertex(e, source, source_ordinal);
+    encode_duplicate_vertex(e, source, retained_source_ordinal);
+  } else {
+    for (std::uint64_t ordinal : {source_ordinal, retained_source_ordinal}) {
+      const auto &face = source.faces[static_cast<std::size_t>(ordinal)];
+      e.u64(face.size());
+      for (I index : face) e.u64(static_cast<std::uint64_t>(index));
+    }
+  }
+  return domain_digest(duplicate_before_tag, e.bytes());
+}
+
+template <class T, class I>
+digest duplicate_after_digest(const fv_surface_mesh<T, I> &output,
+                              normalization_entity_kind entity,
+                              std::uint64_t source_ordinal,
+                              std::uint64_t prepared_ordinal) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(entity));
+  e.u64(source_ordinal);
+  e.u64(prepared_ordinal);
+  if (entity == normalization_entity_kind::vertex) {
+    encode_duplicate_vertex(e, output, prepared_ordinal);
+  } else {
+    const auto &face = output.faces[static_cast<std::size_t>(prepared_ordinal)];
+    e.u64(face.size());
+    for (I index : face) e.u64(static_cast<std::uint64_t>(index));
+  }
+  return domain_digest(duplicate_after_tag, e.bytes());
+}
+
+digest duplicate_edit_digest(const normalization_edit &edit) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(edit.operation));
+  e.u64(edit.canonical_ordinal);
+  e.byte(static_cast<std::uint8_t>(edit.entity));
+  e.u64(edit.source_ordinal);
+  e.u64(edit.prepared_ordinal);
+  encode_digest(e, edit.before_evidence_digest);
+  encode_digest(e, edit.after_evidence_digest);
+  e.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(duplicate_edit_tag, e.bytes());
+}
+
+digest duplicate_topology_digest(const normalization_topology_change &change) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(change.operation));
+  e.u64(change.source_ordinal);
+  e.byte(static_cast<std::uint8_t>(change.entity));
+  e.u64(change.prepared_ordinal);
+  e.byte(static_cast<std::uint8_t>(change.justification));
+  e.u32(change.justification_subcode);
+  encode_digest(e, change.before_evidence_digest);
+  encode_digest(e, change.after_evidence_digest);
+  e.byte(static_cast<std::uint8_t>(change.reversibility));
+  return domain_digest(duplicate_topology_tag, e.bytes());
+}
+
+template <class T, class I, class Budget>
+status_or<exact_duplicate_result<T, I>> consolidate_exact_duplicates(
+    const fv_surface_mesh<T, I> &source,
+    const std::vector<std::array<std::uint64_t, 2>> &source_edges, Budget &b) {
+  exact_duplicate_result<T, I> out;
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return normalization_error("normalization_exact_duplicate_attributes");
+
+  out.mesh.metadata = source.metadata;
+  out.vertices.status = normalization_map_status::total;
+  out.vertices.source_to_prepared.reserve(source.vertices.size());
+  std::map<coordinate_key<T>, std::uint64_t> representatives;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> duplicate_vertices;
+  for (std::uint64_t ordinal = 0; ordinal != source.vertices.size(); ++ordinal) {
+    auto work = b.checkpoint(3);
+    if (!work.has_value()) return work.error();
+    const auto &vertex = source.vertices[static_cast<std::size_t>(ordinal)];
+    if (!std::isfinite(vertex.x) || !std::isfinite(vertex.y) ||
+        !std::isfinite(vertex.z))
+      return normalization_error("normalization_exact_duplicate_nonfinite");
+    const auto inserted = representatives.emplace(
+        bits_key(vertex.x, vertex.y, vertex.z), ordinal);
+    if (inserted.second) {
+      const auto prepared = static_cast<std::uint64_t>(out.mesh.vertices.size());
+      out.vertices.source_to_prepared.push_back(prepared);
+      out.mesh.vertices.push_back(vertex);
+      if (normals)
+        out.mesh.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(ordinal)]);
+      if (colours)
+        out.mesh.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+    } else {
+      const auto retained = inserted.first->second;
+      if ((normals && source.vertex_normals[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_normals[static_cast<std::size_t>(retained)]) ||
+          (colours && source.vertex_colours[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_colours[static_cast<std::size_t>(retained)]))
+        return normalization_error(
+            "normalization_exact_duplicate_attribute_conflict");
+      out.vertices.source_to_prepared.push_back(
+          out.vertices.source_to_prepared[static_cast<std::size_t>(retained)]);
+      duplicate_vertices.emplace_back(ordinal, retained);
+    }
+  }
+
+  out.facets.status = normalization_map_status::total;
+  out.facets.source_to_prepared.reserve(source.faces.size());
+  std::map<std::vector<std::uint64_t>, std::pair<std::uint64_t, std::uint64_t>>
+      retained_facets;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> duplicate_facets;
+  for (std::uint64_t ordinal = 0; ordinal != source.faces.size(); ++ordinal) {
+    const auto &source_face = source.faces[static_cast<std::size_t>(ordinal)];
+    auto required = facet_work(source_face.size(), ordinal);
+    if (!required.has_value()) return required.error();
+    auto work = b.checkpoint(required.value());
+    if (!work.has_value()) return work.error();
+    std::vector<I> rewritten;
+    rewritten.reserve(source_face.size());
+    for (I source_index : source_face) {
+      const auto index = static_cast<std::uint64_t>(source_index);
+      if (index >= out.vertices.source_to_prepared.size())
+        return normalization_error("normalization_exact_duplicate_index");
+      const auto prepared = out.vertices.source_to_prepared[
+          static_cast<std::size_t>(index)];
+      if (prepared > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return normalization_error("normalization_exact_duplicate_index");
+      rewritten.push_back(static_cast<I>(prepared));
+    }
+    if (rewritten.size() < 3 ||
+        std::adjacent_find(rewritten.begin(), rewritten.end()) !=
+            rewritten.end() ||
+        (rewritten.size() > 1 && rewritten.front() == rewritten.back()))
+      return normalization_error("normalization_exact_duplicate_collapsed_face");
+    const auto key = canonical_facet_key(rewritten);
+    const auto found = retained_facets.find(key);
+    if (found == retained_facets.end()) {
+      const auto prepared = static_cast<std::uint64_t>(out.mesh.faces.size());
+      retained_facets.emplace(key, std::make_pair(ordinal, prepared));
+      out.facets.source_to_prepared.push_back(prepared);
+      out.mesh.faces.push_back(std::move(rewritten));
+    } else {
+      out.facets.source_to_prepared.push_back(found->second.second);
+      duplicate_facets.emplace_back(ordinal, found->second.first);
+    }
+  }
+
+  if (involved) {
+    out.mesh.involved_faces.resize(out.mesh.vertices.size());
+    for (std::uint64_t facet = 0; facet != out.mesh.faces.size(); ++facet) {
+      if (facet > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return normalization_error("normalization_exact_duplicate_face_index");
+      for (I vertex : out.mesh.faces[static_cast<std::size_t>(facet)])
+        out.mesh.involved_faces[static_cast<std::size_t>(vertex)].push_back(
+            static_cast<I>(facet));
+    }
+  }
+
+  out.vertex_normals = normals
+                           ? out.vertices
+                           : normalization_mapping{
+                                 normalization_map_status::absent, {}};
+  out.vertex_colours = colours
+                           ? out.vertices
+                           : normalization_mapping{
+                                 normalization_map_status::absent, {}};
+  out.involved_faces = involved
+                           ? out.vertices
+                           : normalization_mapping{
+                                 normalization_map_status::absent, {}};
+  out.metadata = attribute_identity(!source.metadata.empty(),
+                                    source.metadata.size());
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &face : out.mesh.faces)
+    for (std::size_t offset = 0; offset != face.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(face[offset]);
+      auto c = static_cast<std::uint64_t>(face[(offset + 1) % face.size()]);
+      if (c < a) std::swap(a, c);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, c}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &edge : output_edges) edge.second = edge_ordinal++;
+  out.edges.status = normalization_map_status::total;
+  out.edges.source_to_prepared.reserve(source_edges.size());
+  for (const auto &source_edge : source_edges) {
+    auto a = out.vertices.source_to_prepared[
+        static_cast<std::size_t>(source_edge[0])];
+    auto c = out.vertices.source_to_prepared[
+        static_cast<std::size_t>(source_edge[1])];
+    if (a == c)
+      return normalization_error("normalization_exact_duplicate_collapsed_edge");
+    if (c < a) std::swap(a, c);
+    const auto found = output_edges.find({{a, c}});
+    if (found == output_edges.end())
+      return normalization_error("normalization_exact_duplicate_edge");
+    out.edges.source_to_prepared.push_back(found->second);
+  }
+
+  const auto add_records = [&](normalization_entity_kind entity,
+                               std::uint64_t source_ordinal,
+                               std::uint64_t retained_source_ordinal,
+                               std::uint64_t prepared_ordinal,
+                               std::uint32_t subcode) -> status_or<bool> {
+    auto edit_record = b.record();
+    if (!edit_record.has_value()) return edit_record.error();
+    auto topology_record = b.record();
+    if (!topology_record.has_value()) return topology_record.error();
+    normalization_edit edit;
+    edit.operation = normalization_operation::exact_duplicate_consolidation;
+    edit.canonical_ordinal = out.edits.size();
+    edit.entity = entity;
+    edit.source_ordinal = source_ordinal;
+    edit.prepared_ordinal = prepared_ordinal;
+    edit.before_evidence_digest = duplicate_before_digest(
+        source, entity, source_ordinal, retained_source_ordinal);
+    edit.after_evidence_digest = duplicate_after_digest(
+        out.mesh, entity, source_ordinal, prepared_ordinal);
+    edit.reversibility = normalization_reversibility::irreversible;
+    edit.evidence_digest = duplicate_edit_digest(edit);
+    out.edits.push_back(edit);
+
+    normalization_topology_change change;
+    change.operation = normalization_operation::exact_duplicate_consolidation;
+    change.source_ordinal = source_ordinal;
+    change.entity = entity;
+    change.prepared_ordinal = prepared_ordinal;
+    change.justification =
+        normalization_topology_justification::caller_authorized_repair;
+    change.justification_subcode = subcode;
+    change.before_evidence_digest = edit.before_evidence_digest;
+    change.after_evidence_digest = edit.after_evidence_digest;
+    change.reversibility = normalization_reversibility::irreversible;
+    change.evidence_digest = duplicate_topology_digest(change);
+    out.topology_changes.push_back(std::move(change));
+    return true;
+  };
+  for (const auto &duplicate : duplicate_vertices) {
+    auto added = add_records(
+        normalization_entity_kind::vertex, duplicate.first, duplicate.second,
+        out.vertices.source_to_prepared[static_cast<std::size_t>(duplicate.first)],
+        1);
+    if (!added.has_value()) return added.error();
+  }
+  for (const auto &duplicate : duplicate_facets) {
+    auto added = add_records(
+        normalization_entity_kind::facet, duplicate.first, duplicate.second,
+        out.facets.source_to_prepared[static_cast<std::size_t>(duplicate.first)],
+        2);
+    if (!added.has_value()) return added.error();
+  }
+  return out;
+}
+
 std::shared_ptr<verifier_registry> component2_registry() {
   auto registry = std::make_shared<verifier_registry>();
   for (auto c : {coordinate_tag::binary32, coordinate_tag::binary64})
@@ -1202,9 +1524,9 @@ estimated_report_bytes(const normalization_report &report) {
     return true;
   };
   for (const auto &entry :
-       {std::make_pair<std::uint64_t, std::uint64_t>(report.edits.size(), 80),
-        {report.displacements.size(), 112},
-        {report.topology_changes.size(), 80},
+       {std::make_pair<std::uint64_t, std::uint64_t>(report.edits.size(), 144),
+         {report.displacements.size(), 112},
+         {report.topology_changes.size(), 144},
         {report.unresolved_defects.size(), 32},
         {report.source_edges.size(), 16}}) {
     auto added = add_product(entry.first, entry.second);
@@ -1416,6 +1738,347 @@ bool independently_verify_structural_removal(
       return false;
   }
   return true;
+}
+
+bool same_edit(const normalization_edit &a, const normalization_edit &b) {
+  return a.operation == b.operation &&
+         a.canonical_ordinal == b.canonical_ordinal && a.entity == b.entity &&
+         a.source_ordinal == b.source_ordinal &&
+         a.prepared_ordinal == b.prepared_ordinal &&
+         a.before_evidence_digest == b.before_evidence_digest &&
+         a.after_evidence_digest == b.after_evidence_digest &&
+         a.reversibility == b.reversibility &&
+         a.evidence_digest == b.evidence_digest;
+}
+
+bool same_topology_change(const normalization_topology_change &a,
+                          const normalization_topology_change &b) {
+  return a.operation == b.operation && a.source_ordinal == b.source_ordinal &&
+         a.entity == b.entity && a.prepared_ordinal == b.prepared_ordinal &&
+         a.justification == b.justification &&
+         a.justification_subcode == b.justification_subcode &&
+         a.before_evidence_digest == b.before_evidence_digest &&
+         a.after_evidence_digest == b.after_evidence_digest &&
+         a.reversibility == b.reversibility &&
+         a.evidence_digest == b.evidence_digest;
+}
+
+template <class I>
+std::vector<std::uint64_t>
+independent_duplicate_facet_key(const std::vector<I> &face) {
+  std::vector<std::uint64_t> values;
+  values.reserve(face.size());
+  for (I index : face) values.push_back(static_cast<std::uint64_t>(index));
+  if (values.empty()) return values;
+  const auto minimize = [](const std::vector<std::uint64_t> &ring) {
+    std::size_t first = 0, second = 1, matched = 0;
+    while (first < ring.size() && second < ring.size() &&
+           matched < ring.size()) {
+      const auto a = ring[(first + matched) % ring.size()];
+      const auto b = ring[(second + matched) % ring.size()];
+      if (a == b) {
+        ++matched;
+      } else {
+        if (b < a) {
+          first += matched + 1;
+          if (first == second) ++first;
+        } else {
+          second += matched + 1;
+          if (first == second) ++second;
+        }
+        matched = 0;
+      }
+    }
+    const auto origin = std::min(first, second) % ring.size();
+    std::vector<std::uint64_t> result;
+    result.reserve(ring.size());
+    for (std::size_t offset = 0; offset != ring.size(); ++offset)
+      result.push_back(ring[(origin + offset) % ring.size()]);
+    return result;
+  };
+  auto forward = minimize(values);
+  std::reverse(values.begin(), values.end());
+  auto reverse = minimize(values);
+  return reverse < forward ? reverse : forward;
+}
+
+template <class T, class I>
+bool independently_construct_exact_duplicate_output(
+    const fv_surface_mesh<T, I> &source, fv_surface_mesh<T, I> &output) {
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return false;
+  fv_surface_mesh<T, I> candidate;
+  candidate.metadata = source.metadata;
+  std::map<coordinate_key<T>, std::uint64_t> first_by_coordinate;
+  std::vector<std::uint64_t> vertex_map;
+  vertex_map.reserve(source.vertices.size());
+  for (std::uint64_t ordinal = 0; ordinal != source.vertices.size(); ++ordinal) {
+    const auto &vertex = source.vertices[static_cast<std::size_t>(ordinal)];
+    if (!(std::isfinite(vertex.x) && std::isfinite(vertex.y) &&
+          std::isfinite(vertex.z)))
+      return false;
+    coordinate_key<T> key{};
+    T components[3] = {vertex.x == T(0) ? T(0) : vertex.x,
+                       vertex.y == T(0) ? T(0) : vertex.y,
+                       vertex.z == T(0) ? T(0) : vertex.z};
+    for (unsigned component = 0; component != 3; ++component)
+      std::memcpy(&key[component], &components[component],
+                  sizeof(components[component]));
+    const auto inserted = first_by_coordinate.emplace(key, ordinal);
+    if (inserted.second) {
+      vertex_map.push_back(candidate.vertices.size());
+      candidate.vertices.push_back(vertex);
+      if (normals)
+        candidate.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(ordinal)]);
+      if (colours)
+        candidate.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+    } else {
+      const auto retained = inserted.first->second;
+      if ((normals && source.vertex_normals[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_normals[static_cast<std::size_t>(retained)]) ||
+          (colours && source.vertex_colours[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_colours[static_cast<std::size_t>(retained)]))
+        return false;
+      vertex_map.push_back(vertex_map[static_cast<std::size_t>(retained)]);
+    }
+  }
+  std::set<std::vector<std::uint64_t>> retained_facets;
+  for (const auto &source_face : source.faces) {
+    std::vector<I> rewritten;
+    rewritten.reserve(source_face.size());
+    for (I source_index : source_face) {
+      const auto index = static_cast<std::uint64_t>(source_index);
+      if (index >= vertex_map.size() ||
+          vertex_map[static_cast<std::size_t>(index)] >
+              static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return false;
+      rewritten.push_back(
+          static_cast<I>(vertex_map[static_cast<std::size_t>(index)]));
+    }
+    if (rewritten.size() < 3 ||
+        std::adjacent_find(rewritten.begin(), rewritten.end()) !=
+            rewritten.end() ||
+        (rewritten.size() > 1 && rewritten.front() == rewritten.back()))
+      return false;
+    if (retained_facets.insert(
+            independent_duplicate_facet_key(rewritten)).second)
+      candidate.faces.push_back(std::move(rewritten));
+  }
+  if (involved) {
+    candidate.involved_faces.resize(candidate.vertices.size());
+    for (std::uint64_t facet = 0; facet != candidate.faces.size(); ++facet) {
+      if (facet > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return false;
+      for (I vertex : candidate.faces[static_cast<std::size_t>(facet)])
+        candidate.involved_faces[static_cast<std::size_t>(vertex)].push_back(
+            static_cast<I>(facet));
+    }
+  }
+  output = std::move(candidate);
+  return true;
+}
+
+template <class T, class I>
+bool independently_verify_exact_duplicates(
+    const fv_surface_mesh<T, I> &source, const fv_surface_mesh<T, I> &output,
+    const normalization_report &report) {
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return false;
+
+  fv_surface_mesh<T, I> expected;
+  expected.metadata = source.metadata;
+  std::vector<std::uint64_t> vertex_map;
+  vertex_map.reserve(source.vertices.size());
+  std::map<coordinate_key<T>, std::uint64_t> first_by_coordinate;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> duplicate_vertices;
+  const auto independent_coordinate_key = [](const auto &vertex) {
+    coordinate_key<T> key{};
+    T values[3] = {vertex.x == T(0) ? T(0) : vertex.x,
+                   vertex.y == T(0) ? T(0) : vertex.y,
+                   vertex.z == T(0) ? T(0) : vertex.z};
+    for (unsigned component = 0; component != 3; ++component)
+      std::memcpy(&key[component], &values[component], sizeof(values[component]));
+    return key;
+  };
+  for (std::uint64_t ordinal = 0; ordinal != source.vertices.size(); ++ordinal) {
+    const auto &vertex = source.vertices[static_cast<std::size_t>(ordinal)];
+    if (!(std::isfinite(vertex.x) && std::isfinite(vertex.y) &&
+          std::isfinite(vertex.z)))
+      return false;
+    const auto inserted = first_by_coordinate.emplace(
+        independent_coordinate_key(vertex), ordinal);
+    if (inserted.second) {
+      vertex_map.push_back(expected.vertices.size());
+      expected.vertices.push_back(vertex);
+      if (normals)
+        expected.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(ordinal)]);
+      if (colours)
+        expected.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+    } else {
+      const auto retained = inserted.first->second;
+      if ((normals && source.vertex_normals[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_normals[static_cast<std::size_t>(retained)]) ||
+          (colours && source.vertex_colours[static_cast<std::size_t>(ordinal)] !=
+                          source.vertex_colours[static_cast<std::size_t>(retained)]))
+        return false;
+      vertex_map.push_back(vertex_map[static_cast<std::size_t>(retained)]);
+      duplicate_vertices.emplace_back(ordinal, retained);
+    }
+  }
+
+  std::vector<std::uint64_t> facet_map;
+  facet_map.reserve(source.faces.size());
+  std::map<std::vector<std::uint64_t>, std::pair<std::uint64_t, std::uint64_t>>
+      first_by_facet;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> duplicate_facets;
+  for (std::uint64_t ordinal = 0; ordinal != source.faces.size(); ++ordinal) {
+    std::vector<I> rewritten;
+    for (I source_index : source.faces[static_cast<std::size_t>(ordinal)]) {
+      const auto index = static_cast<std::uint64_t>(source_index);
+      if (index >= vertex_map.size()) return false;
+      rewritten.push_back(static_cast<I>(vertex_map[static_cast<std::size_t>(index)]));
+    }
+    if (rewritten.size() < 3 ||
+        std::adjacent_find(rewritten.begin(), rewritten.end()) !=
+            rewritten.end() ||
+        (rewritten.size() > 1 && rewritten.front() == rewritten.back()))
+      return false;
+    const auto key = independent_duplicate_facet_key(rewritten);
+    const auto found = first_by_facet.find(key);
+    if (found == first_by_facet.end()) {
+      const auto prepared = static_cast<std::uint64_t>(expected.faces.size());
+      first_by_facet.emplace(key, std::make_pair(ordinal, prepared));
+      facet_map.push_back(prepared);
+      expected.faces.push_back(std::move(rewritten));
+    } else {
+      facet_map.push_back(found->second.second);
+      duplicate_facets.emplace_back(ordinal, found->second.first);
+    }
+  }
+  if (involved) {
+    expected.involved_faces.resize(expected.vertices.size());
+    for (std::uint64_t facet = 0; facet != expected.faces.size(); ++facet)
+      for (I vertex : expected.faces[static_cast<std::size_t>(facet)])
+        expected.involved_faces[static_cast<std::size_t>(vertex)].push_back(
+            static_cast<I>(facet));
+  }
+  if (!(expected == output) ||
+      expected.involved_faces != output.involved_faces ||
+      report.vertices.status != normalization_map_status::total ||
+      report.vertices.source_to_prepared != vertex_map ||
+      report.facets.status != normalization_map_status::total ||
+      report.facets.source_to_prepared != facet_map ||
+      report.shells.status != normalization_map_status::unavailable ||
+      !report.shells.source_to_prepared.empty() ||
+      !same_mapping(report.attributes.vertex_normals,
+                    normals ? report.vertices
+                            : normalization_mapping{
+                                  normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.vertex_colours,
+                    colours ? report.vertices
+                            : normalization_mapping{
+                                  normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.involved_faces,
+                    involved ? report.vertices
+                             : normalization_mapping{
+                                   normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.metadata,
+                    source.metadata.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : identity(source.metadata.size())))
+    return false;
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &face : expected.faces)
+    for (std::size_t offset = 0; offset != face.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(face[offset]);
+      auto b = static_cast<std::uint64_t>(face[(offset + 1) % face.size()]);
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &edge : output_edges) edge.second = edge_ordinal++;
+  std::vector<std::uint64_t> edge_map;
+  for (const auto &edge : report.source_edges) {
+    auto a = vertex_map[static_cast<std::size_t>(edge[0])];
+    auto b = vertex_map[static_cast<std::size_t>(edge[1])];
+    if (a == b) return false;
+    if (b < a) std::swap(a, b);
+    const auto found = output_edges.find({{a, b}});
+    if (found == output_edges.end()) return false;
+    edge_map.push_back(found->second);
+  }
+  if (report.edges.status != normalization_map_status::total ||
+      report.edges.source_to_prepared != edge_map)
+    return false;
+
+  std::vector<normalization_edit> edits;
+  std::vector<normalization_topology_change> changes;
+  const auto append = [&](normalization_entity_kind entity,
+                          std::uint64_t source_ordinal,
+                          std::uint64_t retained_source,
+                          std::uint64_t prepared_ordinal,
+                          std::uint32_t subcode) {
+    normalization_edit edit;
+    edit.operation = normalization_operation::exact_duplicate_consolidation;
+    edit.canonical_ordinal = edits.size();
+    edit.entity = entity;
+    edit.source_ordinal = source_ordinal;
+    edit.prepared_ordinal = prepared_ordinal;
+    edit.before_evidence_digest = duplicate_before_digest(
+        source, entity, source_ordinal, retained_source);
+    edit.after_evidence_digest = duplicate_after_digest(
+        expected, entity, source_ordinal, prepared_ordinal);
+    edit.reversibility = normalization_reversibility::irreversible;
+    edit.evidence_digest = duplicate_edit_digest(edit);
+    edits.push_back(edit);
+    normalization_topology_change change;
+    change.operation = normalization_operation::exact_duplicate_consolidation;
+    change.source_ordinal = source_ordinal;
+    change.entity = entity;
+    change.prepared_ordinal = prepared_ordinal;
+    change.justification =
+        normalization_topology_justification::caller_authorized_repair;
+    change.justification_subcode = subcode;
+    change.before_evidence_digest = edit.before_evidence_digest;
+    change.after_evidence_digest = edit.after_evidence_digest;
+    change.reversibility = normalization_reversibility::irreversible;
+    change.evidence_digest = duplicate_topology_digest(change);
+    changes.push_back(std::move(change));
+  };
+  for (const auto &duplicate : duplicate_vertices)
+    append(normalization_entity_kind::vertex, duplicate.first,
+           duplicate.second,
+           vertex_map[static_cast<std::size_t>(duplicate.first)], 1);
+  for (const auto &duplicate : duplicate_facets)
+    append(normalization_entity_kind::facet, duplicate.first, duplicate.second,
+           facet_map[static_cast<std::size_t>(duplicate.first)], 2);
+  if (edits.size() != report.edits.size() ||
+      changes.size() != report.topology_changes.size())
+    return false;
+  for (std::size_t i = 0; i != edits.size(); ++i)
+    if (!same_edit(edits[i], report.edits[i])) return false;
+  for (std::size_t i = 0; i != changes.size(); ++i)
+    if (!same_topology_change(changes[i], report.topology_changes[i]))
+      return false;
+  return report.reversibility ==
+         (edits.empty() ? normalization_reversibility::identity
+                        : normalization_reversibility::irreversible);
 }
 
 } // namespace
@@ -1666,9 +2329,11 @@ status_or<prepared_operand<T, I>> normalize_operand(
     auto prepared = validate_operand_strict(source, strict_validation_policy{},
                                             boolean_options{}, kernel, verifier,
                                             cancel);
+    std::optional<boolean_error> source_validation_error;
     if (!prepared.has_value()) {
       if (prepared.error().code != boolean_error_code::input_contract_error)
         return prepared.error();
+      source_validation_error = prepared.error();
       auto record = resources.record();
       if (!record.has_value()) return record.error();
       candidate.unresolved_defects.push_back(
@@ -1685,43 +2350,80 @@ status_or<prepared_operand<T, I>> normalize_operand(
           std::unique(candidate.unresolved_defects.begin(),
                       candidate.unresolved_defects.end()),
           candidate.unresolved_defects.end());
-      auto estimate = estimated_report_bytes(candidate);
+    }
+    const normalization_report failure_candidate = candidate;
+    const auto publish_failure = [&](const boolean_error &error)
+        -> status_or<prepared_operand<T, I>> {
+      auto failure = failure_candidate;
+      auto estimate = estimated_report_bytes(failure);
       if (!estimate.has_value()) return estimate.error();
       if (estimate.value() > policy.resources.max_report_bytes)
         return limit_error("normalization_report_limit", estimate.value(),
                            policy.resources.max_report_bytes);
-      candidate.report_digest = normalization_report_digest(candidate).value();
-      auto bytes = encode_normalization_report(candidate);
+      failure.report_digest = normalization_report_digest(failure).value();
+      auto bytes = encode_normalization_report(failure);
       if (!bytes.has_value()) return bytes.error();
       if (bytes.value().size() > policy.resources.max_report_bytes)
         return limit_error("normalization_report_limit", bytes.value().size(),
                            policy.resources.max_report_bytes);
-      published = std::move(candidate);
-      return prepared.error();
+      published = std::move(failure);
+      return error;
+    };
+    const bool duplicate_repair =
+        policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             exact_duplicate_consolidation);
+    if (source_validation_error && !duplicate_repair) {
+      return publish_failure(*source_validation_error);
     }
 
     fv_surface_mesh<T, I> normalized_mesh = source;
     if (policy.mode == normalization_mode::structural_only) {
       auto structural_work = resources.checkpoint(binding_work.value());
       if (!structural_work.has_value()) return structural_work.error();
-      auto structural = remove_irrelevant_storage(
-          source, candidate.source_edges, resources);
-      if (!structural.has_value()) return structural.error();
-      normalized_mesh = std::move(structural.value().mesh);
-      candidate.vertices = std::move(structural.value().vertices);
-      candidate.edges = std::move(structural.value().edges);
-      candidate.facets = std::move(structural.value().facets);
-      candidate.attributes.vertex_normals =
-          std::move(structural.value().vertex_normals);
-      candidate.attributes.vertex_colours =
-          std::move(structural.value().vertex_colours);
-      candidate.attributes.involved_faces =
-          std::move(structural.value().involved_faces);
-      candidate.attributes.metadata = std::move(structural.value().metadata);
-      candidate.edits = std::move(structural.value().edits);
+      if (duplicate_repair) {
+        auto duplicates = consolidate_exact_duplicates(
+            source, candidate.source_edges, resources);
+        if (!duplicates.has_value() &&
+            duplicates.error().code == boolean_error_code::resource_limit)
+          return duplicates.error();
+        if (!duplicates.has_value())
+          return publish_failure(duplicates.error());
+        normalized_mesh = std::move(duplicates.value().mesh);
+        candidate.vertices = std::move(duplicates.value().vertices);
+        candidate.edges = std::move(duplicates.value().edges);
+        candidate.facets = std::move(duplicates.value().facets);
+        candidate.attributes.vertex_normals =
+            std::move(duplicates.value().vertex_normals);
+        candidate.attributes.vertex_colours =
+            std::move(duplicates.value().vertex_colours);
+        candidate.attributes.involved_faces =
+            std::move(duplicates.value().involved_faces);
+        candidate.attributes.metadata =
+            std::move(duplicates.value().metadata);
+        candidate.edits = std::move(duplicates.value().edits);
+        candidate.topology_changes =
+            std::move(duplicates.value().topology_changes);
+      } else {
+        auto structural = remove_irrelevant_storage(
+            source, candidate.source_edges, resources);
+        if (!structural.has_value()) return structural.error();
+        normalized_mesh = std::move(structural.value().mesh);
+        candidate.vertices = std::move(structural.value().vertices);
+        candidate.edges = std::move(structural.value().edges);
+        candidate.facets = std::move(structural.value().facets);
+        candidate.attributes.vertex_normals =
+            std::move(structural.value().vertex_normals);
+        candidate.attributes.vertex_colours =
+            std::move(structural.value().vertex_colours);
+        candidate.attributes.involved_faces =
+            std::move(structural.value().involved_faces);
+        candidate.attributes.metadata = std::move(structural.value().metadata);
+        candidate.edits = std::move(structural.value().edits);
+      }
       candidate.reversibility = candidate.edits.empty()
-                                    ? normalization_reversibility::identity
-                                    : normalization_reversibility::irreversible;
+                                     ? normalization_reversibility::identity
+                                     : normalization_reversibility::irreversible;
       candidate.output_digest =
           preparation_detail::canonical_mesh_digest(normalized_mesh);
       auto output_diagnosis = producer_diagnosis(normalized_mesh, resources);
@@ -1731,6 +2433,12 @@ status_or<prepared_operand<T, I>> normalize_operand(
       auto output_prepared = validate_operand_strict(
           normalized_mesh, strict_validation_policy{}, boolean_options{}, kernel,
           verifier, cancel);
+      if (!output_prepared.has_value() &&
+          output_prepared.error().code !=
+              boolean_error_code::input_contract_error)
+        return output_prepared.error();
+      if (!output_prepared.has_value() && source_validation_error)
+        return publish_failure(*source_validation_error);
       if (!output_prepared.has_value())
         return make_error(boolean_error_code::internal_invariant_error,
                           boolean_stage::input_validation,
@@ -1740,11 +2448,13 @@ status_or<prepared_operand<T, I>> normalize_operand(
 
     candidate.prepared_operand_available = true;
     candidate.strict_certificate = prepared.value().certificate();
-    auto shells = component2_shell_count(normalized_mesh, cancel);
-    if (!shells.has_value()) return shells.error();
-    auto shell_resources = resources.mapping(shells.value());
-    if (!shell_resources.has_value()) return shell_resources.error();
-    candidate.shells = identity(shells.value());
+    if (!duplicate_repair) {
+      auto shells = component2_shell_count(normalized_mesh, cancel);
+      if (!shells.has_value()) return shells.error();
+      auto shell_resources = resources.mapping(shells.value());
+      if (!shell_resources.has_value()) return shell_resources.error();
+      candidate.shells = identity(shells.value());
+    }
     auto estimate = estimated_report_bytes(candidate);
     if (!estimate.has_value()) return estimate.error();
     if (estimate.value() > policy.resources.max_report_bytes)
@@ -1794,9 +2504,13 @@ status_or<bool> verify_normalization_report(
   if (report.unresolved_defects.size() >
           report.policy.resources.max_defect_records ||
       report.edits.size() > report.policy.resources.max_defect_records -
-                                  report.unresolved_defects.size())
+                                  report.unresolved_defects.size() ||
+      report.topology_changes.size() >
+          report.policy.resources.max_defect_records -
+              report.unresolved_defects.size() - report.edits.size())
     return limit_error("normalization_verification_defect_limit",
-                       report.unresolved_defects.size() + report.edits.size(),
+                       report.unresolved_defects.size() + report.edits.size() +
+                           report.topology_changes.size(),
                        report.policy.resources.max_defect_records);
   auto mapping_entries = report_mapping_entries(report);
   if (!mapping_entries.has_value()) return mapping_entries.error();
@@ -1811,6 +2525,10 @@ status_or<bool> verify_normalization_report(
   if (!binding_allowed.has_value()) return binding_allowed.error();
   const bool diagnosis =
       report.policy.mode == normalization_mode::diagnosis_only;
+  const bool duplicate_repair =
+      report.policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             exact_duplicate_consolidation);
   const auto attribute_binding_valid = [&](const normalization_mapping &mapping,
                                            bool present,
                                            std::uint64_t count) {
@@ -1864,6 +2582,101 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (duplicate_repair) {
+    auto transform_work = verification_resources.checkpoint(binding_work.value());
+    if (!transform_work.has_value()) return transform_work.error();
+    if (source.vertices.size() >
+        std::numeric_limits<std::uint64_t>::max() / 3)
+      return limit_error("normalization_verification_work_overflow");
+    transform_work = verification_resources.checkpoint(
+        static_cast<std::uint64_t>(source.vertices.size()) * 3);
+    if (!transform_work.has_value()) return transform_work.error();
+    for (std::uint64_t ordinal = 0; ordinal != source.faces.size(); ++ordinal) {
+      auto required = facet_work(
+          source.faces[static_cast<std::size_t>(ordinal)].size(), ordinal);
+      if (!required.has_value()) return required.error();
+      transform_work = verification_resources.checkpoint(required.value());
+      if (!transform_work.has_value()) return transform_work.error();
+    }
+  }
+  if (duplicate_repair && output) {
+    for (std::size_t i = 0;
+         i != report.edits.size() + report.topology_changes.size(); ++i) {
+      auto record = verification_resources.record();
+      if (!record.has_value()) return record.error();
+    }
+    if (!independently_verify_exact_duplicates(source, *output, report))
+      return normalization_error("normalization_report_duplicate_replay");
+    auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+    if (!output_diagnosis.has_value()) return output_diagnosis.error();
+    auto output_replay = validate_operand_strict(
+        *output, strict_validation_policy{}, boolean_options{}, kernel, verifier,
+        cancel);
+    if (!output_replay.has_value())
+      return normalization_error("normalization_report_duplicate_validation");
+    if (!report.prepared_operand_available || !report.strict_certificate ||
+        report.unresolved_defects != output_diagnosis.value().defects ||
+        !same_certificate(output_replay.value().certificate(),
+                          *report.strict_certificate))
+      return normalization_error("normalization_report_duplicate_success");
+    return true;
+  }
+  if (duplicate_repair && !output) {
+    auto expected_defects = independent.value().defects;
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      expected_defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(expected_defects.begin(), expected_defects.end(),
+                [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      expected_defects.erase(
+          std::unique(expected_defects.begin(), expected_defects.end()),
+          expected_defects.end());
+    }
+    if (report.prepared_operand_available || report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() ||
+        report.reversibility != normalization_reversibility::identity ||
+        report.shells.status != normalization_map_status::unavailable ||
+        !report.shells.source_to_prepared.empty() ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_normals,
+                                  !source.vertex_normals.empty(),
+                                  source.vertex_normals.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_colours,
+                                  !source.vertex_colours.empty(),
+                                  source.vertex_colours.size()) ||
+        !attribute_identity_valid(report.attributes.involved_faces,
+                                  !source.involved_faces.empty(),
+                                  source.involved_faces.size()) ||
+        !attribute_identity_valid(report.attributes.metadata,
+                                  !source.metadata.empty(),
+                                  source.metadata.size()) ||
+        report.unresolved_defects != expected_defects)
+      return normalization_error("normalization_report_duplicate_failure");
+    fv_surface_mesh<T, I> reconstructed;
+    if (independently_construct_exact_duplicate_output(source, reconstructed)) {
+      auto reconstructed_replay = validate_operand_strict(
+          reconstructed, strict_validation_policy{}, boolean_options{}, kernel,
+          verifier, cancel);
+      if (reconstructed_replay.has_value())
+        return normalization_error(
+            "normalization_report_duplicate_false_failure");
+      if (reconstructed_replay.error().code !=
+          boolean_error_code::input_contract_error)
+        return reconstructed_replay.error();
+    }
+    return true;
+  }
   if (replay.has_value()) {
     const fv_surface_mesh<T, I> *strict_output = &source;
     std::vector<normalization_defect> expected_defects =

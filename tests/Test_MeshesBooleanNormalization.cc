@@ -352,6 +352,185 @@ void structural_irrelevant_storage_removal() {
           "structural edit accounting is bounded and transactional");
 }
 
+template <class T, class I> void exact_duplicate_repair_basic() {
+  auto source = tetra<T, I>();
+  source.vertices.push_back(source.vertices[0]);
+  for (auto &face : source.faces)
+    for (auto &index : face)
+      if (index == I(0)) index = I(4);
+  auto duplicate_face = source.faces[0];
+  std::reverse(duplicate_face.begin(), duplicate_face.end());
+  std::rotate(duplicate_face.begin(), duplicate_face.begin() + 1,
+              duplicate_face.end());
+  source.faces.push_back(std::move(duplicate_face));
+
+  normalization_policy policy;
+  policy.mode = normalization_mode::structural_only;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::exact_duplicate_consolidation);
+  normalization_report report;
+  auto prepared = normalize_operand(source, policy, report);
+  const auto expected = tetra<T, I>();
+  require(prepared.has_value() && prepared.value().mesh() == expected,
+          "exact duplicate vertices and facets are repaired");
+  require(report.vertices.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3, 0}) &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3, 0}) &&
+              report.edits.size() == 2 &&
+              report.topology_changes.size() == 2 &&
+              report.edits[0].entity == normalization_entity_kind::vertex &&
+              report.edits[0].source_ordinal == 4 &&
+              report.edits[0].prepared_ordinal == 0 &&
+              report.edits[1].entity == normalization_entity_kind::facet &&
+              report.edits[1].source_ordinal == 4 &&
+              report.edits[1].prepared_ordinal == 0 &&
+              report.displacement ==
+                  normalization_displacement_claim::exact_zero &&
+              report.displacements.empty() &&
+              report.reversibility ==
+                  normalization_reversibility::irreversible &&
+              report.shells.status == normalization_map_status::unavailable,
+          "duplicate repair publishes many-to-one maps and exact evidence");
+  require(std::all_of(report.topology_changes.begin(),
+                      report.topology_changes.end(), [](const auto &change) {
+                        return change.operation ==
+                                   normalization_operation::
+                                       exact_duplicate_consolidation &&
+                               change.justification ==
+                                   normalization_topology_justification::
+                                       caller_authorized_repair &&
+                               change.reversibility ==
+                                   normalization_reversibility::irreversible;
+                      }),
+          "duplicate repair records authorized topology changes");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "independent verifier replays exact duplicate repair");
+  auto prepared_bytes = encode_prepared_operand(prepared.value());
+  require(prepared_bytes.has_value(),
+          "duplicate-normalized preparation encodes");
+  auto prepared_roundtrip =
+      decode_prepared_operand<T, I>(prepared_bytes.value());
+  require(prepared_roundtrip.has_value() &&
+              prepared_roundtrip.value().mesh() == expected &&
+              prepared_roundtrip.value().normalization_source() &&
+              *prepared_roundtrip.value().normalization_source() == source,
+          "duplicate-normalized preparation round trips with source evidence");
+
+  normalization_report diagnosis_report;
+  require(!normalize_operand(source, normalization_policy{}, diagnosis_report)
+               .has_value(),
+          "repairable duplicate source has a failure diagnosis fixture");
+  auto false_failure = diagnosis_report;
+  false_failure.policy = policy;
+  false_failure.policy_digest = normalization_policy_digest(policy).value();
+  false_failure.report_digest =
+      normalization_report_digest(false_failure).value();
+  auto false_failure_bytes = encode_normalization_report(false_failure);
+  require(false_failure_bytes.has_value() &&
+              !verify_normalization_report(
+                   false_failure_bytes.value(), source,
+                   static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                   .has_value(),
+          "verifier rejects a forged failure for a repairable source");
+
+  normalization_policy record_limited = policy;
+  record_limited.resources.max_defect_records = 4;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto exhausted = normalize_operand(source, record_limited, unpublished);
+  require(!exhausted.has_value() &&
+              exhausted.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "duplicate repair resource failure publishes no partial report");
+
+  normalization_report repeat;
+  auto repeated = normalize_operand(source, policy, repeat);
+  require(repeated.has_value() && repeat.report_digest == report.report_digest,
+          "exact duplicate repair is deterministic");
+  normalization_report identity_report;
+  auto identity_result = normalize_operand(expected, policy, identity_report);
+  auto identity_bytes = encode_normalization_report(identity_report);
+  require(identity_result.has_value() && identity_report.edits.empty() &&
+              identity_report.topology_changes.empty() &&
+              identity_report.source_digest == identity_report.output_digest &&
+              identity_bytes.has_value() &&
+              verify_normalization_report(identity_bytes.value(), expected,
+                                           &expected)
+                  .has_value(),
+          "exact duplicate repair is idempotent");
+}
+
+void exact_duplicate_attributes_and_rejection() {
+  using T = double;
+  using I = std::uint32_t;
+  auto source = attributed_tetra<T, I>();
+  source.vertices.push_back(source.vertices[0]);
+  source.vertex_normals.push_back(source.vertex_normals[0]);
+  source.vertex_colours.push_back(source.vertex_colours[0]);
+  for (auto &face : source.faces)
+    for (auto &index : face)
+      if (index == I(0)) index = I(4);
+  source.faces.push_back(source.faces[0]);
+  source.recreate_involved_face_index();
+
+  normalization_policy policy;
+  policy.mode = normalization_mode::structural_only;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::exact_duplicate_consolidation);
+  normalization_report report;
+  auto prepared = normalize_operand(source, policy, report);
+  const auto expected = attributed_tetra<T, I>();
+  require(prepared.has_value() && prepared.value().mesh() == expected &&
+              prepared.value().mesh().involved_faces == expected.involved_faces &&
+              report.attributes.vertex_normals.source_to_prepared ==
+                  report.vertices.source_to_prepared &&
+              report.attributes.vertex_colours.source_to_prepared ==
+                  report.vertices.source_to_prepared &&
+              report.attributes.involved_faces.source_to_prepared ==
+                  report.vertices.source_to_prepared,
+          "compatible attributes survive and derived incidence is rebuilt");
+
+  auto forged = report;
+  forged.topology_changes[0].justification_subcode = 99;
+  forged.topology_changes[0].evidence_digest =
+      forged.topology_changes[1].evidence_digest;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "verifier rejects forged duplicate topology evidence");
+
+  auto conflict = source;
+  conflict.vertex_normals[4].x = T(0.5);
+  normalization_report conflict_report;
+  auto rejected = normalize_operand(conflict, policy, conflict_report);
+  require(!rejected.has_value() &&
+              rejected.error().code == boolean_error_code::input_contract_error &&
+              !conflict_report.prepared_operand_available &&
+              conflict_report.edits.empty() &&
+              conflict_report.topology_changes.empty(),
+          "attribute conflicts fail closed without partial repair");
+  auto conflict_bytes = encode_normalization_report(conflict_report);
+  require(conflict_bytes.has_value() &&
+              verify_normalization_report(
+                  conflict_bytes.value(), conflict,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "failed duplicate repair report independently verifies");
+
+  normalization_report diagnosis;
+  auto unchanged = normalize_operand(source, normalization_policy{}, diagnosis);
+  require(!unchanged.has_value() && diagnosis.edits.empty() &&
+              diagnosis.topology_changes.empty(),
+          "duplicate repair is never enabled implicitly");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -416,7 +595,7 @@ void policy_cancellation_and_limits() {
   normalization_policy unsupported_repair;
   unsupported_repair.mode = normalization_mode::structural_only;
   unsupported_repair.enabled_operations = normalization_operation_bit(
-      normalization_operation::exact_duplicate_consolidation);
+      normalization_operation::orientation_repair);
   require(!normalize_operand(source, unsupported_repair, unchanged).has_value() &&
               unchanged.schema == 77,
           "unimplemented structural operations fail closed");
@@ -536,6 +715,11 @@ int main() {
     invalid_diagnosis();
     advisory_findings();
     structural_irrelevant_storage_removal();
+    exact_duplicate_repair_basic<float, std::uint32_t>();
+    exact_duplicate_repair_basic<float, std::uint64_t>();
+    exact_duplicate_repair_basic<double, std::uint32_t>();
+    exact_duplicate_repair_basic<double, std::uint64_t>();
+    exact_duplicate_attributes_and_rejection();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();

@@ -23,8 +23,9 @@ implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
 `normalized` are distinct preparation contracts. No normalization operation is
 enabled by default, and a geometry-changing normalization policy must state its
 model unit, positive tolerance, and enabled operation set. Diagnosis-only
-normalization and the structural irrelevant-storage operation are available;
-all geometry-changing repair classes remain later P2 work.
+normalization, structural irrelevant-storage removal, and policy-authorized
+exact duplicate consolidation are available; all geometry-changing repair
+classes remain later P2 work.
 
 ## Strict operand preparation
 
@@ -51,16 +52,25 @@ the backend operand.
 
 P2.1 strict preparation performs no tolerance operation, snapping, welding,
 orientation repair, or other healing. The normalization service separately
-supports `structural_only` with only `irrelevant_storage_removal` enabled. That
-operation first requires a strict-valid source, removes vertices unreferenced by
-every facet, stably compacts vertex indices and aligned per-vertex storage, and
-then reruns full strict validation. It never consolidates coordinates or facets.
-The report uses `normalization_removed_ordinal` for removed source entries,
-records canonical deletion evidence, claims exact-zero displacement, and binds
-the resulting prepared operand to the output digest. Diagnosis-only remains the
-default and performs no edits. The legacy strict-policy field
-`remove_unused_storage=true` continues to fail closed so edits cannot bypass the
-normalization report.
+supports `structural_only` with exactly one of
+`irrelevant_storage_removal` or `exact_duplicate_consolidation` enabled.
+Irrelevant-storage removal first requires a strict-valid source, removes
+vertices unreferenced by every facet, and stably compacts indices and aligned
+per-vertex storage. Exact duplicate consolidation retains the lowest source
+ordinal for exact floating-value coordinate classes (the two signed-zero
+encodings represent the same exact zero), requires all present normals and
+colours in a class to compare exactly equal, rewrites connectivity, and removes only
+facets that become identical under cyclic rotation or reversal. Conflicting
+attribute seams and any collapse or unrelated defect fail closed; tolerance and
+near-duplicate behavior belong to later policies. Stored involved-face indices
+are treated as derived data and rebuilt when present.
+
+Both operations rerun full strict validation before publication, claim
+exact-zero displacement, and emit canonical source-to-prepared maps and edit
+evidence. Duplicate consolidation additionally records every authorized
+connectivity/topology change. Diagnosis-only remains the default and performs
+no edits. The legacy strict-policy field `remove_unused_storage=true` continues
+to fail closed so edits cannot bypass the normalization report.
 
 ## Authoritative result and representations
 
