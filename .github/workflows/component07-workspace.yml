@@ -60,3 +60,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Implement Component 07 source-edge/source-facet relations'
           git push
+
+# Handoff trigger: activate the prepared checksum-verified patch.
