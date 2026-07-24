@@ -28,6 +28,9 @@ constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '1'
 constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '1'}};
 constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '1'}};
 constexpr std::array<char, 8> certificate_tag{{'Y', 'G', 'B', 'P', 'C', 'E', '0', '1'}};
+constexpr std::array<char, 8> removal_before_tag{{'Y', 'G', 'B', 'N', 'R', 'B', '0', '1'}};
+constexpr std::array<char, 8> removal_after_tag{{'Y', 'G', 'B', 'N', 'R', 'A', '0', '1'}};
+constexpr std::array<char, 8> removal_edit_tag{{'Y', 'G', 'B', 'N', 'R', 'E', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -114,9 +117,13 @@ status_or<bool> validate_policy(const normalization_policy &p,
           static_cast<unsigned>(normalization_operation::count)) -
          1)) != 0)
     return normalization_error("normalization_policy_malformed");
+  const auto removal = normalization_operation_bit(
+      normalization_operation::irrelevant_storage_removal);
   if (executable &&
-      (p.mode != normalization_mode::diagnosis_only ||
-       p.enabled_operations != 0))
+      !((p.mode == normalization_mode::diagnosis_only &&
+         p.enabled_operations == 0) ||
+        (p.mode == normalization_mode::structural_only &&
+         p.enabled_operations == removal)))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -425,7 +432,7 @@ bool canonical_mapping(const normalization_mapping &m) {
   if (!known(m.status)) return false;
   if (m.status != normalization_map_status::total)
     return m.source_to_prepared.empty();
-  return identity_mapping(m, m.source_to_prepared.size());
+  return true;
 }
 
 bool canonical_rational(const normalization_rational &r) {
@@ -506,11 +513,13 @@ bool canonical_displacements(
 status_or<bool> validate_report_shape(const normalization_report &r) {
   auto policy = validate_policy(r.policy, true);
   if (!policy.has_value()) return policy.error();
+  const bool diagnosis = r.policy.mode == normalization_mode::diagnosis_only;
   if (r.schema != normalization_report_schema || r.producer_version != 1 ||
       r.coordinate > coordinate_tag::binary64 || r.index > index_tag::uint64 ||
       r.policy_digest != normalization_policy_digest(r.policy).value() ||
-      !digest_nonzero(r.source_digest) || r.output_digest != r.source_digest ||
-      !canonical_edit_records(r.edits) || !r.edits.empty() ||
+      !digest_nonzero(r.source_digest) || !digest_nonzero(r.output_digest) ||
+      (diagnosis && r.output_digest != r.source_digest) ||
+      !canonical_edit_records(r.edits) || (diagnosis && !r.edits.empty()) ||
       r.displacement != normalization_displacement_claim::exact_zero ||
       !canonical_displacements(r.displacements) || !r.displacements.empty() ||
       !canonical_topology_records(r.topology_changes) ||
@@ -527,7 +536,8 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
           r.source_edges.end() ||
       std::any_of(r.source_edges.begin(), r.source_edges.end(),
                   [](const auto &edge) { return edge[1] < edge[0]; }) ||
-      !canonical_mapping(r.shells) ||
+      !canonical_mapping(r.vertices) || !canonical_mapping(r.edges) ||
+      !canonical_mapping(r.facets) || !canonical_mapping(r.shells) ||
       (r.prepared_operand_available
            ? r.shells.status != normalization_map_status::total
            : r.shells.status != normalization_map_status::unavailable) ||
@@ -536,7 +546,9 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       !canonical_mapping(r.attributes.vertex_colours) ||
       !canonical_mapping(r.attributes.involved_faces) ||
       !canonical_mapping(r.attributes.metadata) ||
-      r.reversibility != normalization_reversibility::identity ||
+      (r.edits.empty()
+           ? r.reversibility != normalization_reversibility::identity
+           : r.reversibility != normalization_reversibility::irreversible) ||
       r.strict_certificate.has_value() != r.prepared_operand_available)
     return normalization_error("normalization_report_malformed");
   for (const auto &d : r.unresolved_defects)
@@ -547,7 +559,7 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
        r.strict_certificate->geometry_changed ||
        r.strict_certificate->coordinate != r.coordinate ||
        r.strict_certificate->index != r.index ||
-       r.strict_certificate->input_digest != r.source_digest ||
+       r.strict_certificate->input_digest != r.output_digest ||
        r.strict_certificate->prepared_digest != r.output_digest ||
        r.strict_certificate->certificate_digest !=
            certificate_digest_for(*r.strict_certificate)))
@@ -989,6 +1001,163 @@ normalization_mapping attribute_identity(bool present, std::uint64_t count) {
   return identity(count);
 }
 
+template <class T, class I> struct structural_removal_result {
+  fv_surface_mesh<T, I> mesh;
+  normalization_mapping vertices;
+  normalization_mapping edges;
+  normalization_mapping facets;
+  normalization_mapping vertex_normals;
+  normalization_mapping vertex_colours;
+  normalization_mapping involved_faces;
+  normalization_mapping metadata;
+  std::vector<normalization_edit> edits;
+};
+
+template <class T, class I>
+digest removed_vertex_before_digest(const fv_surface_mesh<T, I> &source,
+                                    std::uint64_t ordinal) {
+  canonical_encoder e;
+  e.u64(ordinal);
+  const auto &v = source.vertices[static_cast<std::size_t>(ordinal)];
+  e.floating(v.x);
+  e.floating(v.y);
+  e.floating(v.z);
+  e.boolean(!source.vertex_normals.empty());
+  if (!source.vertex_normals.empty()) {
+    const auto &n = source.vertex_normals[static_cast<std::size_t>(ordinal)];
+    e.floating(n.x);
+    e.floating(n.y);
+    e.floating(n.z);
+  }
+  e.boolean(!source.vertex_colours.empty());
+  if (!source.vertex_colours.empty())
+    e.u32(source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+  e.boolean(!source.involved_faces.empty());
+  if (!source.involved_faces.empty()) {
+    const auto &faces = source.involved_faces[static_cast<std::size_t>(ordinal)];
+    e.u64(faces.size());
+    for (I face : faces) e.u64(static_cast<std::uint64_t>(face));
+  }
+  return domain_digest(removal_before_tag, e.bytes());
+}
+
+digest removed_vertex_after_digest(std::uint64_t ordinal) {
+  canonical_encoder e;
+  e.u64(ordinal);
+  e.u64(normalization_removed_ordinal);
+  return domain_digest(removal_after_tag, e.bytes());
+}
+
+digest removal_edit_digest(const normalization_edit &edit) {
+  canonical_encoder e;
+  e.byte(static_cast<std::uint8_t>(edit.operation));
+  e.u64(edit.canonical_ordinal);
+  e.byte(static_cast<std::uint8_t>(edit.entity));
+  e.u64(edit.source_ordinal);
+  e.u64(edit.prepared_ordinal);
+  encode_digest(e, edit.before_evidence_digest);
+  encode_digest(e, edit.after_evidence_digest);
+  e.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(removal_edit_tag, e.bytes());
+}
+
+template <class T, class I, class Budget>
+status_or<structural_removal_result<T, I>> remove_irrelevant_storage(
+    const fv_surface_mesh<T, I> &source,
+    const std::vector<std::array<std::uint64_t, 2>> &source_edges, Budget &b) {
+  structural_removal_result<T, I> out;
+  out.mesh.metadata = source.metadata;
+  out.vertices.status = normalization_map_status::total;
+  out.vertices.source_to_prepared.assign(source.vertices.size(),
+                                          normalization_removed_ordinal);
+  std::vector<bool> used(source.vertices.size(), false);
+  for (const auto &face : source.faces)
+    for (I index : face) used[static_cast<std::size_t>(index)] = true;
+
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  for (std::uint64_t i = 0; i != source.vertices.size(); ++i) {
+    auto work = b.checkpoint(1);
+    if (!work.has_value()) return work.error();
+    if (used[static_cast<std::size_t>(i)]) {
+      const auto mapped = static_cast<std::uint64_t>(out.mesh.vertices.size());
+      out.vertices.source_to_prepared[static_cast<std::size_t>(i)] = mapped;
+      out.mesh.vertices.push_back(source.vertices[static_cast<std::size_t>(i)]);
+      if (normals)
+        out.mesh.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(i)]);
+      if (colours)
+        out.mesh.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(i)]);
+      if (involved)
+        out.mesh.involved_faces.push_back(
+            source.involved_faces[static_cast<std::size_t>(i)]);
+    } else {
+      auto record = b.record();
+      if (!record.has_value()) return record.error();
+      normalization_edit edit;
+      edit.operation = normalization_operation::irrelevant_storage_removal;
+      edit.canonical_ordinal = out.edits.size();
+      edit.entity = normalization_entity_kind::vertex;
+      edit.source_ordinal = i;
+      edit.prepared_ordinal = normalization_removed_ordinal;
+      edit.before_evidence_digest = removed_vertex_before_digest(source, i);
+      edit.after_evidence_digest = removed_vertex_after_digest(i);
+      edit.reversibility = normalization_reversibility::irreversible;
+      edit.evidence_digest = removal_edit_digest(edit);
+      out.edits.push_back(std::move(edit));
+    }
+  }
+
+  out.mesh.faces = source.faces;
+  for (auto &face : out.mesh.faces)
+    for (auto &index : face) {
+      const auto mapped = out.vertices.source_to_prepared[
+          static_cast<std::size_t>(index)];
+      if (mapped == normalization_removed_ordinal ||
+          mapped > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return normalization_error("normalization_structural_index");
+      index = static_cast<I>(mapped);
+    }
+
+  out.facets = identity(source.faces.size());
+  out.metadata = attribute_identity(!source.metadata.empty(),
+                                    source.metadata.size());
+  out.vertex_normals = normals ? out.vertices
+                               : normalization_mapping{
+                                     normalization_map_status::absent, {}};
+  out.vertex_colours = colours ? out.vertices
+                               : normalization_mapping{
+                                     normalization_map_status::absent, {}};
+  out.involved_faces = involved ? out.vertices
+                                : normalization_mapping{
+                                      normalization_map_status::absent, {}};
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &face : out.mesh.faces)
+    for (std::size_t j = 0; j != face.size(); ++j) {
+      auto a = static_cast<std::uint64_t>(face[j]);
+      auto c = static_cast<std::uint64_t>(face[(j + 1) % face.size()]);
+      if (c < a) std::swap(a, c);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, c}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &entry : output_edges) entry.second = edge_ordinal++;
+  out.edges.status = normalization_map_status::total;
+  out.edges.source_to_prepared.reserve(source_edges.size());
+  for (const auto &edge : source_edges) {
+    auto a = out.vertices.source_to_prepared[static_cast<std::size_t>(edge[0])];
+    auto c = out.vertices.source_to_prepared[static_cast<std::size_t>(edge[1])];
+    if (c < a) std::swap(a, c);
+    const auto found = output_edges.find({{a, c}});
+    if (found == output_edges.end())
+      return normalization_error("normalization_structural_edge");
+    out.edges.source_to_prepared.push_back(found->second);
+  }
+  return out;
+}
+
 std::shared_ptr<verifier_registry> component2_registry() {
   auto registry = std::make_shared<verifier_registry>();
   for (auto c : {coordinate_tag::binary32, coordinate_tag::binary64})
@@ -1064,6 +1233,189 @@ report_mapping_entries(const normalization_report &report) {
     total += size;
   }
   return total;
+}
+
+bool same_mapping(const normalization_mapping &a,
+                  const normalization_mapping &b) {
+  return a.status == b.status &&
+         a.source_to_prepared == b.source_to_prepared;
+}
+
+template <class T, class I>
+digest verifier_removed_vertex_before_digest(
+    const fv_surface_mesh<T, I> &source, std::uint64_t ordinal) {
+  canonical_encoder encoded;
+  encoded.u64(ordinal);
+  const auto position = static_cast<std::size_t>(ordinal);
+  const std::array<T, 3> point{{source.vertices[position].x,
+                                source.vertices[position].y,
+                                source.vertices[position].z}};
+  for (T component : point) encoded.floating(component);
+  const bool normals_present = !source.vertex_normals.empty();
+  encoded.boolean(normals_present);
+  if (normals_present) {
+    const std::array<T, 3> normal{{source.vertex_normals[position].x,
+                                   source.vertex_normals[position].y,
+                                   source.vertex_normals[position].z}};
+    for (T component : normal) encoded.floating(component);
+  }
+  const bool colours_present = !source.vertex_colours.empty();
+  encoded.boolean(colours_present);
+  if (colours_present) encoded.u32(source.vertex_colours[position]);
+  const bool incidence_present = !source.involved_faces.empty();
+  encoded.boolean(incidence_present);
+  if (incidence_present) {
+    encoded.u64(source.involved_faces[position].size());
+    for (I facet : source.involved_faces[position])
+      encoded.u64(static_cast<std::uint64_t>(facet));
+  }
+  return domain_digest(removal_before_tag, encoded.bytes());
+}
+
+digest verifier_removed_vertex_after_digest(std::uint64_t ordinal) {
+  canonical_encoder encoded;
+  for (std::uint64_t value : {ordinal, normalization_removed_ordinal})
+    encoded.u64(value);
+  return domain_digest(removal_after_tag, encoded.bytes());
+}
+
+digest verifier_removal_edit_digest(const normalization_edit &edit) {
+  canonical_encoder encoded;
+  encoded.byte(static_cast<std::uint8_t>(edit.operation));
+  encoded.u64(edit.canonical_ordinal);
+  encoded.byte(static_cast<std::uint8_t>(edit.entity));
+  encoded.u64(edit.source_ordinal);
+  encoded.u64(edit.prepared_ordinal);
+  encoded.raw(edit.before_evidence_digest.bytes.data(),
+              edit.before_evidence_digest.bytes.size());
+  encoded.raw(edit.after_evidence_digest.bytes.data(),
+              edit.after_evidence_digest.bytes.size());
+  encoded.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(removal_edit_tag, encoded.bytes());
+}
+
+template <class T, class I>
+bool independently_verify_structural_removal(
+    const fv_surface_mesh<T, I> &source, const fv_surface_mesh<T, I> &output,
+    const normalization_report &report) {
+  std::vector<unsigned char> referenced(source.vertices.size(), 0);
+  for (const auto &ring : source.faces)
+    for (I index : ring) referenced[static_cast<std::size_t>(index)] = 1;
+
+  std::vector<std::uint64_t> vertex_map(source.vertices.size(),
+                                        normalization_removed_ordinal);
+  std::size_t retained = 0, removed = 0;
+  for (std::uint64_t source_ordinal = 0;
+       source_ordinal != source.vertices.size(); ++source_ordinal) {
+    if (referenced[static_cast<std::size_t>(source_ordinal)]) {
+      vertex_map[static_cast<std::size_t>(source_ordinal)] = retained;
+      if (retained >= output.vertices.size() ||
+          output.vertices[retained] !=
+              source.vertices[static_cast<std::size_t>(source_ordinal)] ||
+          (!source.vertex_normals.empty() &&
+           output.vertex_normals[retained] !=
+               source.vertex_normals[static_cast<std::size_t>(source_ordinal)]) ||
+          (!source.vertex_colours.empty() &&
+           output.vertex_colours[retained] !=
+               source.vertex_colours[static_cast<std::size_t>(source_ordinal)]) ||
+          (!source.involved_faces.empty() &&
+           output.involved_faces[retained] !=
+               source.involved_faces[static_cast<std::size_t>(source_ordinal)]))
+        return false;
+      ++retained;
+    } else {
+      if (removed >= report.edits.size()) return false;
+      normalization_edit expected;
+      expected.operation = normalization_operation::irrelevant_storage_removal;
+      expected.canonical_ordinal = removed;
+      expected.entity = normalization_entity_kind::vertex;
+      expected.source_ordinal = source_ordinal;
+      expected.prepared_ordinal = normalization_removed_ordinal;
+      expected.before_evidence_digest =
+          verifier_removed_vertex_before_digest(source, source_ordinal);
+      expected.after_evidence_digest =
+          verifier_removed_vertex_after_digest(source_ordinal);
+      expected.reversibility = normalization_reversibility::irreversible;
+      expected.evidence_digest = verifier_removal_edit_digest(expected);
+      const auto &actual = report.edits[removed];
+      if (actual.operation != expected.operation ||
+          actual.canonical_ordinal != expected.canonical_ordinal ||
+          actual.entity != expected.entity ||
+          actual.source_ordinal != expected.source_ordinal ||
+          actual.prepared_ordinal != expected.prepared_ordinal ||
+          actual.before_evidence_digest != expected.before_evidence_digest ||
+          actual.after_evidence_digest != expected.after_evidence_digest ||
+          actual.reversibility != expected.reversibility ||
+          actual.evidence_digest != expected.evidence_digest)
+        return false;
+      ++removed;
+    }
+  }
+  if (retained != output.vertices.size() || removed != report.edits.size() ||
+      output.faces.size() != source.faces.size() ||
+      output.metadata != source.metadata ||
+      output.vertex_normals.size() !=
+          (source.vertex_normals.empty() ? 0 : retained) ||
+      output.vertex_colours.size() !=
+          (source.vertex_colours.empty() ? 0 : retained) ||
+      output.involved_faces.size() !=
+          (source.involved_faces.empty() ? 0 : retained) ||
+      report.vertices.status != normalization_map_status::total ||
+      report.vertices.source_to_prepared != vertex_map ||
+      !identity_mapping(report.facets, source.faces.size()) ||
+      !same_mapping(report.attributes.vertex_normals,
+                    source.vertex_normals.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : report.vertices) ||
+      !same_mapping(report.attributes.vertex_colours,
+                    source.vertex_colours.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : report.vertices) ||
+      !same_mapping(report.attributes.involved_faces,
+                    source.involved_faces.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : report.vertices) ||
+      !same_mapping(report.attributes.metadata,
+                    source.metadata.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : identity(source.metadata.size())))
+    return false;
+
+  for (std::size_t f = 0; f != source.faces.size(); ++f) {
+    if (output.faces[f].size() != source.faces[f].size()) return false;
+    for (std::size_t j = 0; j != source.faces[f].size(); ++j)
+      if (static_cast<std::uint64_t>(output.faces[f][j]) !=
+          vertex_map[static_cast<std::size_t>(source.faces[f][j])])
+        return false;
+  }
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &ring : output.faces)
+    for (std::size_t j = 0; j != ring.size(); ++j) {
+      auto a = static_cast<std::uint64_t>(ring[j]);
+      auto b = static_cast<std::uint64_t>(ring[(j + 1) % ring.size()]);
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t ordinal = 0;
+  for (auto &edge : output_edges) edge.second = ordinal++;
+  if (report.edges.status != normalization_map_status::total ||
+      report.edges.source_to_prepared.size() != report.source_edges.size())
+    return false;
+  for (std::size_t i = 0; i != report.source_edges.size(); ++i) {
+    auto a = vertex_map[static_cast<std::size_t>(report.source_edges[i][0])];
+    auto b = vertex_map[static_cast<std::size_t>(report.source_edges[i][1])];
+    if (b < a) std::swap(a, b);
+    const auto found = output_edges.find({{a, b}});
+    if (found == output_edges.end() ||
+        report.edges.source_to_prepared[i] != found->second)
+      return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -1348,9 +1700,47 @@ status_or<prepared_operand<T, I>> normalize_operand(
       return prepared.error();
     }
 
+    fv_surface_mesh<T, I> normalized_mesh = source;
+    if (policy.mode == normalization_mode::structural_only) {
+      auto structural_work = resources.checkpoint(binding_work.value());
+      if (!structural_work.has_value()) return structural_work.error();
+      auto structural = remove_irrelevant_storage(
+          source, candidate.source_edges, resources);
+      if (!structural.has_value()) return structural.error();
+      normalized_mesh = std::move(structural.value().mesh);
+      candidate.vertices = std::move(structural.value().vertices);
+      candidate.edges = std::move(structural.value().edges);
+      candidate.facets = std::move(structural.value().facets);
+      candidate.attributes.vertex_normals =
+          std::move(structural.value().vertex_normals);
+      candidate.attributes.vertex_colours =
+          std::move(structural.value().vertex_colours);
+      candidate.attributes.involved_faces =
+          std::move(structural.value().involved_faces);
+      candidate.attributes.metadata = std::move(structural.value().metadata);
+      candidate.edits = std::move(structural.value().edits);
+      candidate.reversibility = candidate.edits.empty()
+                                    ? normalization_reversibility::identity
+                                    : normalization_reversibility::irreversible;
+      candidate.output_digest =
+          preparation_detail::canonical_mesh_digest(normalized_mesh);
+      auto output_diagnosis = producer_diagnosis(normalized_mesh, resources);
+      if (!output_diagnosis.has_value()) return output_diagnosis.error();
+      candidate.unresolved_defects =
+          std::move(output_diagnosis.value().defects);
+      auto output_prepared = validate_operand_strict(
+          normalized_mesh, strict_validation_policy{}, boolean_options{}, kernel,
+          verifier, cancel);
+      if (!output_prepared.has_value())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::input_validation,
+                          "normalization_structural_revalidation");
+      prepared = std::move(output_prepared);
+    }
+
     candidate.prepared_operand_available = true;
     candidate.strict_certificate = prepared.value().certificate();
-    auto shells = component2_shell_count(source, cancel);
+    auto shells = component2_shell_count(normalized_mesh, cancel);
     if (!shells.has_value()) return shells.error();
     auto shell_resources = resources.mapping(shells.value());
     if (!shell_resources.has_value()) return shell_resources.error();
@@ -1372,6 +1762,8 @@ status_or<prepared_operand<T, I>> normalize_operand(
     state->certificate = prepared.value().certificate();
     state->normalization =
         std::make_shared<const normalization_report>(candidate);
+    state->normalization_source =
+        std::make_shared<const fv_surface_mesh<T, I>>(source);
     prepared_operand<T, I> normalized(std::move(state));
     published = std::move(candidate);
     return normalized;
@@ -1400,9 +1792,11 @@ status_or<bool> verify_normalization_report(
     return limit_error("normalization_verification_report_limit", bytes.size(),
                        report.policy.resources.max_report_bytes);
   if (report.unresolved_defects.size() >
-      report.policy.resources.max_defect_records)
+          report.policy.resources.max_defect_records ||
+      report.edits.size() > report.policy.resources.max_defect_records -
+                                  report.unresolved_defects.size())
     return limit_error("normalization_verification_defect_limit",
-                       report.unresolved_defects.size(),
+                       report.unresolved_defects.size() + report.edits.size(),
                        report.policy.resources.max_defect_records);
   auto mapping_entries = report_mapping_entries(report);
   if (!mapping_entries.has_value()) return mapping_entries.error();
@@ -1415,50 +1809,52 @@ status_or<bool> verify_normalization_report(
   if (!binding_work.has_value()) return binding_work.error();
   auto binding_allowed = verification_resources.checkpoint(binding_work.value());
   if (!binding_allowed.has_value()) return binding_allowed.error();
+  const bool diagnosis =
+      report.policy.mode == normalization_mode::diagnosis_only;
+  const auto attribute_binding_valid = [&](const normalization_mapping &mapping,
+                                           bool present,
+                                           std::uint64_t count) {
+    if (mapping.status != (present ? normalization_map_status::total
+                                   : normalization_map_status::absent))
+      return false;
+    if (!diagnosis) return true;
+    return present ? identity_mapping(mapping, count)
+                   : mapping.source_to_prepared.empty();
+  };
+  const auto attribute_identity_valid = [&](const normalization_mapping &mapping,
+                                            bool present,
+                                            std::uint64_t count) {
+    return present ? identity_mapping(mapping, count)
+                   : mapping.status == normalization_map_status::absent &&
+                         mapping.source_to_prepared.empty();
+  };
   if (report.coordinate != coordinate_type(std::is_same<T, float>::value) ||
       report.index != index_type(std::is_same<I, std::uint32_t>::value) ||
       report.source_digest !=
           preparation_detail::canonical_mesh_digest(source) ||
-      report.output_digest != report.source_digest ||
+      (diagnosis && report.output_digest != report.source_digest) ||
       report.prepared_operand_available != (output != nullptr) ||
       (output && preparation_detail::canonical_mesh_digest(*output) !=
                      report.output_digest) ||
-      !identity_mapping(report.vertices, source.vertices.size()) ||
-      !identity_mapping(report.facets, source.faces.size()) ||
-      report.attributes.vertex_normals.status !=
-          (source.vertex_normals.empty() ? normalization_map_status::absent
-                                         : normalization_map_status::total) ||
-      (source.vertex_normals.empty()
-           ? !report.attributes.vertex_normals.source_to_prepared.empty()
-           : !identity_mapping(report.attributes.vertex_normals,
-                               source.vertex_normals.size())) ||
-      report.attributes.vertex_colours.status !=
-          (source.vertex_colours.empty() ? normalization_map_status::absent
-                                         : normalization_map_status::total) ||
-      (source.vertex_colours.empty()
-           ? !report.attributes.vertex_colours.source_to_prepared.empty()
-           : !identity_mapping(report.attributes.vertex_colours,
-                               source.vertex_colours.size())) ||
-      report.attributes.involved_faces.status !=
-          (source.involved_faces.empty() ? normalization_map_status::absent
-                                         : normalization_map_status::total) ||
-      (source.involved_faces.empty()
-           ? !report.attributes.involved_faces.source_to_prepared.empty()
-           : !identity_mapping(report.attributes.involved_faces,
-                               source.involved_faces.size())) ||
-      report.attributes.metadata.status !=
-          (source.metadata.empty() ? normalization_map_status::absent
-                                   : normalization_map_status::total) ||
-      (source.metadata.empty()
-           ? !report.attributes.metadata.source_to_prepared.empty()
-           : !identity_mapping(report.attributes.metadata,
-                               source.metadata.size())))
+      !attribute_binding_valid(report.attributes.vertex_normals,
+                               !source.vertex_normals.empty(),
+                               source.vertex_normals.size()) ||
+      !attribute_binding_valid(report.attributes.vertex_colours,
+                               !source.vertex_colours.empty(),
+                               source.vertex_colours.size()) ||
+      !attribute_binding_valid(report.attributes.involved_faces,
+                               !source.involved_faces.empty(),
+                               source.involved_faces.size()) ||
+      !attribute_binding_valid(report.attributes.metadata,
+                               !source.metadata.empty(),
+                               source.metadata.size()))
     return normalization_error("normalization_report_stale_binding");
 
   auto independent = verifier_diagnosis(source, verification_resources);
   if (!independent.has_value()) return independent.error();
   if (report.source_edges != independent.value().edges ||
-      !identity_mapping(report.edges, independent.value().edges.size()))
+      (diagnosis &&
+       !identity_mapping(report.edges, independent.value().edges.size())))
     return normalization_error("normalization_report_edge_map");
 
   auto registry = component2_registry();
@@ -1469,10 +1865,44 @@ status_or<bool> verify_normalization_report(
                                         boolean_options{}, kernel, verifier,
                                         cancel);
   if (replay.has_value()) {
-    auto shells = component2_shell_count(source, cancel);
+    const fv_surface_mesh<T, I> *strict_output = &source;
+    std::vector<normalization_defect> expected_defects =
+        independent.value().defects;
+    if (!diagnosis) {
+      if (!output)
+        return normalization_error("normalization_report_structural_output");
+      auto removal_work = verification_resources.checkpoint(binding_work.value());
+      if (!removal_work.has_value()) return removal_work.error();
+      removal_work = verification_resources.checkpoint(
+          static_cast<std::uint64_t>(source.vertices.size()));
+      if (!removal_work.has_value()) return removal_work.error();
+      for (std::size_t i = 0; i != report.edits.size(); ++i) {
+        auto record = verification_resources.record();
+        if (!record.has_value()) return record.error();
+      }
+      if (!independently_verify_structural_removal(source, *output, report) ||
+          report.reversibility !=
+              (report.edits.empty()
+                   ? normalization_reversibility::identity
+                   : normalization_reversibility::irreversible))
+        return normalization_error("normalization_report_structural_replay");
+      strict_output = output;
+      auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+      if (!output_diagnosis.has_value()) return output_diagnosis.error();
+      expected_defects = std::move(output_diagnosis.value().defects);
+      replay = validate_operand_strict(*output, strict_validation_policy{},
+                                       boolean_options{}, kernel, verifier,
+                                       cancel);
+      if (!replay.has_value())
+        return normalization_error("normalization_report_structural_validation");
+    } else if (!identity_mapping(report.vertices, source.vertices.size()) ||
+               !identity_mapping(report.facets, source.faces.size())) {
+      return normalization_error("normalization_report_identity_map");
+    }
+    auto shells = component2_shell_count(*strict_output, cancel);
     if (!shells.has_value()) return shells.error();
     if (!report.prepared_operand_available || !report.strict_certificate ||
-        independent.value().defects != report.unresolved_defects ||
+        expected_defects != report.unresolved_defects ||
         !identity_mapping(report.shells, shells.value()) ||
         !same_certificate(replay.value().certificate(),
                           *report.strict_certificate))
@@ -1498,6 +1928,23 @@ status_or<bool> verify_normalization_report(
     if (report.prepared_operand_available || report.strict_certificate ||
         output || report.shells.status != normalization_map_status::unavailable ||
         !report.shells.source_to_prepared.empty() ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        report.reversibility != normalization_reversibility::identity ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_normals,
+                                  !source.vertex_normals.empty(),
+                                  source.vertex_normals.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_colours,
+                                  !source.vertex_colours.empty(),
+                                  source.vertex_colours.size()) ||
+        !attribute_identity_valid(report.attributes.involved_faces,
+                                  !source.involved_faces.empty(),
+                                  source.involved_faces.size()) ||
+        !attribute_identity_valid(report.attributes.metadata,
+                                  !source.metadata.empty(),
+                                  source.metadata.size()) ||
         independent.value().defects != report.unresolved_defects)
       return normalization_error("normalization_report_failure_claim");
   }

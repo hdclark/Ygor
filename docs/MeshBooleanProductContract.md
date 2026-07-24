@@ -3,9 +3,9 @@
 This document defines the product boundary introduced by Plan 15 P0, the
 durable exact-result authority introduced by P1, and the reusable strict
 preparation service introduced by P2.1. It does not promote any
-Boolean backend and it does not implement normalization, backend fallback, or
-approximate realization. Those behaviours remain gated by later tracker
-components.
+Boolean backend and it does not implement geometry-changing normalization,
+backend fallback, or approximate realization. Those behaviours remain gated by
+later tracker components.
 
 ## Current support boundary
 
@@ -22,8 +22,9 @@ operands. Unknown-provenance STL, OBJ, scan, or CAD tessellations are not an
 implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
 `normalized` are distinct preparation contracts. No normalization operation is
 enabled by default, and a geometry-changing normalization policy must state its
-model unit, positive tolerance, and enabled operation set. The P0 types freeze
-that boundary; normalization diagnosis and repair remain later P2 work.
+model unit, positive tolerance, and enabled operation set. Diagnosis-only
+normalization and the structural irrelevant-storage operation are available;
+all geometry-changing repair classes remain later P2 work.
 
 ## Strict operand preparation
 
@@ -42,9 +43,24 @@ operand lifetimes, and reruns Component 2 validation in the request context.
 Prepared and raw paths therefore have equivalent strict topology semantics;
 prepared input is not a bypass around validation.
 
-P2.1 performs no tolerance operation, snapping, welding, orientation repair,
-or other healing. `remove_unused_storage=true` currently fails closed until the
-separately reported normalization infrastructure defines that edit path.
+Prepared-operand schema 3 additionally retains the immutable pre-normalization
+source whenever a normalization report is attached. This lets decoding and each
+later Boolean request independently replay source mappings and edits against the
+published output; the source is provenance evidence and is never evaluated as
+the backend operand.
+
+P2.1 strict preparation performs no tolerance operation, snapping, welding,
+orientation repair, or other healing. The normalization service separately
+supports `structural_only` with only `irrelevant_storage_removal` enabled. That
+operation first requires a strict-valid source, removes vertices unreferenced by
+every facet, stably compacts vertex indices and aligned per-vertex storage, and
+then reruns full strict validation. It never consolidates coordinates or facets.
+The report uses `normalization_removed_ordinal` for removed source entries,
+records canonical deletion evidence, claims exact-zero displacement, and binds
+the resulting prepared operand to the output digest. Diagnosis-only remains the
+default and performs no edits. The legacy strict-policy field
+`remove_unused_storage=true` continues to fail closed so edits cannot bypass the
+normalization report.
 
 ## Authoritative result and representations
 

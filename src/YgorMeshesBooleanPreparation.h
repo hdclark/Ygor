@@ -7,7 +7,7 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t prepared_operand_schema = 2;
+constexpr std::uint16_t prepared_operand_schema = 3;
 
 struct normalization_policy;
 struct normalization_report;
@@ -65,6 +65,7 @@ template <class T, class I> class prepared_operand {
     strict_validation_policy policy;
     strict_validation_certificate certificate;
     std::shared_ptr<const normalization_report> normalization;
+    std::shared_ptr<const fv_surface_mesh<T, I>> normalization_source;
   };
   std::shared_ptr<const state> state_;
 
@@ -95,6 +96,9 @@ public:
   }
   const normalization_report *normalization() const noexcept {
     return state_->normalization.get();
+  }
+  const fv_surface_mesh<T, I> *normalization_source() const noexcept {
+    return state_->normalization_source.get();
   }
   std::shared_ptr<const fv_surface_mesh<T, I>> shared_mesh() const {
     return std::shared_ptr<const fv_surface_mesh<T, I>>(state_, &state_->mesh);

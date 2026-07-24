@@ -148,9 +148,13 @@ status_or<bool> validate_bindings(const prepared_operand<T, I> &operand,
                              "prepared_operand_certificate");
   if (const auto *normalization = operand.normalization()) {
     auto bytes = encode_normalization_report(*normalization);
-    if (!bytes.has_value() || !normalization->prepared_operand_available ||
+    const auto *source = operand.normalization_source();
+    if (!bytes.has_value() || !source ||
+        !normalization->prepared_operand_available ||
         !normalization->strict_certificate ||
-        normalization->source_digest != c.input_digest ||
+        normalization->source_digest !=
+            preparation_detail::canonical_mesh_digest(*source) ||
+        normalization->output_digest != c.input_digest ||
         normalization->output_digest != c.prepared_digest ||
         normalization->strict_certificate->certificate_digest !=
             c.certificate_digest)
@@ -261,6 +265,133 @@ template <class T> T floating(reader &r) {
   return value;
 }
 
+template <class T, class I>
+void encode_mesh(canonical_encoder &e, const fv_surface_mesh<T, I> &mesh) {
+  e.u64(mesh.vertices.size());
+  for (const auto &v : mesh.vertices) {
+    e.floating(v.x);
+    e.floating(v.y);
+    e.floating(v.z);
+  }
+  e.u64(mesh.vertex_normals.size());
+  for (const auto &v : mesh.vertex_normals) {
+    e.floating(v.x);
+    e.floating(v.y);
+    e.floating(v.z);
+  }
+  e.u64(mesh.vertex_colours.size());
+  for (auto colour : mesh.vertex_colours) e.u32(colour);
+  e.u64(mesh.faces.size());
+  for (const auto &face : mesh.faces) {
+    e.u64(face.size());
+    for (I index : face) e.u64(static_cast<std::uint64_t>(index));
+  }
+  e.u64(mesh.involved_faces.size());
+  for (const auto &faces : mesh.involved_faces) {
+    e.u64(faces.size());
+    for (I index : faces) e.u64(static_cast<std::uint64_t>(index));
+  }
+  e.u64(mesh.metadata.size());
+  for (const auto &entry : mesh.metadata) {
+    e.string(entry.first);
+    e.string(entry.second);
+  }
+}
+
+template <class T, class I>
+status_or<fv_surface_mesh<T, I>> decode_mesh(
+    reader &r, const prepared_operand_decode_limits &limits) {
+  fv_surface_mesh<T, I> mesh;
+  const auto vertices =
+      r.count(limits.max_vertices, "prepared_operand_vertex_limit");
+  if (vertices > r.remaining() / (3U * sizeof(T)))
+    throw std::runtime_error("prepared_operand_truncated_vertices");
+  mesh.vertices.reserve(static_cast<std::size_t>(vertices));
+  for (std::uint64_t i = 0; i != vertices; ++i)
+    mesh.vertices.push_back(
+        {floating<T>(r), floating<T>(r), floating<T>(r)});
+  const auto normals =
+      r.count(limits.max_vertex_normals, "prepared_operand_normal_limit");
+  if (normals != 0 && normals != vertices)
+    return preparation_error(preparation_validation_subcode::malformed_record,
+                             "prepared_operand_normal_cardinality");
+  if (normals > r.remaining() / (3U * sizeof(T)))
+    throw std::runtime_error("prepared_operand_truncated_normals");
+  mesh.vertex_normals.reserve(static_cast<std::size_t>(normals));
+  for (std::uint64_t i = 0; i != normals; ++i)
+    mesh.vertex_normals.push_back(
+        {floating<T>(r), floating<T>(r), floating<T>(r)});
+  const auto colours =
+      r.count(limits.max_vertex_colours, "prepared_operand_colour_limit");
+  if (colours != 0 && colours != vertices)
+    return preparation_error(preparation_validation_subcode::malformed_record,
+                             "prepared_operand_colour_cardinality");
+  if (colours > r.remaining() / sizeof(std::uint32_t))
+    throw std::runtime_error("prepared_operand_truncated_colours");
+  mesh.vertex_colours.reserve(static_cast<std::size_t>(colours));
+  for (std::uint64_t i = 0; i != colours; ++i)
+    mesh.vertex_colours.push_back(r.u32());
+  const auto faces =
+      r.count(limits.max_faces, "prepared_operand_face_limit");
+  if (faces > r.remaining() / sizeof(std::uint64_t))
+    throw std::runtime_error("prepared_operand_truncated_faces");
+  mesh.faces.reserve(static_cast<std::size_t>(faces));
+  for (std::uint64_t i = 0; i != faces; ++i) {
+    const auto count =
+        r.count(limits.max_face_indices, "prepared_operand_index_limit");
+    r.add_indices(count);
+    if (count > r.remaining() / sizeof(std::uint64_t))
+      throw std::runtime_error("prepared_operand_truncated_indices");
+    std::vector<I> face;
+    face.reserve(static_cast<std::size_t>(count));
+    for (std::uint64_t j = 0; j != count; ++j) {
+      const auto value = r.u64();
+      if (value > std::numeric_limits<I>::max())
+        return preparation_error(preparation_validation_subcode::type_mismatch,
+                                 "prepared_operand_index_type");
+      face.push_back(static_cast<I>(value));
+    }
+    mesh.faces.push_back(std::move(face));
+  }
+  const auto involved_lists = r.count(
+      limits.max_involved_face_lists, "prepared_operand_involved_list_limit");
+  if (involved_lists != 0 && involved_lists != vertices)
+    return preparation_error(preparation_validation_subcode::malformed_record,
+                             "prepared_operand_involved_cardinality");
+  mesh.involved_faces.reserve(static_cast<std::size_t>(involved_lists));
+  for (std::uint64_t i = 0; i != involved_lists; ++i) {
+    const auto count = r.count(limits.max_involved_face_indices,
+                               "prepared_operand_involved_index_limit");
+    r.add_involved_indices(count);
+    if (count > r.remaining() / sizeof(std::uint64_t))
+      throw std::runtime_error("prepared_operand_truncated_involved_indices");
+    std::vector<I> entries;
+    entries.reserve(static_cast<std::size_t>(count));
+    for (std::uint64_t j = 0; j != count; ++j) {
+      const auto value = r.u64();
+      if (value > std::numeric_limits<I>::max())
+        return preparation_error(preparation_validation_subcode::type_mismatch,
+                                 "prepared_operand_involved_index_type");
+      if (value >= faces)
+        return preparation_error(preparation_validation_subcode::malformed_record,
+                                 "prepared_operand_involved_face_range");
+      entries.push_back(static_cast<I>(value));
+    }
+    mesh.involved_faces.push_back(std::move(entries));
+  }
+  const auto metadata = r.count(limits.max_metadata_entries,
+                                "prepared_operand_metadata_entry_limit");
+  for (std::uint64_t i = 0; i != metadata; ++i) {
+    auto key = r.string_value();
+    auto value = r.string_value();
+    const auto inserted = mesh.metadata.emplace(std::move(key), std::move(value));
+    if (!inserted.second)
+      return preparation_error(preparation_validation_subcode::malformed_record,
+                               "prepared_operand_duplicate_metadata_key");
+  }
+  return mesh;
+}
+
 strict_validation_certificate decode_certificate(reader &r) {
   strict_validation_certificate c;
   c.schema = r.u16();
@@ -358,36 +489,7 @@ encode_prepared_operand(const prepared_operand<T, I> &operand) {
     e.u16(operand.policy().schema);
     e.byte(static_cast<std::uint8_t>(operand.policy().verification));
     e.boolean(operand.policy().remove_unused_storage);
-    const auto &mesh = operand.mesh();
-    e.u64(mesh.vertices.size());
-    for (const auto &v : mesh.vertices) {
-      e.floating(v.x);
-      e.floating(v.y);
-      e.floating(v.z);
-    }
-    e.u64(mesh.vertex_normals.size());
-    for (const auto &v : mesh.vertex_normals) {
-      e.floating(v.x);
-      e.floating(v.y);
-      e.floating(v.z);
-    }
-    e.u64(mesh.vertex_colours.size());
-    for (auto colour : mesh.vertex_colours) e.u32(colour);
-    e.u64(mesh.faces.size());
-    for (const auto &face : mesh.faces) {
-      e.u64(face.size());
-      for (I index : face) e.u64(static_cast<std::uint64_t>(index));
-    }
-    e.u64(mesh.involved_faces.size());
-    for (const auto &faces : mesh.involved_faces) {
-      e.u64(faces.size());
-      for (I index : faces) e.u64(static_cast<std::uint64_t>(index));
-    }
-    e.u64(mesh.metadata.size());
-    for (const auto &entry : mesh.metadata) {
-      e.string(entry.first);
-      e.string(entry.second);
-    }
+    encode_mesh(e, operand.mesh());
     encode_certificate_body(e, operand.certificate());
     encode_digest(e, operand.certificate().certificate_digest);
     e.boolean(operand.normalization() != nullptr);
@@ -395,6 +497,9 @@ encode_prepared_operand(const prepared_operand<T, I> &operand) {
       auto report = encode_normalization_report(*operand.normalization());
       if (!report.has_value()) return report.error();
       e.byte_string(report.value());
+      e.boolean(operand.normalization_source() != nullptr);
+      if (operand.normalization_source())
+        encode_mesh(e, *operand.normalization_source());
     }
     return e.bytes();
   } catch (const std::bad_alloc &) {
@@ -418,94 +523,9 @@ status_or<prepared_operand<T, I>> decode_prepared_operand(
     state->policy.schema = r.u16();
     state->policy.verification = static_cast<verification_level>(r.byte());
     state->policy.remove_unused_storage = r.boolean();
-    const auto vertices = r.count(limits.max_vertices, "prepared_operand_vertex_limit");
-    if (vertices > r.remaining() / (3U * sizeof(T)))
-      throw std::runtime_error("prepared_operand_truncated_vertices");
-    state->mesh.vertices.reserve(static_cast<std::size_t>(vertices));
-    for (std::uint64_t i = 0; i != vertices; ++i)
-      state->mesh.vertices.push_back(
-           {floating<T>(r), floating<T>(r), floating<T>(r)});
-    const auto normals =
-        r.count(limits.max_vertex_normals, "prepared_operand_normal_limit");
-    if (normals != 0 && normals != vertices)
-      return preparation_error(preparation_validation_subcode::malformed_record,
-                               "prepared_operand_normal_cardinality");
-    if (normals > r.remaining() / (3U * sizeof(T)))
-      throw std::runtime_error("prepared_operand_truncated_normals");
-    state->mesh.vertex_normals.reserve(static_cast<std::size_t>(normals));
-    for (std::uint64_t i = 0; i != normals; ++i)
-      state->mesh.vertex_normals.push_back(
-          {floating<T>(r), floating<T>(r), floating<T>(r)});
-    const auto colours = r.count(limits.max_vertex_colours,
-                                 "prepared_operand_colour_limit");
-    if (colours != 0 && colours != vertices)
-      return preparation_error(preparation_validation_subcode::malformed_record,
-                               "prepared_operand_colour_cardinality");
-    if (colours > r.remaining() / sizeof(std::uint32_t))
-      throw std::runtime_error("prepared_operand_truncated_colours");
-    state->mesh.vertex_colours.reserve(static_cast<std::size_t>(colours));
-    for (std::uint64_t i = 0; i != colours; ++i)
-      state->mesh.vertex_colours.push_back(r.u32());
-    const auto faces = r.count(limits.max_faces, "prepared_operand_face_limit");
-    if (faces > r.remaining() / sizeof(std::uint64_t))
-      throw std::runtime_error("prepared_operand_truncated_faces");
-    state->mesh.faces.reserve(static_cast<std::size_t>(faces));
-    for (std::uint64_t i = 0; i != faces; ++i) {
-      const auto count = r.count(limits.max_face_indices,
-                                 "prepared_operand_index_limit");
-      r.add_indices(count);
-      if (count > r.remaining() / sizeof(std::uint64_t))
-        throw std::runtime_error("prepared_operand_truncated_indices");
-      std::vector<I> face;
-      face.reserve(static_cast<std::size_t>(count));
-      for (std::uint64_t j = 0; j != count; ++j) {
-        const auto value = r.u64();
-        if (value > std::numeric_limits<I>::max())
-          return preparation_error(preparation_validation_subcode::type_mismatch,
-                                   "prepared_operand_index_type");
-        face.push_back(static_cast<I>(value));
-      }
-      state->mesh.faces.push_back(std::move(face));
-    }
-    const auto involved_lists =
-        r.count(limits.max_involved_face_lists,
-                "prepared_operand_involved_list_limit");
-    if (involved_lists != 0 && involved_lists != vertices)
-      return preparation_error(preparation_validation_subcode::malformed_record,
-                               "prepared_operand_involved_cardinality");
-    state->mesh.involved_faces.reserve(
-        static_cast<std::size_t>(involved_lists));
-    for (std::uint64_t i = 0; i != involved_lists; ++i) {
-      const auto count = r.count(limits.max_involved_face_indices,
-                                 "prepared_operand_involved_index_limit");
-      r.add_involved_indices(count);
-      if (count > r.remaining() / sizeof(std::uint64_t))
-        throw std::runtime_error("prepared_operand_truncated_involved_indices");
-      std::vector<I> entries;
-      entries.reserve(static_cast<std::size_t>(count));
-      for (std::uint64_t j = 0; j != count; ++j) {
-        const auto value = r.u64();
-        if (value > std::numeric_limits<I>::max())
-          return preparation_error(preparation_validation_subcode::type_mismatch,
-                                   "prepared_operand_involved_index_type");
-        if (value >= faces)
-          return preparation_error(preparation_validation_subcode::malformed_record,
-                                   "prepared_operand_involved_face_range");
-        entries.push_back(static_cast<I>(value));
-      }
-      state->mesh.involved_faces.push_back(std::move(entries));
-    }
-    const auto metadata = r.count(limits.max_metadata_entries,
-                                  "prepared_operand_metadata_entry_limit");
-    for (std::uint64_t i = 0; i != metadata; ++i) {
-      auto key = r.string_value();
-      auto value = r.string_value();
-      const auto inserted = state->mesh.metadata.emplace(std::move(key),
-                                                         std::move(value));
-      if (!inserted.second)
-        return preparation_error(preparation_validation_subcode::malformed_record,
-                                 "prepared_operand_duplicate_metadata_key");
-    }
+    auto mesh = decode_mesh<T, I>(r, limits);
+    if (!mesh.has_value()) return mesh.error();
+    state->mesh = std::move(mesh.value());
     state->certificate = decode_certificate(r);
     if (r.boolean()) {
       auto report_bytes = r.byte_string(limits.max_record_bytes);
@@ -513,6 +533,14 @@ status_or<prepared_operand<T, I>> decode_prepared_operand(
       if (!report.has_value()) return report.error();
       state->normalization =
           std::make_shared<const normalization_report>(std::move(report.value()));
+      if (!r.boolean())
+        return preparation_error(preparation_validation_subcode::malformed_record,
+                                 "prepared_operand_normalization_source");
+      auto source = decode_mesh<T, I>(r, limits);
+      if (!source.has_value()) return source.error();
+      state->normalization_source =
+          std::make_shared<const fv_surface_mesh<T, I>>(
+              std::move(source.value()));
     }
     if (!r.done())
       return preparation_error(preparation_validation_subcode::malformed_record,
@@ -553,7 +581,7 @@ status_or<bool> verify_prepared_operand(
     auto bytes = encode_normalization_report(*operand.normalization());
     if (!bytes.has_value()) return bytes.error();
     auto normalized = verify_normalization_report(
-        bytes.value(), operand.mesh(), &operand.mesh(), cancel);
+        bytes.value(), *operand.normalization_source(), &operand.mesh(), cancel);
     if (!normalized.has_value()) return normalized.error();
   }
   fv_surface_mesh<T, I> empty;

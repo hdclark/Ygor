@@ -3,6 +3,9 @@
 #include <YgorMeshesBooleanPreparation.h>
 #include <YgorMeshesBooleanNormalization.h>
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <iostream>
 
 using namespace input_test;
@@ -219,6 +222,54 @@ void normalized_lifetime_and_provenance() {
   require(made.has_value() && made.value()->preparation_provenance() &&
               made.value()->preparation_provenance()->report_digest != digest{},
           "context provenance binds normalization report digests");
+
+  auto structural_source = tetra<T, I>();
+  structural_source.vertices.push_back({T(7), T(8), T(9)});
+  normalization_policy structural_policy;
+  structural_policy.mode = normalization_mode::structural_only;
+  structural_policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::irrelevant_storage_removal);
+  normalization_report structural_report;
+  auto structural = normalize_operand(structural_source, structural_policy,
+                                      structural_report);
+  require(structural.has_value() &&
+              structural.value().mesh() == tetra<T, I>() &&
+              structural.value().normalization_source() &&
+              *structural.value().normalization_source() == structural_source,
+          "structural preparation owns its replay source");
+  auto structural_bytes = encode_prepared_operand(structural.value());
+  require(structural_bytes.has_value(),
+          "structural preparation and replay source serialize");
+  auto structural_decoded =
+      decode_prepared_operand<T, I>(structural_bytes.value());
+  require(structural_decoded.has_value() &&
+              structural_decoded.value().normalization_source() &&
+              *structural_decoded.value().normalization_source() ==
+                  structural_source &&
+              verify_prepared_operand(structural_decoded.value(),
+                                      boolean_options{}, kernel, verifier)
+                  .has_value(),
+          "structural preparation independently replays after round trip");
+  std::uint64_t seven_bits = 0;
+  const T seven = T(7);
+  std::memcpy(&seven_bits, &seven, sizeof(seven));
+  std::array<std::uint8_t, 8> seven_bytes{};
+  for (std::size_t i = 0; i != seven_bytes.size(); ++i)
+    seven_bytes[i] = static_cast<std::uint8_t>(seven_bits >> (56 - i * 8));
+  auto stale_source_bytes = structural_bytes.value();
+  const auto seven_at = std::search(stale_source_bytes.begin(),
+                                    stale_source_bytes.end(),
+                                    seven_bytes.begin(), seven_bytes.end());
+  require(seven_at != stale_source_bytes.end(),
+          "serialized normalization source is present");
+  *seven_at ^= 1U;
+  require(!decode_prepared_operand<T, I>(stale_source_bytes).has_value(),
+          "serialized normalization source is digest-bound");
+  auto structural_context = make_boolean_context(
+      structural_decoded.value(), normalized_b.value(),
+      operation::regularized_union, boolean_options{}, kernel, verifier);
+  require(structural_context.has_value(),
+          "Boolean request accepts verified structural preparation");
 }
 
 int main() {

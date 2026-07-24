@@ -5,6 +5,7 @@
 #include "YgorMeshesBooleanPreparation.h"
 #include "YgorMeshesBooleanProductContractPolicies.h"
 
+#include <limits>
 #include <optional>
 
 namespace ygor {
@@ -12,6 +13,8 @@ namespace mesh_boolean {
 
 constexpr std::uint16_t normalization_policy_schema = 1;
 constexpr std::uint16_t normalization_report_schema = 1;
+constexpr std::uint64_t normalization_removed_ordinal =
+    std::numeric_limits<std::uint64_t>::max();
 
 enum class normalization_cancellation_policy : std::uint8_t {
   deterministic_checkpoints = 0

@@ -231,6 +231,127 @@ void advisory_findings() {
           "strict-valid advisory defects retain unchanged success");
 }
 
+void structural_irrelevant_storage_removal() {
+  using T = double;
+  using I = std::uint32_t;
+  auto source = attributed_tetra<T, I>();
+  source.vertices.insert(source.vertices.begin() + 1, {T(9), T(8), T(7)});
+  source.vertex_normals.insert(source.vertex_normals.begin() + 1,
+                               {T(0), T(0), T(1)});
+  source.vertex_colours.insert(source.vertex_colours.begin() + 1, 0xDEADBEEFU);
+  for (auto &face : source.faces)
+    for (auto &index : face)
+      if (index >= I(1)) ++index;
+  source.recreate_involved_face_index();
+
+  normalization_policy policy;
+  policy.mode = normalization_mode::structural_only;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::irrelevant_storage_removal);
+  normalization_report report;
+  auto prepared = normalize_operand(source, policy, report);
+  require(prepared.has_value(), "structural storage removal succeeds");
+  const auto expected = attributed_tetra<T, I>();
+  require(prepared.value().mesh() == expected &&
+              report.source_digest != report.output_digest &&
+              report.output_digest == prepared.value().certificate().input_digest &&
+              report.displacement ==
+                  normalization_displacement_claim::exact_zero &&
+              report.displacements.empty() && report.topology_changes.empty() &&
+              report.unresolved_defects.empty(),
+          "structural removal preserves geometry and strictly validates output");
+  const std::vector<std::uint64_t> expected_vertices{
+      0, normalization_removed_ordinal, 1, 2, 3};
+  require(report.vertices.source_to_prepared == expected_vertices &&
+              report.attributes.vertex_normals.source_to_prepared ==
+                  expected_vertices &&
+              report.attributes.vertex_colours.source_to_prepared ==
+                  expected_vertices &&
+              report.attributes.involved_faces.source_to_prepared ==
+                  expected_vertices &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3}),
+          "source mappings retain every removal and compaction ordinal");
+  require(report.edits.size() == 1 &&
+              report.edits[0].operation ==
+                  normalization_operation::irrelevant_storage_removal &&
+              report.edits[0].entity == normalization_entity_kind::vertex &&
+              report.edits[0].source_ordinal == 1 &&
+              report.edits[0].prepared_ordinal ==
+                  normalization_removed_ordinal &&
+              report.edits[0].reversibility ==
+                  normalization_reversibility::irreversible &&
+              report.reversibility ==
+                  normalization_reversibility::irreversible,
+          "removed storage has canonical auditable evidence");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "independent verifier replays structural removal");
+  auto prepared_bytes = encode_prepared_operand(prepared.value());
+  require(prepared_bytes.has_value() &&
+              decode_prepared_operand<T, I>(prepared_bytes.value()).has_value(),
+          "structurally normalized preparation round trips");
+
+  auto forged = report;
+  forged.vertices.source_to_prepared[1] = 0;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "verifier rejects forged removal mapping");
+
+  normalization_report repeat;
+  auto repeated = normalize_operand(source, policy, repeat);
+  require(repeated.has_value() && repeated.value().mesh() == expected &&
+              repeat.report_digest == report.report_digest,
+          "structural removal is deterministic");
+
+  normalization_report no_op_report;
+  auto no_op = normalize_operand(expected, policy, no_op_report);
+  require(no_op.has_value() && no_op.value().mesh() == expected &&
+              no_op_report.source_digest == no_op_report.output_digest &&
+              no_op_report.edits.empty() &&
+              no_op_report.reversibility ==
+                  normalization_reversibility::identity,
+          "structural removal is an explicit identity when storage is packed");
+
+  auto invalid = source;
+  invalid.faces.push_back(invalid.faces.front());
+  normalization_report invalid_report;
+  auto rejected = normalize_operand(invalid, policy, invalid_report);
+  require(!rejected.has_value() &&
+              rejected.error().code == boolean_error_code::input_contract_error &&
+              !invalid_report.prepared_operand_available &&
+              invalid_report.edits.empty(),
+          "structural removal does not repair a strict-invalid operand");
+  auto invalid_forgery = invalid_report;
+  std::swap(invalid_forgery.vertices.source_to_prepared[0],
+            invalid_forgery.vertices.source_to_prepared[1]);
+  invalid_forgery.report_digest =
+      normalization_report_digest(invalid_forgery).value();
+  auto invalid_forgery_bytes =
+      encode_normalization_report(invalid_forgery).value();
+  require(!verify_normalization_report(
+               invalid_forgery_bytes, invalid,
+               static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+               .has_value(),
+          "structural failure reports cannot forge source mappings");
+
+  normalization_policy limited = policy;
+  limited.resources.max_defect_records = 1;
+  normalization_report unchanged;
+  unchanged.schema = 77;
+  auto exhausted = normalize_operand(source, limited, unchanged);
+  require(!exhausted.has_value() &&
+              exhausted.error().code == boolean_error_code::resource_limit &&
+              unchanged.schema == 77,
+          "structural edit accounting is bounded and transactional");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -292,13 +413,13 @@ void policy_cancellation_and_limits() {
   normalization_report unchanged;
   unchanged.schema = 77;
 
-  normalization_policy repair;
-  repair.mode = normalization_mode::structural_only;
-  repair.enabled_operations = normalization_operation_bit(
-      normalization_operation::irrelevant_storage_removal);
-  require(!normalize_operand(source, repair, unchanged).has_value() &&
+  normalization_policy unsupported_repair;
+  unsupported_repair.mode = normalization_mode::structural_only;
+  unsupported_repair.enabled_operations = normalization_operation_bit(
+      normalization_operation::exact_duplicate_consolidation);
+  require(!normalize_operand(source, unsupported_repair, unchanged).has_value() &&
               unchanged.schema == 77,
-          "repair mode and operations fail closed");
+          "unimplemented structural operations fail closed");
 
   normalization_policy unspecified_tolerance;
   unspecified_tolerance.model_tolerance = 0.01;
@@ -414,11 +535,12 @@ int main() {
     valid_identity<double, std::uint64_t>();
     invalid_diagnosis();
     advisory_findings();
+    structural_irrelevant_storage_removal();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();
     verifier_embedded_limits();
-    std::cout << "PASS diagnosis-only mesh normalization\n";
+    std::cout << "PASS mesh normalization\n";
     return 0;
   } catch (const std::exception &e) {
     std::cerr << "FAIL " << e.what() << '\n';
