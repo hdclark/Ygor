@@ -4,10 +4,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 using namespace ygor::mesh_boolean;
@@ -312,8 +314,40 @@ void product_evaluator_mesh_paths() {
       require(result.value()->representation ==
                       result_representation::exact_in_T_mesh &&
                   result.value()->mesh && result.value()->realization &&
-                  result.value()->realization->succeeded,
+                  result.value()->realization->succeeded &&
+                  result.value()->mesh->obligation_count >=
+                      result.value()->mesh->strict_vertices.size() * 3 &&
+                  result.value()->mesh->defining_relation_obligation_count <=
+                      result.value()->mesh->obligation_count &&
+                  validate_product_result(*result.value()).has_value(),
               "successful exact-in-T product publication");
+      auto changed = *result.value();
+      auto changed_success =
+          std::make_shared<boolean_success<double, std::uint32_t>>(
+              *changed.mesh->success);
+      require(!changed_success->mesh.vertices.empty(),
+              "strict envelope mutation fixture");
+      changed_success->mesh.vertices[0].x =
+          std::nextafter(changed_success->mesh.vertices[0].x,
+                         std::numeric_limits<double>::infinity());
+      changed.mesh->success = std::move(changed_success);
+      require(!validate_product_result(changed).has_value(),
+              "one-ULP mesh mutation rejected by strict binding");
+      changed = *result.value();
+      changed.mesh->realization_canonical_bytes.back() ^= 1;
+      require(!validate_product_result(changed).has_value(),
+              "realization evidence mutation rejected");
+
+      std::shared_ptr<const exact_kernel_services<double>> reingest_kernel =
+          std::make_shared<exact_kernel<double>>();
+      std::shared_ptr<const verifier_service> reingest_verifiers =
+          output_test::registry();
+      const auto reingested = validate_operand_strict(
+          result.value()->mesh->success->mesh, strict_validation_policy{},
+          boolean_options{}, std::move(reingest_kernel),
+          std::move(reingest_verifiers));
+      require(reingested.has_value(),
+              "strict envelope mesh passes Component 2 re-ingestion");
     } else {
       require(result.value()->representation ==
                       result_representation::exact_stratified &&
@@ -321,7 +355,10 @@ void product_evaluator_mesh_paths() {
                   result.value()->realization &&
                   result.value()->realization->failure &&
                   result.value()->realization->failure->code ==
-                      expected_failure,
+                      expected_failure &&
+                  !product_digest_is_zero(
+                      result.value()->realization->failure
+                          ->replay_binding_digest),
               "failed realization retains exact authority");
     }
   };

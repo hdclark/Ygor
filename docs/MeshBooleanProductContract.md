@@ -236,8 +236,9 @@ checks the canonical digest, all cross-references and certificate counts, exact
 topology, backend and preparation bindings, resource limits, and canonical
 re-encoding. `request_later_realization<T,I>` records a type- and policy-bound
 request against the retained exact-result digest. Exact-coordinate consumers
-can use the decoded rational boundary immediately; full strict finite-`T`
-envelope integration and certified approximate execution remain P3 work.
+can use the decoded rational boundary immediately. Strict finite-`T`
+realization is integrated with the product envelope; exact-coordinate export
+and certified approximate execution remain later P3 work.
 
 `evaluate_boolean_product_result` is the expert productization path for the
 current in-tree backend. It publishes the verified exact authority before
@@ -258,8 +259,9 @@ representations:
   exact point-set equality.
 
 A failed mesh realization may be recorded while the exact result remains a
-successful, retained product result. Product-option validation rejects any
-policy that permits discarding that exact authority.
+successful, retained product result. Schema 3 retains that authority
+unconditionally, and product-option validation rejects any policy that permits
+discarding it.
 
 ## Semantic policy versus search policy
 

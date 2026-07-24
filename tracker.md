@@ -124,11 +124,11 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
 
 Start only after P2. Preserve the existing strict `exact_in_T` algorithm as a regression baseline while integrating it into the amended result model.
 
-- [ ] **P3.1 — Integrate strict `exact_in_T` into the tagged product result.**
-  - [ ] Preserve exact-coordinate equality, complete defining relations, topology/embedding obligations, and existing impossible-coordinate behavior.
-  - [ ] Bind every strict mesh realization to the durable exact-result digest and retain the exact result when strict realization fails if requested.
-  - [ ] Remove any public wording that treats strict `exact_in_T` success rate as the ordinary CAD-output target.
-  - [ ] Re-run all G2/G7/G8/G9c, one-third, rounding-collision, mutation, replay, re-ingestion, and speed-baseline gates through the new envelope.
+- [x] **P3.1 — Integrate strict `exact_in_T` into the tagged product result.**
+  - [x] Preserve exact-coordinate equality, complete defining relations, topology/embedding obligations, and existing impossible-coordinate behavior.
+  - [x] Bind every strict mesh realization to the durable exact-result digest and retain the exact result when strict realization fails if requested.
+  - [x] Remove any public wording that treats strict `exact_in_T` success rate as the ordinary CAD-output target.
+  - [x] Re-run all G2/G7/G8/G9c, one-third, rounding-collision, mutation, replay, re-ingestion, and speed-baseline gates through the new envelope.
 
 - [ ] **P3.2 — Add exact-coordinate export.**
   - [ ] Define a stable exact-coordinate mesh/stratified representation using canonical rationals or versioned constructions.

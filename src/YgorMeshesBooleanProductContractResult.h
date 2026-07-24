@@ -119,12 +119,52 @@ struct qualification_provenance {
 };
 
 template <class T, class I> struct certified_mesh_payload {
+  struct strict_vertex_binding {
+    std::uint64_t output_vertex = 0;
+    std::uint64_t selected_vertex = 0;
+    std::array<std::uint64_t, 3> accepted_bits{{0, 0, 0}};
+    digest exact_coordinate_digest;
+  };
+
   std::shared_ptr<const boolean_success<T, I>> success;
   product_realization_semantics semantics =
       product_realization_semantics::not_requested;
   digest exact_result_digest;
+  digest realization_semantic_digest;
+  digest output_semantic_digest;
+  std::vector<std::uint8_t> realization_canonical_bytes;
+  std::vector<std::uint8_t> output_canonical_bytes;
+  std::vector<strict_vertex_binding> strict_vertices;
+  std::uint64_t obligation_count = 0;
+  std::uint64_t defining_relation_obligation_count = 0;
+  std::uint64_t constraint_component_count = 0;
   realization_certificate_reference certificate;
 };
+
+template <class T, class I>
+digest strict_mesh_certificate_digest(const certified_mesh_payload<T, I> &m) {
+  canonical_encoder e;
+  e.raw(m.exact_result_digest.bytes.data(), m.exact_result_digest.bytes.size());
+  e.raw(m.realization_semantic_digest.bytes.data(),
+        m.realization_semantic_digest.bytes.size());
+  e.raw(m.output_semantic_digest.bytes.data(),
+        m.output_semantic_digest.bytes.size());
+  e.byte_string(m.realization_canonical_bytes);
+  e.byte_string(m.output_canonical_bytes);
+  e.u64(m.strict_vertices.size());
+  for (const auto &v : m.strict_vertices) {
+    e.u64(v.output_vertex);
+    e.u64(v.selected_vertex);
+    for (auto bits : v.accepted_bits)
+      e.u64(bits);
+    e.raw(v.exact_coordinate_digest.bytes.data(),
+          v.exact_coordinate_digest.bytes.size());
+  }
+  e.u64(m.obligation_count);
+  e.u64(m.defining_relation_obligation_count);
+  e.u64(m.constraint_component_count);
+  return domain_digest({{'Y', 'G', 'B', 'E', 'X', 'M', '0', '2'}}, e.bytes());
+}
 
 template <class T, class I> struct boolean_product_result {
   product_schema_versions schemas;
@@ -223,6 +263,42 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
         r.exact_result, r.mesh->success->selected_boundary_digest);
     if (!mesh_binding.has_value())
       return mesh_binding.error();
+    if (expected_semantics == product_realization_semantics::exact_in_T) {
+      const auto &m = *r.mesh;
+      if (m.realization_canonical_bytes.empty() ||
+          m.output_canonical_bytes.empty() ||
+          m.strict_vertices.size() != m.success->mesh.vertices.size() ||
+          m.output_semantic_digest != m.success->canonical_output_digest ||
+          m.output_semantic_digest != m.success->summary.semantic_digest ||
+          m.realization_semantic_digest !=
+              domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}},
+                            m.realization_canonical_bytes) ||
+          m.output_semantic_digest !=
+              domain_digest({{'Y', 'G', 'B', 'C', 'A', 'N', '1', '2'}},
+                            m.output_canonical_bytes) ||
+          m.certificate.certificate_digest !=
+              strict_mesh_certificate_digest(m) ||
+          m.obligation_count < m.strict_vertices.size() * 3 ||
+          m.defining_relation_obligation_count > m.obligation_count ||
+          (m.strict_vertices.empty() && m.obligation_count != 0))
+        return fail(product_error_code::verifier_disagreement,
+                    "product_result.strict_realization_evidence");
+      for (std::size_t i = 0; i < m.strict_vertices.size(); ++i) {
+        const auto &binding = m.strict_vertices[i];
+        const auto &point = m.success->mesh.vertices[i];
+        std::array<std::uint64_t, 3> bits{{0, 0, 0}};
+        const std::array<T, 3> coordinates{{point.x, point.y, point.z}};
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+          static_assert(sizeof(T) <= sizeof(std::uint64_t),
+                        "unsupported coordinate width");
+          std::memcpy(&bits[axis], &coordinates[axis], sizeof(T));
+        }
+        if (binding.output_vertex != i || binding.accepted_bits != bits ||
+            product_digest_is_zero(binding.exact_coordinate_digest))
+          return fail(product_error_code::verifier_disagreement,
+                      "product_result.strict_vertex_binding");
+      }
+    }
   }
   if (r.realization) {
     if (r.realization->schema != product_contract_schema_version)

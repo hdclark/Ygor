@@ -40,6 +40,13 @@ product_error product_error_from_boolean(const boolean_error &source) {
   auto result = make_product_error(code, source.message_key);
   result.subcode = source.subcode;
   result.detail = render_error(source);
+  canonical_encoder replay;
+  replay.raw(source.replay.setup_digest.bytes.data(),
+             source.replay.setup_digest.bytes.size());
+  replay.byte_string(source.replay_payload);
+  replay.string(result.detail);
+  result.replay_binding_digest = domain_digest(
+      {{'Y', 'G', 'B', 'R', 'F', 'A', 'I', 'L'}}, replay.bytes());
   return result;
 }
 
@@ -357,7 +364,7 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
         make_product_error(product_error_code::approximation_policy_rejected,
                            "exact_result.approximation_not_implemented"));
 
-  auto assembled = assemble_boolean_output(context);
+  auto assembled = assemble_boolean_output_artifact(context);
   if (!assembled.has_value())
     return record_failed_realization(
         exact.value(), representation,
@@ -367,19 +374,46 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
   auto result = *exact.value();
   result.representation = result_representation::exact_in_T_mesh;
   certified_mesh_payload<T, I> mesh;
-  mesh.success = assembled.value();
+  const auto &output = *assembled.value()->payload;
+  const auto &realized = *output.realized->payload;
+  mesh.success = std::shared_ptr<const boolean_success<T, I>>(
+      assembled.value()->payload,
+      static_cast<const boolean_success<T, I> *>(assembled.value()->payload.get()));
   mesh.semantics = product_realization_semantics::exact_in_T;
   mesh.exact_result_digest = result.exact_result->canonical_digest;
+  mesh.realization_semantic_digest = realized.certificate.semantic_digest;
+  mesh.output_semantic_digest = output.certificate.semantic_digest;
+  mesh.realization_canonical_bytes = realized.canonical_bytes;
+  mesh.output_canonical_bytes = output.canonical_bytes;
+  mesh.obligation_count = realized.obligations.size();
+  mesh.defining_relation_obligation_count = static_cast<std::uint64_t>(
+      std::count_if(realized.obligations.begin(), realized.obligations.end(),
+                    [](const auto &obligation) {
+                      return obligation.kind ==
+                                 realization_obligation_kind::defining_relation &&
+                             obligation.defining_relation.has_value();
+                    }));
+  mesh.constraint_component_count = realized.components.size();
+  mesh.strict_vertices.reserve(output.vertices.size());
+  for (std::size_t i = 0; i < output.vertices.size(); ++i) {
+    const auto realization_index =
+        output.vertices[i].realization.value_for_debug();
+    if (realization_index >= realized.vertices.size())
+      return error(product_error_code::internal_invariant_error,
+                   "exact_result.output_vertex_binding");
+    const auto &vertex = realized.vertices[realization_index];
+    typename certified_mesh_payload<T, I>::strict_vertex_binding binding;
+    binding.output_vertex = i;
+    binding.selected_vertex = vertex.selected.value_for_debug();
+    for (std::size_t axis = 0; axis < 3; ++axis)
+      binding.accepted_bits[axis] = vertex.accepted_bits[axis].bits;
+    binding.exact_coordinate_digest = vertex.exact_digest;
+    mesh.strict_vertices.push_back(std::move(binding));
+  }
   mesh.certificate.semantics = product_realization_semantics::exact_in_T;
   mesh.certificate.backend = result.backend.producer;
   mesh.certificate.exact_result_digest = result.exact_result->canonical_digest;
-  canonical_encoder certificate;
-  certificate.raw(result.exact_result->canonical_digest.bytes.data(),
-                  result.exact_result->canonical_digest.bytes.size());
-  certificate.raw(assembled.value()->canonical_output_digest.bytes.data(),
-                  assembled.value()->canonical_output_digest.bytes.size());
-  mesh.certificate.certificate_digest = domain_digest(
-      {{'Y', 'G', 'B', 'E', 'X', 'M', '0', '1'}}, certificate.bytes());
+  mesh.certificate.certificate_digest = strict_mesh_certificate_digest(mesh);
   result.mesh = std::move(mesh);
   result.realization = realization_attempt_record{};
   result.realization->requested = result_representation::exact_in_T_mesh;

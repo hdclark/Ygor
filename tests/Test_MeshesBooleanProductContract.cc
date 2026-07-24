@@ -388,34 +388,8 @@ void exact_result_lifetime_and_envelope() {
   result.mesh = payload;
   result.realization->succeeded = true;
   result.realization->failure.reset();
-  require(validate_product_result(result).has_value(),
-          "exact-in-T mesh bound to exact authority");
-
-  auto stale_certificate = result;
-  stale_certificate.mesh->certificate.backend.build_identifier += "-stale";
-  require(!validate_product_result(stale_certificate).has_value(),
-          "certificate backend identity drift rejected");
-  auto foreign_mesh = result;
-  auto foreign_success =
-      std::make_shared<boolean_success<double, std::uint64_t>>(
-          *result.mesh->success);
-  foreign_success->selected_boundary_digest.bytes[0] ^= 1;
-  foreign_mesh.mesh->success = std::move(foreign_success);
-  require(!validate_product_result(foreign_mesh).has_value(),
-          "mesh from another exact selection rejected");
-
-  auto frozen = freeze_boolean_product_result(std::move(result));
-  require(frozen.has_value() && frozen.value()->mesh.has_value(),
-          "validated result freezes into immutable shared ownership");
-  using frozen_pointee =
-      typename std::remove_reference<decltype(*frozen.value())>::type;
-  static_assert(std::is_const<frozen_pointee>::value,
-                "published product results are immutable");
-
-  auto mislabeled = *frozen.value();
-  mislabeled.representation = result_representation::certified_approximate_mesh;
-  require(!validate_product_result(mislabeled).has_value(),
-          "exact mesh cannot be relabeled approximate");
+  require(!validate_product_result(result).has_value(),
+          "wrapper-only digest cannot manufacture strict success");
 }
 
 void replay_contract() {

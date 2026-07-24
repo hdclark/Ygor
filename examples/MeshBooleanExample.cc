@@ -51,8 +51,9 @@ run_boolean(const prepared_operand<double, std::uint64_t> &a,
             operation requested,
             const std::shared_ptr<const exact_kernel_services<double>> &kernel,
             const std::shared_ptr<const verifier_service> &verifiers) {
-  // The defaults select regularized solid semantics, deterministic execution,
-  // mandatory verification, exact-in-double realization, and manifold output.
+  // This expert API defaults to strict exact-in-double realization and manifold
+  // output. That mode is useful for dyadic/exact workflows, but it is not the
+  // ordinary CAD-output target; P5 will replace this product-facing example.
   boolean_options options;
 
   auto context =
