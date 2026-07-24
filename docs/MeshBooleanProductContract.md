@@ -146,6 +146,19 @@ each can change the regular closed solid or cross an attribute seam without a
 separate remeshing contract. Non-triangular facets are therefore not assigned a
 triangulation-dependent sliver label by this policy.
 
+Self-intersection diagnosis exactly tests non-adjacent edges of every planar
+source ring and every diagnosable planar facet pair. Pair findings distinguish
+intersections beyond an adjacent shared edge, intersections beyond a shared
+vertex, and intersections between topologically non-adjacent facets. Source
+facet and edge ordinals and the exact intersection dimension are retained in
+canonical report records and independently replayed. The explicitly selected
+`self_intersection_repair` operation currently rejects every such finding and
+publishes no edit, topology change, or displacement. No general cut/remesh is
+approved: intersecting sheets do not uniquely determine retained occupancy or
+shell ownership, and exact cut coordinates need not be representable in the
+source coordinate type. Inputs without a self-intersection remain an idempotent
+identity under this policy.
+
 ## Authoritative result and representations
 
 `exact_result_handle` is an immutable, shared-lifetime owner populated from a

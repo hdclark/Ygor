@@ -24,9 +24,9 @@ namespace ygor {
 namespace mesh_boolean {
 namespace {
 
-constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '3'}};
-constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '3'}};
-constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '3'}};
+constexpr std::array<char, 8> policy_tag{{'Y', 'G', 'B', 'N', 'P', 'O', '0', '4'}};
+constexpr std::array<char, 8> report_tag{{'Y', 'G', 'B', 'N', 'R', 'P', '0', '4'}};
+constexpr std::array<char, 8> report_digest_tag{{'Y', 'G', 'B', 'N', 'R', 'D', '0', '4'}};
 constexpr std::array<char, 8> certificate_tag{{'Y', 'G', 'B', 'P', 'C', 'E', '0', '1'}};
 constexpr std::array<char, 8> removal_before_tag{{'Y', 'G', 'B', 'N', 'R', 'B', '0', '1'}};
 constexpr std::array<char, 8> removal_after_tag{{'Y', 'G', 'B', 'N', 'R', 'A', '0', '1'}};
@@ -100,7 +100,7 @@ bool known(normalization_cancellation_policy v) {
 }
 bool known(normalization_defect_code v) {
   return v >= normalization_defect_code::nonfinite_coordinate &&
-           v <= normalization_defect_code::triangular_sliver_below_tolerance;
+           v <= normalization_defect_code::nonadjacent_facet_self_intersection;
 }
 bool known(nonplanar_facet_policy v) {
   return v >= nonplanar_facet_policy::reject &&
@@ -162,6 +162,8 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::overlapping_facet_resolution);
   const auto sliver = normalization_operation_bit(
       normalization_operation::sliver_handling);
+  const auto self_intersection = normalization_operation_bit(
+      normalization_operation::self_intersection_repair);
   if ((p.enabled_operations == nonplanar) !=
       (p.nonplanar_facets != nonplanar_facet_policy::reject))
     return normalization_error("normalization_nonplanar_policy_mismatch");
@@ -182,9 +184,12 @@ status_or<bool> validate_policy(const normalization_policy &p,
              p.enabled_operations == sliver) &&
             p.model_tolerance > 0.0 && p.unit != model_unit::unspecified &&
             p.model_tolerance <= 2147483647.0) ||
-          (p.mode == normalization_mode::geometry_changing &&
-           p.enabled_operations == overlapping &&
-           p.model_tolerance == 0.0 && p.unit == model_unit::unspecified)))
+           (p.mode == normalization_mode::geometry_changing &&
+            p.enabled_operations == overlapping &&
+            p.model_tolerance == 0.0 && p.unit == model_unit::unspecified) ||
+           (p.mode == normalization_mode::geometry_changing &&
+            p.enabled_operations == self_intersection &&
+            p.model_tolerance == 0.0 && p.unit == model_unit::unspecified)))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -813,6 +818,11 @@ template <class T>
 status_or<bool> vertices_within_tolerance(const vec3<T> &, const vec3<T> &,
                                           double);
 
+template <class T, class I>
+status_or<std::vector<std::vector<I>>> triangulate_nonplanar_ring(
+    const fv_surface_mesh<T, I> &, std::uint64_t, double,
+    const std::function<status_or<bool>(std::uint64_t)> & = {});
+
 template <class T>
 status_or<exact_point3> normalization_exact_point(const vec3<T> &point) {
   auto x = decode_coordinate(point.x);
@@ -1117,7 +1127,7 @@ status_or<std::uint64_t> overlap_pair_work(std::uint64_t first,
 
 template <class T, class I, class Budget, class Add>
 status_or<bool> diagnose_overlapping_facets(const fv_surface_mesh<T, I> &mesh,
-                                            Budget &resources, Add add) {
+                                             Budget &resources, Add add) {
   std::vector<std::optional<overlap_facet_geometry>> geometry(mesh.faces.size());
   for (std::uint64_t facet = 0; facet != mesh.faces.size(); ++facet) {
     auto decoded = overlap_geometry(mesh, facet);
@@ -1155,6 +1165,278 @@ status_or<bool> diagnose_overlapping_facets(const fv_surface_mesh<T, I> &mesh,
       }
     }
   }
+  return true;
+}
+
+template <class T, class I> struct self_intersection_facet_geometry {
+  std::vector<std::uint64_t> ring;
+  std::vector<exact_point3> points;
+  std::vector<exact_point2> projected;
+  std::vector<exact_triangle3> triangles;
+};
+
+template <class T, class I, class Budget>
+status_or<std::optional<self_intersection_facet_geometry<T, I>>>
+self_intersection_geometry(const fv_surface_mesh<T, I> &mesh,
+                           std::uint64_t facet, Budget &resources) {
+  const auto &indices = mesh.faces[static_cast<std::size_t>(facet)];
+  if (indices.size() < 3)
+    return std::optional<self_intersection_facet_geometry<T, I>>{};
+  self_intersection_facet_geometry<T, I> result;
+  result.ring.reserve(indices.size());
+  result.points.reserve(indices.size());
+  for (I value : indices) {
+    const auto ordinal = static_cast<std::uint64_t>(value);
+    if (ordinal >= mesh.vertices.size())
+      return std::optional<self_intersection_facet_geometry<T, I>>{};
+    const auto &source = mesh.vertices[static_cast<std::size_t>(ordinal)];
+    if (!std::isfinite(source.x) || !std::isfinite(source.y) ||
+        !std::isfinite(source.z))
+      return std::optional<self_intersection_facet_geometry<T, I>>{};
+    auto point = normalization_exact_point(source);
+    if (!point.has_value()) return point.error();
+    result.ring.push_back(ordinal);
+    result.points.push_back(std::move(point.value()));
+  }
+  std::optional<exact_plane3> plane;
+  for (std::size_t second = 1; !plane && second + 1 < result.points.size(); ++second)
+    for (std::size_t third = second + 1; !plane && third < result.points.size(); ++third) {
+      auto work = resources.checkpoint(1);
+      if (!work.has_value()) return work.error();
+      auto candidate = support_plane_dyadic(result.points[0], result.points[second],
+                                            result.points[third]);
+      if (candidate.has_value()) plane = std::move(candidate.value());
+    }
+  if (!plane)
+    return std::optional<self_intersection_facet_geometry<T, I>>{};
+  for (const auto &point : result.points)
+    if (plane_side_exact(*plane, point) != exact_sign::zero)
+      return std::optional<self_intersection_facet_geometry<T, I>>{};
+  const auto axis = dominant_projection(*plane);
+  result.projected.reserve(result.points.size());
+  for (const auto &point : result.points)
+    result.projected.push_back(project(point, axis));
+
+  auto triangulated = triangulate_nonplanar_ring(
+      mesh, facet, 0.0, [&resources](std::uint64_t amount) {
+        return resources.checkpoint(amount);
+      });
+  if (!triangulated.has_value() &&
+      triangulated.error().code == boolean_error_code::resource_limit)
+    return triangulated.error();
+  if (triangulated.has_value()) {
+    result.triangles.reserve(triangulated.value().size());
+    for (const auto &triangle : triangulated.value()) {
+      std::array<exact_point3, 3> vertices;
+      for (std::size_t i = 0; i != vertices.size(); ++i) {
+        auto point = normalization_exact_point(
+            mesh.vertices[static_cast<std::size_t>(triangle[i])]);
+        if (!point.has_value()) return point.error();
+        vertices[i] = std::move(point.value());
+      }
+      result.triangles.push_back({vertices[0], vertices[1], vertices[2]});
+    }
+  }
+  return std::optional<self_intersection_facet_geometry<T, I>>(
+      std::move(result));
+}
+
+template <class T, class I, class Budget>
+status_or<bool> excess_boundary_intersection(
+    const self_intersection_facet_geometry<T, I> &first,
+    const self_intersection_facet_geometry<T, I> &second, Budget &resources) {
+  for (std::size_t i = 0; i != first.ring.size(); ++i) {
+    for (std::size_t j = 0; j != second.ring.size(); ++j) {
+      auto work = resources.checkpoint(1);
+      if (!work.has_value()) return work.error();
+      const auto relation = relate_segments(
+          {first.points[i], first.points[(i + 1) % first.points.size()]},
+          {second.points[j], second.points[(j + 1) % second.points.size()]});
+      if (relation.dimension == intersection_dimension::empty) continue;
+      const auto a0 = first.ring[i];
+      const auto a1 = first.ring[(i + 1) % first.ring.size()];
+      const auto b0 = second.ring[j];
+      const auto b1 = second.ring[(j + 1) % second.ring.size()];
+      const bool same_edge =
+          (a0 == b0 && a1 == b1) || (a0 == b1 && a1 == b0);
+      if (same_edge && relation.dimension == intersection_dimension::segment)
+        continue;
+      std::optional<std::uint64_t> shared_vertex;
+      for (auto a : {a0, a1})
+        for (auto b : {b0, b1})
+          if (a == b) shared_vertex = a;
+      if (shared_vertex &&
+          relation.dimension == intersection_dimension::point &&
+          relation.point &&
+          *relation.point ==
+              first.points[a0 == *shared_vertex ? i
+                                                 : (i + 1) % first.points.size()])
+        continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+template <class T, class I, class Budget, class Add>
+status_or<bool> diagnose_self_intersections(const fv_surface_mesh<T, I> &mesh,
+                                            Budget &resources, Add add) {
+  using geometry_type = self_intersection_facet_geometry<T, I>;
+  std::vector<std::optional<geometry_type>> geometry(mesh.faces.size());
+  for (std::uint64_t facet = 0; facet != mesh.faces.size(); ++facet) {
+    auto decoded = self_intersection_geometry(mesh, facet, resources);
+    if (!decoded.has_value()) return decoded.error();
+    geometry[static_cast<std::size_t>(facet)] = std::move(decoded.value());
+    if (!geometry[static_cast<std::size_t>(facet)]) continue;
+    const auto &ring = geometry[static_cast<std::size_t>(facet)]->projected;
+    for (std::size_t first = 0; first != ring.size(); ++first) {
+      for (std::size_t second = first + 1; second != ring.size(); ++second) {
+        if (second == first + 1 || (first == 0 && second + 1 == ring.size()))
+          continue;
+        auto work = resources.checkpoint(4);
+        if (!work.has_value()) return work.error();
+        const auto relation = relate_segments(
+            {ring[first], ring[(first + 1) % ring.size()]},
+            {ring[second], ring[(second + 1) % ring.size()]});
+        if (relation.dimension == intersection_dimension::empty) continue;
+        const auto detail =
+            (static_cast<std::uint64_t>(second) << 8) |
+            static_cast<std::uint64_t>(relation.dimension);
+        auto added = add({normalization_defect_code::self_intersecting_facet_ring,
+                          facet, first, detail});
+        if (!added.has_value()) return added.error();
+      }
+    }
+  }
+  const auto classify_pair = [&](std::uint64_t first,
+                                 std::uint64_t second) -> status_or<bool> {
+    const auto &a = geometry[static_cast<std::size_t>(first)];
+    const auto &b = geometry[static_cast<std::size_t>(second)];
+    if (!a || !b || a->triangles.empty() || b->triangles.empty()) return true;
+    auto required = overlap_pair_work(a->triangles.size(), b->triangles.size());
+    if (!required.has_value()) return required.error();
+    auto work = resources.checkpoint(required.value());
+    if (!work.has_value()) return work.error();
+    const auto relation = relate_polygons(a->triangles, b->triangles);
+    auto excess = excess_boundary_intersection(*a, *b, resources);
+    if (!excess.has_value()) return excess.error();
+    std::size_t shared_vertices = 0;
+    for (auto vertex : a->ring)
+      if (std::find(b->ring.begin(), b->ring.end(), vertex) != b->ring.end())
+        ++shared_vertices;
+    bool shared_edge = false;
+    for (std::size_t i = 0; i != a->ring.size() && !shared_edge; ++i) {
+      auto a0 = a->ring[i], a1 = a->ring[(i + 1) % a->ring.size()];
+      if (a1 < a0) std::swap(a0, a1);
+      for (std::size_t j = 0; j != b->ring.size(); ++j) {
+        auto b0 = b->ring[j], b1 = b->ring[(j + 1) % b->ring.size()];
+        if (b1 < b0) std::swap(b0, b1);
+        if (a0 == b0 && a1 == b1) {
+          shared_edge = true;
+          break;
+        }
+      }
+    }
+    normalization_defect_code code;
+    if (shared_edge) {
+      if (relation == polygon_intersection_kind::segment && !excess.value())
+        return true;
+      code = normalization_defect_code::adjacent_facet_self_intersection;
+    } else if (shared_vertices != 0) {
+      if (relation == polygon_intersection_kind::point && !excess.value())
+        return true;
+      code = normalization_defect_code::vertex_adjacent_facet_self_intersection;
+    } else {
+      if (relation == polygon_intersection_kind::disjoint) return true;
+      code = normalization_defect_code::nonadjacent_facet_self_intersection;
+    }
+    auto added = add({code, first, second,
+                      static_cast<std::uint64_t>(relation)});
+    if (!added.has_value()) return added.error();
+    return true;
+  };
+  for (std::uint64_t first = 0; first != mesh.faces.size(); ++first)
+    for (std::uint64_t second = first + 1; second != mesh.faces.size(); ++second) {
+      auto classified = classify_pair(first, second);
+      if (!classified.has_value()) return classified.error();
+    }
+  return true;
+}
+
+template <class T, class I, class Budget, class Add>
+status_or<bool> verify_self_intersections(const fv_surface_mesh<T, I> &mesh,
+                                          Budget &resources, Add add) {
+  using geometry_type = self_intersection_facet_geometry<T, I>;
+  std::vector<std::optional<geometry_type>> geometry(mesh.faces.size());
+  for (std::uint64_t facet = mesh.faces.size(); facet-- > 0;) {
+    auto decoded = self_intersection_geometry(mesh, facet, resources);
+    if (!decoded.has_value()) return decoded.error();
+    geometry[static_cast<std::size_t>(facet)] = std::move(decoded.value());
+    if (!geometry[static_cast<std::size_t>(facet)]) continue;
+    const auto &ring = geometry[static_cast<std::size_t>(facet)]->projected;
+    for (std::size_t second = ring.size(); second-- > 0;)
+      for (std::size_t first = second; first-- > 0;) {
+        if (second == first + 1 || (first == 0 && second + 1 == ring.size()))
+          continue;
+        auto work = resources.checkpoint(4);
+        if (!work.has_value()) return work.error();
+        const auto relation = relate_segments(
+            {ring[first], ring[(first + 1) % ring.size()]},
+            {ring[second], ring[(second + 1) % ring.size()]});
+        if (relation.dimension == intersection_dimension::empty) continue;
+        const auto detail =
+            (static_cast<std::uint64_t>(second) << 8) |
+            static_cast<std::uint64_t>(relation.dimension);
+        auto added = add({normalization_defect_code::self_intersecting_facet_ring,
+                          facet, first, detail});
+        if (!added.has_value()) return added.error();
+      }
+  }
+  for (std::uint64_t second = mesh.faces.size(); second-- > 0;)
+    for (std::uint64_t first = second; first-- > 0;) {
+      const auto &a = geometry[static_cast<std::size_t>(first)];
+      const auto &b = geometry[static_cast<std::size_t>(second)];
+      if (!a || !b || a->triangles.empty() || b->triangles.empty()) continue;
+      auto required = overlap_pair_work(a->triangles.size(), b->triangles.size());
+      if (!required.has_value()) return required.error();
+      auto work = resources.checkpoint(required.value());
+      if (!work.has_value()) return work.error();
+      const auto relation = relate_polygons(b->triangles, a->triangles);
+      std::set<std::uint64_t> first_vertices(a->ring.begin(), a->ring.end());
+      std::size_t shared_vertices = 0;
+      for (auto vertex : b->ring)
+        if (first_vertices.count(vertex) != 0) ++shared_vertices;
+      std::set<std::array<std::uint64_t, 2>> first_edges;
+      for (std::size_t i = 0; i != a->ring.size(); ++i) {
+        auto x = a->ring[i], y = a->ring[(i + 1) % a->ring.size()];
+        first_edges.insert({{std::min(x, y), std::max(x, y)}});
+      }
+      bool shared_edge = false;
+      for (std::size_t i = 0; i != b->ring.size(); ++i) {
+        auto x = b->ring[i], y = b->ring[(i + 1) % b->ring.size()];
+        if (first_edges.count({{std::min(x, y), std::max(x, y)}}) != 0) {
+          shared_edge = true;
+          break;
+        }
+      }
+      auto excess = excess_boundary_intersection(*b, *a, resources);
+      if (!excess.has_value()) return excess.error();
+      std::optional<normalization_defect_code> code;
+      if (shared_edge) {
+        if (relation != polygon_intersection_kind::segment || excess.value())
+          code = normalization_defect_code::adjacent_facet_self_intersection;
+      } else if (shared_vertices != 0) {
+        if (relation != polygon_intersection_kind::point || excess.value())
+          code = normalization_defect_code::vertex_adjacent_facet_self_intersection;
+      } else if (relation != polygon_intersection_kind::disjoint) {
+        code = normalization_defect_code::nonadjacent_facet_self_intersection;
+      }
+      if (code) {
+        auto added = add({*code, first, second,
+                          static_cast<std::uint64_t>(relation)});
+        if (!added.has_value()) return added.error();
+      }
+    }
   return true;
 }
 
@@ -1260,6 +1542,8 @@ status_or<diagnosis_result> producer_diagnosis(const fv_surface_mesh<T, I> &m,
   }
   auto overlaps = diagnose_overlapping_facets(m, b, add);
   if (!overlaps.has_value()) return overlaps.error();
+  auto self_intersections = diagnose_self_intersections(m, b, add);
+  if (!self_intersections.has_value()) return self_intersections.error();
   for (auto mappings : {m.vertices.size(), m.faces.size(), edges.size(),
                         edges.size(),
                         m.vertex_normals.size(), m.vertex_colours.size(),
@@ -1529,6 +1813,8 @@ verifier_diagnosis(const fv_surface_mesh<T, I> &m, verification_budget &budget) 
   }
   auto overlaps = diagnose_overlapping_facets(m, budget, add);
   if (!overlaps.has_value()) return overlaps.error();
+  auto self_intersections = verify_self_intersections(m, budget, add);
+  if (!self_intersections.has_value()) return self_intersections.error();
   auto sorting = sort_work(result.defects.size());
   if (!sorting.has_value()) return sorting.error();
   auto sort_allowed = budget.checkpoint(sorting.value());
@@ -2628,7 +2914,8 @@ digest nonplanar_topology_digest(const normalization_topology_change &change) {
 template <class T, class I>
 status_or<std::vector<std::vector<I>>> triangulate_nonplanar_ring(
     const fv_surface_mesh<T, I> &source, std::uint64_t facet,
-    double tolerance) {
+    double tolerance,
+    const std::function<status_or<bool>(std::uint64_t)> &checkpoint) {
   const auto &ring = source.faces[static_cast<std::size_t>(facet)];
   std::vector<exact_point3> points;
   points.reserve(ring.size());
@@ -2680,6 +2967,10 @@ status_or<std::vector<std::vector<I>>> triangulate_nonplanar_ring(
   while (remaining.size() > 3) {
     bool clipped = false;
     for (std::size_t cursor = 0; cursor != remaining.size(); ++cursor) {
+      if (checkpoint) {
+        auto allowed = checkpoint(1);
+        if (!allowed.has_value()) return allowed.error();
+      }
       const auto previous = remaining[(cursor + remaining.size() - 1) % remaining.size()];
       const auto current = remaining[cursor];
       const auto next = remaining[(cursor + 1) % remaining.size()];
@@ -2687,6 +2978,10 @@ status_or<std::vector<std::vector<I>>> triangulate_nonplanar_ring(
         continue;
       bool contains = false;
       for (std::size_t candidate : remaining) {
+        if (checkpoint) {
+          auto allowed = checkpoint(1);
+          if (!allowed.has_value()) return allowed.error();
+        }
         if (candidate == previous || candidate == current || candidate == next)
           continue;
         const auto s0 = orient2d_exact(projected[previous], projected[current], projected[candidate]);
@@ -4280,6 +4575,9 @@ status_or<prepared_operand<T, I>> normalize_operand(
     const bool sliver_handling =
         policy.enabled_operations == normalization_operation_bit(
             normalization_operation::sliver_handling);
+    const bool self_intersection_handling =
+        policy.enabled_operations == normalization_operation_bit(
+            normalization_operation::self_intersection_repair);
     const bool proximity_repair = seam_repair || crack_repair;
     const bool repairable_orientation_error =
         source_validation_error &&
@@ -4297,10 +4595,17 @@ status_or<prepared_operand<T, I>> normalize_operand(
         source_validation_error &&
         source_validation_error->subcode == static_cast<std::uint32_t>(
                                                 input_validation_subcode::nonplanar_facet);
+    const bool diagnosed_self_intersection_error =
+        source_validation_error &&
+        (source_validation_error->subcode == static_cast<std::uint32_t>(
+             input_validation_subcode::self_intersection) ||
+         source_validation_error->subcode == static_cast<std::uint32_t>(
+             input_validation_subcode::shell_contact));
     if (source_validation_error && !duplicate_repair && !seam_repair &&
         !overlap_repair &&
         !(crack_repair && repairable_crack_error) &&
         !(nonplanar_repair && repairable_nonplanar_error) &&
+        !(self_intersection_handling && diagnosed_self_intersection_error) &&
         !(orientation_repair && repairable_orientation_error)) {
       return publish_failure(*source_validation_error);
     }
@@ -4313,6 +4618,17 @@ status_or<prepared_operand<T, I>> normalize_operand(
     if (sliver_handling && has_sliver)
       return publish_failure(
           normalization_error("normalization_sliver_rejected"));
+    const bool has_self_intersection = std::any_of(
+        candidate.unresolved_defects.begin(), candidate.unresolved_defects.end(),
+        [](const normalization_defect &defect) {
+          return defect.code >=
+                     normalization_defect_code::self_intersecting_facet_ring &&
+                 defect.code <= normalization_defect_code::
+                                    nonadjacent_facet_self_intersection;
+        });
+    if (self_intersection_handling && has_self_intersection)
+      return publish_failure(
+          normalization_error("normalization_self_intersection_repair_not_approved"));
 
     fv_surface_mesh<T, I> normalized_mesh = source;
     if (policy.mode == normalization_mode::structural_only || proximity_repair ||
@@ -4573,6 +4889,9 @@ status_or<bool> verify_normalization_report(
   const bool sliver_handling =
       report.policy.enabled_operations == normalization_operation_bit(
           normalization_operation::sliver_handling);
+  const bool self_intersection_handling =
+      report.policy.enabled_operations == normalization_operation_bit(
+          normalization_operation::self_intersection_repair);
   const bool proximity_repair = seam_repair || crack_repair;
   const auto proximity_operation = crack_repair
       ? normalization_operation::crack_closure
@@ -4630,6 +4949,91 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (self_intersection_handling) {
+    const bool has_self_intersection = std::any_of(
+        independent.value().defects.begin(), independent.value().defects.end(),
+        [](const normalization_defect &defect) {
+          return defect.code >=
+                     normalization_defect_code::self_intersecting_facet_ring &&
+                 defect.code <= normalization_defect_code::
+                                    nonadjacent_facet_self_intersection;
+        });
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      independent.value().defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(independent.value().defects.begin(),
+                independent.value().defects.end(), [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      independent.value().defects.erase(
+          std::unique(independent.value().defects.begin(),
+                      independent.value().defects.end()),
+          independent.value().defects.end());
+    }
+    if (has_self_intersection || !replay.has_value()) {
+      if (output || report.prepared_operand_available || report.strict_certificate ||
+          report.output_digest != report.source_digest || !report.edits.empty() ||
+          !report.topology_changes.empty() || !report.displacements.empty() ||
+          report.displacement != normalization_displacement_claim::exact_zero ||
+          report.reversibility != normalization_reversibility::identity ||
+          report.shells.status != normalization_map_status::unavailable ||
+          !identity_mapping(report.vertices, source.vertices.size()) ||
+          !identity_mapping(report.edges, independent.value().edges.size()) ||
+          !identity_mapping(report.facets, source.faces.size()) ||
+          !attribute_identity_valid(report.attributes.vertex_normals,
+                                    !source.vertex_normals.empty(),
+                                    source.vertex_normals.size()) ||
+          !attribute_identity_valid(report.attributes.vertex_colours,
+                                    !source.vertex_colours.empty(),
+                                    source.vertex_colours.size()) ||
+          !attribute_identity_valid(report.attributes.involved_faces,
+                                    !source.involved_faces.empty(),
+                                    source.involved_faces.size()) ||
+          !attribute_identity_valid(report.attributes.metadata,
+                                    !source.metadata.empty(),
+                                    source.metadata.size()) ||
+          report.unresolved_defects != independent.value().defects)
+        return normalization_error("normalization_report_self_intersection_failure");
+      return true;
+    }
+    if (!output || !(*output == source) ||
+        output->involved_faces != source.involved_faces ||
+        !report.prepared_operand_available || !report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() || !report.displacements.empty() ||
+        report.displacement != normalization_displacement_claim::exact_zero ||
+        report.reversibility != normalization_reversibility::identity ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_normals,
+                                  !source.vertex_normals.empty(),
+                                  source.vertex_normals.size()) ||
+        !attribute_identity_valid(report.attributes.vertex_colours,
+                                  !source.vertex_colours.empty(),
+                                  source.vertex_colours.size()) ||
+        !attribute_identity_valid(report.attributes.involved_faces,
+                                  !source.involved_faces.empty(),
+                                  source.involved_faces.size()) ||
+        !attribute_identity_valid(report.attributes.metadata,
+                                  !source.metadata.empty(),
+                                  source.metadata.size()) ||
+        report.unresolved_defects != independent.value().defects ||
+        !same_certificate(replay.value().certificate(),
+                          *report.strict_certificate))
+      return normalization_error("normalization_report_self_intersection_success");
+    auto shells = component2_shell_count(source, cancel);
+    if (!shells.has_value()) return shells.error();
+    if (!identity_mapping(report.shells, shells.value()))
+      return normalization_error("normalization_report_self_intersection_shells");
+    return true;
+  }
   if (sliver_handling) {
     const bool has_sliver = std::any_of(
         independent.value().defects.begin(), independent.value().defects.end(),

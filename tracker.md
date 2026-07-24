@@ -103,7 +103,7 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Implement diagnosis-only mode first; it must never alter the operand.
   - [x] Add independent report verification and prove every successful normalized operand passes full strict Component 2 validation.
 
-- [ ] **P2.3 — Implement normalization operations one at a time.** Do not combine multiple new repair classes in one unreviewable change; each item needs focused positive/negative tests, report replay, strict revalidation, regression corpus additions, and measured displacement/topology evidence.
+- [x] **P2.3 — Implement normalization operations one at a time.** Do not combine multiple new repair classes in one unreviewable change; each item needs focused positive/negative tests, report replay, strict revalidation, regression corpus additions, and measured displacement/topology evidence.
   - [x] Deterministic safe structural canonicalization and irrelevant-storage removal, preserving source mappings.
   - [x] Exact duplicate vertex/facet diagnosis and only policy-authorized exact consolidation/removal.
   - [x] Orientation and nested-shell polarity diagnosis/repair without geometric movement.
@@ -112,7 +112,7 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Non-planar polygon diagnosis followed by explicitly selected triangulation or refitting policy.
   - [x] Duplicate/overlapping facet resolution with deterministic ownership and attribute conflict reporting.
   - [x] Sliver feature diagnosis and any policy-approved handling with complete topology/displacement evidence.
-  - [ ] Self-intersection diagnosis and, only if separately approved, repair as the final/highest-risk normalization class.
+  - [x] Self-intersection diagnosis and, only if separately approved, repair as the final/highest-risk normalization class.
 
 - [ ] **P2.4 — Correct the product claim boundary and examples.**
   - [ ] Until P2 repair modes are implemented and qualified, make unknown-provenance STL/OBJ/scan/CAD input produce a clear preparation requirement rather than an implied supported workflow.

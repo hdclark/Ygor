@@ -1366,6 +1366,171 @@ template <class T, class I> void sliver_diagnosis_and_rejection() {
           "sliver diagnosis resource exhaustion is transactional");
 }
 
+normalization_policy self_intersection_policy() {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::self_intersection_repair);
+  return policy;
+}
+
+template <class T, class I> void self_intersection_diagnosis_and_rejection() {
+  auto source = box<T, I>(T(0), T(2));
+  append(source, box<T, I>(T(1), T(3)));
+  const auto is_surface_intersection = [](const normalization_defect &defect) {
+    return defect.code ==
+           normalization_defect_code::nonadjacent_facet_self_intersection;
+  };
+
+  normalization_report diagnosis;
+  auto diagnosed = normalize_operand(source, normalization_policy{}, diagnosis);
+  require(!diagnosed.has_value() &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(),
+                          is_surface_intersection) &&
+              diagnosis.edits.empty() && diagnosis.topology_changes.empty() &&
+              diagnosis.displacements.empty(),
+          "diagnosis records every exact intersecting surface pair without edits");
+  auto diagnosis_bytes = encode_normalization_report(diagnosis);
+  require(diagnosis_bytes.has_value() &&
+              verify_normalization_report(
+                  diagnosis_bytes.value(), source,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "independent verifier reproduces self-intersection diagnosis");
+
+  normalization_report rejected_report;
+  auto rejected =
+      normalize_operand(source, self_intersection_policy(), rejected_report);
+  require(!rejected.has_value() &&
+              rejected.error().code == boolean_error_code::input_contract_error &&
+              !rejected_report.prepared_operand_available &&
+              std::any_of(rejected_report.unresolved_defects.begin(),
+                          rejected_report.unresolved_defects.end(),
+                          is_surface_intersection) &&
+              rejected_report.edits.empty() &&
+              rejected_report.topology_changes.empty() &&
+              rejected_report.displacements.empty(),
+          "explicit self-intersection handling fails closed without remeshing");
+  auto rejected_bytes = encode_normalization_report(rejected_report);
+  require(rejected_bytes.has_value() &&
+              verify_normalization_report(
+                  rejected_bytes.value(), source,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "self-intersection rejection report independently replays");
+
+  auto forged = rejected_report;
+  forged.unresolved_defects.erase(
+      std::remove_if(forged.unresolved_defects.begin(),
+                     forged.unresolved_defects.end(), is_surface_intersection),
+      forged.unresolved_defects.end());
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(
+                   forged_bytes.value(), source,
+                   static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                   .has_value(),
+          "verifier rejects omitted self-intersection pair evidence");
+
+  auto bow_tie = source;
+  bow_tie.faces.clear();
+  bow_tie.vertices = {{T(0), T(0), T(0)}, {T(2), T(2), T(0)},
+                      {T(0), T(2), T(0)}, {T(2), T(0), T(0)}};
+  bow_tie.faces.push_back({I(0), I(1), I(2), I(3)});
+  normalization_report bow_tie_report;
+  require(!normalize_operand(bow_tie, normalization_policy{}, bow_tie_report)
+               .has_value() &&
+              std::any_of(
+                  bow_tie_report.unresolved_defects.begin(),
+                  bow_tie_report.unresolved_defects.end(), [](const auto &d) {
+                    return d.code == normalization_defect_code::
+                                         self_intersecting_facet_ring;
+                  }),
+          "self-crossing source rings have exact edge-pair diagnosis");
+
+  fv_surface_mesh<T, I> edge_adjacent;
+  edge_adjacent.vertices = {{T(0), T(0), T(0)}, {T(2), T(0), T(0)},
+                            {T(0), T(2), T(0)}, {T(1), T(1), T(0)}};
+  edge_adjacent.faces = {{I(0), I(1), I(2)}, {I(1), I(0), I(3)}};
+  normalization_report edge_adjacent_report;
+  require(!normalize_operand(edge_adjacent, normalization_policy{},
+                             edge_adjacent_report)
+               .has_value() &&
+              std::any_of(edge_adjacent_report.unresolved_defects.begin(),
+                          edge_adjacent_report.unresolved_defects.end(),
+                          [](const auto &d) {
+                            return d.code == normalization_defect_code::
+                                                 adjacent_facet_self_intersection;
+                          }),
+          "intersection beyond a shared edge is not hidden by segment rank");
+
+  fv_surface_mesh<T, I> vertex_adjacent;
+  vertex_adjacent.vertices = {
+      {T(0), T(0), T(0)}, {T(2), T(0), T(0)}, {T(0), T(2), T(0)},
+      {T(1), T(0), T(0)}, {T(0), T(1), T(0)}};
+  vertex_adjacent.faces = {{I(0), I(1), I(2)}, {I(0), I(3), I(4)}};
+  normalization_report vertex_adjacent_report;
+  require(!normalize_operand(vertex_adjacent, normalization_policy{},
+                             vertex_adjacent_report)
+               .has_value() &&
+              std::any_of(vertex_adjacent_report.unresolved_defects.begin(),
+                          vertex_adjacent_report.unresolved_defects.end(),
+                          [](const auto &d) {
+                            return d.code == normalization_defect_code::
+                                vertex_adjacent_facet_self_intersection;
+                          }),
+          "intersection beyond a shared vertex is not hidden by point rank");
+
+  const auto valid = tetra<T, I>();
+  normalization_report identity;
+  auto unchanged = normalize_operand(valid, self_intersection_policy(), identity);
+  require(unchanged.has_value() && unchanged.value().mesh() == valid &&
+              identity.edits.empty() &&
+              identity.source_digest == identity.output_digest,
+          "explicit handling is an idempotent identity without intersections");
+
+  const auto attributed = attributed_tetra<T, I>();
+  normalization_report attributed_identity;
+  auto attributed_result = normalize_operand(
+      attributed, self_intersection_policy(), attributed_identity);
+  require(attributed_result.has_value(),
+          "attribute-rich self-intersection identity succeeds");
+  auto forged_attributes = attributed_identity;
+  forged_attributes.attributes.vertex_colours.source_to_prepared[0] = 1;
+  forged_attributes.report_digest =
+      normalization_report_digest(forged_attributes).value();
+  auto forged_attribute_bytes = encode_normalization_report(forged_attributes);
+  require(forged_attribute_bytes.has_value() &&
+              !verify_normalization_report(forged_attribute_bytes.value(),
+                                           attributed, &attributed)
+                   .has_value(),
+          "verifier rejects forged self-intersection identity attributes");
+
+  auto unrelated_invalid = valid;
+  std::reverse(unrelated_invalid.faces[0].begin(),
+               unrelated_invalid.faces[0].end());
+  normalization_report unrelated_report;
+  auto unrelated = normalize_operand(unrelated_invalid,
+                                     self_intersection_policy(),
+                                     unrelated_report);
+  require(!unrelated.has_value() &&
+              !unrelated_report.prepared_operand_available &&
+              unrelated_report.edits.empty(),
+          "self-intersection policy cannot bypass an unrelated strict defect");
+
+  auto limited_policy = self_intersection_policy();
+  limited_policy.resources.max_work_units = 1;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto limited = normalize_operand(source, limited_policy, unpublished);
+  require(!limited.has_value() &&
+              limited.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "self-intersection diagnosis resource exhaustion is transactional");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -1587,6 +1752,10 @@ int main() {
     sliver_diagnosis_and_rejection<float, std::uint64_t>();
     sliver_diagnosis_and_rejection<double, std::uint32_t>();
     sliver_diagnosis_and_rejection<double, std::uint64_t>();
+    self_intersection_diagnosis_and_rejection<float, std::uint32_t>();
+    self_intersection_diagnosis_and_rejection<float, std::uint64_t>();
+    self_intersection_diagnosis_and_rejection<double, std::uint32_t>();
+    self_intersection_diagnosis_and_rejection<double, std::uint64_t>();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();
