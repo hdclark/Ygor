@@ -24,8 +24,8 @@ implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
 enabled by default, and a geometry-changing normalization policy must state its
 model unit, positive tolerance, and enabled operation set. Diagnosis-only
 normalization, structural irrelevant-storage removal, and policy-authorized
-exact duplicate consolidation are available; all geometry-changing repair
-classes remain later P2 work.
+exact duplicate consolidation and orientation repair are available; all
+geometry-changing repair classes remain later P2 work.
 
 ## Strict operand preparation
 
@@ -53,7 +53,8 @@ the backend operand.
 P2.1 strict preparation performs no tolerance operation, snapping, welding,
 orientation repair, or other healing. The normalization service separately
 supports `structural_only` with exactly one of
-`irrelevant_storage_removal` or `exact_duplicate_consolidation` enabled.
+`irrelevant_storage_removal`, `exact_duplicate_consolidation`, or
+`orientation_repair` enabled.
 Irrelevant-storage removal first requires a strict-valid source, removes
 vertices unreferenced by every facet, and stably compacts indices and aligned
 per-vertex storage. Exact duplicate consolidation retains the lowest source
@@ -65,7 +66,15 @@ attribute seams and any collapse or unrelated defect fail closed; tolerance and
 near-duplicate behavior belong to later policies. Stored involved-face indices
 are treated as derived data and rebuilt when present.
 
-Both operations rerun full strict validation before publication, claim
+Orientation repair first solves exact opposite-edge-use parity independently
+for each closed orientable shell, then reconstructs the exact shell containment
+forest and enforces outward material shells at even depth and inward cavity
+shells at odd depth. It changes only facet ring direction: coordinates,
+undirected incidence, facet ordinals, attributes, and metadata remain unchanged.
+Open, non-manifold, non-orientable, intersecting, contacting, duplicate, or
+ambiguously nested geometry is not healed by this operation.
+
+All three operations rerun full strict validation before publication, claim
 exact-zero displacement, and emit canonical source-to-prepared maps and edit
 evidence. Duplicate consolidation additionally records every authorized
 connectivity/topology change. Diagnosis-only remains the default and performs

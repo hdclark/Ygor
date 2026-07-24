@@ -81,6 +81,11 @@ template<class T>struct validated_vertex{original_vertex_id id;operand_id operan
 struct validated_shell{shell_id id;operand_id operand;std::vector<facet_id>facets;std::vector<undirected_edge_id>edges;std::vector<original_vertex_id>vertices;exact_scalar oriented_six_volume;exact_box3 bounds;std::optional<shell_id>parent;std::vector<shell_id>children;std::uint32_t depth=0;shell_orientation orientation=shell_orientation::outward;shell_contribution contribution=shell_contribution::material_boundary;};
 struct validated_operand{operand_id operand;std::vector<original_vertex_id>vertices;std::vector<facet_id>facets;std::vector<shell_id>shells;std::uint64_t raw_vertex_count=0,raw_face_count=0;std::optional<exact_box3>bounds;digest semantic_digest;};
 
+struct operand_orientation_plan {
+    std::vector<bool> reverse_facets;
+    std::uint64_t shell_count=0;
+};
+
 template<class T,class I>struct validated_operands{
     context_owner_token owner;digest setup_digest,kernel_policy_digest,artifact_digest;
     std::array<validated_operand,2>operands;
@@ -101,11 +106,16 @@ template<class T,class I>struct validated_operands{
 
 status_or<bool>register_input_topology_verifier(verifier_registry&,coordinate_tag,index_tag);
 template<class T,class I>status_or<std::shared_ptr<const published_artifact<validated_operands<T,I>>>>validate_operands(boolean_context<T,I>&);
+template<class T,class I>status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<T,I>&,cancellation_source* = nullptr,const std::function<status_or<bool>(std::uint64_t)>& = {});
 
 extern template status_or<std::shared_ptr<const published_artifact<validated_operands<float,std::uint32_t>>>>validate_operands(boolean_context<float,std::uint32_t>&);
 extern template status_or<std::shared_ptr<const published_artifact<validated_operands<float,std::uint64_t>>>>validate_operands(boolean_context<float,std::uint64_t>&);
 extern template status_or<std::shared_ptr<const published_artifact<validated_operands<double,std::uint32_t>>>>validate_operands(boolean_context<double,std::uint32_t>&);
 extern template status_or<std::shared_ptr<const published_artifact<validated_operands<double,std::uint64_t>>>>validate_operands(boolean_context<double,std::uint64_t>&);
+extern template status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<float,std::uint32_t>&,cancellation_source*,const std::function<status_or<bool>(std::uint64_t)>&);
+extern template status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<float,std::uint64_t>&,cancellation_source*,const std::function<status_or<bool>(std::uint64_t)>&);
+extern template status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<double,std::uint32_t>&,cancellation_source*,const std::function<status_or<bool>(std::uint64_t)>&);
+extern template status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<double,std::uint64_t>&,cancellation_source*,const std::function<status_or<bool>(std::uint64_t)>&);
 
 } }
 #endif

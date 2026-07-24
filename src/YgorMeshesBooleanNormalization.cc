@@ -35,6 +35,9 @@ constexpr std::array<char, 8> duplicate_before_tag{{'Y', 'G', 'B', 'N', 'D', 'B'
 constexpr std::array<char, 8> duplicate_after_tag{{'Y', 'G', 'B', 'N', 'D', 'A', '0', '1'}};
 constexpr std::array<char, 8> duplicate_edit_tag{{'Y', 'G', 'B', 'N', 'D', 'E', '0', '1'}};
 constexpr std::array<char, 8> duplicate_topology_tag{{'Y', 'G', 'B', 'N', 'D', 'T', '0', '1'}};
+constexpr std::array<char, 8> orientation_before_tag{{'Y', 'G', 'B', 'N', 'O', 'B', '0', '1'}};
+constexpr std::array<char, 8> orientation_after_tag{{'Y', 'G', 'B', 'N', 'O', 'A', '0', '1'}};
+constexpr std::array<char, 8> orientation_edit_tag{{'Y', 'G', 'B', 'N', 'O', 'E', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -125,12 +128,15 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::irrelevant_storage_removal);
   const auto duplicates = normalization_operation_bit(
       normalization_operation::exact_duplicate_consolidation);
+  const auto orientation = normalization_operation_bit(
+      normalization_operation::orientation_repair);
   if (executable &&
       !((p.mode == normalization_mode::diagnosis_only &&
           p.enabled_operations == 0) ||
          (p.mode == normalization_mode::structural_only &&
-          (p.enabled_operations == removal ||
-           p.enabled_operations == duplicates))))
+           (p.enabled_operations == removal ||
+            p.enabled_operations == duplicates ||
+            p.enabled_operations == orientation))))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -524,7 +530,11 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
   const bool duplicate_repair =
       r.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
-                                             exact_duplicate_consolidation);
+                                              exact_duplicate_consolidation);
+  const bool orientation_repair =
+      r.policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             orientation_repair);
   if (r.schema != normalization_report_schema || r.producer_version != 1 ||
       r.coordinate > coordinate_tag::binary64 || r.index > index_tag::uint64 ||
       r.policy_digest != normalization_policy_digest(r.policy).value() ||
@@ -562,9 +572,12 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       !canonical_mapping(r.attributes.vertex_colours) ||
       !canonical_mapping(r.attributes.involved_faces) ||
       !canonical_mapping(r.attributes.metadata) ||
-      (r.edits.empty()
-           ? r.reversibility != normalization_reversibility::identity
-           : r.reversibility != normalization_reversibility::irreversible) ||
+       (r.edits.empty()
+            ? r.reversibility != normalization_reversibility::identity
+            : r.reversibility !=
+                  (orientation_repair
+                       ? normalization_reversibility::fully_reversible
+                       : normalization_reversibility::irreversible)) ||
       r.strict_certificate.has_value() != r.prepared_operand_available)
     return normalization_error("normalization_report_malformed");
   for (const auto &d : r.unresolved_defects)
@@ -1480,6 +1493,82 @@ status_or<exact_duplicate_result<T, I>> consolidate_exact_duplicates(
   return out;
 }
 
+template <class T, class I> struct orientation_repair_result {
+  fv_surface_mesh<T, I> mesh;
+  std::uint64_t shell_count = 0;
+  std::vector<normalization_edit> edits;
+};
+
+template <class I>
+void encode_oriented_ring(canonical_encoder &encoder,
+                          const std::vector<I> &ring) {
+  encoder.u64(ring.size());
+  for (I index : ring) encoder.u64(static_cast<std::uint64_t>(index));
+}
+
+template <class T, class I>
+digest orientation_facet_digest(const std::array<char, 8> &tag,
+                                const fv_surface_mesh<T, I> &mesh,
+                                std::uint64_t ordinal) {
+  canonical_encoder encoder;
+  encoder.u64(ordinal);
+  encode_oriented_ring(encoder, mesh.faces[static_cast<std::size_t>(ordinal)]);
+  return domain_digest(tag, encoder.bytes());
+}
+
+digest orientation_edit_digest(const normalization_edit &edit) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(edit.operation));
+  encoder.u64(edit.canonical_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(edit.entity));
+  encoder.u64(edit.source_ordinal);
+  encoder.u64(edit.prepared_ordinal);
+  encode_digest(encoder, edit.before_evidence_digest);
+  encode_digest(encoder, edit.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(orientation_edit_tag, encoder.bytes());
+}
+
+template <class T, class I, class Budget>
+status_or<orientation_repair_result<T, I>> repair_orientation(
+    const fv_surface_mesh<T, I> &source, Budget &resources,
+    cancellation_source *cancel) {
+  auto planned = plan_operand_orientation(
+      source, cancel, [&](std::uint64_t work) { return resources.checkpoint(work); });
+  if (!planned.has_value()) return planned.error();
+  if (planned.value().reverse_facets.size() != source.faces.size())
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::input_validation,
+                      "normalization_orientation_plan_shape");
+  orientation_repair_result<T, I> result;
+  result.mesh = source;
+  result.shell_count = planned.value().shell_count;
+  for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+    auto work = resources.checkpoint(1);
+    if (!work.has_value()) return work.error();
+    if (!planned.value().reverse_facets[static_cast<std::size_t>(facet)])
+      continue;
+    auto record = resources.record();
+    if (!record.has_value()) return record.error();
+    std::reverse(result.mesh.faces[static_cast<std::size_t>(facet)].begin(),
+                 result.mesh.faces[static_cast<std::size_t>(facet)].end());
+    normalization_edit edit;
+    edit.operation = normalization_operation::orientation_repair;
+    edit.canonical_ordinal = result.edits.size();
+    edit.entity = normalization_entity_kind::facet;
+    edit.source_ordinal = facet;
+    edit.prepared_ordinal = facet;
+    edit.before_evidence_digest = orientation_facet_digest(
+        orientation_before_tag, source, facet);
+    edit.after_evidence_digest = orientation_facet_digest(
+        orientation_after_tag, result.mesh, facet);
+    edit.reversibility = normalization_reversibility::fully_reversible;
+    edit.evidence_digest = orientation_edit_digest(edit);
+    result.edits.push_back(std::move(edit));
+  }
+  return result;
+}
+
 std::shared_ptr<verifier_registry> component2_registry() {
   auto registry = std::make_shared<verifier_registry>();
   for (auto c : {coordinate_tag::binary32, coordinate_tag::binary64})
@@ -1761,6 +1850,146 @@ bool same_topology_change(const normalization_topology_change &a,
          a.after_evidence_digest == b.after_evidence_digest &&
          a.reversibility == b.reversibility &&
          a.evidence_digest == b.evidence_digest;
+}
+
+template <class T, class I>
+bool independently_verify_orientation_repair(
+    const fv_surface_mesh<T, I> &source, const fv_surface_mesh<T, I> &output,
+    const normalization_report &report) {
+  const auto same_scalar_bits = [](T a, T b) {
+    std::array<std::uint8_t, sizeof(T)> a_bits{}, b_bits{};
+    std::memcpy(a_bits.data(), &a, sizeof(T));
+    std::memcpy(b_bits.data(), &b, sizeof(T));
+    return a_bits == b_bits;
+  };
+  const auto same_points = [&](const auto &a, const auto &b) {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i != a.size(); ++i)
+      if (!same_scalar_bits(a[i].x, b[i].x) ||
+          !same_scalar_bits(a[i].y, b[i].y) ||
+          !same_scalar_bits(a[i].z, b[i].z))
+        return false;
+    return true;
+  };
+  if (!same_points(output.vertices, source.vertices) ||
+      !same_points(output.vertex_normals, source.vertex_normals) ||
+      output.vertex_colours != source.vertex_colours ||
+      output.involved_faces != source.involved_faces ||
+      output.metadata != source.metadata ||
+      output.faces.size() != source.faces.size() ||
+      !identity_mapping(report.vertices, source.vertices.size()) ||
+      !identity_mapping(report.facets, source.faces.size()) ||
+      !identity_mapping(report.edges, report.source_edges.size()) ||
+      !report.topology_changes.empty() || !report.displacements.empty())
+    return false;
+
+  std::size_t edit_ordinal = 0;
+  for (std::uint64_t facet = 0; facet != source.faces.size(); ++facet) {
+    const auto &before = source.faces[static_cast<std::size_t>(facet)];
+    const auto &after = output.faces[static_cast<std::size_t>(facet)];
+    if (before == after) continue;
+    auto reversed = before;
+    std::reverse(reversed.begin(), reversed.end());
+    if (after != reversed || edit_ordinal >= report.edits.size()) return false;
+    normalization_edit expected;
+    expected.operation = normalization_operation::orientation_repair;
+    expected.canonical_ordinal = edit_ordinal;
+    expected.entity = normalization_entity_kind::facet;
+    expected.source_ordinal = facet;
+    expected.prepared_ordinal = facet;
+    expected.before_evidence_digest = orientation_facet_digest(
+        orientation_before_tag, source, facet);
+    expected.after_evidence_digest = orientation_facet_digest(
+        orientation_after_tag, output, facet);
+    expected.reversibility = normalization_reversibility::fully_reversible;
+    expected.evidence_digest = orientation_edit_digest(expected);
+    if (!same_edit(expected, report.edits[edit_ordinal])) return false;
+    ++edit_ordinal;
+  }
+  return edit_ordinal == report.edits.size() &&
+         report.reversibility ==
+             (report.edits.empty()
+                  ? normalization_reversibility::identity
+                  : normalization_reversibility::fully_reversible) &&
+         same_mapping(report.attributes.vertex_normals,
+                      source.vertex_normals.empty()
+                          ? normalization_mapping{
+                                normalization_map_status::absent, {}}
+                          : identity(source.vertex_normals.size())) &&
+         same_mapping(report.attributes.vertex_colours,
+                      source.vertex_colours.empty()
+                          ? normalization_mapping{
+                                normalization_map_status::absent, {}}
+                          : identity(source.vertex_colours.size())) &&
+         same_mapping(report.attributes.involved_faces,
+                      source.involved_faces.empty()
+                          ? normalization_mapping{
+                                normalization_map_status::absent, {}}
+                          : identity(source.involved_faces.size())) &&
+         same_mapping(report.attributes.metadata,
+                      source.metadata.empty()
+                          ? normalization_mapping{
+                                normalization_map_status::absent, {}}
+                          : identity(source.metadata.size()));
+}
+
+template <class T, class I, class Checkpoint>
+status_or<bool> independently_construct_orientation_classes(
+    const fv_surface_mesh<T, I> &source, std::vector<bool> &facet_parity,
+    std::vector<std::vector<std::size_t>> &shells, Checkpoint checkpoint) {
+  struct use { std::size_t facet=0; bool increasing=false; };
+  std::map<std::pair<std::uint64_t, std::uint64_t>, std::vector<use>> uses;
+  for (std::size_t facet = 0; facet != source.faces.size(); ++facet) {
+    const auto &ring = source.faces[facet];
+    auto allowed = checkpoint(std::max<std::uint64_t>(1, ring.size()));
+    if (!allowed.has_value()) return allowed.error();
+    if (ring.size() < 3) return false;
+    std::set<std::uint64_t> unique;
+    for (std::size_t offset = 0; offset != ring.size(); ++offset) {
+      const auto a = static_cast<std::uint64_t>(ring[offset]);
+      const auto b = static_cast<std::uint64_t>(ring[(offset + 1) % ring.size()]);
+      if (a >= source.vertices.size() || b >= source.vertices.size() ||
+          a == b || !unique.insert(a).second)
+        return false;
+      uses[{std::min(a, b), std::max(a, b)}].push_back({facet, a < b});
+    }
+  }
+  std::vector<std::vector<std::pair<std::size_t, bool>>> adjacency(
+      source.faces.size());
+  for (const auto &entry : uses) {
+    auto allowed = checkpoint(1);
+    if (!allowed.has_value()) return allowed.error();
+    if (entry.second.size() != 2) return false;
+    const auto &a = entry.second[0], &b = entry.second[1];
+    const bool opposite_assignment = a.increasing == b.increasing;
+    adjacency[a.facet].push_back({b.facet, opposite_assignment});
+    adjacency[b.facet].push_back({a.facet, opposite_assignment});
+  }
+  for (auto &neighbors : adjacency) std::sort(neighbors.begin(), neighbors.end());
+  std::vector<int> assignment(source.faces.size(), -1);
+  for (std::size_t root = 0; root != source.faces.size(); ++root) {
+    if (assignment[root] != -1) continue;
+    assignment[root] = 0;
+    shells.push_back({root});
+    for (std::size_t at = 0; at != shells.back().size(); ++at) {
+      auto allowed = checkpoint(1);
+      if (!allowed.has_value()) return allowed.error();
+      const auto facet = shells.back()[at];
+      for (const auto &neighbor : adjacency[facet]) {
+        const int expected = assignment[facet] ^ int(neighbor.second);
+        if (assignment[neighbor.first] == -1) {
+          assignment[neighbor.first] = expected;
+          shells.back().push_back(neighbor.first);
+        } else if (assignment[neighbor.first] != expected) {
+          return false;
+        }
+      }
+    }
+  }
+  facet_parity.resize(source.faces.size());
+  for (std::size_t facet = 0; facet != assignment.size(); ++facet)
+    facet_parity[facet] = assignment[facet] != 0;
+  return true;
 }
 
 template <class I>
@@ -2373,7 +2602,20 @@ status_or<prepared_operand<T, I>> normalize_operand(
         policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
                                              exact_duplicate_consolidation);
-    if (source_validation_error && !duplicate_repair) {
+    const bool orientation_repair =
+        policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             orientation_repair);
+    const bool repairable_orientation_error =
+        source_validation_error &&
+        (source_validation_error->subcode ==
+             static_cast<std::uint32_t>(
+                 input_validation_subcode::same_direction_uses) ||
+         source_validation_error->subcode ==
+             static_cast<std::uint32_t>(
+                 input_validation_subcode::orientation_mismatch));
+    if (source_validation_error && !duplicate_repair &&
+        !(orientation_repair && repairable_orientation_error)) {
       return publish_failure(*source_validation_error);
     }
 
@@ -2404,6 +2646,15 @@ status_or<prepared_operand<T, I>> normalize_operand(
         candidate.edits = std::move(duplicates.value().edits);
         candidate.topology_changes =
             std::move(duplicates.value().topology_changes);
+      } else if (orientation_repair) {
+        auto orientation = repair_orientation(source, resources, cancel);
+        if (!orientation.has_value() &&
+            orientation.error().code == boolean_error_code::resource_limit)
+          return orientation.error();
+        if (!orientation.has_value())
+          return publish_failure(orientation.error());
+        normalized_mesh = std::move(orientation.value().mesh);
+        candidate.edits = std::move(orientation.value().edits);
       } else {
         auto structural = remove_irrelevant_storage(
             source, candidate.source_edges, resources);
@@ -2421,9 +2672,12 @@ status_or<prepared_operand<T, I>> normalize_operand(
         candidate.attributes.metadata = std::move(structural.value().metadata);
         candidate.edits = std::move(structural.value().edits);
       }
-      candidate.reversibility = candidate.edits.empty()
-                                     ? normalization_reversibility::identity
-                                     : normalization_reversibility::irreversible;
+      candidate.reversibility =
+          candidate.edits.empty()
+              ? normalization_reversibility::identity
+              : (orientation_repair
+                     ? normalization_reversibility::fully_reversible
+                     : normalization_reversibility::irreversible);
       candidate.output_digest =
           preparation_detail::canonical_mesh_digest(normalized_mesh);
       auto output_diagnosis = producer_diagnosis(normalized_mesh, resources);
@@ -2529,6 +2783,10 @@ status_or<bool> verify_normalization_report(
       report.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
                                              exact_duplicate_consolidation);
+  const bool orientation_repair =
+      report.policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             orientation_repair);
   const auto attribute_binding_valid = [&](const normalization_mapping &mapping,
                                            bool present,
                                            std::uint64_t count) {
@@ -2582,6 +2840,35 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (orientation_repair && output) {
+    auto transform_work = verification_resources.checkpoint(binding_work.value());
+    if (!transform_work.has_value()) return transform_work.error();
+    for (std::size_t i = 0; i != report.edits.size(); ++i) {
+      auto record = verification_resources.record();
+      if (!record.has_value()) return record.error();
+    }
+    if (!independently_verify_orientation_repair(source, *output, report))
+      return normalization_error("normalization_report_orientation_replay");
+    auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+    if (!output_diagnosis.has_value()) return output_diagnosis.error();
+    auto output_replay = validate_operand_strict(
+        *output, strict_validation_policy{}, boolean_options{}, kernel, verifier,
+        cancel);
+    if (!output_replay.has_value() &&
+        output_replay.error().code != boolean_error_code::input_contract_error)
+      return output_replay.error();
+    if (!output_replay.has_value())
+      return normalization_error("normalization_report_orientation_validation");
+    auto shells = component2_shell_count(*output, cancel);
+    if (!shells.has_value()) return shells.error();
+    if (!report.prepared_operand_available || !report.strict_certificate ||
+        report.unresolved_defects != output_diagnosis.value().defects ||
+        !identity_mapping(report.shells, shells.value()) ||
+        !same_certificate(output_replay.value().certificate(),
+                          *report.strict_certificate))
+      return normalization_error("normalization_report_orientation_success");
+    return true;
+  }
   if (duplicate_repair) {
     auto transform_work = verification_resources.checkpoint(binding_work.value());
     if (!transform_work.has_value()) return transform_work.error();
@@ -2760,6 +3047,72 @@ status_or<bool> verify_normalization_report(
                                   source.metadata.size()) ||
         independent.value().defects != report.unresolved_defects)
       return normalization_error("normalization_report_failure_claim");
+    if (orientation_repair &&
+        (replay.error().subcode == static_cast<std::uint32_t>(
+                                       input_validation_subcode::
+                                           same_direction_uses) ||
+         replay.error().subcode == static_cast<std::uint32_t>(
+                                       input_validation_subcode::
+                                           orientation_mismatch))) {
+      auto search_work = verification_resources.checkpoint(binding_work.value());
+      if (!search_work.has_value()) return search_work.error();
+      std::vector<bool> parity;
+      std::vector<std::vector<std::size_t>> shells;
+      auto constructed = independently_construct_orientation_classes(
+          source, parity, shells, [&](std::uint64_t work) {
+            return verification_resources.checkpoint(work);
+          });
+      if (!constructed.has_value()) return constructed.error();
+      if (constructed.value()) {
+        if (shells.size() > 12)
+          return limit_error("normalization_orientation_failure_search_limit",
+                             shells.size(), 12);
+        const std::uint64_t assignments = std::uint64_t(1) << shells.size();
+        std::vector<std::size_t> facet_shell(source.faces.size());
+        for (std::size_t shell = 0; shell != shells.size(); ++shell)
+          for (auto facet : shells[shell]) facet_shell[facet] = shell;
+        fv_surface_mesh<T, I> reconstructed = source;
+        std::uint64_t assignment_work = binding_work.value();
+        const auto facets = static_cast<std::uint64_t>(source.faces.size());
+        if (facets != 0 &&
+            facets > (std::numeric_limits<std::uint64_t>::max() -
+                      assignment_work) /
+                         facets)
+          return limit_error("normalization_verification_work_overflow");
+        assignment_work += facets * facets;
+        for (const auto &ring : source.faces) {
+          const auto size = static_cast<std::uint64_t>(ring.size());
+          if (size != 0 &&
+              size > (std::numeric_limits<std::uint64_t>::max() -
+                      assignment_work) /
+                         size)
+            return limit_error("normalization_verification_work_overflow");
+          assignment_work += size * size;
+        }
+        for (std::uint64_t assignment = 0; assignment != assignments;
+             ++assignment) {
+          search_work = verification_resources.checkpoint(assignment_work);
+          if (!search_work.has_value()) return search_work.error();
+          for (std::size_t facet = 0; facet != source.faces.size(); ++facet) {
+            reconstructed.faces[facet] = source.faces[facet];
+            const bool reverse = parity[facet] ^
+                (((assignment >> facet_shell[facet]) & 1U) != 0);
+            if (reverse)
+              std::reverse(reconstructed.faces[facet].begin(),
+                           reconstructed.faces[facet].end());
+          }
+          auto reconstructed_replay = validate_operand_strict(
+              reconstructed, strict_validation_policy{}, boolean_options{},
+              kernel, verifier, cancel);
+          if (reconstructed_replay.has_value())
+            return normalization_error(
+                "normalization_report_orientation_false_failure");
+          if (reconstructed_replay.error().code !=
+              boolean_error_code::input_contract_error)
+            return reconstructed_replay.error();
+        }
+      }
+    }
   }
   return true;
 }

@@ -106,7 +106,7 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
 - [ ] **P2.3 — Implement normalization operations one at a time.** Do not combine multiple new repair classes in one unreviewable change; each item needs focused positive/negative tests, report replay, strict revalidation, regression corpus additions, and measured displacement/topology evidence.
   - [x] Deterministic safe structural canonicalization and irrelevant-storage removal, preserving source mappings.
   - [x] Exact duplicate vertex/facet diagnosis and only policy-authorized exact consolidation/removal.
-  - [ ] Orientation and nested-shell polarity diagnosis/repair without geometric movement.
+  - [x] Orientation and nested-shell polarity diagnosis/repair without geometric movement.
   - [ ] Attribute-seam-aware duplicate/near-duplicate vertex consolidation.
   - [ ] Crack and small-gap diagnosis/closure under explicit model tolerance.
   - [ ] Non-planar polygon diagnosis followed by explicitly selected triangulation or refitting policy.

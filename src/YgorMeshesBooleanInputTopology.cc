@@ -1563,6 +1563,10 @@ validate_operands(boolean_context<T, I> &ctx) {
   } catch (const std::bad_alloc &) {
     return make_error(boolean_error_code::resource_limit,
                       boolean_stage::input_validation, "allocation");
+  } catch (const std::length_error &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::input_validation,
+                      "orientation_capacity");
   } catch (const std::exception &e) {
     auto x = make_error(boolean_error_code::internal_invariant_error,
                         boolean_stage::input_validation,
@@ -1571,7 +1575,252 @@ validate_operands(boolean_context<T, I> &ctx) {
     return x;
   }
 }
+
+template <class T, class I>
+status_or<operand_orientation_plan>
+plan_operand_orientation(const fv_surface_mesh<T, I> &mesh,
+                         cancellation_source *cancel,
+                         const std::function<status_or<bool>(std::uint64_t)> &charge) {
+  try {
+    const auto checkpoint = [&](std::uint64_t work) -> status_or<bool> {
+      if (cancel && cancel->token().cancelled())
+        return make_error(boolean_error_code::resource_limit,
+                          boolean_stage::input_validation, "cancelled");
+      return charge ? charge(work) : status_or<bool>(true);
+    };
+    if ((!mesh.vertex_normals.empty() &&
+         mesh.vertex_normals.size() != mesh.vertices.size()) ||
+        (!mesh.vertex_colours.empty() &&
+         mesh.vertex_colours.size() != mesh.vertices.size()) ||
+        (!mesh.involved_faces.empty() &&
+         mesh.involved_faces.size() != mesh.vertices.size()))
+      return input_error(input_validation_subcode::index_out_of_range,
+                         "orientation_attribute_cardinality");
+
+    exact_kernel<T> kernel;
+    std::vector<exact_point3> points;
+    points.reserve(mesh.vertices.size());
+    for (const auto &vertex : mesh.vertices) {
+      auto allowed = checkpoint(3);
+      if (!allowed.has_value()) return allowed.error();
+      auto x = kernel.decode(vertex.x), y = kernel.decode(vertex.y),
+           z = kernel.decode(vertex.z);
+      if (!x.has_value()) return x.error();
+      if (!y.has_value()) return y.error();
+      if (!z.has_value()) return z.error();
+      points.push_back({x.value().value, y.value().value, z.value().value});
+    }
+
+    using edge_key = std::pair<std::uint64_t, std::uint64_t>;
+    struct edge_use { std::size_t facet=0; bool forward=false; };
+    std::map<edge_key, std::vector<edge_use>> edge_uses;
+    for (std::size_t facet = 0; facet != mesh.faces.size(); ++facet) {
+      const auto &ring = mesh.faces[facet];
+      auto allowed = checkpoint(std::max<std::uint64_t>(1, ring.size()));
+      if (!allowed.has_value()) return allowed.error();
+      if (ring.size() < 3)
+        return input_error(input_validation_subcode::short_ring, "short_ring");
+      std::set<std::uint64_t> unique;
+      for (std::size_t offset = 0; offset != ring.size(); ++offset) {
+        const auto a = static_cast<std::uint64_t>(ring[offset]);
+        const auto b = static_cast<std::uint64_t>(ring[(offset + 1) % ring.size()]);
+        if (a >= points.size() || b >= points.size())
+          return input_error(input_validation_subcode::index_out_of_range,
+                             "index_out_of_range");
+        if (!unique.insert(a).second)
+          return input_error(input_validation_subcode::repeated_vertex,
+                             "repeated_ring_vertex");
+        if (points[a] == points[b])
+          return input_error(input_validation_subcode::zero_length_edge,
+                             "zero_length_edge");
+        edge_uses[{std::min(a, b), std::max(a, b)}].push_back(
+            {facet, a < b});
+      }
+    }
+
+    std::vector<std::vector<std::pair<std::size_t, bool>>> adjacency(
+        mesh.faces.size());
+    for (const auto &entry : edge_uses) {
+      auto allowed = checkpoint(1);
+      if (!allowed.has_value()) return allowed.error();
+      if (entry.second.size() == 1)
+        return input_error(input_validation_subcode::boundary_edge,
+                           "boundary_edge");
+      if (entry.second.size() != 2)
+        return input_error(input_validation_subcode::nonmanifold_edge,
+                           "nonmanifold_edge");
+      const auto &a = entry.second[0], &b = entry.second[1];
+      const bool different_parity = a.forward == b.forward;
+      adjacency[a.facet].push_back({b.facet, different_parity});
+      adjacency[b.facet].push_back({a.facet, different_parity});
+    }
+    for (auto &neighbors : adjacency) std::sort(neighbors.begin(), neighbors.end());
+
+    std::vector<int> parity(mesh.faces.size(), -1);
+    std::vector<std::vector<std::size_t>> shells;
+    for (std::size_t root = 0; root != mesh.faces.size(); ++root) {
+      if (parity[root] != -1) continue;
+      parity[root] = 0;
+      shells.push_back({root});
+      for (std::size_t at = 0; at != shells.back().size(); ++at) {
+        auto allowed = checkpoint(1);
+        if (!allowed.has_value()) return allowed.error();
+        const auto facet = shells.back()[at];
+        for (const auto &neighbor : adjacency[facet]) {
+          const int expected = parity[facet] ^ int(neighbor.second);
+          if (parity[neighbor.first] == -1) {
+            parity[neighbor.first] = expected;
+            shells.back().push_back(neighbor.first);
+          } else if (parity[neighbor.first] != expected) {
+            return input_error(input_validation_subcode::same_direction_uses,
+                               "nonorientable_shell");
+          }
+        }
+      }
+      std::sort(shells.back().begin(), shells.back().end());
+    }
+
+    struct shell_geometry {
+      std::vector<exact_triangle3> triangles;
+      std::vector<std::uint64_t> vertices;
+      exact_box3 bounds;
+      exact_scalar volume{0};
+      std::optional<std::size_t> parent;
+      std::uint32_t depth=0;
+    };
+    std::vector<shell_geometry> geometry(shells.size());
+    for (std::size_t shell = 0; shell != shells.size(); ++shell) {
+      std::set<std::uint64_t> shell_vertices;
+      for (auto facet : shells[shell]) {
+        std::vector<I> ring = mesh.faces[facet];
+        const auto ring_work = static_cast<std::uint64_t>(ring.size());
+        if (ring_work != 0 &&
+            ring_work > std::numeric_limits<std::uint64_t>::max() / ring_work)
+          return make_error(boolean_error_code::resource_limit,
+                            boolean_stage::input_validation,
+                            "orientation_work_overflow");
+        auto allowed = checkpoint(
+            std::max<std::uint64_t>(1, ring_work * ring_work));
+        if (!allowed.has_value()) return allowed.error();
+        if (parity[facet]) std::reverse(ring.begin(), ring.end());
+        std::vector<exact_point2> projected;
+        status_or<exact_plane3> plane = input_error(
+            input_validation_subcode::degenerate_facet, "degenerate_facet");
+        for (std::size_t second = 1; second + 1 < ring.size() &&
+                                     !plane.has_value(); ++second)
+          for (std::size_t third = second + 1; third < ring.size() &&
+                                            !plane.has_value(); ++third)
+            plane = support_plane_dyadic(points[ring[0]], points[ring[second]],
+                                         points[ring[third]]);
+        if (!plane.has_value())
+          return input_error(input_validation_subcode::degenerate_facet,
+                             "degenerate_facet");
+        const auto projection = dominant_projection(plane.value());
+        for (I index : ring) {
+          if (plane_side(plane.value(), points[index]) != exact_sign::zero)
+            return input_error(input_validation_subcode::nonplanar_facet,
+                               "nonplanar_facet");
+          projected.push_back(project(points[index], projection));
+          shell_vertices.insert(static_cast<std::uint64_t>(index));
+        }
+        if (area2(projected).is_zero())
+          return input_error(input_validation_subcode::degenerate_facet,
+                             "zero_area_facet");
+        auto simple = simple_ring(projected, {}, [&] {
+          return cancel && cancel->token().cancelled();
+        });
+        if (!simple.has_value()) return simple.error();
+        auto triangles = triangulate(projected);
+        if (!triangles.has_value()) return triangles.error();
+        for (const auto &triangle : triangles.value()) {
+          const auto &a = points[ring[triangle[0]]];
+          const auto &b = points[ring[triangle[1]]];
+          const auto &c = points[ring[triangle[2]]];
+          geometry[shell].triangles.push_back({a, b, c});
+          geometry[shell].volume = geometry[shell].volume +
+              dot(exact_vector3{a.x, a.y, a.z},
+                  cross(exact_vector3{b.x, b.y, b.z},
+                        exact_vector3{c.x, c.y, c.z}));
+        }
+      }
+      geometry[shell].vertices.assign(shell_vertices.begin(), shell_vertices.end());
+      if (geometry[shell].vertices.empty() || geometry[shell].volume.is_zero())
+        return input_error(input_validation_subcode::degenerate_facet,
+                           "zero_volume_shell");
+      std::vector<exact_point3> shell_points;
+      for (auto vertex : geometry[shell].vertices)
+        shell_points.push_back(points[vertex]);
+      geometry[shell].bounds = point_bounds(shell_points);
+    }
+
+    for (std::size_t child = 0; child != geometry.size(); ++child) {
+      const auto witness = points[geometry[child].vertices.front()];
+      std::optional<exact_scalar> parent_volume;
+      for (std::size_t candidate = 0; candidate != geometry.size(); ++candidate) {
+        auto allowed = checkpoint(
+            1 + static_cast<std::uint64_t>(geometry[candidate].triangles.size()));
+        if (!allowed.has_value()) return allowed.error();
+        if (candidate == child ||
+            !box_contains(geometry[candidate].bounds, geometry[child].bounds))
+          continue;
+        auto location = classify_point_closed_triangle_shell(
+            witness, geometry[candidate].triangles);
+        if (!location.has_value()) return location.error();
+        if (location.value() == solid_point_kind::boundary)
+          return input_error(input_validation_subcode::shell_contact,
+                             "shell_boundary_contact");
+        if (location.value() != solid_point_kind::inside) continue;
+        const auto volume = box_volume(geometry[candidate].bounds);
+        if (!parent_volume || volume < *parent_volume) {
+          geometry[child].parent = candidate;
+          parent_volume = volume;
+        } else if (volume == *parent_volume) {
+          return input_error(input_validation_subcode::ambiguous_nesting,
+                             "ambiguous_shell_parent");
+        }
+      }
+    }
+    for (std::size_t shell = 0; shell != geometry.size(); ++shell) {
+      auto allowed = checkpoint(1);
+      if (!allowed.has_value()) return allowed.error();
+      std::set<std::size_t> seen;
+      auto current = shell;
+      while (geometry[current].parent) {
+        if (!seen.insert(current).second)
+          return input_error(input_validation_subcode::ambiguous_nesting,
+                             "shell_parent_cycle");
+        ++geometry[shell].depth;
+        current = *geometry[current].parent;
+      }
+    }
+
+    operand_orientation_plan result;
+    result.reverse_facets.resize(mesh.faces.size());
+    result.shell_count = shells.size();
+    for (std::size_t shell = 0; shell != shells.size(); ++shell) {
+      const bool currently_outward =
+          geometry[shell].volume.sign() == exact_sign::positive;
+      const bool expected_outward = geometry[shell].depth % 2 == 0;
+      const bool flip_shell = currently_outward != expected_outward;
+      for (auto facet : shells[shell])
+        result.reverse_facets[facet] = bool(parity[facet]) ^ flip_shell;
+    }
+    return result;
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::input_validation, "allocation");
+  } catch (const std::exception &e) {
+    auto error = make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::input_validation,
+                            "orientation_planning_exception");
+    error.detail = e.what();
+    return error;
+  }
+}
 #define INST(T,I) template status_or<std::shared_ptr<const published_artifact<validated_operands<T,I>>>>validate_operands(boolean_context<T,I>&)
 INST(float,std::uint32_t);INST(float,std::uint64_t);INST(double,std::uint32_t);INST(double,std::uint64_t);
 #undef INST
+#define INST_ORIENTATION(T,I) template status_or<operand_orientation_plan>plan_operand_orientation(const fv_surface_mesh<T,I>&,cancellation_source*,const std::function<status_or<bool>(std::uint64_t)>&)
+INST_ORIENTATION(float,std::uint32_t);INST_ORIENTATION(float,std::uint64_t);INST_ORIENTATION(double,std::uint32_t);INST_ORIENTATION(double,std::uint64_t);
+#undef INST_ORIENTATION
 } }

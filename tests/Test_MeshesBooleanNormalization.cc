@@ -531,6 +531,180 @@ void exact_duplicate_attributes_and_rejection() {
           "duplicate repair is never enabled implicitly");
 }
 
+normalization_policy orientation_policy() {
+  normalization_policy policy;
+  policy.mode = normalization_mode::structural_only;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::orientation_repair);
+  return policy;
+}
+
+template <class T, class I> void orientation_repair_basic() {
+  const auto expected = tetra<T, I>();
+  auto source = expected;
+  std::reverse(source.faces[0].begin(), source.faces[0].end());
+
+  normalization_report diagnosis;
+  auto diagnosed = normalize_operand(source, normalization_policy{}, diagnosis);
+  require(!diagnosed.has_value() && diagnosis.edits.empty() &&
+              std::any_of(diagnosis.unresolved_defects.begin(),
+                          diagnosis.unresolved_defects.end(), [](const auto &d) {
+                            return d.code ==
+                                       normalization_defect_code::
+                                           component2_rejection &&
+                                   d.primary_ordinal == static_cast<std::uint64_t>(
+                                       input_validation_subcode::
+                                           same_direction_uses);
+                          }),
+          "diagnosis identifies local orientation failure without repair");
+  auto false_failure = diagnosis;
+  false_failure.policy = orientation_policy();
+  false_failure.policy_digest =
+      normalization_policy_digest(false_failure.policy).value();
+  false_failure.report_digest =
+      normalization_report_digest(false_failure).value();
+  auto false_failure_bytes = encode_normalization_report(false_failure);
+  require(false_failure_bytes.has_value() &&
+              !verify_normalization_report(
+                   false_failure_bytes.value(), source,
+                   static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                   .has_value(),
+          "independent bounded search rejects a false orientation failure");
+
+  normalization_report report;
+  auto prepared = normalize_operand(source, orientation_policy(), report);
+  require(prepared.has_value() && prepared.value().mesh() == expected,
+          "facet parity repair restores a locally inconsistent shell");
+  require(report.source_digest != report.output_digest &&
+              report.displacement ==
+                  normalization_displacement_claim::exact_zero &&
+              report.displacements.empty() && report.topology_changes.empty() &&
+              report.reversibility ==
+                  normalization_reversibility::fully_reversible &&
+              report.vertices.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+              report.shells.source_to_prepared ==
+                  std::vector<std::uint64_t>({0}),
+          "orientation repair reports zero movement and identity topology maps");
+  require(report.edits.size() == 1 &&
+              report.edits[0].operation ==
+                  normalization_operation::orientation_repair &&
+              report.edits[0].entity == normalization_entity_kind::facet &&
+              report.edits[0].source_ordinal == 0 &&
+              report.edits[0].prepared_ordinal == 0 &&
+              report.edits[0].reversibility ==
+                  normalization_reversibility::fully_reversible,
+          "reversed facet has canonical reversible evidence");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "independent verifier replays orientation edits and strict validation");
+
+  auto forged = report;
+  forged.edits[0].source_ordinal = 1;
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "independent verifier rejects forged orientation evidence");
+
+  normalization_report identity_report;
+  auto identity_result =
+      normalize_operand(expected, orientation_policy(), identity_report);
+  require(identity_result.has_value() &&
+              identity_result.value().mesh() == expected &&
+              identity_report.edits.empty() &&
+              identity_report.source_digest == identity_report.output_digest &&
+              identity_report.reversibility ==
+                  normalization_reversibility::identity,
+          "orientation repair is idempotent on a valid shell");
+}
+
+void orientation_nested_shells_and_fail_closed() {
+  using T = double;
+  using I = std::uint32_t;
+  auto source = box<T, I>(T(0), T(10));
+  append(source, box<T, I>(T(2), T(8)));
+  auto expected = box<T, I>(T(0), T(10));
+  append(expected, box<T, I>(T(2), T(8)), true);
+  normalization_report report;
+  auto prepared = normalize_operand(source, orientation_policy(), report);
+  require(prepared.has_value() && prepared.value().mesh() == expected &&
+              report.edits.size() == 6 &&
+              report.shells.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1}),
+          "nested cavity polarity is repaired without moving geometry");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "nested polarity repair independently replays");
+
+  auto three_level = box<T, I>(T(0), T(12));
+  append(three_level, box<T, I>(T(2), T(10)));
+  append(three_level, box<T, I>(T(4), T(8)), true);
+  auto three_level_expected = box<T, I>(T(0), T(12));
+  append(three_level_expected, box<T, I>(T(2), T(10)), true);
+  append(three_level_expected, box<T, I>(T(4), T(8)));
+  normalization_report three_level_report;
+  auto three_level_result =
+      normalize_operand(three_level, orientation_policy(), three_level_report);
+  require(three_level_result.has_value() &&
+              three_level_result.value().mesh() == three_level_expected &&
+              three_level_report.shells.source_to_prepared.size() == 3,
+          "nested shell polarity alternates through cavity and island depths");
+
+  auto concave = prism<T, I>(true);
+  auto concave_source = concave;
+  std::reverse(concave_source.faces[1].begin(), concave_source.faces[1].end());
+  std::reverse(concave_source.faces[4].begin(), concave_source.faces[4].end());
+  normalization_report concave_report;
+  auto concave_result =
+      normalize_operand(concave_source, orientation_policy(), concave_report);
+  require(concave_result.has_value() && concave_result.value().mesh() == concave,
+          "concave polygon shell with collinear chains repairs without remeshing");
+
+  auto reversed_root = tetra<T, I>();
+  for (auto &face : reversed_root.faces)
+    std::reverse(face.begin(), face.end());
+  normalization_report root_report;
+  auto root = normalize_operand(reversed_root, orientation_policy(), root_report);
+  require(root.has_value() && root.value().mesh() == tetra<T, I>() &&
+              root_report.edits.size() == reversed_root.faces.size(),
+          "globally reversed material shell is repaired");
+
+  auto open = tetra<T, I>();
+  open.faces.pop_back();
+  normalization_report failure;
+  auto rejected = normalize_operand(open, orientation_policy(), failure);
+  require(!rejected.has_value() && !failure.prepared_operand_available &&
+              failure.edits.empty() && failure.topology_changes.empty(),
+          "orientation repair does not hide an open shell");
+  auto failure_bytes = encode_normalization_report(failure);
+  require(failure_bytes.has_value() &&
+              verify_normalization_report(
+                  failure_bytes.value(), open,
+                  static_cast<const fv_surface_mesh<T, I> *>(nullptr))
+                  .has_value(),
+          "non-repairable orientation failure report replays");
+
+  auto limited_policy = orientation_policy();
+  limited_policy.resources.max_work_units = 300;
+  normalization_report unpublished;
+  unpublished.schema = 77;
+  auto exhausted =
+      normalize_operand(source, limited_policy, unpublished);
+  require(!exhausted.has_value() &&
+              exhausted.error().code == boolean_error_code::resource_limit &&
+              unpublished.schema == 77,
+          "orientation planning work is bounded and transactional");
+}
+
 void codec_and_verifier_rejection() {
   using T = double;
   using I = std::uint32_t;
@@ -595,7 +769,7 @@ void policy_cancellation_and_limits() {
   normalization_policy unsupported_repair;
   unsupported_repair.mode = normalization_mode::structural_only;
   unsupported_repair.enabled_operations = normalization_operation_bit(
-      normalization_operation::orientation_repair);
+      normalization_operation::seam_aware_vertex_consolidation);
   require(!normalize_operand(source, unsupported_repair, unchanged).has_value() &&
               unchanged.schema == 77,
           "unimplemented structural operations fail closed");
@@ -720,6 +894,11 @@ int main() {
     exact_duplicate_repair_basic<double, std::uint32_t>();
     exact_duplicate_repair_basic<double, std::uint64_t>();
     exact_duplicate_attributes_and_rejection();
+    orientation_repair_basic<float, std::uint32_t>();
+    orientation_repair_basic<float, std::uint64_t>();
+    orientation_repair_basic<double, std::uint32_t>();
+    orientation_repair_basic<double, std::uint64_t>();
+    orientation_nested_shells_and_fail_closed();
     attribute_preservation_and_binding();
     codec_and_verifier_rejection();
     policy_cancellation_and_limits();
