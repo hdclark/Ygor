@@ -1,6 +1,6 @@
 #pragma once
 
-#include "EdgeFacetRelations.h"
+#include "FacetFacetRelations.h"
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
@@ -40,6 +40,7 @@ public:
       if (!validate_contracts() || !preflight_and_reserve() ||
           !build_candidate_edge_relations() ||
           !build_candidate_edge_facet_relations() ||
+          !build_candidate_facet_relations() ||
           !require_remaining_families() ||
           !build_foundation_artifact() || !encode_and_verify())
         return failure();
@@ -77,6 +78,7 @@ private:
       boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>>;
   using edge_stage_type = candidate_source_edge_relation_stage<T>;
   using edge_facet_stage_type = candidate_source_edge_facet_relation_stage<T>;
+  using facet_stage_type = candidate_source_facet_relation_stage<T>;
 
   outcome_type failure() {
     relation_build_detail::bind_relation_error(
@@ -204,14 +206,33 @@ private:
     return true;
   }
 
+  bool build_candidate_facet_relations() {
+    if (!check_cancel(relation_checkpoint::facet_facet_evaluation))
+      return false;
+    if (!edge_facet_stage_)
+      return fail(relation_subcode::source_facet_relation_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 facet/facet stage is missing edge/facet consumers",
+                  relation_checkpoint::facet_facet_evaluation);
+    auto stage = build_candidate_source_facet_relations(
+        *candidates_, *edge_facet_stage_, context_.context_digest,
+        precision_.tolerance(), capabilities_);
+    if (!stage.has_value()) {
+      error_ = *stage.error();
+      return false;
+    }
+    facet_stage_.emplace(std::move(*stage.value()));
+    return true;
+  }
+
   bool require_remaining_families() {
     if (preflight_.candidate_count == 0)
       return true;
     return fail(
         relation_subcode::unsupported_relation_kernel,
         bounded_boolean_error_category::result_geometry_not_validated,
-        "Component 07 candidate-derived source-edge/source-edge and source-edge/source-facet relations are verified; source-facet/source-facet and later relation families are not yet implemented",
-        relation_checkpoint::facet_facet_evaluation);
+        "Component 07 candidate-derived source-edge/source-edge, source-edge/source-facet, and source-facet/source-facet support relations are verified; coplanar overlay and later relation families are not yet implemented",
+        relation_checkpoint::coplanar_overlay_evaluation);
   }
 
   bool build_foundation_artifact() {
@@ -290,6 +311,7 @@ private:
   relation_preflight_plan preflight_{};
   std::optional<edge_stage_type> edge_stage_;
   std::optional<edge_facet_stage_type> edge_facet_stage_;
+  std::optional<facet_stage_type> facet_stage_;
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;
   std::optional<resource_reservation> persistent_reservation_;

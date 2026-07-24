@@ -249,6 +249,65 @@ Focused validation executed successfully in the exported PR workspace:
 - the float/double source-edge known-answer suite with a scalar-precision-aware
   residual budget.
 
+
+## Implemented source-facet/source-facet support and carrier slice
+
+The next Plan 07 handoff gate is now implemented through stable support
+classification and transverse carrier construction:
+
+- each canonical broad-phase candidate induces the complete set of opposite-
+  operand source-facet/source-facet support requests for the candidate source
+  edge's incident source facets and the opposite source-triangle facet;
+- duplicate discoveries are grouped by the canonical request graph, every
+  unique support pair has exactly one numerical producer, and every candidate
+  receives a deterministic complete range of the relations it witnesses;
+- immutable support inputs retain the three accepted source points, accepted
+  unnormalized bounded plane, source facet/ring/shell/material-side identity,
+  frozen projection axis, coherent-basis digest, and relevant edge/facet
+  consumer requests;
+- Component 03's exact-formula capability is advanced and extended with stable
+  formula IDs for unnormalized support-normal parallelism, support-normal dot
+  orientation, and oriented plane-point residual, including independent replay
+  reconstruction with the same sign convention as the bounded plane residual;
+- bounded normal cross products and exact stored-coordinate normal relations
+  distinguish definitely nonparallel support, eligible exact parallel support,
+  unresolved support, and invalid or degenerate supports without approximate
+  normal similarity;
+- exact parallel support evaluates an accepted opposite anchor and distinguishes
+  parallel separation from eligible exact coplanarity, then determines same or
+  opposite support orientation from exact normal-dot evidence while preserving
+  shell occupied-side semantics separately;
+- definitely nonparallel support constructs exactly one unnormalized carrier,
+  with direction ordered from canonical semantic feature keys and a fixed
+  bounded closed-form point construction;
+- carrier direction conditioning, point-on-both-planes residuals, and
+  direction-orthogonality residuals are retained and checked against the
+  authorized tolerance boundary before publication;
+- owner-free canonical bytes and semantic digests cover detailed support truth,
+  carrier construction, consumer links, graph, candidate ranges, and exact
+  evaluation count; runtime owner identity is independently proven absent from
+  semantic bytes;
+- an independent verifier rebuilds proposals, request grouping, support inputs,
+  exact and bounded support classification, carrier construction, consumer
+  links, candidate coverage, digest, and owner exclusion; and
+- relation preflight now reserves the candidate-derived facet/facet requests and
+  their deterministic work and storage bounds in addition to the complete
+  edge-edge and edge-facet dependency families.
+
+`RelationBuild` now computes and independently verifies source-edge/source-edge,
+source-edge/source-facet, and source-facet/source-facet support stages for every
+non-empty candidate stream. It fails closed at
+`coplanar_overlay_evaluation`; all transaction-local stages are discarded and no
+partial `signed_feature_relations` artifact is published.
+
+Focused validation in the exported PR workspace includes the strict C++17
+library, compile-only full candidate-stage instantiation, float/double known
+answers for transverse, parallel-separated, coplanar-same, and
+coplanar-opposite supports, exact formula replay, carrier residual and
+conditioning checks, malformed support/owner rejection, owner-free semantics,
+mutation rejection, compute-once grouping, deterministic candidate ranges, and
+independent stage reconstruction.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -261,8 +320,8 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 2. Complete source-edge/source-facet source-fan ownership, admitted clustered
    multi-event ordering, complete occurrence tie keys, numeric crossing
    conservation, and all symbolic fields that depend on those results.
-3. Complete source-facet/source-facet support, transverse carriers, coplanar
-   overlay, containment, equality, and distinct sheet occurrences.
+3. Complete source-facet/source-facet coplanar boundary overlay,
+   containment, equality, and coordinate-coincident distinct sheet occurrences.
 4. Complete authoritative construction selection and deduplication, residual and
    conditioning evidence, numeric crossing multiplicity, half-open source-fan
    ownership, and local conservation across all relation families.

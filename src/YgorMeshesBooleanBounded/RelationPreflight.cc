@@ -47,7 +47,9 @@ bool preflight_relation_foundation(
   }
 
   std::uint64_t requests_per_candidate = 0;
-  if (!checked_add<std::uint64_t>(maximum_facet_boundary, std::uint64_t{1},
+  // One edge/facet request, up to every opposite boundary edge relation,
+  // and the two source facets incident to the candidate source edge.
+  if (!checked_add<std::uint64_t>(maximum_facet_boundary, std::uint64_t{3},
                                   requests_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        requests_per_candidate,
@@ -74,7 +76,7 @@ bool preflight_relation_foundation(
   std::uint64_t candidate_work = 0;
   if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
                                        std::uint64_t{128}, boundary_work) ||
-      !checked_add<std::uint64_t>(boundary_work, std::uint64_t{128},
+      !checked_add<std::uint64_t>(boundary_work, std::uint64_t{384},
                                   work_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        work_per_candidate, candidate_work) ||
@@ -92,7 +94,7 @@ bool preflight_relation_foundation(
   std::uint64_t candidate_bytes = 0;
   if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
                                        std::uint64_t{4096}, boundary_bytes) ||
-      !checked_add<std::uint64_t>(boundary_bytes, std::uint64_t{32768},
+      !checked_add<std::uint64_t>(boundary_bytes, std::uint64_t{49152},
                                   bytes_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        bytes_per_candidate, candidate_bytes) ||

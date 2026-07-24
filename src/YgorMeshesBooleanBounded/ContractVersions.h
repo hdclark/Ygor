@@ -33,7 +33,7 @@ struct contract_versions final {
     static constexpr std::uint16_t exact_expansion_core = 1;
     static constexpr std::uint16_t exact_expansion_adapter = 1;
     static constexpr std::uint16_t rounded_operation_graphs = 1;
-    static constexpr std::uint16_t exact_relation_formulas = 1;
+    static constexpr std::uint16_t exact_relation_formulas = 2;
     static constexpr std::uint16_t bounded_values = 1;
     static constexpr std::uint16_t predicate_truth_layers = 1;
     static constexpr std::uint16_t construction_conditioning = 1;
@@ -139,6 +139,10 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_source_edge_facet_policy = 1;
     static constexpr std::uint16_t relation_source_edge_facet_stage_schema = 1;
     static constexpr std::uint16_t relation_source_edge_facet_stage_policy = 1;
+    static constexpr std::uint16_t relation_source_facet_facet_schema = 1;
+    static constexpr std::uint16_t relation_source_facet_facet_policy = 1;
+    static constexpr std::uint16_t relation_source_facet_facet_stage_schema = 1;
+    static constexpr std::uint16_t relation_source_facet_facet_stage_policy = 1;
     static constexpr std::uint16_t relation_feature_key_schema = 1;
     static constexpr std::uint16_t relation_request_key_schema = 1;
     static constexpr std::uint16_t relation_event_seed_key_schema = 1;

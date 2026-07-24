@@ -98,6 +98,9 @@ enum class exact_relation_formula_code : std::uint16_t {
     collinearity_2d = 12,
     collinearity_3d = 13,
     coplanarity_3d = 14,
+    plane_normal_parallel_3d = 15,
+    plane_normal_dot_3d = 16,
+    plane_point_residual_3d = 17,
 };
 
 struct rounded_operation_descriptor final {
@@ -169,7 +172,10 @@ constexpr bool registered_exact_formula(exact_relation_formula_code code) noexce
     case exact_relation_formula_code::endpoint_numerator:
     case exact_relation_formula_code::collinearity_2d:
     case exact_relation_formula_code::collinearity_3d:
-    case exact_relation_formula_code::coplanarity_3d: return true;
+    case exact_relation_formula_code::coplanarity_3d:
+    case exact_relation_formula_code::plane_normal_parallel_3d:
+    case exact_relation_formula_code::plane_normal_dot_3d:
+    case exact_relation_formula_code::plane_point_residual_3d: return true;
     }
     return false;
 }

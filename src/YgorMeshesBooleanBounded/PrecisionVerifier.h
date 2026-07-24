@@ -361,6 +361,25 @@ bool verify_exact_relation(const exact_relation_evidence &relation,
         const std::array<T, 3> c{{inputs[6], inputs[7], inputs[8]}};
         const std::array<T, 3> d{{inputs[9], inputs[10], inputs[11]}};
         reconstructed = exact_orient_3d(a, b, c, d);
+    } else if (formula == exact_relation_formula_code::plane_point_residual_3d &&
+               inputs.size() == 12) {
+        const std::array<T, 3> a{{inputs[0], inputs[1], inputs[2]}};
+        const std::array<T, 3> b{{inputs[3], inputs[4], inputs[5]}};
+        const std::array<T, 3> c{{inputs[6], inputs[7], inputs[8]}};
+        const std::array<T, 3> d{{inputs[9], inputs[10], inputs[11]}};
+        reconstructed = exact_plane_point_residual_3d(a, b, c, d);
+    } else if ((formula == exact_relation_formula_code::plane_normal_parallel_3d ||
+                formula == exact_relation_formula_code::plane_normal_dot_3d) &&
+               inputs.size() == 18) {
+        const std::array<T, 3> a0{{inputs[0], inputs[1], inputs[2]}};
+        const std::array<T, 3> a1{{inputs[3], inputs[4], inputs[5]}};
+        const std::array<T, 3> a2{{inputs[6], inputs[7], inputs[8]}};
+        const std::array<T, 3> b0{{inputs[9], inputs[10], inputs[11]}};
+        const std::array<T, 3> b1{{inputs[12], inputs[13], inputs[14]}};
+        const std::array<T, 3> b2{{inputs[15], inputs[16], inputs[17]}};
+        reconstructed = formula == exact_relation_formula_code::plane_normal_parallel_3d
+            ? exact_plane_normals_parallel_3d(a0, a1, a2, b0, b1, b2)
+            : exact_plane_normal_dot_3d(a0, a1, a2, b0, b1, b2);
     } else return false;
     return reconstructed.status == relation.status &&
            reconstructed.normalization_exponent == relation.normalization_exponent &&

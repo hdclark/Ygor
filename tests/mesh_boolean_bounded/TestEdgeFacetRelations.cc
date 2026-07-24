@@ -1,5 +1,5 @@
 #include "BroadPhaseFixtures.h"
-#include "YgorMeshesBooleanBounded/EdgeFacetRelations.h"
+#include "YgorMeshesBooleanBounded/FacetFacetRelations.h"
 #include "YgorMeshesBooleanBounded/RelationBuild.h"
 
 #include <algorithm>
@@ -24,6 +24,7 @@ bounded::relation_capabilities capabilities(built_fixture &fixture) {
 struct stages final {
   bounded::candidate_source_edge_relation_stage<double> edges;
   bounded::candidate_source_edge_facet_relation_stage<double> facets;
+  bounded::candidate_source_facet_relation_stage<double> facet_pairs;
 };
 
 stages build_stages(built_fixture &fixture) {
@@ -39,7 +40,14 @@ stages build_stages(built_fixture &fixture) {
       fixture.predecessor.precision->tolerance(), caps);
   if (!facet_stage.has_value())
     throw std::runtime_error(diagnostic(*facet_stage.error()));
-  return {std::move(*edge_stage.value()), std::move(*facet_stage.value())};
+  auto facet_pair_stage = bounded::build_candidate_source_facet_relations(
+      *fixture.artifact, *facet_stage.value(),
+      fixture.predecessor.context.context_digest,
+      fixture.predecessor.precision->tolerance(), caps);
+  if (!facet_pair_stage.has_value())
+    throw std::runtime_error(diagnostic(*facet_pair_stage.error()));
+  return {std::move(*edge_stage.value()), std::move(*facet_stage.value()),
+          std::move(*facet_pair_stage.value())};
 }
 
 void test_candidate_derived_preflight_bound() {
@@ -62,8 +70,8 @@ void test_candidate_derived_preflight_bound() {
                                                  error),
           "candidate-derived relation preflight succeeds");
   require(plan.request_upper_bound ==
-              fixture.artifact->candidates().size() * (maximum_boundary + 1),
-          "preflight covers complete facet-boundary plus edge/facet proposals");
+              fixture.artifact->candidates().size() * (maximum_boundary + 3),
+          "preflight covers boundary, edge/facet, and incident facet/facet proposals");
   require(plan.dependency_upper_bound ==
               fixture.artifact->candidates().size() * maximum_boundary,
           "preflight covers every edge/facet boundary dependency");
@@ -110,6 +118,24 @@ void test_candidate_request_integration() {
   require(observed_contact,
           "overlapping boxes should produce at least one edge/facet contact");
 
+  require(!value.facet_pairs.request_graph.requests.empty(),
+          "candidate discovery should induce facet/facet requests");
+  require(value.facet_pairs.evaluation_count ==
+              value.facet_pairs.request_graph.requests.size() &&
+              value.facet_pairs.relations.size() ==
+                  value.facet_pairs.request_graph.requests.size(),
+          "each unique facet/facet support request has one producer");
+  require(value.facet_pairs.candidate_ranges.size() ==
+              fixture.artifact->candidates().size(),
+          "every candidate has a deterministic facet/facet coverage range");
+  for (const auto &request : value.facet_pairs.request_graph.requests)
+    require(request.key.family ==
+                bounded::relation_request_family::source_facet_source_facet,
+            "facet/facet graph contains only facet/facet requests");
+  for (const auto &relation : value.facet_pairs.relations)
+    require(bounded::valid_source_facet_relation_record(relation),
+            "integrated facet/facet support relation validates");
+
   auto caps = capabilities(fixture);
   bounded_boolean_error verification_error;
   require(bounded::verify_candidate_source_edge_facet_relation_stage(
@@ -118,6 +144,12 @@ void test_candidate_request_integration() {
               fixture.predecessor.precision->tolerance(), caps, value.facets,
               verification_error),
           "edge/facet stage independently reconstructs");
+  require(bounded::verify_candidate_source_facet_relation_stage(
+              *fixture.artifact, value.facets,
+              fixture.predecessor.context.context_digest,
+              fixture.predecessor.precision->tolerance(), caps,
+              value.facet_pairs, verification_error),
+          "facet/facet stage independently reconstructs");
 
   auto owner_changed = value.facets;
   owner_changed.owner = bounded::context_owner_token::create();
@@ -128,6 +160,16 @@ void test_candidate_request_integration() {
           bounded::encode_candidate_source_edge_facet_relation_semantics(
               value.facets),
       "runtime owner is excluded from edge/facet stage semantics");
+
+  auto facet_owner_changed = value.facet_pairs;
+  facet_owner_changed.owner = bounded::context_owner_token::create();
+  facet_owner_changed.request_graph.owner = facet_owner_changed.owner;
+  require(
+      bounded::encode_candidate_source_facet_relation_semantics(
+          facet_owner_changed) ==
+          bounded::encode_candidate_source_facet_relation_semantics(
+              value.facet_pairs),
+      "runtime owner is excluded from facet/facet stage semantics");
 }
 
 void test_mutation_rejection() {
@@ -148,6 +190,17 @@ void test_mutation_rejection() {
               fixture.predecessor.precision->tolerance(), caps, mutated,
               error),
           "mutated edge/facet relation must be rejected");
+
+  require(!value.facet_pairs.relations.empty(),
+          "mutation fixture requires a facet/facet relation");
+  auto facet_mutated = value.facet_pairs;
+  facet_mutated.relations.front().semantic_digest.bytes[0] ^= 0x80U;
+  require(!bounded::verify_candidate_source_facet_relation_stage(
+              *fixture.artifact, value.facets,
+              fixture.predecessor.context.context_digest,
+              fixture.predecessor.precision->tolerance(), caps,
+              facet_mutated, error),
+          "mutated facet/facet relation must be rejected");
 }
 
 void test_empty_stage_and_publication_gate() {
@@ -175,8 +228,8 @@ void test_empty_stage_and_publication_gate() {
               result.error()->subcode == static_cast<std::uint32_t>(
                   bounded::relation_subcode::unsupported_relation_kernel) &&
               result.error()->checkpoint == static_cast<std::uint32_t>(
-                  bounded::relation_checkpoint::facet_facet_evaluation),
-          "publication gate advances only after verified edge/facet relations");
+                  bounded::relation_checkpoint::coplanar_overlay_evaluation),
+          "publication gate advances only after verified facet/facet support relations");
 }
 
 } // namespace
