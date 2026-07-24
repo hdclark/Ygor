@@ -1,10 +1,10 @@
 # Mesh Boolean product contract (schema 3)
 
 This document defines the product boundary introduced by Plan 15 P0, the
-durable exact-result authority introduced by P1, and the reusable strict
-preparation service introduced by P2.1. It does not promote any Boolean backend,
-implement backend fallback, or implement approximate realization. Those
-behaviours remain gated by later tracker components.
+durable exact-result authority introduced by P1, and the explicit strict and
+normalized preparation services introduced by P2. It does not promote any
+Boolean backend, implement backend fallback, or implement approximate
+realization. Those behaviours remain gated by later tracker components.
 
 ## Current support boundary
 
@@ -16,20 +16,82 @@ candidate backends require both `explicit_backend` (or another explicitly named
 producer policy) and `allow_experimental_backend=true` under
 `allow_explicit_unqualified` qualification policy.
 
-The currently implemented evaluator still requires strict, already-valid
-operands. Unknown-provenance STL, OBJ, scan, or CAD tessellations are not an
-implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
-`normalized` are distinct preparation contracts. No normalization operation is
-enabled by default, and a geometry-changing normalization policy must state its
-model unit, positive tolerance, and enabled operation set. Diagnosis-only
-normalization, structural irrelevant-storage removal, and policy-authorized
-exact duplicate consolidation and orientation repair are available. Explicit
-geometry-changing, attribute-seam-aware near-duplicate vertex consolidation is
-also available. Crack and small-gap diagnosis and conservative unmatched-
-boundary vertex closure are available under an explicit tolerance. Non-planar
-polygon diagnosis and explicitly selected triangulation or bounded axis-aligned
-refitting are also available; all other geometry-changing repair classes remain
-later P2 work.
+The evaluator requires strict, already-valid operands. Unknown-provenance STL,
+OBJ, scan, or CAD tessellations are not a supported end-to-end product workflow:
+passing such a mesh directly to an expert raw-operand API is an unsupported
+claim that the caller already established the complete strict B-rep contract.
+Such sources require an explicit preparation decision and, until a preparation
+profile is qualified, application review outside the Boolean engine.
+
+`strict_validation`, `diagnosis_only`, and `normalized` are distinct
+preparation contracts. No normalization operation is enabled by default. P2
+implements diagnosis-only preparation and individually selected policies for
+irrelevant-storage removal, exact duplicate consolidation, orientation repair,
+attribute-seam-aware near-duplicate consolidation, crack closure, non-planar
+facet handling, overlapping-facet resolution, sliver handling, and
+self-intersection handling. Sliver and self-intersection handling are currently
+explicit rejection policies, not remeshing. An implemented policy is not a
+qualified workflow or a general-purpose import healer.
+
+## Choosing a preparation path
+
+Choose the path from provenance and modeling intent before Boolean evaluation:
+
+- Use strict validation only when the producer guarantees the documented
+  closed, embedded, oriented, exactly planar B-rep contract. Failure rejects the
+  operand; strict validation never edits it.
+- Use diagnosis-only for an untrusted source when the application needs a
+  deterministic defect inventory before deciding what to do. Diagnosis performs
+  no edits. A returned prepared operand means the strict validator accepted the
+  unchanged mesh, not that its source profile is product-qualified.
+- Use one specific structural or geometry-changing policy only when the caller
+  has declared the model unit, tolerance where required, allowed edit class, and
+  application acceptance criteria. No repair class is inferred from defects and
+  the current service permits only one repair operation per request.
+
+Strict preparation is explicit:
+
+```cpp
+strict_validation_policy strict;
+auto prepared = validate_operand_strict(mesh, strict, boolean_options{}, kernel,
+                                        verifiers);
+if (!prepared.has_value()) {
+  // Reject: no Boolean request may use this operand as strict input.
+}
+```
+
+Diagnosis-only is the default normalization policy and does not heal the mesh:
+
+```cpp
+normalization_policy diagnosis;
+diagnosis.mode = normalization_mode::diagnosis_only;
+normalization_report report;
+auto prepared = normalize_operand(mesh, diagnosis, report);
+// Inspect report.unresolved_defects even when prepared has a value.
+// If prepared has no value, the report remains diagnostic evidence only.
+```
+
+A repair must name exactly one operation. For example, structural removal of
+irrelevant storage is requested as follows:
+
+```cpp
+normalization_policy repair;
+repair.mode = normalization_mode::structural_only;
+repair.enabled_operations = normalization_operation_bit(
+    normalization_operation::irrelevant_storage_removal);
+normalization_report report;
+auto prepared = normalize_operand(mesh, repair, report);
+```
+
+Before using a normalized `prepared_operand`, the application must inspect and
+accept the policy, source/output digests, unresolved defects, edits,
+displacements, topology changes, source mappings, reversibility, and strict
+validation certificate. It should persist the canonical report and may invoke
+`verify_normalization_report` to independently replay it. Reject the result if
+any edit, tolerance, unresolved defect, attribute conflict, unavailable mapping,
+or irreversibility exceeds the application's declared acceptance criteria. A
+successful normalization call proves only conformance to that selected policy
+and post-edit strict validation; it does not confer qualification.
 
 ## Strict operand preparation
 
@@ -54,7 +116,7 @@ later Boolean request independently replay source mappings and edits against the
 published output; the source is provenance evidence and is never evaluated as
 the backend operand.
 
-P2.1 strict preparation performs no tolerance operation, snapping, welding,
+Strict preparation performs no tolerance operation, snapping, welding,
 orientation repair, or other healing. The normalization service separately
 supports `structural_only` with exactly one of
 `irrelevant_storage_removal`, `exact_duplicate_consolidation`, or
@@ -257,7 +319,8 @@ fail-closed contract errors and are never fallback-authorized.
 The current productized scope does not:
 
 - change Components 3 through 10 or their exact semantics;
-- normalize or repair an operand;
+- automatically choose, combine, or qualify normalization repairs for an
+  unknown-provenance import;
 - execute strict finite-`T` or approximate embedding search from a deferred
   realization request;
 - wrap backend execution or run independent adapters;

@@ -17,7 +17,10 @@ enum class MeshBooleanOperation6 {
     Subtraction
 };
 
-
+// Legacy strict-input convenience API. Each operand must already satisfy the
+// complete exact B-rep contract. This function performs strict validation but
+// does not diagnose or repair an unknown-provenance imported mesh; use the
+// explicit preparation APIs before Boolean evaluation for that workflow.
 template <class T, class I>
 fv_surface_mesh<T, I>
 BooleanMeshOp6(const fv_surface_mesh<T, I> &lhs,

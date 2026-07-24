@@ -1,4 +1,5 @@
 #include <YgorMeshesBooleanOutput.h>
+#include <YgorMeshesBooleanPreparation.h>
 #include <YgorMeshesExactKernel.h>
 #include <YgorMeshesBoolean6.h>
 
@@ -48,9 +49,8 @@ status_or<std::shared_ptr<const verifier_service>> make_verifier_service() {
   return std::shared_ptr<const verifier_service>(std::move(registry));
 }
 
-// This is the complete application-facing workflow. The operands remain alive
-// and unchanged while the context uses them; the context deliberately stores
-// references rather than copying potentially large meshes.
+// This legacy convenience path makes the strict-validation preparation choice.
+// It is not an unknown-provenance import or automatic-healing workflow.
 template <class T, class I>
 boolean_result<T, I>
 run_boolean(const fv_surface_mesh<T,I> &a, const fv_surface_mesh<T,I> &b, operation requested,
@@ -60,17 +60,17 @@ run_boolean(const fv_surface_mesh<T,I> &a, const fv_surface_mesh<T,I> &b, operat
   // mandatory verification, exact-in-double realization, and manifold output.
   boolean_options options;
 
-  auto context =
-      make_boolean_context(a, b, requested, options, kernel, verifiers);
-  if (!context.has_value())
-    return context.error();
+  const strict_validation_policy strict_policy;
+  auto prepared_a = validate_operand_strict(a, strict_policy, options, kernel,
+                                            verifiers);
+  if (!prepared_a.has_value()) return prepared_a.error();
+  auto prepared_b = validate_operand_strict(b, strict_policy, options, kernel,
+                                            verifiers);
+  if (!prepared_b.has_value()) return prepared_b.error();
 
-  // Validate unknown-provenance inputs explicitly. Non-finite coordinates,
-  // open/non-manifold meshes, bad orientation, self-intersections, and invalid
-  // shell nesting are reported here as input_contract_error values.
-  auto validated = validate_operands(*context.value());
-  if (!validated.has_value())
-    return validated.error();
+  auto context = make_boolean_context(prepared_a.value(), prepared_b.value(),
+                                      requested, options, kernel, verifiers);
+  if (!context.has_value()) return context.error();
 
   // This runs the remaining exact Boolean stages. Success guarantees that the
   // public mesh passed manifold, embedding, orientation, and realization checks.

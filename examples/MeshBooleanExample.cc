@@ -1,4 +1,5 @@
 #include <YgorMeshesBooleanOutput.h>
+#include <YgorMeshesBooleanPreparation.h>
 #include <YgorMeshesExactKernel.h>
 
 #include <array>
@@ -42,11 +43,12 @@ status_or<std::shared_ptr<const verifier_service>> make_verifier_service() {
   return std::shared_ptr<const verifier_service>(std::move(registry));
 }
 
-// This is the complete application-facing workflow. The operands remain alive
-// and unchanged while the context uses them; the context deliberately stores
-// references rather than copying potentially large meshes.
+// This is the current expert workflow after operands have passed an explicit
+// preparation decision. The future one-call product service is tracked by P5.
 boolean_result<double, std::uint64_t>
-run_boolean(const mesh_type &a, const mesh_type &b, operation requested,
+run_boolean(const prepared_operand<double, std::uint64_t> &a,
+            const prepared_operand<double, std::uint64_t> &b,
+            operation requested,
             const std::shared_ptr<const exact_kernel_services<double>> &kernel,
             const std::shared_ptr<const verifier_service> &verifiers) {
   // The defaults select regularized solid semantics, deterministic execution,
@@ -57,13 +59,6 @@ run_boolean(const mesh_type &a, const mesh_type &b, operation requested,
       make_boolean_context(a, b, requested, options, kernel, verifiers);
   if (!context.has_value())
     return context.error();
-
-  // Validate unknown-provenance inputs explicitly. Non-finite coordinates,
-  // open/non-manifold meshes, bad orientation, self-intersections, and invalid
-  // shell nesting are reported here as input_contract_error values.
-  auto validated = validate_operands(*context.value());
-  if (!validated.has_value())
-    return validated.error();
 
   // This runs the remaining exact Boolean stages. Success guarantees that the
   // public mesh passed manifold, embedding, orientation, and realization checks.
@@ -103,10 +98,23 @@ int main() {
   std::shared_ptr<const exact_kernel_services<double>> kernel =
       std::make_shared<exact_kernel<double>>();
 
-  // Replace these sample boxes with the application's unknown-provenance
-  // fv_surface_mesh<double, uint64_t> operands.
+  // These generated fixtures have known provenance and are intended to satisfy
+  // the strict B-rep contract. Imported STL/OBJ/scan/CAD tessellations require
+  // an explicit diagnosis or repair policy and application review; they must
+  // not be substituted here as though strict validation were automatic healing.
   const mesh_type a = make_box(0.0, 1.0);
   const mesh_type b = make_box(3.0, 4.0);
+  const strict_validation_policy strict_policy;
+  const boolean_options options;
+  auto prepared_a = validate_operand_strict(a, strict_policy, options, kernel,
+                                            verifiers.value());
+  auto prepared_b = validate_operand_strict(b, strict_policy, options, kernel,
+                                            verifiers.value());
+  if (!prepared_a.has_value() || !prepared_b.has_value()) {
+    report_error(!prepared_a.has_value() ? prepared_a.error()
+                                         : prepared_b.error());
+    return 1;
+  }
   struct example_case {
     const char *name;
     operation requested;
@@ -122,7 +130,8 @@ int main() {
   }};
 
   for (const auto &entry : cases) {
-    auto result = run_boolean(a, b, entry.requested, kernel, verifiers.value());
+    auto result = run_boolean(prepared_a.value(), prepared_b.value(),
+                              entry.requested, kernel, verifiers.value());
     if (!result.has_value()) {
       std::cerr << entry.name << " failed: ";
       report_error(result.error());
@@ -145,8 +154,8 @@ int main() {
   // repairing it. This also keeps the example's error path covered by CTest.
   mesh_type open_mesh = a;
   open_mesh.faces.pop_back();
-  auto rejected = run_boolean(open_mesh, b, operation::regularized_union,
-                              kernel, verifiers.value());
+  auto rejected = validate_operand_strict(open_mesh, strict_policy, options,
+                                          kernel, verifiers.value());
   if (rejected.has_value() ||
       rejected.error().code != boolean_error_code::input_contract_error ||
       rejected.error().stage != boolean_stage::input_validation) {

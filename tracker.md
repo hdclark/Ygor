@@ -114,9 +114,9 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Sliver feature diagnosis and any policy-approved handling with complete topology/displacement evidence.
   - [x] Self-intersection diagnosis and, only if separately approved, repair as the final/highest-risk normalization class.
 
-- [ ] **P2.4 — Correct the product claim boundary and examples.**
-  - [ ] Until P2 repair modes are implemented and qualified, make unknown-provenance STL/OBJ/scan/CAD input produce a clear preparation requirement rather than an implied supported workflow.
-  - [ ] Document how callers choose strict validation, diagnosis-only normalization, or a specific repair policy and how they inspect/reject the report before Boolean execution.
+- [x] **P2.4 — Correct the product claim boundary and examples.**
+  - [x] Until P2 repair modes are implemented and qualified, make unknown-provenance STL/OBJ/scan/CAD input produce a clear preparation requirement rather than an implied supported workflow.
+  - [x] Document how callers choose strict validation, diagnosis-only normalization, or a specific repair policy and how they inspect/reject the report before Boolean execution.
 
 **P2 exit gate:** strict and normalized operands are distinct types/provenance paths; every edit is auditable and independently verified; no hidden healing occurs in Boolean evaluation.
 
