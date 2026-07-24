@@ -1,4 +1,4 @@
-name: Diagnose Component 07 prepared patch
+name: Apply Component 07 source-edge/source-facet patch
 
 on:
   pull_request:
@@ -11,7 +11,8 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -19,28 +20,16 @@ jobs:
         with:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
-      - name: Decode and check patch
-        id: diagnose
-        continue-on-error: true
+      - name: Verify, apply, commit, and push code
         shell: bash
         run: |
-          mkdir -p /tmp/component07-diagnostics
-          set +e
-          wc -c .github/component07.patch.part-* > /tmp/component07-diagnostics/part-sizes.txt 2>&1
-          git hash-object .github/component07.patch.part-* > /tmp/component07-diagnostics/part-blob-shas.txt 2>&1
-          cat .github/component07.patch.part-* | base64 -d 2>/tmp/component07-diagnostics/base64.stderr | gzip -d > /tmp/component07.patch 2>/tmp/component07-diagnostics/gzip.stderr
-          echo "$?" > /tmp/component07-diagnostics/decode.status
-          sha256sum /tmp/component07.patch > /tmp/component07-diagnostics/patch.sha256 2>&1
-          grep '^diff --git ' /tmp/component07.patch > /tmp/component07-diagnostics/manifest.txt 2>&1
-          git apply --check --verbose /tmp/component07.patch > /tmp/component07-diagnostics/apply-check.stdout 2>/tmp/component07-diagnostics/apply-check.stderr
-          echo "$?" > /tmp/component07-diagnostics/apply-check.status
-          git apply --3way --check /tmp/component07.patch > /tmp/component07-diagnostics/apply-3way.stdout 2>/tmp/component07-diagnostics/apply-3way.stderr
-          echo "$?" > /tmp/component07-diagnostics/apply-3way.status
-          exit 0
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: component07-patch-diagnostics
-          path: /tmp/component07-diagnostics
-          if-no-files-found: error
-          retention-days: 1
+          set -euo pipefail
+          cat .github/component07.patch.part-* | base64 -d | gzip -d > /tmp/component07.patch
+          echo "e63e3c9f46272a9cce47e661d3d032e2d14be39003e72f04109f27f6dd4402e7  /tmp/component07.patch" | sha256sum -c -
+          git apply --index /tmp/component07.patch
+          rm .github/component07.patch.part-*
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement Component 07 source-edge/source-facet relations'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
