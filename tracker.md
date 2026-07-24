@@ -97,11 +97,11 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Keep Component 2 as the authoritative strict validator and prohibit normalization heuristics inside it.
   - [x] Add stale prepared-operand, foreign-context, mutation-after-validation, reserialization, and direct-raw-versus-prepared equivalence tests.
 
-- [ ] **P2.2 — Define normalization policy/report infrastructure.**
-  - [ ] Define units, model tolerance, diagnosis-only versus structural-only versus geometry-changing modes, per-operation enablement, deterministic edit ordering, and resource/cancellation policy.
-  - [ ] Define `normalization_report` with input/output digests, every edit, exact/bounded displacement, topology changes, unresolved defects, source-to-prepared vertex/edge/facet/shell/attribute maps, reversibility, and post-normalization strict-validation certificate.
-  - [ ] Implement diagnosis-only mode first; it must never alter the operand.
-  - [ ] Add independent report verification and prove every successful normalized operand passes full strict Component 2 validation.
+- [x] **P2.2 — Define normalization policy/report infrastructure.**
+  - [x] Define units, model tolerance, diagnosis-only versus structural-only versus geometry-changing modes, per-operation enablement, deterministic edit ordering, and resource/cancellation policy.
+  - [x] Define `normalization_report` with input/output digests, every edit, exact/bounded displacement, topology changes, unresolved defects, source-to-prepared vertex/edge/facet/shell/attribute maps, reversibility, and post-normalization strict-validation certificate.
+  - [x] Implement diagnosis-only mode first; it must never alter the operand.
+  - [x] Add independent report verification and prove every successful normalized operand passes full strict Component 2 validation.
 
 - [ ] **P2.3 — Implement normalization operations one at a time.** Do not combine multiple new repair classes in one unreviewable change; each item needs focused positive/negative tests, report replay, strict revalidation, regression corpus additions, and measured displacement/topology evidence.
   - [ ] Deterministic safe structural canonicalization and irrelevant-storage removal, preserving source mappings.

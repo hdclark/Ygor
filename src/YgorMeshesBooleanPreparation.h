@@ -7,7 +7,10 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t prepared_operand_schema = 1;
+constexpr std::uint16_t prepared_operand_schema = 2;
+
+struct normalization_policy;
+struct normalization_report;
 
 enum class preparation_validation_subcode : std::uint32_t {
   malformed_record = 1,
@@ -48,6 +51,12 @@ struct prepared_operand_decode_limits {
   std::uint64_t max_vertices = 10000000;
   std::uint64_t max_faces = 10000000;
   std::uint64_t max_face_indices = 100000000;
+  std::uint64_t max_vertex_normals = 10000000;
+  std::uint64_t max_vertex_colours = 10000000;
+  std::uint64_t max_involved_face_lists = 10000000;
+  std::uint64_t max_involved_face_indices = 100000000;
+  std::uint64_t max_metadata_entries = 1000000;
+  std::uint64_t max_metadata_string_bytes = 64ULL * 1024ULL * 1024ULL;
 };
 
 template <class T, class I> class prepared_operand {
@@ -55,6 +64,7 @@ template <class T, class I> class prepared_operand {
     fv_surface_mesh<T, I> mesh;
     strict_validation_policy policy;
     strict_validation_certificate certificate;
+    std::shared_ptr<const normalization_report> normalization;
   };
   std::shared_ptr<const state> state_;
 
@@ -69,6 +79,10 @@ template <class T, class I> class prepared_operand {
   template <class U, class J>
   friend status_or<prepared_operand<U, J>> decode_prepared_operand(
       const std::vector<std::uint8_t> &, const prepared_operand_decode_limits &);
+  template <class U, class J>
+  friend status_or<prepared_operand<U, J>> normalize_operand(
+      const fv_surface_mesh<U, J> &, const normalization_policy &,
+      normalization_report &, cancellation_source *);
 
 public:
   prepared_operand() = delete;
@@ -78,6 +92,9 @@ public:
   }
   const strict_validation_certificate &certificate() const noexcept {
     return state_->certificate;
+  }
+  const normalization_report *normalization() const noexcept {
+    return state_->normalization.get();
   }
   std::shared_ptr<const fv_surface_mesh<T, I>> shared_mesh() const {
     return std::shared_ptr<const fv_surface_mesh<T, I>>(state_, &state_->mesh);

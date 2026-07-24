@@ -1,6 +1,7 @@
 #include "MeshBooleanInputTopologyFixtures.h"
 
 #include <YgorMeshesBooleanPreparation.h>
+#include <YgorMeshesBooleanNormalization.h>
 
 #include <iostream>
 
@@ -112,7 +113,7 @@ void stale_and_malformed_records() {
   require(encoded.has_value(), "stale fixture encodes");
 
   auto corrupted = encoded.value();
-  corrupted.back() ^= 1U;
+  corrupted[corrupted.size() - 2] ^= 1U;
   auto stale = decode_prepared_operand<T, I>(corrupted);
   require(!stale.has_value() &&
               stale.error().subcode == static_cast<std::uint32_t>(
@@ -191,6 +192,35 @@ void failures_and_policy_binding() {
           "prepared request verifies policy binding");
 }
 
+void normalized_lifetime_and_provenance() {
+  using T = double;
+  using I = std::uint32_t;
+  normalization_report report_a, report_b;
+  auto normalized_a =
+      normalize_operand(tetra<T, I>(), normalization_policy{}, report_a);
+  auto normalized_b = normalize_operand(box<T, I>(T(2), T(3)),
+                                        normalization_policy{}, report_b);
+  require(normalized_a.has_value() && normalized_b.has_value(),
+          "normalized preparation fixtures succeed");
+  auto bytes = encode_prepared_operand(normalized_a.value());
+  require(bytes.has_value(), "normalized preparation serializes");
+  auto decoded = decode_prepared_operand<T, I>(bytes.value());
+  require(decoded.has_value() && decoded.value().normalization() &&
+              decoded.value().normalization()->report_digest ==
+                  report_a.report_digest,
+          "normalization report is owned across prepared serialization");
+  auto registry = input_test::registry();
+  std::shared_ptr<const exact_kernel_services<T>> kernel =
+      std::make_shared<exact_kernel<T>>();
+  std::shared_ptr<const verifier_service> verifier = registry;
+  auto made = make_boolean_context(
+      decoded.value(), normalized_b.value(), operation::regularized_union,
+      boolean_options{}, kernel, verifier);
+  require(made.has_value() && made.value()->preparation_provenance() &&
+              made.value()->preparation_provenance()->report_digest != digest{},
+          "context provenance binds normalization report digests");
+}
+
 int main() {
   try {
     round_trip_specialization<float, std::uint32_t>();
@@ -200,6 +230,7 @@ int main() {
     ownership_and_equivalence();
     stale_and_malformed_records();
     failures_and_policy_binding();
+    normalized_lifetime_and_provenance();
     std::cout << "PASS strict operand preparation\n";
     return 0;
   } catch (const std::exception &e) {
