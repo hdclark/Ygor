@@ -1,4 +1,4 @@
-name: Diagnose Component 07 facet-facet patch
+name: Apply Component 07 facet-facet support patch
 
 on:
   pull_request:
@@ -7,8 +7,12 @@ on:
     types:
       - edited
 
+permissions:
+  contents: write
+
 jobs:
-  diagnose:
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -16,29 +20,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
-      - name: Inspect transport and applicability
+      - name: Verify, apply, clean, and push
         shell: bash
         run: |
-          set +e
-          mkdir -p /tmp/component07-facet-facet-diagnostics
-          wc -c .github/component07-facet-facet.patch.part-* > /tmp/component07-facet-facet-diagnostics/part-sizes.txt 2>&1
-          git hash-object .github/component07-facet-facet.patch.part-* > /tmp/component07-facet-facet-diagnostics/part-blob-shas.txt 2>&1
-          cat .github/component07-facet-facet.patch.part-* | base64 -d 2>/tmp/component07-facet-facet-diagnostics/base64.stderr | gzip -d > /tmp/component07-facet-facet.mbox 2>/tmp/component07-facet-facet-diagnostics/gzip.stderr
-          echo "$?" > /tmp/component07-facet-facet-diagnostics/decode.status
-          sha256sum /tmp/component07-facet-facet.mbox > /tmp/component07-facet-facet-diagnostics/mbox.sha256 2>&1
-          git apply --check /tmp/component07-facet-facet.mbox > /tmp/component07-facet-facet-diagnostics/apply-check.stdout 2>/tmp/component07-facet-facet-diagnostics/apply-check.stderr
-          echo "$?" > /tmp/component07-facet-facet-diagnostics/apply-check.status
-          git config user.name OpenAI
-          git config user.email noreply@openai.com
-          git am --keep-cr --3way /tmp/component07-facet-facet.mbox > /tmp/component07-facet-facet-diagnostics/git-am.stdout 2>/tmp/component07-facet-facet-diagnostics/git-am.stderr
-          echo "$?" > /tmp/component07-facet-facet-diagnostics/git-am.status
-          git status --short --branch > /tmp/component07-facet-facet-diagnostics/git-status.txt 2>&1
-          git log -3 --oneline > /tmp/component07-facet-facet-diagnostics/git-log.txt 2>&1
-          exit 0
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: component07-facet-facet-diagnostics
-          path: /tmp/component07-facet-facet-diagnostics
-          if-no-files-found: error
-          retention-days: 1
+          set -euo pipefail
+          cat .github/component07-facet-facet.patch.part-* | base64 -d | gzip -d > /tmp/component07-facet-facet.mbox
+          echo "3677eb32ec0f8c372eaefdd8ae71af72223c02d7e2baea53e40fd2f952dde2be  /tmp/component07-facet-facet.mbox" | sha256sum -c -
+          git config user.name 'OpenAI'
+          git config user.email 'noreply@openai.com'
+          git am /tmp/component07-facet-facet.mbox
+          rm .github/component07-facet-facet.patch.part-*
+          rm .github/workflows/component07-workspace.yml
+          git add -A
+          git commit -m 'Remove Component 07 patch transport'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
