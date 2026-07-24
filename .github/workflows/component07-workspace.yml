@@ -1,9 +1,6 @@
 name: Apply Component 07 source-edge/source-facet patch
 
 on:
-  push:
-    branches:
-      - agent/bounded-manifold-mesh-boolean-plan
   pull_request:
     branches:
       - master
@@ -23,12 +20,40 @@ jobs:
         with:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
-      - name: Verify, apply, commit, and restore
+      - name: Diagnose or apply prepared patch
         shell: bash
         run: |
-          set -euo pipefail
-          cat .github/component07.patch.part-* | base64 -d | gzip -d > /tmp/component07.patch
-          echo "e63e3c9f46272a9cce47e661d3d032e2d14be39003e72f04109f27f6dd4402e7  /tmp/component07.patch" | sha256sum -c -
+          set -uo pipefail
+          : > /tmp/component07-diagnostic.log
+          cat .github/component07.patch.part-* | base64 -d 2>>/tmp/component07-diagnostic.log | gzip -d > /tmp/component07.patch 2>>/tmp/component07-diagnostic.log
+          decode_status=$?
+          echo "decode_status=${decode_status}" >> /tmp/component07-diagnostic.log
+          if [ "${decode_status}" -eq 0 ]; then
+            sha256sum /tmp/component07.patch >> /tmp/component07-diagnostic.log
+            echo "e63e3c9f46272a9cce47e661d3d032e2d14be39003e72f04109f27f6dd4402e7  /tmp/component07.patch" | sha256sum -c - >>/tmp/component07-diagnostic.log 2>&1
+            checksum_status=$?
+          else
+            checksum_status=99
+          fi
+          echo "checksum_status=${checksum_status}" >> /tmp/component07-diagnostic.log
+          if [ "${decode_status}" -ne 0 ] || [ "${checksum_status}" -ne 0 ]; then
+            {
+              echo '# Component 07 prepared patch decode failure'
+              echo
+              echo '```text'
+              cat /tmp/component07-diagnostic.log
+              echo '```'
+              echo
+              wc -c .github/component07.patch.part-* || true
+              git hash-object .github/component07.patch.part-* || true
+            } > .github/component07-apply-failure.log
+            git add .github/component07-apply-failure.log
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Record Component 07 patch decode failure'
+            git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+            exit 1
+          fi
           if ! git apply --index /tmp/component07.patch 2>/tmp/component07-apply-direct.log; then
             git reset --hard HEAD
             if ! git apply --3way --index /tmp/component07.patch 2>/tmp/component07-apply-three-way.log; then
