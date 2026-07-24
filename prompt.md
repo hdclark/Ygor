@@ -4,7 +4,7 @@ You are in the final phase of a comprehensive plan to implementing a robust b-re
 
 Following the goals and overall architecture from `broad_plan.md`, select the next available component from `tracker.md` and implement the corresponding plan(s) exactly as described, without deviating. Ensure the specifications, as outlined in the plan(s), are followed precisely. Separate teams will implement individual component plans, so stick with the plan(s) and fulfill the provided requirements.
 
-When the component has been fully implemented and validated according to the plan(s), update file `tracker.md` and commit the tracker, code, documentation, and anything else relevant in the repo using `git add .` and `git commit` with the commit message indicating the associated component plan. It is best to commit often to avoid losing progress. It is important to try tackle entire components, as you have all relevant context. Delegate to subagents as needed.
+When the component has been implemented and validated according to the plan(s), update file `tracker.md` and commit the tracker, code, documentation, and anything else relevant in the repo using `git add .` and `git commit` with the commit message indicating the associated component plan. It is best to commit often to avoid losing progress. It is important to try tackle entire components, as you have all relevant context. Delegate to subagents as needed.
 
 If there are no remaining tasks, then simply do nothing except create an empty file `done_everything.md` and exit. Only create this file if there are no outstanding tasks according to `tracker.md`.
 
