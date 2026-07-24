@@ -1,4 +1,4 @@
-name: Apply Component 07 source-edge/source-facet patch
+name: Diagnose Component 07 prepared patch
 
 on:
   pull_request:
@@ -11,8 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -20,97 +19,28 @@ jobs:
         with:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
-      - name: Diagnose or apply prepared patch
+      - name: Decode and check patch
+        id: diagnose
+        continue-on-error: true
         shell: bash
         run: |
-          set -uo pipefail
-          : > /tmp/component07-diagnostic.log
-          cat .github/component07.patch.part-* | base64 -d 2>>/tmp/component07-diagnostic.log | gzip -d > /tmp/component07.patch 2>>/tmp/component07-diagnostic.log
-          decode_status=$?
-          echo "decode_status=${decode_status}" >> /tmp/component07-diagnostic.log
-          if [ "${decode_status}" -eq 0 ]; then
-            sha256sum /tmp/component07.patch >> /tmp/component07-diagnostic.log
-            echo "e63e3c9f46272a9cce47e661d3d032e2d14be39003e72f04109f27f6dd4402e7  /tmp/component07.patch" | sha256sum -c - >>/tmp/component07-diagnostic.log 2>&1
-            checksum_status=$?
-          else
-            checksum_status=99
-          fi
-          echo "checksum_status=${checksum_status}" >> /tmp/component07-diagnostic.log
-          if [ "${decode_status}" -ne 0 ] || [ "${checksum_status}" -ne 0 ]; then
-            {
-              echo '# Component 07 prepared patch decode failure'
-              echo
-              echo '```text'
-              cat /tmp/component07-diagnostic.log
-              echo '```'
-              echo
-              wc -c .github/component07.patch.part-* || true
-              git hash-object .github/component07.patch.part-* || true
-            } > .github/component07-apply-failure.log
-            git add .github/component07-apply-failure.log
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'Record Component 07 patch decode failure'
-            git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
-            exit 1
-          fi
-          if ! git apply --index /tmp/component07.patch 2>/tmp/component07-apply-direct.log; then
-            git reset --hard HEAD
-            if ! git apply --3way --index /tmp/component07.patch 2>/tmp/component07-apply-three-way.log; then
-              {
-                echo '# Component 07 prepared patch application failure'
-                echo
-                echo '## Patch manifest'
-                grep '^diff --git ' /tmp/component07.patch || true
-                echo
-                echo '## Direct apply'
-                cat /tmp/component07-apply-direct.log
-                echo
-                echo '## Three-way apply'
-                cat /tmp/component07-apply-three-way.log
-              } > .github/component07-apply-failure.log
-              git add .github/component07-apply-failure.log
-              git config user.name 'github-actions[bot]'
-              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-              git commit -m 'Record Component 07 patch application failure'
-              git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
-              exit 1
-            fi
-          fi
-          rm .github/component07.patch.part-*
-          rm -f .github/component07-apply-failure.log
-          cat > .github/workflows/component07-workspace.yml <<'YAML'
-          name: Component 07 workspace export
-
-          on:
-            pull_request:
-              branches:
-                - master
-            push:
-              branches:
-                - agent/bounded-manifold-mesh-boolean-plan
-
-          jobs:
-            export:
-              runs-on: ubuntu-latest
-              timeout-minutes: 15
-              steps:
-                - uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-                - name: Package checkout
-                  run: |
-                    git status --short --branch
-                    tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
-                - uses: actions/upload-artifact@v4
-                  with:
-                    name: ygor-component07-workspace
-                    path: /tmp/ygor-component07-workspace.tar.gz
-                    if-no-files-found: error
-                    retention-days: 1
-          YAML
-          git add .
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 07 source-edge/source-facet relations'
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+          mkdir -p /tmp/component07-diagnostics
+          set +e
+          wc -c .github/component07.patch.part-* > /tmp/component07-diagnostics/part-sizes.txt 2>&1
+          git hash-object .github/component07.patch.part-* > /tmp/component07-diagnostics/part-blob-shas.txt 2>&1
+          cat .github/component07.patch.part-* | base64 -d 2>/tmp/component07-diagnostics/base64.stderr | gzip -d > /tmp/component07.patch 2>/tmp/component07-diagnostics/gzip.stderr
+          echo "$?" > /tmp/component07-diagnostics/decode.status
+          sha256sum /tmp/component07.patch > /tmp/component07-diagnostics/patch.sha256 2>&1
+          grep '^diff --git ' /tmp/component07.patch > /tmp/component07-diagnostics/manifest.txt 2>&1
+          git apply --check --verbose /tmp/component07.patch > /tmp/component07-diagnostics/apply-check.stdout 2>/tmp/component07-diagnostics/apply-check.stderr
+          echo "$?" > /tmp/component07-diagnostics/apply-check.status
+          git apply --3way --check /tmp/component07.patch > /tmp/component07-diagnostics/apply-3way.stdout 2>/tmp/component07-diagnostics/apply-3way.stderr
+          echo "$?" > /tmp/component07-diagnostics/apply-3way.status
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: component07-patch-diagnostics
+          path: /tmp/component07-diagnostics
+          if-no-files-found: error
+          retention-days: 1
