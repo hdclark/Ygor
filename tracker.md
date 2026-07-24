@@ -74,16 +74,16 @@ Do not begin normalization repair, approximate realization, or backend fallback 
 
 Start only after P0.
 
-- [ ] **P1 complete — detach and publish the verified exact stratified boundary.**
-  - [ ] Detach Component 10's verified `selected_exact_boundary` and all required exact-coordinate/construction, occurrence, spherical-link, topology-obstruction, side-label, and provenance data from invocation-private storage.
-  - [ ] Define immutable owning and shared-lifetime handles that cannot outlive referenced storage incorrectly and cannot retain stale context-owner tokens.
-  - [ ] Add versioned canonical serialization/deserialization, digest binding, replay, resource accounting, and corruption detection for the exact result.
-  - [ ] Expose exact coordinates as canonical rationals or versioned construction records without forcing conversion to `T`.
-  - [ ] Expose explicit topology class, surface occurrences, local link components, obstruction records, source contributors, backend provenance, and operation/preparation provenance.
-  - [ ] Provide a later-realization entry point so one exact result can be requested as exact-coordinate output or realized into multiple coordinate/index types and policies.
-  - [ ] Change Component 12/result-envelope handling so manifold rejection or finite-`T` realization failure does not erase a valid exact success when exact retention was requested.
-  - [ ] Extend Component 13 with an independent exact-result reader/verifier that reconstructs bindings from serialized bytes rather than producer-owned derived state.
-  - [ ] Add round-trip, cross-process replay, stale-certificate, stale-backend/preparation binding, byte corruption, truncation, resource-limit, non-manifold retention, and lifetime tests.
+- [x] **P1 complete — detach and publish the verified exact stratified boundary.**
+  - [x] Detach Component 10's verified `selected_exact_boundary` and all required exact-coordinate/construction, occurrence, spherical-link, topology-obstruction, side-label, and provenance data from invocation-private storage.
+  - [x] Define immutable owning and shared-lifetime handles that cannot outlive referenced storage incorrectly and cannot retain stale context-owner tokens.
+  - [x] Add versioned canonical serialization/deserialization, digest binding, replay, resource accounting, and corruption detection for the exact result.
+  - [x] Expose exact coordinates as canonical rationals or versioned construction records without forcing conversion to `T`.
+  - [x] Expose explicit topology class, surface occurrences, local link components, obstruction records, source contributors, backend provenance, and operation/preparation provenance.
+  - [x] Provide a later-realization entry point so one exact result can be requested as exact-coordinate output or realized into multiple coordinate/index types and policies.
+  - [x] Change Component 12/result-envelope handling so manifold rejection or finite-`T` realization failure does not erase a valid exact success when exact retention was requested.
+  - [x] Extend Component 13 with an independent exact-result reader/verifier that reconstructs bindings from serialized bytes rather than producer-owned derived state.
+  - [x] Add round-trip, cross-process replay, stale-certificate, stale-backend/preparation binding, byte corruption, truncation, resource-limit, non-manifold retention, and lifetime tests.
 
 **P1 exit gate:** a verified exact manifold or stratified non-manifold result survives context destruction, round-trips canonically, and remains available when every mesh realization is declined or fails.
 

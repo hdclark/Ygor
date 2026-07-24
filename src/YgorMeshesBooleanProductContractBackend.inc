@@ -264,7 +264,12 @@ make_exact_result_handle(operation op, exact_result_topology topology,
                               "exact_result.empty_serialization");
   if (canonical_bytes.size() > 64U * 1024U * 1024U)
     return make_product_error(product_error_code::resource_limit,
-                              "exact_result.serialization_limit");
+                               "exact_result.serialization_limit");
+  auto exact_bytes =
+      validate_canonical_exact_result_bytes(op, topology, backend,
+                                            canonical_bytes);
+  if (!exact_bytes.has_value())
+    return exact_bytes.error();
   canonical_encoder e;
   e.u16(product_contract_schema_version);
   e.byte(static_cast<std::uint8_t>(op));

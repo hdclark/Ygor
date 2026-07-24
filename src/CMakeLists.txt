@@ -29,6 +29,34 @@ target_include_directories(ygor_mesh_boolean_realization_verifier_isolation
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_features(ygor_mesh_boolean_realization_verifier_isolation PRIVATE cxx_std_17)
 
+# The durable-result reader starts from canonical bytes. Build it as a linked
+# library so unresolved references cannot be hidden by an OBJECT-only check.
+add_library(ygor_mesh_boolean_exact_result_verifier_support STATIC
+    YgorMeshesBooleanContract.cc
+    YgorMeshesBooleanProductContract.cc
+    YgorMeshesExactArithmetic.cc
+    YgorMeshesBooleanPerformance.cc
+    External/MD5/md5.cc)
+target_include_directories(ygor_mesh_boolean_exact_result_verifier_support
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_exact_result_verifier_support PRIVATE cxx_std_17)
+set_target_properties(ygor_mesh_boolean_exact_result_verifier_support
+    PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+add_library(ygor_mesh_boolean_exact_result_verifier_isolation SHARED
+    YgorMeshesBooleanExactResult.cc)
+target_include_directories(ygor_mesh_boolean_exact_result_verifier_isolation
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE cxx_std_17)
+target_link_libraries(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE
+    ygor_mesh_boolean_exact_result_verifier_support
+    Threads::Threads
+    m
+    "${STD_FS_LIB}")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_link_options(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE "LINKER:--no-undefined")
+endif()
+
 # Predicate-bearing Boolean sources must override repository-wide fast-math flags.
 set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc

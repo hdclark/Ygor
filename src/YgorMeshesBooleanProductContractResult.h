@@ -36,8 +36,8 @@ class exact_result_handle {
   explicit exact_result_handle(std::shared_ptr<const exact_result_storage> s)
       : storage_(std::move(s)) {}
   friend product_status_or<exact_result_handle>
-  make_exact_result_handle(operation, exact_result_topology, backend_provenance,
-                           std::vector<std::uint8_t>);
+      make_exact_result_handle(operation, exact_result_topology,
+                               backend_provenance, std::vector<std::uint8_t>);
 
 public:
   exact_result_handle() = default;
@@ -47,13 +47,19 @@ public:
       throw std::logic_error("empty exact_result_handle");
     return *storage_;
   }
-  const exact_result_storage *operator->() const noexcept { return storage_.get(); }
+  const exact_result_storage *operator->() const noexcept {
+    return storage_.get();
+  }
   std::size_t use_count() const noexcept { return storage_.use_count(); }
 };
 
+product_status_or<bool> validate_canonical_exact_result_bytes(
+    operation, exact_result_topology, const backend_provenance &,
+    const std::vector<std::uint8_t> &) noexcept;
+
 product_status_or<exact_result_handle>
-make_exact_result_handle(operation, exact_result_topology, backend_provenance,
-                         std::vector<std::uint8_t>);
+    make_exact_result_handle(operation, exact_result_topology,
+                             backend_provenance, std::vector<std::uint8_t>);
 
 struct preparation_provenance {
   std::uint16_t schema = product_contract_schema_version;
@@ -64,6 +70,13 @@ struct preparation_provenance {
   digest report_digest;
   bool geometry_changed = false;
 };
+
+product_status_or<bool>
+validate_durable_exact_result_bindings(const exact_result_handle &,
+                                       const backend_provenance &,
+                                       const preparation_provenance &) noexcept;
+product_status_or<bool> validate_durable_mesh_selection_binding(
+    const exact_result_handle &, const digest &) noexcept;
 
 struct realization_certificate_reference {
   std::uint16_t schema = product_contract_schema_version;
@@ -115,7 +128,8 @@ template <class T, class I> struct certified_mesh_payload {
 
 template <class T, class I> struct boolean_product_result {
   product_schema_versions schemas;
-  result_representation representation = result_representation::exact_stratified;
+  result_representation representation =
+      result_representation::exact_stratified;
   operation_contract operation{operation::regularized_union};
   backend_provenance backend;
   preparation_provenance preparation;
@@ -168,6 +182,10 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
        r.preparation.geometry_changed))
     return fail(product_error_code::stale_binding,
                 "product_result.preparation_binding");
+  auto exact_bindings = validate_durable_exact_result_bindings(
+      r.exact_result, r.backend, r.preparation);
+  if (!exact_bindings.has_value())
+    return exact_bindings.error();
   if (r.attributes.schema != product_contract_schema_version ||
       product_digest_is_zero(r.attributes.report_digest))
     return fail(product_error_code::stale_binding,
@@ -201,6 +219,10 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
         r.mesh->success->selected_operation != selected_operation)
       return fail(product_error_code::stale_binding,
                   "product_result.realization_binding");
+    auto mesh_binding = validate_durable_mesh_selection_binding(
+        r.exact_result, r.mesh->success->selected_boundary_digest);
+    if (!mesh_binding.has_value())
+      return mesh_binding.error();
   }
   if (r.realization) {
     if (r.realization->schema != product_contract_schema_version)
@@ -273,11 +295,9 @@ struct product_replay_binding {
   digest qualification_manifest_digest;
 };
 
-product_status_or<bool>
-validate_product_replay_binding(const product_replay_binding &,
-                                const boolean_product_options &,
-                                const backend_identity &,
-                                const exact_result_handle *) noexcept;
+product_status_or<bool> validate_product_replay_binding(
+    const product_replay_binding &, const boolean_product_options &,
+    const backend_identity &, const exact_result_handle *) noexcept;
 product_status_or<std::vector<std::uint8_t>>
 encode_product_replay_binding(const product_replay_binding &);
 product_status_or<product_replay_binding>

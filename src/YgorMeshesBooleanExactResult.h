@@ -3,12 +3,14 @@
 #define YGOR_MESHES_BOOLEAN_EXACT_RESULT_H_
 
 #include "YgorMeshesBooleanProductContractPolicies.h"
+#include "YgorMeshesBooleanProductContractResult.h"
 #include "YgorMeshesBooleanSelection.h"
 
 #include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 namespace ygor {
@@ -66,8 +68,8 @@ struct exact_defining_relation_record {
   construction_node_id construction;
   std::vector<construction_node_id> operand_nodes;
   std::vector<exact_feature_reference> defining_sources;
-  std::array<exact_scalar, 4> coefficients{{exact_scalar(0), exact_scalar(0),
-                                            exact_scalar(0), exact_scalar(0)}};
+  std::array<exact_scalar, 4> coefficients{
+      {exact_scalar(0), exact_scalar(0), exact_scalar(0), exact_scalar(0)}};
   exact_sign expected = exact_sign::zero;
 };
 
@@ -76,7 +78,7 @@ struct exact_result_vertex {
   global_vertex_id source;
   symbolic_vertex_id symbolic;
   exact_point3 coordinate;
-  std::vector<original_vertex_id> original_vertices;
+  std::vector<original_vertex_ref> original_vertices;
   std::vector<construction_node_id> constructions;
 };
 
@@ -170,6 +172,7 @@ struct exact_stratified_boundary {
   digest selected_semantic_digest;
 
   std::vector<patch_selection_decision> decisions;
+  std::vector<patch_side_label> side_labels;
   std::vector<exact_result_vertex> vertices;
   std::vector<selected_vertex_occurrence> vertex_occurrences;
   std::vector<selected_edge> edges;
@@ -195,7 +198,7 @@ product_status_or<bool>
 validate_exact_stratified_boundary(const exact_stratified_boundary &) noexcept;
 
 product_status_or<std::shared_ptr<const exact_stratified_boundary>>
-freeze_exact_stratified_boundary(exact_stratified_boundary);
+    freeze_exact_stratified_boundary(exact_stratified_boundary);
 
 product_status_or<std::vector<std::uint8_t>>
 encode_exact_stratified_boundary(const exact_stratified_boundary &);
@@ -209,16 +212,137 @@ product_status_or<bool> verify_serialized_exact_stratified_boundary(
     const std::vector<std::uint8_t> &,
     const exact_result_decode_limits & = exact_result_decode_limits{}) noexcept;
 
+product_status_or<exact_result_handle> make_exact_result_handle(
+    const std::shared_ptr<const exact_stratified_boundary> &);
+
+product_status_or<std::shared_ptr<const exact_stratified_boundary>>
+read_exact_result(const exact_result_handle &,
+                  const exact_result_decode_limits & = {});
+
+template <class T> constexpr coordinate_tag exact_result_coordinate_type() {
+  static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
+                "durable exact results support binary32 and binary64 targets");
+  return std::is_same<T, float>::value ? coordinate_tag::binary32
+                                       : coordinate_tag::binary64;
+}
+
+template <class I> constexpr index_tag exact_result_index_type() {
+  static_assert(std::is_same<I, std::uint32_t>::value ||
+                    std::is_same<I, std::uint64_t>::value,
+                "durable exact results support 32-bit and 64-bit indices");
+  return std::is_same<I, std::uint32_t>::value ? index_tag::uint32
+                                               : index_tag::uint64;
+}
+
+template <class T, class I> struct exact_result_realization_request {
+  exact_result_handle exact_result;
+  result_representation representation =
+      result_representation::exact_stratified;
+  product_realization_policy policy;
+  coordinate_tag coordinate = exact_result_coordinate_type<T>();
+  index_tag index = exact_result_index_type<I>();
+  digest exact_result_digest;
+};
+
 template <class T, class I>
-product_status_or<exact_stratified_boundary> detach_exact_stratified_boundary(
-    const selected_exact_boundary<T, I> &, exact_result_backend_binding,
-    exact_result_preparation_binding);
+product_status_or<exact_result_realization_request<T, I>>
+request_later_realization(const exact_result_handle &exact,
+                          result_representation representation,
+                          product_realization_policy policy) {
+  auto fail = [](const char *key) {
+    return product_status_or<exact_result_realization_request<T, I>>(
+        make_product_error(product_error_code::approximation_policy_rejected,
+                           key));
+  };
+  auto decoded = read_exact_result(exact);
+  if (!decoded.has_value())
+    return decoded.error();
+  boolean_product_options options;
+  options.result.representation = representation;
+  options.realization = policy;
+  auto valid_policy = validate_product_options(options);
+  if (!valid_policy.has_value())
+    return valid_policy.error();
+  if (policy.schema != product_contract_schema_version)
+    return fail("later_realization.schema");
+  if (representation == result_representation::exact_stratified) {
+    if (policy.semantics != product_realization_semantics::not_requested ||
+        policy.search.strategy != realization_search_strategy::none ||
+        policy.approximation.enabled)
+      return fail("later_realization.exact_coordinate_policy");
+  } else if (representation == result_representation::exact_in_T_mesh) {
+    if (policy.semantics != product_realization_semantics::exact_in_T ||
+        policy.approximation.enabled)
+      return fail("later_realization.exact_in_T_policy");
+  } else if (representation ==
+             result_representation::certified_approximate_mesh) {
+    if (policy.semantics !=
+            product_realization_semantics::certified_approximate_embedding_v1 ||
+        !policy.approximation.enabled)
+      return fail("later_realization.approximate_policy");
+  } else {
+    return fail("later_realization.representation");
+  }
+  exact_result_realization_request<T, I> request;
+  request.exact_result = exact;
+  request.representation = representation;
+  request.policy = std::move(policy);
+  request.exact_result_digest = exact->canonical_digest;
+  return request;
+}
+
+template <class T, class I>
+product_status_or<exact_stratified_boundary>
+detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &,
+                                 exact_result_backend_binding,
+                                 exact_result_preparation_binding);
+
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+publish_exact_boolean_result(boolean_context<T, I> &,
+                             exact_result_backend_binding,
+                             exact_result_preparation_binding);
+
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+evaluate_boolean_product_result(boolean_context<T, I> &,
+                                exact_result_backend_binding,
+                                exact_result_preparation_binding,
+                                result_representation);
+
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+record_failed_realization(const boolean_product_result_handle<T, I> &exact,
+                          result_representation requested,
+                          product_realization_semantics semantics,
+                          product_error failure) {
+  if (!exact ||
+      exact->representation != result_representation::exact_stratified ||
+      exact->mesh || requested == result_representation::exact_stratified ||
+      semantics == product_realization_semantics::not_requested)
+    return make_product_error(product_error_code::stale_binding,
+                              "failed_realization.exact_result");
+  auto result = *exact;
+  result.realization = realization_attempt_record{};
+  result.realization->requested = requested;
+  result.realization->semantics = semantics;
+  result.realization->failure = std::move(failure);
+  return freeze_boolean_product_result(std::move(result));
+}
 
 #define YGOR_EXACT_RESULT_EXTERN(T, I)                                         \
   extern template product_status_or<exact_stratified_boundary>                 \
-  detach_exact_stratified_boundary(                                            \
-      const selected_exact_boundary<T, I> &, exact_result_backend_binding,      \
-      exact_result_preparation_binding)
+  detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &,      \
+                                   exact_result_backend_binding,               \
+                                   exact_result_preparation_binding);          \
+  extern template product_status_or<boolean_product_result_handle<T, I>>       \
+  publish_exact_boolean_result(boolean_context<T, I> &,                        \
+                               exact_result_backend_binding,                   \
+                               exact_result_preparation_binding);              \
+  extern template product_status_or<boolean_product_result_handle<T, I>>       \
+  evaluate_boolean_product_result(                                             \
+      boolean_context<T, I> &, exact_result_backend_binding,                   \
+      exact_result_preparation_binding, result_representation)
 YGOR_EXACT_RESULT_EXTERN(float, std::uint32_t);
 YGOR_EXACT_RESULT_EXTERN(float, std::uint64_t);
 YGOR_EXACT_RESULT_EXTERN(double, std::uint32_t);

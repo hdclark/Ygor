@@ -1,9 +1,10 @@
 # Mesh Boolean product contract (schema 3)
 
-This document defines the product boundary introduced by Plan 15 P0. It does
-not promote any Boolean backend and it does not implement normalization,
-backend fallback, exact-result detachment, or approximate realization. Those
-behaviours remain gated by later tracker components.
+This document defines the product boundary introduced by Plan 15 P0 and the
+durable exact-result authority introduced by P1. It does not promote any
+Boolean backend and it does not implement normalization, backend fallback, or
+approximate realization. Those behaviours remain gated by later tracker
+components.
 
 ## Current support boundary
 
@@ -25,11 +26,27 @@ that boundary; the normalization service itself is P2 work.
 
 ## Authoritative result and representations
 
-`exact_result_handle` is an immutable, shared-lifetime owner. It carries no
-`boolean_context` owner token and remains valid after the producing invocation
-is destroyed. P0 defines ownership, canonical bytes, digest, topology class,
-operation, and backend binding. P1 will populate this durable storage from the
-verified selected exact boundary and implement its complete canonical reader.
+`exact_result_handle` is an immutable, shared-lifetime owner populated from a
+verified `selected_exact_boundary`. It carries no `boolean_context` owner token
+and remains valid after the producing invocation is destroyed. Its canonical
+record owns exact rational coordinates, selected surface occurrences, local
+spherical links, topology obstructions, construction relations, side decisions,
+source contributors, and operation/backend/preparation provenance.
+
+`read_exact_result` independently reconstructs the result from canonical bytes;
+it does not trust producer-owned derived tables or context tokens. Decoding
+checks the canonical digest, all cross-references and certificate counts, exact
+topology, backend and preparation bindings, resource limits, and canonical
+re-encoding. `request_later_realization<T,I>` records a type- and policy-bound
+request against the retained exact-result digest. Exact-coordinate consumers
+can use the decoded rational boundary immediately; full strict finite-`T`
+envelope integration and certified approximate execution remain P3 work.
+
+`evaluate_boolean_product_result` is the expert productization path for the
+current in-tree backend. It publishes the verified exact authority before
+calling Components 11 and 12. A topology rejection or strict finite-`T`
+realization failure therefore returns an `exact_stratified` envelope with the
+failed realization attempt instead of erasing the exact success.
 
 `boolean_product_result<T,I>` is a tagged envelope with exactly three result
 representations:
@@ -100,14 +117,14 @@ The product error schema retains the original engine categories and adds:
 `stale_binding`, `replay_mismatch`, and `verifier_disagreement` are explicit
 fail-closed contract errors and are never fallback-authorized.
 
-## P0 non-goals
+## Current non-goals
 
 P0 deliberately does not:
 
 - change Components 3 through 10 or their exact semantics;
 - normalize or repair an operand;
-- detach the current selected-boundary implementation into the durable handle;
-- implement exact-coordinate export or approximate embedding search;
+- execute strict finite-`T` or approximate embedding search from a deferred
+  realization request;
 - wrap backend execution or run independent adapters;
 - transfer application attributes; or
 - claim any production-qualified backend/result/preparation profile.

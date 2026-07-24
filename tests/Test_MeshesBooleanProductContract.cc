@@ -1,3 +1,4 @@
+#include <YgorMeshesBooleanExactResult.h>
 #include <YgorMeshesBooleanProductContract.h>
 
 #include <cmath>
@@ -57,9 +58,10 @@ backend_capabilities experimental_capabilities() {
   return capabilities;
 }
 
-backend_identity make_test_identity(
-    backend_maturity maturity = backend_maturity::experimental,
-    std::string build = "test-build", backend_version version = {1, 0, 0}) {
+backend_identity
+make_test_identity(backend_maturity maturity = backend_maturity::experimental,
+                   std::string build = "test-build",
+                   backend_version version = {1, 0, 0}) {
   auto made = make_backend_identity(backend_id::experimental_exact_v1, version,
                                     std::move(build),
                                     experimental_capabilities(), maturity);
@@ -73,6 +75,34 @@ backend_provenance experimental_provenance() {
   provenance.selection = backend_selection_mode::explicit_backend;
   provenance.attempted_backends = {backend_id::experimental_exact_v1};
   return provenance;
+}
+
+exact_result_handle make_test_exact_result(operation op,
+                                           const backend_provenance &backend) {
+  exact_stratified_boundary boundary;
+  boundary.selected_operation = op;
+  boundary.backend.producer = backend.producer;
+  boundary.backend.selection = backend.selection;
+  boundary.backend.fallback_used = backend.fallback_used;
+  boundary.backend.attempted_backends = backend.attempted_backends;
+  if (backend.primary_failure)
+    boundary.backend.primary_failure = backend.primary_failure->code;
+  boundary.preparation.input_digest = test_digest('a');
+  boundary.preparation.prepared_digest = test_digest('b');
+  boundary.preparation.policy_digest = test_digest('c');
+  boundary.preparation.report_digest = test_digest('l');
+  boundary.setup_digest = test_digest('n');
+  boundary.labeled_digest = test_digest('o');
+  boundary.arrangement_digest = test_digest('p');
+  boundary.selected_artifact_digest = test_digest('q');
+  boundary.selected_semantic_digest = test_digest('r');
+  boundary.certificate.id = selection_certificate_id::from_canonical_value(0);
+  boundary.certificate.semantic_digest = boundary.selected_semantic_digest;
+  auto frozen = freeze_exact_stratified_boundary(std::move(boundary));
+  require(frozen.has_value(), "freeze test exact result");
+  auto made = make_exact_result_handle(frozen.value());
+  require(made.has_value(), "make test exact result handle");
+  return made.value();
 }
 
 boolean_product_options explicit_experimental_options() {
@@ -179,8 +209,7 @@ void product_policy_validation() {
 
   auto exact_in_t = boolean_product_options{};
   exact_in_t.result.representation = result_representation::exact_in_T_mesh;
-  exact_in_t.realization.semantics =
-      product_realization_semantics::exact_in_T;
+  exact_in_t.realization.semantics = product_realization_semantics::exact_in_T;
   exact_in_t.realization.search.strategy =
       realization_search_strategy::nearest_only;
   require(validate_product_options(exact_in_t).has_value(),
@@ -191,7 +220,7 @@ void product_policy_validation() {
   require(validate_product_options(exact_in_t).has_value(),
           "search policy does not change exact semantics");
   require(exact_in_t.result.representation ==
-              result_representation::exact_in_T_mesh &&
+                  result_representation::exact_in_T_mesh &&
               exact_in_t.realization.semantics ==
                   product_realization_semantics::exact_in_T,
           "search and semantic fields remain separate");
@@ -255,8 +284,8 @@ void backend_maturity_and_qualification() {
   require(!authorize_backend(explicit_options, experimental).has_value(),
           "experimental backend is not silently selected");
 
-  const auto candidate = make_test_identity(
-      backend_maturity::candidate, "candidate-test-build", {1, 1, 0});
+  const auto candidate = make_test_identity(backend_maturity::candidate,
+                                            "candidate-test-build", {1, 1, 0});
   explicit_options.backend.allow_experimental_backend = true;
   require(authorize_backend(explicit_options, candidate).has_value(),
           "candidate backend also requires explicit opt-in");
@@ -270,8 +299,8 @@ void backend_maturity_and_qualification() {
   require(!authorize_backend(default_options, experimental).has_value(),
           "qualified default rejects experimental backend");
 
-  const auto qualified = make_test_identity(
-      backend_maturity::qualified, "qualified-test-build");
+  const auto qualified =
+      make_test_identity(backend_maturity::qualified, "qualified-test-build");
   qualification_profile profile;
   profile.backend = qualified.id;
   profile.capability_digest = qualified.capability_digest;
@@ -305,19 +334,15 @@ void backend_maturity_and_qualification() {
 
 void exact_result_lifetime_and_envelope() {
   auto provenance = experimental_provenance();
-  auto made = make_exact_result_handle(
-      operation::regularized_union,
-      exact_result_topology::closed_embedded_two_manifold, provenance,
-      {1, 2, 3, 4});
-  require(made.has_value(), "durable exact result handle");
-  auto exact = made.value();
+  auto exact = make_test_exact_result(operation::regularized_union, provenance);
   auto retained = exact;
-  require(exact.use_count() >= 2 && retained->canonical_bytes.size() == 4,
+  require(exact.use_count() >= 2 && !retained->canonical_bytes.empty(),
           "exact result owns immutable storage independently of context");
   require(!product_digest_is_zero(exact->canonical_digest),
           "exact result digest");
   require(!make_exact_result_handle(operation::regularized_union,
-                                    exact_result_topology::empty, provenance, {})
+                                    exact_result_topology::empty, provenance,
+                                    {})
                .has_value(),
           "empty exact serialization rejected");
 
@@ -347,6 +372,10 @@ void exact_result_lifetime_and_envelope() {
 
   auto success = std::make_shared<boolean_success<double, std::uint64_t>>();
   success->selected_operation = operation::regularized_union;
+  auto exact_boundary = read_exact_result(exact);
+  require(exact_boundary.has_value(), "read exact result for mesh binding");
+  success->selected_boundary_digest =
+      exact_boundary.value()->selected_artifact_digest;
   certified_mesh_payload<double, std::uint64_t> payload;
   payload.success = success;
   payload.semantics = product_realization_semantics::exact_in_T;
@@ -366,6 +395,14 @@ void exact_result_lifetime_and_envelope() {
   stale_certificate.mesh->certificate.backend.build_identifier += "-stale";
   require(!validate_product_result(stale_certificate).has_value(),
           "certificate backend identity drift rejected");
+  auto foreign_mesh = result;
+  auto foreign_success =
+      std::make_shared<boolean_success<double, std::uint64_t>>(
+          *result.mesh->success);
+  foreign_success->selected_boundary_digest.bytes[0] ^= 1;
+  foreign_mesh.mesh->success = std::move(foreign_success);
+  require(!validate_product_result(foreign_mesh).has_value(),
+          "mesh from another exact selection rejected");
 
   auto frozen = freeze_boolean_product_result(std::move(result));
   require(frozen.has_value() && frozen.value()->mesh.has_value(),
@@ -409,12 +446,7 @@ void replay_contract() {
   auto options = explicit_experimental_options();
   const auto backend = make_test_identity();
   const auto provenance = experimental_provenance();
-  auto exact_made = make_exact_result_handle(
-      operation::regularized_union,
-      exact_result_topology::closed_embedded_two_manifold, provenance,
-      {9, 8, 7});
-  require(exact_made.has_value(), "replay exact handle");
-  auto exact = exact_made.value();
+  auto exact = make_test_exact_result(operation::regularized_union, provenance);
 
   product_replay_binding replay;
   replay.options_digest = product_options_digest(options);
@@ -436,10 +468,10 @@ void replay_contract() {
   require(encoded.has_value(), "replay encode");
   auto decoded = decode_product_replay_binding(encoded.value());
   require(decoded.has_value(), "replay decode");
-  require(validate_product_replay_binding(decoded.value(), options, backend,
-                                          &exact)
-              .has_value(),
-          "replay canonical round trip");
+  require(
+      validate_product_replay_binding(decoded.value(), options, backend, &exact)
+          .has_value(),
+      "replay canonical round trip");
   decoded.value().capability_digest.bytes[0] ^= 1;
   require(!validate_product_replay_binding(decoded.value(), options, backend,
                                            &exact)

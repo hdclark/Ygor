@@ -7,8 +7,11 @@ on:
   pull_request:
     paths:
       - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanExactResult*'
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanProductContract.cc'
+      - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'tests/Test_MeshesBooleanSelection.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
       - 'tracker.md'
@@ -42,10 +45,10 @@ jobs:
       - name: Build contract tests
         run: >-
           cmake --build build-p0
-          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract
+          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult ygor_mesh_boolean_exact_result_verifier_isolation
           --parallel 2
       - name: Run contract tests
         run: >-
           ctest --test-dir build-p0 --output-on-failure
-          -R '^(MeshesBooleanContract|MeshesBooleanProductContract)$'
+          -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit)$'
           --timeout 360
