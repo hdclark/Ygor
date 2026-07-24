@@ -148,6 +148,14 @@ std::vector<std::uint8_t> invocation(const selected_exact_boundary<T, I> &a) {
   e.raw(a.setup_digest.bytes.data(), 16);
   e.raw(a.labeled_digest.bytes.data(), 16);
   e.raw(a.arrangement_digest.bytes.data(), 16);
+  e.boolean(a.preparation_provenance.has_value());
+  if (a.preparation_provenance) {
+    e.raw(a.preparation_provenance->input_digest.bytes.data(), 16);
+    e.raw(a.preparation_provenance->prepared_digest.bytes.data(), 16);
+    e.raw(a.preparation_provenance->policy_digest.bytes.data(), 16);
+    e.raw(a.preparation_provenance->report_digest.bytes.data(), 16);
+    e.boolean(a.preparation_provenance->geometry_changed);
+  }
   e.byte_string(a.canonical_bytes);
   return e.bytes();
 }
@@ -816,6 +824,7 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
     auto &a = tx.draft();
     a.owner = ctx.owner();
     a.selected_operation = ctx.contract().selected_operation();
+    a.preparation_provenance = ctx.preparation_provenance();
     a.setup_digest = ctx.replay().setup;
     a.labeled_digest = labeled->artifact_digest;
     a.arrangement_digest = l.arrangement->artifact_digest;
@@ -1274,9 +1283,9 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
                                       ctx.platform().coordinate,
                                       ctx.platform().index,
                                       &ctx.kernel(),
-                                      {},
-                                      &ctx.accountant(),
-                                      [&] { return ctx.cancelled(); }};
+                                       {},
+                                       &ctx.accountant(),
+                                       [&] { return ctx.cancelled(); }};
     for (auto &charge : charges)
       tx.stage_reservation(std::move(charge));
     producer.finish();
@@ -1301,14 +1310,29 @@ select_boolean_boundary(boolean_context<T, I> &ctx) {
     return x;
   }
 }
+template <class T, class I>
+bool selected_exact_boundary_has_canonical_encoding(
+    const selected_exact_boundary<T, I> &artifact) {
+  return semantic(artifact) == artifact.canonical_bytes &&
+         invocation(artifact) == artifact.artifact_bytes &&
+         artifact_digest_for(artifact) == artifact.artifact_digest;
+}
 #define INST(T, I)                                                             \
   template status_or<std::shared_ptr<                                          \
       const published_artifact<selected_exact_boundary<T, I>>>>                \
   select_boolean_boundary(boolean_context<T, I> &)
+#define INST_ENCODING(T, I)                                                    \
+  template bool selected_exact_boundary_has_canonical_encoding(                \
+      const selected_exact_boundary<T, I> &)
 INST(float, std::uint32_t);
+INST_ENCODING(float, std::uint32_t);
 INST(float, std::uint64_t);
+INST_ENCODING(float, std::uint64_t);
 INST(double, std::uint32_t);
+INST_ENCODING(double, std::uint32_t);
 INST(double, std::uint64_t);
+INST_ENCODING(double, std::uint64_t);
 #undef INST
+#undef INST_ENCODING
 } // namespace mesh_boolean
 } // namespace ygor

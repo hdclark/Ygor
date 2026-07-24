@@ -997,6 +997,25 @@ struct raw_operand_view {
   const void *operand_a = nullptr;
   const void *operand_b = nullptr;
 };
+struct context_preparation_provenance {
+  digest input_digest;
+  digest prepared_digest;
+  digest policy_digest;
+  digest report_digest;
+  bool geometry_changed = false;
+};
+inline bool operator==(const context_preparation_provenance &a,
+                       const context_preparation_provenance &b) noexcept {
+  return a.input_digest == b.input_digest &&
+         a.prepared_digest == b.prepared_digest &&
+         a.policy_digest == b.policy_digest &&
+         a.report_digest == b.report_digest &&
+         a.geometry_changed == b.geometry_changed;
+}
+inline bool operator!=(const context_preparation_provenance &a,
+                       const context_preparation_provenance &b) noexcept {
+  return !(a == b);
+}
 struct verification_environment_view {
   context_owner_token owner;
   digest setup_digest;
@@ -1033,6 +1052,7 @@ struct replay_descriptor {
 };
 class deterministic_executor;
 class performance_collector;
+template <class T, class I> class prepared_operand;
 template <class T, class I> class boolean_context {
   static_assert(is_supported_boolean_types<T, I>::value,
                 "unsupported Boolean types");
@@ -1052,6 +1072,8 @@ template <class T, class I> class boolean_context {
   cancellation_source *caller_cancel_;
   diagnostic_consumer consumer_;
   std::shared_ptr<performance_collector> performance_;
+  std::array<std::shared_ptr<const void>, 2> input_lifetimes_;
+  std::optional<context_preparation_provenance> preparation_provenance_;
   boolean_context(const fv_surface_mesh<T, I> &, const fv_surface_mesh<T, I> &,
                   operation, boolean_options, platform_facts, replay_descriptor,
                   context_owner_token,
@@ -1066,6 +1088,13 @@ template <class T, class I> class boolean_context {
       const boolean_options &, std::shared_ptr<const exact_kernel_services<U>>,
       std::shared_ptr<const verifier_service>, cancellation_source *,
       diagnostic_consumer);
+  template <class U, class J>
+  friend status_or<std::unique_ptr<boolean_context<U, J>>> make_boolean_context(
+      const prepared_operand<U, J> &, const prepared_operand<U, J> &,
+      operation, const boolean_options &,
+      std::shared_ptr<const exact_kernel_services<U>>,
+      std::shared_ptr<const verifier_service>, cancellation_source *,
+      diagnostic_consumer);
 
 public:
   ~boolean_context();
@@ -1074,6 +1103,10 @@ public:
   const boolean_options &options() const { return options_; }
   const platform_facts &platform() const { return platform_; }
   const replay_descriptor &replay() const { return replay_; }
+  const std::optional<context_preparation_provenance> &
+  preparation_provenance() const noexcept {
+    return preparation_provenance_;
+  }
   context_owner_token owner() const { return owner_; }
   const fv_surface_mesh<T, I> &operand_a_mesh() const { return *a_; }
   const fv_surface_mesh<T, I> &operand_b_mesh() const { return *b_; }

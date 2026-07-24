@@ -66,6 +66,7 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactKernelFilters.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanVerification.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanInputTopology.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanPreparation.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanBroadPhase.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanIntersectionEvents.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanSymbolicRegistry.cc

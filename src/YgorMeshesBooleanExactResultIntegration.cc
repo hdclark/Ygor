@@ -82,6 +82,18 @@ detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &s,
                                  exact_result_backend_binding b,
                                  exact_result_preparation_binding p) {
   try {
+    if (!selected_exact_boundary_has_canonical_encoding(s))
+      return error(product_error_code::stale_binding,
+                   "exact_result.selected_canonical_binding");
+    if (s.preparation_provenance &&
+        (p.mode != preparation_mode::strict_validation ||
+         p.input_digest != s.preparation_provenance->input_digest ||
+         p.prepared_digest != s.preparation_provenance->prepared_digest ||
+         p.policy_digest != s.preparation_provenance->policy_digest ||
+         p.report_digest != s.preparation_provenance->report_digest ||
+         p.geometry_changed != s.preparation_provenance->geometry_changed))
+      return error(product_error_code::stale_binding,
+                   "exact_result.preparation_selection_binding");
     if (!s.owner.value_for_debug() || !s.arrangement ||
         !s.arrangement->payload || !s.labeled || !s.labeled->payload ||
         s.arrangement->owner != s.owner || s.labeled->owner != s.owner ||
@@ -316,8 +328,18 @@ template <class T, class I>
 product_status_or<boolean_product_result_handle<T, I>>
 evaluate_boolean_product_result(boolean_context<T, I> &context,
                                 exact_result_backend_binding backend,
-                                exact_result_preparation_binding preparation,
-                                result_representation representation) {
+                                 exact_result_preparation_binding preparation,
+                                 result_representation representation) {
+  if (const auto &bound = context.preparation_provenance()) {
+    if (preparation.mode != preparation_mode::strict_validation ||
+        preparation.input_digest != bound->input_digest ||
+        preparation.prepared_digest != bound->prepared_digest ||
+        preparation.policy_digest != bound->policy_digest ||
+        preparation.report_digest != bound->report_digest ||
+        preparation.geometry_changed != bound->geometry_changed)
+      return error(product_error_code::stale_binding,
+                   "exact_result.preparation_context_binding");
+  }
   if (representation != result_representation::exact_stratified &&
       representation != result_representation::exact_in_T_mesh &&
       representation != result_representation::certified_approximate_mesh)

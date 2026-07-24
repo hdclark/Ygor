@@ -74,6 +74,7 @@ struct boolean_selection_certificate {
 template<class T,class I> struct selected_exact_boundary {
   context_owner_token owner;
   operation selected_operation = operation::regularized_union;
+  std::optional<context_preparation_provenance> preparation_provenance;
   digest setup_digest, labeled_digest, arrangement_digest, artifact_digest;
   std::shared_ptr<const published_artifact<labeled_arrangement<T,I>>> labeled;
   std::shared_ptr<const published_artifact<arrangement_complex<T,I>>> arrangement;
@@ -92,11 +93,18 @@ template<class T,class I> struct selected_exact_boundary {
 };
 status_or<bool> register_boolean_selection_verifier(verifier_registry&, coordinate_tag, index_tag);
 template<class T,class I> status_or<std::shared_ptr<const published_artifact<selected_exact_boundary<T,I>>>> select_boolean_boundary(boolean_context<T,I>&);
+template<class T,class I> bool selected_exact_boundary_has_canonical_encoding(const selected_exact_boundary<T,I>&);
 #define YGOR_SELECTION_EXTERN(T,I) extern template status_or<std::shared_ptr<const published_artifact<selected_exact_boundary<T,I>>>> select_boolean_boundary(boolean_context<T,I>&)
 YGOR_SELECTION_EXTERN(float,std::uint32_t);
 YGOR_SELECTION_EXTERN(float,std::uint64_t);
 YGOR_SELECTION_EXTERN(double,std::uint32_t);
 YGOR_SELECTION_EXTERN(double,std::uint64_t);
 #undef YGOR_SELECTION_EXTERN
+#define YGOR_SELECTION_ENCODING_EXTERN(T,I) extern template bool selected_exact_boundary_has_canonical_encoding(const selected_exact_boundary<T,I>&)
+YGOR_SELECTION_ENCODING_EXTERN(float,std::uint32_t);
+YGOR_SELECTION_ENCODING_EXTERN(float,std::uint64_t);
+YGOR_SELECTION_ENCODING_EXTERN(double,std::uint32_t);
+YGOR_SELECTION_ENCODING_EXTERN(double,std::uint64_t);
+#undef YGOR_SELECTION_ENCODING_EXTERN
 } }
 #endif

@@ -1,7 +1,8 @@
 # Mesh Boolean product contract (schema 3)
 
-This document defines the product boundary introduced by Plan 15 P0 and the
-durable exact-result authority introduced by P1. It does not promote any
+This document defines the product boundary introduced by Plan 15 P0, the
+durable exact-result authority introduced by P1, and the reusable strict
+preparation service introduced by P2.1. It does not promote any
 Boolean backend and it does not implement normalization, backend fallback, or
 approximate realization. Those behaviours remain gated by later tracker
 components.
@@ -22,7 +23,28 @@ implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
 `normalized` are distinct preparation contracts. No normalization operation is
 enabled by default, and a geometry-changing normalization policy must state its
 model unit, positive tolerance, and enabled operation set. The P0 types freeze
-that boundary; the normalization service itself is P2 work.
+that boundary; normalization diagnosis and repair remain later P2 work.
+
+## Strict operand preparation
+
+`validate_operand_strict` runs the authoritative Component 2 validator and
+returns an immutable `prepared_operand<T,I>`. The prepared operand owns its
+input mesh, so later mutation or destruction of caller storage cannot change a
+request. Its certificate binds coordinate/index types, input and prepared
+digests, strict policy, exact-kernel policy, Component 2 semantic artifact,
+verification report, invariant set, and the fact that geometry was not changed.
+
+`encode_prepared_operand` and `decode_prepared_operand` provide canonical,
+resource-bounded serialization. Decoding rejects stale bindings, corruption,
+truncation, trailing bytes, type overflow, and non-canonical records. A backend
+request made from prepared operands verifies those bindings, retains immutable
+operand lifetimes, and reruns Component 2 validation in the request context.
+Prepared and raw paths therefore have equivalent strict topology semantics;
+prepared input is not a bypass around validation.
+
+P2.1 performs no tolerance operation, snapping, welding, orientation repair,
+or other healing. `remove_unused_storage=true` currently fails closed until the
+separately reported normalization infrastructure defines that edit path.
 
 ## Authoritative result and representations
 
@@ -119,7 +141,7 @@ fail-closed contract errors and are never fallback-authorized.
 
 ## Current non-goals
 
-P0 deliberately does not:
+The current productized scope does not:
 
 - change Components 3 through 10 or their exact semantics;
 - normalize or repair an operand;

@@ -1,5 +1,6 @@
 #include "MeshBooleanOutputFixtures.h"
 #include <YgorMeshesBooleanExactResult.h>
+#include <YgorMeshesBooleanPreparation.h>
 
 #include <algorithm>
 #include <chrono>
@@ -336,6 +337,68 @@ void product_evaluator_mesh_paths() {
       product_error_code::output_not_representable);
 }
 
+void prepared_product_binding() {
+  using T = double;
+  using I = std::uint32_t;
+  auto verifiers = output_test::registry();
+  std::shared_ptr<const exact_kernel_services<T>> kernel =
+      std::make_shared<exact_kernel<T>>();
+  std::shared_ptr<const verifier_service> verifier = verifiers;
+  auto make_prepared = [&](const fv_surface_mesh<T, I> &mesh) {
+    auto made = validate_operand_strict(mesh, strict_validation_policy{},
+                                        boolean_options{}, kernel, verifier);
+    require(made.has_value(), "prepare product operand");
+    return made.value();
+  };
+  auto a = make_prepared(input_test::box<T, I>(T(0), T(1)));
+  auto b = make_prepared(input_test::box<T, I>(T(2), T(3)));
+  auto context = make_boolean_context(
+      a, b, operation::regularized_union, boolean_options{}, kernel, verifier);
+  require(context.has_value() && context.value()->preparation_provenance(),
+          "prepared product context provenance");
+  const auto &bound = *context.value()->preparation_provenance();
+  exact_result_preparation_binding preparation;
+  preparation.input_digest = bound.input_digest;
+  preparation.prepared_digest = bound.prepared_digest;
+  preparation.policy_digest = bound.policy_digest;
+  preparation.report_digest = bound.report_digest;
+  preparation.geometry_changed = bound.geometry_changed;
+  exact_result_backend_binding backend;
+  backend.producer = test_backend();
+  backend.attempted_backends = {backend_id::experimental_exact_v1};
+  auto stale = preparation;
+  stale.report_digest.bytes[0] ^= 1U;
+  auto selected = select_boolean_boundary(*context.value());
+  require(selected.has_value(), "prepared direct detach fixture");
+  auto direct_rejected = detach_exact_stratified_boundary(
+      *selected.value()->payload, backend, stale);
+  require(!direct_rejected.has_value() &&
+              direct_rejected.error().code == product_error_code::stale_binding,
+          "direct detach rejects foreign preparation provenance");
+  auto mutated_selection = *selected.value()->payload;
+  mutated_selection.preparation_provenance->report_digest.bytes[0] ^= 1U;
+  auto matching_mutation = preparation;
+  matching_mutation.report_digest =
+      mutated_selection.preparation_provenance->report_digest;
+  auto unverified = detach_exact_stratified_boundary(
+      mutated_selection, backend, matching_mutation);
+  require(!unverified.has_value() &&
+              unverified.error().code == product_error_code::stale_binding,
+          "detach rejects unverified selected preparation provenance");
+  auto rejected = evaluate_boolean_product_result(
+      *context.value(), backend, stale, result_representation::exact_stratified);
+  require(!rejected.has_value() &&
+              rejected.error().code == product_error_code::stale_binding,
+          "product evaluator rejects foreign preparation provenance");
+  auto published = evaluate_boolean_product_result(
+      *context.value(), std::move(backend), preparation,
+      result_representation::exact_stratified);
+  require(published.has_value() &&
+              published.value()->preparation.report_digest ==
+                  bound.report_digest,
+          "product result retains prepared context provenance");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -355,6 +418,7 @@ int main(int argc, char **argv) {
     stale_bindings();
     retain_nonmanifold_after_context_destruction();
     product_evaluator_mesh_paths();
+    prepared_product_binding();
     std::cout << "ok\n";
     return 0;
   } catch (const std::exception &error) {

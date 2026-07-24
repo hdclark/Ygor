@@ -91,11 +91,11 @@ Start only after P0.
 
 Start only after P1. Strict validation remains exact and non-mutating; normalization is a separate, explicitly approximate/modeling operation.
 
-- [ ] **P2.1 — Extract strict validation as a reusable product service.**
-  - [ ] Implement `validate_operand_strict(...)` returning an immutable `prepared_operand` plus validation/provenance certificate without geometry-changing edits.
-  - [ ] Accept prepared operands in backend requests only after verifying input digest, policy, report, and certificate bindings.
-  - [ ] Keep Component 2 as the authoritative strict validator and prohibit normalization heuristics inside it.
-  - [ ] Add stale prepared-operand, foreign-context, mutation-after-validation, reserialization, and direct-raw-versus-prepared equivalence tests.
+- [x] **P2.1 — Extract strict validation as a reusable product service.**
+  - [x] Implement `validate_operand_strict(...)` returning an immutable `prepared_operand` plus validation/provenance certificate without geometry-changing edits.
+  - [x] Accept prepared operands in backend requests only after verifying input digest, policy, report, and certificate bindings.
+  - [x] Keep Component 2 as the authoritative strict validator and prohibit normalization heuristics inside it.
+  - [x] Add stale prepared-operand, foreign-context, mutation-after-validation, reserialization, and direct-raw-versus-prepared equivalence tests.
 
 - [ ] **P2.2 — Define normalization policy/report infrastructure.**
   - [ ] Define units, model tolerance, diagnosis-only versus structural-only versus geometry-changing modes, per-operation enablement, deterministic edit ordering, and resource/cancellation policy.
