@@ -245,8 +245,8 @@ bool valid_source_facet_segment_partition_record(
          breakpoint.contact_lineages.empty()))
       return false;
     if ((breakpoint.segment_endpoint_mask & 1U) != 0 &&
-        (!singleton(breakpoint.parameter) ||
-         breakpoint.parameter.lower() != T(0) ||
+        (breakpoint.parameter.lower() != T(0) ||
+         breakpoint.parameter.upper() != T(0) ||
          !same_projected_geometry(breakpoint.point,
                                   record.segment_start)))
       return false;

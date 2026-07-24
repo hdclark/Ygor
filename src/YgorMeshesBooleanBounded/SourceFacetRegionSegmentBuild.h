@@ -139,7 +139,7 @@ partition_source_facet_segment(
         continue;
       if (!interval_equal_bits(contact.first_parameter,
                                iterator->first_parameter) ||
-          !singleton(contact.first_parameter))
+          !canonical_parameter_point(contact.first_parameter))
         return boolean_outcome<
             source_facet_segment_partition_record<T>>::failure(
             source_facet_region_error(

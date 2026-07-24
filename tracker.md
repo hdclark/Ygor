@@ -5,7 +5,7 @@
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
 - [x] Component 6: broad phase, gated against exhaustive enumeration.
-- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix. Foundation, primitive truth and source-facet slices, the canonical source-edge/source-edge kernel, candidate-derived request discovery, compute-once producer sharing, deterministic candidate coverage, independent source-edge reconstruction, and non-empty transaction integration are implemented; publication still fails closed before source-edge/source-facet and later relation/symbolic families, as tracked in `component_07_implementation_status.md`.
+- [ ] Component 7: relation kernel and frozen symbolic perturbation matrix. Foundation, primitive truth and source-facet slices, canonical source-edge/source-edge relations over complete opposite source-facet boundaries, and the initial source-edge/source-facet numerical/candidate composite with compute-once production, complete dependency coverage, deterministic candidate ranges, independent reconstruction, preflight accounting, and non-empty transaction integration are implemented; publication now fails closed before source-facet/source-facet and the remaining fan, symbolic, artifact, replay, and qualification obligations tracked in `component_07_implementation_status.md`.
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.

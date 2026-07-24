@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
+#include <limits>
 #include <iostream>
 #include <vector>
 
@@ -26,7 +28,12 @@ projected_source_point<double> point(std::uint64_t id, double x, double y) {
 }
 
 finite_interval<double> parameter(double value) {
-  return *finite_interval<double>::checked_singleton(value);
+  if (value == 0.0 || value == 1.0 ||
+      value == 0.25 || value == 0.5 || value == 0.75)
+    return *finite_interval<double>::checked_singleton(value);
+  return *finite_interval<double>::create(
+      std::nextafter(value, -std::numeric_limits<double>::infinity()),
+      std::nextafter(value, std::numeric_limits<double>::infinity()));
 }
 
 source_facet_boundary_edge_owner edge_owner(

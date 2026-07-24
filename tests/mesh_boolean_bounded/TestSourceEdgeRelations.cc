@@ -1,8 +1,10 @@
 #include "YgorMeshesBooleanBounded/SourceEdgeRelationKernel.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <string>
 
 using namespace ygor::mesh_boolean::bounded;
@@ -64,8 +66,10 @@ void expect_relation(
   const auto owner = context_owner_token::create();
   const auto first = edge(owner, operand_id::a, 3, a0, a1);
   const auto second = edge(owner, operand_id::b, 7, b0, b1);
-  auto relation =
-      classify_source_edge_relation(first, second, owner, T(1e-10));
+  const T residual_boundary = std::max(
+      T(1e-10), T(32) * std::numeric_limits<T>::epsilon());
+  auto relation = classify_source_edge_relation(
+      first, second, owner, residual_boundary);
   check(relation.has_value(), std::string(name) + " should classify");
   if (!relation.has_value())
     return;

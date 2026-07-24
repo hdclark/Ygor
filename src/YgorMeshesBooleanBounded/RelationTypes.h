@@ -201,6 +201,13 @@ enum class relation_subcode : std::uint32_t {
   source_edge_parameter_unresolved = 70048,
   source_edge_residual_rejected = 70049,
   source_edge_relation_invariant = 70050,
+  source_edge_facet_malformed = 70051,
+  source_edge_facet_support_unresolved = 70052,
+  source_edge_facet_parameter_unresolved = 70053,
+  source_edge_facet_residual_rejected = 70054,
+  source_edge_facet_boundary_coverage = 70055,
+  source_edge_facet_order_unresolved = 70056,
+  source_edge_facet_invariant = 70057,
 };
 
 inline bounded_boolean_error relation_error(

@@ -126,7 +126,7 @@ canonicalize_positions(std::vector<segment_position_seed<T>> seeds) {
         continue;
 
       if (!interval_equal_bits(seed.parameter, iterator->parameter) ||
-          !singleton(seed.parameter) ||
+          !canonical_parameter_point(seed.parameter) ||
           !same_projected_geometry(seed.point, iterator->point) ||
           to_bits(seed.rounded_parameter) !=
               to_bits(iterator->rounded_parameter))

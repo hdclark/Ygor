@@ -31,6 +31,12 @@ bool unit_parameter(const finite_interval<T> &parameter, T nominal) noexcept {
 }
 
 template <class T>
+bool canonical_parameter_point(const finite_interval<T> &parameter) noexcept {
+  return singleton(parameter) ||
+         (parameter.lower() == T(0) && parameter.upper() == T(0));
+}
+
+template <class T>
 bool definitely_before(const finite_interval<T> &a,
                        const finite_interval<T> &b) noexcept {
   return finite_numeric_less(a.upper(), b.lower());
@@ -139,20 +145,29 @@ interpolate_projected_segment(const projected_source_point<T> &a,
               "Component 07 segment witness interval addition failed"));
     result.enclosure[axis] = *enclosure.value;
 
-    const auto delta = directed_subtract(b.nominal[axis], a.nominal[axis]);
-    if (!delta)
+    // Use the same convex-combination graph for the nominal value and its
+    // interval enclosure.  The algebraically equivalent a + t * (b - a)
+    // graph can round to a neighboring value when t is an inexact binary
+    // representation (for example, 2/3), which need not lie in the enclosure
+    // of (1 - t) * a + t * b.
+    const auto nominal_one_minus =
+        directed_subtract(T(1), nominal_parameter);
+    if (!nominal_one_minus)
       return boolean_outcome<projected_source_point<T>>::failure(
           source_facet_region_error(
               relation_subcode::source_facet_segment_partition_unresolved,
-              "Component 07 segment witness nominal subtraction failed"));
-    const auto scaled =
-        directed_multiply(nominal_parameter, delta.value.rounded);
-    if (!scaled)
+              "Component 07 segment witness nominal complement failed"));
+    const auto nominal_left = directed_multiply(
+        nominal_one_minus.value.rounded, a.nominal[axis]);
+    const auto nominal_right =
+        directed_multiply(nominal_parameter, b.nominal[axis]);
+    if (!nominal_left || !nominal_right)
       return boolean_outcome<projected_source_point<T>>::failure(
           source_facet_region_error(
               relation_subcode::source_facet_segment_partition_unresolved,
               "Component 07 segment witness nominal multiplication failed"));
-    const auto nominal = directed_add(a.nominal[axis], scaled.value.rounded);
+    const auto nominal = directed_add(nominal_left.value.rounded,
+                                      nominal_right.value.rounded);
     if (!nominal)
       return boolean_outcome<projected_source_point<T>>::failure(
           source_facet_region_error(

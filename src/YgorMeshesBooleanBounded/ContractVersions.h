@@ -135,6 +135,10 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_alternative_triangulation_semantics_policy = 1;
     static constexpr std::uint16_t relation_source_edge_edge_schema = 1;
     static constexpr std::uint16_t relation_source_edge_edge_policy = 1;
+    static constexpr std::uint16_t relation_source_edge_facet_schema = 1;
+    static constexpr std::uint16_t relation_source_edge_facet_policy = 1;
+    static constexpr std::uint16_t relation_source_edge_facet_stage_schema = 1;
+    static constexpr std::uint16_t relation_source_edge_facet_stage_policy = 1;
     static constexpr std::uint16_t relation_feature_key_schema = 1;
     static constexpr std::uint16_t relation_request_key_schema = 1;
     static constexpr std::uint16_t relation_event_seed_key_schema = 1;

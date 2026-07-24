@@ -209,7 +209,8 @@ bool same_projected_geometry(const projected_source_point<T> &a,
 
 template <class T>
 bool singleton(const finite_interval<T> &interval) noexcept {
-  return to_bits(interval.lower()) == to_bits(interval.upper());
+  return to_bits(interval.lower()) == to_bits(interval.upper()) ||
+         (interval.lower() == T(0) && interval.upper() == T(0));
 }
 
 template <class T>

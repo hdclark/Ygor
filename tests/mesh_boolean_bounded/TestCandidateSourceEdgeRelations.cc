@@ -130,8 +130,8 @@ void test_empty_stage_and_nonempty_publication_gate() {
               result.error()->subcode == static_cast<std::uint32_t>(
                   bounded::relation_subcode::unsupported_relation_kernel) &&
               result.error()->checkpoint == static_cast<std::uint32_t>(
-                  bounded::relation_checkpoint::edge_facet_evaluation),
-          "non-empty publication now fails only after edge-edge integration");
+                  bounded::relation_checkpoint::facet_facet_evaluation),
+          "non-empty publication now fails after edge/facet integration");
 }
 
 } // namespace
