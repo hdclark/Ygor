@@ -137,6 +137,11 @@ struct normalization_rational {
   std::uint64_t denominator = 1;
 };
 
+inline bool operator==(const normalization_rational &a,
+                       const normalization_rational &b) noexcept {
+  return a.numerator == b.numerator && a.denominator == b.denominator;
+}
+
 struct normalization_displacement_record {
   std::uint64_t source_vertex = 0;
   std::uint64_t prepared_vertex = 0;

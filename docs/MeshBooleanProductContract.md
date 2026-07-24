@@ -2,10 +2,9 @@
 
 This document defines the product boundary introduced by Plan 15 P0, the
 durable exact-result authority introduced by P1, and the reusable strict
-preparation service introduced by P2.1. It does not promote any
-Boolean backend and it does not implement geometry-changing normalization,
-backend fallback, or approximate realization. Those behaviours remain gated by
-later tracker components.
+preparation service introduced by P2.1. It does not promote any Boolean backend,
+implement backend fallback, or implement approximate realization. Those
+behaviours remain gated by later tracker components.
 
 ## Current support boundary
 
@@ -24,8 +23,10 @@ implicitly supported workflow. `strict_validation`, `diagnosis_only`, and
 enabled by default, and a geometry-changing normalization policy must state its
 model unit, positive tolerance, and enabled operation set. Diagnosis-only
 normalization, structural irrelevant-storage removal, and policy-authorized
-exact duplicate consolidation and orientation repair are available; all
-geometry-changing repair classes remain later P2 work.
+exact duplicate consolidation and orientation repair are available. Explicit
+geometry-changing, attribute-seam-aware near-duplicate vertex consolidation is
+also available; all other geometry-changing repair classes remain later P2
+work.
 
 ## Strict operand preparation
 
@@ -62,9 +63,8 @@ ordinal for exact floating-value coordinate classes (the two signed-zero
 encodings represent the same exact zero), requires all present normals and
 colours in a class to compare exactly equal, rewrites connectivity, and removes only
 facets that become identical under cyclic rotation or reversal. Conflicting
-attribute seams and any collapse or unrelated defect fail closed; tolerance and
-near-duplicate behavior belong to later policies. Stored involved-face indices
-are treated as derived data and rebuilt when present.
+attribute seams and any collapse or unrelated defect fail closed. Stored
+involved-face indices are treated as derived data and rebuilt when present.
 
 Orientation repair first solves exact opposite-edge-use parity independently
 for each closed orientable shell, then reconstructs the exact shell containment
@@ -74,12 +74,22 @@ undirected incidence, facet ordinals, attributes, and metadata remain unchanged.
 Open, non-manifold, non-orientable, intersecting, contacting, duplicate, or
 ambiguously nested geometry is not healed by this operation.
 
-All three operations rerun full strict validation before publication, claim
-exact-zero displacement, and emit canonical source-to-prepared maps and edit
-evidence. Duplicate consolidation additionally records every authorized
-connectivity/topology change. Diagnosis-only remains the default and performs
-no edits. The legacy strict-policy field `remove_unused_storage=true` continues
-to fail closed so edits cannot bypass the normalization report.
+The geometry-changing `seam_aware_vertex_consolidation` policy requires an
+explicit model unit and positive tolerance. Distances are compared as exact
+dyadic rationals against the binary64 policy tolerance. Vertices are considered
+in source order and merge into the lowest retained compatible ordinal; unequal
+present normals or colours preserve a seam and prohibit that merge. The
+operation does not remove facets or accept collapsed connectivity. Every actual
+move carries a canonical bounded squared-displacement record in the declared
+unit, and every merge carries source mapping and topology evidence.
+
+All normalization operations rerun full strict validation before publication
+and emit canonical source-to-prepared maps and edit evidence. Structural
+operations claim exact-zero displacement; seam-aware near-duplicate
+consolidation records every nonzero movement. Diagnosis-only remains the default
+and performs no edits. The legacy strict-policy field
+`remove_unused_storage=true` continues to fail closed so edits cannot bypass the
+normalization report.
 
 ## Authoritative result and representations
 

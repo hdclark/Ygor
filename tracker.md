@@ -107,7 +107,7 @@ Start only after P1. Strict validation remains exact and non-mutating; normaliza
   - [x] Deterministic safe structural canonicalization and irrelevant-storage removal, preserving source mappings.
   - [x] Exact duplicate vertex/facet diagnosis and only policy-authorized exact consolidation/removal.
   - [x] Orientation and nested-shell polarity diagnosis/repair without geometric movement.
-  - [ ] Attribute-seam-aware duplicate/near-duplicate vertex consolidation.
+  - [x] Attribute-seam-aware duplicate/near-duplicate vertex consolidation.
   - [ ] Crack and small-gap diagnosis/closure under explicit model tolerance.
   - [ ] Non-planar polygon diagnosis followed by explicitly selected triangulation or refitting policy.
   - [ ] Duplicate/overlapping facet resolution with deterministic ownership and attribute conflict reporting.

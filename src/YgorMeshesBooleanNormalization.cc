@@ -38,6 +38,11 @@ constexpr std::array<char, 8> duplicate_topology_tag{{'Y', 'G', 'B', 'N', 'D', '
 constexpr std::array<char, 8> orientation_before_tag{{'Y', 'G', 'B', 'N', 'O', 'B', '0', '1'}};
 constexpr std::array<char, 8> orientation_after_tag{{'Y', 'G', 'B', 'N', 'O', 'A', '0', '1'}};
 constexpr std::array<char, 8> orientation_edit_tag{{'Y', 'G', 'B', 'N', 'O', 'E', '0', '1'}};
+constexpr std::array<char, 8> seam_before_tag{{'Y', 'G', 'B', 'N', 'S', 'B', '0', '1'}};
+constexpr std::array<char, 8> seam_after_tag{{'Y', 'G', 'B', 'N', 'S', 'A', '0', '1'}};
+constexpr std::array<char, 8> seam_edit_tag{{'Y', 'G', 'B', 'N', 'S', 'E', '0', '1'}};
+constexpr std::array<char, 8> seam_topology_tag{{'Y', 'G', 'B', 'N', 'S', 'T', '0', '1'}};
+constexpr std::array<char, 8> seam_displacement_tag{{'Y', 'G', 'B', 'N', 'S', 'D', '0', '1'}};
 
 boolean_error normalization_error(const char *key,
                                   std::uint32_t subcode = 0) {
@@ -130,13 +135,19 @@ status_or<bool> validate_policy(const normalization_policy &p,
       normalization_operation::exact_duplicate_consolidation);
   const auto orientation = normalization_operation_bit(
       normalization_operation::orientation_repair);
+  const auto seam_vertices = normalization_operation_bit(
+      normalization_operation::seam_aware_vertex_consolidation);
   if (executable &&
       !((p.mode == normalization_mode::diagnosis_only &&
           p.enabled_operations == 0) ||
          (p.mode == normalization_mode::structural_only &&
            (p.enabled_operations == removal ||
-            p.enabled_operations == duplicates ||
-            p.enabled_operations == orientation))))
+             p.enabled_operations == duplicates ||
+             p.enabled_operations == orientation)) ||
+         (p.mode == normalization_mode::geometry_changing &&
+          p.enabled_operations == seam_vertices && p.model_tolerance > 0.0 &&
+          p.unit != model_unit::unspecified &&
+          p.model_tolerance <= 2147483647.0)))
     return normalization_error("normalization_policy_unsupported");
   return true;
 }
@@ -533,21 +544,29 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
                                               exact_duplicate_consolidation);
   const bool orientation_repair =
       r.policy.enabled_operations == normalization_operation_bit(
+                                          normalization_operation::
+                                              orientation_repair);
+  const bool seam_repair =
+      r.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
-                                             orientation_repair);
+                                             seam_aware_vertex_consolidation);
   if (r.schema != normalization_report_schema || r.producer_version != 1 ||
       r.coordinate > coordinate_tag::binary64 || r.index > index_tag::uint64 ||
       r.policy_digest != normalization_policy_digest(r.policy).value() ||
       !digest_nonzero(r.source_digest) || !digest_nonzero(r.output_digest) ||
       (diagnosis && r.output_digest != r.source_digest) ||
       !canonical_edit_records(r.edits) || (diagnosis && !r.edits.empty()) ||
-      r.displacement != normalization_displacement_claim::exact_zero ||
-       !canonical_displacements(r.displacements) || !r.displacements.empty() ||
+       !canonical_displacements(r.displacements) ||
+       (r.displacement == normalization_displacement_claim::exact_zero
+            ? !r.displacements.empty()
+            : r.displacement != normalization_displacement_claim::records_present ||
+                  !seam_repair || r.displacements.empty()) ||
        !canonical_topology_records(r.topology_changes) ||
-       ((!duplicate_repair || !r.prepared_operand_available) &&
-        !r.topology_changes.empty()) ||
-       (duplicate_repair && r.prepared_operand_available &&
-        r.topology_changes.size() != r.edits.size()) ||
+       (((!duplicate_repair && !seam_repair) ||
+         !r.prepared_operand_available) &&
+         !r.topology_changes.empty()) ||
+        ((duplicate_repair || seam_repair) && r.prepared_operand_available &&
+         r.topology_changes.size() != r.edits.size()) ||
       !canonical_defects(r.unresolved_defects) ||
       !known(r.vertices.status) || !known(r.edges.status) ||
       !known(r.facets.status) || !known(r.shells.status) ||
@@ -563,8 +582,8 @@ status_or<bool> validate_report_shape(const normalization_report &r) {
       !canonical_mapping(r.vertices) || !canonical_mapping(r.edges) ||
       !canonical_mapping(r.facets) || !canonical_mapping(r.shells) ||
        (r.prepared_operand_available
-            ? (duplicate_repair
-                   ? r.shells.status != normalization_map_status::unavailable
+             ? (duplicate_repair || seam_repair
+                    ? r.shells.status != normalization_map_status::unavailable
                    : r.shells.status != normalization_map_status::total)
             : r.shells.status != normalization_map_status::unavailable) ||
       r.attributes.schema != normalization_report_schema ||
@@ -1493,6 +1512,274 @@ status_or<exact_duplicate_result<T, I>> consolidate_exact_duplicates(
   return out;
 }
 
+template <class T>
+status_or<bool> vertices_within_tolerance(const vec3<T> &a, const vec3<T> &b,
+                                          double tolerance) {
+  auto ax = decode_coordinate(a.x), ay = decode_coordinate(a.y),
+       az = decode_coordinate(a.z);
+  auto bx = decode_coordinate(b.x), by = decode_coordinate(b.y),
+       bz = decode_coordinate(b.z);
+  auto limit = decode_coordinate(tolerance);
+  if (!ax.has_value() || !ay.has_value() || !az.has_value() ||
+      !bx.has_value() || !by.has_value() || !bz.has_value() ||
+      !limit.has_value())
+    return normalization_error("normalization_seam_coordinate");
+  const auto dx = ax.value().value - bx.value().value;
+  const auto dy = ay.value().value - by.value().value;
+  const auto dz = az.value().value - bz.value().value;
+  const auto squared = dx * dx + dy * dy + dz * dz;
+  const auto threshold = limit.value().value * limit.value().value;
+  return squared.compare(threshold) <= 0;
+}
+
+normalization_rational displacement_bound(double tolerance) {
+  int exponent = 0;
+  std::frexp(tolerance, &exponent);
+  const int squared_exponent = exponent * 2;
+  if (squared_exponent > 0)
+    return {std::int64_t(1) << squared_exponent, 1};
+  if (squared_exponent >= -63)
+    return {1, std::uint64_t(1) << -squared_exponent};
+  return {1, std::numeric_limits<std::uint64_t>::max()};
+}
+
+template <class T, class I>
+digest seam_displacement_digest(const fv_surface_mesh<T, I> &source,
+                                const fv_surface_mesh<T, I> &output,
+                                const normalization_displacement_record &record,
+                                double tolerance) {
+  canonical_encoder encoder;
+  encoder.u64(record.source_vertex);
+  encoder.u64(record.prepared_vertex);
+  encoder.floating(tolerance);
+  encode_duplicate_vertex(encoder, source, record.source_vertex);
+  encode_duplicate_vertex(encoder, output, record.prepared_vertex);
+  encoder.byte(static_cast<std::uint8_t>(record.kind));
+  for (const auto &component : record.exact_components)
+    encode_rational(encoder, component);
+  encode_rational(encoder, record.squared_distance_bound);
+  encoder.byte(static_cast<std::uint8_t>(record.unit));
+  return domain_digest(seam_displacement_tag, encoder.bytes());
+}
+
+digest seam_edit_digest(const normalization_edit &edit) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(edit.operation));
+  encoder.u64(edit.canonical_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(edit.entity));
+  encoder.u64(edit.source_ordinal);
+  encoder.u64(edit.prepared_ordinal);
+  encode_digest(encoder, edit.before_evidence_digest);
+  encode_digest(encoder, edit.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(edit.reversibility));
+  return domain_digest(seam_edit_tag, encoder.bytes());
+}
+
+digest seam_topology_digest(const normalization_topology_change &change) {
+  canonical_encoder encoder;
+  encoder.byte(static_cast<std::uint8_t>(change.operation));
+  encoder.u64(change.source_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.entity));
+  encoder.u64(change.prepared_ordinal);
+  encoder.byte(static_cast<std::uint8_t>(change.justification));
+  encoder.u32(change.justification_subcode);
+  encode_digest(encoder, change.before_evidence_digest);
+  encode_digest(encoder, change.after_evidence_digest);
+  encoder.byte(static_cast<std::uint8_t>(change.reversibility));
+  return domain_digest(seam_topology_tag, encoder.bytes());
+}
+
+template <class T, class I> struct seam_consolidation_result {
+  fv_surface_mesh<T, I> mesh;
+  normalization_mapping vertices;
+  normalization_mapping edges;
+  normalization_mapping facets;
+  normalization_mapping vertex_normals;
+  normalization_mapping vertex_colours;
+  normalization_mapping involved_faces;
+  normalization_mapping metadata;
+  std::vector<normalization_edit> edits;
+  std::vector<normalization_topology_change> topology_changes;
+  std::vector<normalization_displacement_record> displacements;
+};
+
+template <class T, class I, class Budget>
+status_or<seam_consolidation_result<T, I>> consolidate_seam_aware_vertices(
+    const fv_surface_mesh<T, I> &source,
+    const std::vector<std::array<std::uint64_t, 2>> &source_edges,
+    const normalization_policy &policy, Budget &resources) {
+  seam_consolidation_result<T, I> result;
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return normalization_error("normalization_seam_attributes");
+
+  result.mesh.metadata = source.metadata;
+  result.vertices.status = normalization_map_status::total;
+  result.vertices.source_to_prepared.reserve(source.vertices.size());
+  std::vector<std::uint64_t> representatives;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> merged;
+  for (std::uint64_t ordinal = 0; ordinal != source.vertices.size(); ++ordinal) {
+    const auto &vertex = source.vertices[static_cast<std::size_t>(ordinal)];
+    if (!std::isfinite(vertex.x) || !std::isfinite(vertex.y) ||
+        !std::isfinite(vertex.z))
+      return normalization_error("normalization_seam_nonfinite");
+    std::optional<std::uint64_t> retained;
+    for (std::uint64_t candidate : representatives) {
+      auto work = resources.checkpoint(12);
+      if (!work.has_value()) return work.error();
+      const bool compatible =
+          (!normals || source.vertex_normals[static_cast<std::size_t>(ordinal)] ==
+                           source.vertex_normals[static_cast<std::size_t>(candidate)]) &&
+          (!colours || source.vertex_colours[static_cast<std::size_t>(ordinal)] ==
+                           source.vertex_colours[static_cast<std::size_t>(candidate)]);
+      if (!compatible) continue;
+      auto close = vertices_within_tolerance(vertex,
+          source.vertices[static_cast<std::size_t>(candidate)],
+          policy.model_tolerance);
+      if (!close.has_value()) return close.error();
+      if (close.value()) {
+        retained = candidate;
+        break;
+      }
+    }
+    if (!retained) {
+      representatives.push_back(ordinal);
+      result.vertices.source_to_prepared.push_back(result.mesh.vertices.size());
+      result.mesh.vertices.push_back(vertex);
+      if (normals)
+        result.mesh.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(ordinal)]);
+      if (colours)
+        result.mesh.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+    } else {
+      result.vertices.source_to_prepared.push_back(
+          result.vertices.source_to_prepared[static_cast<std::size_t>(*retained)]);
+      merged.emplace_back(ordinal, *retained);
+    }
+  }
+
+  result.mesh.faces = source.faces;
+  for (auto &face : result.mesh.faces) {
+    auto work = resources.checkpoint(std::max<std::uint64_t>(1, face.size()));
+    if (!work.has_value()) return work.error();
+    for (auto &index : face) {
+      const auto source_index = static_cast<std::uint64_t>(index);
+      if (source_index >= result.vertices.source_to_prepared.size())
+        return normalization_error("normalization_seam_index");
+      const auto prepared = result.vertices.source_to_prepared[
+          static_cast<std::size_t>(source_index)];
+      if (prepared > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return normalization_error("normalization_seam_index");
+      index = static_cast<I>(prepared);
+    }
+    if (std::adjacent_find(face.begin(), face.end()) != face.end() ||
+        (face.size() > 1 && face.front() == face.back()))
+      return normalization_error("normalization_seam_collapsed_face");
+  }
+  if (involved) {
+    result.mesh.involved_faces.resize(result.mesh.vertices.size());
+    for (std::uint64_t facet = 0; facet != result.mesh.faces.size(); ++facet) {
+      if (facet > static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return normalization_error("normalization_seam_face_index");
+      for (I vertex : result.mesh.faces[static_cast<std::size_t>(facet)])
+        result.mesh.involved_faces[static_cast<std::size_t>(vertex)].push_back(
+            static_cast<I>(facet));
+    }
+  }
+  result.facets = identity(source.faces.size());
+  result.vertex_normals = normals ? result.vertices
+      : normalization_mapping{normalization_map_status::absent, {}};
+  result.vertex_colours = colours ? result.vertices
+      : normalization_mapping{normalization_map_status::absent, {}};
+  result.involved_faces = involved ? result.vertices
+      : normalization_mapping{normalization_map_status::absent, {}};
+  result.metadata = attribute_identity(!source.metadata.empty(),
+                                       source.metadata.size());
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &face : result.mesh.faces)
+    for (std::size_t offset = 0; offset != face.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(face[offset]);
+      auto b = static_cast<std::uint64_t>(face[(offset + 1) % face.size()]);
+      if (a == b) return normalization_error("normalization_seam_collapsed_edge");
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &entry : output_edges) entry.second = edge_ordinal++;
+  result.edges.status = normalization_map_status::total;
+  for (const auto &edge : source_edges) {
+    auto a = result.vertices.source_to_prepared[static_cast<std::size_t>(edge[0])];
+    auto b = result.vertices.source_to_prepared[static_cast<std::size_t>(edge[1])];
+    if (a == b) return normalization_error("normalization_seam_collapsed_edge");
+    if (b < a) std::swap(a, b);
+    const auto found = output_edges.find({{a, b}});
+    if (found == output_edges.end())
+      return normalization_error("normalization_seam_edge");
+    result.edges.source_to_prepared.push_back(found->second);
+  }
+
+  for (const auto &entry : merged) {
+    auto edit_record = resources.record();
+    if (!edit_record.has_value()) return edit_record.error();
+    auto topology_record = resources.record();
+    if (!topology_record.has_value()) return topology_record.error();
+    normalization_edit edit;
+    edit.operation = normalization_operation::seam_aware_vertex_consolidation;
+    edit.canonical_ordinal = result.edits.size();
+    edit.entity = normalization_entity_kind::vertex;
+    edit.source_ordinal = entry.first;
+    edit.prepared_ordinal = result.vertices.source_to_prepared[
+        static_cast<std::size_t>(entry.first)];
+    edit.before_evidence_digest = duplicate_before_digest(
+        source, normalization_entity_kind::vertex, entry.first, entry.second);
+    edit.after_evidence_digest = duplicate_after_digest(
+        result.mesh, normalization_entity_kind::vertex, entry.first,
+        edit.prepared_ordinal);
+    edit.reversibility = normalization_reversibility::irreversible;
+    edit.evidence_digest = seam_edit_digest(edit);
+    result.edits.push_back(edit);
+
+    normalization_topology_change change;
+    change.operation = normalization_operation::seam_aware_vertex_consolidation;
+    change.source_ordinal = entry.first;
+    change.entity = normalization_entity_kind::vertex;
+    change.prepared_ordinal = edit.prepared_ordinal;
+    change.justification =
+        normalization_topology_justification::caller_authorized_repair;
+    change.justification_subcode = 1;
+    change.before_evidence_digest = edit.before_evidence_digest;
+    change.after_evidence_digest = edit.after_evidence_digest;
+    change.reversibility = normalization_reversibility::irreversible;
+    change.evidence_digest = seam_topology_digest(change);
+    result.topology_changes.push_back(std::move(change));
+
+    const auto &before = source.vertices[static_cast<std::size_t>(entry.first)];
+    const auto &after = source.vertices[static_cast<std::size_t>(entry.second)];
+    if (bits_key(before.x, before.y, before.z) !=
+        bits_key(after.x, after.y, after.z)) {
+      auto displacement_record = resources.record();
+      if (!displacement_record.has_value()) return displacement_record.error();
+      normalization_displacement_record displacement;
+      displacement.source_vertex = entry.first;
+      displacement.prepared_vertex = edit.prepared_ordinal;
+      displacement.kind = normalization_displacement_kind::bounded;
+      displacement.squared_distance_bound =
+          displacement_bound(policy.model_tolerance);
+      displacement.unit = policy.unit;
+      displacement.evidence_digest = seam_displacement_digest(
+          source, result.mesh, displacement, policy.model_tolerance);
+      result.displacements.push_back(std::move(displacement));
+    }
+  }
+  return result;
+}
+
 template <class T, class I> struct orientation_repair_result {
   fv_surface_mesh<T, I> mesh;
   std::uint64_t shell_count = 0;
@@ -1849,7 +2136,19 @@ bool same_topology_change(const normalization_topology_change &a,
          a.before_evidence_digest == b.before_evidence_digest &&
          a.after_evidence_digest == b.after_evidence_digest &&
          a.reversibility == b.reversibility &&
-         a.evidence_digest == b.evidence_digest;
+          a.evidence_digest == b.evidence_digest;
+}
+
+bool same_displacement(const normalization_displacement_record &a,
+                       const normalization_displacement_record &b) {
+  return a.source_vertex == b.source_vertex &&
+         a.prepared_vertex == b.prepared_vertex && a.kind == b.kind &&
+         a.exact_components == b.exact_components &&
+         a.squared_distance_bound.numerator ==
+             b.squared_distance_bound.numerator &&
+         a.squared_distance_bound.denominator ==
+             b.squared_distance_bound.denominator &&
+         a.unit == b.unit && a.evidence_digest == b.evidence_digest;
 }
 
 template <class T, class I>
@@ -2310,6 +2609,196 @@ bool independently_verify_exact_duplicates(
                         : normalization_reversibility::irreversible);
 }
 
+template <class T, class I>
+bool independently_verify_seam_consolidation(
+    const fv_surface_mesh<T, I> &source, const fv_surface_mesh<T, I> &output,
+    const normalization_report &report) {
+  const bool normals = !source.vertex_normals.empty();
+  const bool colours = !source.vertex_colours.empty();
+  const bool involved = !source.involved_faces.empty();
+  if ((normals && source.vertex_normals.size() != source.vertices.size()) ||
+      (colours && source.vertex_colours.size() != source.vertices.size()) ||
+      (involved && source.involved_faces.size() != source.vertices.size()))
+    return false;
+
+  fv_surface_mesh<T, I> expected;
+  expected.metadata = source.metadata;
+  std::vector<std::uint64_t> vertex_map;
+  std::vector<std::uint64_t> representatives;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> merged;
+  for (std::uint64_t ordinal = 0; ordinal != source.vertices.size(); ++ordinal) {
+    const auto &vertex = source.vertices[static_cast<std::size_t>(ordinal)];
+    if (!(std::isfinite(vertex.x) && std::isfinite(vertex.y) &&
+          std::isfinite(vertex.z)))
+      return false;
+    std::optional<std::uint64_t> retained;
+    for (std::uint64_t candidate : representatives) {
+      if ((normals &&
+           source.vertex_normals[static_cast<std::size_t>(ordinal)] !=
+               source.vertex_normals[static_cast<std::size_t>(candidate)]) ||
+          (colours &&
+           source.vertex_colours[static_cast<std::size_t>(ordinal)] !=
+               source.vertex_colours[static_cast<std::size_t>(candidate)]))
+        continue;
+      auto close = vertices_within_tolerance(
+          vertex, source.vertices[static_cast<std::size_t>(candidate)],
+          report.policy.model_tolerance);
+      if (!close.has_value()) return false;
+      if (close.value()) {
+        retained = candidate;
+        break;
+      }
+    }
+    if (retained) {
+      vertex_map.push_back(vertex_map[static_cast<std::size_t>(*retained)]);
+      merged.emplace_back(ordinal, *retained);
+    } else {
+      representatives.push_back(ordinal);
+      vertex_map.push_back(expected.vertices.size());
+      expected.vertices.push_back(vertex);
+      if (normals)
+        expected.vertex_normals.push_back(
+            source.vertex_normals[static_cast<std::size_t>(ordinal)]);
+      if (colours)
+        expected.vertex_colours.push_back(
+            source.vertex_colours[static_cast<std::size_t>(ordinal)]);
+    }
+  }
+  expected.faces = source.faces;
+  for (auto &face : expected.faces) {
+    for (auto &index : face) {
+      const auto ordinal = static_cast<std::uint64_t>(index);
+      if (ordinal >= vertex_map.size() ||
+          vertex_map[static_cast<std::size_t>(ordinal)] >
+              static_cast<std::uint64_t>(std::numeric_limits<I>::max()))
+        return false;
+      index = static_cast<I>(vertex_map[static_cast<std::size_t>(ordinal)]);
+    }
+    if (std::adjacent_find(face.begin(), face.end()) != face.end() ||
+        (face.size() > 1 && face.front() == face.back()))
+      return false;
+  }
+  if (involved) {
+    expected.involved_faces.resize(expected.vertices.size());
+    for (std::uint64_t facet = 0; facet != expected.faces.size(); ++facet)
+      for (I vertex : expected.faces[static_cast<std::size_t>(facet)])
+        expected.involved_faces[static_cast<std::size_t>(vertex)].push_back(
+            static_cast<I>(facet));
+  }
+  if (!(expected == output) || expected.involved_faces != output.involved_faces ||
+      report.vertices.source_to_prepared != vertex_map ||
+      !identity_mapping(report.facets, source.faces.size()) ||
+      report.shells.status != normalization_map_status::unavailable ||
+      !report.shells.source_to_prepared.empty() ||
+      !same_mapping(report.attributes.vertex_normals,
+                    normals ? report.vertices
+                            : normalization_mapping{
+                                  normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.vertex_colours,
+                    colours ? report.vertices
+                            : normalization_mapping{
+                                  normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.involved_faces,
+                    involved ? report.vertices
+                             : normalization_mapping{
+                                   normalization_map_status::absent, {}}) ||
+      !same_mapping(report.attributes.metadata,
+                    source.metadata.empty()
+                        ? normalization_mapping{normalization_map_status::absent,
+                                                {}}
+                        : identity(source.metadata.size())))
+    return false;
+
+  std::map<std::array<std::uint64_t, 2>, std::uint64_t> output_edges;
+  for (const auto &face : expected.faces)
+    for (std::size_t offset = 0; offset != face.size(); ++offset) {
+      auto a = static_cast<std::uint64_t>(face[offset]);
+      auto b = static_cast<std::uint64_t>(face[(offset + 1) % face.size()]);
+      if (a == b) return false;
+      if (b < a) std::swap(a, b);
+      output_edges.emplace(std::array<std::uint64_t, 2>{{a, b}}, 0);
+    }
+  std::uint64_t edge_ordinal = 0;
+  for (auto &entry : output_edges) entry.second = edge_ordinal++;
+  std::vector<std::uint64_t> edge_map;
+  for (const auto &edge : report.source_edges) {
+    auto a = vertex_map[static_cast<std::size_t>(edge[0])];
+    auto b = vertex_map[static_cast<std::size_t>(edge[1])];
+    if (a == b) return false;
+    if (b < a) std::swap(a, b);
+    const auto found = output_edges.find({{a, b}});
+    if (found == output_edges.end()) return false;
+    edge_map.push_back(found->second);
+  }
+  if (report.edges.source_to_prepared != edge_map) return false;
+
+  std::vector<normalization_edit> edits;
+  std::vector<normalization_topology_change> changes;
+  std::vector<normalization_displacement_record> displacements;
+  for (const auto &entry : merged) {
+    normalization_edit edit;
+    edit.operation = normalization_operation::seam_aware_vertex_consolidation;
+    edit.canonical_ordinal = edits.size();
+    edit.entity = normalization_entity_kind::vertex;
+    edit.source_ordinal = entry.first;
+    edit.prepared_ordinal = vertex_map[static_cast<std::size_t>(entry.first)];
+    edit.before_evidence_digest = duplicate_before_digest(
+        source, normalization_entity_kind::vertex, entry.first, entry.second);
+    edit.after_evidence_digest = duplicate_after_digest(
+        expected, normalization_entity_kind::vertex, entry.first,
+        edit.prepared_ordinal);
+    edit.reversibility = normalization_reversibility::irreversible;
+    edit.evidence_digest = seam_edit_digest(edit);
+    edits.push_back(edit);
+    normalization_topology_change change;
+    change.operation = normalization_operation::seam_aware_vertex_consolidation;
+    change.source_ordinal = entry.first;
+    change.entity = normalization_entity_kind::vertex;
+    change.prepared_ordinal = edit.prepared_ordinal;
+    change.justification =
+        normalization_topology_justification::caller_authorized_repair;
+    change.justification_subcode = 1;
+    change.before_evidence_digest = edit.before_evidence_digest;
+    change.after_evidence_digest = edit.after_evidence_digest;
+    change.reversibility = normalization_reversibility::irreversible;
+    change.evidence_digest = seam_topology_digest(change);
+    changes.push_back(change);
+    const auto &before = source.vertices[static_cast<std::size_t>(entry.first)];
+    const auto &after = source.vertices[static_cast<std::size_t>(entry.second)];
+    if (bits_key(before.x, before.y, before.z) !=
+        bits_key(after.x, after.y, after.z)) {
+      normalization_displacement_record displacement;
+      displacement.source_vertex = entry.first;
+      displacement.prepared_vertex = edit.prepared_ordinal;
+      displacement.kind = normalization_displacement_kind::bounded;
+      displacement.squared_distance_bound =
+          displacement_bound(report.policy.model_tolerance);
+      displacement.unit = report.policy.unit;
+      displacement.evidence_digest = seam_displacement_digest(
+          source, expected, displacement, report.policy.model_tolerance);
+      displacements.push_back(std::move(displacement));
+    }
+  }
+  if (edits.size() != report.edits.size() ||
+      changes.size() != report.topology_changes.size() ||
+      displacements.size() != report.displacements.size())
+    return false;
+  for (std::size_t i = 0; i != edits.size(); ++i)
+    if (!same_edit(edits[i], report.edits[i]) ||
+        !same_topology_change(changes[i], report.topology_changes[i]))
+      return false;
+  for (std::size_t i = 0; i != displacements.size(); ++i)
+    if (!same_displacement(displacements[i], report.displacements[i]))
+      return false;
+  return report.displacement ==
+             (displacements.empty()
+                  ? normalization_displacement_claim::exact_zero
+                  : normalization_displacement_claim::records_present) &&
+         report.reversibility ==
+             (edits.empty() ? normalization_reversibility::identity
+                            : normalization_reversibility::irreversible);
+}
+
 } // namespace
 
 status_or<std::vector<std::uint8_t>>
@@ -2606,6 +3095,10 @@ status_or<prepared_operand<T, I>> normalize_operand(
         policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
                                              orientation_repair);
+    const bool seam_repair =
+        policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             seam_aware_vertex_consolidation);
     const bool repairable_orientation_error =
         source_validation_error &&
         (source_validation_error->subcode ==
@@ -2614,16 +3107,40 @@ status_or<prepared_operand<T, I>> normalize_operand(
          source_validation_error->subcode ==
              static_cast<std::uint32_t>(
                  input_validation_subcode::orientation_mismatch));
-    if (source_validation_error && !duplicate_repair &&
+    if (source_validation_error && !duplicate_repair && !seam_repair &&
         !(orientation_repair && repairable_orientation_error)) {
       return publish_failure(*source_validation_error);
     }
 
     fv_surface_mesh<T, I> normalized_mesh = source;
-    if (policy.mode == normalization_mode::structural_only) {
+    if (policy.mode == normalization_mode::structural_only || seam_repair) {
       auto structural_work = resources.checkpoint(binding_work.value());
       if (!structural_work.has_value()) return structural_work.error();
-      if (duplicate_repair) {
+      if (seam_repair) {
+        auto seam = consolidate_seam_aware_vertices(
+            source, candidate.source_edges, policy, resources);
+        if (!seam.has_value() &&
+            seam.error().code == boolean_error_code::resource_limit)
+          return seam.error();
+        if (!seam.has_value()) return publish_failure(seam.error());
+        normalized_mesh = std::move(seam.value().mesh);
+        candidate.vertices = std::move(seam.value().vertices);
+        candidate.edges = std::move(seam.value().edges);
+        candidate.facets = std::move(seam.value().facets);
+        candidate.attributes.vertex_normals =
+            std::move(seam.value().vertex_normals);
+        candidate.attributes.vertex_colours =
+            std::move(seam.value().vertex_colours);
+        candidate.attributes.involved_faces =
+            std::move(seam.value().involved_faces);
+        candidate.attributes.metadata = std::move(seam.value().metadata);
+        candidate.edits = std::move(seam.value().edits);
+        candidate.topology_changes = std::move(seam.value().topology_changes);
+        candidate.displacements = std::move(seam.value().displacements);
+        candidate.displacement = candidate.displacements.empty()
+            ? normalization_displacement_claim::exact_zero
+            : normalization_displacement_claim::records_present;
+      } else if (duplicate_repair) {
         auto duplicates = consolidate_exact_duplicates(
             source, candidate.source_edges, resources);
         if (!duplicates.has_value() &&
@@ -2702,7 +3219,7 @@ status_or<prepared_operand<T, I>> normalize_operand(
 
     candidate.prepared_operand_available = true;
     candidate.strict_certificate = prepared.value().certificate();
-    if (!duplicate_repair) {
+    if (!duplicate_repair && !seam_repair) {
       auto shells = component2_shell_count(normalized_mesh, cancel);
       if (!shells.has_value()) return shells.error();
       auto shell_resources = resources.mapping(shells.value());
@@ -2787,6 +3304,10 @@ status_or<bool> verify_normalization_report(
       report.policy.enabled_operations == normalization_operation_bit(
                                          normalization_operation::
                                              orientation_repair);
+  const bool seam_repair =
+      report.policy.enabled_operations == normalization_operation_bit(
+                                         normalization_operation::
+                                             seam_aware_vertex_consolidation);
   const auto attribute_binding_valid = [&](const normalization_mapping &mapping,
                                            bool present,
                                            std::uint64_t count) {
@@ -2840,6 +3361,85 @@ status_or<bool> verify_normalization_report(
   auto replay = validate_operand_strict(source, strict_validation_policy{},
                                         boolean_options{}, kernel, verifier,
                                         cancel);
+  if (seam_repair) {
+    const auto count = static_cast<std::uint64_t>(source.vertices.size());
+    if (count != 0 && count >
+        std::numeric_limits<std::uint64_t>::max() / count / 12)
+      return limit_error("normalization_verification_work_overflow");
+    auto transform_work = verification_resources.checkpoint(count * count * 12);
+    if (!transform_work.has_value()) return transform_work.error();
+    for (std::size_t i = 0;
+         i != report.edits.size() + report.topology_changes.size() +
+                  report.displacements.size();
+         ++i) {
+      auto record = verification_resources.record();
+      if (!record.has_value()) return record.error();
+    }
+  }
+  if (seam_repair && output) {
+    if (!independently_verify_seam_consolidation(source, *output, report))
+      return normalization_error("normalization_report_seam_replay");
+    auto output_diagnosis = verifier_diagnosis(*output, verification_resources);
+    if (!output_diagnosis.has_value()) return output_diagnosis.error();
+    auto output_replay = validate_operand_strict(
+        *output, strict_validation_policy{}, boolean_options{}, kernel, verifier,
+        cancel);
+    if (!output_replay.has_value())
+      return normalization_error("normalization_report_seam_validation");
+    if (!report.prepared_operand_available || !report.strict_certificate ||
+        report.unresolved_defects != output_diagnosis.value().defects ||
+        !same_certificate(output_replay.value().certificate(),
+                          *report.strict_certificate))
+      return normalization_error("normalization_report_seam_success");
+    return true;
+  }
+  if (seam_repair && !output) {
+    auto expected_defects = independent.value().defects;
+    if (!replay.has_value()) {
+      if (replay.error().code != boolean_error_code::input_contract_error)
+        return replay.error();
+      expected_defects.push_back(
+          {normalization_defect_code::component2_rejection,
+           replay.error().subcode, 0, 0});
+      std::sort(expected_defects.begin(), expected_defects.end(),
+                [](const auto &a, const auto &b) {
+                  return std::tie(a.code, a.primary_ordinal,
+                                  a.secondary_ordinal, a.detail) <
+                         std::tie(b.code, b.primary_ordinal,
+                                  b.secondary_ordinal, b.detail);
+                });
+      expected_defects.erase(
+          std::unique(expected_defects.begin(), expected_defects.end()),
+          expected_defects.end());
+    }
+    if (report.prepared_operand_available || report.strict_certificate ||
+        report.output_digest != report.source_digest || !report.edits.empty() ||
+        !report.topology_changes.empty() || !report.displacements.empty() ||
+        report.displacement != normalization_displacement_claim::exact_zero ||
+        report.reversibility != normalization_reversibility::identity ||
+        report.shells.status != normalization_map_status::unavailable ||
+        !identity_mapping(report.vertices, source.vertices.size()) ||
+        !identity_mapping(report.edges, independent.value().edges.size()) ||
+        !identity_mapping(report.facets, source.faces.size()) ||
+        report.unresolved_defects != expected_defects)
+      return normalization_error("normalization_report_seam_failure");
+    verification_budget reconstruction_resources{report.policy, cancel};
+    auto reconstructed = consolidate_seam_aware_vertices(
+        source, report.source_edges, report.policy, reconstruction_resources);
+    if (reconstructed.has_value()) {
+      auto reconstructed_replay = validate_operand_strict(
+          reconstructed.value().mesh, strict_validation_policy{},
+          boolean_options{}, kernel, verifier, cancel);
+      if (reconstructed_replay.has_value())
+        return normalization_error("normalization_report_seam_false_failure");
+      if (reconstructed_replay.error().code !=
+          boolean_error_code::input_contract_error)
+        return reconstructed_replay.error();
+    } else if (reconstructed.error().code == boolean_error_code::resource_limit) {
+      return reconstructed.error();
+    }
+    return true;
+  }
   if (orientation_repair && output) {
     auto transform_work = verification_resources.checkpoint(binding_work.value());
     if (!transform_work.has_value()) return transform_work.error();

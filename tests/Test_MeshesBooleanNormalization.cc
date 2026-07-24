@@ -531,6 +531,123 @@ void exact_duplicate_attributes_and_rejection() {
           "duplicate repair is never enabled implicitly");
 }
 
+normalization_policy seam_consolidation_policy() {
+  normalization_policy policy;
+  policy.mode = normalization_mode::geometry_changing;
+  policy.unit = model_unit::millimetre;
+  policy.model_tolerance = 0.01;
+  policy.enabled_operations = normalization_operation_bit(
+      normalization_operation::seam_aware_vertex_consolidation);
+  return policy;
+}
+
+template <class T, class I> void seam_aware_vertex_consolidation_basic() {
+  auto source = attributed_tetra<T, I>();
+  source.vertices.push_back(source.vertices[0]);
+  source.vertices.back().x += T(0.005);
+  source.vertex_normals.push_back(source.vertex_normals[0]);
+  source.vertex_colours.push_back(source.vertex_colours[0]);
+  for (auto &face : source.faces)
+    for (auto &index : face)
+      if (index == I(0)) index = I(4);
+  source.recreate_involved_face_index();
+
+  normalization_report report;
+  auto prepared =
+      normalize_operand(source, seam_consolidation_policy(), report);
+  const auto expected = attributed_tetra<T, I>();
+  require(prepared.has_value() && prepared.value().mesh() == expected &&
+              prepared.value().mesh().involved_faces == expected.involved_faces,
+          "near duplicate vertices consolidate to the lowest compatible source");
+  require(report.vertices.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3, 0}) &&
+              report.facets.source_to_prepared ==
+                  std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+              report.edits.size() == 1 &&
+              report.edits[0].operation ==
+                  normalization_operation::seam_aware_vertex_consolidation &&
+              report.edits[0].source_ordinal == 4 &&
+              report.topology_changes.size() == 1 &&
+              report.displacement ==
+                  normalization_displacement_claim::records_present &&
+              report.displacements.size() == 1 &&
+              report.displacements[0].source_vertex == 4 &&
+              report.displacements[0].prepared_vertex == 0 &&
+              report.displacements[0].kind ==
+                  normalization_displacement_kind::bounded &&
+              report.displacements[0].unit == model_unit::millimetre &&
+              report.reversibility ==
+                  normalization_reversibility::irreversible &&
+              report.attributes.vertex_normals.source_to_prepared ==
+                  report.vertices.source_to_prepared &&
+              report.attributes.vertex_colours.source_to_prepared ==
+                  report.vertices.source_to_prepared,
+          "seam consolidation records maps, topology, and bounded movement");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &expected)
+                  .has_value(),
+          "independent verifier replays seam-aware consolidation");
+
+  auto forged = report;
+  forged.displacements[0].squared_distance_bound = {1, 1};
+  forged.report_digest = normalization_report_digest(forged).value();
+  auto forged_bytes = encode_normalization_report(forged);
+  require(forged_bytes.has_value() &&
+              !verify_normalization_report(forged_bytes.value(), source,
+                                           &expected)
+                   .has_value(),
+          "verifier rejects forged displacement evidence");
+
+  normalization_report repeat;
+  auto repeated = normalize_operand(source, seam_consolidation_policy(), repeat);
+  require(repeated.has_value() && repeat.report_digest == report.report_digest,
+          "seam-aware consolidation is deterministic");
+}
+
+void seam_preservation_and_tolerance_rejection() {
+  using T = double;
+  using I = std::uint32_t;
+  auto source = attributed_tetra<T, I>();
+  source.vertices.push_back(source.vertices[0]);
+  source.vertices.back().x += 0.005;
+  source.vertex_normals.push_back(source.vertex_normals[0]);
+  source.vertex_normals.back().x = 0.25;
+  source.vertex_colours.push_back(source.vertex_colours[0]);
+  for (auto &face : source.faces)
+    for (auto &index : face)
+      if (index == I(0)) index = I(4);
+  source.recreate_involved_face_index();
+  normalization_report report;
+  auto rejected = normalize_operand(source, seam_consolidation_policy(), report);
+  require(rejected.has_value() && rejected.value().mesh() == source &&
+              report.prepared_operand_available && report.edits.empty() &&
+              report.displacements.empty(),
+          "incompatible normal attributes preserve a seam without welding");
+  auto bytes = encode_normalization_report(report);
+  require(bytes.has_value() &&
+              verify_normalization_report(bytes.value(), source, &source)
+                  .has_value(),
+          "preserved attribute seam independently verifies");
+
+  source.vertex_normals.back() = source.vertex_normals[0];
+  source.vertices.back().x = 0.02;
+  normalization_report outside;
+  auto outside_result =
+      normalize_operand(source, seam_consolidation_policy(), outside);
+  require(outside_result.has_value() &&
+              outside_result.value().mesh() == source && outside.edits.empty(),
+          "vertices outside the exact model tolerance are not consolidated");
+
+  auto missing_units = seam_consolidation_policy();
+  missing_units.unit = model_unit::unspecified;
+  normalization_report unchanged;
+  unchanged.schema = 77;
+  require(!normalize_operand(source, missing_units, unchanged).has_value() &&
+              unchanged.schema == 77,
+          "geometry-changing consolidation requires explicit model units");
+}
+
 normalization_policy orientation_policy() {
   normalization_policy policy;
   policy.mode = normalization_mode::structural_only;
@@ -894,6 +1011,11 @@ int main() {
     exact_duplicate_repair_basic<double, std::uint32_t>();
     exact_duplicate_repair_basic<double, std::uint64_t>();
     exact_duplicate_attributes_and_rejection();
+    seam_aware_vertex_consolidation_basic<float, std::uint32_t>();
+    seam_aware_vertex_consolidation_basic<float, std::uint64_t>();
+    seam_aware_vertex_consolidation_basic<double, std::uint32_t>();
+    seam_aware_vertex_consolidation_basic<double, std::uint64_t>();
+    seam_preservation_and_tolerance_rejection();
     orientation_repair_basic<float, std::uint32_t>();
     orientation_repair_basic<float, std::uint64_t>();
     orientation_repair_basic<double, std::uint32_t>();
