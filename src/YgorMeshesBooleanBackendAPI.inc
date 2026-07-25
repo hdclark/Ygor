@@ -385,11 +385,10 @@ evaluate_backend_request(const backend_registry<T, I> &registry,
     return producer_entry.error();
   backend_execution_state producer_state;
   producer_state.selection = mode;
+  // Diagnostic adapters do not participate in producer selection. Keep the
+  // durable exact-result provenance bound only to the declared producer; the
+  // comparator attempts are retained separately in the execution envelope.
   producer_state.attempted_backends.push_back(producer_id);
-  producer_state.attempted_backends.insert(
-      producer_state.attempted_backends.end(),
-      request.product_options.backend.diagnostic_backends.begin(),
-      request.product_options.backend.diagnostic_backends.end());
   auto producer = run_selected_producer(producer_entry.value(), request,
                                         producer_state, manifest);
   if (!producer.has_value())
@@ -407,7 +406,7 @@ evaluate_backend_request(const backend_registry<T, I> &registry,
                    "backend.comparator_role");
     backend_execution_state comparator_state;
     comparator_state.selection = mode;
-    comparator_state.attempted_backends = producer_state.attempted_backends;
+    comparator_state.attempted_backends = {producer_id, comparator_id};
     auto comparator = run_adapter(comparator_entry.value(), request,
                                   comparator_state);
     if (!comparator.has_value())
@@ -468,9 +467,20 @@ product_status_or<bool> validate_backend_execution_result(
     attempted_ids.reserve(result.attempts.size());
     for (const auto &attempt : result.attempts)
       attempted_ids.push_back(attempt.requested_backend);
+    std::vector<backend_id> producer_attempted_ids = attempted_ids;
+    if (request.product_options.backend.mode ==
+        backend_selection_mode::diagnostic_compare) {
+      producer_attempted_ids.clear();
+      for (const auto &attempt : result.attempts)
+        if (attempt.succeeded &&
+            attempt.role == backend_adapter_role::producer) {
+          producer_attempted_ids.push_back(attempt.requested_backend);
+          break;
+        }
+    }
     if (result.product->backend.selection !=
             request.product_options.backend.mode ||
-        result.product->backend.attempted_backends != attempted_ids)
+        result.product->backend.attempted_backends != producer_attempted_ids)
       return error(product_error_code::stale_binding,
                    "backend.execution_provenance");
     const bool expected_fallback =

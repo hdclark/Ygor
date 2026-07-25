@@ -337,7 +337,9 @@ exact_result_backend_binding backend(reader &r) {
   b.fallback_used = r.boolean();
   b.attempted_backends = vec<backend_id>(r, [](reader &x) {
     auto v = x.u16();
-    if (v != 1)
+    if (v != static_cast<std::uint16_t>(backend_id::experimental_exact_v1) &&
+        v != static_cast<std::uint16_t>(
+                 backend_id::independent_axis_aligned_box_v1))
       throw decode_failure("exact_result.backend_id");
     return static_cast<backend_id>(v);
   });
