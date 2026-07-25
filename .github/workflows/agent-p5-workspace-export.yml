@@ -29,3 +29,5 @@ jobs:
           path: /tmp/ygor-boolean-symbolic.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+# Trigger the already-installed P5.1 apply workflow.
