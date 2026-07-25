@@ -5,5 +5,6 @@
 #include "YgorMeshesBooleanProductContractPolicies.h"
 #include "YgorMeshesBooleanProductContractResult.h"
 #include "YgorMeshesBooleanExactResult.h"
+#include "YgorMeshesBooleanBackend.h"
 
 #endif
