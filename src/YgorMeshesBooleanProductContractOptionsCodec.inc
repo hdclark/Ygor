@@ -66,6 +66,19 @@ encode_product_options(const boolean_product_options &o) {
   e.u16(o.attributes.schema);
   e.byte(static_cast<std::uint8_t>(o.attributes.mode));
   e.byte(static_cast<std::uint8_t>(o.attributes.conflicts));
+  e.byte(static_cast<std::uint8_t>(o.attributes.body_ids));
+  e.byte(static_cast<std::uint8_t>(o.attributes.shell_ids));
+  e.byte(static_cast<std::uint8_t>(o.attributes.facet_ids));
+  e.byte(static_cast<std::uint8_t>(o.attributes.materials));
+  e.byte(static_cast<std::uint8_t>(o.attributes.face_metadata));
+  e.byte(static_cast<std::uint8_t>(o.attributes.vertex_normals));
+  e.byte(static_cast<std::uint8_t>(o.attributes.vertex_colours));
+  e.byte(static_cast<std::uint8_t>(o.attributes.interpolation));
+  e.byte(static_cast<std::uint8_t>(o.attributes.sharp_edges));
+  e.byte(static_cast<std::uint8_t>(o.attributes.texture_seams));
+  e.byte(static_cast<std::uint8_t>(o.attributes.opaque_channels));
+  e.byte(static_cast<std::uint8_t>(o.attributes.construction_provenance));
+  e.boolean(o.attributes.report_absent_supported_channels);
   e.u16(o.qualification.schema);
   e.byte(static_cast<std::uint8_t>(o.qualification.mode));
   e.string(o.qualification.workload_profile);
@@ -76,7 +89,7 @@ encode_product_options(const boolean_product_options &o) {
     encode_digest(e, o.qualification.manifest->manifest_digest);
   }
   e.boolean(o.mandatory_verification);
-  return record_bytes({{'Y', 'G', 'B', 'P', 'O', 'P', '0', '6'}},
+  return record_bytes({{'Y', 'G', 'B', 'P', 'O', 'P', '0', '7'}},
                       product_contract_schema_version, e.bytes());
 }
 
@@ -84,7 +97,7 @@ product_status_or<boolean_product_options>
 decode_product_options(const std::vector<std::uint8_t> &bytes,
                        const product_decode_limits &limits) {
   auto payload = extract_payload(
-      bytes, {{'Y', 'G', 'B', 'P', 'O', 'P', '0', '6'}}, limits);
+      bytes, {{'Y', 'G', 'B', 'P', 'O', 'P', '0', '7'}}, limits);
   if (!payload.has_value())
     return payload.error();
   try {
@@ -162,6 +175,30 @@ decode_product_options(const std::vector<std::uint8_t> &bytes,
     o.attributes.mode = decode_u8_enum<attribute_transfer_mode>(r, known);
     o.attributes.conflicts =
         decode_u8_enum<attribute_conflict_policy>(r, known);
+    o.attributes.body_ids =
+        decode_u8_enum<attribute_identifier_policy>(r, known);
+    o.attributes.shell_ids =
+        decode_u8_enum<attribute_identifier_policy>(r, known);
+    o.attributes.facet_ids =
+        decode_u8_enum<attribute_identifier_policy>(r, known);
+    o.attributes.materials = decode_u8_enum<attribute_merge_policy>(r, known);
+    o.attributes.face_metadata =
+        decode_u8_enum<attribute_merge_policy>(r, known);
+    o.attributes.vertex_normals =
+        decode_u8_enum<attribute_vertex_copy_policy>(r, known);
+    o.attributes.vertex_colours =
+        decode_u8_enum<attribute_vertex_copy_policy>(r, known);
+    o.attributes.interpolation =
+        decode_u8_enum<attribute_interpolation_policy>(r, known);
+    o.attributes.sharp_edges =
+        decode_u8_enum<attribute_sharp_edge_policy>(r, known);
+    o.attributes.texture_seams =
+        decode_u8_enum<attribute_texture_seam_policy>(r, known);
+    o.attributes.opaque_channels =
+        decode_u8_enum<attribute_merge_policy>(r, known);
+    o.attributes.construction_provenance =
+        decode_u8_enum<attribute_construction_provenance_policy>(r, known);
+    o.attributes.report_absent_supported_channels = r.boolean();
     o.qualification.schema = r.u16();
     o.qualification.mode =
         decode_u8_enum<qualification_policy_mode>(r, known);
@@ -188,11 +225,33 @@ decode_product_options(const std::vector<std::uint8_t> &bytes,
   }
 }
 
+digest attribute_transfer_policy_digest(
+    const attribute_transfer_policy_contract &policy) {
+  canonical_encoder e;
+  e.u16(policy.schema);
+  e.byte(static_cast<std::uint8_t>(policy.mode));
+  e.byte(static_cast<std::uint8_t>(policy.conflicts));
+  e.byte(static_cast<std::uint8_t>(policy.body_ids));
+  e.byte(static_cast<std::uint8_t>(policy.shell_ids));
+  e.byte(static_cast<std::uint8_t>(policy.facet_ids));
+  e.byte(static_cast<std::uint8_t>(policy.materials));
+  e.byte(static_cast<std::uint8_t>(policy.face_metadata));
+  e.byte(static_cast<std::uint8_t>(policy.vertex_normals));
+  e.byte(static_cast<std::uint8_t>(policy.vertex_colours));
+  e.byte(static_cast<std::uint8_t>(policy.interpolation));
+  e.byte(static_cast<std::uint8_t>(policy.sharp_edges));
+  e.byte(static_cast<std::uint8_t>(policy.texture_seams));
+  e.byte(static_cast<std::uint8_t>(policy.opaque_channels));
+  e.byte(static_cast<std::uint8_t>(policy.construction_provenance));
+  e.boolean(policy.report_absent_supported_channels);
+  return domain_digest({{'Y', 'G', 'B', 'A', 'P', 'O', 'L', '1'}}, e.bytes());
+}
+
 digest product_options_digest(const boolean_product_options &o) {
   const auto bytes = encode_product_options(o);
   if (!bytes.has_value())
     return {};
-  return domain_digest({{'Y', 'G', 'B', 'P', 'O', 'D', '0', '6'}},
+  return domain_digest({{'Y', 'G', 'B', 'P', 'O', 'D', '0', '7'}},
                        bytes.value());
 }
 
@@ -200,5 +259,5 @@ digest backend_capability_digest(const backend_capabilities &c) {
   canonical_encoder e;
   e.u16(c.schema);
   e.u64(c.bits);
-  return domain_digest({{'Y', 'G', 'B', 'C', 'A', 'P', '0', '6'}}, e.bytes());
+  return domain_digest({{'Y', 'G', 'B', 'C', 'A', 'P', '0', '7'}}, e.bytes());
 }

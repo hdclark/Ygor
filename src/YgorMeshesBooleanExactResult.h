@@ -17,10 +17,10 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t exact_stratified_boundary_schema = 2;
-constexpr std::uint16_t exact_stratified_boundary_checker_version = 2;
-constexpr std::uint16_t exact_coordinate_export_schema = 2;
-constexpr std::uint16_t exact_coordinate_export_checker_version = 2;
+constexpr std::uint16_t exact_stratified_boundary_schema = 3;
+constexpr std::uint16_t exact_stratified_boundary_checker_version = 3;
+constexpr std::uint16_t exact_coordinate_export_schema = 3;
+constexpr std::uint16_t exact_coordinate_export_checker_version = 3;
 
 struct exact_result_decode_limits {
   std::uint64_t max_record_bytes = 64U * 1024U * 1024U;
@@ -97,10 +97,18 @@ struct exact_result_vertex {
   std::vector<construction_node_id> constructions;
 };
 
+struct exact_result_source_edge_contributor {
+  operand_id operand;
+  shell_id shell;
+  undirected_edge_id edge;
+  std::vector<facet_id> facets;
+};
+
 struct exact_result_edge_geometry {
   selected_edge_id edge;
   global_edge_kind kind = global_edge_kind::source_edge;
   std::vector<symbolic_curve_id> curves;
+  std::vector<exact_result_source_edge_contributor> contributors;
 };
 
 struct exact_result_patch_geometry {
@@ -363,6 +371,12 @@ product_status_or<boolean_product_result_handle<T, I>>
 publish_exact_boolean_result(boolean_context<T, I> &,
                              exact_result_backend_binding,
                              exact_result_preparation_binding);
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+publish_exact_boolean_result(boolean_context<T, I> &,
+                             exact_result_backend_binding,
+                             exact_result_preparation_binding,
+                             attribute_transfer_policy_contract);
 
 template <class T, class I>
 product_status_or<boolean_product_result_handle<T, I>>
@@ -378,6 +392,14 @@ evaluate_boolean_product_result(boolean_context<T, I> &,
                                 exact_result_preparation_binding,
                                 result_representation,
                                 product_realization_policy);
+template <class T, class I>
+product_status_or<boolean_product_result_handle<T, I>>
+evaluate_boolean_product_result(boolean_context<T, I> &,
+                                exact_result_backend_binding,
+                                exact_result_preparation_binding,
+                                result_representation,
+                                product_realization_policy,
+                                attribute_transfer_policy_contract);
 
 template <class T, class I>
 product_status_or<boolean_product_result_handle<T, I>>
@@ -409,6 +431,11 @@ record_failed_realization(const boolean_product_result_handle<T, I> &exact,
                                exact_result_backend_binding,                   \
                                exact_result_preparation_binding);              \
   extern template product_status_or<boolean_product_result_handle<T, I>>       \
+  publish_exact_boolean_result(                                                \
+      boolean_context<T, I> &, exact_result_backend_binding,                   \
+      exact_result_preparation_binding,                                        \
+      attribute_transfer_policy_contract);                                    \
+  extern template product_status_or<boolean_product_result_handle<T, I>>       \
   evaluate_boolean_product_result(                                             \
       boolean_context<T, I> &, exact_result_backend_binding,                   \
       exact_result_preparation_binding, result_representation);                \
@@ -416,7 +443,12 @@ record_failed_realization(const boolean_product_result_handle<T, I> &exact,
   evaluate_boolean_product_result(                                             \
       boolean_context<T, I> &, exact_result_backend_binding,                   \
       exact_result_preparation_binding, result_representation,                 \
-      product_realization_policy)
+      product_realization_policy);                                            \
+  extern template product_status_or<boolean_product_result_handle<T, I>>       \
+  evaluate_boolean_product_result(                                             \
+      boolean_context<T, I> &, exact_result_backend_binding,                   \
+      exact_result_preparation_binding, result_representation,                 \
+      product_realization_policy, attribute_transfer_policy_contract)
 YGOR_EXACT_RESULT_EXTERN(float, std::uint32_t);
 YGOR_EXACT_RESULT_EXTERN(float, std::uint64_t);
 YGOR_EXACT_RESULT_EXTERN(double, std::uint32_t);

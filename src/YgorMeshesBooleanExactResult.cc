@@ -505,12 +505,29 @@ void edge_geom(canonical_encoder &e, const exact_result_edge_geometry &x) {
   id(e, x.edge);
   en(e, x.kind);
   ids(e, x.curves);
+  e.u64(x.contributors.size());
+  for (const auto &source : x.contributors) {
+    id(e, source.operand);
+    id(e, source.shell);
+    id(e, source.edge);
+    ids(e, source.facets);
+  }
 }
 exact_result_edge_geometry edge_geom(reader &r) {
   exact_result_edge_geometry x;
   x.edge = id<selected_edge_id>(r);
   x.kind = de<global_edge_kind>(r, 3);
   x.curves = ids<symbolic_curve_id>(r);
+  const auto count = r.count();
+  x.contributors.reserve(static_cast<std::size_t>(count));
+  for (std::uint64_t i = 0; i != count; ++i) {
+    exact_result_source_edge_contributor source;
+    source.operand = id<operand_id>(r);
+    source.shell = id<shell_id>(r);
+    source.edge = id<undirected_edge_id>(r);
+    source.facets = ids<facet_id>(r);
+    x.contributors.push_back(std::move(source));
+  }
   return x;
 }
 void halfedge(canonical_encoder &e, const selected_halfedge &h) {
@@ -1161,6 +1178,17 @@ product_status_or<bool> validate_impl(const exact_stratified_boundary &a) {
                      a.edge_geometry[i].curves.end(),
                      [&](auto c) { return curves.count(c.value_for_debug()); }))
       return fail("exact_result.edge");
+    const auto &contributors = a.edge_geometry[i].contributors;
+    if (!std::is_sorted(contributors.begin(), contributors.end(),
+                        [](const auto &a, const auto &b) {
+                          return std::tie(a.operand, a.shell, a.edge, a.facets) <
+                                 std::tie(b.operand, b.shell, b.edge, b.facets);
+                        }))
+      return fail("exact_result.edge_contributor_order");
+    for (const auto &source : contributors)
+      if (source.operand.value_for_debug() > 1 ||
+          !strict_ids(source.facets))
+        return fail("exact_result.edge_contributor");
   }
   for (const auto &h : a.halfedges) {
     auto in = [&](auto x, auto n) { return x.value_for_debug() < n; };

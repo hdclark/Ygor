@@ -1783,6 +1783,34 @@ product_status_or<bool> detail::verify_certified_approximate_embedding_with_budg
 }
 
 template <class T, class I>
+product_status_or<bool> verify_certified_approximate_attribute_binding(
+    const certified_approximate_certificate<T, I> &certificate,
+    const attribute_output_binding &binding) noexcept {
+  auto reject_attribute = [](const char *key) {
+    return product_status_or<bool>(
+        make_product_error(product_error_code::verifier_disagreement, key));
+  };
+  if (binding.schema != attribute_output_binding_schema ||
+      binding.coordinate != certificate.coordinate ||
+      binding.index != certificate.index ||
+      binding.exact_result_digest != certificate.exact_result_digest ||
+      binding.output_digest == digest{} ||
+      binding.output_vertex_exact_vertices.size() !=
+          certificate.vertices.size() ||
+      binding.output_face_exact_patches.size() != certificate.triangles.size())
+    return reject_attribute("approximate_attribute.binding");
+  for (std::size_t i = 0; i < certificate.vertices.size(); ++i)
+    if (binding.output_vertex_exact_vertices[i] !=
+        certificate.vertices[i].selected.value_for_debug())
+      return reject_attribute("approximate_attribute.vertex");
+  for (std::size_t i = 0; i < certificate.triangles.size(); ++i)
+    if (binding.output_face_exact_patches[i] !=
+        certificate.triangles[i].patch.value_for_debug())
+      return reject_attribute("approximate_attribute.face");
+  return true;
+}
+
+template <class T, class I>
 product_status_or<bool> verify_certified_approximate_embedding(
     const exact_result_handle &exact, const product_realization_policy &policy,
     const boolean_success<T, I> &output,
@@ -1802,7 +1830,11 @@ product_status_or<bool> verify_certified_approximate_embedding(
   template product_status_or<bool> verify_certified_approximate_embedding(   \
       const exact_result_handle &, const product_realization_policy &,        \
       const boolean_success<T, I> &,                                          \
-      const certified_approximate_certificate<T, I> &) noexcept
+      const certified_approximate_certificate<T, I> &) noexcept;              \
+  template product_status_or<bool>                                            \
+  verify_certified_approximate_attribute_binding(                             \
+      const certified_approximate_certificate<T, I> &,                        \
+      const attribute_output_binding &) noexcept
 YGOR_APPROXIMATE_VERIFY_DEFINE(float, std::uint32_t);
 YGOR_APPROXIMATE_VERIFY_DEFINE(float, std::uint64_t);
 YGOR_APPROXIMATE_VERIFY_DEFINE(double, std::uint32_t);

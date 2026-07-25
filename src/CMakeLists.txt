@@ -31,6 +31,15 @@ target_include_directories(ygor_mesh_boolean_realization_verifier_isolation
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_features(ygor_mesh_boolean_realization_verifier_isolation PRIVATE cxx_std_17)
 
+# Attribute replay starts from canonical catalogs, the durable exact result, and
+# the public output binding. Compiling it as a separate translation unit keeps
+# producer-private transfer helpers unavailable to the verifier implementation.
+add_library(ygor_mesh_boolean_attribute_verifier_isolation OBJECT
+    YgorMeshesBooleanAttributeVerifier.cc)
+target_include_directories(ygor_mesh_boolean_attribute_verifier_isolation
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_features(ygor_mesh_boolean_attribute_verifier_isolation PRIVATE cxx_std_17)
+
 # The durable-result and exact-coordinate export readers start from canonical
 # bytes. Build them as a linked library so unresolved references cannot be
 # hidden by an OBJECT-only check.
@@ -110,6 +119,8 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateVerifier.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateTopologyVerifier.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanApproximateSerialization.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanAttributes.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanAttributeVerifier.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanOutput.cc
 )
 if(YGOR_BOOLEAN_STRICT_FP AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

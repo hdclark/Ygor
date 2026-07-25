@@ -237,7 +237,7 @@ std::vector<std::uint8_t> semantic(const labeled_arrangement<T, I> &a) {
     occupancy(e, p.positive_occupancy);
   }
   e.id(a.certificate.exterior_region);
-  e.boolean(bool(a.certificate.exterior_attachment_side));
+  e.boolean(a.certificate.exterior_attachment_side.has_value());
   if (a.certificate.exterior_attachment_side)
     e.id(*a.certificate.exterior_attachment_side);
   e.boolean(bool(a.certificate.exterior_target_patch));
@@ -1476,7 +1476,7 @@ bool verify_geometric_evidence(const labeled_arrangement<T, I> &a) {
   std::optional<exterior_attachment_result> attachment;
   if (!g.patches.empty()) attachment = exterior_attachment(g, witness);
   if (!(witness == a.certificate.exterior_witness) ||
-      bool(attachment) != bool(a.certificate.exterior_attachment_side) ||
+      attachment.has_value() != a.certificate.exterior_attachment_side.has_value() ||
       !a.certificate.exterior_bound_disjoint)
     return false;
   if (attachment &&

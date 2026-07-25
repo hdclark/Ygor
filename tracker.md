@@ -167,12 +167,12 @@ Start only after P3. Backend integration must not become an unverified semantic 
 
 Start only after P4.
 
-- [ ] **P5.1 — Define and implement stable provenance/attribute transfer.**
-  - [ ] Define versioned policies for source body/shell/facet IDs, materials, per-face metadata, vertex normals, sharp-edge tags, texture seams, opaque channels, and compact construction provenance.
-  - [ ] Define deterministic split, merge, conflict, interpolation/copy, and omission behavior for multi-source output entities.
-  - [ ] Ensure attributes never influence exact geometric topology decisions.
-  - [ ] Bind output vertex/facet mappings to exact entities and source contributors; report every omission or conflict.
-  - [ ] Add independent mapping verification, replay, conflict, seam, removed-internal-face, coincident-source, and attribute-value-invariance tests.
+- [x] **P5.1 — Define and implement stable provenance/attribute transfer.**
+  - [x] Define versioned policies for source body/shell/facet IDs, materials, per-face metadata, vertex normals, sharp-edge tags, texture seams, opaque channels, and compact construction provenance.
+  - [x] Define deterministic split, merge, conflict, interpolation/copy, and omission behavior for multi-source output entities.
+  - [x] Ensure attributes never influence exact geometric topology decisions.
+  - [x] Bind output vertex/facet mappings to exact entities and source contributors; report every omission or conflict.
+  - [x] Add independent mapping verification, replay, conflict, seam, removed-internal-face, coincident-source, and attribute-value-invariance tests.
 
 - [ ] **P5.2 — Add the one-call conservative service.**
   - [ ] Implement the simple `boolean_operation(a, b, op, boolean_service_options)` product API.

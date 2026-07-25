@@ -2,7 +2,7 @@
 #ifndef YGOR_MESHES_BOOLEAN_PRODUCT_CONTRACT_RESULT_H_
 #define YGOR_MESHES_BOOLEAN_PRODUCT_CONTRACT_RESULT_H_
 
-#include "YgorMeshesBooleanProductContractPolicies.h"
+#include "YgorMeshesBooleanAttributes.h"
 
 namespace ygor {
 namespace mesh_boolean {
@@ -14,6 +14,10 @@ product_status_or<bool> verify_certified_approximate_embedding(
     const exact_result_handle &, const product_realization_policy &,
     const boolean_success<T, I> &,
     const certified_approximate_certificate<T, I> &) noexcept;
+template <class T, class I>
+product_status_or<bool> verify_certified_approximate_attribute_binding(
+    const certified_approximate_certificate<T, I> &,
+    const attribute_output_binding &) noexcept;
 
 enum class exact_result_topology : std::uint8_t {
   empty,
@@ -104,13 +108,6 @@ struct realization_attempt_record {
   std::optional<product_error> failure;
 };
 
-struct attribute_transfer_report_contract {
-  std::uint16_t schema = product_contract_schema_version;
-  std::uint64_t omissions = 0;
-  std::uint64_t conflicts = 0;
-  digest report_digest;
-};
-
 struct product_verification_summary {
   std::uint16_t schema = product_contract_schema_version;
   bool passed = false;
@@ -143,6 +140,7 @@ template <class T, class I> struct certified_mesh_payload {
   std::vector<std::uint8_t> realization_canonical_bytes;
   std::vector<std::uint8_t> output_canonical_bytes;
   std::vector<strict_vertex_binding> strict_vertices;
+  attribute_output_binding attribute_binding;
   product_realization_policy policy;
   std::shared_ptr<const certified_approximate_certificate<T, I>>
       approximate_certificate;
@@ -171,10 +169,23 @@ digest strict_mesh_certificate_digest(const certified_mesh_payload<T, I> &m) {
     e.raw(v.exact_coordinate_digest.bytes.data(),
           v.exact_coordinate_digest.bytes.size());
   }
+  e.u16(m.attribute_binding.schema);
+  e.byte(static_cast<std::uint8_t>(m.attribute_binding.coordinate));
+  e.byte(static_cast<std::uint8_t>(m.attribute_binding.index));
+  e.raw(m.attribute_binding.exact_result_digest.bytes.data(),
+        m.attribute_binding.exact_result_digest.bytes.size());
+  e.raw(m.attribute_binding.output_digest.bytes.data(),
+        m.attribute_binding.output_digest.bytes.size());
+  e.u64(m.attribute_binding.output_vertex_exact_vertices.size());
+  for (auto id : m.attribute_binding.output_vertex_exact_vertices)
+    e.u64(id);
+  e.u64(m.attribute_binding.output_face_exact_patches.size());
+  for (auto id : m.attribute_binding.output_face_exact_patches)
+    e.u64(id);
   e.u64(m.obligation_count);
   e.u64(m.defining_relation_obligation_count);
   e.u64(m.constraint_component_count);
-  return domain_digest({{'Y', 'G', 'B', 'E', 'X', 'M', '0', '2'}}, e.bytes());
+  return domain_digest({{'Y', 'G', 'B', 'E', 'X', 'M', '0', '3'}}, e.bytes());
 }
 
 template <class T, class I> struct boolean_product_result {
@@ -187,7 +198,7 @@ template <class T, class I> struct boolean_product_result {
   exact_result_handle exact_result;
   std::optional<certified_mesh_payload<T, I>> mesh;
   std::optional<realization_attempt_record> realization;
-  attribute_transfer_report_contract attributes;
+  attribute_transfer_report attributes;
   product_verification_summary verification;
   qualification_provenance qualification;
 };
@@ -237,10 +248,6 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
       r.exact_result, r.backend, r.preparation);
   if (!exact_bindings.has_value())
     return exact_bindings.error();
-  if (r.attributes.schema != product_contract_schema_version ||
-      product_digest_is_zero(r.attributes.report_digest))
-    return fail(product_error_code::stale_binding,
-                "product_result.attribute_report_binding");
   if (!r.verification.passed ||
       r.verification.schema != product_contract_schema_version ||
       product_digest_is_zero(r.verification.verifier_set_digest) ||
@@ -309,6 +316,26 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
           return fail(product_error_code::verifier_disagreement,
                       "product_result.strict_vertex_binding");
       }
+      auto attribute_binding =
+          validate_attribute_output_binding(m.attribute_binding, r.exact_result);
+      if (!attribute_binding.has_value() ||
+          m.attribute_binding.coordinate !=
+              (std::is_same<T, float>::value ? coordinate_tag::binary32
+                                             : coordinate_tag::binary64) ||
+          m.attribute_binding.index !=
+              (std::is_same<I, std::uint32_t>::value ? index_tag::uint32
+                                                     : index_tag::uint64) ||
+          m.attribute_binding.output_vertex_exact_vertices.size() !=
+              m.strict_vertices.size() ||
+          m.attribute_binding.output_face_exact_patches.size() !=
+              m.success->mesh.faces.size())
+        return fail(product_error_code::verifier_disagreement,
+                    "product_result.strict_attribute_binding");
+      for (std::size_t i = 0; i < m.strict_vertices.size(); ++i)
+        if (m.attribute_binding.output_vertex_exact_vertices[i] !=
+            m.strict_vertices[i].selected_vertex)
+          return fail(product_error_code::verifier_disagreement,
+                      "product_result.strict_attribute_vertex");
       if (m.approximate_certificate)
         return fail(product_error_code::verifier_disagreement,
                     "product_result.strict_has_approximate_certificate");
@@ -326,6 +353,10 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
           r.exact_result, m.policy, *m.success, *m.approximate_certificate);
       if (!replay.has_value())
         return replay.error();
+      auto attribute_binding = verify_certified_approximate_attribute_binding(
+          *m.approximate_certificate, m.attribute_binding);
+      if (!attribute_binding.has_value())
+        return attribute_binding.error();
     }
   }
   if (r.realization) {
@@ -351,6 +382,12 @@ validate_product_result(const boolean_product_result<T, I> &r) noexcept {
                     "product_result.realization_failure_missing");
     }
   }
+  const attribute_output_binding *attribute_output =
+      r.mesh ? &r.mesh->attribute_binding : nullptr;
+  auto attribute_report = verify_attribute_transfer_report(
+      r.attributes, r.exact_result, attribute_output);
+  if (!attribute_report.has_value())
+    return attribute_report.error();
   if (r.qualification.qualified) {
     if (!r.qualification.manifest ||
         product_digest_is_zero(r.qualification.manifest->manifest_digest))

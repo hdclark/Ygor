@@ -1,11 +1,12 @@
-# Mesh Boolean product contract (schema 6)
+# Mesh Boolean product contract (schema 7)
 
 This document defines the product boundary introduced by Plan 15 P0, the
 durable exact-result authority introduced by P1, the explicit strict and
 normalized preparation services introduced by P2, the complete output modes
-introduced by P3, and the capability-described backend boundary introduced by
-P4. It does not promote any backend to production qualification or implement
-the later attribute-transfer and one-call application service.
+introduced by P3, the capability-described backend boundary introduced by P4,
+and the stable provenance and attribute-transfer contract introduced by P5.1.
+It does not promote any backend to production qualification or implement the
+one-call application service from P5.2.
 
 ## Current support boundary
 
@@ -244,7 +245,7 @@ preserves selected surface occurrences, halfedge occurrence endpoints,
 spherical links, topology obstructions, construction records, and source and
 backend provenance; coincident coordinates never cause occurrence welding.
 
-Exact-coordinate export schema 1 embeds the authoritative exact-result record
+Exact-coordinate export schema 2 embeds the authoritative exact-result record
 and binds it to the durable exact-result digest. Coordinates remain normalized
 canonical rationals and are never rounded to a floating-point type. The export
 index policy applies `I` to the dense selected vertex, occurrence, edge,
@@ -286,9 +287,94 @@ representations:
   exact point-set equality.
 
 A failed mesh realization may be recorded while the exact result remains a
-successful, retained product result. Schema 6 retains that authority
+successful, retained product result. Schema 7 retains that authority
 unconditionally, and product-option validation rejects any policy that permits
 discarding it.
+
+## Stable provenance and attribute transfer
+
+P5.1 treats attributes as a publication layer over an already verified exact
+Boolean result. Attribute values, names, IDs, seams, normals, colours, metadata,
+or opaque payloads are never consulted by Components 3 through 10 and therefore
+cannot alter predicates, event identity, arrangement topology, side labels, or
+Boolean selection. The exact boundary remains authoritative when every
+attribute channel is omitted or rejected.
+
+`attribute_transfer_policy_contract` is versioned with the product options and
+separately freezes:
+
+- source body, shell, and facet identifier preservation;
+- material and per-face metadata merge behavior;
+- exact-source/equal-merge behavior for vertex normals and colours;
+- the prohibition on implicit interpolation for constructed vertices;
+- sharp-edge aggregation, texture-seam preservation, opaque-channel merging,
+  and compact construction provenance;
+- report-and-omit versus fail-closed conflict behavior; and
+- whether absent supported channels are emitted as explicit omissions.
+
+`omit_all_with_report` intentionally publishes no transferred values but still
+produces complete mappings and omission evidence. `preserve_supported_with_report`
+publishes every supported value permitted by the declared channel policy and
+records all omissions and conflicts. `require_lossless` requires conflict
+rejection and rejects any omission or conflict; it cannot be paired with a
+policy that deliberately omits a channel.
+
+The source side is a canonical two-operand `attribute_source_catalog`. Each
+catalog contains stable body, shell, facet, vertex, and undirected-edge entities,
+plus named byte-valued channels. Built-in mesh storage contributes vertex
+normals, vertex colours, and metadata as explicit source values; applications
+may provide additional canonical `source_attribute_input` records for materials,
+face metadata, sharp-edge tags, texture seams, and opaque channels. Duplicate or
+malformed source records, foreign operand references, non-existent source
+entities, non-canonical ordering, and resource-limit violations fail closed.
+
+For normalized prepared operands, the catalog composes P2's canonical
+source-to-prepared maps rather than treating repaired storage as the original
+source. Many-to-one duplicate consolidation therefore retains every original
+contributor, removed storage remains addressable in omission evidence, and
+output queries resolve to pre-normalization vertex, edge, facet, shell, and body
+identities. Geometry-changing preparation does not authorize attribute
+interpolation or conflict suppression.
+
+Durable exact-result schema/checker 3 retains source contributors for selected
+vertices, patches, and selected-edge geometry. Every exact vertex, edge, and
+patch receives an `attribute_exact_entity_mapping` containing its canonical
+source-entity set and compact construction-provenance digest. Split descendants
+copy a source value with `split_copy`; equal multi-source values use
+`merged_equal`; deterministic source sets, representative copies, any-source
+sharp tags, and compact construction records have distinct resolution kinds.
+Coincident derivations do not silently choose one source. Unequal values produce
+canonical conflict and omission records unless the policy requires immediate
+`attribute_transfer_conflict` failure.
+
+A source value attached only to a facet or feature removed by regularized
+selection is reported as `removed_internal_entity`; it is never silently lost.
+Constructed entities without a source value, prohibited interpolation, missing
+source mappings, absent supported channels, texture-seam mismatches, and
+policy-directed omissions likewise have typed reasons. Report counters are
+derived from the complete canonical issue list rather than trusted producer
+statistics.
+
+Mesh realizations add an `attribute_output_binding` from each public vertex to
+one exact selected vertex and each public face to one exact selected patch. The
+binding includes coordinate/index tags, exact-result digest, and canonical
+output digest. Strict and certified-approximate paths derive these mappings from
+their independently verified realization records; public output ordering is not
+used to infer source ownership. Output mappings reference the exact transfer
+records instead of duplicating or reinterpreting values.
+
+`attribute_transfer_report` owns the policy, policy digest, exact-result digest,
+optional output digest, both source catalogs, exact and output mappings, transfer
+records, issues, canonical bytes, and report digest. Encoding and decoding are
+resource-bounded and reject unknown enums, stale schemas, malformed lengths,
+truncation, trailing bytes, and non-canonical re-encoding.
+`verify_attribute_transfer_report` independently reconstructs contributor sets,
+construction digests, every transfer resolution, every omission/conflict, and
+every output mapping from the source catalogs, durable exact result, and optional
+mesh binding. `verify_serialized_attribute_transfer_report` starts from bytes and
+replays the same checks. The verifier is compiled as a separate translation
+unit with no access to producer-private transfer helpers; only the public
+canonical codec is shared at the serialization boundary.
 
 ## Semantic policy versus search policy
 
@@ -311,7 +397,7 @@ count. Completed bounded-domain exhaustion returns
 `output_not_representable` with subcode `approximate_search_exhausted_subcode`;
 hitting the solver limit returns `resource_limit`.
 
-Schema 6 also requires explicit `max_obligations`, `max_triangle_pairs`,
+Schema 7 also requires explicit `max_obligations`, `max_triangle_pairs`,
 `max_predicate_checks`, `max_verifier_work`, `max_verifier_records`, and
 `max_verifier_bytes` values. Independent checked counters advance from actual
 bytes and records parsed, candidates materialized, topology and ear-clipping
@@ -326,7 +412,7 @@ Euclidean comparison. For support plane `(a,b,c,d)`, every triangulated vertex
 is checked exactly using
 `|ax+by+cz+d|^2 <= bound^2*(a^2+b^2+c^2)`.
 
-Durable exact-result schema/checker 2 records every original source's coordinate
+Durable exact-result schema/checker 3 records every original source's coordinate
 type and raw bits. Detachment and independent exact-result validation require
 each record to decode to the exact selected coordinate, but preserve differing
 source encodings such as signed zero. When original movement is disabled, an
@@ -417,7 +503,7 @@ adapter to a production-qualified general CAD profile.
 
 ## Versioning and decoding
 
-Options, artifacts, errors, certificates, and replay bindings use schema 6.
+Options, artifacts, errors, certificates, and replay bindings use schema 7.
 Canonical records contain an eight-byte domain tag, schema, exact payload
 length, and positional payload. Decoders reject:
 
@@ -454,5 +540,4 @@ The current productized scope does not:
   executable context product path is supported);
 - provide a general-purpose external CAD backend beyond the narrow
   diagnostic-only axis-aligned-box profile;
-- transfer application attributes; or
 - claim any production-qualified backend/result/preparation profile.

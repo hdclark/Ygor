@@ -623,6 +623,12 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
   if (!context.has_value()) return context.error();
   context.value()->input_lifetimes_[0] = owned_a;
   context.value()->input_lifetimes_[1] = owned_b;
+  context.value()->attribute_source_meshes_[0] =
+      a.shared_normalization_source();
+  context.value()->attribute_source_meshes_[1] =
+      b.shared_normalization_source();
+  context.value()->normalization_reports_[0] = a.shared_normalization();
+  context.value()->normalization_reports_[1] = b.shared_normalization();
   auto validated = validate_operands(*context.value());
   if (!validated.has_value()) return validated.error();
   if (validated.value()->report.invariant_set_digest !=

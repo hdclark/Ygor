@@ -17,7 +17,7 @@
 namespace ygor {
 namespace mesh_boolean {
 
-constexpr std::uint16_t product_contract_schema_version = 6;
+constexpr std::uint16_t product_contract_schema_version = 7;
 
 struct product_schema_versions {
   std::uint16_t options = product_contract_schema_version;
@@ -221,6 +221,38 @@ enum class attribute_conflict_policy : std::uint8_t {
   report_and_omit,
   reject
 };
+enum class attribute_identifier_policy : std::uint8_t {
+  preserve,
+  omit_with_report
+};
+enum class attribute_merge_policy : std::uint8_t {
+  require_equal,
+  choose_representative,
+  deterministic_set_union,
+  omit_with_report
+};
+enum class attribute_vertex_copy_policy : std::uint8_t {
+  exact_source_or_equal_merge,
+  choose_representative,
+  omit_with_report
+};
+enum class attribute_interpolation_policy : std::uint8_t {
+  prohibit_and_report
+};
+enum class attribute_sharp_edge_policy : std::uint8_t {
+  any_source,
+  require_equal,
+  omit_with_report
+};
+enum class attribute_texture_seam_policy : std::uint8_t {
+  preserve_source_sets,
+  require_equal,
+  omit_with_report
+};
+enum class attribute_construction_provenance_policy : std::uint8_t {
+  compact_digest,
+  omit_with_report
+};
 
 struct attribute_transfer_policy_contract {
   std::uint16_t schema = product_contract_schema_version;
@@ -228,7 +260,29 @@ struct attribute_transfer_policy_contract {
       attribute_transfer_mode::omit_all_with_report;
   attribute_conflict_policy conflicts =
       attribute_conflict_policy::report_and_omit;
+  attribute_identifier_policy body_ids = attribute_identifier_policy::preserve;
+  attribute_identifier_policy shell_ids = attribute_identifier_policy::preserve;
+  attribute_identifier_policy facet_ids = attribute_identifier_policy::preserve;
+  attribute_merge_policy materials = attribute_merge_policy::require_equal;
+  attribute_merge_policy face_metadata = attribute_merge_policy::require_equal;
+  attribute_vertex_copy_policy vertex_normals =
+      attribute_vertex_copy_policy::exact_source_or_equal_merge;
+  attribute_vertex_copy_policy vertex_colours =
+      attribute_vertex_copy_policy::exact_source_or_equal_merge;
+  attribute_interpolation_policy interpolation =
+      attribute_interpolation_policy::prohibit_and_report;
+  attribute_sharp_edge_policy sharp_edges =
+      attribute_sharp_edge_policy::any_source;
+  attribute_texture_seam_policy texture_seams =
+      attribute_texture_seam_policy::preserve_source_sets;
+  attribute_merge_policy opaque_channels = attribute_merge_policy::require_equal;
+  attribute_construction_provenance_policy construction_provenance =
+      attribute_construction_provenance_policy::compact_digest;
+  bool report_absent_supported_channels = true;
 };
+
+digest attribute_transfer_policy_digest(
+    const attribute_transfer_policy_contract &);
 
 enum class qualification_policy_mode : std::uint8_t {
   require_qualified_profile,

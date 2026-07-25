@@ -1053,6 +1053,7 @@ struct replay_descriptor {
 class deterministic_executor;
 class performance_collector;
 template <class T, class I> class prepared_operand;
+struct normalization_report;
 template <class T, class I> class boolean_context {
   static_assert(is_supported_boolean_types<T, I>::value,
                 "unsupported Boolean types");
@@ -1073,6 +1074,10 @@ template <class T, class I> class boolean_context {
   diagnostic_consumer consumer_;
   std::shared_ptr<performance_collector> performance_;
   std::array<std::shared_ptr<const void>, 2> input_lifetimes_;
+  std::array<std::shared_ptr<const fv_surface_mesh<T, I>>, 2>
+      attribute_source_meshes_;
+  std::array<std::shared_ptr<const normalization_report>, 2>
+      normalization_reports_;
   std::optional<context_preparation_provenance> preparation_provenance_;
   boolean_context(const fv_surface_mesh<T, I> &, const fv_surface_mesh<T, I> &,
                   operation, boolean_options, platform_facts, replay_descriptor,
@@ -1110,6 +1115,19 @@ public:
   context_owner_token owner() const { return owner_; }
   const fv_surface_mesh<T, I> &operand_a_mesh() const { return *a_; }
   const fv_surface_mesh<T, I> &operand_b_mesh() const { return *b_; }
+  const fv_surface_mesh<T, I> &attribute_source_mesh(operand_id operand) const {
+    const auto role = static_cast<std::size_t>(operand.value_for_debug());
+    if (role > 1)
+      throw std::out_of_range("attribute source operand");
+    if (attribute_source_meshes_[role])
+      return *attribute_source_meshes_[role];
+    return role == 0 ? *a_ : *b_;
+  }
+  const normalization_report *normalization_report_for(
+      operand_id operand) const noexcept {
+    const auto role = static_cast<std::size_t>(operand.value_for_debug());
+    return role < 2 ? normalization_reports_[role].get() : nullptr;
+  }
   const exact_kernel_services<T> &kernel() const { return *kernel_; }
   const verifier_service &verifiers() const { return *verifiers_; }
   deterministic_executor &executor() { return *executor_; }

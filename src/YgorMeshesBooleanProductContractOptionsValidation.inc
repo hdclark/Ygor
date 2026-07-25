@@ -20,6 +20,16 @@ validate_product_options(const boolean_product_options &o) noexcept {
         !known(o.realization.search.strategy) ||
         !known(o.realization.approximation.unit) ||
         !known(o.attributes.mode) || !known(o.attributes.conflicts) ||
+        !known(o.attributes.body_ids) || !known(o.attributes.shell_ids) ||
+        !known(o.attributes.facet_ids) || !known(o.attributes.materials) ||
+        !known(o.attributes.face_metadata) ||
+        !known(o.attributes.vertex_normals) ||
+        !known(o.attributes.vertex_colours) ||
+        !known(o.attributes.interpolation) ||
+        !known(o.attributes.sharp_edges) ||
+        !known(o.attributes.texture_seams) ||
+        !known(o.attributes.opaque_channels) ||
+        !known(o.attributes.construction_provenance) ||
         !known(o.qualification.mode))
       return bad(product_error_code::input_contract_error,
                  "product_options.unknown_enum");
@@ -204,9 +214,27 @@ validate_product_options(const boolean_product_options &o) noexcept {
       return bad(product_error_code::qualification_policy_violation,
                  "product_options.exact_retention_required");
     if (o.attributes.mode == attribute_transfer_mode::require_lossless &&
-        o.attributes.conflicts != attribute_conflict_policy::reject)
+        (o.attributes.conflicts != attribute_conflict_policy::reject ||
+         o.attributes.body_ids != attribute_identifier_policy::preserve ||
+         o.attributes.shell_ids != attribute_identifier_policy::preserve ||
+         o.attributes.facet_ids != attribute_identifier_policy::preserve ||
+         o.attributes.materials == attribute_merge_policy::omit_with_report ||
+         o.attributes.face_metadata ==
+             attribute_merge_policy::omit_with_report ||
+         o.attributes.vertex_normals ==
+             attribute_vertex_copy_policy::omit_with_report ||
+         o.attributes.vertex_colours ==
+             attribute_vertex_copy_policy::omit_with_report ||
+         o.attributes.sharp_edges ==
+             attribute_sharp_edge_policy::omit_with_report ||
+         o.attributes.texture_seams ==
+             attribute_texture_seam_policy::omit_with_report ||
+         o.attributes.opaque_channels ==
+             attribute_merge_policy::omit_with_report ||
+         o.attributes.construction_provenance ==
+             attribute_construction_provenance_policy::omit_with_report))
       return bad(product_error_code::attribute_transfer_conflict,
-                 "product_options.lossless_conflict_policy");
+                 "product_options.lossless_attribute_policy");
     if (o.qualification.manifest) {
       if (o.qualification.manifest->schema !=
               product_contract_schema_version ||

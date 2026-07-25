@@ -103,6 +103,13 @@ public:
   std::shared_ptr<const fv_surface_mesh<T, I>> shared_mesh() const {
     return std::shared_ptr<const fv_surface_mesh<T, I>>(state_, &state_->mesh);
   }
+  std::shared_ptr<const normalization_report> shared_normalization() const {
+    return state_->normalization;
+  }
+  std::shared_ptr<const fv_surface_mesh<T, I>>
+  shared_normalization_source() const {
+    return state_->normalization_source;
+  }
 };
 
 template <class T, class I> struct strict_validation_result {

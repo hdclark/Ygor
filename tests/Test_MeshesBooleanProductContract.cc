@@ -105,6 +105,27 @@ exact_result_handle make_test_exact_result(operation op,
   return made.value();
 }
 
+attribute_transfer_report empty_attribute_report(
+    const exact_result_handle &exact,
+    attribute_transfer_policy_contract policy = {}) {
+  std::array<attribute_source_catalog, 2> sources;
+  for (std::size_t role = 0; role < sources.size(); ++role) {
+    sources[role].operand = operand_id::from_canonical_value(role);
+    sources[role].body_id = role == 0 ? "operand-A" : "operand-B";
+    canonical_encoder encoded;
+    encoded.u16(sources[role].schema);
+    encoded.id(sources[role].operand);
+    encoded.string(sources[role].body_id);
+    encoded.u64(0);
+    encoded.u64(0);
+    sources[role].catalog_digest = domain_digest(
+        {{'Y', 'G', 'B', 'A', 'C', 'A', 'T', '1'}}, encoded.bytes());
+  }
+  auto report = make_attribute_transfer_report(exact, policy, sources);
+  require(report.has_value(), "empty attribute report");
+  return std::move(report.value());
+}
+
 boolean_product_options explicit_experimental_options() {
   boolean_product_options options;
   options.backend.mode = backend_selection_mode::explicit_backend;
@@ -123,9 +144,9 @@ void product_policy_round_trip() {
   auto encoded = encode_product_options(options);
   require(encoded.has_value(), "product options encode");
   const std::string golden =
-      "594742504f503036000600000000000000e7000600060006000600060006010000000000000000000000000000000000000000000000000000000600000600000000000000000000000000000000000000060001000600000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000006000000060000000000000000000001";
+      "594742504f503037000700000000000000f400070007000700070007000701000000000000000000000000000000000000000000000000000000070000070000000000000000000000000000000000000007000100070000070000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000700000000000000000000000000000100070000000000000000000001";
   require(hex_bytes(encoded.value()) == golden,
-          "schema-6 product option golden vector");
+          "schema-7 product option golden vector");
 
   auto decoded = decode_product_options(encoded.value());
   require(decoded.has_value(), "product options decode");
@@ -264,6 +285,9 @@ void product_policy_validation() {
   attributes.attributes.conflicts = attribute_conflict_policy::reject;
   require(validate_product_options(attributes).has_value(),
           "lossless attribute contract with rejection");
+  attributes.attributes.materials = attribute_merge_policy::omit_with_report;
+  require(!validate_product_options(attributes).has_value(),
+          "lossless attributes reject omission policy");
 
   require(!fallback_permitted_for(product_error_code::internal_invariant_error),
           "invariant errors never fall back");
@@ -363,7 +387,7 @@ void exact_result_lifetime_and_envelope() {
   result.preparation.prepared_digest = test_digest('b');
   result.preparation.policy_digest = test_digest('c');
   result.preparation.report_digest = test_digest('l');
-  result.attributes.report_digest = test_digest('m');
+  result.attributes = empty_attribute_report(exact);
   result.verification.passed = true;
   result.verification.verifier_set_version = 1;
   result.verification.verifier_set_digest = test_digest('d');
@@ -417,14 +441,14 @@ void replay_contract() {
   auto golden_encoded = encode_product_replay_binding(golden_replay);
   require(golden_encoded.has_value(), "replay golden encode");
   const std::string replay_golden =
-      "5947425052503036000600000000000000ab0006000102030405060708090a0b"
+      "5947425052503037000700000000000000ab0007000102030405060708090a0b"
       "0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b"
       "2c2d2e2f0001000100020003000000000000000162303132333435363738393a"
       "3b3c3d3e3f0000000000000000404142434445464748494a4b4c4d4e4f5051"
       "52535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70"
       "7172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f";
   require(hex_bytes(golden_encoded.value()) == replay_golden,
-          "schema-6 replay golden vector");
+          "schema-7 replay golden vector");
 
   auto options = explicit_experimental_options();
   const auto backend = make_test_identity();
@@ -441,7 +465,8 @@ void replay_contract() {
   replay.capability_digest = backend.capability_digest;
   replay.exact_result_digest = exact->canonical_digest;
   replay.realization_policy_digest = test_digest('i');
-  replay.attribute_policy_digest = test_digest('j');
+  replay.attribute_policy_digest =
+      attribute_transfer_policy_digest(options.attributes);
   replay.verifier_set_digest = test_digest('k');
   require(validate_product_replay_binding(replay, options, backend, &exact)
               .has_value(),
@@ -460,6 +485,12 @@ void replay_contract() {
                                            &exact)
                .has_value(),
           "stale backend replay binding rejected");
+  auto stale_attribute = replay;
+  stale_attribute.attribute_policy_digest.bytes[0] ^= 1;
+  require(!validate_product_replay_binding(stale_attribute, options, backend,
+                                           &exact)
+               .has_value(),
+          "replay rejects stale attribute policy binding");
 
   auto trailing = encoded.value();
   trailing.push_back(0);

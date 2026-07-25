@@ -66,6 +66,33 @@ bool known(attribute_conflict_policy v) noexcept {
   return static_cast<unsigned>(v) <=
          static_cast<unsigned>(attribute_conflict_policy::reject);
 }
+bool known(attribute_identifier_policy v) noexcept {
+  return static_cast<unsigned>(v) <=
+         static_cast<unsigned>(attribute_identifier_policy::omit_with_report);
+}
+bool known(attribute_merge_policy v) noexcept {
+  return static_cast<unsigned>(v) <=
+         static_cast<unsigned>(attribute_merge_policy::omit_with_report);
+}
+bool known(attribute_vertex_copy_policy v) noexcept {
+  return static_cast<unsigned>(v) <= static_cast<unsigned>(
+      attribute_vertex_copy_policy::omit_with_report);
+}
+bool known(attribute_interpolation_policy v) noexcept {
+  return v == attribute_interpolation_policy::prohibit_and_report;
+}
+bool known(attribute_sharp_edge_policy v) noexcept {
+  return static_cast<unsigned>(v) <=
+         static_cast<unsigned>(attribute_sharp_edge_policy::omit_with_report);
+}
+bool known(attribute_texture_seam_policy v) noexcept {
+  return static_cast<unsigned>(v) <= static_cast<unsigned>(
+      attribute_texture_seam_policy::omit_with_report);
+}
+bool known(attribute_construction_provenance_policy v) noexcept {
+  return static_cast<unsigned>(v) <= static_cast<unsigned>(
+      attribute_construction_provenance_policy::omit_with_report);
+}
 bool known(qualification_policy_mode v) noexcept {
   return static_cast<unsigned>(v) <= static_cast<unsigned>(
                                            qualification_policy_mode::
