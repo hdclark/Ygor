@@ -1,4 +1,4 @@
-name: Mesh Boolean P0 contracts
+name: Mesh Boolean product contracts
 
 on:
   push:
@@ -8,9 +8,11 @@ on:
     paths:
       - 'src/YgorMeshesBooleanProductContract*'
       - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanBackend*'
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanProductContract.cc'
       - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'tests/Test_MeshesBooleanBackend.cc'
       - 'tests/Test_MeshesBooleanSelection.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
@@ -45,10 +47,10 @@ jobs:
       - name: Build contract tests
         run: >-
           cmake --build build-p0
-          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult ygor_mesh_boolean_exact_result_verifier_isolation
+          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult Test_MeshesBooleanBackend ygor_mesh_boolean_exact_result_verifier_isolation
           --parallel 2
       - name: Run contract tests
         run: >-
           ctest --test-dir build-p0 --output-on-failure
-          -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit)$'
+          -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit)$'
           --timeout 360
