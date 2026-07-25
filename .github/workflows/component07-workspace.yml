@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
       - name: Verify and apply patch
         shell: bash
