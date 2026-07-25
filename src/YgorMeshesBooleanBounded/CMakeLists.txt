@@ -79,6 +79,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     SourceEdgeRelationKernel.cc
     EdgeFacetRelations.cc
     FacetFacetRelations.cc
+    CoplanarRelationOverlay.cc
     RelationCanonicalization.cc
     RelationEventSeeds.cc
     SymbolicPerturbation.cc

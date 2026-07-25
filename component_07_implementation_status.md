@@ -308,6 +308,55 @@ conditioning checks, malformed support/owner rejection, owner-free semantics,
 mutation rejection, compute-once grouping, deterministic candidate ranges, and
 independent stage reconstruction.
 
+## Implemented coplanar facet overlay classification slice
+
+The next Plan 07 numerical slice now provides a self-contained coplanar
+source-facet overlay classifier without advancing final Boolean selection:
+
+- the provider accepts exactly one already-qualified coplanar facet/facet support
+  relation, two complete original source-polygon boundaries in one projection,
+  and a complete canonical matrix of existing source-edge/source-edge relation
+  records; it does not recompute boundary intersections or infer identity from
+  coordinates;
+- every source vertex is independently classified against the complete opposite
+  semantic polygon using the Component 07 source-facet region kernel, retaining
+  complete boundary traversal and original-boundary ownership evidence;
+- every cross-operand boundary-edge pair is required exactly once, validated
+  against its canonical source-edge features and runtime owner, and retained as
+  compute-once dependency evidence; missing, duplicated, or malformed pairs fail
+  closed;
+- canonical classification distinguishes disjoint facets, point-only contact,
+  segment contact, positive-area overlap, directed containment, equal
+  same-orientation sheets, and equal opposite-orientation sheets;
+- equality requires complete boundary coverage proven from authoritative overlap
+  parameter intervals, rather than matching vertex counts, coordinates, or
+  triangulations; unresolved interval coverage fails closed;
+- coordinate-coincident equal sheets remain explicitly distinct occurrences, and
+  the record contains no retain/discard/suppress decision or output orientation;
+- owner-free canonical bytes and semantic digests include complete polygon,
+  vertex-region, boundary-relation, contact, classification, and occurrence
+  evidence while excluding runtime owner tokens;
+- structural validation rejects malformed ranges, contact projections, ownership,
+  counts, reserved fields, and digest mutations, while reconstruction verification
+  reruns the complete classification and rejects a forged classification even
+  after its digest is recomputed; and
+- focused strict C++17 float/double qualification covers disjoint, point, segment,
+  crossing-area, containment, equal-same, equal-opposite, missing dependency,
+  wrong-owner, digest, forged-classification, and owner-exclusion cases.
+
+This slice is deliberately not yet wired into the candidate-derived request
+graph or final non-empty relation artifact. `RelationBuild` therefore continues
+to fail closed at `coplanar_overlay_evaluation` until complete facet-boundary
+request closure, canonical overlay-stage integration, crossing-component
+assembly, and the later multiplicity/symbolic/publication obligations are
+available.
+
+Focused local validation completed successfully for the strict Component 07
+library, `mesh_boolean_bounded_component07_facet_facet_relations`, and
+`mesh_boolean_bounded_component07_coplanar_overlay`. The repository's unrelated
+legacy public-facade rebuild exceeded the available execution window when broader
+targets were requested; no failed Component 07 provider result was observed.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -320,8 +369,10 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 2. Complete source-edge/source-facet source-fan ownership, admitted clustered
    multi-event ordering, complete occurrence tie keys, numeric crossing
    conservation, and all symbolic fields that depend on those results.
-3. Complete source-facet/source-facet coplanar boundary overlay,
-   containment, equality, and coordinate-coincident distinct sheet occurrences.
+3. Integrate the implemented coplanar polygon classifier into candidate-derived
+   complete facet-boundary request closure, assemble canonical crossing/overlap
+   components and oriented arcs, and publish the resulting overlay table in the
+   final artifact while retaining coordinate-coincident distinct occurrences.
 4. Complete authoritative construction selection and deduplication, residual and
    conditioning evidence, numeric crossing multiplicity, half-open source-fan
    ownership, and local conservation across all relation families.

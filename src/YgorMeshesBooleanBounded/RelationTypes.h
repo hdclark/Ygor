@@ -215,6 +215,11 @@ enum class relation_subcode : std::uint32_t {
   source_facet_carrier_unresolved = 70062,
   source_facet_residual_rejected = 70063,
   source_facet_relation_invariant = 70064,
+  coplanar_overlay_malformed = 70065,
+  coplanar_overlay_dependency_missing = 70066,
+  coplanar_overlay_region_unresolved = 70067,
+  coplanar_overlay_boundary_incomplete = 70068,
+  coplanar_overlay_invariant = 70069,
 };
 
 inline bounded_boolean_error relation_error(
