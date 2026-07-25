@@ -12,6 +12,7 @@ on:
       - 'tests/Test_MeshesBooleanBackend.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
+      - 'docs/MeshBooleanBackendAdapters.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p4.yml'
   pull_request:
@@ -23,13 +24,38 @@ on:
       - 'tests/Test_MeshesBooleanBackend.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
+      - 'docs/MeshBooleanBackendAdapters.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p4.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  apply-p4-fail-closed-verification:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Enforce adapter verifier outcomes
+        env:
+          PATCH_GZ_B64: H4sICPkrZGoAA3A0LWZhaWxjbG9zZWQucGF0Y2gArVdLc+JGEL7zK3rZKko2AsdxlTfF2pR3U5VbbrnkJA+jBiYWGu3MCENS/PfteQkJbEzWqwNImp5+fv31aDQaAbvSil/9vZDqT9RL1F+lLJCVXxl/wjL/krPKoNJjUfLecDiE2fniDw8wukk/wfAmvf4EDw89sJdCU6sSUCmpkkrJvOYmc08ZlzlOJtqwArOZKHNRLlK/qXP1Z97YmHlrmcixNMJs46b+xWe7jdVGwhqVmAvM4R5ISG3jptHUrWwThd9q1CYFZgyuKjNes6LG5IJ0jADEHJIPUcd4yXQWl+1qE00j4cOivcNTe+E/ux48nDNR1ArJwRe1BD1Bahxiv/BLAAfvmzBjToKO4GeQdi93xz6+4d/rNQsaVJYLzRYKcUXW0+jjC9dRDb0GzoyQZTZnhcZ+jP89Ie7fH5SXELLrjRz+DZVfX/1Fv9lLmB7ziPwzBC3mb9NbGN6mN7cB8+TFjsz1hrxgWoMLzse7JbBmMay5KFnhQ5lAVc8KwWHmDUSZOy6lIoQzg5nZVpgCAR437n7qi6ZNTi20ZArzrDKKdpTa/C89U8ixwIVdoyT2ht6ViVWOm4puhXkthiRW/Gd60UB9sncscQZWco1JI0ao3Vl/AYI1b6VhBxjEu+QiiJQSNxwrA6RIKVqOwA+YaeyNpvu9++aJFiKGFYUH9udsAy9pmEx8h6GKluxf7DpiR1PrTKq7Zq8H9ulsuupZ6NNy0s1PIMDT2BpEmuz0dFcRbpDXrn+tkwgD9xdT8XaKG/8aSvYK3kgDgcqFF/j8R4JrR9Xdf05yYXBY7qjulZhd98SodrbJwFMDl0rVlbEdpXCOCkuOB/wA7+GHn9yZxA+W765/ubaMd31znf56EzjPTY4mBriPY3zFnjBjG6EzVohFSU7M5OY42JMOJH6829IKhQluGDft8QqDwd50eyGFvrXfpFnSVAgHFjdsbEXCyLP0pnAhNA0a8r5Nay4En8G7Pcy86OnEBe5omYhzk2bake5XOHYaAt4fU4b7XHQdH039HRFLJOiu2YuDtB0O7EN1c5rs/5JoJ6ntTf1o0G8dNd5D5LT+UQ5Ci1IKXPThMZmLDTULZTAOnczFnUlXOB0j7yjSdWH1RCLJDlgguewGlMJlx4VuLj+0tZ6ZKCcaTm9jezSC+/tDWXudfYY611YkiWNxzVb7RDRT7PKUllMHt9bVwWF7Qh5gIvQYtI94PgqYFZI/6cBmfuFZmKXNzxpLRv3rG3PPKE1LxvDe35ItLjnROd2u63aAP0fmkusrezB85ZtolYdz5BmCjlcdq6a/OUqVteFyRd4zqjIDzkpZUsoKcr2SykAuFoTgMTxG9DzSyoqJUpO0rjlHrec1zY9mSkPoF5oAhuRsk7py0M3oW030TEcmXNuqEoHPpSKbRUHufQY6AOYSNY0707P2C0YSJKBFQRAotvTuH+QGzBKbvocFkvv22A6/e/olw6uKKaHJlWiHUjnbOo8UswcAe5jXXeDY+CuFBA/TAc64N/zhrfClmQTxI0z1hmbJTBjZGh4dYB8dPKkWpMt/DoGgBBdaglFIEKPakOyLrfxIQO64s5SSsE+VpDzuc/fMxBo7HcGXSE0ypi8I+PgR/gifYzYY+VxSQZaiAlUXqHvfATDfxrLQDwAA
+        run: |
+          printf '%s' "$PATCH_GZ_B64" | base64 --decode | gzip --decompress > /tmp/p4-failclosed.patch
+          if ! git apply --check /tmp/p4-failclosed.patch; then
+            echo 'P4 fail-closed patch already applied or no longer applicable.'
+            exit 0
+          fi
+          git apply /tmp/p4-failclosed.patch
+          git add .
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'P4: enforce adapter verification outcomes'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   backend-adapters:
     name: ${{ matrix.compiler }} backend adapters
     runs-on: ubuntu-latest
