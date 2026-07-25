@@ -3,12 +3,9 @@ name: Apply Component 07 coplanar event topology
 on:
   pull_request:
     types:
-      - edited
+      - synchronize
     branches:
       - master
-  pull_request_review:
-    types:
-      - submitted
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
