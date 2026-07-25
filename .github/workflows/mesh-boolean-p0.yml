@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build clang
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
       - name: Configure
         env:
           CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
