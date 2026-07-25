@@ -20,32 +20,9 @@ on:
       - '.github/workflows/mesh-boolean-p0.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-p4-agreement-fixture:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - name: Apply face-regular agreement fixture
-        env:
-          PATCH_GZ_B64: H4sICLwqZGoAA3A0LWFncmVlbWVudC5wYXRjaACNUk2T2jAMvedXaPYECwkLs2Xo9mN29t7ppT17hK0EDY6d2g4L7Z+vQgKhlw45xIksvaf3JMNlCXlecQJcJIopLn7IW32juKP45r0ldG+o9+RMoTVs70jK2Bk6Am50SWZVFB/XWK4/rGD59LR+fs7yPL+LK5vNZvfxvb5Cvtos5xuYdcdyCRI5eDZAx8ay5qToiDqpbV8zmcKfDLI+xTBWzsfEWmEViGpySaEzynAcA02gSOGAib3rywG0d1Fsa5OHko+pDQRfoMY9qa0/qiE0mX7KZgCLBfyMBAglasoDVa3FAK0TOMAIaUfQ+MiJD5J0Yb3AFvD9QMFi07CrBjShgHiqa0qBtYgoSwrkNMFO4Kx/p5AbFpAoDGglvXUGw6lrOokVEUQisBwDXqQGAya68SO/dQDefdhbj2YOzotqiFw3lkSv49JbAz6gtlR0xpwtCfSrlaFdLBl+J4Ok+a3vvulsjZPpPMvhv49vKJxn8PJyFa9G8b3XdwIMQ+DfZNR5EFI9Nl9xTGLX0L2hElt7XSB1uf+svQ+GnRin0qkRWefdP39/nfSAnXKWRbjUFDIhdUDbym7M4WH04cr68E8nUYilD+pKOp6xh97RxyvwFfRxuBOcv+i8ZonhAwAA
-        run: |
-          printf '%s' "$PATCH_GZ_B64" | base64 --decode | gzip --decompress > /tmp/p4-agreement.patch
-          if ! git apply --check /tmp/p4-agreement.patch; then
-            echo 'P4 agreement fixture patch already applied or no longer applicable.'
-            exit 0
-          fi
-          git apply --index /tmp/p4-agreement.patch
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'P4: use face-regular diagnostic agreement fixture'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
   product-contract:
     name: ${{ matrix.compiler }} product contract
     runs-on: ubuntu-latest
