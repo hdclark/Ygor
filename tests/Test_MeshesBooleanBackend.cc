@@ -287,6 +287,16 @@ void diagnostic_agreement_and_disagreement_preservation() {
   require(registry.has_value(), "diagnostic registry");
   auto result = evaluate_backend_request(*registry.value(), *request);
   require(result.has_value(), "diagnostic comparison execution");
+  if (!result.value()->comparisons.empty()) {
+    const auto &comparison = result.value()->comparisons.front();
+    std::cout << "P4_COMPARISON outcome="
+              << static_cast<unsigned>(comparison.outcome)
+              << " mismatched_cells=" << comparison.mismatched_cells
+              << " volume=" << comparison.exact_volume_matches
+              << " components=" << comparison.component_count_matches
+              << " bounds=" << comparison.output_bounds_match
+              << " message=" << comparison.message_key << '\n';
+  }
   require(result.value()->comparisons.size() == 1 &&
               result.value()->comparisons.front().outcome ==
                   backend_comparison_outcome::agree &&
