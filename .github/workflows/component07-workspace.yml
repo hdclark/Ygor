@@ -1,9 +1,6 @@
 name: Apply Component 07 coplanar boundary partitions
 
 on:
-  pull_request:
-    branches:
-      - master
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
