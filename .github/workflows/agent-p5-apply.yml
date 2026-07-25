@@ -8,6 +8,11 @@ on:
       - '.github/workflows/agent-p5-workspace-export.yml'
       - '.github/workflows/agent-p5-apply.yml'
       - '.github/p5-agent-patch/**'
+  pull_request:
+    paths:
+      - '.github/workflows/agent-p5-workspace-export.yml'
+      - '.github/workflows/agent-p5-apply.yml'
+      - '.github/p5-agent-patch/**'
   workflow_dispatch:
 
 permissions:
