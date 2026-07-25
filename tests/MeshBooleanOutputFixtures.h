@@ -1,6 +1,7 @@
 #pragma once
 #include "MeshBooleanRealizationFixtures.h"
 #include <YgorMeshesBooleanOutput.h>
+#include <YgorMeshesBooleanBackend.h>
 
 namespace output_test {
 using namespace realization_test;
@@ -95,7 +96,6 @@ void output_oracle(const assembled_output<T, I> &a) {
 }
 } // namespace output_test
 
-#ifdef YGOR_MESHES_BOOLEAN_BACKEND_H_
 template <class T, class I>
 auto backend_test_diagnostic_evaluate(
     const ygor::mesh_boolean::backend_registry<T, I> &registry,
@@ -126,4 +126,3 @@ auto backend_test_diagnostic_evaluate(
   return result;
 }
 #define evaluate_backend_request backend_test_diagnostic_evaluate
-#endif
