@@ -1,0 +1,89 @@
+name: P4 provenance binding fix
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/p4-provenance-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'P4: stage provenance binding fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply provenance corrections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          api = Path('src/YgorMeshesBooleanBackendAPI.inc')
+          text = api.read_text()
+          old = '''  backend_execution_state producer_state;
+          producer_state.selection = mode;
+          producer_state.attempted_backends.push_back(producer_id);
+          producer_state.attempted_backends.insert(
+              producer_state.attempted_backends.end(),
+              request.product_options.backend.diagnostic_backends.begin(),
+              request.product_options.backend.diagnostic_backends.end());
+          '''
+          new = '''  backend_execution_state producer_state;
+          producer_state.selection = mode;
+          producer_state.attempted_backends = {producer_id};
+          '''
+          if old not in text:
+              raise SystemExit('producer-state block not found')
+          text = text.replace(old, new, 1)
+          old = '    comparator_state.attempted_backends = producer_state.attempted_backends;\n'
+          new = '    comparator_state.attempted_backends = {producer_id, comparator_id};\n'
+          if old not in text:
+              raise SystemExit('comparator-state block not found')
+          text = text.replace(old, new, 1)
+          old = '''    std::vector<backend_id> attempted_ids;
+              attempted_ids.reserve(result.attempts.size());
+              for (const auto &attempt : result.attempts)
+                attempted_ids.push_back(attempt.requested_backend);
+              if (result.product->backend.selection !=
+                      request.product_options.backend.mode ||
+                  result.product->backend.attempted_backends != attempted_ids)
+          '''
+          new = '''    std::vector<backend_id> producer_attempted_ids;
+              producer_attempted_ids.reserve(result.attempts.size());
+              for (const auto &attempt : result.attempts)
+                if (attempt.role == backend_adapter_role::producer)
+                  producer_attempted_ids.push_back(attempt.requested_backend);
+              if (result.product->backend.selection !=
+                      request.product_options.backend.mode ||
+                  result.product->backend.attempted_backends !=
+                      producer_attempted_ids)
+          '''
+          if old not in text:
+              raise SystemExit('execution provenance block not found')
+          api.write_text(text.replace(old, new, 1))
+
+          exact = Path('src/YgorMeshesBooleanExactResult.cc')
+          text = exact.read_text()
+          old = '''    if (v != 1)
+                throw decode_failure("exact_result.backend_id");
+          '''
+          new = '''    if (v != static_cast<std::uint16_t>(
+                       backend_id::experimental_exact_v1) &&
+                v != static_cast<std::uint16_t>(
+                         backend_id::independent_axis_aligned_box_v1))
+              throw decode_failure("exact_result.backend_id");
+          '''
+          if old not in text:
+              raise SystemExit('exact-result backend decoder block not found')
+          exact.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/YgorMeshesBooleanBackendAPI.inc src/YgorMeshesBooleanExactResult.cc
+          git commit -m 'P4: fix diagnostic and fallback provenance'
+          git push origin HEAD:boolean_symbolic
