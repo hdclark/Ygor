@@ -384,9 +384,35 @@ The supported selection contracts are:
 
 Fallback is rejected for internal invariant errors, capability mismatches,
 backend or verifier disagreement, stale bindings, replay mismatch, exact-result
-serialization errors, and qualification-policy violations. A later fallback
-executor must retain the primary failure and all attempted backend identities.
-P0 freezes these rules but does not execute a fallback chain.
+serialization errors, and qualification-policy violations. The implemented
+executor retains the primary failure, every producer attempt, the selected
+producer identity, and whether fallback was used. Diagnostic-only adapters are
+recorded in the execution envelope but never inserted into durable producer
+provenance and never participate in majority-vote publication.
+
+`boolean_backend<T, I>` consumes immutable prepared operands through a frozen,
+versioned request envelope. The registry freezes adapter identities, roles,
+versions, capability digests, and deterministic ordering before evaluation;
+lookup rejects version, capability, maturity, role, or implementation drift.
+Every successful attempt is adapter-verified before it can be published, and
+cancellation and diagnostic resource limits return typed failures without
+partial publication.
+
+The in-tree Components 3 through 10 are wrapped unchanged as the explicit-opt-in
+`experimental_exact_v1` producer. The independently implemented
+`independent_axis_aligned_box_v1` adapter is diagnostic-only and candidate
+maturity. Its declared workload profile is `axis_aligned_box_pair_v1`. It accepts
+strictly prepared, outward-oriented exact dyadic boxes, validates the complete
+corner/face/orientation conversion without tolerances, and independently
+constructs exact arrangement-cell occupancy, exact volume, connected-component,
+boundary, and output-bounds evidence. Unsupported non-box input is a typed
+capability mismatch rather than an approximate comparison.
+
+`qualified_default` selects only a frozen registry entry whose exact backend,
+capability digest, requested representation, preparation mode, and workload
+profile are bound by the supplied qualification manifest. No matching profile
+returns `backend_unqualified`; this implementation does not promote either
+adapter to a production-qualified general CAD profile.
 
 ## Versioning and decoding
 
@@ -425,6 +451,7 @@ The current productized scope does not:
   unknown-provenance import;
 - execute finite-`T` realization from a deferred realization request (the
   executable context product path is supported);
-- wrap backend execution or run independent adapters;
+- provide a general-purpose external CAD backend beyond the narrow
+  diagnostic-only axis-aligned-box profile;
 - transfer application attributes; or
 - claim any production-qualified backend/result/preparation profile.
