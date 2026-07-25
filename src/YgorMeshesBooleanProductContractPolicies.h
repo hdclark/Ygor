@@ -27,7 +27,10 @@ struct product_schema_versions {
   std::uint16_t replay = product_contract_schema_version;
 };
 
-enum class backend_id : std::uint16_t { experimental_exact_v1 = 1 };
+enum class backend_id : std::uint16_t {
+  experimental_exact_v1 = 1,
+  independent_axis_aligned_box_v1 = 2
+};
 enum class backend_maturity : std::uint8_t {
   experimental,
   candidate,
