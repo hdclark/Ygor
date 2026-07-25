@@ -22,7 +22,8 @@ constexpr std::uint64_t geometry_changing_normalization_mask() noexcept {
 }
 
 bool known(backend_id v) noexcept {
-  return v == backend_id::experimental_exact_v1;
+  return v == backend_id::experimental_exact_v1 ||
+         v == backend_id::independent_axis_aligned_box_v1;
 }
 bool known(backend_maturity v) noexcept {
   return static_cast<unsigned>(v) <=
