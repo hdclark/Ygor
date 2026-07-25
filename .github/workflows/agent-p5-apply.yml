@@ -1,0 +1,38 @@
+name: Agent P5.1 patch application
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/agent-p5-workspace-export.yml'
+      - '.github/workflows/agent-p5-apply.yml'
+      - '.github/p5-agent-patch/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 0
+      - name: Apply validated P5.1 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/p5-agent-patch/part-* | base64 --decode | gzip --decompress > /tmp/p5.patch
+          git apply --index --whitespace=error /tmp/p5.patch
+          rm -rf .github/p5-agent-patch
+          rm .github/workflows/agent-p5-workspace-export.yml
+          rm .github/workflows/agent-p5-apply.yml
+          git add .
+          git diff --cached --check
+          git config user.name hdclark
+          git config user.email 934858+hdclark@users.noreply.github.com
+          git commit -m 'P5.1: implement stable provenance and attribute transfer'
+          git push origin HEAD:boolean_symbolic
