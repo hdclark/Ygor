@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 0
       - name: Add focused comparison diagnostics
         env:
-          PATCH_GZ_B64: H4sICCIpZGoAA3A0LWRpYWdub3N0aWMucGF0Y2gAjVNfT9swEH/Pp7jloSSEhBZVrOoaxNjTHhgI9jjJcu1LapHYXexULdO++2wcCGsjVD84yt3vz/l85qIoIE1LYYCeG9RGn/+0O7lFvUJ9o1SFVN5Q9oSSZ4zB8ghQICTHLdAZK5BfZNnYL5iMx5fTaZCm6VFeQZIkx/ldX0N6MZudXULiPpPPYCMbJThwQUuptBGM0LJBrFEaQiUnXOg+sG5QY7OhRigZxfAnAADaGgU23lYGcsANrVpqkCy9K2nwd2tLik4bLIU2zS5zCIziMzjtcvEXp+N+RIORl8pWVJM3ZNiXB0zVa9oIrSTgFlnragmtRAIgCog+dfyOm171eJ1hvTa7KHaVWzhYLamNP8HonW4OH4kUjZIm8o4A2vD5nKnWwGIB4f2UfLu7vf/68P3x7gfYqCViHnpovyxUG+qazag2i1ZqUUrkV1Hvk3XkeIAbQi10TQ1bIScMq0rnoYu/Y+8DBlU2qmpdeXtc3FJmiE8SrzLMdxwl7WAc+r+liO2N3T+SWVoEP5SwDVi3hvisFxjuBWo7oofH6OLkCXcuc/JLnrzc2d+BaRu8aC2ebQzyHCYwGgX/Wx8zIq93aCX22W69PpGeSTrCfP7y5pzrP261iMN4BAAA
+          PATCH_GZ_B64: H4sICLkpZGoAA3A0LWRpYWdub3N0aWMucGF0Y2gAjZLBTtwwEIbv+xTTHJaEkCBKD4huEKWnHigIeqxkee3ZrEVibzOTFduq7167jghiI7Q5OPLM/38zHlub1QqKojYM8pSRmE5/+FXcIq2RbpxrUNobqZ7Q6lIpWB4gmhVFcRBtluf5YcTrayg+XlycnEMefmfn4CNbZzRoI2vriI0Ssu4QW7QspNVCGxoDmw4Ju61k42yawZ8ZAMieHfh43zBUgFvZ9JJRLGNV0eGv3reUHndYG+JuVwYFptkJHA+57HPghI3pMI2oci1JvCiTsT1Qrt3IzpCzgM+o+tBL4hE5gFlB+mHwD97iatRTie2Gd2kWOvdy8CxLHE8wf8Wt4D3IqnOW01gRgFhfXirXMywWkNx/El/vbu+/PHx7vPsOPuqNWCVROn5eSizDsJUkXvSWTG1RX6VjnXIwZxPeBFpDrWS1Ri0UNg1VSYi/cr8VTFK2rulDe2+8+CwVi5gUkTLtDx5n/cPYr/+SEn42fn0Ps/QKvY/wA9j0LGI2AqZngeSf6P4xhrh4wl3IHP20R//v7O/Ea5u8aDK/fQyqCs5gPp/9A2QHusfkAwAA
         run: |
           printf '%s' "$PATCH_GZ_B64" | base64 --decode | gzip --decompress > /tmp/p4-diagnostic.patch
           if ! git apply --check /tmp/p4-diagnostic.patch; then
