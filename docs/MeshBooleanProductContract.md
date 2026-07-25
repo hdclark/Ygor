@@ -1,10 +1,11 @@
 # Mesh Boolean product contract (schema 6)
 
 This document defines the product boundary introduced by Plan 15 P0, the
-durable exact-result authority introduced by P1, and the explicit strict and
-normalized preparation services introduced by P2. It does not promote any
-Boolean backend, implement backend fallback, or implement approximate
-realization. Those behaviours remain gated by later tracker components.
+durable exact-result authority introduced by P1, the explicit strict and
+normalized preparation services introduced by P2, the complete output modes
+introduced by P3, and the capability-described backend boundary introduced by
+P4. It does not promote any backend to production qualification or implement
+the later attribute-transfer and one-call application service.
 
 ## Current support boundary
 

@@ -149,17 +149,17 @@ Start only after P2. Preserve the existing strict `exact_in_T` algorithm as a re
 
 Start only after P3. Backend integration must not become an unverified semantic shortcut.
 
-- [ ] **P4 complete — implement the capability-described backend boundary.**
-  - [ ] Stabilize the common backend request/result envelope, capability schema, ownership model, cancellation/resource behavior, deterministic diagnostics, and adapter verification hooks.
-  - [ ] Wrap Components 3-10 as `experimental_exact_v1` without changing their exact semantics; keep backend-private artifacts out of ordinary public headers where practical.
-  - [ ] Implement `explicit_backend` selection with no fallback and deterministic capability mismatch reporting.
-  - [ ] Implement qualification-manifest-driven `qualified_default`; it must reject selection when no backend/profile is qualified.
-  - [ ] Add at least one independently implemented mature backend adapter in diagnostic-only mode for the declared qualification workload.
-  - [ ] Verify adapter input conversion, regularization/orientation/tolerance semantics, output topology, exact/guarded occupancy evidence, ownership, provenance, and failure-category mapping.
-  - [ ] Implement `diagnostic_compare` with one declared producer; preserve all disagreements and prohibit majority-vote publication.
-  - [ ] Implement caller-declared `explicit_fallback_chain` only for listed failure categories; retain the primary failure and producing backend in the result.
-  - [ ] Prohibit fallback for internal invariant errors, stale/malformed evidence, replay mismatch, verifier disagreement, capability mismatch that changes promised semantics, or unapproved normalization/approximation.
-  - [ ] Add backend unavailable/version drift/capability drift, semantic mismatch, disagreement, deterministic selection, cancellation, fallback, and adapter-corruption tests.
+- [x] **P4 complete — implement the capability-described backend boundary.**
+  - [x] Stabilize the common backend request/result envelope, capability schema, ownership model, cancellation/resource behavior, deterministic diagnostics, and adapter verification hooks.
+  - [x] Wrap Components 3-10 as `experimental_exact_v1` without changing their exact semantics; keep backend-private artifacts out of ordinary public headers where practical.
+  - [x] Implement `explicit_backend` selection with no fallback and deterministic capability mismatch reporting.
+  - [x] Implement qualification-manifest-driven `qualified_default`; it must reject selection when no backend/profile is qualified.
+  - [x] Add at least one independently implemented mature backend adapter in diagnostic-only mode for the declared qualification workload.
+  - [x] Verify adapter input conversion, regularization/orientation/tolerance semantics, output topology, exact/guarded occupancy evidence, ownership, provenance, and failure-category mapping.
+  - [x] Implement `diagnostic_compare` with one declared producer; preserve all disagreements and prohibit majority-vote publication.
+  - [x] Implement caller-declared `explicit_fallback_chain` only for listed failure categories; retain the primary failure and producing backend in the result.
+  - [x] Prohibit fallback for internal invariant errors, stale/malformed evidence, replay mismatch, verifier disagreement, capability mismatch that changes promised semantics, or unapproved normalization/approximation.
+  - [x] Add backend unavailable/version drift/capability drift, semantic mismatch, disagreement, deterministic selection, cancellation, fallback, and adapter-corruption tests.
 
 **P4 exit gate:** every result names its producer and capabilities; fallback is explicit and auditable; external agreement is evidence only; no adapter can bypass mandatory verification.
 
