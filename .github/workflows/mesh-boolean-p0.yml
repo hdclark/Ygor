@@ -20,57 +20,9 @@ on:
       - '.github/workflows/mesh-boolean-p0.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-p4-completion:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - name: Complete P4 documentation and tracker
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          docs = Path('docs/MeshBooleanProductContract.md')
-          text = docs.read_text()
-          old = '''This document defines the product boundary introduced by Plan 15 P0, the
-          durable exact-result authority introduced by P1, and the explicit strict and
-          normalized preparation services introduced by P2. It does not promote any
-          Boolean backend, implement backend fallback, or implement approximate
-          realization. Those behaviours remain gated by later tracker components.
-          '''
-          new = '''This document defines the product boundary introduced by Plan 15 P0, the
-          durable exact-result authority introduced by P1, the explicit strict and
-          normalized preparation services introduced by P2, the complete output modes
-          introduced by P3, and the capability-described backend boundary introduced by
-          P4. It does not promote any backend to production qualification or implement
-          the later attribute-transfer and one-call application service.
-          '''
-          if old not in text:
-              raise SystemExit('stale product-contract introduction was not found')
-          docs.write_text(text.replace(old, new, 1))
-
-          tracker = Path('tracker.md')
-          text = tracker.read_text()
-          start = text.index('- [ ] **P4 complete — implement the capability-described backend boundary.**')
-          end = text.index('\n\n**P4 exit gate:**', start)
-          block = text[start:end]
-          checked = block.replace('- [ ]', '- [x]')
-          if checked == block:
-              raise SystemExit('P4 tracker block was already checked')
-          tracker.write_text(text[:start] + checked + text[end:])
-          PY
-          git add docs/MeshBooleanProductContract.md tracker.md
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'P4: complete backend adapters and controlled selection'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
   product-contract:
     name: ${{ matrix.compiler }} product contract
     runs-on: ubuntu-latest
