@@ -32,9 +32,12 @@ jobs:
           set -euo pipefail
           cat .github/p5-agent-patch/part-* | base64 --decode | gzip --decompress > /tmp/p5.patch
           git apply --index --whitespace=error /tmp/p5.patch
+          # The GITHUB_TOKEN cannot update workflow definitions. Publish the
+          # implementation first; the connector will atomically install the
+          # permanent CI workflow and remove these temporary workflows.
+          git reset -- .github/workflows/mesh-boolean-p5-attributes.yml
+          rm .github/workflows/mesh-boolean-p5-attributes.yml
           rm -rf .github/p5-agent-patch
-          rm .github/workflows/agent-p5-workspace-export.yml
-          rm .github/workflows/agent-p5-apply.yml
           git add .
           git diff --cached --check
           git config user.name hdclark
