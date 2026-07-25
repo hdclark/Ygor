@@ -74,7 +74,9 @@ expected and observed digests, mismatch count, individual invariant results,
 outcome, and a canonical report digest. `disagree` remains a successful
 execution result containing blocking-quality evidence for callers; it does not
 replace or silently reject the producer geometry. Corrupt comparison evidence,
-by contrast, fails verification and prevents publication.
+by contrast, fails verification and prevents publication. An adapter verifier
+that returns `false` without an error is also treated as `verifier_disagreement`;
+verification hooks cannot silently waive publication checks.
 
 ## Failure and ownership rules
 

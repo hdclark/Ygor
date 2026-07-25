@@ -77,6 +77,36 @@ public:
   }
 };
 
+class false_verifying_backend final
+    : public boolean_backend<coordinate_type, index_type> {
+  std::shared_ptr<const boolean_backend<coordinate_type, index_type>> delegate_;
+
+public:
+  explicit false_verifying_backend(
+      std::shared_ptr<const boolean_backend<coordinate_type, index_type>> delegate)
+      : delegate_(std::move(delegate)) {}
+
+  const backend_identity &identity() const noexcept override {
+    return delegate_->identity();
+  }
+  backend_adapter_role role() const noexcept override {
+    return backend_adapter_role::producer;
+  }
+
+  product_status_or<backend_attempt<coordinate_type, index_type>>
+  evaluate(const backend_request<coordinate_type, index_type> &request,
+           const backend_execution_state &state) const override {
+    return delegate_->evaluate(request, state);
+  }
+
+  product_status_or<bool>
+  verify(const backend_request<coordinate_type, index_type> &,
+         const backend_attempt<coordinate_type, index_type> &) const noexcept
+      override {
+    return false;
+  }
+};
+
 class corrupting_reference_backend final
     : public boolean_backend<coordinate_type, index_type> {
   std::shared_ptr<const boolean_backend<coordinate_type, index_type>> delegate_;
@@ -427,6 +457,25 @@ void adapter_corruption_cancellation_and_semantic_mismatch() {
   auto reference =
       make_axis_aligned_box_reference_backend<coordinate_type, index_type>();
   require(exact.has_value() && reference.has_value(), "make corruption adapters");
+
+  auto false_registry =
+      std::make_shared<backend_registry<coordinate_type, index_type>>();
+  auto false_verifier =
+      std::make_shared<false_verifying_backend>(exact.value());
+  require(false_registry->register_backend(false_verifier).has_value() &&
+              false_registry->freeze().has_value(),
+          "register false-verifying producer");
+  auto false_request = make_request(fixture, explicit_exact_options());
+  auto false_result =
+      evaluate_backend_request(*false_registry, *false_request);
+  require(!false_result.has_value() &&
+              false_result.error().code ==
+                  product_error_code::verifier_disagreement &&
+              false_result.error().backend &&
+              same_backend_identity(*false_result.error().backend,
+                                    exact.value()->identity()),
+          "adapter verification false blocks publication with provenance");
+
   auto registry =
       std::make_shared<backend_registry<coordinate_type, index_type>>();
   require(registry->register_backend(exact.value()).has_value(),

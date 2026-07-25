@@ -195,8 +195,18 @@ product_status_or<backend_attempt<T, I>> run_adapter(
     return error(product_error_code::stale_binding,
                  "backend.adapter_identity_binding");
   auto verified = entry.adapter->verify(request, attempt.value());
-  if (!verified.has_value())
-    return verified.error();
+  if (!verified.has_value()) {
+    auto failure = verified.error();
+    if (!failure.backend)
+      failure.backend = entry.identity;
+    return failure;
+  }
+  if (!verified.value()) {
+    auto failure = error(product_error_code::verifier_disagreement,
+                         "backend.adapter_verification_false");
+    failure.backend = entry.identity;
+    return failure;
+  }
   return attempt.value();
 }
 
