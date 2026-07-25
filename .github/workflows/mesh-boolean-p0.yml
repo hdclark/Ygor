@@ -54,3 +54,11 @@ jobs:
           ctest --test-dir build-p0 --output-on-failure
           -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit)$'
           --timeout 360
+      - name: Retain failing test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-product-contract-${{ matrix.compiler }}-failure
+          path: build-p0/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
