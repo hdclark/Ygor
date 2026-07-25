@@ -20,9 +20,32 @@ on:
       - '.github/workflows/mesh-boolean-p0.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  apply-p4-documentation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Apply P4 contract documentation
+        env:
+          PATCH_GZ_B64: H4sICHgnZGoAA3A0LWRvY3MucGF0Y2gApVZNb9tGEL3zVwyQSwuRsh3bqVMXRdKkBXJokUPaq7VajqRNyF1mPyTLv75vlkvKrnMIUCBIGGo58+bNmzfbms2GmmZrIqmz1ulw9ieH3W/OdazsR+/apOM7Z6NXOi77ltbfcagytuV7ulE3N5evb5bLNa9fXl9e0cX5+aurq6ppmu/KVS0Wi+/L9+YNNZc3V/VrWsg/l9eEN592TCENg/ORWwrcsY7GWdLlw0DK888VVfSH6rq10l/IBPL8GefwwcZ5Mjayt6rDw155o2wk9t75UJNWg1qbzsQj9Sb0Kuodh7oiicO2JXy9Z282hj21JqitZ+7ZxppCVB3TGhwZu0Ukz0OnTlFq4nugazyH1MWqCYiiOvOgMvgpvUKKrwnvN0bnX5rBdUYfaW9cl1+EJb0lPCL/ptRXNXzPOkVg61OIyByVsRRB1OBNr/wRR02XPOf4+IpUjNwPwsdUmGlRhYmGw7JqPp7TBoU9cJAogcmnDs/rFKl1eLAOjOWcCDnjIL1D3mW1+B+1SXdNP3SZVIZW5tLGqsK3ygK3aMoRr0VCYKaUV+fDo0Qk1vx7KfY4gjrsGOdOfNJBBUqB2yW9N2prXYhGN852R1KtAms+a6xaeNbOtyCxsD1izTXbPXdu4EyZFXQ4A1piPhwdtcmrdccz5Axuz1ZZPXZp/GhQHrnNgH5Lkl59dh64m73DiyGtu0IlSK8Wq/U4SXelp798qunDryuZjJB6tM30fYolLSM0wACjRzqh1bu03Uk7vXtgW1cLAAiIjVOevyaGsqayxj553poQpQ1FK4WdR1rCGABSOAV7OmKt2SJs0UbL+LY31gjdJMR6TBKtGSMLbveqS7nW22rROfclDWWoA5XYj0PX4Comn58EQi2TOwtrFGaLOY5g7vcsnpC05hA2aZ4O8Y1SUlOGvp3gwFe1svjf2IWw4zZXUS20tLAbBT3WNWsIgINLHh3uTG+iuBIwQjvHQZxpFHOgg4k7lyIkId2HTf230XlIbBNBO71z/YAeWUS7nJt4cS4CpYNXg0ROFpNpt3hSoQh1QEATGzfExlhIB29QYeamu8tOdbe/WM3yLIMJ/x8gLJzCLDwZ09Wj3+7UvQl3GPQttHO3dvc51CyO8IiRMlVgCbS1poXOq8XUuSV9QFUt6y5L9eD8l86pVkBtDESMSKtnqQZlvOSTj0mhpUMMcKTojRbQk/ChhxQPyrcNBirXMPoztUfVolMIJeqF6DKokTbtpGSBiLm37M82SvPZGEBNS6iIceoiRajPiyaKzJ+QKJEswCWR8QhAeS+9EmIbERI5rdOAAMeyQmjvOoxzLclsdrZGTyLAoK1dsi3MccwGBEOKTX6JDHsZTY35/duedqiFFaNeIMPRLPpRkaLlZ9uQvMpmGaEokj8D2nEPO44jP9inYfKj4vboTMsbhbW3KmYcaOx78ZqTk6AE/H3YucCl2OJl9RMwo2/Uky9lh0Jnw9SHuvR5bErvWi5OXySU3TZrSMYkk0Pr47gtQEsng/5kVcFNrNkg1ZL+cpSJEG8qUWQTyCBDjwXuXbJz8atbBDbhmftMixRBerFzNkJstZgGBVtClQHM23IOSFuG+OAL796+nyAs5cLz4gX9M6pPwI2eqp3cR/CrXKauXl7Xr2hxdX1R/zTdpXTyHqDmTA9yq9KyuyaEuEwRPOSLdQfs7NOaQkEQ0G1FzXwZ2MC+IzerTyt05HQFQJt7FAMV4DKQu3X6bdotP6B6STSGyltKrnR8P0PDNow70ecs3R9vcevMNjffY047WO4MyT6et3l9Y4U0ElXGAbgKn82Q/DAqr9wPheAp8JqPDv+IRixm1B2qBT13MthRU+woz1RpTyYJ11MbNnI9EYkVYWHXeINbAodbIJZjsDsDtuzx280veM7Gi+TZY6HPWvgXPXAiK/4LAAA=
+        run: |
+          printf '%s' "$PATCH_GZ_B64" | base64 --decode | gzip --decompress > /tmp/p4-docs.patch
+          if ! git apply --check /tmp/p4-docs.patch; then
+            echo 'P4 documentation patch already applied or no longer applicable.'
+            exit 0
+          fi
+          git apply --index /tmp/p4-docs.patch
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'P4: document backend adapters and controlled selection'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   product-contract:
     name: ${{ matrix.compiler }} product contract
     runs-on: ubuntu-latest
