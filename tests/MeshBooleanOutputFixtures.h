@@ -94,3 +94,36 @@ void output_oracle(const assembled_output<T, I> &a) {
           "certificate counts");
 }
 } // namespace output_test
+
+#ifdef YGOR_MESHES_BOOLEAN_BACKEND_H_
+template <class T, class I>
+auto backend_test_diagnostic_evaluate(
+    const ygor::mesh_boolean::backend_registry<T, I> &registry,
+    const ygor::mesh_boolean::backend_request<T, I> &request,
+    const ygor::mesh_boolean::qualification_manifest *manifest = nullptr) {
+  auto result = ygor::mesh_boolean::evaluate_backend_request(
+      registry, request, manifest);
+  if (!result.has_value()) {
+    std::cerr << "BACKEND_ERROR code="
+              << static_cast<unsigned>(result.error().code)
+              << " key=" << result.error().message_key
+              << " detail=" << result.error().detail << '\n';
+  } else {
+    const auto &execution = *result.value();
+    std::cerr << "BACKEND_RESULT attempts=" << execution.attempts.size()
+              << " comparisons=" << execution.comparisons.size()
+              << " fallback="
+              << (execution.product->backend.fallback_used ? 1 : 0)
+              << " primary=";
+    if (execution.product->backend.primary_failure)
+      std::cerr << static_cast<unsigned>(
+          execution.product->backend.primary_failure->code);
+    else
+      std::cerr << "none";
+    std::cerr << " attempted="
+              << execution.product->backend.attempted_backends.size() << '\n';
+  }
+  return result;
+}
+#define evaluate_backend_request backend_test_diagnostic_evaluate
+#endif
