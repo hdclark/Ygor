@@ -1,4 +1,4 @@
-name: Component 07 workspace export
+name: Apply Component 07 candidate coplanar overlays
 
 on:
   pull_request:
@@ -8,21 +8,49 @@ on:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
 
+permissions:
+  contents: write
+
 jobs:
-  export:
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Package checkout
+      - name: Verify and apply patch
+        shell: bash
         run: |
-          git status --short --branch
-          tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ygor-component07-workspace
-          path: /tmp/ygor-component07-workspace.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+          set -euo pipefail
+          cat .github/component07-candidate-overlay.patch.part-* | base64 -d | gzip -d > /tmp/component07-candidate-overlay.patch
+          echo "4b8802a05644a4cc7b0e43de6f5da67544bafdcec66575cd603bcc3b22d2f640  /tmp/component07-candidate-overlay.patch" | sha256sum -c -
+          git apply --check /tmp/component07-candidate-overlay.patch
+          git apply --index /tmp/component07-candidate-overlay.patch
+      - name: Build focused strict targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+          cmake --build build --target \
+            ygor_mesh_boolean_candidate_source_edge_relation_tests \
+            ygor_mesh_boolean_edge_facet_relation_tests \
+            ygor_mesh_boolean_facet_facet_relation_tests \
+            ygor_mesh_boolean_coplanar_overlay_tests \
+            ygor_mesh_boolean_edge_facet_integration_runtime_tests -j1
+      - name: Run focused strict tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure -R 'mesh_boolean_bounded_component07_(candidate_source_edge_relations|edge_facet_relations|edge_facet_integration|facet_facet_relations|coplanar_overlay)'
+      - name: Commit and push implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/component07-candidate-overlay.patch.part-*
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Integrate Component 07 candidate coplanar overlays'
+          git push
