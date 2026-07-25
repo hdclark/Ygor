@@ -344,18 +344,52 @@ source-facet overlay classifier without advancing final Boolean selection:
   crossing-area, containment, equal-same, equal-opposite, missing dependency,
   wrong-owner, digest, forged-classification, and owner-exclusion cases.
 
-This slice is deliberately not yet wired into the candidate-derived request
-graph or final non-empty relation artifact. `RelationBuild` therefore continues
-to fail closed at `coplanar_overlay_evaluation` until complete facet-boundary
-request closure, canonical overlay-stage integration, crossing-component
-assembly, and the later multiplicity/symbolic/publication obligations are
-available.
+The standalone classifier was initially kept behind the non-empty publication
+gate so candidate-derived request closure could be added without accepting a
+partial artifact.
 
-Focused local validation completed successfully for the strict Component 07
-library, `mesh_boolean_bounded_component07_facet_facet_relations`, and
-`mesh_boolean_bounded_component07_coplanar_overlay`. The repository's unrelated
-legacy public-facade rebuild exceeded the available execution window when broader
-targets were requested; no failed Component 07 provider result was observed.
+## Implemented candidate-derived coplanar overlay integration slice
+
+The classifier is now connected to the transaction-local candidate pipeline:
+
+- source-edge request discovery closes every candidate-derived source-facet pair
+  over the complete Cartesian product of both original semantic boundaries,
+  including both source facets incident to the candidate edge; collision-local
+  edge pairs are no longer mistaken for complete overlay dependencies;
+- the checked preflight uses the corresponding quadratic boundary-pair bound for
+  request, dependency, work, and temporary-byte accounting, with overflow and
+  configured-capacity failures before numerical evaluation;
+- one canonical coplanar overlay record is produced for every coplanar
+  source-facet/source-facet support relation in request order, with a typed link
+  back to the compute-once support producer and no record for separated or
+  transverse support;
+- source polygons and their ordered original boundary-edge identities are
+  reconstructed from the immutable canonical manifold and primitive tables,
+  while all boundary relations are looked up from the already-verified
+  source-edge stage rather than recomputed;
+- stage bytes and digest are owner free, the independent verifier reconstructs
+  the complete stage from predecessor artifacts, and mutation tests reject
+  altered overlay records, links, counts, and digests;
+- `RelationBuild` executes and verifies this stage transactionally for every
+  candidate stream, then continues to fail closed at
+  `coplanar_overlay_evaluation` because canonical overlap-component/oriented-arc
+  assembly and the later multiplicity, symbolic, event, codec, and publication
+  obligations are not yet complete; and
+- the focused runtime targets no longer link the unrelated legacy Ygor geometry
+  and Boolean monolith. A test-only carrier translation unit provides the exact
+  trivial `vec3<double>` and `fv_surface_mesh<double,uint32_t>` construction and
+  copy definitions used by `YgorMath.cc`; every authoritative topology and
+  geometry decision remains in the strict bounded provider.
+
+Focused strict validation now passes
+`mesh_boolean_bounded_component07_candidate_source_edge_relations`,
+`mesh_boolean_bounded_component07_edge_facet_relations`,
+`mesh_boolean_bounded_component07_edge_facet_integration`,
+`mesh_boolean_bounded_component07_facet_facet_relations`, and
+`mesh_boolean_bounded_component07_coplanar_overlay`. The integration suite
+covers empty and non-empty streams, deterministic compute-once closure,
+owner-free semantics, mutation rejection, fail-closed publication, and a
+positive-area coplanar containment case derived from touching closed boxes.
 
 ## Outstanding before Component 07 can be checked complete
 
@@ -369,10 +403,10 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 2. Complete source-edge/source-facet source-fan ownership, admitted clustered
    multi-event ordering, complete occurrence tie keys, numeric crossing
    conservation, and all symbolic fields that depend on those results.
-3. Integrate the implemented coplanar polygon classifier into candidate-derived
-   complete facet-boundary request closure, assemble canonical crossing/overlap
-   components and oriented arcs, and publish the resulting overlay table in the
-   final artifact while retaining coordinate-coincident distinct occurrences.
+3. Assemble canonical coplanar crossing/overlap components and oriented arcs
+   from the implemented candidate-derived overlay classifications, then publish
+   the resulting overlay table in the final artifact while retaining
+   coordinate-coincident distinct occurrences.
 4. Complete authoritative construction selection and deduplication, residual and
    conditioning evidence, numeric crossing multiplicity, half-open source-fan
    ownership, and local conservation across all relation families.

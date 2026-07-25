@@ -211,6 +211,71 @@ bool candidate_operands(const canonical_candidate_record<T> &candidate,
   return false;
 }
 
+
+template <class T, class I>
+bool source_facet_boundary_features(
+    const canonical_candidate_stream<T, I> &candidates, operand_id operand,
+    std::uint64_t source_facet, std::vector<relation_feature_key> &out) {
+  out.clear();
+  const auto *topology = operand_topology(candidates, operand);
+  if (!topology || !topology->owner().same_owner(candidates.owner()) ||
+      source_facet >= topology->source_facet_to_group().size())
+    return false;
+  const auto group_ordinal = topology->source_facet_to_group()[source_facet];
+  if (group_ordinal >= topology->facet_groups().size())
+    return false;
+  const auto &group = topology->facet_groups()[group_ordinal];
+  if (group.canonical_id != group_ordinal ||
+      group.source_facet != source_facet ||
+      group.source_vertices.size() < 3 ||
+      group.boundary_halfedges.size() != group.source_vertices.size())
+    return false;
+  const auto &table = candidates.primitive_table(operand);
+  out.reserve(group.boundary_halfedges.size());
+  for (const auto halfedge_ordinal : group.boundary_halfedges) {
+    if (halfedge_ordinal >= topology->halfedges().size())
+      return false;
+    const auto *halfedge = topology->halfedge(
+        manifold_halfedge_id{halfedge_ordinal}, candidates.owner());
+    if (!halfedge || halfedge->source_facet != source_facet ||
+        halfedge->edge >= topology->edges().size())
+      return false;
+    const auto *edge = topology->edge(manifold_edge_id{halfedge->edge},
+                                      candidates.owner());
+    if (!edge || edge->edge_class != canonical_edge_class::source_edge ||
+        !edge->source_feature_owner)
+      return false;
+    const auto *primitive =
+        find_original_edge_primitive(table, manifold_edge_id{edge->canonical_id});
+    if (!primitive)
+      return false;
+    const auto feature = source_edge_feature(*primitive);
+    if (!valid_relation_feature_key(feature) ||
+        std::find(out.begin(), out.end(), feature) != out.end())
+      return false;
+    out.push_back(feature);
+  }
+  return out.size() == group.boundary_halfedges.size();
+}
+
+inline relation_request_proposal source_edge_pair_proposal(
+    const bounded_boolean_digest &semantic_namespace,
+    relation_feature_key first, relation_feature_key second,
+    candidate_id witness) {
+  if (second < first)
+    std::swap(first, second);
+  relation_request_proposal proposal;
+  proposal.key.semantic_namespace = semantic_namespace;
+  proposal.key.family = relation_request_family::source_edge_source_edge;
+  proposal.key.scope = relation_record_scope::public_source_feature;
+  proposal.key.first = first;
+  proposal.key.second = second;
+  proposal.key.formula_version = contract_versions::exact_relation_formulas;
+  proposal.key.policy_version = contract_versions::relation_request_key_schema;
+  proposal.candidate_witnesses.push_back(witness);
+  return proposal;
+}
+
 template <class T, class I>
 bool append_candidate_proposals(
     const canonical_candidate_stream<T, I> &candidates,
@@ -302,93 +367,54 @@ bool append_candidate_proposals(
       return false;
     }
 
-    const auto facet_group_ordinal =
-        opposite->source_facet_to_group()[triangle->source_facet];
-    if (facet_group_ordinal >= opposite->facet_groups().size()) {
+    std::vector<relation_feature_key> opposite_boundary;
+    if (!source_facet_boundary_features(candidates, triangle_operand,
+                                        triangle->source_facet,
+                                        opposite_boundary)) {
       error = candidate_source_edge_relation_error(
           relation_subcode::source_edge_relation_malformed,
-          "Component 07 opposite source facet group is unavailable",
-          relation_checkpoint::candidate_scan);
-      return false;
-    }
-    const auto &facet_group = opposite->facet_groups()[facet_group_ordinal];
-    if (facet_group.canonical_id != facet_group_ordinal ||
-        facet_group.source_facet != triangle->source_facet ||
-        facet_group.boundary_halfedges.size() !=
-            facet_group.source_vertices.size() ||
-        facet_group.boundary_halfedges.empty()) {
-      error = candidate_source_edge_relation_error(
-          relation_subcode::source_edge_relation_malformed,
-          "Component 07 opposite source facet boundary is malformed",
+          "Component 07 opposite source-facet boundary is unavailable",
           relation_checkpoint::candidate_scan);
       return false;
     }
 
-    for (const auto halfedge_ordinal : facet_group.boundary_halfedges) {
-      if (halfedge_ordinal >= opposite->halfedges().size()) {
+    std::array<std::uint64_t, 2> incident_facets = candidate_edge.source_facets;
+    std::sort(incident_facets.begin(), incident_facets.end());
+    for (std::size_t incident = 0; incident < incident_facets.size(); ++incident) {
+      if (incident != 0 &&
+          incident_facets[incident] == incident_facets[incident - 1])
+        continue;
+      std::vector<relation_feature_key> incident_boundary;
+      if (!source_facet_boundary_features(candidates, edge_operand,
+                                          incident_facets[incident],
+                                          incident_boundary)) {
         error = candidate_source_edge_relation_error(
             relation_subcode::source_edge_relation_malformed,
-            "Component 07 opposite facet boundary halfedge is out of range",
+            "Component 07 incident source-facet boundary is unavailable",
             relation_checkpoint::candidate_scan);
         return false;
       }
-      const auto *halfedge = opposite->halfedge(
-          manifold_halfedge_id{halfedge_ordinal}, candidates.owner());
-      if (!halfedge || halfedge->source_facet != triangle->source_facet ||
-          halfedge->edge >= opposite->edges().size()) {
-        error = candidate_source_edge_relation_error(
-            relation_subcode::source_edge_relation_malformed,
-            "Component 07 opposite facet boundary halfedge is malformed",
-            relation_checkpoint::candidate_scan);
-        return false;
-      }
-      const auto *edge = opposite->edge(manifold_edge_id{halfedge->edge},
-                                        candidates.owner());
-      if (!edge || edge->edge_class != canonical_edge_class::source_edge ||
-          !edge->source_feature_owner) {
-        error = candidate_source_edge_relation_error(
-            relation_subcode::source_edge_relation_malformed,
-            "Component 07 opposite facet boundary edge is not a public source edge",
-            relation_checkpoint::candidate_scan);
-        return false;
-      }
-      const auto *opposite_edge = find_original_edge_primitive(
-          triangle_table, manifold_edge_id{edge->canonical_id});
-      if (!opposite_edge) {
-        error = candidate_source_edge_relation_error(
-            relation_subcode::source_edge_relation_malformed,
-            "Component 07 opposite source-edge primitive handshake failed",
-            relation_checkpoint::candidate_scan);
-        return false;
-      }
-
-      relation_request_proposal proposal;
-      proposal.key.semantic_namespace = semantic_namespace;
-      proposal.key.family = relation_request_family::source_edge_source_edge;
-      proposal.key.scope = relation_record_scope::public_source_feature;
-      proposal.key.first = source_edge_feature(candidate_edge);
-      proposal.key.second = source_edge_feature(*opposite_edge);
-      if (proposal.key.second < proposal.key.first)
-        std::swap(proposal.key.first, proposal.key.second);
-      proposal.key.formula_version = contract_versions::exact_relation_formulas;
-      proposal.key.policy_version = contract_versions::relation_request_key_schema;
-      proposal.candidate_witnesses.push_back(candidate.id);
-      if (!valid_relation_request_key(proposal.key)) {
-        error = candidate_source_edge_relation_error(
-            relation_subcode::source_edge_relation_malformed,
-            "Component 07 generated an invalid source-edge request key",
-            relation_checkpoint::candidate_scan);
-        return false;
-      }
-      if (proposals.size() >= capabilities.maximum_requests) {
-        error = candidate_source_edge_relation_error(
-            relation_subcode::work_limit,
-            "Component 07 complete facet-boundary source-edge request limit exceeded",
-            relation_checkpoint::count_representability_preflight,
-            bounded_boolean_error_category::resource_limit);
-        return false;
-      }
-      proposals.push_back(std::move(proposal));
+      for (const auto &first : incident_boundary)
+        for (const auto &second : opposite_boundary) {
+          auto proposal = source_edge_pair_proposal(
+              semantic_namespace, first, second, candidate.id);
+          if (!valid_relation_request_key(proposal.key)) {
+            error = candidate_source_edge_relation_error(
+                relation_subcode::source_edge_relation_malformed,
+                "Component 07 generated an invalid facet-pair boundary request",
+                relation_checkpoint::candidate_scan);
+            return false;
+          }
+          if (proposals.size() >= capabilities.maximum_requests) {
+            error = candidate_source_edge_relation_error(
+                relation_subcode::work_limit,
+                "Component 07 complete facet-pair boundary request limit exceeded",
+                relation_checkpoint::count_representability_preflight,
+                bounded_boolean_error_category::resource_limit);
+            return false;
+          }
+          proposals.push_back(std::move(proposal));
+        }
     }
   }
   return true;
@@ -596,9 +622,15 @@ build_candidate_source_edge_relations(
     };
     include_operand(manifolds->a());
     include_operand(manifolds->b());
+    std::uint64_t boundary_pairs = 0;
     std::uint64_t proposal_reserve = 0;
-    if (!checked_multiply<std::uint64_t>(candidates.candidates().size(),
+    if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
                                          maximum_facet_boundary,
+                                         boundary_pairs) ||
+        !checked_multiply<std::uint64_t>(boundary_pairs, std::uint64_t{2},
+                                         boundary_pairs) ||
+        !checked_multiply<std::uint64_t>(candidates.candidates().size(),
+                                         boundary_pairs,
                                          proposal_reserve))
       proposal_reserve = capabilities.maximum_requests;
     proposal_reserve = std::min(proposal_reserve, capabilities.maximum_requests);

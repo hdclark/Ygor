@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <new>
 #include <tuple>
 #include <utility>
@@ -644,6 +645,400 @@ bool verify_coplanar_overlay_record(
   return rebuilt.has_value() &&
          encode_coplanar_overlay_semantics(*rebuilt.value()) ==
              encode_coplanar_overlay_semantics(record);
+}
+
+
+struct candidate_coplanar_overlay_link final {
+  relation_request_id support_relation{0};
+  std::uint64_t overlay_ordinal = 0;
+  std::uint32_t reserved = 0;
+};
+
+template <class T> struct candidate_coplanar_overlay_stage final {
+  std::uint16_t schema_version =
+      contract_versions::relation_coplanar_overlay_stage_schema;
+  std::uint16_t policy_version =
+      contract_versions::relation_coplanar_overlay_stage_policy;
+  context_owner_token owner{};
+  std::vector<source_facet_coplanar_overlay_record<T>> overlays;
+  std::vector<candidate_coplanar_overlay_link> links;
+  std::uint64_t evaluation_count = 0;
+  std::uint32_t reserved = 0;
+  bounded_boolean_digest semantic_digest{};
+};
+
+namespace candidate_coplanar_overlay_detail {
+
+template <class T, class I>
+bool make_facet_polygon(
+    const canonical_candidate_stream<T, I> &candidates,
+    const relation_feature_key &feature, std::uint8_t dropped_axis,
+    coplanar_facet_polygon_input<T> &out) {
+  if (!valid_relation_feature_key(feature) ||
+      feature.kind != relation_feature_kind::source_facet || dropped_axis > 2)
+    return false;
+  const auto *topology =
+      candidate_source_edge_relation_detail::operand_topology(candidates,
+                                                               feature.operand);
+  if (!topology || !topology->owner().same_owner(candidates.owner()) ||
+      feature.primary >= topology->source_facet_to_group().size())
+    return false;
+  const auto group_ordinal = topology->source_facet_to_group()[feature.primary];
+  if (group_ordinal >= topology->facet_groups().size())
+    return false;
+  const auto &group = topology->facet_groups()[group_ordinal];
+  if (group.canonical_id != group_ordinal ||
+      group.source_facet != feature.primary || group.ring != feature.secondary ||
+      group.source_vertices.size() < 3 ||
+      group.boundary_halfedges.size() != group.source_vertices.size())
+    return false;
+
+  out = coplanar_facet_polygon_input<T>{};
+  out.feature = feature;
+  out.source_facet = group.source_facet;
+  out.ring = group.ring;
+  out.shell = group.shell;
+  out.polygon.reserve(group.source_vertices.size());
+  out.boundary_edges.reserve(group.source_vertices.size());
+  std::vector<bool> consumed(group.boundary_halfedges.size(), false);
+  const auto &primitive_table = candidates.primitive_table(feature.operand);
+  for (std::size_t corner = 0; corner < group.source_vertices.size(); ++corner) {
+    const auto source_vertex = group.source_vertices[corner];
+    const auto source_destination =
+        group.source_vertices[(corner + 1) % group.source_vertices.size()];
+    if (source_vertex >= topology->source_vertex_to_vertex().size())
+      return false;
+    const auto vertex_ordinal = topology->source_vertex_to_vertex()[source_vertex];
+    if (vertex_ordinal >= topology->vertices().size())
+      return false;
+    bounded_point3<T> point;
+    if (!candidate_source_edge_relation_detail::import_vertex_point(
+            topology->vertices()[vertex_ordinal], feature.operand,
+            candidates.owner(), point))
+      return false;
+    out.polygon.push_back(source_edge_facet_detail::project_point(
+        point, dropped_axis, source_vertex, corner));
+
+    const canonical_manifold_halfedge_record *ordered = nullptr;
+    std::size_t ordered_index = 0;
+    for (std::size_t i = 0; i < group.boundary_halfedges.size(); ++i) {
+      const auto halfedge_ordinal = group.boundary_halfedges[i];
+      if (halfedge_ordinal >= topology->halfedges().size())
+        return false;
+      const auto &halfedge = topology->halfedges()[halfedge_ordinal];
+      if (halfedge.canonical_id != halfedge_ordinal ||
+          halfedge.source_facet != group.source_facet ||
+          halfedge.source_origin != source_vertex ||
+          halfedge.source_destination != source_destination)
+        continue;
+      if (ordered || consumed[i])
+        return false;
+      ordered = &halfedge;
+      ordered_index = i;
+    }
+    if (!ordered || ordered->edge >= topology->edges().size())
+      return false;
+    consumed[ordered_index] = true;
+    const auto &edge = topology->edges()[ordered->edge];
+    if (edge.canonical_id != ordered->edge ||
+        edge.edge_class != canonical_edge_class::source_edge ||
+        !edge.source_feature_owner)
+      return false;
+    const auto *primitive =
+        candidate_source_edge_relation_detail::find_original_edge_primitive(
+            primitive_table, manifold_edge_id(edge.canonical_id));
+    if (!primitive)
+      return false;
+    out.boundary_edges.push_back(
+        candidate_source_edge_relation_detail::source_edge_feature(*primitive));
+  }
+  if (std::find(consumed.begin(), consumed.end(), false) != consumed.end())
+    return false;
+  const auto orientation =
+      bounded_source_polygon_kernel<T>::polygon_orientation(out.polygon);
+  if (!orientation || !valid_source_orientation_evidence(*orientation) ||
+      orientation->bounded_sign == bounded_planar_sign::uncertain ||
+      orientation->exact_sign != static_cast<int>(orientation->bounded_sign))
+    return false;
+  out.orientation = orientation->bounded_sign;
+  return coplanar_relation_overlay_detail::valid_facet(out);
+}
+
+template <class T>
+const canonical_relation_request *find_edge_relation(
+    const candidate_source_edge_relation_stage<T> &stage,
+    relation_feature_key first, relation_feature_key second,
+    const source_edge_relation_record<T> *&relation) {
+  if (second < first)
+    std::swap(first, second);
+  const canonical_relation_request *request = nullptr;
+  relation = nullptr;
+  for (std::size_t i = 0; i < stage.request_graph.requests.size(); ++i) {
+    const auto &candidate = stage.request_graph.requests[i];
+    if (candidate.key.family !=
+            relation_request_family::source_edge_source_edge ||
+        candidate.key.first != first || candidate.key.second != second)
+      continue;
+    if (request || i >= stage.relations.size())
+      return nullptr;
+    request = &candidate;
+    relation = &stage.relations[i];
+  }
+  return request;
+}
+
+template <class T, class I>
+bool reconstruct_overlay(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    const source_facet_source_facet_relation_record<T> &support,
+    source_facet_coplanar_overlay_record<T> &out,
+    bounded_boolean_error &error) {
+  std::array<coplanar_facet_polygon_input<T>, 2> facets;
+  if (!make_facet_polygon(candidates, support.first_feature,
+                          support.dropped_axes[0], facets[0]) ||
+      !make_facet_polygon(candidates, support.second_feature,
+                          support.dropped_axes[0], facets[1])) {
+    error = coplanar_overlay_error(
+        relation_subcode::coplanar_overlay_malformed,
+        "Component 07 could not reconstruct a complete coplanar source boundary");
+    return false;
+  }
+  std::vector<coplanar_boundary_relation_input<T>> dependencies;
+  const auto first_count = facets[0].boundary_edges.size();
+  const auto second_count = facets[1].boundary_edges.size();
+  if (first_count != 0 &&
+      second_count > std::numeric_limits<std::size_t>::max() / first_count) {
+    error = coplanar_overlay_error(
+        relation_subcode::byte_count_overflow,
+        "Component 07 coplanar boundary-pair count overflow",
+        bounded_boolean_error_category::index_overflow);
+    return false;
+  }
+  dependencies.reserve(first_count * second_count);
+  for (std::size_t first = 0; first < first_count; ++first)
+    for (std::size_t second = 0; second < second_count; ++second) {
+      const source_edge_relation_record<T> *relation = nullptr;
+      const auto *request = find_edge_relation(
+          edge_stage, facets[0].boundary_edges[first],
+          facets[1].boundary_edges[second], relation);
+      if (!request || !relation) {
+        error = coplanar_overlay_error(
+            relation_subcode::coplanar_overlay_dependency_missing,
+            "Component 07 candidate-derived coplanar overlay lacks a boundary relation");
+        return false;
+      }
+      dependencies.push_back(
+          {request->id, first, second, *relation, 0});
+    }
+  auto classified = classify_coplanar_facet_overlay(
+      std::move(facets[0]), std::move(facets[1]), support,
+      std::move(dependencies), candidates.owner());
+  if (!classified.has_value()) {
+    error = *classified.error();
+    return false;
+  }
+  out = std::move(*classified.value());
+  return true;
+}
+
+} // namespace candidate_coplanar_overlay_detail
+
+template <class T>
+std::vector<std::uint8_t> encode_candidate_coplanar_overlay_semantics(
+    const candidate_coplanar_overlay_stage<T> &stage) {
+  canonical_writer writer;
+  writer.u32(0x374F4343U); // CCO7
+  writer.u16(stage.schema_version);
+  writer.u16(stage.policy_version);
+  writer.u64(static_cast<std::uint64_t>(stage.overlays.size()));
+  for (const auto &overlay : stage.overlays)
+    writer.sized_bytes(encode_coplanar_overlay_semantics(overlay));
+  writer.u64(static_cast<std::uint64_t>(stage.links.size()));
+  for (const auto &link : stage.links) {
+    writer.u64(link.support_relation.ordinal());
+    writer.u64(link.overlay_ordinal);
+    writer.u32(link.reserved);
+  }
+  writer.u64(stage.evaluation_count);
+  writer.u32(stage.reserved);
+  return writer.take();
+}
+
+template <class T, class I>
+bool verify_candidate_coplanar_overlay_stage(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    const candidate_source_facet_relation_stage<T> &facet_stage,
+    const candidate_coplanar_overlay_stage<T> &stage,
+    bounded_boolean_error &error) {
+  using namespace candidate_coplanar_overlay_detail;
+  const auto fail = [&](relation_subcode subcode, const char *summary) {
+    error = coplanar_overlay_error(subcode, summary);
+    return false;
+  };
+  if (stage.schema_version !=
+          contract_versions::relation_coplanar_overlay_stage_schema ||
+      stage.policy_version !=
+          contract_versions::relation_coplanar_overlay_stage_policy ||
+      edge_stage.schema_version !=
+          contract_versions::relation_source_edge_edge_schema ||
+      edge_stage.policy_version !=
+          contract_versions::relation_source_edge_edge_policy ||
+      facet_stage.schema_version !=
+          contract_versions::relation_source_facet_facet_stage_schema ||
+      facet_stage.policy_version !=
+          contract_versions::relation_source_facet_facet_stage_policy ||
+      !stage.owner.same_owner(candidates.owner()) ||
+      !stage.owner.same_owner(edge_stage.owner) ||
+      !stage.owner.same_owner(facet_stage.owner) ||
+      !edge_stage.request_graph.owner.same_owner(stage.owner) ||
+      !facet_stage.request_graph.owner.same_owner(stage.owner) ||
+      edge_stage.relations.size() != edge_stage.request_graph.requests.size() ||
+      facet_stage.relations.size() !=
+          facet_stage.request_graph.requests.size() ||
+      stage.reserved != 0 || stage.evaluation_count != stage.overlays.size() ||
+      stage.links.size() != stage.overlays.size())
+    return fail(relation_subcode::coplanar_overlay_invariant,
+                "Component 07 candidate coplanar overlay header is malformed");
+
+  std::size_t overlay = 0;
+  for (std::size_t relation = 0; relation < facet_stage.relations.size();
+       ++relation) {
+    const auto &support = facet_stage.relations[relation];
+    const bool coplanar =
+        support.classification ==
+            source_facet_support_relation_class::coplanar_same_orientation ||
+        support.classification ==
+            source_facet_support_relation_class::coplanar_opposite_orientation;
+    if (!coplanar)
+      continue;
+    if (relation >= facet_stage.request_graph.requests.size() ||
+        overlay >= stage.overlays.size())
+      return fail(relation_subcode::coplanar_overlay_invariant,
+                  "Component 07 candidate coplanar overlay links are incomplete");
+    const auto &support_request =
+        facet_stage.request_graph.requests[relation];
+    const auto &link = stage.links[overlay];
+    if (support_request.id.ordinal() != relation ||
+        support_request.key.family !=
+            relation_request_family::source_facet_source_facet ||
+        support_request.key.scope !=
+            relation_record_scope::public_source_feature ||
+        !valid_source_facet_relation_record(support) ||
+        link.support_relation != support_request.id ||
+        link.overlay_ordinal != overlay || link.reserved != 0 ||
+        !stage.overlays[overlay].owner.same_owner(stage.owner) ||
+        !verify_coplanar_overlay_record(stage.overlays[overlay]))
+      return fail(relation_subcode::coplanar_overlay_invariant,
+                  "Component 07 candidate coplanar overlay link is malformed");
+    source_facet_coplanar_overlay_record<T> reconstructed;
+    if (!reconstruct_overlay(candidates, edge_stage, support, reconstructed,
+                             error))
+      return false;
+    if (encode_coplanar_overlay_semantics(reconstructed) !=
+        encode_coplanar_overlay_semantics(stage.overlays[overlay]))
+      return fail(relation_subcode::coplanar_overlay_invariant,
+                  "Component 07 candidate coplanar overlay did not reconstruct");
+    ++overlay;
+  }
+  if (overlay != stage.overlays.size())
+    return fail(relation_subcode::coplanar_overlay_invariant,
+                "Component 07 candidate coplanar overlay has trailing records");
+  if (stage.semantic_digest != sha256::digest(
+          encode_candidate_coplanar_overlay_semantics(stage)))
+    return fail(relation_subcode::digest_mismatch,
+                "Component 07 candidate coplanar overlay digest mismatch");
+  auto owner_changed = stage;
+  owner_changed.owner = context_owner_token::create();
+  if (encode_candidate_coplanar_overlay_semantics(owner_changed) !=
+      encode_candidate_coplanar_overlay_semantics(stage))
+    return fail(relation_subcode::owner_in_semantics,
+                "Component 07 candidate coplanar overlay encoded a runtime owner");
+  return true;
+}
+
+template <class T, class I>
+boolean_outcome<candidate_coplanar_overlay_stage<T>>
+build_candidate_coplanar_overlays(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    const candidate_source_facet_relation_stage<T> &facet_stage,
+    const relation_capabilities &capabilities) {
+  using stage_type = candidate_coplanar_overlay_stage<T>;
+  using namespace candidate_coplanar_overlay_detail;
+  try {
+    if (!capabilities.owner.anchor ||
+        !capabilities.owner.same_owner(candidates.owner()) ||
+        !capabilities.owner.same_owner(edge_stage.owner) ||
+        !capabilities.owner.same_owner(facet_stage.owner) ||
+        edge_stage.relations.size() != edge_stage.request_graph.requests.size() ||
+        facet_stage.relations.size() !=
+            facet_stage.request_graph.requests.size())
+      return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+          relation_subcode::coplanar_overlay_malformed,
+          "Component 07 candidate coplanar overlay handshake failed"));
+    stage_type stage;
+    stage.owner = capabilities.owner;
+    for (std::size_t relation = 0; relation < facet_stage.relations.size();
+         ++relation) {
+      if (relation_cancelled(capabilities))
+        return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+            relation_subcode::cancelled,
+            "Component 07 candidate coplanar overlay cancelled",
+            bounded_boolean_error_category::cancelled));
+      const auto &support = facet_stage.relations[relation];
+      if (relation >= facet_stage.request_graph.requests.size() ||
+          facet_stage.request_graph.requests[relation].id.ordinal() != relation ||
+          facet_stage.request_graph.requests[relation].key.family !=
+              relation_request_family::source_facet_source_facet ||
+          !valid_source_facet_relation_record(support))
+        return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+            relation_subcode::coplanar_overlay_malformed,
+            "Component 07 candidate coplanar support producer is malformed"));
+      if (support.classification !=
+              source_facet_support_relation_class::coplanar_same_orientation &&
+          support.classification !=
+              source_facet_support_relation_class::coplanar_opposite_orientation)
+        continue;
+      if (stage.overlays.size() >= capabilities.maximum_relations)
+        return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+            relation_subcode::work_limit,
+            "Component 07 candidate coplanar overlay relation limit exceeded",
+            bounded_boolean_error_category::resource_limit));
+      source_facet_coplanar_overlay_record<T> overlay;
+      bounded_boolean_error build_error;
+      if (!reconstruct_overlay(candidates, edge_stage, support, overlay,
+                               build_error))
+        return boolean_outcome<stage_type>::failure(build_error);
+      stage.links.push_back(
+          {facet_stage.request_graph.requests[relation].id,
+           static_cast<std::uint64_t>(stage.overlays.size()), 0});
+      stage.overlays.push_back(std::move(overlay));
+      ++stage.evaluation_count;
+    }
+    const auto bytes = encode_candidate_coplanar_overlay_semantics(stage);
+    if (bytes.size() > capabilities.maximum_canonical_bytes)
+      return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+          relation_subcode::byte_count_overflow,
+          "Component 07 candidate coplanar overlay bytes exceed capabilities",
+          bounded_boolean_error_category::resource_limit));
+    stage.semantic_digest = sha256::digest(bytes);
+    bounded_boolean_error verification_error;
+    if (!verify_candidate_coplanar_overlay_stage(
+            candidates, edge_stage, facet_stage, stage, verification_error))
+      return boolean_outcome<stage_type>::failure(verification_error);
+    return boolean_outcome<stage_type>::success(std::move(stage));
+  } catch (const std::bad_alloc &) {
+    return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+        relation_subcode::resource_preflight,
+        "Component 07 candidate coplanar overlay allocation failed",
+        bounded_boolean_error_category::resource_limit));
+  } catch (...) {
+    return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
+        relation_subcode::coplanar_overlay_invariant,
+        "Component 07 candidate coplanar overlay raised an unexpected exception"));
+  }
 }
 
 } // namespace ygor::mesh_boolean::bounded

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FacetFacetRelations.h"
+#include "CoplanarRelationOverlay.h"
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
@@ -41,6 +41,7 @@ public:
           !build_candidate_edge_relations() ||
           !build_candidate_edge_facet_relations() ||
           !build_candidate_facet_relations() ||
+          !build_candidate_coplanar_overlays() ||
           !require_remaining_families() ||
           !build_foundation_artifact() || !encode_and_verify())
         return failure();
@@ -79,6 +80,7 @@ private:
   using edge_stage_type = candidate_source_edge_relation_stage<T>;
   using edge_facet_stage_type = candidate_source_edge_facet_relation_stage<T>;
   using facet_stage_type = candidate_source_facet_relation_stage<T>;
+  using overlay_stage_type = candidate_coplanar_overlay_stage<T>;
 
   outcome_type failure() {
     relation_build_detail::bind_relation_error(
@@ -225,13 +227,31 @@ private:
     return true;
   }
 
+  bool build_candidate_coplanar_overlays() {
+    if (!check_cancel(relation_checkpoint::coplanar_overlay_evaluation))
+      return false;
+    if (!edge_stage_ || !facet_stage_)
+      return fail(relation_subcode::coplanar_overlay_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 coplanar overlay stage is missing predecessor relations",
+                  relation_checkpoint::coplanar_overlay_evaluation);
+    auto stage = ygor::mesh_boolean::bounded::build_candidate_coplanar_overlays(
+        *candidates_, *edge_stage_, *facet_stage_, capabilities_);
+    if (!stage.has_value()) {
+      error_ = *stage.error();
+      return false;
+    }
+    overlay_stage_.emplace(std::move(*stage.value()));
+    return true;
+  }
+
   bool require_remaining_families() {
     if (preflight_.candidate_count == 0)
       return true;
     return fail(
         relation_subcode::unsupported_relation_kernel,
         bounded_boolean_error_category::result_geometry_not_validated,
-        "Component 07 candidate-derived source-edge/source-edge, source-edge/source-facet, and source-facet/source-facet support relations are verified; coplanar overlay and later relation families are not yet implemented",
+        "Component 07 candidate-derived edge, facet-support, and coplanar boundary classification stages are verified; canonical overlay-component assembly, multiplicity, symbolic, and later relation families are not yet implemented",
         relation_checkpoint::coplanar_overlay_evaluation);
   }
 
@@ -312,6 +332,7 @@ private:
   std::optional<edge_stage_type> edge_stage_;
   std::optional<edge_facet_stage_type> edge_facet_stage_;
   std::optional<facet_stage_type> facet_stage_;
+  std::optional<overlay_stage_type> overlay_stage_;
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;
   std::optional<resource_reservation> persistent_reservation_;

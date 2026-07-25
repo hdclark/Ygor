@@ -25,6 +25,7 @@ struct stages final {
   bounded::candidate_source_edge_relation_stage<double> edges;
   bounded::candidate_source_edge_facet_relation_stage<double> facets;
   bounded::candidate_source_facet_relation_stage<double> facet_pairs;
+  bounded::candidate_coplanar_overlay_stage<double> overlays;
 };
 
 stages build_stages(built_fixture &fixture) {
@@ -46,8 +47,13 @@ stages build_stages(built_fixture &fixture) {
       fixture.predecessor.precision->tolerance(), caps);
   if (!facet_pair_stage.has_value())
     throw std::runtime_error(diagnostic(*facet_pair_stage.error()));
+  auto overlay_stage = bounded::build_candidate_coplanar_overlays(
+      *fixture.artifact, *edge_stage.value(), *facet_pair_stage.value(), caps);
+  if (!overlay_stage.has_value())
+    throw std::runtime_error(diagnostic(*overlay_stage.error()));
   return {std::move(*edge_stage.value()), std::move(*facet_stage.value()),
-          std::move(*facet_pair_stage.value())};
+          std::move(*facet_pair_stage.value()),
+          std::move(*overlay_stage.value())};
 }
 
 void test_candidate_derived_preflight_bound() {
@@ -69,12 +75,14 @@ void test_candidate_derived_preflight_bound() {
   require(bounded::preflight_relation_foundation(*fixture.artifact, caps, plan,
                                                  error),
           "candidate-derived relation preflight succeeds");
+  const auto boundary_pairs = 2 * maximum_boundary * maximum_boundary;
   require(plan.request_upper_bound ==
-              fixture.artifact->candidates().size() * (maximum_boundary + 3),
-          "preflight covers boundary, edge/facet, and incident facet/facet proposals");
+              fixture.artifact->candidates().size() * (boundary_pairs + 3),
+          "preflight covers complete facet-pair boundary closure and composite proposals");
   require(plan.dependency_upper_bound ==
-              fixture.artifact->candidates().size() * maximum_boundary,
-          "preflight covers every edge/facet boundary dependency");
+              fixture.artifact->candidates().size() *
+                  (boundary_pairs + maximum_boundary),
+          "preflight covers edge/facet and coplanar overlay dependencies");
 }
 
 void test_candidate_request_integration() {
@@ -150,6 +158,13 @@ void test_candidate_request_integration() {
               fixture.predecessor.precision->tolerance(), caps,
               value.facet_pairs, verification_error),
           "facet/facet stage independently reconstructs");
+  require(bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              value.overlays, verification_error),
+          "coplanar overlay stage independently reconstructs");
+  require(value.overlays.evaluation_count == value.overlays.overlays.size() &&
+              value.overlays.links.size() == value.overlays.overlays.size(),
+          "each coplanar support has exactly one overlay classification");
 
   auto owner_changed = value.facets;
   owner_changed.owner = bounded::context_owner_token::create();
@@ -170,6 +185,84 @@ void test_candidate_request_integration() {
           bounded::encode_candidate_source_facet_relation_semantics(
               value.facet_pairs),
       "runtime owner is excluded from facet/facet stage semantics");
+
+  auto overlay_owner_changed = value.overlays;
+  overlay_owner_changed.owner = bounded::context_owner_token::create();
+  require(
+      bounded::encode_candidate_coplanar_overlay_semantics(
+          overlay_owner_changed) ==
+          bounded::encode_candidate_coplanar_overlay_semantics(value.overlays),
+      "runtime owner is excluded from coplanar overlay stage semantics");
+}
+
+void test_candidate_coplanar_overlay_integration() {
+  auto fixture = broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(1.0, 0.25, 0.25, 2.0, 0.75, 0.75));
+  require(!fixture.artifact->candidates().empty(),
+          "coplanar integration fixture requires candidates");
+  auto value = build_stages(fixture);
+  require(!value.overlays.overlays.empty(),
+          "shared-face boxes induce a coplanar overlay classification");
+  bool observed_area = false;
+  for (const auto &overlay : value.overlays.overlays) {
+    require(bounded::verify_coplanar_overlay_record(overlay),
+            "candidate-derived coplanar overlay independently reconstructs");
+    observed_area = observed_area ||
+                    overlay.classification ==
+                        bounded::coplanar_facet_overlay_class::area_overlap ||
+                    overlay.classification ==
+                        bounded::coplanar_facet_overlay_class::first_contains_second ||
+                    overlay.classification ==
+                        bounded::coplanar_facet_overlay_class::second_contains_first ||
+                    overlay.classification ==
+                        bounded::coplanar_facet_overlay_class::equal_same_orientation ||
+                    overlay.classification ==
+                        bounded::coplanar_facet_overlay_class::equal_opposite_orientation;
+  }
+  require(observed_area,
+          "shared-face boxes retain a positive-area coplanar sheet relation");
+
+  auto caps = capabilities(fixture);
+  bounded_boolean_error error;
+  require(bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              value.overlays, error),
+          "candidate coplanar overlay stage independently reconstructs");
+
+  auto mutated = value.overlays;
+  mutated.overlays.front().semantic_digest.bytes[0] ^= 0x80U;
+  require(!bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              mutated, error),
+          "mutated candidate coplanar overlay must be rejected");
+
+  auto link_mutated = value.overlays;
+  link_mutated.links.front().support_relation =
+      bounded::relation_request_id(
+          link_mutated.links.front().support_relation.ordinal() + 1);
+  link_mutated.semantic_digest = bounded::sha256::digest(
+      bounded::encode_candidate_coplanar_overlay_semantics(link_mutated));
+  require(!bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              link_mutated, error),
+          "self-consistent mutated coplanar support link must be rejected");
+
+  auto count_mutated = value.overlays;
+  ++count_mutated.evaluation_count;
+  count_mutated.semantic_digest = bounded::sha256::digest(
+      bounded::encode_candidate_coplanar_overlay_semantics(count_mutated));
+  require(!bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              count_mutated, error),
+          "self-consistent mutated coplanar evaluation count must be rejected");
+
+  auto digest_mutated = value.overlays;
+  digest_mutated.semantic_digest.bytes[0] ^= 0x40U;
+  require(!bounded::verify_candidate_coplanar_overlay_stage(
+              *fixture.artifact, value.edges, value.facet_pairs,
+              digest_mutated, error),
+          "mutated coplanar stage digest must be rejected");
 }
 
 void test_mutation_rejection() {
@@ -201,6 +294,15 @@ void test_mutation_rejection() {
               fixture.predecessor.precision->tolerance(), caps,
               facet_mutated, error),
           "mutated facet/facet relation must be rejected");
+
+  if (!value.overlays.overlays.empty()) {
+    auto overlay_mutated = value.overlays;
+    overlay_mutated.overlays.front().semantic_digest.bytes[0] ^= 0x80U;
+    require(!bounded::verify_candidate_coplanar_overlay_stage(
+                *fixture.artifact, value.edges, value.facet_pairs,
+                overlay_mutated, error),
+            "mutated candidate coplanar overlay must be rejected");
+  }
 }
 
 void test_empty_stage_and_publication_gate() {
@@ -214,6 +316,9 @@ void test_empty_stage_and_publication_gate() {
               empty.facets.relations.empty() &&
               empty.facets.candidate_ranges.empty(),
           "empty candidate stream produces an empty verified edge/facet stage");
+  require(empty.overlays.overlays.empty() && empty.overlays.links.empty() &&
+              empty.overlays.evaluation_count == 0,
+          "empty candidate stream produces an empty verified overlay stage");
 
   auto fixture = broad_phase_tests::build(
       broad_phase_tests::box(),
@@ -238,6 +343,7 @@ int main() {
   try {
     test_candidate_derived_preflight_bound();
     test_candidate_request_integration();
+    test_candidate_coplanar_overlay_integration();
     test_mutation_rejection();
     test_empty_stage_and_publication_gate();
     std::cout << "Component 07 edge/facet integration checks passed\n";

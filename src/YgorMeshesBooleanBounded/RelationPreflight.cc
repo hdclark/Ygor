@@ -46,10 +46,20 @@ bool preflight_relation_foundation(
     return false;
   }
 
+  std::uint64_t boundary_pair_requests = 0;
   std::uint64_t requests_per_candidate = 0;
-  // One edge/facet request, up to every opposite boundary edge relation,
-  // and the two source facets incident to the candidate source edge.
-  if (!checked_add<std::uint64_t>(maximum_facet_boundary, std::uint64_t{3},
+  // Each original candidate edge has two incident source facets. Closing a
+  // candidate-derived facet pair requires every original boundary edge of an
+  // incident facet against every original boundary edge of the opposite facet.
+  // The remaining three proposals cover one edge/facet request and the two
+  // incident facet/facet support requests.
+  if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
+                                       maximum_facet_boundary,
+                                       boundary_pair_requests) ||
+      !checked_multiply<std::uint64_t>(boundary_pair_requests,
+                                       std::uint64_t{2},
+                                       boundary_pair_requests) ||
+      !checked_add<std::uint64_t>(boundary_pair_requests, std::uint64_t{3},
                                   requests_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        requests_per_candidate,
@@ -60,8 +70,12 @@ bool preflight_relation_foundation(
                            relation_checkpoint::count_representability_preflight);
     return false;
   }
-  if (!checked_multiply<std::uint64_t>(plan.candidate_count,
-                                       maximum_facet_boundary,
+  std::uint64_t dependencies_per_candidate = 0;
+  if (!checked_add<std::uint64_t>(maximum_facet_boundary,
+                                  boundary_pair_requests,
+                                  dependencies_per_candidate) ||
+      !checked_multiply<std::uint64_t>(plan.candidate_count,
+                                       dependencies_per_candidate,
                                        plan.dependency_upper_bound)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
@@ -74,7 +88,7 @@ bool preflight_relation_foundation(
   std::uint64_t boundary_work = 0;
   std::uint64_t work_per_candidate = 0;
   std::uint64_t candidate_work = 0;
-  if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
+  if (!checked_multiply<std::uint64_t>(boundary_pair_requests,
                                        std::uint64_t{128}, boundary_work) ||
       !checked_add<std::uint64_t>(boundary_work, std::uint64_t{384},
                                   work_per_candidate) ||
@@ -92,7 +106,7 @@ bool preflight_relation_foundation(
   std::uint64_t boundary_bytes = 0;
   std::uint64_t bytes_per_candidate = 0;
   std::uint64_t candidate_bytes = 0;
-  if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
+  if (!checked_multiply<std::uint64_t>(boundary_pair_requests,
                                        std::uint64_t{4096}, boundary_bytes) ||
       !checked_add<std::uint64_t>(boundary_bytes, std::uint64_t{49152},
                                   bytes_per_candidate) ||
