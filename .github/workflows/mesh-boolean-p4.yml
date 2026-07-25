@@ -29,34 +29,9 @@ on:
       - '.github/workflows/mesh-boolean-p4.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-p4-fail-closed-verification:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - name: Enforce adapter verifier outcomes
-        env:
-          SCRIPT_GZ_B64: H4sIADstZGoC/81XTW/jNhC961dMdDDkwFawVyc2sFv02KJAe+lJoamRza4sakkqsRvkv3f4JUuO40272UV9sCVzPt48Dh/JSskdtMxsa7EGsWulMvAbvSZJiRUobGvGsZANx8xaLUAbNQNZl+GpwUf3NIX5Cn6VDS4SoE8LSxfGOU3dXwb3hv5tc4WsLOxb5gdEZaOAaJyJ93cxlGhMVqVPNsbzAviWNRsEVtsABxpGjY1Jp72DQtOpxr1y2TU2m42Yu5eMMHvT07g0MKdHg6rxfssn9/Oc9vh8uKslfDjCU0xohN8P2uDu570YRsR9i9xgCcRH5HBHWGdQUaASxvHb/FEJg54SBzi4WMiO4Rl8mE6TZDQbzjXVit/8uZHqF9Rb1J+krJE1nxj/jE35sWQtFaVz0fB05u3TFIB1RsIDKlEJgrgEAqYOOfPW85UbOWQKv3SoCbJlZtea/IHVHWbT6W3iKMmuYoh8y3QRR5PjRPQ5clRKqsx5hqGToLcJIftREOHJJXI5KibqTiGlOAc2RAlG+drzGhvu5O8epijpV5jD7ZCLYGz/e36B7jIyD6hVsuy4KdxbwWWJi0UIoIpSaLZR6Jus79AXnzRAjUwWPgBnRsimqFitMQ2Ff0txF+b4fBcbmkV98wd9F+caOeeD/n2+TRJeM61pUSrVtUY0m0JhhQopYBHxVqJhtfNZQNuta8Fh7YNGkzsupSrJzC69Q4szUqAS9+55RTMx7MhjUkeS5+1gM79fPiAZLRcLvWUKy6I1ihwabf5VmBWUWOPGjhFij8MqFgkSPQnzGvws9Mx7IojLZHHElLn4O/mAWW9FTf+cJFaxXSqfoohtBpP4lE2DSSNxz7E1QGGUouGwakLX9cnmq6Nr7MwYPva/osLAfr01+rkAi4Vfm6h8msRuMX6xasNMpwup7npHvyguc2hnzK4aGs3GvATJu9xLkyiMQyUYx8E98s6tegsRYeJ+IglfZbZH10uw979EADWRLSxo938pa1DP2P0tpMLkdIpDtPPFuoXiy/mRivPt+mgr+NIJhRnuGTfDnQ8mE+hxDwdmkO7YZ+zrkyTe4fDg9wO3IyncCDrpHWA5VAvrWHjJuDtOp7e83OUvt/13R570m6mVve9RwChB3I9fT/CK/q5CycMDTCRjjH2+8k+kPVG7x7mnJ7ydnAZOo1V0avibLEekDnzSmM57znvoEEUvPWUhLGY6MrjKw2tWiT2tLKIwbkaFq7mQbtp0qHoUR3e16bmMmlOciEZ2Pa5pBtcjHCMyr4ah38aUswyHwtyeu2C5PHPEevP57I2Zoqy8sNZsd+Sg3+KuLwW5cCQcfEYtONw9xw0R1hcMz46+BFjXkn/WQf38wKMwW8vNAzaM1u5wUX4nPTkvoaXk+saK5yt3pF15FKLgDlKBFjWxUB8I7F90pQOzxb7xYYNyh/ZQDD95+SEZ2rVMCU2F44MlkOMsWR/sxmMUs/ukPSrrMXeMZpkus8SQGXGXj9Tx/wIKPvYSG+9MKjFbZsLOqeHeNcO9m3rZGQrlrzAgNF3etQRDF3h7O2Zke3aJ3N8mIzBbKamtOGsaaY7VPzLxgKNm41uk/st9F/wDfWAEpdoQAAA=
-        run: |
-          printf '%s' "$SCRIPT_GZ_B64" | base64 --decode | gzip --decompress > /tmp/apply-p4.py
-          python3 /tmp/apply-p4.py
-          git diff --check
-          if git diff --quiet; then
-            echo 'P4 fail-closed changes already present.'
-            exit 0
-          fi
-          git add .
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'P4: enforce adapter verification outcomes'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
   backend-adapters:
     name: ${{ matrix.compiler }} backend adapters
     runs-on: ubuntu-latest
