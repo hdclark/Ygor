@@ -70,6 +70,7 @@ polygon_fixture<T> polygon(const context_owner_token &owner,
   result.facet.source_facet = id;
   result.facet.ring = id + 1000;
   result.facet.shell = id + 2000;
+  result.facet.dropped_axis = 2;
   result.facet.polygon.reserve(xy.size());
   result.facet.boundary_edges.reserve(xy.size());
   result.points.reserve(xy.size());
@@ -140,6 +141,19 @@ std::vector<coplanar_boundary_relation_input<T>> boundary_relations(
   return result;
 }
 
+
+template <class T>
+std::uint64_t interval_count(
+    const source_facet_coplanar_overlay_record<T> &record,
+    source_facet_segment_interval_class classification) {
+  std::uint64_t result = 0;
+  for (const auto &partition : record.boundary_partitions)
+    for (const auto &interval : partition.partition.intervals)
+      if (interval.classification == classification)
+        ++result;
+  return result;
+}
+
 template <class T>
 source_facet_coplanar_overlay_record<T> classify(
     const char *name, polygon_fixture<T> first, polygon_fixture<T> second,
@@ -185,6 +199,11 @@ void known_answers() {
       polygon<double>(owner, operand_id::b, 2, square(2, 0, 3, 1)), owner);
   check(disjoint.classification == coplanar_facet_overlay_class::disjoint,
         "disjoint coplanar facets");
+  check(disjoint.complete_boundary_partition_coverage &&
+            disjoint.boundary_partitions.size() == 8 &&
+            interval_count(disjoint,
+                           source_facet_segment_interval_class::interior) == 0,
+        "disjoint overlay publishes complete outside boundary partitions");
 
   auto point = classify(
       "point", polygon<double>(owner, operand_id::a, 3, square(0, 0, 1, 1)),
@@ -198,6 +217,10 @@ void known_answers() {
   check(segment.classification ==
             coplanar_facet_overlay_class::segment_contact,
         "segment-only coplanar contact");
+  check(interval_count(
+            segment,
+            source_facet_segment_interval_class::original_edge_overlap) != 0,
+        "segment contact retains overlap intervals and source ownership");
 
   auto overlap = classify(
       "area overlap",
@@ -206,6 +229,9 @@ void known_answers() {
   check(overlap.classification == coplanar_facet_overlay_class::area_overlap &&
             overlap.proper_crossing_count == 2,
         "crossing boundaries produce area overlap");
+  check(interval_count(overlap,
+                       source_facet_segment_interval_class::interior) == 4,
+        "crossing overlay partitions retain four authorized interior arcs");
 
   auto containment = classify(
       "containment",
@@ -214,6 +240,9 @@ void known_answers() {
   check(containment.classification ==
             coplanar_facet_overlay_class::first_contains_second,
         "strict containment is directed");
+  check(interval_count(containment,
+                       source_facet_segment_interval_class::interior) == 4,
+        "contained facet boundary is completely classified as interior");
 
   auto equal = classify(
       "equal",
@@ -223,6 +252,10 @@ void known_answers() {
             coplanar_facet_overlay_class::equal_same_orientation &&
             equal.distinct_sheet_occurrences,
         "equal geometry preserves distinct sheet occurrences");
+  check(interval_count(
+            equal,
+            source_facet_segment_interval_class::original_edge_overlap) == 8,
+        "equal facets retain complete double-sheet boundary partitions");
 
   auto opposite = classify(
       "equal opposite",
@@ -265,6 +298,13 @@ void failures_and_mutations() {
     check(valid_coplanar_overlay_record(forged) &&
               !verify_coplanar_overlay_record(forged),
           "self-consistent forged classification is independently rejected");
+    auto partition_mutation = *overlay.value();
+    partition_mutation.boundary_partitions.front()
+        .partition.semantic_digest.bytes[0] ^= 0x80U;
+    partition_mutation.semantic_digest = sha256::digest(
+        encode_coplanar_overlay_semantics(partition_mutation));
+    check(!valid_coplanar_overlay_record(partition_mutation),
+          "boundary partition mutation is rejected after outer digest repair");
     overlay.value()->semantic_digest.bytes[0] ^= 0x80U;
     check(!valid_coplanar_overlay_record(*overlay.value()),
           "overlay digest mutation rejected");

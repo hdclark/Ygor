@@ -2,6 +2,7 @@
 
 #include "FacetFacetRelations.h"
 #include "SourceEdgeRelationKernel.h"
+#include "SourceFacetRegionSegmentBuild.h"
 
 #include <algorithm>
 #include <array>
@@ -32,6 +33,8 @@ template <class T> struct coplanar_facet_polygon_input final {
   std::uint64_t ring = 0;
   std::uint64_t shell = 0;
   bounded_planar_sign orientation = bounded_planar_sign::uncertain;
+  std::uint8_t dropped_axis = 3;
+  std::uint16_t reserved16 = 0;
   std::vector<projected_source_point<T>> polygon;
   std::vector<relation_feature_key> boundary_edges;
   std::uint32_t reserved = 0;
@@ -69,6 +72,21 @@ struct coplanar_boundary_contact final {
   std::uint32_t reserved32 = 0;
 };
 
+template <class T> struct coplanar_boundary_partition final {
+  std::uint8_t polygon = 0;
+  std::uint64_t edge_ordinal = 0;
+  source_facet_segment_partition_record<T> partition{};
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+
+  friend bool operator<(const coplanar_boundary_partition &a,
+                        const coplanar_boundary_partition &b) noexcept {
+    return std::tie(a.polygon, a.edge_ordinal) <
+           std::tie(b.polygon, b.edge_ordinal);
+  }
+};
+
 template <class T> struct source_facet_coplanar_overlay_record final {
   std::uint16_t schema_version =
       contract_versions::relation_coplanar_overlay_schema;
@@ -80,10 +98,12 @@ template <class T> struct source_facet_coplanar_overlay_record final {
   std::vector<coplanar_boundary_relation_input<T>> boundary_relations;
   std::vector<coplanar_vertex_region_witness<T>> vertex_regions;
   std::vector<coplanar_boundary_contact> boundary_contacts;
+  std::vector<coplanar_boundary_partition<T>> boundary_partitions;
   coplanar_facet_overlay_class classification =
       coplanar_facet_overlay_class::disjoint;
   bool complete_boundary_pair_coverage = false;
   bool complete_vertex_coverage = false;
+  bool complete_boundary_partition_coverage = false;
   bool distinct_sheet_occurrences = false;
   std::uint8_t reserved8 = 0;
   std::uint64_t proper_crossing_count = 0;
@@ -180,6 +200,8 @@ void encode_facet(canonical_writer &writer,
   writer.u64(facet.ring);
   writer.u64(facet.shell);
   writer.u8(static_cast<std::uint8_t>(facet.orientation));
+  writer.u8(facet.dropped_axis);
+  writer.u16(facet.reserved16);
   writer.u64(static_cast<std::uint64_t>(facet.polygon.size()));
   for (const auto &point : facet.polygon)
     encode_projected_point(writer, point);
@@ -197,6 +219,7 @@ bool valid_facet(const coplanar_facet_polygon_input<T> &facet) {
       facet.feature.secondary != facet.ring || facet.polygon.size() < 3 ||
       facet.polygon.size() != facet.boundary_edges.size() ||
       facet.orientation == bounded_planar_sign::uncertain ||
+      facet.dropped_axis > 2 || facet.reserved16 != 0 ||
       facet.reserved != 0)
     return false;
   std::vector<std::uint64_t> vertices;
@@ -259,9 +282,20 @@ std::vector<std::uint8_t> encode_semantics(
     writer.u16(contact.reserved16);
     writer.u32(contact.reserved32);
   }
+  writer.u64(static_cast<std::uint64_t>(record.boundary_partitions.size()));
+  for (const auto &partition : record.boundary_partitions) {
+    writer.u8(partition.polygon);
+    writer.u64(partition.edge_ordinal);
+    writer.sized_bytes(
+        source_facet_region_detail::semantic_bytes(partition.partition));
+    writer.u8(partition.reserved8);
+    writer.u16(partition.reserved16);
+    writer.u32(partition.reserved32);
+  }
   writer.u8(static_cast<std::uint8_t>(record.classification));
   writer.boolean(record.complete_boundary_pair_coverage);
   writer.boolean(record.complete_vertex_coverage);
+  writer.boolean(record.complete_boundary_partition_coverage);
   writer.boolean(record.distinct_sheet_occurrences);
   writer.u8(record.reserved8);
   writer.u64(record.proper_crossing_count);
@@ -358,6 +392,167 @@ bool complete_boundary_coverage(
   return true;
 }
 
+template <class T>
+boolean_outcome<coplanar_boundary_partition<T>> build_boundary_partition(
+    std::uint8_t polygon, std::uint64_t edge_ordinal,
+    const std::array<coplanar_facet_polygon_input<T>, 2> &facets,
+    const std::vector<coplanar_boundary_relation_input<T>> &relations) {
+  if (polygon > 1 || edge_ordinal >= facets[polygon].boundary_edges.size())
+    return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+        coplanar_overlay_error(
+            relation_subcode::coplanar_overlay_malformed,
+            "Component 07 coplanar boundary partition key is malformed"));
+  const auto other = static_cast<std::uint8_t>(1 - polygon);
+  const auto &query_facet = facets[polygon];
+  const auto &other_facet = facets[other];
+
+  source_edge_facet_input<T> input;
+  input.edge.feature = query_facet.boundary_edges[edge_ordinal];
+  input.facet_feature = other_facet.feature;
+  input.source_facet = other_facet.source_facet;
+  input.ring = other_facet.ring;
+  input.shell = other_facet.shell;
+  input.dropped_axis = query_facet.dropped_axis;
+  input.polygon = other_facet.polygon;
+  input.polygon_orientation = other_facet.orientation;
+
+  std::vector<source_facet_segment_contact_proposal<T>> contacts;
+  contacts.reserve(other_facet.boundary_edges.size());
+  for (const auto &relation : relations) {
+    const bool matches =
+        polygon == 0 ? relation.first_edge_ordinal == edge_ordinal
+                     : relation.second_edge_ordinal == edge_ordinal;
+    if (!matches)
+      continue;
+    const auto opposite_edge = polygon == 0 ? relation.second_edge_ordinal
+                                             : relation.first_edge_ordinal;
+    if (opposite_edge >= other_facet.boundary_edges.size())
+      return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+          coplanar_overlay_error(
+              relation_subcode::coplanar_overlay_dependency_missing,
+              "Component 07 coplanar boundary partition relation is out of range"));
+    source_edge_facet_boundary_relation<T> boundary;
+    boundary.binding.request = relation.request;
+    boundary.binding.feature = other_facet.boundary_edges[opposite_edge];
+    boundary.binding.owner = {
+        opposite_edge, other_facet.polygon[opposite_edge].source_vertex,
+        other_facet.polygon[(opposite_edge + 1) %
+                            other_facet.polygon.size()].source_vertex};
+    boundary.binding.parameter_source_vertices = {
+        boundary.binding.owner.origin_source_vertex,
+        boundary.binding.owner.destination_source_vertex};
+    boundary.relation = relation.relation;
+    const std::array<source_edge_parameter_evidence<T>, 2> *query_parameters =
+        nullptr;
+    const std::array<source_edge_parameter_evidence<T>, 2> *facet_parameters =
+        nullptr;
+    if (!source_edge_facet_detail::relation_parameter_views(
+            input, boundary, query_parameters, facet_parameters))
+      return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+          coplanar_overlay_error(
+              relation_subcode::coplanar_overlay_dependency_missing,
+              "Component 07 coplanar boundary partition feature binding is inconsistent"));
+    const auto prior_size = contacts.size();
+    bounded_boolean_error error;
+    if (!source_edge_facet_detail::append_coplanar_contacts(
+            input, boundary, contacts, error))
+      return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+          std::move(error));
+    if (contacts.size() == prior_size)
+      continue;
+    if (contacts.size() != prior_size + 1)
+      return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+          coplanar_overlay_error(
+              relation_subcode::coplanar_overlay_invariant,
+              "Component 07 coplanar boundary relation emitted an invalid contact count"));
+
+    auto &contact = contacts.back();
+    const auto canonicalize_query_endpoint = [&](
+        const source_edge_parameter_evidence<T> &parameter,
+        T &rounded, finite_interval<T> &enclosure,
+        projected_source_point<T> &point, bool &identity_valid) -> bool {
+      const auto mask = source_edge_relation_detail::endpoint_mask(parameter);
+      if (mask != 1 && mask != 2)
+        return true;
+      const auto endpoint = mask == 1 ? std::size_t(0) : std::size_t(1);
+      const T value = endpoint == 0 ? T(0) : T(1);
+      const auto singleton = finite_interval<T>::checked_singleton(value);
+      if (!singleton)
+        return false;
+      rounded = value;
+      enclosure = *singleton;
+      point = query_facet.polygon[
+          (edge_ordinal + endpoint) % query_facet.polygon.size()];
+      // Source identities are operand-local. Opposite-operand query endpoint
+      // identity cannot be used as target-polygon ownership evidence.
+      identity_valid = false;
+      return true;
+    };
+    if (relation.relation.contact == source_edge_contact_class::proper_crossing ||
+        relation.relation.contact == source_edge_contact_class::endpoint_contact ||
+        relation.relation.contact == source_edge_contact_class::point_contact) {
+      if (!canonicalize_query_endpoint(
+              (*query_parameters)[0], contact.first_rounded_parameter,
+              contact.first_parameter, contact.first_point,
+              contact.first_point_source_identity_valid))
+        return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+            coplanar_overlay_error(
+                relation_subcode::coplanar_overlay_invariant,
+                "Component 07 could not canonicalize a boundary endpoint contact"));
+      contact.second_rounded_parameter = contact.first_rounded_parameter;
+      contact.second_parameter = contact.first_parameter;
+      contact.second_point = contact.first_point;
+      contact.second_point_source_identity_valid =
+          contact.first_point_source_identity_valid;
+    } else {
+      std::size_t first_parameter = 0;
+      std::size_t second_parameter = 1;
+      if (source_edge_facet_detail::parameter_definitely_before(
+              (*query_parameters)[1], (*query_parameters)[0]))
+        std::swap(first_parameter, second_parameter);
+      if (!canonicalize_query_endpoint(
+              (*query_parameters)[first_parameter],
+              contact.first_rounded_parameter, contact.first_parameter,
+              contact.first_point, contact.first_point_source_identity_valid) ||
+          !canonicalize_query_endpoint(
+              (*query_parameters)[second_parameter],
+              contact.second_rounded_parameter, contact.second_parameter,
+              contact.second_point, contact.second_point_source_identity_valid))
+        return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+            coplanar_overlay_error(
+                relation_subcode::coplanar_overlay_invariant,
+                "Component 07 could not canonicalize a boundary overlap endpoint"));
+    }
+  }
+
+  if (contacts.size() > other_facet.boundary_edges.size())
+    return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+        coplanar_overlay_error(
+            relation_subcode::coplanar_overlay_boundary_incomplete,
+            "Component 07 coplanar boundary partition has excess contacts"));
+  auto partition = partition_source_facet_segment(
+      other_facet.source_facet, other_facet.ring,
+      query_facet.polygon[edge_ordinal], false,
+      query_facet.polygon[(edge_ordinal + 1) % query_facet.polygon.size()],
+      false, other_facet.polygon, other_facet.orientation,
+      other_facet.boundary_edges.size(), true, std::move(contacts));
+  if (!partition.has_value())
+    return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+        *partition.error());
+  auto reconciled = reconcile_source_facet_triangle_local_witnesses(
+      std::move(*partition.value()), {});
+  if (!reconciled.has_value())
+    return boolean_outcome<coplanar_boundary_partition<T>>::failure(
+        *reconciled.error());
+
+  coplanar_boundary_partition<T> result;
+  result.polygon = polygon;
+  result.edge_ordinal = edge_ordinal;
+  result.partition = std::move(*reconciled.value());
+  return boolean_outcome<coplanar_boundary_partition<T>>::success(
+      std::move(result));
+}
+
 } // namespace coplanar_relation_overlay_detail
 
 template <class T>
@@ -386,13 +581,21 @@ bool valid_coplanar_overlay_record(
        record.support_relation.classification !=
            source_facet_support_relation_class::coplanar_opposite_orientation) ||
       !record.complete_boundary_pair_coverage ||
-      !record.complete_vertex_coverage || !record.distinct_sheet_occurrences ||
+      !record.complete_vertex_coverage ||
+      !record.complete_boundary_partition_coverage ||
+      !record.distinct_sheet_occurrences ||
       record.reserved8 != 0 || record.reserved32 != 0 ||
       record.boundary_relations.size() !=
           record.facets[0].boundary_edges.size() *
               record.facets[1].boundary_edges.size() ||
       record.vertex_regions.size() !=
           record.facets[0].polygon.size() + record.facets[1].polygon.size() ||
+      record.boundary_partitions.size() !=
+          record.facets[0].boundary_edges.size() +
+              record.facets[1].boundary_edges.size() ||
+      record.facets[0].dropped_axis != record.facets[1].dropped_axis ||
+      record.facets[0].dropped_axis !=
+          record.support_relation.dropped_axes[0] ||
       !std::is_sorted(record.boundary_relations.begin(),
                       record.boundary_relations.end()))
     return false;
@@ -454,8 +657,40 @@ bool valid_coplanar_overlay_record(
         contact.reserved16 != 0 || contact.reserved32 != 0)
       return false;
   }
-  if (contact_index != record.boundary_contacts.size())
+  if (contact_index != record.boundary_contacts.size() ||
+      !std::is_sorted(record.boundary_partitions.begin(),
+                      record.boundary_partitions.end()))
     return false;
+  for (std::size_t i = 0; i < record.boundary_partitions.size(); ++i) {
+    const auto &entry = record.boundary_partitions[i];
+    if (entry.polygon > 1 || entry.reserved8 != 0 ||
+        entry.reserved16 != 0 || entry.reserved32 != 0 ||
+        entry.edge_ordinal >=
+            record.facets[entry.polygon].boundary_edges.size() ||
+        !valid_source_facet_segment_partition_record(entry.partition) ||
+        !entry.partition.triangle_reconciliation_complete)
+      return false;
+    const auto other = static_cast<std::uint8_t>(1 - entry.polygon);
+    const auto &query = record.facets[entry.polygon];
+    const auto &target = record.facets[other];
+    if (entry.partition.source_facet != target.source_facet ||
+        entry.partition.ring != target.ring ||
+        entry.partition.boundary_edge_relation_count !=
+            target.boundary_edges.size() ||
+        entry.partition.segment_start_source_identity_valid ||
+        entry.partition.segment_end_source_identity_valid ||
+        !source_facet_region_detail::same_projected_geometry(
+            entry.partition.segment_start,
+            query.polygon[entry.edge_ordinal]) ||
+        !source_facet_region_detail::same_projected_geometry(
+            entry.partition.segment_end,
+            query.polygon[(entry.edge_ordinal + 1) % query.polygon.size()]) ||
+        (i != 0 &&
+         std::tie(record.boundary_partitions[i - 1].polygon,
+                  record.boundary_partitions[i - 1].edge_ordinal) >=
+             std::tie(entry.polygon, entry.edge_ordinal)))
+      return false;
+  }
   return record.semantic_digest ==
          sha256::digest(encode_coplanar_overlay_semantics(record));
 }
@@ -535,6 +770,19 @@ classify_coplanar_facet_overlay(
       }
     }
     record.complete_vertex_coverage = true;
+
+    for (std::uint8_t polygon = 0; polygon < 2; ++polygon) {
+      for (std::uint64_t edge = 0;
+           edge < record.facets[polygon].boundary_edges.size(); ++edge) {
+        auto partition = build_boundary_partition(
+            polygon, edge, record.facets, record.boundary_relations);
+        if (!partition.has_value())
+          return boolean_outcome<record_type>::failure(*partition.error());
+        record.boundary_partitions.push_back(
+            std::move(*partition.value()));
+      }
+    }
+    record.complete_boundary_partition_coverage = true;
 
     bool has_point_contact = false;
     bool has_segment_contact = false;
@@ -698,6 +946,7 @@ bool make_facet_polygon(
   out.source_facet = group.source_facet;
   out.ring = group.ring;
   out.shell = group.shell;
+  out.dropped_axis = dropped_axis;
   out.polygon.reserve(group.source_vertices.size());
   out.boundary_edges.reserve(group.source_vertices.size());
   std::vector<bool> consumed(group.boundary_halfedges.size(), false);

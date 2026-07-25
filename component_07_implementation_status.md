@@ -391,6 +391,44 @@ covers empty and non-empty streams, deterministic compute-once closure,
 owner-free semantics, mutation rejection, fail-closed publication, and a
 positive-area coplanar containment case derived from touching closed boxes.
 
+
+## Implemented complete coplanar boundary-partition slice
+
+The candidate-derived overlay stage now performs the next Plan 07 source-boundary
+reduction step before component and arc assembly:
+
+- every original boundary edge of both coplanar source facets is partitioned
+  against the complete opposite semantic polygon through the existing certified
+  `partition_source_facet_segment` provider; no second point-in-polygon,
+  clipping, or tolerance kernel was introduced;
+- the partition input is assembled solely from the already verified compute-once
+  source-edge/source-edge relation matrix, including point contacts and overlap
+  endpoints with authoritative lineage and original-boundary ownership;
+- exact source endpoints take canonical precedence at query parameters zero and
+  one, preventing independently solved edge-pair parameter enclosures from
+  creating ambiguous duplicate endpoint breakpoints while preserving every
+  opposite-boundary owner;
+- every closed boundary parameter domain is represented by canonical breakpoints
+  and every open cell carries the provider's deterministic certified dyadic
+  witness classified as interior, outside, or an explicit opposite-boundary
+  overlap;
+- opposite-operand dense source vertex identifiers are never reinterpreted as
+  query-endpoint identity, and projected query geometry is independently checked
+  against the source boundary edge before publication;
+- the overlay record requires complete sorted one-per-edge partition coverage,
+  a common qualified projection axis, reconciled partition invariants, zero
+  reserved fields, owner-free semantic bytes, and mutation-sensitive nested and
+  outer digests; and
+- strict qualification covers disjoint boundaries, point/segment contact,
+  transverse positive-area overlap, strict containment, equality, complete
+  interval counts, and a matched nested-partition mutation whose outer digest is
+  recomputed.
+
+The stage still fails closed before canonical overlap-component and oriented-arc
+assembly. The partitions are immutable authoritative input for that next slice;
+they do not themselves infer event equivalence, final sheet selection, or output
+orientation.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -404,7 +442,8 @@ The tracker remains unchecked. The following Plan 07 work is still required:
    multi-event ordering, complete occurrence tie keys, numeric crossing
    conservation, and all symbolic fields that depend on those results.
 3. Assemble canonical coplanar crossing/overlap components and oriented arcs
-   from the implemented candidate-derived overlay classifications, then publish
+   from the implemented complete source-boundary partitions and overlay
+   classifications, then publish
    the resulting overlay table in the final artifact while retaining
    coordinate-coincident distinct occurrences.
 4. Complete authoritative construction selection and deduplication, residual and
