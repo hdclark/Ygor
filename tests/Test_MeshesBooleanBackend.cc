@@ -281,8 +281,11 @@ void explicit_exact_backend() {
 
 void diagnostic_agreement_and_disagreement_preservation() {
   const auto fixture = make_box_fixture();
+  // Use a face-regular union as the positive agreement fixture. Overlapping
+  // box symmetric difference has lower-dimensional boundary contacts and is a
+  // separate diagnostic-disagreement workload, not a simple manifold oracle.
   auto request = make_request(fixture, diagnostic_options(),
-                              operation::symmetric_difference);
+                              operation::regularized_union);
   auto registry = make_default_backend_registry<coordinate_type, index_type>();
   require(registry.has_value(), "diagnostic registry");
   auto result = evaluate_backend_request(*registry.value(), *request);
