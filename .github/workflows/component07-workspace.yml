@@ -6,6 +6,9 @@ on:
       - edited
     branches:
       - master
+  pull_request_review:
+    types:
+      - submitted
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
