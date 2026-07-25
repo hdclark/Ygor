@@ -6,6 +6,9 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/agent-p5-workspace-export.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/agent-p5-workspace-export.yml'
 
 permissions:
   contents: read
