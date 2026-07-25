@@ -41,15 +41,130 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
       - name: Enforce adapter verifier outcomes
-        env:
-          PATCH_GZ_B64: H4sICPkrZGoAA3A0LWZhaWxjbG9zZWQucGF0Y2gArVdLc+JGEL7zK3rZKko2AsdxlTfF2pR3U5VbbrnkJA+jBiYWGu3MCENS/PfteQkJbEzWqwNImp5+fv31aDQaAbvSil/9vZDqT9RL1F+lLJCVXxl/wjL/krPKoNJjUfLecDiE2fniDw8wukk/wfAmvf4EDw89sJdCU6sSUCmpkkrJvOYmc08ZlzlOJtqwArOZKHNRLlK/qXP1Z97YmHlrmcixNMJs46b+xWe7jdVGwhqVmAvM4R5ISG3jptHUrWwThd9q1CYFZgyuKjNes6LG5IJ0jADEHJIPUcd4yXQWl+1qE00j4cOivcNTe+E/ux48nDNR1ArJwRe1BD1Bahxiv/BLAAfvmzBjToKO4GeQdi93xz6+4d/rNQsaVJYLzRYKcUXW0+jjC9dRDb0GzoyQZTZnhcZ+jP89Ie7fH5SXELLrjRz+DZVfX/1Fv9lLmB7ziPwzBC3mb9NbGN6mN7cB8+TFjsz1hrxgWoMLzse7JbBmMay5KFnhQ5lAVc8KwWHmDUSZOy6lIoQzg5nZVpgCAR437n7qi6ZNTi20ZArzrDKKdpTa/C89U8ixwIVdoyT2ht6ViVWOm4puhXkthiRW/Gd60UB9sncscQZWco1JI0ao3Vl/AYI1b6VhBxjEu+QiiJQSNxwrA6RIKVqOwA+YaeyNpvu9++aJFiKGFYUH9udsAy9pmEx8h6GKluxf7DpiR1PrTKq7Zq8H9ulsuupZ6NNy0s1PIMDT2BpEmuz0dFcRbpDXrn+tkwgD9xdT8XaKG/8aSvYK3kgDgcqFF/j8R4JrR9Xdf05yYXBY7qjulZhd98SodrbJwFMDl0rVlbEdpXCOCkuOB/wA7+GHn9yZxA+W765/ubaMd31znf56EzjPTY4mBriPY3zFnjBjG6EzVohFSU7M5OY42JMOJH6829IKhQluGDft8QqDwd50eyGFvrXfpFnSVAgHFjdsbEXCyLP0pnAhNA0a8r5Nay4En8G7Pcy86OnEBe5omYhzk2bake5XOHYaAt4fU4b7XHQdH039HRFLJOiu2YuDtB0O7EN1c5rs/5JoJ6ntTf1o0G8dNd5D5LT+UQ5Ci1IKXPThMZmLDTULZTAOnczFnUlXOB0j7yjSdWH1RCLJDlgguewGlMJlx4VuLj+0tZ6ZKCcaTm9jezSC+/tDWXudfYY611YkiWNxzVb7RDRT7PKUllMHt9bVwWF7Qh5gIvQYtI94PgqYFZI/6cBmfuFZmKXNzxpLRv3rG3PPKE1LxvDe35ItLjnROd2u63aAP0fmkusrezB85ZtolYdz5BmCjlcdq6a/OUqVteFyRd4zqjIDzkpZUsoKcr2SykAuFoTgMTxG9DzSyoqJUpO0rjlHrec1zY9mSkPoF5oAhuRsk7py0M3oW030TEcmXNuqEoHPpSKbRUHufQY6AOYSNY0707P2C0YSJKBFQRAotvTuH+QGzBKbvocFkvv22A6/e/olw6uKKaHJlWiHUjnbOo8UswcAe5jXXeDY+CuFBA/TAc64N/zhrfClmQTxI0z1hmbJTBjZGh4dYB8dPKkWpMt/DoGgBBdaglFIEKPakOyLrfxIQO64s5SSsE+VpDzuc/fMxBo7HcGXSE0ypi8I+PgR/gifYzYY+VxSQZaiAlUXqHvfATDfxrLQDwAA
         run: |
-          printf '%s' "$PATCH_GZ_B64" | base64 --decode | gzip --decompress > /tmp/p4-failclosed.patch
-          if ! git apply --check /tmp/p4-failclosed.patch; then
-            echo 'P4 fail-closed patch already applied or no longer applicable.'
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count == 0 and new in text:
+                  return
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement, found {count}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "src/YgorMeshesBooleanBackendAdapters.inc",
+              '''  auto verified = entry.adapter->verify(request, attempt.value());
+          if (!verified.has_value())
+            return verified.error();
+          return attempt.value();
+          ''',
+              '''  auto verified = entry.adapter->verify(request, attempt.value());
+          if (!verified.has_value()) {
+            auto failure = verified.error();
+            if (!failure.backend)
+              failure.backend = entry.identity;
+            return failure;
+          }
+          if (!verified.value()) {
+            auto failure = error(product_error_code::verifier_disagreement,
+                                 "backend.adapter_verification_false");
+            failure.backend = entry.identity;
+            return failure;
+          }
+          return attempt.value();
+          ''')
+
+          replace_once(
+              "tests/Test_MeshesBooleanBackend.cc",
+              '''};
+
+          class corrupting_reference_backend final
+              : public boolean_backend<coordinate_type, index_type> {
+          ''',
+              '''};
+
+          class false_verifying_backend final
+              : public boolean_backend<coordinate_type, index_type> {
+            std::shared_ptr<const boolean_backend<coordinate_type, index_type>> delegate_;
+
+          public:
+            explicit false_verifying_backend(
+                std::shared_ptr<const boolean_backend<coordinate_type, index_type>> delegate)
+                : delegate_(std::move(delegate)) {}
+
+            const backend_identity &identity() const noexcept override {
+              return delegate_->identity();
+            }
+            backend_adapter_role role() const noexcept override {
+              return backend_adapter_role::producer;
+            }
+
+            product_status_or<backend_attempt<coordinate_type, index_type>>
+            evaluate(const backend_request<coordinate_type, index_type> &request,
+                     const backend_execution_state &state) const override {
+              return delegate_->evaluate(request, state);
+            }
+
+            product_status_or<bool>
+            verify(const backend_request<coordinate_type, index_type> &,
+                   const backend_attempt<coordinate_type, index_type> &) const noexcept
+                override {
+              return false;
+            }
+          };
+
+          class corrupting_reference_backend final
+              : public boolean_backend<coordinate_type, index_type> {
+          ''')
+
+          replace_once(
+              "tests/Test_MeshesBooleanBackend.cc",
+              '''  require(exact.has_value() && reference.has_value(), "make corruption adapters");
+            auto registry =
+                std::make_shared<backend_registry<coordinate_type, index_type>>();
+          ''',
+              '''  require(exact.has_value() && reference.has_value(), "make corruption adapters");
+
+            auto false_registry =
+                std::make_shared<backend_registry<coordinate_type, index_type>>();
+            auto false_verifier = std::make_shared<false_verifying_backend>(exact.value());
+            require(false_registry->register_backend(false_verifier).has_value() &&
+                        false_registry->freeze().has_value(),
+                    "register false-verifying producer");
+            auto false_request = make_request(fixture, explicit_exact_options());
+            auto false_result = evaluate_backend_request(*false_registry, *false_request);
+            require(!false_result.has_value() &&
+                        false_result.error().code ==
+                            product_error_code::verifier_disagreement &&
+                        false_result.error().backend &&
+                        same_backend_identity(*false_result.error().backend,
+                                              exact.value()->identity()),
+                    "adapter verification false blocks publication with provenance");
+
+            auto registry =
+                std::make_shared<backend_registry<coordinate_type, index_type>>();
+          ''')
+
+          replace_once(
+              "docs/MeshBooleanBackendAdapters.md",
+              '''replace or silently reject the producer geometry. Corrupt comparison evidence,
+          by contrast, fails verification and prevents publication.
+          ''',
+              '''replace or silently reject the producer geometry. Corrupt comparison evidence,
+          by contrast, fails verification and prevents publication. An adapter verifier
+          that returns `false` without an error is also treated as `verifier_disagreement`;
+          verification hooks cannot silently waive publication checks.
+          ''')
+          PY
+          git diff --check
+          if git diff --quiet; then
+            echo 'P4 fail-closed changes already present.'
             exit 0
           fi
-          git apply /tmp/p4-failclosed.patch
           git add .
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
