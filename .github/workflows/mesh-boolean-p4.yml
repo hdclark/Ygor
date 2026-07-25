@@ -31,12 +31,12 @@ permissions:
 
 jobs:
   apply-p4-diagnostic:
-    if: github.event_name == 'push'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: boolean_symbolic
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
       - name: Add focused comparison diagnostics
         env:
@@ -52,7 +52,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m 'P4: expose independent comparison invariants'
-          git push origin HEAD:boolean_symbolic
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
   backend-adapters:
     name: ${{ matrix.compiler }} backend adapters
