@@ -1,0 +1,94 @@
+        for (std::size_t reverse = target.faces.size(); reverse != 0; --reverse) {
+          const auto index = reverse - 1;
+          if (!std::binary_search(protected_faces.begin(), protected_faces.end(),
+                                  static_cast<std::uint64_t>(index)))
+            removal_order.push_back(index);
+        }
+        for (std::size_t reverse = target.faces.size(); reverse != 0; --reverse) {
+          const auto index = reverse - 1;
+          if (std::binary_search(protected_faces.begin(), protected_faces.end(),
+                                 static_cast<std::uint64_t>(index)))
+            removal_order.push_back(index);
+        }
+        for (const auto index : removal_order) {
+          auto candidate = result.minimized;
+          auto &candidate_mesh = operand_index == 0 ? candidate.operand_a
+                                                    : candidate.operand_b;
+          candidate_mesh.faces.erase(candidate_mesh.faces.begin() + index);
+          remove_unreferenced_vertices(candidate_mesh);
+          qualification_minimization_edit edit;
+          edit.kind = qualification_minimization_edit_kind::remove_face;
+          edit.operand = operand_index;
+          edit.primary_index = index;
+          if (try_candidate(result.minimized, std::move(candidate), predicate,
+                            result.attempts, attempt_limit, edit, result.edits)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+    };
+    minimize_mesh_faces(1);
+    minimize_mesh_faces(0);
+
+    for (std::uint8_t operand_index = 0; operand_index != 2 &&
+                                         result.attempts < attempt_limit;
+         ++operand_index) {
+      auto vertex_count = operand_index == 0 ? result.minimized.operand_a.vertices.size()
+                                             : result.minimized.operand_b.vertices.size();
+      const auto &protected_vertices = operand_index == 0
+                                           ? bound_provenance.operand_a_vertices
+                                           : bound_provenance.operand_b_vertices;
+      std::vector<std::size_t> vertex_order;
+      vertex_order.reserve(vertex_count);
+      for (std::size_t vertex_index = 0; vertex_index != vertex_count; ++vertex_index)
+        if (!std::binary_search(protected_vertices.begin(),
+                                protected_vertices.end(),
+                                static_cast<std::uint64_t>(vertex_index)))
+          vertex_order.push_back(vertex_index);
+      for (std::size_t vertex_index = 0; vertex_index != vertex_count; ++vertex_index)
+        if (std::binary_search(protected_vertices.begin(),
+                               protected_vertices.end(),
+                               static_cast<std::uint64_t>(vertex_index)))
+          vertex_order.push_back(vertex_index);
+      for (const auto vertex_index : vertex_order) {
+        if (result.attempts >= attempt_limit)
+          break;
+        for (std::size_t axis = 0; axis != 3 && result.attempts < attempt_limit;
+             ++axis) {
+          auto zero_candidate = result.minimized;
+          auto &target = operand_index == 0 ? zero_candidate.operand_a
+                                            : zero_candidate.operand_b;
+          target.vertices[vertex_index].coordinate[axis].value = exact_rational(0);
+          target.vertices[vertex_index].coordinate[axis].negative_zero = false;
+          qualification_minimization_edit zero_edit;
+          zero_edit.kind =
+              qualification_minimization_edit_kind::replace_coordinate_with_zero;
+          zero_edit.operand = operand_index;
+          zero_edit.primary_index = vertex_index;
+          zero_edit.secondary_index = axis;
+          if (try_candidate(result.minimized, std::move(zero_candidate), predicate,
+                            result.attempts, attempt_limit, zero_edit,
+                            result.edits))
+            continue;
+
+          auto half_candidate = result.minimized;
+          auto &half_target = operand_index == 0 ? half_candidate.operand_a
+                                                 : half_candidate.operand_b;
+          half_target.vertices[vertex_index].coordinate[axis].value =
+              half_target.vertices[vertex_index].coordinate[axis].value /
+              exact_rational(2);
+          qualification_minimization_edit half_edit;
+          half_edit.kind = qualification_minimization_edit_kind::halve_coordinate;
+          half_edit.operand = operand_index;
+          half_edit.primary_index = vertex_index;
+          half_edit.secondary_index = axis;
+          try_candidate(result.minimized, std::move(half_candidate), predicate,
+                        result.attempts, attempt_limit, half_edit, result.edits);
+        }
+      }
+    }
+
+    if (result.minimized.ordinal != 0 && result.attempts < attempt_limit) {
+      auto lower = make_qualification_case_recipe(
+          result.minimized.recipe_identifier, result.minimized.recipe_version,

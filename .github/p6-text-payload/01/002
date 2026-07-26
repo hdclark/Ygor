@@ -1,0 +1,126 @@
+          (source.vertices[first].coordinate[axis].value +
+           source.vertices[second].coordinate[axis].value) / exact_rational(2);
+      point.coordinate[axis].negative_zero = false;
+    }
+    const auto index = static_cast<std::uint64_t>(result.vertices.size());
+    result.vertices.push_back(std::move(point));
+    midpoints.emplace(key, index);
+    return index;
+  };
+  for (const auto &face : source.faces) {
+    if (face.size() != 3)
+      throw std::logic_error("triangle refinement requires triangulated input");
+    const auto a = face[0], b = face[1], c_value = face[2];
+    const auto ab = midpoint(a, b);
+    const auto bc = midpoint(b, c_value);
+    const auto ca = midpoint(c_value, a);
+    result.faces.push_back({a, ab, ca});
+    result.faces.push_back({b, bc, ab});
+    result.faces.push_back({c_value, ca, bc});
+    result.faces.push_back({ab, bc, ca});
+  }
+  return result;
+}
+
+mesh make_triangle_prism() {
+  std::vector<std::array<exact_rational, 2>> profile{
+      {{exact_rational(0), exact_rational(0)}},
+      {{exact_rational(1), exact_rational(3)}},
+      {{exact_rational(0), exact_rational(3)}}};
+  return make_profile_prism(profile, exact_rational(0), exact_rational(2));
+}
+
+mesh transformed_parallelotope(const std::array<std::int64_t, 3> &origin,
+                               const std::array<std::int64_t, 3> &u,
+                               const std::array<std::int64_t, 3> &w,
+                               const std::array<std::int64_t, 3> &q) {
+  mesh result;
+  auto point = [&](int iu, int iw, int iq) {
+    return vi(origin[0] + iu * u[0] + iw * w[0] + iq * q[0],
+              origin[1] + iu * u[1] + iw * w[1] + iq * q[1],
+              origin[2] + iu * u[2] + iw * w[2] + iq * q[2]);
+  };
+  result.vertices = {point(0, 0, 0), point(1, 0, 0), point(1, 1, 0),
+                     point(0, 1, 0), point(0, 0, 1), point(1, 0, 1),
+                     point(1, 1, 1), point(0, 1, 1)};
+  result.faces = {{0, 3, 2, 1}, {4, 5, 6, 7}, {0, 1, 5, 4},
+                  {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}};
+  return result;
+}
+
+std::array<std::int64_t, 3>
+cross(const std::array<std::int64_t, 3> &a,
+      const std::array<std::int64_t, 3> &b) {
+  return {{a[1] * b[2] - a[2] * b[1],
+           a[2] * b[0] - a[0] * b[2],
+           a[0] * b[1] - a[1] * b[0]}};
+}
+
+std::int64_t dot(const std::array<std::int64_t, 3> &a,
+                 const std::array<std::int64_t, 3> &b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+std::vector<qualification_exact_halfspace>
+parallelotope_halfspaces(const std::array<std::int64_t, 3> &origin,
+                         const std::array<std::int64_t, 3> &u,
+                         const std::array<std::int64_t, 3> &w,
+                         const std::array<std::int64_t, 3> &q) {
+  const std::array<std::array<std::int64_t, 3>, 3> rows{
+      {cross(w, q), cross(q, u), cross(u, w)}};
+  const auto determinant = dot(rows[0], u);
+  if (determinant <= 0)
+    throw std::logic_error("qualification parallelotope determinant");
+  std::vector<qualification_exact_halfspace> result;
+  for (const auto &row : rows) {
+    const auto at_origin = dot(row, origin);
+    result.push_back({exact_rational(-row[0]), exact_rational(-row[1]),
+                      exact_rational(-row[2]), exact_rational(-at_origin)});
+    result.push_back({exact_rational(row[0]), exact_rational(row[1]),
+                      exact_rational(row[2]),
+                      exact_rational(determinant + at_origin)});
+  }
+  return result;
+}
+
+void translate(mesh &value, exact_rational dx, exact_rational dy,
+               exact_rational dz) {
+  for (auto &point : value.vertices) {
+    point.coordinate[0].value = point.coordinate[0].value + dx;
+    point.coordinate[1].value = point.coordinate[1].value + dy;
+    point.coordinate[2].value = point.coordinate[2].value + dz;
+  }
+}
+
+void scale_power_of_two(mesh &value, std::int32_t exponent) {
+  const exact_rational factor = power_of_two(exponent);
+  for (auto &point : value.vertices)
+    for (auto &axis : point.coordinate)
+      axis.value = axis.value * factor;
+}
+
+mesh triangulated(mesh value) {
+  value = qualification_generation_detail::subdivide_qualification_mesh(value);
+  return value;
+}
+
+void apply_controlled_defect(mesh &value, qualification_defect_label label) {
+  switch (label) {
+  case qualification_defect_label::none:
+    return;
+  case qualification_defect_label::duplicate_vertex_use: {
+    value.vertices.push_back(value.vertices.front());
+    const auto replacement = value.vertices.size() - 1;
+    value.faces.front().front() = replacement;
+    return;
+  }
+  case qualification_defect_label::duplicate_facet:
+    value.faces.push_back(value.faces.front());
+    return;
+  case qualification_defect_label::inconsistent_orientation:
+    std::reverse(value.faces.front().begin(), value.faces.front().end());
+    return;
+  case qualification_defect_label::open_crack:
+    value.faces.pop_back();
+    return;
+  case qualification_defect_label::nonplanar_facet:

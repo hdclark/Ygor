@@ -1,0 +1,86 @@
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.case_contract");
+
+  auto descriptor = find_qualification_generator_descriptor(
+      value.recipe_identifier, value.recipe_version);
+  if (!descriptor.has_value())
+    return descriptor.error();
+  if (descriptor.value().family != value.family ||
+      descriptor.value().recipe_digest != value.recipe_digest ||
+      value.ordinal < descriptor.value().first_case_ordinal ||
+      value.ordinal - descriptor.value().first_case_ordinal >=
+          descriptor.value().case_count ||
+      value.deterministic_seed !=
+          splitmix64((static_cast<std::uint64_t>(ordinal(value.family)) << 56U) ^
+                     value.ordinal) ||
+      value.construction != expected_construction(value.family))
+    return generation_error(product_error_code::stale_binding,
+                            "qualification_generator.case_recipe_binding");
+
+  const auto derivation_index = static_cast<unsigned>(value.derivation);
+  if (derivation_index > static_cast<unsigned>(
+                             qualification_recipe_derivation::
+                                 minimized_regression_candidate))
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.unknown_derivation");
+  if (value.valid_mutation &&
+      static_cast<unsigned>(*value.valid_mutation) >=
+          static_cast<unsigned>(qualification_valid_mutation::count))
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.unknown_valid_mutation");
+  if (value.derivation == qualification_recipe_derivation::inventory_ordinal) {
+    if (value.valid_mutation || value.parent_case_digest != digest{})
+      return generation_error(product_error_code::stale_binding,
+                              "qualification_generator.inventory_derivation_binding");
+  } else {
+    if (value.parent_case_digest == digest{})
+      return generation_error(product_error_code::stale_binding,
+                              "qualification_generator.derived_parent_missing");
+    if ((value.derivation ==
+             qualification_recipe_derivation::valid_fuzz_mutation) !=
+        static_cast<bool>(value.valid_mutation))
+      return generation_error(product_error_code::stale_binding,
+                              "qualification_generator.valid_mutation_binding");
+  }
+
+  std::sort(value.geometry_categories.begin(), value.geometry_categories.end(),
+            [](category a, category b) { return ordinal(a) < ordinal(b); });
+  if (std::adjacent_find(value.geometry_categories.begin(),
+                         value.geometry_categories.end()) !=
+          value.geometry_categories.end() ||
+      value.geometry_categories != descriptor.value().geometry_categories)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.case_category_binding");
+
+  if (static_cast<unsigned>(value.expectation.relation) >
+          static_cast<unsigned>(qualification_known_relation::
+                                    controlled_invalid_operand) ||
+      static_cast<unsigned>(value.expectation.defect) >=
+          static_cast<unsigned>(qualification_defect_label::count))
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.unknown_expectation_enum");
+  const bool controlled_defect =
+      value.expectation.defect != qualification_defect_label::none;
+  if (controlled_defect !=
+          (value.expectation.relation ==
+           qualification_known_relation::controlled_invalid_operand) ||
+      controlled_defect != value.expectation.normalization_report_required)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.defect_expectation_binding");
+
+  auto &outcomes = value.expectation.allowed_outcomes;
+  for (const auto outcome : outcomes)
+    if (ordinal(outcome) > ordinal(qualification_outcome::infrastructure_failure))
+      return generation_error(product_error_code::qualification_policy_violation,
+                              "qualification_generator.unknown_outcome");
+  std::sort(outcomes.begin(), outcomes.end(), [](auto a, auto b) {
+    return ordinal(a) < ordinal(b);
+  });
+  if (outcomes.empty() ||
+      std::adjacent_find(outcomes.begin(), outcomes.end()) != outcomes.end())
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.case_outcomes");
+  auto &codes = value.expectation.allowed_failure_codes;
+  for (const auto code : codes)
+    if (ordinal(code) > ordinal(product_error_code::verifier_disagreement))
+      return generation_error(product_error_code::qualification_policy_violation,

@@ -1,0 +1,23 @@
+Failure provenance identifies implicated operand faces and vertices, plus an
+optional chain step. It is canonicalized, deduplicated, range-checked against
+the source case, and digest-bound. The deterministic minimizer attempts edits
+in a fixed order, removing non-implicated features before implicated ones. Every
+attempt is bounded; every accepted edit records before/after case digests.
+Replaying the same source, provenance, predicate, and budget produces the same
+minimized case and transcript digest.
+
+A minimized result can be converted into a permanent-regression promotion
+artifact. The artifact contains canonical case bytes, a stable `P63-REG-*`
+identifier, a stable `P6.3.AUTO.*` permanent test ID, the minimization transcript
+digest, and an artifact digest. Promotion occurs only through an explicit sink
+after full revalidation. Stale identity, canonical bytes, transcript, or digest
+are rejected before the sink is called, providing an atomic integration point
+for later corpus tooling.
+
+## Validation target
+
+`Test_MeshesBooleanQualificationGeneration` checks descriptor/range bindings,
+canonical replay, all four coordinate/index materializations, representative
+strict validation, valid and invalid fuzz contracts, all five chain families,
+transactional failure propagation, deterministic provenance-guided
+minimization, promotion validation, and fail-closed stale bindings.

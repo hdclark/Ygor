@@ -1,0 +1,113 @@
+        "qualification_generator.unknown_recipe");
+  } catch (const std::bad_alloc &) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::resource_limit,
+        "qualification_generator.descriptor_allocation");
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_generator.descriptor_exception");
+  }
+}
+
+product_status_or<qualification_case_recipe>
+make_qualification_case_recipe(const std::string &identifier,
+                               const std::string &version,
+                               std::uint64_t ordinal_value) {
+  try {
+    auto descriptor = find_qualification_generator_descriptor(identifier, version);
+    if (!descriptor.has_value())
+      return descriptor.error();
+    if (ordinal_value < descriptor.value().first_case_ordinal ||
+        ordinal_value - descriptor.value().first_case_ordinal >=
+            descriptor.value().case_count)
+      return qualification_generation_detail::generation_error(
+          product_error_code::qualification_policy_violation,
+          "qualification_generator.ordinal_out_of_range");
+    return qualification_generation_detail::canonicalize_qualification_case(
+        generate_case(descriptor.value(), ordinal_value));
+  } catch (const std::bad_alloc &) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::resource_limit,
+        "qualification_generator.case_allocation");
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_generator.case_exception");
+  }
+}
+
+product_status_or<bool>
+validate_qualification_case_recipe(const qualification_case_recipe &value) noexcept {
+  try {
+    auto made = qualification_generation_detail::canonicalize_qualification_case(value);
+    if (!made.has_value())
+      return made.error();
+    if (made.value().case_digest != value.case_digest)
+      return qualification_generation_detail::generation_error(
+          product_error_code::stale_binding,
+          "qualification_generator.case_not_canonical");
+    return true;
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_generator.case_validation_exception");
+  }
+}
+
+product_status_or<std::vector<std::uint8_t>>
+encode_qualification_case_recipe(const qualification_case_recipe &value) {
+  auto valid = validate_qualification_case_recipe(value);
+  if (!valid.has_value())
+    return valid.error();
+  canonical_encoder encoder;
+  encode_case_without_digest(encoder, value);
+  encoder.raw(value.case_digest.bytes.data(), value.case_digest.bytes.size());
+  return encoder.bytes();
+}
+
+product_status_or<qualification_case_recipe>
+make_qualification_valid_fuzz_case(qualification_valid_mutation mutation,
+                                   std::uint64_t seed) {
+  static const char *const recipes[] = {
+      "exact-feature-alignment-contact-v1",
+      "exact-coplanar-overlay-v1",
+      "exact-subdivision-refinement-v1",
+      "exact-subdivision-refinement-v1",
+      "exact-nested-shell-cavity-v1",
+      "cadlike-multibody-cavity-v1",
+      "exact-representable-scale-bits-v1",
+      "exact-representable-scale-bits-v1",
+      "cadlike-dense-tessellation-v1",
+      "exact-nondyadic-intersection-v1"};
+  const auto index = static_cast<unsigned>(mutation);
+  if (index >= static_cast<unsigned>(qualification_valid_mutation::count))
+    return qualification_generation_detail::generation_error(
+        product_error_code::qualification_policy_violation,
+        "qualification_fuzz.unknown_valid_mutation");
+  auto descriptor = find_qualification_generator_descriptor(recipes[index], "1");
+  if (!descriptor.has_value())
+    return descriptor.error();
+  auto made = make_qualification_case_recipe(
+      descriptor.value().identifier, descriptor.value().version,
+      splitmix64(seed ^ index) % descriptor.value().case_count);
+  if (!made.has_value())
+    return made.error();
+  const digest parent = made.value().case_digest;
+  made.value().derivation =
+      qualification_recipe_derivation::valid_fuzz_mutation;
+  made.value().valid_mutation = mutation;
+  made.value().parent_case_digest = parent;
+  made.value().retained_parameters.push_back(
+      static_cast<std::int64_t>(0x6300U + index));
+  made.value().case_digest = {};
+  return qualification_generation_detail::canonicalize_qualification_case(
+      std::move(made.value()));
+}
+
+product_status_or<qualification_case_recipe>
+make_qualification_invalid_fuzz_case(qualification_defect_label defect,
+                                     std::uint64_t seed) {
+  const auto index = static_cast<unsigned>(defect);
+  if (defect == qualification_defect_label::none ||
+      index >= static_cast<unsigned>(qualification_defect_label::count))

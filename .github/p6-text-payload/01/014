@@ -1,0 +1,104 @@
+    const auto seed_index = static_cast<std::size_t>(ordinal_value % generated_ids.size());
+    auto initial = make_qualification_case_recipe(
+        generated_ids[seed_index], "1",
+        ordinal_value % find_qualification_generator_descriptor(
+                            generated_ids[seed_index], "1")
+                            .value()
+                            .case_count);
+    if (!initial.has_value())
+      return initial.error();
+    result.initial_case = std::move(initial.value());
+    result.initial_uses_operand_b = (ordinal_value & 1U) != 0;
+
+    const std::uint32_t span = literal->maximum_steps - literal->minimum_steps + 1;
+    const auto step_count = literal->minimum_steps +
+                            static_cast<std::uint32_t>(ordinal_value % span);
+    for (std::uint32_t step_index = 0; step_index != step_count; ++step_index) {
+      qualification_chain_step_recipe step;
+      step.selected_operation =
+          static_cast<operation>((ordinal_value + step_index) % 5U);
+      step.operand_order = ((ordinal_value + step_index) & 1U)
+                               ? qualification_operand_order::b_then_a
+                               : qualification_operand_order::a_then_b;
+      step.preparation = preparation_mode::strict_validation;
+      step.requested_result = static_cast<result_representation>(step_index % 3U);
+      const auto family_index =
+          (seed_index + step_index + 1U) % generated_ids.size();
+      auto descriptor = find_qualification_generator_descriptor(
+          generated_ids[family_index], "1");
+      if (!descriptor.has_value())
+        return descriptor.error();
+      auto rhs = make_qualification_case_recipe(
+          generated_ids[family_index], "1",
+          (ordinal_value * 17U + step_index) % descriptor.value().case_count);
+      if (!rhs.has_value())
+        return rhs.error();
+      step.rhs_case = std::move(rhs.value());
+      step.rhs_uses_operand_b = ((ordinal_value >> (step_index % 16U)) & 1U) != 0;
+      step.continue_with_prior_mesh_when_unrealized =
+          step.requested_result != result_representation::exact_in_T_mesh;
+
+      if (identifier == "chain-subdivision-association-v1")
+        step.subdivide_accumulator_before_step = (step_index % 2U) == 0;
+      if (identifier == "chain-explicit-preparation-boundary-v1" &&
+          (step_index == 1U || step_index + 1U == step_count))
+        step.preparation = preparation_mode::normalized;
+      if (identifier == "chain-transactional-failure-replay-v1" &&
+          step_index == step_count / 2U) {
+        step.expected_failure_codes = {product_error_code::resource_limit,
+                                       product_error_code::output_not_representable};
+        step.continue_after_expected_failure = true;
+      }
+      result.steps.push_back(std::move(step));
+    }
+    return qualification_generation_detail::canonicalize_qualification_chain(
+        std::move(result));
+  } catch (const std::bad_alloc &) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::resource_limit,
+        "qualification_chain.allocation");
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_chain.exception");
+  }
+}
+
+product_status_or<bool> validate_qualification_operation_chain_recipe(
+    const qualification_operation_chain_recipe &value) noexcept {
+  try {
+    auto made = qualification_generation_detail::canonicalize_qualification_chain(value);
+    if (!made.has_value())
+      return made.error();
+    if (made.value().chain_digest != value.chain_digest)
+      return qualification_generation_detail::generation_error(
+          product_error_code::stale_binding,
+          "qualification_chain.not_canonical");
+    return true;
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_chain.validation_exception");
+  }
+}
+
+product_status_or<std::vector<std::uint8_t>>
+encode_qualification_operation_chain_recipe(
+    const qualification_operation_chain_recipe &value) {
+  auto valid = validate_qualification_operation_chain_recipe(value);
+  if (!valid.has_value())
+    return valid.error();
+  canonical_encoder encoder;
+  encode_chain_without_digest(encoder, value);
+  encoder.raw(value.chain_digest.bytes.data(), value.chain_digest.bytes.size());
+  return encoder.bytes();
+}
+
+product_status_or<qualification_failure_provenance>
+make_qualification_failure_provenance(qualification_failure_provenance value) {
+  if (value.schema != qualification_generation_schema_version)
+    return qualification_generation_detail::generation_error(
+        product_error_code::qualification_policy_violation,
+        "qualification_provenance.schema");
+  auto canonicalize = [](std::vector<std::uint64_t> &indices) {
+    std::sort(indices.begin(), indices.end());

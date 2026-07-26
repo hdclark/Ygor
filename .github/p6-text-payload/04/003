@@ -1,0 +1,58 @@
+  stale.case_digest = {};
+  require(!validate_qualification_case_recipe(stale).has_value(),
+          "out-of-range recipe ordinal fails closed");
+
+  auto edited_ordinal = recipe.value();
+  edited_ordinal.operand_a.vertices.front().coordinate.front().value =
+      edited_ordinal.operand_a.vertices.front().coordinate.front().value +
+      exact_rational(1);
+  edited_ordinal.case_digest = {};
+  require(!validate_qualification_case_recipe(edited_ordinal).has_value(),
+          "an edited mesh cannot masquerade as a frozen inventory ordinal");
+
+  auto derived = make_qualification_valid_fuzz_case(
+      qualification_valid_mutation::alternate_subdivision, 11);
+  require(derived.has_value(), "derived fail-closed source exists");
+  auto unbound_derived = derived.value();
+  unbound_derived.parent_case_digest = {};
+  unbound_derived.case_digest = {};
+  require(!validate_qualification_case_recipe(unbound_derived).has_value(),
+          "derived cases require their parent-case digest");
+
+  auto chain = make_qualification_operation_chain_recipe(
+      "chain-mixed-csg-reingestion-v1", "1", 0);
+  require(chain.has_value(), "fail-closed chain exists");
+  auto short_chain = chain.value();
+  short_chain.steps.resize(4);
+  short_chain.chain_digest = {};
+  require(!validate_qualification_operation_chain_recipe(short_chain).has_value(),
+          "short operation chain fails closed");
+
+  auto reinterpreted_chain = chain.value();
+  reinterpreted_chain.steps.front().preparation = preparation_mode::normalized;
+  reinterpreted_chain.chain_digest = {};
+  require(!validate_qualification_operation_chain_recipe(reinterpreted_chain)
+               .has_value(),
+          "normalization boundaries are bound to their declared chain family");
+
+  qualification_failure_provenance duplicate;
+  duplicate.operand_a_faces = {1, 1};
+  require(!make_qualification_failure_provenance(duplicate).has_value(),
+          "duplicate provenance indices fail closed");
+}
+
+} // namespace
+
+int main() {
+  harness tests;
+  tests.add("P6.3.generators.descriptors",
+            descriptor_and_materialization_contracts);
+  tests.add("P6.3.generators.strict_validation",
+            representative_operands_pass_strict_validation);
+  tests.add("P6.3.fuzz.valid_invalid", valid_and_invalid_fuzz_contracts);
+  tests.add("P6.3.chains.execution", chain_execution_contracts);
+  tests.add("P6.3.minimization.promotion",
+            minimization_and_promotion_contracts);
+  tests.add("P6.3.contracts.fail_closed", fail_closed_contracts);
+  return tests.run(std::cout, std::cerr);
+}

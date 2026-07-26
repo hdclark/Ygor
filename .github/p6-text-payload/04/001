@@ -1,0 +1,97 @@
+                                                 descriptor.version, 0);
+    require(recipe.has_value(), "representative recipe exists");
+    auto materialized =
+        materialize_qualification_case<double, std::uint32_t>(recipe.value());
+    require(materialized.has_value(), "representative recipe materializes");
+    require(strict_valid(materialized.value().first) ==
+                recipe.value().expectation.strict_operand_a_expected_valid,
+            "operand A strict-validity expectation is executable");
+    require(strict_valid(materialized.value().second) ==
+                recipe.value().expectation.strict_operand_b_expected_valid,
+            "operand B strict-validity expectation is executable");
+  }
+}
+
+void valid_and_invalid_fuzz_contracts() {
+  for (unsigned raw = 0;
+       raw < static_cast<unsigned>(qualification_valid_mutation::count); ++raw) {
+    const auto mutation = static_cast<qualification_valid_mutation>(raw);
+    auto first = make_qualification_valid_fuzz_case(mutation, 0x12340000U + raw);
+    auto replay = make_qualification_valid_fuzz_case(mutation, 0x12340000U + raw);
+    require(first.has_value() && replay.has_value() &&
+                first.value().case_digest == replay.value().case_digest,
+            "valid fuzz construction is deterministic");
+    require(first.value().expectation.strict_operand_a_expected_valid &&
+                first.value().expectation.strict_operand_b_expected_valid &&
+                first.value().expectation.defect ==
+                    qualification_defect_label::none,
+            "valid fuzz families do not smuggle preparation defects");
+  }
+
+  for (unsigned raw = 1;
+       raw < static_cast<unsigned>(qualification_defect_label::count); ++raw) {
+    const auto defect = static_cast<qualification_defect_label>(raw);
+    auto recipe = make_qualification_invalid_fuzz_case(defect, 0x98760000U + raw);
+    require(recipe.has_value() && recipe.value().expectation.defect == defect &&
+                recipe.value().expectation.normalization_report_required,
+            "invalid fuzz case retains its exact controlled defect label");
+
+    qualification_preparation_observation observation;
+    observation.strict_operand_a_valid =
+        recipe.value().expectation.strict_operand_a_expected_valid;
+    observation.strict_operand_b_valid =
+        recipe.value().expectation.strict_operand_b_expected_valid;
+    observation.normalization_attempted = true;
+    observation.normalization_succeeded =
+        defect != qualification_defect_label::overlapping_shells &&
+        defect != qualification_defect_label::self_intersection;
+    observation.reported_defect = defect;
+    observation.normalization_edit_count =
+        observation.normalization_succeeded ? 1 : 0;
+    observation.normalization_report_digest = observation_digest(recipe.value());
+    observation.prepared_operand_strictly_valid =
+        observation.normalization_succeeded;
+    require(validate_qualification_preparation_observation(recipe.value(),
+                                                           observation)
+                .has_value(),
+            "controlled defect observation binds report and strict revalidation");
+
+    auto stale = observation;
+    stale.reported_defect = qualification_defect_label::none;
+    require(!validate_qualification_preparation_observation(recipe.value(), stale)
+                 .has_value(),
+            "mislabeled preparation observations fail closed");
+  }
+}
+
+qualification_chain_step_output<double, std::uint32_t>
+synthetic_success(const fv_surface_mesh<double, std::uint32_t> &first,
+                  const qualification_chain_step_recipe &step,
+                  std::uint64_t call) {
+  qualification_chain_step_output<double, std::uint32_t> output;
+  canonical_encoder encoder;
+  encoder.u64(call);
+  encoder.byte(static_cast<std::uint8_t>(step.selected_operation));
+  output.exact_result_digest =
+      domain_digest({{'Y', 'G', 'B', 'Q', 'S', 'Y', '0', '1'}},
+                    encoder.bytes());
+  output.outcome =
+      step.requested_result == result_representation::certified_approximate_mesh
+          ? qualification_outcome::verified_certified_approximate_success
+          : qualification_outcome::verified_exact_success;
+  if (step.requested_result != result_representation::exact_stratified)
+    output.realized_mesh = first;
+  return output;
+}
+
+void chain_execution_contracts() {
+  const std::array<const char *, 5> chains{{
+      "chain-mixed-csg-reingestion-v1",
+      "chain-cavity-coplanar-v1",
+      "chain-subdivision-association-v1",
+      "chain-explicit-preparation-boundary-v1",
+      "chain-transactional-failure-replay-v1"}};
+  for (const auto *identifier : chains) {
+    auto recipe =
+        make_qualification_operation_chain_recipe(identifier, "1", 0);
+    require(recipe.has_value() && recipe.value().steps.size() >= 5,

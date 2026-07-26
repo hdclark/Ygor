@@ -1,0 +1,101 @@
+            "bound chain recipe has at least five steps");
+    auto replay =
+        make_qualification_operation_chain_recipe(identifier, "1", 0);
+    require(replay.has_value() &&
+                replay.value().chain_digest == recipe.value().chain_digest,
+            "chain definition replays deterministically");
+
+    std::uint64_t calls = 0, reingestions = 0;
+    qualification_chain_step_executor<double, std::uint32_t> executor =
+        [&](const auto &first, const auto &, const auto &step)
+        -> product_status_or<
+            qualification_chain_step_output<double, std::uint32_t>> {
+      ++calls;
+      if (!step.expected_failure_codes.empty())
+        return make_product_error(step.expected_failure_codes.front(),
+                                  "synthetic.expected_failure");
+      return synthetic_success(first, step, calls);
+    };
+    qualification_chain_reingestor<double, std::uint32_t> reingestor =
+        [&](const auto &mesh) -> product_status_or<bool> {
+      ++reingestions;
+      return !mesh.vertices.empty() && !mesh.faces.empty();
+    };
+    auto executed = execute_qualification_operation_chain(
+        recipe.value(), executor, reingestor);
+    require(executed.has_value() && executed.value().transcript_digest != digest{} &&
+                executed.value().steps.size() == recipe.value().steps.size() &&
+                !executed.value().retained_exact_results.empty(),
+            "chain harness retains exact results and complete transcript");
+    require(reingestions != 0,
+            "successful mesh results and legal subdivisions are re-ingested");
+    if (std::string(identifier) ==
+        "chain-transactional-failure-replay-v1") {
+      const auto failure = std::find_if(
+          executed.value().steps.begin(), executed.value().steps.end(),
+          [](const auto &record) { return record.failure_code.has_value(); });
+      require(failure != executed.value().steps.end() &&
+                  failure->state_unchanged_after_failure,
+              "expected chain failure preserves the prior accumulator");
+    }
+  }
+}
+
+void minimization_and_promotion_contracts() {
+  auto source = make_qualification_invalid_fuzz_case(
+      qualification_defect_label::duplicate_facet, 77);
+  require(source.has_value(), "minimization source exists");
+  qualification_failure_provenance provenance;
+  provenance.operand_b_faces = {0};
+  provenance.operand_b_vertices = {0};
+  auto bound = make_qualification_failure_provenance(std::move(provenance));
+  require(bound.has_value(), "failure provenance canonicalizes");
+  const auto reproduces = [](const qualification_case_recipe &candidate) {
+    if (candidate.expectation.defect !=
+        qualification_defect_label::duplicate_facet)
+      return false;
+    const auto &faces = candidate.operand_b.faces;
+    for (std::size_t i = 0; i != faces.size(); ++i)
+      for (std::size_t j = i + 1; j != faces.size(); ++j)
+        if (faces[i] == faces[j])
+          return true;
+    return false;
+  };
+  auto first = minimize_qualification_case(source.value(), bound.value(),
+                                           reproduces, 256);
+  auto replay = minimize_qualification_case(source.value(), bound.value(),
+                                            reproduces, 256);
+  require(first.has_value() && replay.has_value() &&
+              first.value().transcript_digest == replay.value().transcript_digest &&
+              first.value().minimized.case_digest ==
+                  replay.value().minimized.case_digest,
+          "provenance-guided minimization is deterministic");
+  require(first.value().attempts != 0 && !first.value().edits.empty(),
+          "minimizer records attempted and accepted edits");
+
+  auto promotion = make_qualification_regression_promotion(first.value());
+  require(promotion.has_value() && promotion.value().artifact_digest != digest{} &&
+              !promotion.value().canonical_case_bytes.empty(),
+          "minimized failure emits a permanent-regression promotion artifact");
+  std::uint64_t sink_calls = 0;
+  qualification_regression_sink sink =
+      [&](const qualification_regression_promotion &) -> product_status_or<bool> {
+    ++sink_calls;
+    return true;
+  };
+  require(promote_qualification_regression(promotion.value(), sink).has_value() &&
+              sink_calls == 1,
+          "validated promotion is published atomically through the sink");
+  auto stale = promotion.value();
+  stale.artifact_digest.bytes[0] ^= 1U;
+  require(!promote_qualification_regression(stale, sink).has_value() &&
+              sink_calls == 1,
+          "stale promotion artifacts fail before reaching the sink");
+}
+
+void fail_closed_contracts() {
+  auto recipe = make_qualification_case_recipe(
+      "exact-profile-extrusion-concave-v1", "1", 0);
+  require(recipe.has_value(), "fail-closed source exists");
+  auto stale = recipe.value();
+  stale.ordinal = 1200;

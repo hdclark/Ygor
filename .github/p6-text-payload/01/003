@@ -1,0 +1,114 @@
+    value.vertices[value.faces[1][0]].coordinate[2].value =
+        value.vertices[value.faces[1][0]].coordinate[2].value + rational(1, 3);
+    return;
+  case qualification_defect_label::overlapping_shells: {
+    auto second = value;
+    translate(second, rational(1, 2), rational(1, 2), rational(1, 2));
+    append_mesh(value, second);
+    return;
+  }
+  case qualification_defect_label::sliver_feature:
+    value = make_box(exact_rational(0), exact_rational(4), exact_rational(0),
+                     rational(1, 20), exact_rational(0), exact_rational(2));
+    return;
+  case qualification_defect_label::self_intersection: {
+    auto second = make_box(exact_rational(1), exact_rational(3),
+                           exact_rational(-1), exact_rational(1),
+                           exact_rational(1), exact_rational(3));
+    append_mesh(value, second);
+    return;
+  }
+  case qualification_defect_label::count:
+    break;
+  }
+  throw std::logic_error("unknown qualification defect");
+}
+
+void encode_coordinate(canonical_encoder &encoder,
+                       const qualification_recipe_coordinate &value) {
+  value.value.encode(encoder);
+  encoder.boolean(value.negative_zero);
+}
+
+void encode_mesh(canonical_encoder &encoder, const mesh &value) {
+  encoder.u64(value.vertices.size());
+  for (const auto &point : value.vertices)
+    for (const auto &axis : point.coordinate)
+      encode_coordinate(encoder, axis);
+  encoder.u64(value.faces.size());
+  for (const auto &face : value.faces) {
+    encoder.u64(face.size());
+    for (const auto index : face)
+      encoder.u64(index);
+  }
+}
+
+void encode_halfspace(canonical_encoder &encoder,
+                      const qualification_exact_halfspace &value) {
+  value.a.encode(encoder);
+  value.b.encode(encoder);
+  value.c.encode(encoder);
+  value.d.encode(encoder);
+}
+
+void encode_case_without_digest(canonical_encoder &encoder,
+                                const qualification_case_recipe &value) {
+  encoder.u16(value.schema);
+  encoder.string(value.recipe_identifier);
+  encoder.string(value.recipe_version);
+  encoder.raw(value.recipe_digest.bytes.data(), value.recipe_digest.bytes.size());
+  encoder.byte(static_cast<std::uint8_t>(value.family));
+  encoder.byte(static_cast<std::uint8_t>(value.construction));
+  encoder.u64(value.ordinal);
+  encoder.u64(value.deterministic_seed);
+  encoder.byte(static_cast<std::uint8_t>(value.derivation));
+  encoder.boolean(static_cast<bool>(value.valid_mutation));
+  if (value.valid_mutation)
+    encoder.byte(static_cast<std::uint8_t>(*value.valid_mutation));
+  encoder.raw(value.parent_case_digest.bytes.data(),
+              value.parent_case_digest.bytes.size());
+  encoder.u64(value.retained_parameters.size());
+  for (const auto parameter : value.retained_parameters)
+    encoder.signed_magnitude(parameter);
+  encoder.u64(value.geometry_categories.size());
+  for (const auto item : value.geometry_categories)
+    encoder.byte(static_cast<std::uint8_t>(item));
+  encode_mesh(encoder, value.operand_a);
+  encode_mesh(encoder, value.operand_b);
+  encoder.u64(value.operand_a_halfspaces.size());
+  for (const auto &halfspace : value.operand_a_halfspaces)
+    encode_halfspace(encoder, halfspace);
+  encoder.u64(value.operand_b_halfspaces.size());
+  for (const auto &halfspace : value.operand_b_halfspaces)
+    encode_halfspace(encoder, halfspace);
+  encoder.byte(static_cast<std::uint8_t>(value.expectation.relation));
+  encoder.byte(static_cast<std::uint8_t>(value.expectation.defect));
+  encoder.u64(value.expectation.allowed_outcomes.size());
+  for (const auto outcome : value.expectation.allowed_outcomes)
+    encoder.byte(static_cast<std::uint8_t>(outcome));
+  encoder.u64(value.expectation.allowed_failure_codes.size());
+  for (const auto code : value.expectation.allowed_failure_codes)
+    encoder.u16(static_cast<std::uint16_t>(code));
+  encoder.boolean(value.expectation.strict_operand_a_expected_valid);
+  encoder.boolean(value.expectation.strict_operand_b_expected_valid);
+  encoder.boolean(value.expectation.normalization_report_required);
+}
+
+void encode_step(canonical_encoder &encoder,
+                 const qualification_chain_step_recipe &step) {
+  encoder.byte(static_cast<std::uint8_t>(step.selected_operation));
+  encoder.byte(static_cast<std::uint8_t>(step.operand_order));
+  encoder.byte(static_cast<std::uint8_t>(step.preparation));
+  encoder.byte(static_cast<std::uint8_t>(step.requested_result));
+  encode_case_without_digest(encoder, step.rhs_case);
+  encoder.raw(step.rhs_case.case_digest.bytes.data(),
+              step.rhs_case.case_digest.bytes.size());
+  encoder.boolean(step.rhs_uses_operand_b);
+  encoder.boolean(step.subdivide_accumulator_before_step);
+  encoder.boolean(step.continue_after_expected_failure);
+  encoder.boolean(step.continue_with_prior_mesh_when_unrealized);
+  encoder.u64(step.expected_failure_codes.size());
+  for (const auto code : step.expected_failure_codes)
+    encoder.u16(static_cast<std::uint16_t>(code));
+}
+

@@ -1,0 +1,91 @@
+                              "qualification_generator.unknown_failure_code");
+  std::sort(codes.begin(), codes.end(),
+            [](auto a, auto b) { return ordinal(a) < ordinal(b); });
+  if (std::adjacent_find(codes.begin(), codes.end()) != codes.end())
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.case_failure_codes");
+  const bool expects_failure =
+      std::find(outcomes.begin(), outcomes.end(),
+                qualification_outcome::expected_typed_failure) != outcomes.end();
+  if (expects_failure != !codes.empty())
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.case_failure_binding");
+  if (value.expectation.defect != qualification_defect_label::none &&
+      !value.expectation.normalization_report_required)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.defect_report_binding");
+  if (value.construction ==
+      qualification_construction_kind::exact_halfspace_polytope) {
+    if (value.operand_a_halfspaces.size() < 4 ||
+        value.operand_b_halfspaces.size() < 4 ||
+        !halfspace_system_binds_mesh(value.operand_a,
+                                     value.operand_a_halfspaces) ||
+        !halfspace_system_binds_mesh(value.operand_b,
+                                     value.operand_b_halfspaces))
+      return generation_error(
+          product_error_code::qualification_policy_violation,
+          "qualification_generator.halfspace_recipe_missing_or_stale");
+  } else if (!value.operand_a_halfspaces.empty() ||
+             !value.operand_b_halfspaces.empty()) {
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_generator.unexpected_halfspaces");
+  }
+
+  if (value.derivation == qualification_recipe_derivation::inventory_ordinal) {
+    auto expected = generate_case(descriptor.value(), value.ordinal);
+    canonical_encoder expected_encoder, supplied_encoder;
+    encode_case_without_digest(expected_encoder, expected);
+    encode_case_without_digest(supplied_encoder, value);
+    if (expected_encoder.bytes() != supplied_encoder.bytes())
+      return generation_error(product_error_code::stale_binding,
+                              "qualification_generator.ordinal_mapping_changed");
+  }
+
+  canonical_encoder encoder;
+  encode_case_without_digest(encoder, value);
+  const auto computed = domain_digest(case_tag, encoder.bytes());
+  if (value.case_digest != digest{} && value.case_digest != computed)
+    return generation_error(product_error_code::stale_binding,
+                            "qualification_generator.stale_case_digest");
+  value.case_digest = computed;
+  return value;
+}
+
+product_status_or<qualification_operation_chain_recipe>
+canonicalize_qualification_chain(qualification_operation_chain_recipe value) {
+  if (value.schema != qualification_generation_schema_version ||
+      !text(value.identifier) || !text(value.version) ||
+      value.definition_digest == digest{})
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_chain.contract");
+  const auto *literal = find_chain_literal(value.identifier, value.version);
+  if (!literal || value.definition_digest != digest_literal(literal->digest_hex) ||
+      value.ordinal >= literal->count ||
+      value.steps.size() < literal->minimum_steps ||
+      value.steps.size() > literal->maximum_steps)
+    return generation_error(product_error_code::stale_binding,
+                            "qualification_chain.definition_binding");
+  auto initial = canonicalize_qualification_case(std::move(value.initial_case));
+  if (!initial.has_value())
+    return initial.error();
+  value.initial_case = std::move(initial.value());
+  bool saw_normalized_boundary = false;
+  bool saw_subdivision = false;
+  bool saw_expected_failure = false;
+  for (auto &step : value.steps) {
+    if (static_cast<unsigned>(step.selected_operation) >
+            static_cast<unsigned>(operation::symmetric_difference) ||
+        static_cast<unsigned>(step.operand_order) >
+            static_cast<unsigned>(qualification_operand_order::b_then_a) ||
+        static_cast<unsigned>(step.preparation) >
+            static_cast<unsigned>(preparation_mode::normalized) ||
+        static_cast<unsigned>(step.requested_result) >
+            static_cast<unsigned>(
+                result_representation::certified_approximate_mesh))
+      return generation_error(product_error_code::qualification_policy_violation,
+                              "qualification_chain.unknown_step_enum");
+    auto rhs = canonicalize_qualification_case(std::move(step.rhs_case));
+    if (!rhs.has_value())
+      return rhs.error();
+    step.rhs_case = std::move(rhs.value());
+    std::sort(step.expected_failure_codes.begin(),

@@ -1,0 +1,103 @@
+              step.expected_failure_codes.end(),
+              [](auto a, auto b) { return ordinal(a) < ordinal(b); });
+    if (std::adjacent_find(step.expected_failure_codes.begin(),
+                           step.expected_failure_codes.end()) !=
+        step.expected_failure_codes.end())
+      return generation_error(product_error_code::qualification_policy_violation,
+                              "qualification_chain.duplicate_expected_failure");
+    for (const auto code : step.expected_failure_codes)
+      if (ordinal(code) > ordinal(product_error_code::verifier_disagreement))
+        return generation_error(product_error_code::qualification_policy_violation,
+                                "qualification_chain.unknown_expected_failure");
+    if (step.continue_after_expected_failure !=
+        !step.expected_failure_codes.empty())
+      return generation_error(product_error_code::qualification_policy_violation,
+                              "qualification_chain.failure_continuation_binding");
+    saw_normalized_boundary =
+        saw_normalized_boundary || step.preparation == preparation_mode::normalized;
+    saw_subdivision =
+        saw_subdivision || step.subdivide_accumulator_before_step;
+    saw_expected_failure =
+        saw_expected_failure || !step.expected_failure_codes.empty();
+  }
+  const bool subdivision_family =
+      value.identifier == "chain-subdivision-association-v1";
+  const bool preparation_family =
+      value.identifier == "chain-explicit-preparation-boundary-v1";
+  const bool transactional_family =
+      value.identifier == "chain-transactional-failure-replay-v1";
+  if (saw_subdivision != subdivision_family)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_chain.subdivision_family_binding");
+  if (saw_normalized_boundary != preparation_family)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_chain.preparation_family_binding");
+  if (saw_expected_failure != transactional_family)
+    return generation_error(product_error_code::qualification_policy_violation,
+                            "qualification_chain.transaction_family_binding");
+  canonical_encoder encoder;
+  encode_chain_without_digest(encoder, value);
+  const auto computed = domain_digest(chain_tag, encoder.bytes());
+  if (value.chain_digest != digest{} && value.chain_digest != computed)
+    return generation_error(product_error_code::stale_binding,
+                            "qualification_chain.stale_digest");
+  value.chain_digest = computed;
+  return value;
+}
+
+} // namespace qualification_generation_detail
+
+const char *qualification_generator_family_token(
+    qualification_generator_family value) noexcept {
+  static const char *const names[] = {
+      "exact_halfspace_skew_convex",
+      "exact_profile_extrusion_concave",
+      "exact_coplanar_overlay",
+      "exact_nested_shell_cavity",
+      "exact_feature_alignment_contact",
+      "exact_subdivision_refinement",
+      "exact_representable_scale_bits",
+      "exact_nondyadic_intersection",
+      "exact_thin_sliver_dense",
+      "exact_capacity_replay_boundary",
+      "cadlike_profile_extruded_part",
+      "cadlike_multibody_cavity",
+      "cadlike_thin_feature",
+      "cadlike_dense_tessellation",
+      "cadlike_attribute_seam_conflict",
+      "cadlike_controlled_defect"};
+  const auto index = ordinal(value);
+  return index < ordinal(qualification_generator_family::count) ? names[index]
+                                                                : "invalid";
+}
+
+const char *qualification_defect_label_token(
+    qualification_defect_label value) noexcept {
+  static const char *const names[] = {
+      "none",          "duplicate_vertex_use", "duplicate_facet",
+      "inconsistent_orientation", "open_crack", "nonplanar_facet",
+      "overlapping_shells", "sliver_feature", "self_intersection"};
+  const auto index = static_cast<unsigned>(value);
+  return index < static_cast<unsigned>(qualification_defect_label::count)
+             ? names[index]
+             : "invalid";
+}
+
+std::vector<qualification_generator_descriptor>
+qualification_generator_descriptors() {
+  std::vector<qualification_generator_descriptor> result;
+  result.reserve(sizeof(descriptor_literals) / sizeof(descriptor_literals[0]));
+  for (const auto &literal : descriptor_literals)
+    result.push_back(make_descriptor(literal));
+  return result;
+}
+
+product_status_or<qualification_generator_descriptor>
+find_qualification_generator_descriptor(const std::string &identifier,
+                                        const std::string &version) noexcept {
+  try {
+    for (const auto &descriptor : qualification_generator_descriptors())
+      if (descriptor.identifier == identifier && descriptor.version == version)
+        return descriptor;
+    return qualification_generation_detail::generation_error(
+        product_error_code::qualification_policy_violation,

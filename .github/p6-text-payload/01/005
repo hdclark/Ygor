@@ -1,0 +1,91 @@
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::high_valence_contact, category::stratified_non_manifold}},
+    {qualification_generator_family::exact_subdivision_refinement,
+     "exact-subdivision-refinement-v1", "1",
+     "08edad523d5fde8552920539c224731f", 1000,
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::alternate_subdivision, category::non_box_intersection}},
+    {qualification_generator_family::exact_representable_scale_bits,
+     "exact-representable-scale-bits-v1", "1",
+     "e928e18eb26b0ff5a109685974f4cb5e", 1000,
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::scale_extremes, category::floating_point_edge_cases}},
+    {qualification_generator_family::exact_nondyadic_intersection,
+     "exact-nondyadic-intersection-v1", "1",
+     "ec1389ba5785ef23f1066c047bb61849", 1000,
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::non_dyadic_intersection, category::non_box_intersection}},
+    {qualification_generator_family::exact_thin_sliver_dense,
+     "exact-thin-sliver-dense-v1", "1",
+     "11eae083454697569694bcc7a8350f55", 900,
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::thin_sliver_or_dense, category::concave_or_reentrant}},
+    {qualification_generator_family::exact_capacity_replay_boundary,
+     "exact-capacity-replay-boundary-v1", "1",
+     "06656e582e690e1091abe157c504fe53", 800,
+     qualification_corpus_record_kind::generated_pair_family,
+     {category::index_or_resource_boundary, category::serialization_or_replay}},
+    {qualification_generator_family::cadlike_profile_extruded_part,
+     "cadlike-profile-extruded-part-v1", "1",
+     "174e8a446c3b174f5177157fe8314d28", 300,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::non_box_intersection, category::concave_or_reentrant}},
+    {qualification_generator_family::cadlike_multibody_cavity,
+     "cadlike-multibody-cavity-v1", "1",
+     "f765134caebfab38ab52480af27d0c6a", 250,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::disconnected_components, category::nested_shells_or_cavities}},
+    {qualification_generator_family::cadlike_thin_feature,
+     "cadlike-thin-feature-v1", "1",
+     "77efe00de7026e051cde922261d4ca5f", 200,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::thin_sliver_or_dense, category::scale_extremes}},
+    {qualification_generator_family::cadlike_dense_tessellation,
+     "cadlike-dense-tessellation-v1", "1",
+     "130464771bcadc47438af9dcd52dea36", 150,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::alternate_subdivision, category::high_valence_contact}},
+    {qualification_generator_family::cadlike_attribute_seam_conflict,
+     "cadlike-attribute-seam-conflict-v1", "1",
+     "e129028a79dbb791fb7f9bd2a3fba246", 100,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::attribute_or_provenance_conflict, category::coplanar_overlay}},
+    {qualification_generator_family::cadlike_controlled_defect,
+     "cadlike-controlled-defect-v1", "1",
+     "e6ae7e6b9a6cb659ade44995dcd7f191", 100,
+     qualification_corpus_record_kind::cad_like_pair_family,
+     {category::normalization_defect, category::floating_point_edge_cases}}};
+
+qualification_generator_descriptor make_descriptor(const descriptor_literal &literal) {
+  qualification_generator_descriptor result;
+  result.family = literal.family;
+  result.identifier = literal.identifier;
+  result.version = literal.version;
+  result.recipe_digest = digest_literal(literal.digest_hex);
+  result.case_count = literal.count;
+  result.corpus_kind = literal.kind;
+  result.geometry_categories.assign(literal.categories.begin(),
+                                    literal.categories.end());
+  std::sort(result.geometry_categories.begin(), result.geometry_categories.end(),
+            [](category a, category b) { return ordinal(a) < ordinal(b); });
+  canonical_encoder encoder;
+  encoder.u16(result.schema);
+  encoder.byte(static_cast<std::uint8_t>(result.family));
+  encoder.string(result.identifier);
+  encoder.string(result.version);
+  encoder.raw(result.recipe_digest.bytes.data(), result.recipe_digest.bytes.size());
+  encoder.u64(result.first_case_ordinal);
+  encoder.u64(result.case_count);
+  encoder.byte(static_cast<std::uint8_t>(result.corpus_kind));
+  encoder.u32(qualification_generator_algorithm_version);
+  encoder.u64(result.geometry_categories.size());
+  for (const auto item : result.geometry_categories)
+    encoder.byte(static_cast<std::uint8_t>(item));
+  result.implementation_digest = domain_digest(descriptor_tag, encoder.bytes());
+  return result;
+}
+
+qualification_case_recipe generate_case(
+    const qualification_generator_descriptor &descriptor, std::uint64_t ordinal_value) {
+  qualification_case_recipe result;
+  result.recipe_identifier = descriptor.identifier;

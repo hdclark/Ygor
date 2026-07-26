@@ -1,0 +1,61 @@
+add_boolean_component_test(Test_MeshesBooleanGlobalArrangementProperties MeshBooleanGlobalArrangement.Properties "mesh_boolean;component8")
+add_boolean_component_test(Test_MeshesBooleanCellClassification MeshBooleanCellClassification.Unit "mesh_boolean;component9")
+add_boolean_component_test(Test_MeshesBooleanCellClassificationProperties MeshBooleanCellClassification.Properties "mesh_boolean;component9")
+add_boolean_component_test(Test_MeshesBooleanCellClassificationAdversarial MeshBooleanCellClassification.Adversarial "mesh_boolean;component9;adversarial")
+add_boolean_component_test(Test_MeshesBooleanSelection MeshBooleanSelection.Unit "mesh_boolean;component10")
+add_boolean_component_test(Test_MeshesBooleanSelectionProperties MeshBooleanSelection.Properties "mesh_boolean;component10")
+add_boolean_component_test(Test_MeshesBooleanSelectionAdversarial MeshBooleanSelection.Adversarial "mesh_boolean;component10;adversarial")
+add_boolean_component_test(Test_MeshesBooleanExactResult MeshBooleanExactResult.Unit "mesh_boolean;component10;component11;component12;component13;p1;p3;p3.2;continuous")
+add_boolean_component_test(Test_MeshesBooleanBackend MeshBooleanBackend.Unit "mesh_boolean;component1;component10;component13;p4;continuous")
+add_boolean_component_test(Test_MeshesBooleanRealization MeshBooleanRealization.Unit "mesh_boolean;component11")
+add_boolean_component_test(Test_MeshesBooleanRealizationProperties MeshBooleanRealization.Properties "mesh_boolean;component11")
+add_boolean_component_test(Test_MeshesBooleanApproximate MeshBooleanApproximate.Adversarial "mesh_boolean;component11;component13;p3;p3.3;adversarial;continuous")
+add_boolean_component_test(Test_MeshesBooleanAttributes MeshBooleanAttributes.Unit "mesh_boolean;component1;component10;component12;component13;p5;p5.1;continuous")
+add_boolean_component_test(Test_MeshesBooleanService MeshBooleanService.Unit "mesh_boolean;component1;component2;component10;component12;component13;p5;p5.2;continuous")
+add_boolean_component_test(Test_MeshesBooleanQualificationSchemas MeshBooleanQualificationSchemas.Unit "mesh_boolean;component1;component14;p6;p6.1;continuous")
+add_executable(Test_MeshesBooleanApproximateFixtureGenerator
+    Test_MeshesBooleanApproximateFixtureGenerator.cc)
+target_link_libraries(Test_MeshesBooleanApproximateFixtureGenerator PRIVATE
+    mesh_boolean_test_support)
+mesh_boolean_strict_fp(Test_MeshesBooleanApproximateFixtureGenerator)
+set(approximate_isolation_fixture
+    "${CMAKE_CURRENT_BINARY_DIR}/approximate-isolation-fixture.bin")
+add_test(NAME MeshBooleanApproximate.VerifierIsolationFixture
+    COMMAND Test_MeshesBooleanApproximateFixtureGenerator
+            "${approximate_isolation_fixture}")
+set_tests_properties(MeshBooleanApproximate.VerifierIsolationFixture PROPERTIES
+    FIXTURES_SETUP ApproximateVerifierFixture
+    TIMEOUT 60
+    LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
+add_executable(Test_MeshesBooleanApproximateVerifierIsolation
+    Test_MeshesBooleanApproximateVerifierIsolation.cc)
+target_include_directories(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE
+    ${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
+target_link_libraries(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE
+    ygor_mesh_boolean_approximate_verifier_isolation)
+target_compile_features(Test_MeshesBooleanApproximateVerifierIsolation PRIVATE cxx_std_17)
+mesh_boolean_strict_fp(Test_MeshesBooleanApproximateVerifierIsolation)
+add_test(NAME MeshBooleanApproximate.VerifierIsolation
+    COMMAND Test_MeshesBooleanApproximateVerifierIsolation
+            "${approximate_isolation_fixture}")
+set_tests_properties(MeshBooleanApproximate.VerifierIsolation PROPERTIES
+    FIXTURES_REQUIRED ApproximateVerifierFixture
+    TIMEOUT 60
+    LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
+add_boolean_component_test(Test_MeshesBooleanOutput MeshBooleanOutput.Unit "mesh_boolean;component12")
+add_boolean_component_test(Test_MeshesBooleanOutputProperties MeshBooleanOutput.Properties "mesh_boolean;component12")
+set_tests_properties(MeshBooleanCellClassification.Adversarial MeshBooleanSelection.Adversarial PROPERTIES TIMEOUT 600)
+
+function(add_component14_test target name labels timeout)
+    add_executable(${target} ${target}.cc)
+    target_link_libraries(${target} PRIVATE mesh_boolean_test_support)
+    target_compile_definitions(${target} PRIVATE
+        YGOR_BOOLEAN_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/mesh_boolean")
+    mesh_boolean_strict_fp(${target})
+    add_test(NAME ${name} COMMAND ${target})
+    set_tests_properties(${name} PROPERTIES
+        TIMEOUT ${timeout}
+        LABELS "mesh_boolean;component14;${labels}"
+        ENVIRONMENT "YGOR_BOOLEAN_TEST_TIER=${YGOR_BOOLEAN_TEST_TIER};YGOR_BOOLEAN_ARTIFACT_DIR=${CMAKE_CURRENT_BINARY_DIR}/mesh_boolean_artifacts")
+endfunction()
+

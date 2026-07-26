@@ -1,0 +1,104 @@
+    return std::adjacent_find(indices.begin(), indices.end()) == indices.end();
+  };
+  if (!canonicalize(value.operand_a_faces) ||
+      !canonicalize(value.operand_b_faces) ||
+      !canonicalize(value.operand_a_vertices) ||
+      !canonicalize(value.operand_b_vertices))
+    return qualification_generation_detail::generation_error(
+        product_error_code::qualification_policy_violation,
+        "qualification_provenance.duplicate_index");
+  canonical_encoder encoder;
+  encoder.u16(value.schema);
+  const auto encode_indices = [&](const std::vector<std::uint64_t> &indices) {
+    encoder.u64(indices.size());
+    for (const auto index : indices)
+      encoder.u64(index);
+  };
+  encode_indices(value.operand_a_faces);
+  encode_indices(value.operand_b_faces);
+  encode_indices(value.operand_a_vertices);
+  encode_indices(value.operand_b_vertices);
+  encoder.boolean(static_cast<bool>(value.chain_step));
+  if (value.chain_step)
+    encoder.u64(*value.chain_step);
+  const auto computed = domain_digest(provenance_tag, encoder.bytes());
+  if (value.evidence_digest != digest{} && value.evidence_digest != computed)
+    return qualification_generation_detail::generation_error(
+        product_error_code::stale_binding,
+        "qualification_provenance.stale_digest");
+  value.evidence_digest = computed;
+  return value;
+}
+
+product_status_or<bool> validate_qualification_failure_provenance(
+    const qualification_failure_provenance &value) noexcept {
+  try {
+    auto made = make_qualification_failure_provenance(value);
+    if (!made.has_value())
+      return made.error();
+    if (made.value().evidence_digest != value.evidence_digest)
+      return qualification_generation_detail::generation_error(
+          product_error_code::stale_binding,
+          "qualification_provenance.not_canonical");
+    return true;
+  } catch (...) {
+    return qualification_generation_detail::generation_error(
+        product_error_code::internal_invariant_error,
+        "qualification_provenance.validation_exception");
+  }
+}
+
+product_status_or<qualification_minimization_result>
+minimize_qualification_case(const qualification_case_recipe &source,
+                            const qualification_failure_provenance &provenance,
+                            const qualification_reproduction_predicate &predicate,
+                            std::uint64_t attempt_limit) {
+  if (!predicate || !attempt_limit)
+    return qualification_generation_detail::generation_error(
+        product_error_code::qualification_policy_violation,
+        "qualification_minimizer.contract");
+  try {
+    auto canonical = qualification_generation_detail::canonicalize_qualification_case(source);
+    if (!canonical.has_value())
+      return canonical.error();
+    if (!predicate(canonical.value()))
+      return qualification_generation_detail::generation_error(
+          product_error_code::qualification_policy_violation,
+          "qualification_minimizer.source_does_not_reproduce");
+    auto canonical_provenance =
+        make_qualification_failure_provenance(provenance);
+    if (!canonical_provenance.has_value())
+      return canonical_provenance.error();
+    const auto &bound_provenance = canonical_provenance.value();
+    auto in_range = [](const std::vector<std::uint64_t> &indices,
+                       std::size_t bound) {
+      return std::all_of(indices.begin(), indices.end(),
+                         [&](std::uint64_t index) { return index < bound; });
+    };
+    if (!in_range(bound_provenance.operand_a_faces,
+                  canonical.value().operand_a.faces.size()) ||
+        !in_range(bound_provenance.operand_b_faces,
+                  canonical.value().operand_b.faces.size()) ||
+        !in_range(bound_provenance.operand_a_vertices,
+                  canonical.value().operand_a.vertices.size()) ||
+        !in_range(bound_provenance.operand_b_vertices,
+                  canonical.value().operand_b.vertices.size()))
+      return qualification_generation_detail::generation_error(
+          product_error_code::qualification_policy_violation,
+          "qualification_minimizer.provenance_index_range");
+
+    qualification_minimization_result result;
+    result.minimized = std::move(canonical.value());
+    auto minimize_mesh_faces = [&](std::uint8_t operand_index) {
+      bool changed = true;
+      while (changed && result.attempts < attempt_limit) {
+        changed = false;
+        const auto &target = operand_index == 0 ? result.minimized.operand_a
+                                                : result.minimized.operand_b;
+        if (target.faces.size() <= 4)
+          break;
+        const auto &protected_faces = operand_index == 0
+                                          ? bound_provenance.operand_a_faces
+                                          : bound_provenance.operand_b_faces;
+        std::vector<std::size_t> removal_order;
+        removal_order.reserve(target.faces.size());
