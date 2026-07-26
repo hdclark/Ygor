@@ -54,42 +54,11 @@ jobs:
           bootstrap = Path('.github/workflows/p6-implementation-bootstrap.yml')
           if bootstrap.exists():
               bootstrap.unlink()
-          Path('.github/workflows/mesh-boolean-p6-workspace.yml').write_text('''name: Mesh Boolean P6 workspace export
-
-on:
-  push:
-    branches:
-      - boolean_symbolic
-
-permissions:
-  contents: write
-
-jobs:
-  export:
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Package exact checkout into committed transport chunks
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f .github/p6-workspace.part-* .github/p6-workspace.sha256
-          tar --exclude=.git --exclude=build --exclude=build-* \\
-              --exclude='.github/p6-workspace.part-*' \\
-              --exclude='.github/p6-workspace.sha256' \\
-              -czf /tmp/ygor-p6-workspace.tar.gz .
-          sha256sum /tmp/ygor-p6-workspace.tar.gz | awk '{print $1}' > .github/p6-workspace.sha256
-          base64 -w 0 /tmp/ygor-p6-workspace.tar.gz | split -b 750000 -d -a 3 - .github/p6-workspace.part-
-          git add .github/p6-workspace.part-* .github/p6-workspace.sha256
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Export PR workspace archive for P6.3'
-          git push origin HEAD:boolean_symbolic
-''')
+          import base64
+          original_workflow = base64.b64decode('bmFtZTogTWVzaCBCb29sZWFuIFA2IHdvcmtzcGFjZSBleHBvcnQKCm9uOgogIHB1c2g6CiAgICBicmFuY2hlczoKICAgICAgLSBib29sZWFuX3N5bWJvbGljCgpwZXJtaXNzaW9uczoKICBjb250ZW50czogd3JpdGUKCmpvYnM6CiAgZXhwb3J0OgogICAgaWY6IGdpdGh1Yi5hY3RvciAhPSAnZ2l0aHViLWFjdGlvbnNbYm90XScKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHRpbWVvdXQtbWludXRlczogMTUKICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFjdGlvbnMvY2hlY2tvdXRAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgZmV0Y2gtZGVwdGg6IDAKICAgICAgLSBuYW1lOiBQYWNrYWdlIGV4YWN0IGNoZWNrb3V0IGludG8gY29tbWl0dGVkIHRyYW5zcG9ydCBjaHVua3MKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1ldW8gcGlwZWZhaWwKICAgICAgICAgIHJtIC1mIC5naXRodWIvcDYtd29ya3NwYWNlLnBhcnQtKiAuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYKICAgICAgICAgIHRhciAtLWV4Y2x1ZGU9LmdpdCAtLWV4Y2x1ZGU9YnVpbGQgLS1leGNsdWRlPWJ1aWxkLSogXAogICAgICAgICAgICAgIC0tZXhjbHVkZT0nLmdpdGh1Yi9wNi13b3Jrc3BhY2UucGFydC0qJyBcCiAgICAgICAgICAgICAgLS1leGNsdWRlPScuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYnIFwKICAgICAgICAgICAgICAtY3pmIC90bXAveWdvci1wNi13b3Jrc3BhY2UudGFyLmd6IC4KICAgICAgICAgIHNoYTI1NnN1bSAvdG1wL3lnb3ItcDYtd29ya3NwYWNlLnRhci5neiB8IGF3ayAne3ByaW50ICQxfScgPiAuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYKICAgICAgICAgIGJhc2U2NCAtdyAwIC90bXAveWdvci1wNi13b3Jrc3BhY2UudGFyLmd6IHwgc3BsaXQgLWIgNzUwMDAwIC1kIC1hIDMgLSAuZ2l0aHViL3A2LXdvcmtzcGFjZS5wYXJ0LQogICAgICAgICAgZ2l0IGFkZCAuZ2l0aHViL3A2LXdvcmtzcGFjZS5wYXJ0LSogLmdpdGh1Yi9wNi13b3Jrc3BhY2Uuc2hhMjU2CiAgICAgICAgICBnaXQgY29uZmlnIHVzZXIubmFtZSAnZ2l0aHViLWFjdGlvbnNbYm90XScKICAgICAgICAgIGdpdCBjb25maWcgdXNlci5lbWFpbCAnNDE4OTgyODIrZ2l0aHViLWFjdGlvbnNbYm90XUB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20nCiAgICAgICAgICBnaXQgY29tbWl0IC1tICdFeHBvcnQgUFIgd29ya3NwYWNlIGFyY2hpdmUgZm9yIFA2LjMnCiAgICAgICAgICBnaXQgcHVzaCBvcmlnaW4gSEVBRDpib29sZWFuX3N5bWJvbGljCg==')
+          if hashlib.sha1(b'blob ' + str(len(original_workflow)).encode() + b'\0' + original_workflow).hexdigest() != '2d85f76ff7082fa97fa5980520002c9d6c331753':
+              raise SystemExit('original workspace workflow binding mismatch')
+          Path('.github/workflows/mesh-boolean-p6-workspace.yml').write_bytes(original_workflow)
           PY
       - name: Package exact checkout and publish component
         shell: bash
