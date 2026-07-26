@@ -1,0 +1,35 @@
+name: P6.3 temporary workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/p6-debug-export.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git --exclude=build --exclude='build-*' \
+              -czf /tmp/ygor-p63-debug.tar.gz .
+          sha256sum /tmp/ygor-p63-debug.tar.gz > /tmp/ygor-p63-debug.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p63-debug-workspace
+          path: |
+            /tmp/ygor-p63-debug.tar.gz
+            /tmp/ygor-p63-debug.sha256
+          if-no-files-found: error
+          retention-days: 1
