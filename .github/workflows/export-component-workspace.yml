@@ -21,4 +21,5 @@ jobs:
           name: ygor-boolean-symbolic-source
           path: .
           include-hidden-files: true
+          compression-level: 6
           retention-days: 1
