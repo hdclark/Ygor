@@ -144,6 +144,48 @@ feature_relation_status overlay_status(
   return feature_relation_status::not_evaluated;
 }
 
+relation_coplanar_arc_kind verifier_coplanar_arc_kind(
+    coplanar_overlap_arc_kind kind) noexcept {
+  return kind == coplanar_overlap_arc_kind::shared_boundary
+             ? relation_coplanar_arc_kind::shared_boundary
+             : relation_coplanar_arc_kind::interior_boundary;
+}
+
+relation_coplanar_component_kind verifier_coplanar_component_kind(
+    coplanar_overlap_component_kind kind) noexcept {
+  switch (kind) {
+  case coplanar_overlap_component_kind::isolated_point:
+    return relation_coplanar_component_kind::isolated_point;
+  case coplanar_overlap_component_kind::boundary_segment:
+    return relation_coplanar_component_kind::boundary_segment;
+  case coplanar_overlap_component_kind::area_boundary:
+    return relation_coplanar_component_kind::area_boundary;
+  case coplanar_overlap_component_kind::coincident_sheet_boundary:
+    return relation_coplanar_component_kind::coincident_sheet_boundary;
+  }
+  return relation_coplanar_component_kind::isolated_point;
+}
+
+relation_request_key verifier_derived_key(const relation_request_key &base,
+                                          relation_request_family family,
+                                          std::uint64_t directed_use,
+                                          std::uint32_t occurrence) noexcept {
+  relation_request_key out = base;
+  out.family = family;
+  out.directed_use = directed_use;
+  out.occurrence_discriminator = occurrence;
+  out.formula_version = contract_versions::exact_relation_formulas;
+  out.policy_version = contract_versions::relation_request_key_schema;
+  out.reserved = 0;
+  return out;
+}
+
+std::uint64_t verifier_tagged_use(std::uint8_t domain,
+                                  std::uint8_t category = 0) noexcept {
+  return (static_cast<std::uint64_t>(domain) << 56U) |
+         (static_cast<std::uint64_t>(category) << 48U);
+}
+
 template <class T>
 bool finite_construction_component(const relation_construction_record &record,
                                    std::size_t component) noexcept {
@@ -525,6 +567,40 @@ bool verify_signed_feature_relations(
           error))
     return false;
 
+  struct verifier_overlay_descriptor final {
+    relation_request_key key{};
+    std::size_t ordinal = 0;
+  };
+  std::vector<verifier_overlay_descriptor> overlay_descriptors;
+  overlay_descriptors.reserve(artifact.coplanar_overlay_stage_->overlays.size());
+  if (artifact.coplanar_overlay_stage_->links.size() !=
+      artifact.coplanar_overlay_stage_->overlays.size())
+    return fail(relation_subcode::coplanar_overlay_invariant,
+                "Component 07 coplanar overlay links are incomplete");
+  for (std::size_t i = 0;
+       i < artifact.coplanar_overlay_stage_->overlays.size(); ++i) {
+    const auto &link = artifact.coplanar_overlay_stage_->links[i];
+    if (link.overlay_ordinal != i || link.reserved != 0 ||
+        link.support_relation.ordinal() >=
+            artifact.source_facet_stage_->request_graph.requests.size())
+      return fail(relation_subcode::coplanar_overlay_dependency_missing,
+                  "Component 07 coplanar overlay support link is malformed");
+    auto key = artifact.source_facet_stage_->request_graph
+                   .requests[link.support_relation.ordinal()]
+                   .key;
+    key.family = relation_request_family::coplanar_source_facet_overlay;
+    key.directed_use = 0;
+    key.occurrence_discriminator = 0;
+    overlay_descriptors.push_back({key, i});
+  }
+  std::sort(overlay_descriptors.begin(), overlay_descriptors.end(),
+            [](const verifier_overlay_descriptor &a,
+               const verifier_overlay_descriptor &b) { return a.key < b.key; });
+  for (std::size_t i = 1; i < overlay_descriptors.size(); ++i)
+    if (overlay_descriptors[i - 1].key == overlay_descriptors[i].key)
+      return fail(relation_subcode::duplicate_authoritative_producer,
+                  "Component 07 coplanar overlay key is duplicated");
+
   const std::size_t expected_relations =
       artifact.source_edge_stage_->relations.size() +
       artifact.source_edge_facet_stage_->relations.size() +
@@ -602,19 +678,17 @@ bool verify_signed_feature_relations(
       break;
     }
     case relation_request_family::coplanar_source_facet_overlay: {
-      const source_facet_coplanar_overlay_record<T> *source = nullptr;
-      for (const auto &overlay : artifact.coplanar_overlay_stage_->overlays)
-        if (overlay.facets[0].feature == producer.key.first &&
-            overlay.facets[1].feature == producer.key.second) {
-          if (source)
-            return fail(relation_subcode::duplicate_authoritative_producer,
-                        "Component 07 overlay producer is ambiguous");
-          source = &overlay;
-        }
-      if (!source)
+      const auto descriptor = std::lower_bound(
+          overlay_descriptors.begin(), overlay_descriptors.end(), producer.key,
+          [](const verifier_overlay_descriptor &candidate,
+             const relation_request_key &key) { return candidate.key < key; });
+      if (descriptor == overlay_descriptors.end() ||
+          !(descriptor->key == producer.key))
         return fail(relation_subcode::missing_dependency,
-                    "Component 07 overlay relation does not map to its detailed producer");
-      expected = overlay_status(source->classification);
+                    "Component 07 overlay relation does not map to its exact support lineage");
+      const auto &source =
+          artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
+      expected = overlay_status(source.classification);
       if (record.family != feature_relation_family::source_facet_source_facet)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 overlay relation family mismatch");
@@ -649,6 +723,8 @@ bool verify_signed_feature_relations(
   if (artifact.constructions_.size() != expected_constructions)
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 authoritative construction table is incomplete");
+  std::map<relation_request_key, relation_construction_id>
+      construction_by_key;
   for (std::size_t i = 0; i < artifact.constructions_.size(); ++i) {
     const auto &record = artifact.constructions_[i];
     if (record.id.ordinal() != i ||
@@ -666,7 +742,183 @@ bool verify_signed_feature_relations(
       if (!finite_construction_component<T>(record, component))
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 construction enclosure is not finite and ordered");
+    const auto &producer =
+        artifact.request_graph_.requests[record.producer.ordinal()];
+    if (!construction_by_key.emplace(producer.key, record.id).second)
+      return fail(relation_subcode::duplicate_authoritative_producer,
+                  "Component 07 construction producer is duplicated");
   }
+
+  std::size_t expected_node = 0;
+  std::size_t expected_arc = 0;
+  std::size_t expected_component = 0;
+  for (const auto &descriptor : overlay_descriptors) {
+    const auto relation = relation_by_key.find(descriptor.key);
+    if (relation == relation_by_key.end())
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 coplanar final relation is absent");
+    const auto &source =
+        artifact.coplanar_overlay_stage_->overlays[descriptor.ordinal];
+    if (!source.complete_event_lineage ||
+        !source.complete_authorized_arc_coverage ||
+        !source.complete_overlap_component_assembly)
+      return fail(relation_subcode::coplanar_overlay_invariant,
+                  "Component 07 coplanar predecessor topology is incomplete");
+    const auto node_begin = expected_node;
+    const auto arc_begin = expected_arc;
+
+    for (std::size_t local = 0; local < source.event_nodes.size(); ++local) {
+      if (expected_node >= artifact.coplanar_event_nodes_.size() ||
+          local > std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar event-node table is incomplete");
+      const auto &expected = source.event_nodes[local];
+      const auto &record = artifact.coplanar_event_nodes_[expected_node];
+      const auto construction_key = verifier_derived_key(
+          descriptor.key, relation_request_family::authoritative_construction,
+          verifier_tagged_use(10, 4), static_cast<std::uint32_t>(local));
+      const auto construction = construction_by_key.find(construction_key);
+      if (expected.id != local || construction == construction_by_key.end() ||
+          record.id.ordinal() != expected_node ||
+          record.overlay_relation != relation->second ||
+          record.representative != construction->second ||
+          record.occurrences.size() != expected.occurrences.size() ||
+          record.distinct_sheet_occurrences !=
+              source.distinct_sheet_occurrences ||
+          record.reserved16 != 0 || record.reserved32 != 0)
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar event node does not reconstruct");
+      std::uint8_t sheet_mask = 0;
+      for (std::size_t occurrence = 0;
+           occurrence < expected.occurrences.size(); ++occurrence) {
+        const auto &a = expected.occurrences[occurrence];
+        const auto &b = record.occurrences[occurrence];
+        if (a.polygon > 1 || b.polygon != a.polygon ||
+            b.edge_ordinal != a.edge_ordinal ||
+            b.breakpoint_ordinal != a.breakpoint_ordinal ||
+            b.query_source_vertex_valid != a.query_source_vertex_valid ||
+            b.query_source_vertex != a.query_source_vertex ||
+            b.event_lineages.size() != a.event_lineages.size() ||
+            b.reserved8 != 0 || b.reserved16 != 0 || b.reserved32 != 0)
+          return fail(relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 final coplanar node occurrence does not reconstruct");
+        sheet_mask = static_cast<std::uint8_t>(
+            sheet_mask | (std::uint8_t{1} << a.polygon));
+        for (std::size_t lineage = 0; lineage < a.event_lineages.size();
+             ++lineage) {
+          const auto &x = a.event_lineages[lineage];
+          const auto &y = b.event_lineages[lineage];
+          if (y.contact_lineage != x.contact_lineage ||
+              y.endpoint_role != x.endpoint_role || y.reserved8 != 0 ||
+              y.reserved16 != 0)
+            return fail(relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 final coplanar event lineage does not reconstruct");
+        }
+      }
+      if (record.sheet_mask != sheet_mask)
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar node sheet mask is inconsistent");
+      ++expected_node;
+    }
+
+    for (std::size_t local = 0; local < source.oriented_arcs.size(); ++local) {
+      if (expected_arc >= artifact.coplanar_oriented_arcs_.size())
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar arc table is incomplete");
+      const auto &expected = source.oriented_arcs[local];
+      const auto &record = artifact.coplanar_oriented_arcs_[expected_arc];
+      if (expected.id != local || expected.start_node >= source.event_nodes.size() ||
+          expected.end_node >= source.event_nodes.size() ||
+          record.id.ordinal() != expected_arc ||
+          record.overlay_relation != relation->second ||
+          record.kind != verifier_coplanar_arc_kind(expected.kind) ||
+          record.start_node.ordinal() != node_begin + expected.start_node ||
+          record.end_node.ordinal() != node_begin + expected.end_node ||
+          record.occurrences.size() != expected.occurrences.size() ||
+          record.overlap_lineages.size() != expected.overlap_lineages.size() ||
+          record.reserved8 != 0 || record.reserved16 != 0 ||
+          record.reserved32 != 0)
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar oriented arc does not reconstruct");
+      std::uint8_t sheet_mask = 0;
+      for (std::size_t occurrence = 0;
+           occurrence < expected.occurrences.size(); ++occurrence) {
+        const auto &a = expected.occurrences[occurrence];
+        const auto &b = record.occurrences[occurrence];
+        if (a.polygon > 1 || a.start_node >= source.event_nodes.size() ||
+            a.end_node >= source.event_nodes.size() ||
+            b.polygon != a.polygon || b.edge_ordinal != a.edge_ordinal ||
+            b.interval_ordinal != a.interval_ordinal ||
+            b.start_node.ordinal() != node_begin + a.start_node ||
+            b.end_node.ordinal() != node_begin + a.end_node ||
+            b.forward_along_source_edge != a.forward_along_source_edge ||
+            b.reserved8 != 0 || b.reserved16 != 0 || b.reserved32 != 0)
+          return fail(relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 final coplanar arc occurrence does not reconstruct");
+        sheet_mask = static_cast<std::uint8_t>(
+            sheet_mask | (std::uint8_t{1} << a.polygon));
+      }
+      if (record.sheet_mask != sheet_mask)
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar arc sheet mask is inconsistent");
+      for (std::size_t lineage = 0;
+           lineage < expected.overlap_lineages.size(); ++lineage) {
+        const auto source_id = expected.overlap_lineages[lineage];
+        if (source_id.ordinal() >=
+            artifact.source_edge_stage_->request_graph.requests.size())
+          return fail(relation_subcode::coplanar_overlay_dependency_missing,
+                      "Component 07 coplanar source lineage is out of range");
+        const auto &key = artifact.source_edge_stage_->request_graph
+                              .requests[source_id.ordinal()]
+                              .key;
+        const auto *published = find_request(artifact.request_graph_, key);
+        if (!published || record.overlap_lineages[lineage] != published->id)
+          return fail(relation_subcode::coplanar_overlay_dependency_missing,
+                      "Component 07 final coplanar arc lineage does not reconstruct");
+      }
+      ++expected_arc;
+    }
+
+    for (std::size_t local = 0; local < source.overlap_components.size(); ++local) {
+      if (expected_component >=
+          artifact.coplanar_overlap_components_.size())
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar component table is incomplete");
+      const auto &expected = source.overlap_components[local];
+      const auto &record =
+          artifact.coplanar_overlap_components_[expected_component];
+      if (expected.id != local || record.id.ordinal() != expected_component ||
+          record.overlay_relation != relation->second ||
+          record.kind != verifier_coplanar_component_kind(expected.kind) ||
+          record.node_ids.size() != expected.node_ids.size() ||
+          record.arc_ids.size() != expected.arc_ids.size() ||
+          record.sheet_mask != expected.sheet_mask ||
+          record.closed != expected.closed ||
+          record.distinct_sheet_occurrences !=
+              source.distinct_sheet_occurrences ||
+          record.reserved8 != 0 || record.reserved16 != 0 ||
+          record.reserved32 != 0)
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 final coplanar component does not reconstruct");
+      for (std::size_t node = 0; node < expected.node_ids.size(); ++node)
+        if (expected.node_ids[node] >= source.event_nodes.size() ||
+            record.node_ids[node].ordinal() !=
+                node_begin + expected.node_ids[node])
+          return fail(relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 final coplanar component node does not reconstruct");
+      for (std::size_t arc = 0; arc < expected.arc_ids.size(); ++arc)
+        if (expected.arc_ids[arc] >= source.oriented_arcs.size() ||
+            record.arc_ids[arc].ordinal() != arc_begin + expected.arc_ids[arc])
+          return fail(relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 final coplanar component arc does not reconstruct");
+      ++expected_component;
+    }
+  }
+  if (expected_node != artifact.coplanar_event_nodes_.size() ||
+      expected_arc != artifact.coplanar_oriented_arcs_.size() ||
+      expected_component != artifact.coplanar_overlap_components_.size())
+    return fail(relation_subcode::coplanar_overlay_invariant,
+                "Component 07 final coplanar topology has trailing records");
 
   if (artifact.symbolic_eligibility_.size() !=
       artifact.symbolic_decisions_.size())
@@ -846,22 +1098,20 @@ bool verify_signed_feature_relations(
       break;
     }
     case relation_request_family::coplanar_source_facet_overlay: {
-      const source_facet_coplanar_overlay_record<T> *source = nullptr;
-      for (const auto &candidate : artifact.coplanar_overlay_stage_->overlays)
-        if (candidate.facets[0].feature == source_key->first &&
-            candidate.facets[1].feature == source_key->second) {
-          if (source)
-            return fail(relation_subcode::duplicate_authoritative_producer,
-                        "Component 07 symbolic overlay source is duplicated");
-          source = &candidate;
-        }
-      if (!source)
+      const auto descriptor = std::lower_bound(
+          overlay_descriptors.begin(), overlay_descriptors.end(), *source_key,
+          [](const verifier_overlay_descriptor &candidate,
+             const relation_request_key &key) { return candidate.key < key; });
+      if (descriptor == overlay_descriptors.end() ||
+          !(descriptor->key == *source_key))
         return fail(relation_subcode::missing_dependency,
-                    "Component 07 symbolic overlay source is absent");
+                    "Component 07 symbolic overlay source lineage is absent");
+      const auto &source =
+          artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
       reconstructed_evidence =
-          source->support_relation.has_coplanarity_truth &&
+          source.support_relation.has_coplanarity_truth &&
           verifier_set_truth_symbolic_evidence<T>(
-              source->support_relation.coplanarity_truth,
+              source.support_relation.coplanarity_truth,
               symbolic_eligibility_reason::coincident_source_contract,
               expected_eligibility);
       break;
@@ -1207,6 +1457,12 @@ bool verify_signed_feature_relations(
           artifact.relations_.size() ||
       artifact.statistics_.construction_count !=
           artifact.constructions_.size() ||
+      artifact.statistics_.coplanar_event_node_count !=
+          artifact.coplanar_event_nodes_.size() ||
+      artifact.statistics_.coplanar_oriented_arc_count !=
+          artifact.coplanar_oriented_arcs_.size() ||
+      artifact.statistics_.coplanar_overlap_component_count !=
+          artifact.coplanar_overlap_components_.size() ||
       artifact.statistics_.symbolic_eligibility_count !=
           artifact.symbolic_eligibility_.size() ||
       artifact.statistics_.symbolic_decision_count !=

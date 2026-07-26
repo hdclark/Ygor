@@ -16,6 +16,9 @@ struct relation_dependency_tag;
 struct relation_construction_tag;
 struct symbolic_relation_decision_tag;
 struct relation_event_seed_tag;
+struct relation_coplanar_event_node_tag;
+struct relation_coplanar_oriented_arc_tag;
+struct relation_coplanar_overlap_component_tag;
 struct relation_candidate_disposition_tag;
 struct relation_verifier_evidence_tag;
 
@@ -25,6 +28,12 @@ using relation_dependency_id = strong_id<relation_dependency_tag>;
 using relation_construction_id = strong_id<relation_construction_tag>;
 using symbolic_relation_decision_id = strong_id<symbolic_relation_decision_tag>;
 using relation_event_seed_id = strong_id<relation_event_seed_tag>;
+using relation_coplanar_event_node_id =
+    strong_id<relation_coplanar_event_node_tag>;
+using relation_coplanar_oriented_arc_id =
+    strong_id<relation_coplanar_oriented_arc_tag>;
+using relation_coplanar_overlap_component_id =
+    strong_id<relation_coplanar_overlap_component_tag>;
 using relation_candidate_disposition_id =
     strong_id<relation_candidate_disposition_tag>;
 using relation_verifier_evidence_id = strong_id<relation_verifier_evidence_tag>;
@@ -93,6 +102,18 @@ enum class feature_relation_status : std::uint8_t {
   containment = 8,
   coincidence_same_orientation = 9,
   coincidence_opposite_orientation = 10,
+};
+
+enum class relation_coplanar_arc_kind : std::uint8_t {
+  interior_boundary = 1,
+  shared_boundary = 2,
+};
+
+enum class relation_coplanar_component_kind : std::uint8_t {
+  isolated_point = 1,
+  boundary_segment = 2,
+  area_boundary = 3,
+  coincident_sheet_boundary = 4,
 };
 
 enum class candidate_relation_disposition_kind : std::uint8_t {
@@ -274,6 +295,9 @@ struct relation_statistics final {
   std::uint64_t public_relation_count = 0;
   std::uint64_t bookkeeping_relation_count = 0;
   std::uint64_t construction_count = 0;
+  std::uint64_t coplanar_event_node_count = 0;
+  std::uint64_t coplanar_oriented_arc_count = 0;
+  std::uint64_t coplanar_overlap_component_count = 0;
   std::uint64_t symbolic_eligibility_count = 0;
   std::uint64_t symbolic_decision_count = 0;
   std::uint64_t crossing_record_count = 0;

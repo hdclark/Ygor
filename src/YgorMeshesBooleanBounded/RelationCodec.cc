@@ -132,6 +132,81 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.boolean(record.tolerance_compatible);
     writer.u32(record.reserved);
   }
+  writer.u16(contract_versions::relation_coplanar_topology_schema);
+  writer.u16(contract_versions::relation_coplanar_topology_policy);
+  writer.u64(artifact.coplanar_event_nodes_.size());
+  for (const auto &record : artifact.coplanar_event_nodes_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.overlay_relation.ordinal());
+    writer.u64(record.representative.ordinal());
+    writer.u64(record.occurrences.size());
+    for (const auto &occurrence : record.occurrences) {
+      writer.u8(occurrence.polygon);
+      writer.u64(occurrence.edge_ordinal);
+      writer.u64(occurrence.breakpoint_ordinal);
+      writer.boolean(occurrence.query_source_vertex_valid);
+      writer.u64(occurrence.query_source_vertex);
+      writer.u64(occurrence.event_lineages.size());
+      for (const auto &lineage : occurrence.event_lineages) {
+        writer.u64(lineage.contact_lineage);
+        writer.u8(lineage.endpoint_role);
+        writer.u8(lineage.reserved8);
+        writer.u16(lineage.reserved16);
+      }
+      writer.u8(occurrence.reserved8);
+      writer.u16(occurrence.reserved16);
+      writer.u32(occurrence.reserved32);
+    }
+    writer.u8(record.sheet_mask);
+    writer.boolean(record.distinct_sheet_occurrences);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.coplanar_oriented_arcs_.size());
+  for (const auto &record : artifact.coplanar_oriented_arcs_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.overlay_relation.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.kind));
+    writer.u64(record.start_node.ordinal());
+    writer.u64(record.end_node.ordinal());
+    writer.u64(record.occurrences.size());
+    for (const auto &occurrence : record.occurrences) {
+      writer.u8(occurrence.polygon);
+      writer.u64(occurrence.edge_ordinal);
+      writer.u64(occurrence.interval_ordinal);
+      writer.u64(occurrence.start_node.ordinal());
+      writer.u64(occurrence.end_node.ordinal());
+      writer.boolean(occurrence.forward_along_source_edge);
+      writer.u8(occurrence.reserved8);
+      writer.u16(occurrence.reserved16);
+      writer.u32(occurrence.reserved32);
+    }
+    writer.u64(record.overlap_lineages.size());
+    for (const auto lineage : record.overlap_lineages)
+      writer.u64(lineage.ordinal());
+    writer.u8(record.sheet_mask);
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.coplanar_overlap_components_.size());
+  for (const auto &record : artifact.coplanar_overlap_components_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.overlay_relation.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.kind));
+    writer.u64(record.node_ids.size());
+    for (const auto node : record.node_ids)
+      writer.u64(node.ordinal());
+    writer.u64(record.arc_ids.size());
+    for (const auto arc : record.arc_ids)
+      writer.u64(arc.ordinal());
+    writer.u8(record.sheet_mask);
+    writer.boolean(record.closed);
+    writer.boolean(record.distinct_sheet_occurrences);
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
   writer.u64(artifact.symbolic_eligibility_.size());
   for (const auto &record : artifact.symbolic_eligibility_)
     encode_eligibility(writer, record);
@@ -187,6 +262,9 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.public_relation_count);
   writer.u64(artifact.statistics_.bookkeeping_relation_count);
   writer.u64(artifact.statistics_.construction_count);
+  writer.u64(artifact.statistics_.coplanar_event_node_count);
+  writer.u64(artifact.statistics_.coplanar_oriented_arc_count);
+  writer.u64(artifact.statistics_.coplanar_overlap_component_count);
   writer.u64(artifact.statistics_.symbolic_eligibility_count);
   writer.u64(artifact.statistics_.symbolic_decision_count);
   writer.u64(artifact.statistics_.crossing_record_count);
@@ -296,6 +374,93 @@ inline bool read_construction_record(canonical_reader &reader) {
   return reader.u64(residual_begin) && reader.u64(residual_count) &&
          reader.boolean(finite) && reader.boolean(tolerance) &&
          reader.u32(reserved);
+}
+
+inline bool read_coplanar_event_node_record(
+    canonical_reader &reader, const relation_capabilities &capabilities) {
+  std::uint64_t value = 0, occurrence_count = 0, lineage_count = 0;
+  std::uint8_t byte = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u64(occurrence_count) ||
+      !count_fits(reader, occurrence_count, capabilities.maximum_dependencies,
+                  39))
+    return false;
+  for (std::uint64_t occurrence = 0; occurrence < occurrence_count;
+       ++occurrence) {
+    if (!reader.u8(byte) || !reader.u64(value) || !reader.u64(value) ||
+        !reader.boolean(flag) || !reader.u64(value) ||
+        !reader.u64(lineage_count) ||
+        !count_fits(reader, lineage_count, capabilities.maximum_dependencies,
+                    12))
+      return false;
+    for (std::uint64_t lineage = 0; lineage < lineage_count; ++lineage)
+      if (!reader.u64(value) || !reader.u8(byte) || !reader.u8(byte) ||
+          !reader.u16(reserved16))
+        return false;
+    if (!reader.u8(byte) || !reader.u16(reserved16) ||
+        !reader.u32(reserved32))
+      return false;
+  }
+  return reader.u8(byte) && reader.boolean(flag) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+inline bool read_coplanar_oriented_arc_record(
+    canonical_reader &reader, const relation_capabilities &capabilities) {
+  std::uint64_t value = 0, occurrence_count = 0, lineage_count = 0;
+  std::uint8_t byte = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u8(byte) ||
+      !reader.u64(value) || !reader.u64(value) ||
+      !reader.u64(occurrence_count) ||
+      !count_fits(reader, occurrence_count, capabilities.maximum_dependencies,
+                  41))
+    return false;
+  for (std::uint64_t occurrence = 0; occurrence < occurrence_count;
+       ++occurrence)
+    if (!reader.u8(byte) || !reader.u64(value) || !reader.u64(value) ||
+        !reader.u64(value) || !reader.u64(value) || !reader.boolean(flag) ||
+        !reader.u8(byte) || !reader.u16(reserved16) ||
+        !reader.u32(reserved32))
+      return false;
+  if (!reader.u64(lineage_count) ||
+      !count_fits(reader, lineage_count, capabilities.maximum_dependencies, 8))
+    return false;
+  for (std::uint64_t lineage = 0; lineage < lineage_count; ++lineage)
+    if (!reader.u64(value))
+      return false;
+  return reader.u8(byte) && reader.u8(byte) && reader.u16(reserved16) &&
+         reader.u32(reserved32);
+}
+
+inline bool read_coplanar_overlap_component_record(
+    canonical_reader &reader, const relation_capabilities &capabilities) {
+  std::uint64_t value = 0, node_count = 0, arc_count = 0;
+  std::uint8_t byte = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u8(byte) ||
+      !reader.u64(node_count) ||
+      !count_fits(reader, node_count, capabilities.maximum_dependencies, 8))
+    return false;
+  for (std::uint64_t node = 0; node < node_count; ++node)
+    if (!reader.u64(value))
+      return false;
+  if (!reader.u64(arc_count) ||
+      !count_fits(reader, arc_count, capabilities.maximum_dependencies, 8))
+    return false;
+  for (std::uint64_t arc = 0; arc < arc_count; ++arc)
+    if (!reader.u64(value))
+      return false;
+  return reader.u8(byte) && reader.boolean(flag) && reader.boolean(flag) &&
+         reader.u8(byte) && reader.u16(reserved16) &&
+         reader.u32(reserved32);
 }
 
 inline bool read_eligibility_record(canonical_reader &reader) {
@@ -490,6 +655,52 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 construction table is truncated");
 
+  if (!reader.u16(envelope.coplanar_topology_schema) ||
+      !reader.u16(envelope.coplanar_topology_policy) ||
+      envelope.coplanar_topology_schema !=
+          contract_versions::relation_coplanar_topology_schema ||
+      envelope.coplanar_topology_policy !=
+          contract_versions::relation_coplanar_topology_policy)
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 coplanar topology section version is unsupported");
+  if (!reader.u64(envelope.coplanar_event_node_count) ||
+      !count_fits(reader, envelope.coplanar_event_node_count,
+                  capabilities.maximum_relations, 32))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 coplanar event-node count is malformed");
+  for (std::uint64_t i = 0; i < envelope.coplanar_event_node_count; ++i)
+    if (!read_coplanar_event_node_record(reader, capabilities))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 coplanar event-node table is truncated");
+
+  if (!reader.u64(envelope.coplanar_oriented_arc_count) ||
+      !count_fits(reader, envelope.coplanar_oriented_arc_count,
+                  capabilities.maximum_relations, 41))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 coplanar oriented-arc count is malformed");
+  for (std::uint64_t i = 0; i < envelope.coplanar_oriented_arc_count; ++i)
+    if (!read_coplanar_oriented_arc_record(reader, capabilities))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 coplanar oriented-arc table is truncated");
+
+  if (!reader.u64(envelope.coplanar_overlap_component_count) ||
+      !count_fits(reader, envelope.coplanar_overlap_component_count,
+                  capabilities.maximum_relations, 33))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 coplanar component count is malformed");
+  for (std::uint64_t i = 0;
+       i < envelope.coplanar_overlap_component_count; ++i)
+    if (!read_coplanar_overlap_component_record(reader, capabilities))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 coplanar component table is truncated");
+
   if (!reader.u64(envelope.symbolic_eligibility_count) ||
       !count_fits(reader, envelope.symbolic_eligibility_count,
                   capabilities.maximum_symbolic_decisions, 117))
@@ -572,6 +783,9 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.public_relation_count) ||
       !reader.u64(statistics.bookkeeping_relation_count) ||
       !reader.u64(statistics.construction_count) ||
+      !reader.u64(statistics.coplanar_event_node_count) ||
+      !reader.u64(statistics.coplanar_oriented_arc_count) ||
+      !reader.u64(statistics.coplanar_overlap_component_count) ||
       !reader.u64(statistics.symbolic_eligibility_count) ||
       !reader.u64(statistics.symbolic_decision_count) ||
       !reader.u64(statistics.crossing_record_count) ||
@@ -607,6 +821,12 @@ bool parse_relation_artifact_envelope(
       statistics.public_relation_count + statistics.bookkeeping_relation_count !=
           envelope.relation_count ||
       statistics.construction_count != envelope.construction_count ||
+      statistics.coplanar_event_node_count !=
+          envelope.coplanar_event_node_count ||
+      statistics.coplanar_oriented_arc_count !=
+          envelope.coplanar_oriented_arc_count ||
+      statistics.coplanar_overlap_component_count !=
+          envelope.coplanar_overlap_component_count ||
       statistics.symbolic_eligibility_count !=
           envelope.symbolic_eligibility_count ||
       statistics.symbolic_decision_count != envelope.symbolic_decision_count ||

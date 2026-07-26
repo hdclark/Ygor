@@ -65,6 +65,9 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.truth_records()) ||
       !add_vector(artifact.relations()) ||
       !add_vector(artifact.constructions()) ||
+      !add_vector(artifact.coplanar_event_nodes()) ||
+      !add_vector(artifact.coplanar_oriented_arcs()) ||
+      !add_vector(artifact.coplanar_overlap_components()) ||
       !add_vector(artifact.symbolic_eligibility()) ||
       !add_vector(artifact.symbolic_decisions()) ||
       !add_vector(artifact.crossings()) ||
@@ -73,6 +76,20 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.candidate_dispositions()) ||
       !add_vector(artifact.canonical_bytes()))
     return false;
+
+  for (const auto &node : artifact.coplanar_event_nodes()) {
+    if (!add_vector(node.occurrences))
+      return false;
+    for (const auto &occurrence : node.occurrences)
+      if (!add_vector(occurrence.event_lineages))
+        return false;
+  }
+  for (const auto &arc : artifact.coplanar_oriented_arcs())
+    if (!add_vector(arc.occurrences) || !add_vector(arc.overlap_lineages))
+      return false;
+  for (const auto &component : artifact.coplanar_overlap_components())
+    if (!add_vector(component.node_ids) || !add_vector(component.arc_ids))
+      return false;
 
   // Detailed relation stages contain nested variable-length records. Their
   // owner-free semantic encodings are a deterministic, architecture-independent

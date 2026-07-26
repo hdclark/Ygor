@@ -86,6 +86,78 @@ struct relation_event_seed_record final {
   std::uint32_t reserved = 0;
 };
 
+struct relation_coplanar_event_lineage_record final {
+  std::uint64_t contact_lineage = 0;
+  std::uint8_t endpoint_role = 0;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+};
+
+struct relation_coplanar_event_occurrence_record final {
+  std::uint8_t polygon = 0;
+  std::uint64_t edge_ordinal = 0;
+  std::uint64_t breakpoint_ordinal = 0;
+  bool query_source_vertex_valid = false;
+  std::uint64_t query_source_vertex = 0;
+  std::vector<relation_coplanar_event_lineage_record> event_lineages;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_event_node_record final {
+  relation_coplanar_event_node_id id{0};
+  feature_relation_id overlay_relation{0};
+  relation_construction_id representative{0};
+  std::vector<relation_coplanar_event_occurrence_record> occurrences;
+  std::uint8_t sheet_mask = 0;
+  bool distinct_sheet_occurrences = false;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_arc_occurrence_record final {
+  std::uint8_t polygon = 0;
+  std::uint64_t edge_ordinal = 0;
+  std::uint64_t interval_ordinal = 0;
+  relation_coplanar_event_node_id start_node{0};
+  relation_coplanar_event_node_id end_node{0};
+  bool forward_along_source_edge = true;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_oriented_arc_record final {
+  relation_coplanar_oriented_arc_id id{0};
+  feature_relation_id overlay_relation{0};
+  relation_coplanar_arc_kind kind =
+      relation_coplanar_arc_kind::interior_boundary;
+  relation_coplanar_event_node_id start_node{0};
+  relation_coplanar_event_node_id end_node{0};
+  std::vector<relation_coplanar_arc_occurrence_record> occurrences;
+  std::vector<relation_request_id> overlap_lineages;
+  std::uint8_t sheet_mask = 0;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_overlap_component_record final {
+  relation_coplanar_overlap_component_id id{0};
+  feature_relation_id overlay_relation{0};
+  relation_coplanar_component_kind kind =
+      relation_coplanar_component_kind::isolated_point;
+  std::vector<relation_coplanar_event_node_id> node_ids;
+  std::vector<relation_coplanar_oriented_arc_id> arc_ids;
+  std::uint8_t sheet_mask = 0;
+  bool closed = false;
+  bool distinct_sheet_occurrences = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
 struct relation_candidate_disposition_record final {
   relation_candidate_disposition_id id{0};
   candidate_id candidate{0};
@@ -163,6 +235,14 @@ public:
   const std::vector<relation_event_seed_record> &event_seeds() const noexcept {
     return event_seeds_;
   }
+  const std::vector<relation_coplanar_event_node_record> &
+  coplanar_event_nodes() const noexcept { return coplanar_event_nodes_; }
+  const std::vector<relation_coplanar_oriented_arc_record> &
+  coplanar_oriented_arcs() const noexcept { return coplanar_oriented_arcs_; }
+  const std::vector<relation_coplanar_overlap_component_record> &
+  coplanar_overlap_components() const noexcept {
+    return coplanar_overlap_components_;
+  }
   const std::vector<relation_feature_key> &event_seed_incidence() const noexcept {
     return event_seed_incidence_;
   }
@@ -228,6 +308,10 @@ private:
   std::vector<symbolic_relation_decision_record> symbolic_decisions_;
   std::vector<relation_crossing_record> crossings_;
   std::vector<relation_event_seed_record> event_seeds_;
+  std::vector<relation_coplanar_event_node_record> coplanar_event_nodes_;
+  std::vector<relation_coplanar_oriented_arc_record> coplanar_oriented_arcs_;
+  std::vector<relation_coplanar_overlap_component_record>
+      coplanar_overlap_components_;
   std::vector<relation_feature_key> event_seed_incidence_;
   std::vector<relation_candidate_disposition_record> candidate_dispositions_;
   relation_statistics statistics_{};

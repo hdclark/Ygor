@@ -525,6 +525,35 @@ Symbolic matrix lookup is no longer authorized by a blanket exact-zero stamp:
   coincident-overlay categories, plus reasonless exact-zero, rounded-zero-only,
   and potentially separated tie rejection.
 
+## Implemented first-class coplanar topology publication slice
+
+The canonical coplanar reduction is now a first-class part of the immutable
+Component 07 artifact rather than only nested audit data:
+
+- every qualified coplanar event node, oriented arc, and overlap component is
+  published in a versioned canonical table with a globally sequential strong ID
+  assigned in canonical overlay-relation order;
+- event records retain the representative authoritative construction, every
+  source-boundary occurrence, source-vertex incidence, ordered contact lineage
+  and endpoint role, sheet mask, and coordinate-coincident distinct-sheet flag;
+- arc records retain globally remapped endpoint nodes, every directed
+  source-boundary occurrence, source traversal direction, conceptual arc kind,
+  sheet mask, and exact compute-once source-edge producer IDs for shared
+  boundary lineage;
+- component records retain globally remapped node and arc membership, component
+  kind, closure, sheet mask, and distinct-sheet semantics without publishing any
+  Boolean selection or output orientation;
+- canonical bytes, decode-by-rebuild, section handshakes, statistics, persistent
+  byte reconciliation, and nested occurrence/lineage resource accounting cover
+  the complete tables;
+- the independent verifier reconstructs the overlay key from the exact
+  facet/facet support link, then reconstructs every global ID and table field
+  from the independently verified detailed overlay stage without coordinate,
+  proximity, or feature-pair fallback; and
+- strict qualification checks exact table cardinality, byte-identical decode,
+  and repaired-codec mutations of node sheet masks, arc endpoints, and component
+  closure.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -535,20 +564,17 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 2. Complete admitted clustered multi-event ordering and complete occurrence tie
    keys for source-edge/source-facet relations, including all supported
    source-vertex and shared-edge contact fixtures.
-3. Publish the complete coplanar event-node, oriented-arc, and overlap-component
-   tables as first-class final-artifact sections rather than only retaining them
-   inside the detailed overlay stage.
-4. Complete authoritative construction deduplication across relation families
+3. Complete authoritative construction deduplication across relation families
    and publish full parameter, residual, conditioning, tolerance-ledger, and
    producer evidence instead of the current bounded component projection.
-5. Complete the remaining symbolic categories, incidence/rank/occurrence
+4. Complete the remaining symbolic categories, incidence/rank/occurrence
    constraints, event-seed diagnostics, candidate canonical partitions, and
    replay diagnostics required by the normative plan.
-6. Add the independent exact-rational/exhaustive oracle, complete known-answer
+5. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and
    serial/parallel equivalence evidence.
-7. Complete Component 08-10 handoff qualification proving no authoritative
+6. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed

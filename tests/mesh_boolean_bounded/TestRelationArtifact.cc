@@ -35,6 +35,24 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &coplanar_event_nodes(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_event_nodes_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_oriented_arcs(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_oriented_arcs_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_overlap_components(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_overlap_components_;
+  }
+
+  template <class T, class I>
   static auto &dispositions(signed_feature_relations<T, I> &artifact) {
     return artifact.candidate_dispositions_;
   }
@@ -258,6 +276,82 @@ void test_matched_mutation_rejection() {
   }
   require(saw_facet_lineage && saw_coincident_contract,
           "symbolic fixture covers support and overlay eligibility categories");
+
+  std::size_t expected_nodes = 0;
+  std::size_t expected_arcs = 0;
+  std::size_t expected_components = 0;
+  for (const auto &overlay :
+       symbolic_artifact->coplanar_overlay_stage()->overlays) {
+    expected_nodes += overlay.event_nodes.size();
+    expected_arcs += overlay.oriented_arcs.size();
+    expected_components += overlay.overlap_components.size();
+  }
+  require(expected_nodes != 0 && expected_arcs != 0 &&
+              expected_components != 0 &&
+              symbolic_artifact->coplanar_event_nodes().size() ==
+                  expected_nodes &&
+              symbolic_artifact->coplanar_oriented_arcs().size() ==
+                  expected_arcs &&
+              symbolic_artifact->coplanar_overlap_components().size() ==
+                  expected_components &&
+              symbolic_artifact->statistics().coplanar_event_node_count ==
+                  expected_nodes &&
+              symbolic_artifact->statistics().coplanar_oriented_arc_count ==
+                  expected_arcs &&
+              symbolic_artifact->statistics()
+                      .coplanar_overlap_component_count == expected_components,
+          "coplanar topology is published as complete first-class artifact tables");
+
+  auto topology_decode_fixture = symbolic_fixture();
+  bounded::resource_manager topology_decode_resources(
+      resource_policy::conservative_defaults());
+  auto topology_decoded = bounded::decode_signed_feature_relations(
+      symbolic_artifact->canonical_bytes(),
+      topology_decode_fixture.predecessor.context,
+      *topology_decode_fixture.predecessor.precision,
+      topology_decode_fixture.artifact,
+      capabilities(topology_decode_fixture, &topology_decode_resources));
+  require(topology_decoded.has_value() &&
+              (*topology_decoded.value())->canonical_bytes() ==
+                  symbolic_artifact->canonical_bytes() &&
+              (*topology_decoded.value())->coplanar_event_nodes().size() ==
+                  expected_nodes &&
+              (*topology_decoded.value())->coplanar_oriented_arcs().size() ==
+                  expected_arcs &&
+              (*topology_decoded.value())->coplanar_overlap_components().size() ==
+                  expected_components,
+          "coplanar topology codec rebuilds identical first-class tables");
+
+  auto node_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &node = bounded::relation_artifact_test_access::coplanar_event_nodes(
+      node_mutation).front();
+  node.sheet_mask ^= 1U;
+  bounded::relation_artifact_test_access::repair_codec(node_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(node_mutation, error),
+          "matched coplanar event-node mutation is independently rejected");
+
+  auto arc_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &arc = bounded::relation_artifact_test_access::coplanar_oriented_arcs(
+      arc_mutation).front();
+  arc.start_node = arc.end_node;
+  bounded::relation_artifact_test_access::repair_codec(arc_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(arc_mutation, error),
+          "matched coplanar oriented-arc mutation is independently rejected");
+
+  auto component_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &component =
+      bounded::relation_artifact_test_access::coplanar_overlap_components(
+          component_mutation).front();
+  component.closed = !component.closed;
+  bounded::relation_artifact_test_access::repair_codec(component_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(component_mutation, error),
+          "matched coplanar component mutation is independently rejected");
 
   auto symbolic_mutation =
       bounded::relation_artifact_test_access::copy(*symbolic_artifact);
