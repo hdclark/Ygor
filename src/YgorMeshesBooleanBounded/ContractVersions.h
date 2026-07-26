@@ -120,7 +120,7 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 6;
+    static constexpr std::uint16_t relation_artifact_schema = 7;
     static constexpr std::uint16_t relation_provider = 1;
     static constexpr std::uint16_t relation_graph_policy = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
@@ -139,8 +139,10 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_source_edge_edge_policy = 1;
     static constexpr std::uint16_t relation_source_edge_facet_schema = 1;
     static constexpr std::uint16_t relation_source_edge_facet_policy = 1;
-    static constexpr std::uint16_t relation_source_edge_facet_stage_schema = 1;
-    static constexpr std::uint16_t relation_source_edge_facet_stage_policy = 1;
+    static constexpr std::uint16_t relation_source_edge_facet_stage_schema = 2;
+    static constexpr std::uint16_t relation_source_edge_facet_stage_policy = 2;
+    static constexpr std::uint16_t
+        relation_source_edge_facet_event_order_policy = 1;
     static constexpr std::uint16_t relation_source_facet_facet_schema = 1;
     static constexpr std::uint16_t relation_source_facet_facet_policy = 1;
     static constexpr std::uint16_t relation_source_facet_facet_stage_schema = 1;
@@ -162,8 +164,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_candidate_disposition_schema = 1;
     static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
     static constexpr std::uint16_t relation_selection_boundary_policy = 1;
-    static constexpr std::uint16_t relation_codec = 7;
-    static constexpr std::uint16_t relation_verifier = 7;
+    static constexpr std::uint16_t relation_codec = 8;
+    static constexpr std::uint16_t relation_verifier = 8;
 
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;

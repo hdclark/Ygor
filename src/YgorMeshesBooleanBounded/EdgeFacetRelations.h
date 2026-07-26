@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <new>
 #include <optional>
 #include <tuple>
@@ -135,6 +136,95 @@ struct candidate_source_edge_facet_relation_range final {
   std::uint32_t reserved = 0;
 };
 
+enum class source_edge_facet_event_cluster_kind : std::uint8_t {
+  singleton = 1,
+  exact_query_endpoint = 2,
+  opposite_source_edge = 3,
+  opposite_source_vertex = 4,
+};
+
+enum class source_edge_facet_parameter_role : std::uint8_t {
+  interior = 1,
+  query_start = 2,
+  query_end = 3,
+};
+
+// Complete owner-free key used only after bounded parameter order has been
+// established.  It deliberately contains no coordinate, nominal parameter,
+// runtime owner, request ordinal, traversal ordinal, or hash-derived identity.
+struct source_edge_facet_occurrence_tie_key final {
+  relation_feature_key query_edge{};
+  source_edge_facet_parameter_role parameter_role =
+      source_edge_facet_parameter_role::interior;
+  std::uint8_t boundary_kind = 0; // 0 interior, 1 source edge, 2 source vertex.
+  std::uint64_t boundary_owner_primary = 0;
+  std::uint64_t boundary_owner_secondary = 0;
+  relation_feature_key opposite_facet{};
+  source_edge_facet_event_kind event_kind =
+      source_edge_facet_event_kind::proper_face_crossing;
+  source_edge_facet_occupancy_state before =
+      source_edge_facet_occupancy_state::unoccupied;
+  source_edge_facet_occupancy_state after =
+      source_edge_facet_occupancy_state::unoccupied;
+  std::int8_t numeric_crossing = 0;
+  std::uint16_t policy_version =
+      contract_versions::relation_source_edge_facet_event_order_policy;
+  std::uint16_t reserved = 0;
+
+  friend bool operator<(const source_edge_facet_occurrence_tie_key &a,
+                        const source_edge_facet_occurrence_tie_key &b) noexcept {
+    return std::tie(a.query_edge, a.parameter_role, a.boundary_kind,
+                    a.boundary_owner_primary, a.boundary_owner_secondary,
+                    a.opposite_facet, a.event_kind, a.before, a.after,
+                    a.numeric_crossing, a.policy_version, a.reserved) <
+           std::tie(b.query_edge, b.parameter_role, b.boundary_kind,
+                    b.boundary_owner_primary, b.boundary_owner_secondary,
+                    b.opposite_facet, b.event_kind, b.before, b.after,
+                    b.numeric_crossing, b.policy_version, b.reserved);
+  }
+
+  friend bool operator==(const source_edge_facet_occurrence_tie_key &a,
+                         const source_edge_facet_occurrence_tie_key &b) noexcept {
+    return std::tie(a.query_edge, a.parameter_role, a.boundary_kind,
+                    a.boundary_owner_primary, a.boundary_owner_secondary,
+                    a.opposite_facet, a.event_kind, a.before, a.after,
+                    a.numeric_crossing, a.policy_version, a.reserved) ==
+           std::tie(b.query_edge, b.parameter_role, b.boundary_kind,
+                    b.boundary_owner_primary, b.boundary_owner_secondary,
+                    b.opposite_facet, b.event_kind, b.before, b.after,
+                    b.numeric_crossing, b.policy_version, b.reserved);
+  }
+};
+
+struct source_edge_facet_ordered_event_record final {
+  relation_request_id relation{0};
+  std::uint32_t local_event = 0;
+  std::uint32_t canonical_occurrence = 0;
+  std::uint32_t cluster_id = 0;
+  std::uint32_t cluster_ordinal = 0;
+  std::uint32_t cluster_size = 1;
+  source_edge_facet_event_cluster_kind cluster_kind =
+      source_edge_facet_event_cluster_kind::singleton;
+  bool parameter_equality_retained = false;
+  bool crossing_sequence_order_independent = true;
+  source_edge_facet_occurrence_tie_key tie_key{};
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct source_edge_facet_event_cluster_record final {
+  std::uint32_t id = 0;
+  relation_feature_key query_edge{};
+  std::uint64_t event_begin = 0;
+  std::uint64_t event_count = 0;
+  source_edge_facet_event_cluster_kind kind =
+      source_edge_facet_event_cluster_kind::singleton;
+  bool parameter_equality_retained = false;
+  bool crossing_sequence_order_independent = true;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
 template <class T> struct candidate_source_edge_facet_relation_stage final {
   std::uint16_t schema_version =
       contract_versions::relation_source_edge_facet_stage_schema;
@@ -145,6 +235,8 @@ template <class T> struct candidate_source_edge_facet_relation_stage final {
   std::vector<source_edge_facet_relation_record<T>> relations;
   std::vector<relation_request_id> candidate_relations;
   std::vector<candidate_source_edge_facet_relation_range> candidate_ranges;
+  std::vector<source_edge_facet_ordered_event_record> ordered_events;
+  std::vector<source_edge_facet_event_cluster_record> event_clusters;
   std::uint64_t evaluation_count = 0;
   std::uint32_t reserved = 0;
   bounded_boolean_digest semantic_digest{};
@@ -1536,6 +1628,607 @@ bool append_candidate_proposals(
   return true;
 }
 
+inline bool valid_event_cluster_kind(
+    source_edge_facet_event_cluster_kind kind) noexcept {
+  return kind == source_edge_facet_event_cluster_kind::singleton ||
+         kind == source_edge_facet_event_cluster_kind::exact_query_endpoint ||
+         kind == source_edge_facet_event_cluster_kind::opposite_source_edge ||
+         kind == source_edge_facet_event_cluster_kind::opposite_source_vertex;
+}
+
+inline bool valid_parameter_role(
+    source_edge_facet_parameter_role role) noexcept {
+  return role == source_edge_facet_parameter_role::interior ||
+         role == source_edge_facet_parameter_role::query_start ||
+         role == source_edge_facet_parameter_role::query_end;
+}
+
+template <class T>
+source_edge_facet_parameter_role parameter_role(
+    const source_edge_parameter_evidence<T> &parameter) noexcept {
+  if (source_edge_relation_detail::exact_parameter_at(parameter, T(0)))
+    return source_edge_facet_parameter_role::query_start;
+  if (source_edge_relation_detail::exact_parameter_at(parameter, T(1)))
+    return source_edge_facet_parameter_role::query_end;
+  return source_edge_facet_parameter_role::interior;
+}
+
+inline std::pair<std::uint64_t, std::uint64_t>
+canonical_edge_owner(const source_facet_boundary_edge_owner &owner) noexcept {
+  return std::minmax(owner.origin_source_vertex,
+                     owner.destination_source_vertex);
+}
+
+template <class T>
+bool occurrence_tie_key(
+    const relation_feature_key &query_edge,
+    const relation_feature_key &opposite_facet,
+    const source_edge_facet_event_record<T> &event,
+    source_edge_facet_occurrence_tie_key &key) {
+  key = source_edge_facet_occurrence_tie_key{};
+  key.query_edge = query_edge;
+  key.parameter_role = parameter_role(event.parameter);
+  key.opposite_facet = opposite_facet;
+  key.event_kind = event.kind;
+  key.before = event.before;
+  key.after = event.after;
+  key.numeric_crossing = event.numeric_crossing;
+  if (event.region.classification ==
+      source_facet_point_region_class::original_vertex) {
+    if (event.region.source_vertex_owners.size() != 1)
+      return false;
+    key.boundary_kind = 2;
+    key.boundary_owner_primary = event.region.source_vertex_owners.front();
+  } else if (event.region.classification ==
+             source_facet_point_region_class::original_edge) {
+    if (event.region.source_edge_owners.empty())
+      return false;
+    const auto first = canonical_edge_owner(event.region.source_edge_owners[0]);
+    for (const auto &owner : event.region.source_edge_owners)
+      if (canonical_edge_owner(owner) != first)
+        return false;
+    key.boundary_kind = 1;
+    key.boundary_owner_primary = first.first;
+    key.boundary_owner_secondary = first.second;
+  }
+  return valid_relation_feature_key(key.query_edge) &&
+         key.query_edge.kind == relation_feature_kind::source_edge &&
+         valid_relation_feature_key(key.opposite_facet) &&
+         key.opposite_facet.kind == relation_feature_kind::source_facet &&
+         key.query_edge.operand != key.opposite_facet.operand &&
+         valid_parameter_role(key.parameter_role) && key.boundary_kind <= 2 &&
+         source_edge_facet_detail::valid_occupancy(key.before) &&
+         source_edge_facet_detail::valid_occupancy(key.after) &&
+         key.numeric_crossing >= -1 && key.numeric_crossing <= 1 &&
+         key.policy_version ==
+             contract_versions::relation_source_edge_facet_event_order_policy &&
+         key.reserved == 0;
+}
+
+template <class T>
+source_edge_facet_event_cluster_kind admitted_equal_cluster(
+    const source_edge_facet_event_record<T> &a,
+    const source_edge_facet_occurrence_tie_key &a_key,
+    const source_edge_facet_event_record<T> &b,
+    const source_edge_facet_occurrence_tie_key &b_key) noexcept {
+  if (a_key.query_edge != b_key.query_edge)
+    return source_edge_facet_event_cluster_kind::singleton;
+  if (a_key.parameter_role == b_key.parameter_role &&
+      a_key.parameter_role != source_edge_facet_parameter_role::interior)
+    return source_edge_facet_event_cluster_kind::exact_query_endpoint;
+  if (a_key.parameter_role != source_edge_facet_parameter_role::interior ||
+      b_key.parameter_role != source_edge_facet_parameter_role::interior ||
+      source_edge_relation_detail::definitely_before(a.parameter, b.parameter) ||
+      source_edge_relation_detail::definitely_before(b.parameter, a.parameter))
+    return source_edge_facet_event_cluster_kind::singleton;
+  if (a_key.boundary_kind == 2 && b_key.boundary_kind == 2 &&
+      a_key.boundary_owner_primary == b_key.boundary_owner_primary)
+    return source_edge_facet_event_cluster_kind::opposite_source_vertex;
+  if (a_key.boundary_kind == 1 && b_key.boundary_kind == 1 &&
+      a_key.boundary_owner_primary == b_key.boundary_owner_primary &&
+      a_key.boundary_owner_secondary == b_key.boundary_owner_secondary)
+    return source_edge_facet_event_cluster_kind::opposite_source_edge;
+  return source_edge_facet_event_cluster_kind::singleton;
+}
+
+template <class T>
+bool cluster_order_independent(
+    source_edge_facet_event_cluster_kind kind,
+    const std::vector<const source_edge_facet_event_record<T> *> &events) {
+  if (events.empty())
+    return false;
+  if (events.size() == 1)
+    return kind == source_edge_facet_event_cluster_kind::singleton;
+  if (kind == source_edge_facet_event_cluster_kind::exact_query_endpoint) {
+    for (const auto *event : events)
+      if (!event || event->numeric_crossing != 0 ||
+          (event->kind != source_edge_facet_event_kind::endpoint_contact &&
+           event->kind != source_edge_facet_event_kind::tangent_contact))
+        return false;
+    return true;
+  }
+  if (kind != source_edge_facet_event_cluster_kind::opposite_source_edge &&
+      kind != source_edge_facet_event_cluster_kind::opposite_source_vertex)
+    return false;
+  const auto first_kind = events.front()->kind;
+  if (first_kind != source_edge_facet_event_kind::boundary_crossing &&
+      first_kind != source_edge_facet_event_kind::tangent_contact)
+    return false;
+  for (const auto *event : events)
+    if (!event || event->kind != first_kind || event->numeric_crossing != 0)
+      return false;
+  return true;
+}
+
+template <class T> struct pending_order_event final {
+  relation_request_id relation{0};
+  std::uint32_t local_event = 0;
+  const source_edge_facet_event_record<T> *event = nullptr;
+  source_edge_facet_occurrence_tie_key tie_key{};
+};
+
+template <class T>
+bool build_event_order(
+    const relation_request_graph &graph,
+    const std::vector<source_edge_facet_relation_record<T>> &relations,
+    const relation_capabilities &capabilities,
+    std::vector<source_edge_facet_ordered_event_record> &ordered,
+    std::vector<source_edge_facet_event_cluster_record> &clusters,
+    bounded_boolean_error &error) {
+  ordered.clear();
+  clusters.clear();
+  std::vector<pending_order_event<T>> pending;
+  for (std::size_t relation = 0; relation < relations.size(); ++relation) {
+    if (relation >= graph.requests.size()) {
+      error = source_edge_facet_error(
+          relation_subcode::source_edge_facet_invariant,
+          "Component 07 event order relation graph is incomplete");
+      return false;
+    }
+    const auto &request = graph.requests[relation];
+    const auto &record = relations[relation];
+    for (std::size_t local = 0; local < record.events.size(); ++local) {
+      if (local > std::numeric_limits<std::uint32_t>::max()) {
+        error = source_edge_facet_error(
+            relation_subcode::count_overflow,
+            "Component 07 local event ordinal is not representable",
+            relation_checkpoint::count_representability_preflight);
+        return false;
+      }
+      pending_order_event<T> item;
+      item.relation = request.id;
+      item.local_event = static_cast<std::uint32_t>(local);
+      item.event = &record.events[local];
+      if (!occurrence_tie_key(request.key.first, request.key.second,
+                              record.events[local], item.tie_key)) {
+        error = source_edge_facet_error(
+            relation_subcode::source_edge_facet_invariant,
+            "Component 07 event occurrence tie key is malformed");
+        return false;
+      }
+      pending.push_back(item);
+    }
+  }
+  if (pending.size() > capabilities.maximum_event_seeds) {
+    error = source_edge_facet_error(
+        relation_subcode::work_limit,
+        "Component 07 ordered event count exceeds capabilities",
+        relation_checkpoint::count_representability_preflight,
+        bounded_boolean_error_category::resource_limit);
+    return false;
+  }
+  std::sort(pending.begin(), pending.end(),
+            [](const pending_order_event<T> &a,
+               const pending_order_event<T> &b) {
+              return std::tie(a.tie_key.query_edge, a.tie_key) <
+                     std::tie(b.tie_key.query_edge, b.tie_key);
+            });
+
+  for (std::size_t edge_begin = 0; edge_begin < pending.size();) {
+    std::size_t edge_end = edge_begin + 1;
+    while (edge_end < pending.size() &&
+           pending[edge_end].tie_key.query_edge ==
+               pending[edge_begin].tie_key.query_edge)
+      ++edge_end;
+    const auto count = edge_end - edge_begin;
+    std::vector<std::size_t> parent(count);
+    for (std::size_t i = 0; i < count; ++i)
+      parent[i] = i;
+    const auto root = [&](std::size_t value, auto &&self) -> std::size_t {
+      if (parent[value] == value)
+        return value;
+      parent[value] = self(parent[value], self);
+      return parent[value];
+    };
+    const auto unite = [&](std::size_t a, std::size_t b) {
+      const auto ra = root(a, root);
+      const auto rb = root(b, root);
+      if (ra != rb)
+        parent[rb] = ra;
+    };
+    for (std::size_t i = 0; i < count; ++i) {
+      for (std::size_t j = i + 1; j < count; ++j) {
+        const auto &a = pending[edge_begin + i];
+        const auto &b = pending[edge_begin + j];
+        if (source_edge_relation_detail::definitely_before(a.event->parameter,
+                                                            b.event->parameter) ||
+            source_edge_relation_detail::definitely_before(b.event->parameter,
+                                                            a.event->parameter))
+          continue;
+        const auto kind = admitted_equal_cluster(*a.event, a.tie_key, *b.event,
+                                                 b.tie_key);
+        if (kind == source_edge_facet_event_cluster_kind::singleton) {
+          error = source_edge_facet_error(
+              relation_subcode::source_edge_facet_parameter_unresolved,
+              "Component 07 overlapping edge/facet event parameters have no admitted exact lineage");
+          return false;
+        }
+        unite(i, j);
+      }
+    }
+
+    struct local_cluster final {
+      std::vector<std::size_t> members;
+      source_edge_facet_event_cluster_kind kind =
+          source_edge_facet_event_cluster_kind::singleton;
+      std::size_t rank = 0;
+    };
+    std::vector<local_cluster> local_clusters;
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto r = root(i, root);
+      auto found = std::find_if(local_clusters.begin(), local_clusters.end(),
+                                [r](const local_cluster &cluster) {
+                                  return !cluster.members.empty() &&
+                                         cluster.members.front() == r;
+                                });
+      if (found == local_clusters.end()) {
+        local_cluster cluster;
+        cluster.members.push_back(r); // Root sentinel, removed below.
+        local_clusters.push_back(std::move(cluster));
+        found = std::prev(local_clusters.end());
+      }
+      found->members.push_back(i);
+    }
+    for (auto &cluster : local_clusters)
+      cluster.members.erase(cluster.members.begin());
+
+    for (auto &cluster : local_clusters) {
+      if (cluster.members.size() == 1) {
+        cluster.kind = source_edge_facet_event_cluster_kind::singleton;
+      } else {
+        const auto first = cluster.members.front();
+        cluster.kind = admitted_equal_cluster(
+            *pending[edge_begin + first].event,
+            pending[edge_begin + first].tie_key,
+            *pending[edge_begin + cluster.members[1]].event,
+            pending[edge_begin + cluster.members[1]].tie_key);
+        if (cluster.kind == source_edge_facet_event_cluster_kind::singleton) {
+          error = source_edge_facet_error(
+              relation_subcode::source_edge_facet_parameter_unresolved,
+              "Component 07 event cluster lost its exact equality witness");
+          return false;
+        }
+        for (std::size_t i = 0; i < cluster.members.size(); ++i)
+          for (std::size_t j = i + 1; j < cluster.members.size(); ++j)
+            if (admitted_equal_cluster(
+                    *pending[edge_begin + cluster.members[i]].event,
+                    pending[edge_begin + cluster.members[i]].tie_key,
+                    *pending[edge_begin + cluster.members[j]].event,
+                    pending[edge_begin + cluster.members[j]].tie_key) !=
+                cluster.kind) {
+              error = source_edge_facet_error(
+                  relation_subcode::source_edge_facet_parameter_unresolved,
+                  "Component 07 transitive event cluster has incompatible exact lineage");
+              return false;
+            }
+      }
+      std::sort(cluster.members.begin(), cluster.members.end(),
+                [&](std::size_t a, std::size_t b) {
+                  return pending[edge_begin + a].tie_key <
+                         pending[edge_begin + b].tie_key;
+                });
+      for (std::size_t i = 1; i < cluster.members.size(); ++i)
+        if (pending[edge_begin + cluster.members[i - 1]].tie_key ==
+            pending[edge_begin + cluster.members[i]].tie_key) {
+          error = source_edge_facet_error(
+              relation_subcode::incompatible_duplicate_request,
+              "Component 07 event occurrence tie key is duplicated");
+          return false;
+        }
+      std::vector<const source_edge_facet_event_record<T> *> events;
+      events.reserve(cluster.members.size());
+      for (const auto member : cluster.members)
+        events.push_back(pending[edge_begin + member].event);
+      if (!cluster_order_independent(cluster.kind, events)) {
+        error = source_edge_facet_error(
+            relation_subcode::source_edge_facet_parameter_unresolved,
+            "Component 07 equal-parameter event cluster changes the crossing sequence under reordering");
+        return false;
+      }
+    }
+
+    for (std::size_t i = 0; i < local_clusters.size(); ++i) {
+      for (std::size_t j = i + 1; j < local_clusters.size(); ++j) {
+        bool i_before_j = true;
+        bool j_before_i = true;
+        for (const auto a : local_clusters[i].members)
+          for (const auto b : local_clusters[j].members) {
+            i_before_j = i_before_j &&
+                         source_edge_relation_detail::definitely_before(
+                             pending[edge_begin + a].event->parameter,
+                             pending[edge_begin + b].event->parameter);
+            j_before_i = j_before_i &&
+                         source_edge_relation_detail::definitely_before(
+                             pending[edge_begin + b].event->parameter,
+                             pending[edge_begin + a].event->parameter);
+          }
+        if (i_before_j == j_before_i) {
+          error = source_edge_facet_error(
+              relation_subcode::source_edge_facet_parameter_unresolved,
+              "Component 07 event clusters do not have a proven total parameter order");
+          return false;
+        }
+        if (i_before_j)
+          ++local_clusters[j].rank;
+        else
+          ++local_clusters[i].rank;
+      }
+    }
+    std::vector<std::size_t> rank_to_cluster(local_clusters.size(),
+                                             local_clusters.size());
+    for (std::size_t i = 0; i < local_clusters.size(); ++i) {
+      if (local_clusters[i].rank >= local_clusters.size() ||
+          rank_to_cluster[local_clusters[i].rank] != local_clusters.size()) {
+        error = source_edge_facet_error(
+            relation_subcode::source_edge_facet_parameter_unresolved,
+            "Component 07 event cluster order is not a strict total order");
+        return false;
+      }
+      rank_to_cluster[local_clusters[i].rank] = i;
+    }
+
+    std::uint32_t canonical_occurrence = 0;
+    for (const auto cluster_index : rank_to_cluster) {
+      const auto &cluster = local_clusters[cluster_index];
+      if (clusters.size() > std::numeric_limits<std::uint32_t>::max() ||
+          cluster.members.size() > std::numeric_limits<std::uint32_t>::max() ||
+          canonical_occurrence >
+              std::numeric_limits<std::uint32_t>::max() -
+                  static_cast<std::uint32_t>(cluster.members.size())) {
+        error = source_edge_facet_error(
+            relation_subcode::count_overflow,
+            "Component 07 canonical event occurrence is not representable",
+            relation_checkpoint::count_representability_preflight);
+        return false;
+      }
+      source_edge_facet_event_cluster_record cluster_record;
+      cluster_record.id = static_cast<std::uint32_t>(clusters.size());
+      cluster_record.query_edge = pending[edge_begin].tie_key.query_edge;
+      cluster_record.event_begin = ordered.size();
+      cluster_record.event_count = cluster.members.size();
+      cluster_record.kind = cluster.kind;
+      cluster_record.parameter_equality_retained = cluster.members.size() > 1;
+      cluster_record.crossing_sequence_order_independent = true;
+      clusters.push_back(cluster_record);
+
+      for (std::size_t ordinal = 0; ordinal < cluster.members.size(); ++ordinal) {
+        const auto &item = pending[edge_begin + cluster.members[ordinal]];
+        source_edge_facet_ordered_event_record record;
+        record.relation = item.relation;
+        record.local_event = item.local_event;
+        record.canonical_occurrence = canonical_occurrence++;
+        record.cluster_id = cluster_record.id;
+        record.cluster_ordinal = static_cast<std::uint32_t>(ordinal);
+        record.cluster_size = static_cast<std::uint32_t>(cluster.members.size());
+        record.cluster_kind = cluster.kind;
+        record.parameter_equality_retained = cluster.members.size() > 1;
+        record.crossing_sequence_order_independent = true;
+        record.tie_key = item.tie_key;
+        ordered.push_back(record);
+      }
+    }
+    edge_begin = edge_end;
+  }
+  return true;
+}
+
+inline void encode_occurrence_tie_key(
+    canonical_writer &writer,
+    const source_edge_facet_occurrence_tie_key &key) {
+  encode_relation_feature_key(writer, key.query_edge);
+  writer.u8(static_cast<std::uint8_t>(key.parameter_role));
+  writer.u8(key.boundary_kind);
+  writer.u64(key.boundary_owner_primary);
+  writer.u64(key.boundary_owner_secondary);
+  encode_relation_feature_key(writer, key.opposite_facet);
+  writer.u8(static_cast<std::uint8_t>(key.event_kind));
+  writer.u8(static_cast<std::uint8_t>(key.before));
+  writer.u8(static_cast<std::uint8_t>(key.after));
+  writer.u8(static_cast<std::uint8_t>(key.numeric_crossing + 1));
+  writer.u16(key.policy_version);
+  writer.u16(key.reserved);
+}
+
+template <class T>
+bool verify_event_order(
+    const relation_request_graph &graph,
+    const std::vector<source_edge_facet_relation_record<T>> &relations,
+    const std::vector<source_edge_facet_ordered_event_record> &ordered,
+    const std::vector<source_edge_facet_event_cluster_record> &clusters,
+    const relation_capabilities &capabilities, bounded_boolean_error &error) {
+  const auto fail = [&](relation_subcode subcode, const char *summary) {
+    error = source_edge_facet_error(
+        subcode, summary, relation_checkpoint::producer_verification);
+    return false;
+  };
+  if (relations.size() != graph.requests.size() ||
+      ordered.size() > capabilities.maximum_event_seeds ||
+      clusters.size() > capabilities.maximum_event_seeds)
+    return fail(relation_subcode::source_edge_facet_invariant,
+                "Component 07 ordered-event header is malformed");
+
+  std::uint64_t event_count = 0;
+  std::vector<std::vector<bool>> seen(relations.size());
+  for (std::size_t relation = 0; relation < relations.size(); ++relation) {
+    if (relations[relation].events.size() >
+            std::numeric_limits<std::uint32_t>::max() ||
+        event_count > std::numeric_limits<std::uint64_t>::max() -
+                          relations[relation].events.size())
+      return fail(relation_subcode::count_overflow,
+                  "Component 07 ordered-event count is not representable");
+    event_count += relations[relation].events.size();
+    seen[relation].assign(relations[relation].events.size(), false);
+  }
+  if (event_count != ordered.size())
+    return fail(relation_subcode::source_edge_facet_invariant,
+                "Component 07 ordered-event table is incomplete");
+  if (event_count == 0 && !clusters.empty())
+    return fail(relation_subcode::source_edge_facet_invariant,
+                "Component 07 empty event stream has clusters");
+
+  std::uint64_t expected_begin = 0;
+  std::map<relation_feature_key, std::uint32_t> next_occurrence;
+  const source_edge_facet_event_cluster_record *previous_cluster = nullptr;
+  for (std::size_t cluster_index = 0; cluster_index < clusters.size();
+       ++cluster_index) {
+    const auto &cluster = clusters[cluster_index];
+    if (cluster_index > std::numeric_limits<std::uint32_t>::max() ||
+        cluster.id != static_cast<std::uint32_t>(cluster_index) ||
+        !valid_relation_feature_key(cluster.query_edge) ||
+        cluster.query_edge.kind != relation_feature_kind::source_edge ||
+        cluster.event_begin != expected_begin || cluster.event_count == 0 ||
+        cluster.event_count > std::numeric_limits<std::uint32_t>::max() ||
+        cluster.event_begin > ordered.size() ||
+        cluster.event_count > ordered.size() - cluster.event_begin ||
+        !valid_event_cluster_kind(cluster.kind) ||
+        cluster.parameter_equality_retained != (cluster.event_count > 1) ||
+        !cluster.crossing_sequence_order_independent ||
+        cluster.reserved16 != 0 || cluster.reserved32 != 0 ||
+        ((cluster.event_count == 1) !=
+         (cluster.kind == source_edge_facet_event_cluster_kind::singleton)))
+      return fail(relation_subcode::source_edge_facet_invariant,
+                  "Component 07 event cluster is malformed");
+
+    if (previous_cluster) {
+      if (cluster.query_edge < previous_cluster->query_edge)
+        return fail(relation_subcode::source_edge_facet_invariant,
+                    "Component 07 event clusters are not edge-canonical");
+      if (!(previous_cluster->query_edge < cluster.query_edge) &&
+          !(cluster.query_edge < previous_cluster->query_edge)) {
+        for (std::uint64_t previous = previous_cluster->event_begin;
+             previous < previous_cluster->event_begin +
+                            previous_cluster->event_count;
+             ++previous) {
+          const auto &a_record = ordered[previous];
+          if (a_record.relation.ordinal() >= relations.size() ||
+              a_record.local_event >=
+                  relations[a_record.relation.ordinal()].events.size())
+            return fail(relation_subcode::source_edge_facet_invariant,
+                        "Component 07 previous event cluster reference is invalid");
+          const auto &a = relations[a_record.relation.ordinal()]
+                              .events[a_record.local_event];
+          for (std::uint64_t current = cluster.event_begin;
+               current < cluster.event_begin + cluster.event_count; ++current) {
+            const auto &b_record = ordered[current];
+            if (b_record.relation.ordinal() >= relations.size() ||
+                b_record.local_event >=
+                    relations[b_record.relation.ordinal()].events.size())
+              return fail(relation_subcode::source_edge_facet_invariant,
+                          "Component 07 current event cluster reference is invalid");
+            const auto &b = relations[b_record.relation.ordinal()]
+                                .events[b_record.local_event];
+            if (!source_edge_relation_detail::definitely_before(a.parameter,
+                                                                 b.parameter))
+              return fail(
+                  relation_subcode::source_edge_facet_parameter_unresolved,
+                  "Component 07 adjacent event clusters lack proven order");
+          }
+        }
+      }
+    }
+
+    std::vector<const source_edge_facet_event_record<T> *> cluster_events;
+    cluster_events.reserve(static_cast<std::size_t>(cluster.event_count));
+    source_edge_facet_occurrence_tie_key previous_key{};
+    bool has_previous_key = false;
+    for (std::uint64_t offset = 0; offset < cluster.event_count; ++offset) {
+      const auto &entry = ordered[cluster.event_begin + offset];
+      if (entry.relation.ordinal() >= relations.size() ||
+          entry.relation != graph.requests[entry.relation.ordinal()].id ||
+          entry.local_event >=
+              relations[entry.relation.ordinal()].events.size() ||
+          seen[entry.relation.ordinal()][entry.local_event] ||
+          entry.cluster_id != cluster.id || entry.cluster_ordinal != offset ||
+          entry.cluster_size != cluster.event_count ||
+          entry.cluster_kind != cluster.kind ||
+          entry.parameter_equality_retained !=
+              cluster.parameter_equality_retained ||
+          entry.crossing_sequence_order_independent !=
+              cluster.crossing_sequence_order_independent ||
+          entry.reserved16 != 0 || entry.reserved32 != 0)
+        return fail(relation_subcode::source_edge_facet_invariant,
+                    "Component 07 ordered event is malformed");
+
+      const auto &request = graph.requests[entry.relation.ordinal()];
+      const auto &event = relations[entry.relation.ordinal()]
+                              .events[entry.local_event];
+      source_edge_facet_occurrence_tie_key reconstructed_key;
+      if (request.key.first != cluster.query_edge ||
+          !occurrence_tie_key(request.key.first, request.key.second, event,
+                              reconstructed_key) ||
+          !(entry.tie_key == reconstructed_key) ||
+          (has_previous_key && !(previous_key < entry.tie_key)))
+        return fail(relation_subcode::source_edge_facet_invariant,
+                    "Component 07 occurrence tie key did not reconstruct");
+      has_previous_key = true;
+      previous_key = entry.tie_key;
+
+      auto &expected_occurrence = next_occurrence[cluster.query_edge];
+      if (entry.canonical_occurrence != expected_occurrence ||
+          expected_occurrence == std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::count_overflow,
+                    "Component 07 canonical occurrence is malformed");
+      ++expected_occurrence;
+      seen[entry.relation.ordinal()][entry.local_event] = true;
+      cluster_events.push_back(&event);
+    }
+
+    if (!cluster_order_independent(cluster.kind, cluster_events))
+      return fail(relation_subcode::source_edge_facet_parameter_unresolved,
+                  "Component 07 event cluster is order-dependent");
+    if (cluster.event_count > 1) {
+      for (std::size_t i = 0; i < cluster_events.size(); ++i)
+        for (std::size_t j = i + 1; j < cluster_events.size(); ++j) {
+          const auto &a_entry = ordered[cluster.event_begin + i];
+          const auto &b_entry = ordered[cluster.event_begin + j];
+          if (source_edge_relation_detail::definitely_before(
+                  cluster_events[i]->parameter,
+                  cluster_events[j]->parameter) ||
+              source_edge_relation_detail::definitely_before(
+                  cluster_events[j]->parameter,
+                  cluster_events[i]->parameter) ||
+              admitted_equal_cluster(*cluster_events[i], a_entry.tie_key,
+                                     *cluster_events[j], b_entry.tie_key) !=
+                  cluster.kind)
+            return fail(
+                relation_subcode::source_edge_facet_parameter_unresolved,
+                "Component 07 event cluster equality lineage is inconsistent");
+        }
+    }
+    expected_begin += cluster.event_count;
+    previous_cluster = &cluster;
+  }
+  if (expected_begin != ordered.size())
+    return fail(relation_subcode::source_edge_facet_invariant,
+                "Component 07 event clusters contain trailing data");
+  for (const auto &relation_seen : seen)
+    if (std::find(relation_seen.begin(), relation_seen.end(), false) !=
+        relation_seen.end())
+      return fail(relation_subcode::source_edge_facet_invariant,
+                  "Component 07 ordered-event coverage is incomplete");
+  return true;
+}
+
 } // namespace candidate_source_edge_facet_detail
 
 template <class T>
@@ -1559,6 +2252,34 @@ encode_candidate_source_edge_facet_relation_semantics(
     writer.u64(range.begin);
     writer.u64(range.count);
     writer.u32(range.reserved);
+  }
+  writer.u64(stage.ordered_events.size());
+  for (const auto &event : stage.ordered_events) {
+    writer.u64(event.relation.ordinal());
+    writer.u32(event.local_event);
+    writer.u32(event.canonical_occurrence);
+    writer.u32(event.cluster_id);
+    writer.u32(event.cluster_ordinal);
+    writer.u32(event.cluster_size);
+    writer.u8(static_cast<std::uint8_t>(event.cluster_kind));
+    writer.boolean(event.parameter_equality_retained);
+    writer.boolean(event.crossing_sequence_order_independent);
+    candidate_source_edge_facet_detail::encode_occurrence_tie_key(
+        writer, event.tie_key);
+    writer.u16(event.reserved16);
+    writer.u32(event.reserved32);
+  }
+  writer.u64(stage.event_clusters.size());
+  for (const auto &cluster : stage.event_clusters) {
+    writer.u32(cluster.id);
+    encode_relation_feature_key(writer, cluster.query_edge);
+    writer.u64(cluster.event_begin);
+    writer.u64(cluster.event_count);
+    writer.u8(static_cast<std::uint8_t>(cluster.kind));
+    writer.boolean(cluster.parameter_equality_retained);
+    writer.boolean(cluster.crossing_sequence_order_independent);
+    writer.u16(cluster.reserved16);
+    writer.u32(cluster.reserved32);
   }
   writer.u64(stage.evaluation_count);
   writer.u32(stage.reserved);
@@ -1640,6 +2361,10 @@ bool verify_candidate_source_edge_facet_relation_stage(
       return fail(relation_subcode::source_edge_facet_invariant,
                   "Component 07 edge/facet numerical record did not reconstruct");
   }
+  if (!verify_event_order(stage.request_graph, stage.relations,
+                          stage.ordered_events, stage.event_clusters,
+                          capabilities, error))
+    return false;
 
   std::vector<std::vector<relation_request_id>> expected(
       candidates.candidates().size());
@@ -1761,6 +2486,11 @@ build_candidate_source_edge_facet_relations(
       stage.relations.push_back(std::move(*relation.value()));
       ++stage.evaluation_count;
     }
+    bounded_boolean_error order_error;
+    if (!build_event_order(stage.request_graph, stage.relations, capabilities,
+                           stage.ordered_events, stage.event_clusters,
+                           order_error))
+      return boolean_outcome<stage_type>::failure(order_error);
 
     std::vector<std::vector<relation_request_id>> candidate_links(
         candidates.candidates().size());

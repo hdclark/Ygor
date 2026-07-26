@@ -111,6 +111,16 @@ void test_candidate_request_integration() {
   require(value.facets.candidate_ranges.size() ==
               fixture.artifact->candidates().size(),
           "every candidate has a deterministic edge/facet coverage range");
+  std::size_t detailed_event_count = 0;
+  for (const auto &relation : value.facets.relations)
+    detailed_event_count += relation.events.size();
+  require(value.facets.ordered_events.size() == detailed_event_count,
+          "every edge/facet event has one canonical occurrence record");
+  std::uint64_t clustered_event_count = 0;
+  for (const auto &cluster : value.facets.event_clusters)
+    clustered_event_count += cluster.event_count;
+  require(clustered_event_count == value.facets.ordered_events.size(),
+          "canonical event clusters cover the complete event stream");
 
   bool observed_contact = false;
   for (const auto &request : value.facets.request_graph.requests) {
@@ -291,6 +301,33 @@ void test_mutation_rejection() {
               error),
           "mutated edge/facet relation must be rejected");
 
+  if (!value.facets.ordered_events.empty()) {
+    auto event_order_mutated = value.facets;
+    ++event_order_mutated.ordered_events.front().canonical_occurrence;
+    event_order_mutated.semantic_digest = bounded::sha256::digest(
+        bounded::encode_candidate_source_edge_facet_relation_semantics(
+            event_order_mutated));
+    require(!bounded::verify_candidate_source_edge_facet_relation_stage(
+                *fixture.artifact, value.edges,
+                fixture.predecessor.context.context_digest,
+                fixture.predecessor.precision->tolerance(), caps,
+                event_order_mutated, error),
+            "self-consistent canonical event-occurrence mutation is rejected");
+  }
+  if (!value.facets.event_clusters.empty()) {
+    auto cluster_mutated = value.facets;
+    cluster_mutated.event_clusters.front().event_begin = 1;
+    cluster_mutated.semantic_digest = bounded::sha256::digest(
+        bounded::encode_candidate_source_edge_facet_relation_semantics(
+            cluster_mutated));
+    require(!bounded::verify_candidate_source_edge_facet_relation_stage(
+                *fixture.artifact, value.edges,
+                fixture.predecessor.context.context_digest,
+                fixture.predecessor.precision->tolerance(), caps,
+                cluster_mutated, error),
+            "self-consistent event-cluster range mutation is rejected");
+  }
+
   require(!value.facet_pairs.relations.empty(),
           "mutation fixture requires a facet/facet relation");
   auto facet_mutated = value.facet_pairs;
@@ -321,7 +358,9 @@ void test_empty_stage_and_publication() {
   auto empty = build_stages(separated);
   require(empty.facets.request_graph.requests.empty() &&
               empty.facets.relations.empty() &&
-              empty.facets.candidate_ranges.empty(),
+              empty.facets.candidate_ranges.empty() &&
+              empty.facets.ordered_events.empty() &&
+              empty.facets.event_clusters.empty(),
           "empty candidate stream produces an empty verified edge/facet stage");
   require(empty.overlays.overlays.empty() && empty.overlays.links.empty() &&
               empty.overlays.evaluation_count == 0,

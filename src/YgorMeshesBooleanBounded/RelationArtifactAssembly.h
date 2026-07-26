@@ -547,6 +547,7 @@ private:
     relation_request_key source_relation{};
     feature_relation_id relation{0};
     const source_edge_facet_event_record<T> *event = nullptr;
+    std::uint32_t occurrence = 0;
     std::int8_t local_transition = 0;
     std::int8_t symbolic_crossing = 0;
     operand_id half_open_owner = operand_id::a;
@@ -560,7 +561,7 @@ private:
     return false;
   }
 
-  bool validate_inputs(bounded_boolean_error &error) const {
+  bool validate_inputs(bounded_boolean_error &error) {
     if (!candidates_ || !edge_stage_ || !edge_facet_stage_ || !facet_stage_ ||
         !overlay_stage_ || !capabilities_.owner.anchor ||
         !candidates_->owner().same_owner(capabilities_.owner) ||
@@ -576,6 +577,50 @@ private:
       return fail(error, relation_subcode::predecessor_mismatch,
                   "Component 07 final assembly predecessor handshake failed",
                   relation_checkpoint::predecessor_validation);
+    ordered_event_occurrences_.clear();
+    for (const auto &entry : edge_facet_stage_->ordered_events) {
+      if (!ordered_event_occurrences_
+               .emplace(std::make_pair(entry.relation, entry.local_event),
+                        entry.canonical_occurrence)
+               .second)
+        return fail(error, relation_subcode::incompatible_duplicate_request,
+                    "Component 07 final assembly event-order key is duplicated",
+                    relation_checkpoint::predecessor_validation);
+    }
+    std::uint64_t expected_events = 0;
+    for (const auto &relation : edge_facet_stage_->relations) {
+      if (relation.events.size() >
+              std::numeric_limits<std::uint64_t>::max() - expected_events)
+        return fail(error, relation_subcode::count_overflow,
+                    "Component 07 final assembly event count overflowed",
+                    relation_checkpoint::count_representability_preflight);
+      expected_events += relation.events.size();
+    }
+    if (expected_events != ordered_event_occurrences_.size())
+      return fail(error, relation_subcode::predecessor_mismatch,
+                  "Component 07 final assembly event-order table is incomplete",
+                  relation_checkpoint::predecessor_validation);
+    return true;
+  }
+
+  bool canonical_event_occurrence(const base_descriptor &base,
+                                  std::uint32_t local_event,
+                                  std::uint32_t &occurrence,
+                                  bounded_boolean_error &error) const {
+    if (base.kind != base_kind::edge_facet ||
+        base.ordinal >= edge_facet_stage_->request_graph.requests.size())
+      return fail(error, relation_subcode::missing_dependency,
+                  "Component 07 canonical event occurrence source is absent",
+                  relation_checkpoint::canonical_id_and_reference_remap);
+    const auto relation =
+        edge_facet_stage_->request_graph.requests[base.ordinal].id;
+    const auto found =
+        ordered_event_occurrences_.find(std::make_pair(relation, local_event));
+    if (found == ordered_event_occurrences_.end())
+      return fail(error, relation_subcode::missing_dependency,
+                  "Component 07 canonical event occurrence is absent",
+                  relation_checkpoint::canonical_id_and_reference_remap);
+    occurrence = found->second;
     return true;
   }
 
@@ -1576,12 +1621,23 @@ private:
                     "Component 07 multiplicity request is duplicated",
                     relation_checkpoint::crossing_multiplicity);
 
-        for (const auto &event : source.events) {
+        for (std::size_t local_event = 0; local_event < source.events.size();
+             ++local_event) {
+          if (local_event > std::numeric_limits<std::uint32_t>::max())
+            return fail(error, relation_subcode::count_overflow,
+                        "Component 07 local edge/facet event is not representable",
+                        relation_checkpoint::count_representability_preflight);
+          const auto &event = source.events[local_event];
+          std::uint32_t occurrence = 0;
+          if (!canonical_event_occurrence(
+                  base, static_cast<std::uint32_t>(local_event), occurrence,
+                  error))
+            return false;
           construction_descriptor descriptor;
           descriptor.key = derived_key(
               base.key, relation_request_family::authoritative_construction,
               tagged_use(10, static_cast<std::uint8_t>(event.kind)),
-              event.occurrence);
+              occurrence);
           descriptor.source_relation = base.key;
           descriptor.kind = relation_construction_kind::bounded_point;
           descriptor.value.kind = descriptor.kind;
@@ -1591,7 +1647,7 @@ private:
           descriptor.value.finite = true;
           descriptor.value.tolerance_compatible =
               event.construction.tolerance_compatible;
-          descriptor.occurrence = event.occurrence;
+          descriptor.occurrence = occurrence;
           descriptor.seed_family = base.family;
           descriptor.incidence = {base.key.first, base.key.second};
           descriptor.emit_seed = true;
@@ -1603,7 +1659,7 @@ private:
           if (event.kind != source_edge_facet_event_kind::proper_face_crossing) {
             add_symbolic_descriptor(
                 base, symbolic_family_for_edge_facet(event.kind, source.contact),
-                orientation_relation::indeterminate, event.occurrence,
+                orientation_relation::indeterminate, occurrence,
                 &descriptor.key, &multiplicity);
           }
         }
@@ -2203,7 +2259,7 @@ private:
 
   bool source_fan_key(const base_descriptor &base,
                       const source_edge_facet_event_record<T> &event,
-                      source_fan_group_key &key,
+                      std::uint32_t occurrence, source_fan_group_key &key,
                       bounded_boolean_error &error) const {
     key = source_fan_group_key{};
     key.query_edge = base.key.first;
@@ -2215,7 +2271,7 @@ private:
             source_facet_point_region_class::original_vertex;
     if (!source_boundary) {
       key.singleton_relation = base.key;
-      key.singleton_occurrence = event.occurrence;
+      key.singleton_occurrence = occurrence;
       return true;
     }
     if (event.kind != source_edge_facet_event_kind::boundary_crossing &&
@@ -2582,9 +2638,19 @@ private:
         return fail(error, relation_subcode::missing_dependency,
                     "Component 07 crossing source relation is absent",
                     relation_checkpoint::crossing_multiplicity);
-      for (const auto &event : source.events) {
+      for (std::size_t local_event = 0; local_event < source.events.size();
+           ++local_event) {
+        if (local_event > std::numeric_limits<std::uint32_t>::max())
+          return fail(error, relation_subcode::count_overflow,
+                      "Component 07 local crossing event is not representable",
+                      relation_checkpoint::count_representability_preflight);
+        const auto &event = source.events[local_event];
         crossing_descriptor descriptor;
-        if (!source_fan_key(base, event, descriptor.group, error))
+        if (!canonical_event_occurrence(
+                base, static_cast<std::uint32_t>(local_event),
+                descriptor.occurrence, error) ||
+            !source_fan_key(base, event, descriptor.occurrence,
+                            descriptor.group, error))
           return false;
         descriptor.source_relation = base.key;
         descriptor.relation = relation->second;
@@ -2592,7 +2658,7 @@ private:
         descriptor.local_transition = event_local_transition(event);
         descriptor.half_open_owner = base.key.first.operand;
         const auto decision = decision_ids_.find(
-            std::make_pair(base.key, event.occurrence));
+            std::make_pair(base.key, descriptor.occurrence));
         if (decision != decision_ids_.end()) {
           const auto &symbolic = decisions_[decision->second.ordinal()];
           descriptor.symbolic_crossing =
@@ -2605,10 +2671,8 @@ private:
     std::sort(pending.begin(), pending.end(),
               [](const crossing_descriptor &a,
                  const crossing_descriptor &b) {
-                return std::tie(a.group, a.source_relation,
-                                a.event->occurrence) <
-                       std::tie(b.group, b.source_relation,
-                                b.event->occurrence);
+                return std::tie(a.group, a.source_relation, a.occurrence) <
+                       std::tie(b.group, b.source_relation, b.occurrence);
               });
 
     for (auto &relation : relations_)
@@ -2705,7 +2769,7 @@ private:
         record.symbolic_crossing =
             i == begin ? pending[i].symbolic_crossing : 0;
         record.half_open_owner = pending[begin].half_open_owner;
-        record.occurrence = pending[i].event->occurrence;
+        record.occurrence = pending[i].occurrence;
         record.source_fan_group = group;
         record.source_fan_group_size = static_cast<std::uint32_t>(count);
         record.source_fan_group_ordinal =
@@ -2919,6 +2983,8 @@ private:
   std::vector<disposition_descriptor> disposition_desc_;
   std::vector<std::vector<relation_request_key>> candidate_base_keys_;
   std::map<relation_request_key, relation_request_key> multiplicity_keys_;
+  std::map<std::pair<relation_request_id, std::uint32_t>, std::uint32_t>
+      ordered_event_occurrences_;
   std::vector<relation_request_key> seed_request_keys_;
 
   relation_request_graph graph_{};

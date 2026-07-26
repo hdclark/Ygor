@@ -616,24 +616,55 @@ composite-only audit data:
   persistent limit-minus-one rollback, and repaired-codec mutations of both an
   interval enclosure and a region query.
 
+## Implemented canonical clustered edge/facet event ordering
+
+The source-edge/source-facet relation stage now completes the Plan 07 ordering
+and occurrence slice for admitted multi-event contacts:
+
+- first-class canonical ordered-event and event-cluster tables cover every
+  detailed edge/facet event exactly once and are part of the stage semantic
+  digest and final relation-artifact contract;
+- event order along each canonical query-edge direction is accepted only from
+  definitely separated bounded parameter intervals, while overlapping intervals
+  fail closed unless exact endpoint or original source-boundary lineage proves an
+  admitted equality cluster;
+- admitted equal-parameter clusters retain equality and distinguish exact query
+  endpoints, common original source vertices, and common original source edges
+  without using nominal coordinates, tolerance proximity, candidate traversal
+  order, or runtime-owner identity;
+- a complete owner-free occurrence tie key records the query edge, exact
+  parameter role, original boundary kind and owners, opposite source facet,
+  event kind, side transition, numeric crossing, and policy identity;
+- every cluster is independently checked to be order-independent for the
+  supported contact semantics, tie keys must be unique and strictly canonical,
+  and canonical occurrences are assigned only after the cluster partition and
+  strict inter-cluster order have been proved;
+- relation construction requests, symbolic decisions, source-fan keys, crossing
+  publication, event seeds, semantic encoding, and independent final-artifact
+  verification now consume the canonical occurrence rather than a
+  relation-local event ordinal;
+- independent reconstruction validates complete coverage, cluster ranges, exact
+  equality lineage, strict inter-cluster order, tie-key bytes, and occurrence
+  sequences, including self-consistent repaired-digest mutations; and
+- focused qualification covers exact query-endpoint, common source-vertex, and
+  shared-source-edge clusters, plus tie-order, occurrence, cluster-range, and
+  coordinate-equal-but-lineage-distinct rejection cases.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Complete admitted clustered multi-event ordering and complete occurrence tie
-   keys for source-edge/source-facet relations, including all supported
-   source-vertex and shared-edge contact fixtures.
-2. Complete authoritative construction deduplication across relation families
+1. Complete authoritative construction deduplication across relation families
    and publish the remaining tolerance-ledger and producer evidence beyond the
    now first-class parameter, residual, conditioning, and region tables.
-3. Complete the remaining symbolic categories, incidence/rank/occurrence
+2. Complete the remaining symbolic categories, incidence/rank/occurrence
    constraints, event-seed diagnostics, candidate canonical partitions, and
    replay diagnostics required by the normative plan.
-4. Add the independent exact-rational/exhaustive oracle, complete known-answer
+3. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and
    serial/parallel equivalence evidence.
-5. Complete Component 08-10 handoff qualification proving no authoritative
+4. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed

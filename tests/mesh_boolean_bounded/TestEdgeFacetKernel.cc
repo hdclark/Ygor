@@ -127,6 +127,38 @@ fixture(const context_owner_token &owner, T x0, T y0, T z0, T x1, T y1,
 }
 
 template <class T>
+source_edge_facet_input<T> retarget_facet(source_edge_facet_input<T> input,
+                                          std::uint64_t source_facet,
+                                          std::uint64_t ring) {
+  input.facet_feature.primary = source_facet;
+  input.facet_feature.secondary = ring;
+  input.source_facet = source_facet;
+  input.ring = ring;
+  return input;
+}
+
+template <class T>
+relation_request_graph event_order_graph(
+    const context_owner_token &owner,
+    const std::vector<source_edge_facet_relation_record<T>> &relations) {
+  relation_request_graph graph;
+  graph.owner = owner;
+  graph.requests.reserve(relations.size());
+  for (std::size_t i = 0; i < relations.size(); ++i) {
+    canonical_relation_request request;
+    request.id = relation_request_id(i);
+    request.key.family = relation_request_family::source_edge_source_facet;
+    request.key.scope = relation_record_scope::public_source_feature;
+    request.key.first = relations[i].edge_feature;
+    request.key.second = relations[i].facet_feature;
+    request.key.formula_version = contract_versions::exact_relation_formulas;
+    request.key.policy_version = contract_versions::relation_request_key_schema;
+    graph.requests.push_back(request);
+  }
+  return graph;
+}
+
+template <class T>
 source_edge_facet_relation_record<T>
 classify_or_fail(const char *name, source_edge_facet_input<T> input,
                  const context_owner_token &owner) {
@@ -248,6 +280,107 @@ void test_coplanar_partition_categories() {
         "collinear original-boundary overlap retains overlap ownership");
 }
 
+void test_canonical_clustered_event_order() {
+  const auto owner = context_owner_token::create();
+  relation_capabilities capabilities;
+  capabilities.owner = owner;
+
+  const auto build_pair = [&](const char *name,
+                              source_edge_facet_input<double> first_input,
+                              source_edge_facet_input<double> second_input,
+                              source_edge_facet_event_cluster_kind expected_kind) {
+    std::vector<source_edge_facet_relation_record<double>> relations;
+    relations.push_back(classify_or_fail(name, std::move(first_input), owner));
+    relations.push_back(classify_or_fail(name, std::move(second_input), owner));
+    const auto graph = event_order_graph(owner, relations);
+    std::vector<source_edge_facet_ordered_event_record> ordered;
+    std::vector<source_edge_facet_event_cluster_record> clusters;
+    bounded_boolean_error error;
+    const bool built = candidate_source_edge_facet_detail::build_event_order(
+        graph, relations, capabilities, ordered, clusters, error);
+    check(built, std::string(name) + " event order should build");
+    if (!built) {
+      std::cerr << "  subcode=" << error.subcode
+                << " summary=" << error.summary << '\n';
+      return;
+    }
+    check(ordered.size() == 2 && clusters.size() == 1,
+          std::string(name) + " retains one two-event equality cluster");
+    if (ordered.size() != 2 || clusters.size() != 1)
+      return;
+    check(clusters[0].kind == expected_kind &&
+              clusters[0].parameter_equality_retained &&
+              clusters[0].crossing_sequence_order_independent,
+          std::string(name) + " publishes the expected admitted cluster");
+    check(ordered[0].canonical_occurrence == 0 &&
+              ordered[1].canonical_occurrence == 1 &&
+              ordered[0].tie_key < ordered[1].tie_key,
+          std::string(name) + " assigns canonical occurrences after tie order");
+    bounded_boolean_error verification_error;
+    check(candidate_source_edge_facet_detail::verify_event_order(
+              graph, relations, ordered, clusters, capabilities,
+              verification_error),
+          std::string(name) + " event order independently verifies");
+
+    auto reordered = ordered;
+    std::swap(reordered[0], reordered[1]);
+    bounded_boolean_error reordered_error;
+    check(!candidate_source_edge_facet_detail::verify_event_order(
+              graph, relations, reordered, clusters, capabilities,
+              reordered_error),
+          std::string(name) + " tie-order mutation is rejected");
+
+    auto occurrence_mutation = ordered;
+    occurrence_mutation[1].canonical_occurrence = 0;
+    bounded_boolean_error occurrence_error;
+    check(!candidate_source_edge_facet_detail::verify_event_order(
+              graph, relations, occurrence_mutation, clusters, capabilities,
+              occurrence_error),
+          std::string(name) + " canonical-occurrence mutation is rejected");
+  };
+
+  build_pair(
+      "source-vertex cluster",
+      fixture(owner, 0.0, 0.0, -1.0, 0.0, 0.0, 1.0),
+      retarget_facet(
+          fixture(owner, 0.0, 0.0, -1.0, 0.0, 0.0, 1.0), 5, 2),
+      source_edge_facet_event_cluster_kind::opposite_source_vertex);
+
+  build_pair(
+      "shared-edge cluster",
+      fixture(owner, 0.0, 0.5, -1.0, 0.0, 0.5, 1.0),
+      retarget_facet(
+          fixture(owner, 0.0, 0.5, -1.0, 0.0, 0.5, 1.0), 5, 2),
+      source_edge_facet_event_cluster_kind::opposite_source_edge);
+
+  build_pair(
+      "exact-endpoint cluster",
+      fixture(owner, 0.0, 0.5, 0.0, 0.0, 0.5, 1.0),
+      retarget_facet(
+          fixture(owner, 0.0, 0.5, 0.0, 0.0, 0.5, 1.0), 5, 2),
+      source_edge_facet_event_cluster_kind::exact_query_endpoint);
+
+  std::vector<source_edge_facet_relation_record<double>> unresolved;
+  unresolved.push_back(classify_or_fail(
+      "unresolved interior equality",
+      fixture(owner, 0.5, 0.5, -1.0, 0.5, 0.5, 1.0), owner));
+  unresolved.push_back(classify_or_fail(
+      "unresolved interior equality",
+      retarget_facet(
+          fixture(owner, 0.5, 0.5, -1.0, 0.5, 0.5, 1.0), 5, 2),
+      owner));
+  const auto unresolved_graph = event_order_graph(owner, unresolved);
+  std::vector<source_edge_facet_ordered_event_record> unresolved_ordered;
+  std::vector<source_edge_facet_event_cluster_record> unresolved_clusters;
+  bounded_boolean_error unresolved_error;
+  check(!candidate_source_edge_facet_detail::build_event_order(
+            unresolved_graph, unresolved, capabilities, unresolved_ordered,
+            unresolved_clusters, unresolved_error) &&
+            unresolved_error.subcode == static_cast<std::uint32_t>(
+                relation_subcode::source_edge_facet_parameter_unresolved),
+        "coordinate-equal interior events without exact shared lineage fail closed");
+}
+
 void test_fail_closed_mutations() {
   const auto owner = context_owner_token::create();
   auto input = fixture(owner, 0.5, 0.5, -1.0, 0.5, 0.5, 1.0);
@@ -295,6 +428,7 @@ int main() {
   test_support_and_transverse_categories();
   test_endpoint_categories();
   test_coplanar_partition_categories();
+  test_canonical_clustered_event_order();
   test_fail_closed_mutations();
   test_float_profile();
   if (failures == 0) {

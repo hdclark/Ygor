@@ -345,6 +345,7 @@ template <class T> struct verifier_crossing_descriptor final {
   relation_request_key source_relation{};
   feature_relation_id relation{0};
   const source_edge_facet_event_record<T> *event = nullptr;
+  std::uint32_t occurrence = 0;
   std::int8_t local_transition = 0;
   std::int8_t symbolic_crossing = 0;
   operand_id half_open_owner = operand_id::a;
@@ -370,6 +371,7 @@ std::int8_t verifier_local_transition(
 template <class T>
 bool verifier_source_fan_key(const relation_request_key &relation,
                              const source_edge_facet_event_record<T> &event,
+                             std::uint32_t occurrence,
                              verifier_source_fan_group_key &key) {
   key = verifier_source_fan_group_key{};
   key.query_edge = relation.first;
@@ -381,7 +383,7 @@ bool verifier_source_fan_key(const relation_request_key &relation,
           source_facet_point_region_class::original_vertex;
   if (!source_boundary) {
     key.singleton_relation = relation;
-    key.singleton_occurrence = event.occurrence;
+    key.singleton_occurrence = occurrence;
     return true;
   }
   if (event.kind != source_edge_facet_event_kind::boundary_crossing &&
@@ -581,6 +583,26 @@ bool verify_signed_feature_relations(
           *artifact.source_facet_stage_, *artifact.coplanar_overlay_stage_,
           error))
     return false;
+
+  std::map<std::pair<relation_request_id, std::uint32_t>, std::uint32_t>
+      canonical_edge_facet_occurrences;
+  for (const auto &entry : artifact.source_edge_facet_stage_->ordered_events)
+    if (!canonical_edge_facet_occurrences
+             .emplace(std::make_pair(entry.relation, entry.local_event),
+                      entry.canonical_occurrence)
+             .second)
+      return fail(relation_subcode::duplicate_authoritative_producer,
+                  "Component 07 canonical event occurrence is duplicated");
+  const auto canonical_event_occurrence =
+      [&](relation_request_id relation, std::uint32_t local_event,
+          std::uint32_t &occurrence) {
+        const auto found = canonical_edge_facet_occurrences.find(
+            std::make_pair(relation, local_event));
+        if (found == canonical_edge_facet_occurrences.end())
+          return false;
+        occurrence = found->second;
+        return true;
+      };
 
   struct verifier_overlay_descriptor final {
     relation_request_key key{};
@@ -1875,13 +1897,24 @@ bool verify_signed_feature_relations(
       const auto &source = artifact.source_edge_facet_stage_->relations[
           source_request->id.ordinal()];
       const source_edge_facet_event_record<T> *event = nullptr;
-      for (const auto &candidate : source.events)
-        if (candidate.occurrence == occurrence) {
+      for (std::size_t local_event = 0; local_event < source.events.size();
+           ++local_event) {
+        if (local_event > std::numeric_limits<std::uint32_t>::max())
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 symbolic edge/facet local event overflowed");
+        std::uint32_t candidate_occurrence = 0;
+        if (!canonical_event_occurrence(
+                source_request->id, static_cast<std::uint32_t>(local_event),
+                candidate_occurrence))
+          return fail(relation_subcode::missing_dependency,
+                      "Component 07 symbolic edge/facet event order is absent");
+        if (candidate_occurrence == occurrence) {
           if (event)
             return fail(relation_subcode::duplicate_authoritative_producer,
                         "Component 07 symbolic edge/facet occurrence is duplicated");
-          event = &candidate;
+          event = &source.events[local_event];
         }
+      }
       if (!event)
         return fail(relation_subcode::missing_dependency,
                     "Component 07 symbolic edge/facet occurrence is absent");
@@ -2028,9 +2061,18 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::missing_dependency,
                   "Component 07 crossing detailed producer is absent");
     const auto &source = artifact.source_edge_facet_stage_->relations[i];
-    for (const auto &event : source.events) {
+    for (std::size_t local_event = 0; local_event < source.events.size();
+         ++local_event) {
+      if (local_event > std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::count_overflow,
+                    "Component 07 crossing local event overflowed");
+      const auto &event = source.events[local_event];
       verifier_crossing_descriptor<T> descriptor;
-      if (!verifier_source_fan_key(request.key, event, descriptor.group))
+      if (!canonical_event_occurrence(
+              request.id, static_cast<std::uint32_t>(local_event),
+              descriptor.occurrence) ||
+          !verifier_source_fan_key(request.key, event, descriptor.occurrence,
+                                   descriptor.group))
         return fail(relation_subcode::crossing_fan_incomplete,
                     "Component 07 verifier could not reconstruct source-fan lineage");
       descriptor.source_relation = request.key;
@@ -2039,7 +2081,7 @@ bool verify_signed_feature_relations(
       descriptor.local_transition = verifier_local_transition(event);
       descriptor.half_open_owner = request.key.first.operand;
       const auto symbolic = symbolic_by_source_occurrence.find(
-          std::make_pair(request.key, event.occurrence));
+          std::make_pair(request.key, descriptor.occurrence));
       if (symbolic != symbolic_by_source_occurrence.end()) {
         descriptor.symbolic_crossing =
             symbolic->second->symbolic_crossing_contribution;
@@ -2051,10 +2093,8 @@ bool verify_signed_feature_relations(
   std::sort(expected_crossings.begin(), expected_crossings.end(),
             [](const verifier_crossing_descriptor<T> &a,
                const verifier_crossing_descriptor<T> &b) {
-              return std::tie(a.group, a.source_relation,
-                              a.event->occurrence) <
-                     std::tie(b.group, b.source_relation,
-                              b.event->occurrence);
+              return std::tie(a.group, a.source_relation, a.occurrence) <
+                     std::tie(b.group, b.source_relation, b.occurrence);
             });
   if (artifact.crossings_.size() != expected_crossings.size())
     return fail(relation_subcode::verifier_rejection,
@@ -2152,7 +2192,7 @@ bool verify_signed_feature_relations(
           record.symbolic_crossing != expected_symbolic ||
           record.half_open_owner !=
               expected_crossings[begin].half_open_owner ||
-          record.occurrence != expected.event->occurrence ||
+          record.occurrence != expected.occurrence ||
           record.source_fan_group != group ||
           record.source_fan_group_size != count ||
           record.source_fan_group_ordinal != ordinal ||
