@@ -6,6 +6,7 @@
 #include "YgorMeshesBooleanQualification.h"
 #include "YgorMeshesBooleanQualificationCorpus.h"
 #include "YgorMeshesBooleanQualificationGeneration.h"
+#include "YgorMeshesBooleanQualificationAccounting.h"
 #include "YgorMeshesBooleanProductContractResult.h"
 #include "YgorMeshesBooleanExactResult.h"
 #include "YgorMeshesBooleanBackend.h"
