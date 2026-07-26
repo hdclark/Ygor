@@ -257,6 +257,14 @@ bool count_less(const qualification_outcome_count &a,
   return ordinal(a.outcome) < ordinal(b.outcome);
 }
 
+template <class Values, class Less>
+bool strictly_sorted(const Values &values, Less less) noexcept {
+  return std::adjacent_find(
+             values.begin(), values.end(),
+             [&](const auto &a, const auto &b) { return !less(a, b); }) ==
+         values.end();
+}
+
 bool counts_equal(const std::vector<qualification_outcome_count> &a,
                   const std::vector<qualification_outcome_count> &b) noexcept {
   if (a.size() != b.size())
@@ -547,6 +555,11 @@ make_qualification_success_verification(
 product_status_or<bool> validate_qualification_success_verification(
     const qualification_success_verification &value) noexcept {
   try {
+    if (!strictly_sorted(value.checks, check_less) ||
+        !strictly_sorted(value.probes, probe_less))
+      return qualification_accounting_detail::accounting_error(
+          product_error_code::qualification_policy_violation,
+          "qualification_accounting.verification_order");
     auto made = make_qualification_success_verification(value);
     if (!made.has_value())
       return made.error();
@@ -573,7 +586,7 @@ make_qualification_case_observation(qualification_case_observation value) {
       (value.published_success && value.failure) ||
       (!value.published_success && !value.failure &&
        !value.infrastructure_failure && !value.backend_disagreement &&
-       !value.verifier_disagreement && !value.nondeterministic &&
+       !value.verifier_disagreement && !value.neterministic &&
        !value.timeout_or_resource_limit))
     return qualification_accounting_detail::accounting_error(
         product_error_code::qualification_policy_violation,
@@ -634,6 +647,12 @@ make_qualification_case_observation(qualification_case_observation value) {
 product_status_or<bool> validate_qualification_case_observation(
     const qualification_case_observation &value) noexcept {
   try {
+    if (value.success_verification) {
+      auto nested = validate_qualification_success_verification(
+          *value.success_verification);
+      if (!nested.has_value())
+        return nested.error();
+    }
     auto made = make_qualification_case_observation(value);
     if (!made.has_value())
       return made.error();
@@ -738,6 +757,10 @@ account_qualification_case(qualification_case_observation observation) {
 product_status_or<bool> validate_qualification_case_accounting(
     const qualification_case_accounting &value) noexcept {
   try {
+    auto observation_valid =
+        validate_qualification_case_observation(value.observation);
+    if (!observation_valid.has_value())
+      return observation_valid.error();
     if (value.schema != qualification_accounting_schema_version ||
         !known(value.outcome) ||
         !std::is_sorted(value.false_success_reasons.begin(),
@@ -867,10 +890,17 @@ product_status_or<bool> validate_qualification_accounting_campaign(
   try {
     if (value.schema != qualification_accounting_schema_version ||
         value.checker_version != qualification_accounting_checker_version ||
-        !text(value.identifier) || value.records.empty())
+        !text(value.identifier) || value.records.empty() ||
+        !strictly_sorted(value.records, accounting_less) ||
+        !strictly_sorted(value.counts, count_less))
       return qualification_accounting_detail::accounting_error(
           product_error_code::qualification_policy_violation,
           "qualification_accounting.campaign_contract");
+    for (const auto &record : value.records) {
+      auto valid = validate_qualification_case_accounting(record);
+      if (!valid.has_value())
+        return valid.error();
+    }
     auto remade = make_qualification_accounting_campaign(
         value.identifier, value.records, value.complete);
     if (!remade.has_value())
