@@ -21,13 +21,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply queued Component 07 patch series
-        if: ${{ github.event_name == 'push' && hashFiles('.github/component07-series.patch') != '' }}
+        if: ${{ github.event_name == 'push' && hashFiles('.github/component07-series.patch.gz.b64') != '' }}
         run: |
           git config user.name "OpenAI"
           git config user.email "noreply@openai.com"
-          cat .github/component07-patches/part-* > /tmp/component07-series.patch
+          base64 --decode .github/component07-series.patch.gz.b64 | gzip --decompress > /tmp/component07-series.patch
           git am --3way /tmp/component07-series.patch
-          git rm -r .github/component07-patches .github/component07-series.patch
+          git rm .github/component07-series.patch.gz.b64
           git commit -m "Component 07: remove applied patch bundle"
           git push origin HEAD:"${GITHUB_REF_NAME}"
       - name: Package checkout
