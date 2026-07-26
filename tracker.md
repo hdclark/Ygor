@@ -206,12 +206,12 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Encode coverage by geometry category, operation, both difference directions, type/index specialization, result mode, preparation policy, and expected outcome.
   - [x] Include non-box intersections, skew/rotated convexity, concavity, cavities, coplanar overlays, high valence, thin features, alternate subdivisions, scale extremes, non-dyadic intersections, stratified results, attribute conflicts, and normalization defects.
 
-- [ ] **P6.3 — Implement construction-aware generators and operation-chain harnesses.**
-  - [ ] Add exact halfspace/polytope, profile/extrusion-like, coplanar-overlay, nested-shell/cavity, subdivision, feature-alignment, and representable-transform generators with retained recipes.
-  - [ ] Add valid intersecting-geometry fuzzing; retain disjoint boxes only as a smoke family.
-  - [ ] Add invalid/preparation fuzzing with exact defect labels and normalization-report checks.
-  - [ ] Add chain execution with re-ingestion, exact-result retention, varied association/order, explicit normalization boundaries, and transactional failure propagation.
-  - [ ] Add deterministic provenance-guided minimization and automatic permanent-regression promotion.
+- [x] **P6.3 — Implement construction-aware generators and operation-chain harnesses.**
+  - [x] Add exact halfspace/polytope, profile/extrusion-like, coplanar-overlay, nested-shell/cavity, subdivision, feature-alignment, and representable-transform generators with retained recipes.
+  - [x] Add valid intersecting-geometry fuzzing; retain disjoint boxes only as a smoke family.
+  - [x] Add invalid/preparation fuzzing with exact defect labels and normalization-report checks.
+  - [x] Add chain execution with re-ingestion, exact-result retention, varied association/order, explicit normalization boundaries, and transactional failure propagation.
+  - [x] Add deterministic provenance-guided minimization and automatic permanent-regression promotion.
 
 - [ ] **P6.4 — Run independent backend comparison in diagnostic-only mode.**
   - [ ] Execute at least one mature independent backend over the declared workload profile.
