@@ -1,0 +1,30 @@
+name: Mesh Boolean P6 workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git --exclude=build --exclude=build-* \
+              -czf /tmp/ygor-p6-workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p6-workspace
+          path: /tmp/ygor-p6-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
