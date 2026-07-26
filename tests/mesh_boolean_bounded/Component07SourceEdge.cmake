@@ -82,3 +82,20 @@ target_link_libraries(ygor_mesh_boolean_facet_facet_relation_tests PRIVATE
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_facet_facet_relation_tests)
 add_test(NAME mesh_boolean_bounded_component07_facet_facet_relations
     COMMAND ygor_mesh_boolean_facet_facet_relation_tests)
+
+add_executable(ygor_mesh_boolean_relation_artifact_tests
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/TestRelationArtifact.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/BroadPhaseFixtures.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/MinimalPublicMeshCarriers.cc"
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_relation_artifact_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_BINARY_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded")
+target_link_libraries(
+    ygor_mesh_boolean_relation_artifact_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_relation_artifact_tests)
+add_test(NAME mesh_boolean_bounded_component07_relation_artifact
+    COMMAND ygor_mesh_boolean_relation_artifact_tests)

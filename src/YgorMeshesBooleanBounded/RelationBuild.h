@@ -458,4 +458,59 @@ build_signed_feature_relations(
       .run();
 }
 
+template <class T, class I>
+boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>>
+decode_signed_feature_relations(
+    const std::vector<std::uint8_t> &bytes,
+    const boolean_context<T, I> &context,
+    const precision_context<T> &precision,
+    std::shared_ptr<const canonical_candidate_stream<T, I>> candidates,
+    relation_capabilities capabilities) {
+  using outcome_type =
+      boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>>;
+  relation_artifact_envelope<T> envelope;
+  bounded_boolean_error error;
+  if (!parse_relation_artifact_envelope(bytes, capabilities, envelope, error)) {
+    relation_build_detail::bind_relation_error(
+        error, context.context_digest, context.replay_digest);
+    return outcome_type::failure(std::move(error));
+  }
+  const auto fail = [&](relation_subcode subcode, const char *summary) {
+    auto failure = relation_error(
+        subcode, bounded_boolean_error_category::input_contract_error, summary,
+        relation_checkpoint::canonical_encoding);
+    relation_build_detail::bind_relation_error(
+        failure, context.context_digest, context.replay_digest);
+    return outcome_type::failure(std::move(failure));
+  };
+  if (!candidates || !context.owner.same_owner(capabilities.owner) ||
+      !precision.owner().same_owner(capabilities.owner) ||
+      !candidates->owner().same_owner(capabilities.owner))
+    return fail(relation_subcode::wrong_owner,
+                "Component 07 decode owner handshake failed");
+  if (envelope.context_digest != context.context_digest ||
+      envelope.precision_digest != precision.digest() ||
+      envelope.candidate_digest != candidates->candidate_digest() ||
+      envelope.operation != context.operation ||
+      to_bits(envelope.residual_boundary) != to_bits(precision.tolerance()) ||
+      envelope.symbolic_policy_digest != context.symbolic.digest ||
+      envelope.statistics.candidate_count != candidates->candidates().size())
+    return fail(relation_subcode::predecessor_mismatch,
+                "Component 07 encoded predecessor or policy handshake failed");
+  for (const bool present : envelope.detailed_stage_present)
+    if (!present)
+      return fail(relation_subcode::codec_error,
+                  "Component 07 encoded artifact omits a required detailed stage");
+
+  auto rebuilt = build_signed_feature_relations(
+      context, precision, std::move(candidates), std::move(capabilities));
+  if (!rebuilt.has_value())
+    return rebuilt;
+  if ((*rebuilt.value())->canonical_bytes() != bytes ||
+      (*rebuilt.value())->graph_digest() != envelope.graph_digest)
+    return fail(relation_subcode::codec_error,
+                "Component 07 encoded artifact is not canonical");
+  return rebuilt;
+}
+
 } // namespace ygor::mesh_boolean::bounded

@@ -196,6 +196,415 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   return writer.take();
 }
 
+
+namespace relation_codec_detail {
+
+inline bool read_digest(canonical_reader &reader,
+                        bounded_boolean_digest &digest) {
+  for (auto &byte : digest.bytes)
+    if (!reader.u8(byte))
+      return false;
+  return true;
+}
+
+inline bool read_feature_key(canonical_reader &reader) {
+  std::uint8_t operand = 0, kind = 0;
+  std::uint64_t primary = 0, secondary = 0;
+  std::uint32_t occurrence = 0;
+  std::uint16_t schema = 0;
+  return reader.u8(operand) && reader.u8(kind) && reader.u64(primary) &&
+         reader.u64(secondary) && reader.u32(occurrence) &&
+         reader.u16(schema);
+}
+
+inline bool read_request_key(canonical_reader &reader) {
+  bounded_boolean_digest semantic_namespace{};
+  std::uint8_t family = 0, scope = 0;
+  std::uint64_t directed_use = 0;
+  std::uint16_t formula = 0, policy = 0;
+  std::uint32_t occurrence = 0, reserved = 0;
+  return read_digest(reader, semantic_namespace) && reader.u8(family) &&
+         reader.u8(scope) && read_feature_key(reader) &&
+         read_feature_key(reader) && reader.u64(directed_use) &&
+         reader.u16(formula) && reader.u16(policy) &&
+         reader.u32(occurrence) && reader.u32(reserved);
+}
+
+inline bool read_event_seed_key(canonical_reader &reader) {
+  bounded_boolean_digest semantic_namespace{};
+  std::uint8_t family = 0;
+  std::uint32_t occurrence = 0;
+  std::uint16_t policy = 0, reserved = 0;
+  return read_digest(reader, semantic_namespace) && reader.u8(family) &&
+         read_feature_key(reader) && read_feature_key(reader) &&
+         reader.u32(occurrence) && reader.u16(policy) &&
+         reader.u16(reserved);
+}
+
+inline bool count_fits(canonical_reader &reader, std::uint64_t count,
+                       std::uint64_t maximum,
+                       std::uint64_t minimum_record_bytes) noexcept {
+  return count <= maximum &&
+         (minimum_record_bytes == 0 ||
+          count <= static_cast<std::uint64_t>(reader.remaining()) /
+                       minimum_record_bytes);
+}
+
+inline bool read_truth_record(canonical_reader &reader) {
+  std::uint64_t nominal = 0;
+  std::uint8_t bounded = 0, exact = 0, disposition = 0;
+  std::uint16_t rounded_formula = 0, exact_formula = 0;
+  std::uint32_t reserved = 0;
+  return reader.u64(nominal) && reader.u8(bounded) && reader.u8(exact) &&
+         reader.u8(disposition) && reader.u16(rounded_formula) &&
+         reader.u16(exact_formula) && reader.u32(reserved);
+}
+
+inline bool read_relation_record(canonical_reader &reader) {
+  std::uint64_t id = 0, producer = 0, truth_begin = 0, truth_count = 0;
+  std::uint8_t family = 0, scope = 0, status = 0;
+  std::uint32_t crossing = 0, occurrence = 0, reserved = 0;
+  return reader.u64(id) && reader.u64(producer) && reader.u8(family) &&
+         reader.u8(scope) && reader.u8(status) && reader.u64(truth_begin) &&
+         reader.u64(truth_count) && reader.u32(crossing) &&
+         reader.u32(occurrence) && reader.u32(reserved);
+}
+
+inline bool read_construction_record(canonical_reader &reader) {
+  std::uint64_t id = 0, producer = 0, value = 0;
+  std::uint8_t kind = 0, component_count = 0;
+  std::uint64_t residual_begin = 0, residual_count = 0;
+  bool finite = false, tolerance = false;
+  std::uint32_t reserved = 0;
+  if (!reader.u64(id) || !reader.u64(producer) || !reader.u8(kind) ||
+      !reader.u8(component_count))
+    return false;
+  for (std::size_t i = 0; i < 18; ++i)
+    if (!reader.u64(value))
+      return false;
+  return reader.u64(residual_begin) && reader.u64(residual_count) &&
+         reader.boolean(finite) && reader.boolean(tolerance) &&
+         reader.u32(reserved);
+}
+
+inline bool read_eligibility_record(canonical_reader &reader) {
+  std::uint8_t exact = 0;
+  bool flag = false;
+  std::uint32_t reserved = 0;
+  if (!read_request_key(reader) || !reader.u8(exact))
+    return false;
+  for (std::size_t i = 0; i < 5; ++i)
+    if (!reader.boolean(flag))
+      return false;
+  return reader.u32(reserved);
+}
+
+inline bool read_symbolic_record(canonical_reader &reader) {
+  std::uint64_t id = 0, rule = 0;
+  std::uint8_t value = 0;
+  bool flag = false;
+  std::uint32_t reserved = 0;
+  if (!reader.u64(id) || !read_request_key(reader))
+    return false;
+  for (std::size_t i = 0; i < 4; ++i)
+    if (!reader.u8(value))
+      return false;
+  if (!reader.u64(rule))
+    return false;
+  for (std::size_t i = 0; i < 5; ++i)
+    if (!reader.u8(value))
+      return false;
+  return reader.boolean(flag) && reader.boolean(flag) &&
+         reader.u32(reserved);
+}
+
+inline bool read_crossing_record(canonical_reader &reader) {
+  std::uint64_t relation = 0;
+  std::uint32_t numeric = 0, occurrence = 0, reserved32 = 0;
+  std::uint8_t symbolic = 0, owner = 0;
+  bool resolved = false, conservative = false;
+  std::uint16_t reserved16 = 0;
+  return reader.u64(relation) && reader.u32(numeric) &&
+         reader.u8(symbolic) && reader.u8(owner) &&
+         reader.u32(occurrence) && reader.boolean(resolved) &&
+         reader.boolean(conservative) && reader.u16(reserved16) &&
+         reader.u32(reserved32);
+}
+
+inline bool read_event_seed_record(canonical_reader &reader) {
+  std::uint64_t value = 0;
+  bool distinct = false;
+  std::uint32_t reserved = 0;
+  return reader.u64(value) && read_event_seed_key(reader) &&
+         reader.u64(value) && reader.u64(value) && reader.u64(value) &&
+         reader.u64(value) && reader.boolean(distinct) &&
+         reader.u32(reserved);
+}
+
+inline bool read_candidate_disposition_record(canonical_reader &reader) {
+  std::uint64_t value = 0;
+  std::uint8_t disposition = 0;
+  std::uint32_t reserved = 0;
+  return reader.u64(value) && reader.u64(value) &&
+         reader.u8(disposition) && reader.u64(value) &&
+         reader.u64(value) && reader.u32(reserved);
+}
+
+} // namespace relation_codec_detail
+
+template <class T>
+bool parse_relation_artifact_envelope(
+    const std::vector<std::uint8_t> &bytes,
+    const relation_capabilities &capabilities,
+    relation_artifact_envelope<T> &envelope,
+    bounded_boolean_error &error) {
+  using namespace relation_codec_detail;
+  envelope = relation_artifact_envelope<T>{};
+  const auto codec_failure = [&](relation_subcode subcode,
+                                 bounded_boolean_error_category category,
+                                 const char *summary) {
+    error = relation_error(subcode, category, summary,
+                           relation_checkpoint::canonical_encoding);
+    return false;
+  };
+  if (bytes.size() > capabilities.maximum_canonical_bytes)
+    return codec_failure(relation_subcode::resource_preflight,
+                         bounded_boolean_error_category::resource_limit,
+                         "Component 07 encoded artifact exceeds configured limit");
+
+  canonical_reader reader(bytes);
+  std::uint32_t magic = 0;
+  std::uint8_t provider = 0, verification = 0, operation = 0;
+  if (!reader.u32(magic) || magic != 0x37465259U ||
+      !reader.u16(envelope.schema_version) ||
+      !reader.u16(envelope.provider_version) ||
+      !reader.u16(envelope.graph_policy_version) ||
+      !reader.u16(envelope.truth_policy_version) ||
+      !reader.u16(envelope.codec_version) ||
+      !reader.u16(envelope.verifier_version) || !reader.u8(provider) ||
+      !reader.u8(verification) ||
+      !read_digest(reader, envelope.context_digest) ||
+      !read_digest(reader, envelope.precision_digest) ||
+      !read_digest(reader, envelope.candidate_digest) ||
+      !read_digest(reader, envelope.graph_digest) || reader.u8(operation) == false ||
+      !reader.floating(envelope.residual_boundary) ||
+      !read_digest(reader, envelope.symbolic_policy_digest))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 encoded artifact header is malformed");
+
+  envelope.provider = static_cast<relation_provider_kind>(provider);
+  envelope.verification =
+      static_cast<relation_verification_disposition>(verification);
+  envelope.operation = static_cast<boolean_operation>(operation);
+  if (envelope.schema_version != contract_versions::relation_artifact_schema ||
+      envelope.provider_version != contract_versions::relation_provider ||
+      envelope.graph_policy_version !=
+          contract_versions::relation_graph_policy ||
+      envelope.truth_policy_version !=
+          contract_versions::relation_truth_policy ||
+      envelope.codec_version != contract_versions::relation_codec ||
+      envelope.verifier_version != contract_versions::relation_verifier ||
+      envelope.provider !=
+          relation_provider_kind::canonical_source_feature_relation_graph_v1 ||
+      envelope.verification !=
+          relation_verification_disposition::independently_verified)
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 encoded artifact uses an unsupported contract");
+
+  canonical_writer detailed_writer;
+  for (std::size_t stage = 0; stage < envelope.detailed_stage_present.size();
+       ++stage) {
+    bool present = false;
+    std::vector<std::uint8_t> section;
+    if (!reader.boolean(present) ||
+        (present && !reader.sized_bytes(section,
+                                        capabilities.maximum_canonical_bytes)))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 detailed-stage section is malformed");
+    envelope.detailed_stage_present[stage] = present;
+    detailed_writer.boolean(present);
+    if (present)
+      detailed_writer.sized_bytes(section);
+  }
+  envelope.detailed_stage_digest = sha256::digest(detailed_writer.take());
+
+  std::vector<std::uint8_t> graph_section;
+  if (!reader.sized_bytes(graph_section, capabilities.maximum_canonical_bytes))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 request-graph section is malformed");
+  envelope.graph_section_digest = sha256::digest(graph_section);
+
+  if (!reader.u64(envelope.truth_count) ||
+      !count_fits(reader, envelope.truth_count,
+                  capabilities.maximum_dependencies, 19))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 truth table count is malformed");
+  for (std::uint64_t i = 0; i < envelope.truth_count; ++i)
+    if (!read_truth_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 truth table is truncated");
+
+  if (!reader.u64(envelope.relation_count) ||
+      !count_fits(reader, envelope.relation_count,
+                  capabilities.maximum_relations, 47))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 relation table count is malformed");
+  for (std::uint64_t i = 0; i < envelope.relation_count; ++i)
+    if (!read_relation_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 relation table is truncated");
+
+  if (!reader.u64(envelope.construction_count) ||
+      !count_fits(reader, envelope.construction_count,
+                  capabilities.maximum_constructions, 184))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 construction table count is malformed");
+  for (std::uint64_t i = 0; i < envelope.construction_count; ++i)
+    if (!read_construction_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 construction table is truncated");
+
+  if (!reader.u64(envelope.symbolic_eligibility_count) ||
+      !count_fits(reader, envelope.symbolic_eligibility_count,
+                  capabilities.maximum_symbolic_decisions, 110))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 symbolic eligibility count is malformed");
+  for (std::uint64_t i = 0; i < envelope.symbolic_eligibility_count; ++i)
+    if (!read_eligibility_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 symbolic eligibility table is truncated");
+
+  if (!reader.u64(envelope.symbolic_decision_count) ||
+      !count_fits(reader, envelope.symbolic_decision_count,
+                  capabilities.maximum_symbolic_decisions, 131))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 symbolic decision count is malformed");
+  for (std::uint64_t i = 0; i < envelope.symbolic_decision_count; ++i)
+    if (!read_symbolic_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 symbolic decision table is truncated");
+
+  if (!reader.u64(envelope.crossing_count) ||
+      !count_fits(reader, envelope.crossing_count,
+                  capabilities.maximum_relations, 26))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 crossing table count is malformed");
+  for (std::uint64_t i = 0; i < envelope.crossing_count; ++i)
+    if (!read_crossing_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 crossing table is truncated");
+
+  if (!reader.u64(envelope.event_seed_count) ||
+      !count_fits(reader, envelope.event_seed_count,
+                  capabilities.maximum_event_seeds, 134))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 event-seed count is malformed");
+  for (std::uint64_t i = 0; i < envelope.event_seed_count; ++i)
+    if (!read_event_seed_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 event-seed table is truncated");
+
+  if (!reader.u64(envelope.incidence_count) ||
+      !count_fits(reader, envelope.incidence_count,
+                  capabilities.maximum_consumers, 24))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 event incidence count is malformed");
+  for (std::uint64_t i = 0; i < envelope.incidence_count; ++i)
+    if (!read_feature_key(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 event incidence table is truncated");
+
+  if (!reader.u64(envelope.candidate_disposition_count) ||
+      !count_fits(reader, envelope.candidate_disposition_count,
+                  capabilities.maximum_relations, 37))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 candidate disposition count is malformed");
+  for (std::uint64_t i = 0; i < envelope.candidate_disposition_count; ++i)
+    if (!read_candidate_disposition_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 candidate disposition table is truncated");
+
+  auto &statistics = envelope.statistics;
+  if (!reader.u64(statistics.candidate_count) ||
+      !reader.u64(statistics.request_proposal_count) ||
+      !reader.u64(statistics.unique_request_count) ||
+      !reader.u64(statistics.dependency_count) ||
+      !reader.u64(statistics.reverse_consumer_count) ||
+      !reader.u64(statistics.candidate_witness_count) ||
+      !reader.u64(statistics.public_relation_count) ||
+      !reader.u64(statistics.bookkeeping_relation_count) ||
+      !reader.u64(statistics.construction_count) ||
+      !reader.u64(statistics.symbolic_eligibility_count) ||
+      !reader.u64(statistics.symbolic_decision_count) ||
+      !reader.u64(statistics.crossing_record_count) ||
+      !reader.u64(statistics.event_seed_count) ||
+      !reader.u64(statistics.sort_comparisons) ||
+      !reader.u64(statistics.verifier_work_units) ||
+      !reader.u64(statistics.persistent_bytes))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 statistics section is truncated");
+
+  std::uint64_t evidence_id = 0, evidence_work = 0;
+  std::uint16_t evidence_version = 0;
+  bool evidence_flag = false;
+  bounded_boolean_digest evidence_digest{};
+  std::uint32_t evidence_reserved = 0;
+  if (!reader.u64(evidence_id) || !reader.u16(evidence_version))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 verifier evidence is truncated");
+  for (std::size_t i = 0; i < 4; ++i)
+    if (!reader.boolean(evidence_flag))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 verifier evidence flags are malformed");
+  if (!reader.u64(evidence_work) || !read_digest(reader, evidence_digest) ||
+      !reader.u32(evidence_reserved) || !reader.complete())
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 encoded artifact has malformed or trailing data");
+
+  if (statistics.candidate_count != envelope.candidate_disposition_count ||
+      statistics.public_relation_count + statistics.bookkeeping_relation_count !=
+          envelope.relation_count ||
+      statistics.construction_count != envelope.construction_count ||
+      statistics.symbolic_eligibility_count !=
+          envelope.symbolic_eligibility_count ||
+      statistics.symbolic_decision_count != envelope.symbolic_decision_count ||
+      statistics.crossing_record_count != envelope.crossing_count ||
+      statistics.event_seed_count != envelope.event_seed_count ||
+      evidence_id != 0 ||
+      evidence_version != contract_versions::relation_verifier ||
+      evidence_reserved != 0)
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 encoded artifact counts or evidence are inconsistent");
+  return true;
+}
+
 template <class T, class I>
 bool verify_relation_codec(const signed_feature_relations<T, I> &artifact,
                            bounded_boolean_error &error) {
@@ -236,5 +645,12 @@ template bool verify_relation_codec<double, std::uint32_t>(
 template bool verify_relation_codec<double, std::uint64_t>(
     const signed_feature_relations<double, std::uint64_t> &,
     bounded_boolean_error &);
+
+template bool parse_relation_artifact_envelope<float>(
+    const std::vector<std::uint8_t> &, const relation_capabilities &,
+    relation_artifact_envelope<float> &, bounded_boolean_error &);
+template bool parse_relation_artifact_envelope<double>(
+    const std::vector<std::uint8_t> &, const relation_capabilities &,
+    relation_artifact_envelope<double> &, bounded_boolean_error &);
 
 } // namespace ygor::mesh_boolean::bounded

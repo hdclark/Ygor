@@ -16,6 +16,7 @@ template <class T> struct candidate_source_edge_facet_relation_stage;
 template <class T> struct candidate_source_facet_relation_stage;
 template <class T> struct candidate_coplanar_overlay_stage;
 template <class T, class I> class relation_artifact_assembler;
+struct relation_artifact_test_access;
 
 struct relation_truth_record final {
   std::uint64_t rounded_nominal_bits = 0;
@@ -238,6 +239,7 @@ private:
 
   template <class U, class J> friend class relation_builder;
   template <class U, class J> friend class relation_artifact_assembler;
+  friend struct relation_artifact_test_access;
   template <class U, class J>
   friend std::vector<std::uint8_t>
   encode_signed_feature_relations(const signed_feature_relations<U, J> &);
