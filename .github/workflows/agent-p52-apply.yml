@@ -1,0 +1,33 @@
+name: Agent P5.2 patch application
+
+on:
+  pull_request:
+    paths:
+      - '.github/p52-agent-patch'
+      - '.github/workflows/agent-p52-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 0
+      - name: Apply validated P5.2 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/p52-agent-patch | gzip --decompress > /tmp/p52.patch
+          git apply --index --whitespace=error /tmp/p52.patch
+          rm .github/p52-agent-patch
+          git add .
+          git diff --cached --check
+          git config user.name hdclark
+          git config user.email 934858+hdclark@users.noreply.github.com
+          git commit -m 'P5.2: add conservative one-call boolean service'
+          git push origin HEAD:boolean_symbolic
