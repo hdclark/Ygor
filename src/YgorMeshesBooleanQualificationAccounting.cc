@@ -586,7 +586,7 @@ make_qualification_case_observation(qualification_case_observation value) {
       (value.published_success && value.failure) ||
       (!value.published_success && !value.failure &&
        !value.infrastructure_failure && !value.backend_disagreement &&
-       !value.verifier_disagreement && !value.neterministic &&
+       !value.verifier_disagreement && !value.nondeterministic &&
        !value.timeout_or_resource_limit))
     return qualification_accounting_detail::accounting_error(
         product_error_code::qualification_policy_violation,
