@@ -8,6 +8,9 @@ on:
       - edited
     branches:
       - agent/component07-runner-base
+  push:
+    branches:
+      - agent/component07-runner-base
 
 permissions:
   contents: write
