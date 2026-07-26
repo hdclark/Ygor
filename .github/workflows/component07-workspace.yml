@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply queued Component 07 implementation series
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'pull_request' }}
         run: bash .github/component07-apply.sh
       - name: Package checkout
         run: |
