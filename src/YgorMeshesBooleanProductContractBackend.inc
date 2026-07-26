@@ -90,7 +90,8 @@ decode_backend_identity(const std::vector<std::uint8_t> &bytes,
 
 product_status_or<qualification_manifest>
 make_qualification_manifest(std::string identifier,
-                            std::vector<qualification_profile> profiles) {
+                            std::vector<qualification_profile> profiles,
+                            qualification_evidence_binding evidence) {
   if (identifier.empty())
     return make_product_error(product_error_code::qualification_policy_violation,
                               "qualification.identifier");
@@ -107,10 +108,19 @@ make_qualification_manifest(std::string identifier,
           product_error_code::qualification_policy_violation,
           "qualification.duplicate_profile");
   }
+  if (evidence.schema != qualification_evidence_schema_version ||
+      product_digest_is_zero(evidence.campaign_manifest_digest) ||
+      product_digest_is_zero(evidence.result_summary_digest) ||
+      product_digest_is_zero(evidence.human_report_digest))
+    return make_product_error(
+        product_error_code::qualification_policy_violation,
+        "qualification.evidence");
   qualification_manifest m;
   m.identifier = std::move(identifier);
   m.profiles = std::move(profiles);
-  const auto payload = encode_manifest_payload(m.identifier, m.profiles);
+  m.evidence = evidence;
+  const auto payload =
+      encode_manifest_payload(m.identifier, m.profiles, m.evidence);
   m.manifest_digest =
       domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '7'}}, payload);
   return m;
@@ -133,7 +143,14 @@ validate_qualification_manifest(const qualification_manifest &m) noexcept {
         return bad(product_error_code::qualification_policy_violation,
                    "qualification.canonical_order");
     }
-    const auto payload = encode_manifest_payload(m.identifier, m.profiles);
+    if (m.evidence.schema != qualification_evidence_schema_version ||
+        product_digest_is_zero(m.evidence.campaign_manifest_digest) ||
+        product_digest_is_zero(m.evidence.result_summary_digest) ||
+        product_digest_is_zero(m.evidence.human_report_digest))
+      return bad(product_error_code::qualification_policy_violation,
+                 "qualification.evidence");
+    const auto payload =
+        encode_manifest_payload(m.identifier, m.profiles, m.evidence);
     const auto expected =
         domain_digest({{'Y', 'G', 'B', 'Q', 'M', 'F', '0', '7'}}, payload);
     if (m.manifest_digest != expected)

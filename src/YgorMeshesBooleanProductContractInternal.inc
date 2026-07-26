@@ -296,7 +296,8 @@ template <class E> E decode_u8_enum(reader &r, bool (*is_known)(E) noexcept) {
 
 std::vector<std::uint8_t>
 encode_manifest_payload(const std::string &identifier,
-                        const std::vector<qualification_profile> &profiles) {
+                        const std::vector<qualification_profile> &profiles,
+                        const qualification_evidence_binding &evidence) {
   canonical_encoder e;
   e.u16(product_contract_schema_version);
   e.string(identifier);
@@ -308,6 +309,10 @@ encode_manifest_payload(const std::string &identifier,
     e.byte(static_cast<std::uint8_t>(p.preparation));
     e.string(p.workload_profile);
   }
+  e.u16(evidence.schema);
+  encode_digest(e, evidence.campaign_manifest_digest);
+  encode_digest(e, evidence.result_summary_digest);
+  encode_digest(e, evidence.human_report_digest);
   return e.bytes();
 }
 

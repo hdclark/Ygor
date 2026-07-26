@@ -96,6 +96,7 @@ endif()
 set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanContract.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanProductContract.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualification.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanBackend.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanService.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactArithmetic.cc

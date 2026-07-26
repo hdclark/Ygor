@@ -340,8 +340,12 @@ void backend_maturity_and_qualification() {
   profile.representation = result_representation::exact_stratified;
   profile.preparation = preparation_mode::strict_validation;
   profile.workload_profile = "contract-fixture";
+  qualification_evidence_binding evidence;
+  evidence.campaign_manifest_digest = sequence_digest(144);
+  evidence.result_summary_digest = sequence_digest(160);
+  evidence.human_report_digest = sequence_digest(176);
   auto manifest_made =
-      make_qualification_manifest("contract-manifest", {profile});
+      make_qualification_manifest("contract-manifest", {profile}, evidence);
   require(manifest_made.has_value(), "qualification manifest");
   auto manifest = manifest_made.value();
   default_options.qualification.workload_profile = "contract-fixture";

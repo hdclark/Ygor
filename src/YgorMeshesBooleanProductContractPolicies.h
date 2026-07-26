@@ -432,15 +432,30 @@ struct qualification_profile {
   std::string workload_profile;
 };
 
+constexpr std::uint16_t qualification_evidence_schema_version = 1;
+
+// The product-facing selector remains compact, but a qualified profile is never
+// authorized from this selector alone.  These three digests bind the frozen
+// campaign manifest, normalized machine result summary, and reviewed human
+// report defined by YgorMeshesBooleanQualification.h.
+struct qualification_evidence_binding {
+  std::uint16_t schema = qualification_evidence_schema_version;
+  digest campaign_manifest_digest;
+  digest result_summary_digest;
+  digest human_report_digest;
+};
+
 struct qualification_manifest {
   std::uint16_t schema = product_contract_schema_version;
   std::string identifier;
   std::vector<qualification_profile> profiles;
+  qualification_evidence_binding evidence;
   digest manifest_digest;
 };
 
 product_status_or<qualification_manifest>
-make_qualification_manifest(std::string, std::vector<qualification_profile>);
+make_qualification_manifest(std::string, std::vector<qualification_profile>,
+                            qualification_evidence_binding);
 product_status_or<bool>
 validate_qualification_manifest(const qualification_manifest &) noexcept;
 product_status_or<bool>

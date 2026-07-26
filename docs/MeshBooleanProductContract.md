@@ -5,16 +5,19 @@ durable exact-result authority introduced by P1, the explicit strict and
 normalized preparation services introduced by P2, the complete output modes
 introduced by P3, the capability-described backend boundary introduced by P4,
 the stable provenance and attribute-transfer contract introduced by P5.1,
-the conservative one-call service introduced by P5.2, and the ordinary-caller
-and migration guidance introduced by P5.3. It does not promote any backend to
-production qualification.
+the conservative one-call service introduced by P5.2, the ordinary-caller
+and migration guidance introduced by P5.3, and the qualification evidence
+schemas introduced by P6.1. It does not promote any backend to production
+qualification.
 
 ## Current support boundary
 
 The in-tree symbolic engine is identified as `experimental_exact_v1` and has
 maturity `experimental`. It is never selected by `qualified_default` unless a
 qualification manifest names the exact backend build, capability digest,
-preparation mode, result representation, and workload profile. Experimental or
+preparation mode, result representation, and workload profile and binds a
+validated campaign manifest, complete machine result summary, and reviewed
+human report. Experimental or
 candidate backends require both `explicit_backend` (or another explicitly named
 producer policy) and `allow_experimental_backend=true` under
 `allow_explicit_unqualified` qualification policy.
@@ -498,9 +501,16 @@ capability mismatch rather than an approximate comparison.
 
 `qualified_default` selects only a frozen registry entry whose exact backend,
 capability digest, requested representation, preparation mode, and workload
-profile are bound by the supplied qualification manifest. No matching profile
-returns `backend_unqualified`; this implementation does not promote either
-adapter to a production-qualified general CAD profile.
+profile are bound by the supplied qualification manifest. The selector also
+binds the P6.1 campaign-manifest, normalized-result-summary, and reviewed-report
+digests; zero, stale, or substituted evidence is rejected before selection.
+`make_qualification_evidence_binding` accepts only a complete campaign with a
+`qualified` report decision and zero blocking outcomes or false successes. The
+canonical evidence schemas, material-change invalidation rules, and explicit
+compatibility-review contract are documented in
+`docs/MeshBooleanQualification.md`. No matching profile returns
+`backend_unqualified`; this implementation does not promote either adapter to a
+production-qualified general CAD profile.
 
 ## Versioning and decoding
 

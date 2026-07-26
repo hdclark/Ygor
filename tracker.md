@@ -193,10 +193,10 @@ Start only after P4.
 
 Start only after P5. This section is the sole successor to the former one-line P13 item. Follow `plan_16_qualification_release.md` in this exact order.
 
-- [ ] **P6.1 — Define and enforce qualification schemas.**
-  - [ ] Add versioned canonical qualification manifest, normalized outcome taxonomy, machine-readable result summary, and human-readable report schemas.
-  - [ ] Bind backend/adapter/build/capabilities, result modes, preparation policies, types, compilers/platforms, verifiers, corpora, generators/seeds, fuzz campaigns, chains, limits, performance protocol, thresholds, exclusions, and known limitations.
-  - [ ] Make any material capability, policy, verifier, compiler mode, corpus, or schema change invalidate or explicitly compatibility-review the prior qualification claim.
+- [x] **P6.1 — Define and enforce qualification schemas.**
+  - [x] Add versioned canonical qualification manifest, normalized outcome taxonomy, machine-readable result summary, and human-readable report schemas.
+  - [x] Bind backend/adapter/build/capabilities, result modes, preparation policies, types, compilers/platforms, verifiers, corpora, generators/seeds, fuzz campaigns, chains, limits, performance protocol, thresholds, exclusions, and known limitations.
+  - [x] Make any material capability, policy, verifier, compiler mode, corpus, or schema change invalidate or explicitly compatibility-review the prior qualification claim.
 
 - [ ] **P6.2 — Expand and inventory the permanent corpus.**
   - [ ] Reach at least 10,000 generated construction-known operand pairs.
