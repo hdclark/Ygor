@@ -8,14 +8,31 @@
 
 namespace ygor::mesh_boolean::bounded {
 
+enum class symbolic_eligibility_reason : std::uint8_t {
+  none = 0,
+  exact_formula_zero = 1,
+  shared_source_endpoint = 2,
+  collinear_source_edge_lineage = 3,
+  coplanar_source_facet_lineage = 4,
+  equal_source_feature_lineage = 5,
+  representational_tie = 6,
+  coincident_source_contract = 7,
+};
+
 struct symbolic_eligibility_record final {
   relation_request_key request{};
   exact_relation_status exact_relation = exact_relation_status::unavailable;
+  symbolic_eligibility_reason reason = symbolic_eligibility_reason::none;
+  std::uint16_t evidence_formula_version = 0;
   bool exact_lineage_tie = false;
   bool representational_tie_evidence = false;
   bool structural_category_eligible = false;
   bool tolerance_compatible = false;
   bool rounded_nominal_zero = false; // diagnostic only
+  bool inherited_uncertainty = false;
+  bool separated_realizations_possible = true;
+  bool owner_is_original_source_feature = false;
+  std::uint8_t reserved8 = 0;
   std::uint32_t reserved = 0;
 };
 

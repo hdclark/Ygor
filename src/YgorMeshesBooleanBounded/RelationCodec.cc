@@ -27,11 +27,17 @@ void encode_eligibility(canonical_writer &writer,
                         const symbolic_eligibility_record &record) {
   encode_relation_request_key(writer, record.request);
   writer.u8(static_cast<std::uint8_t>(record.exact_relation));
+  writer.u8(static_cast<std::uint8_t>(record.reason));
+  writer.u16(record.evidence_formula_version);
   writer.boolean(record.exact_lineage_tie);
   writer.boolean(record.representational_tie_evidence);
   writer.boolean(record.structural_category_eligible);
   writer.boolean(record.tolerance_compatible);
   writer.boolean(record.rounded_nominal_zero);
+  writer.boolean(record.inherited_uncertainty);
+  writer.boolean(record.separated_realizations_possible);
+  writer.boolean(record.owner_is_original_source_feature);
+  writer.u8(record.reserved8);
   writer.u32(record.reserved);
 }
 
@@ -293,15 +299,17 @@ inline bool read_construction_record(canonical_reader &reader) {
 }
 
 inline bool read_eligibility_record(canonical_reader &reader) {
-  std::uint8_t exact = 0;
+  std::uint8_t exact = 0, reason = 0, reserved8 = 0;
+  std::uint16_t formula = 0;
   bool flag = false;
   std::uint32_t reserved = 0;
-  if (!read_request_key(reader) || !reader.u8(exact))
+  if (!read_request_key(reader) || !reader.u8(exact) ||
+      !reader.u8(reason) || !reader.u16(formula))
     return false;
-  for (std::size_t i = 0; i < 5; ++i)
+  for (std::size_t i = 0; i < 8; ++i)
     if (!reader.boolean(flag))
       return false;
-  return reader.u32(reserved);
+  return reader.u8(reserved8) && reader.u32(reserved);
 }
 
 inline bool read_symbolic_record(canonical_reader &reader) {
@@ -484,7 +492,7 @@ bool parse_relation_artifact_envelope(
 
   if (!reader.u64(envelope.symbolic_eligibility_count) ||
       !count_fits(reader, envelope.symbolic_eligibility_count,
-                  capabilities.maximum_symbolic_decisions, 110))
+                  capabilities.maximum_symbolic_decisions, 117))
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 symbolic eligibility count is malformed");

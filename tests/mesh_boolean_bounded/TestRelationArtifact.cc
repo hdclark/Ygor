@@ -29,6 +29,12 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &symbolic_eligibility(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.symbolic_eligibility_;
+  }
+
+  template <class T, class I>
   static auto &dispositions(signed_feature_relations<T, I> &artifact) {
     return artifact.candidate_dispositions_;
   }
@@ -78,6 +84,12 @@ built_fixture overlapping_fixture() {
   return broad_phase_tests::build(
       broad_phase_tests::box(),
       broad_phase_tests::box(0.5, 0.25, 0.125, 1.5, 1.25, 1.125));
+}
+
+built_fixture symbolic_fixture() {
+  return broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(0.25, 0.25, 1.0, 0.75, 0.75, 2.0));
 }
 
 void require_no_live_resources(const bounded::resource_manager &resources,
@@ -210,6 +222,52 @@ void test_matched_mutation_rejection() {
     require(!bounded::verify_signed_feature_relations(fan_mutation, error),
             "matched source-fan cardinality mutation is rejected");
   }
+
+  auto symbolic_source = symbolic_fixture();
+  bounded::resource_manager symbolic_resources(
+      resource_policy::conservative_defaults());
+  const auto symbolic_artifact =
+      build_artifact(symbolic_source, &symbolic_resources);
+  require(!symbolic_artifact->symbolic_eligibility().empty() &&
+              symbolic_artifact->symbolic_eligibility().size() ==
+                  symbolic_artifact->symbolic_decisions().size(),
+          "qualified exact ties publish complete symbolic evidence and decisions");
+  bool saw_facet_lineage = false;
+  bool saw_coincident_contract = false;
+  for (const auto &eligibility :
+       symbolic_artifact->symbolic_eligibility()) {
+    require(eligibility.exact_relation ==
+                    bounded::exact_relation_status::exact_zero &&
+                eligibility.reason !=
+                    bounded::symbolic_eligibility_reason::none &&
+                eligibility.evidence_formula_version != 0 &&
+                eligibility.exact_lineage_tie &&
+                eligibility.structural_category_eligible &&
+                eligibility.tolerance_compatible &&
+                !eligibility.separated_realizations_possible &&
+                eligibility.owner_is_original_source_feature,
+            "symbolic eligibility retains qualified exact and structural evidence");
+    saw_facet_lineage =
+        saw_facet_lineage ||
+        eligibility.reason ==
+            bounded::symbolic_eligibility_reason::coplanar_source_facet_lineage;
+    saw_coincident_contract =
+        saw_coincident_contract ||
+        eligibility.reason ==
+            bounded::symbolic_eligibility_reason::coincident_source_contract;
+  }
+  require(saw_facet_lineage && saw_coincident_contract,
+          "symbolic fixture covers support and overlay eligibility categories");
+
+  auto symbolic_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &symbolic = bounded::relation_artifact_test_access::symbolic_eligibility(
+      symbolic_mutation).front();
+  symbolic.rounded_nominal_zero = !symbolic.rounded_nominal_zero;
+  bounded::relation_artifact_test_access::repair_codec(symbolic_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(symbolic_mutation, error),
+          "matched symbolic evidence mutation is independently rejected");
 
   auto trailing = artifact->canonical_bytes();
   trailing.push_back(0);

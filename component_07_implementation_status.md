@@ -469,33 +469,89 @@ Focused strict qualification passes the complete five-test predecessor chain for
 candidate source-edge closure, source-edge/source-facet relations, candidate
 integration, source-facet support, and coplanar overlay topology.
 
+## Implemented canonical final artifact, codec, replay, and resource slice
+
+The verified numerical and coplanar predecessor stages now publish one complete
+immutable Component 07 artifact for supported candidate streams:
+
+- the frozen fifteen-family request DAG closes over source relations, bounded
+  constructions, crossing multiplicity, symbolic eligibility and decisions,
+  event seeds, and candidate dispositions without downstream selection state;
+- the final relation, truth, construction, crossing, seed, incidence, and
+  candidate-disposition tables receive canonical IDs and owner-free semantic
+  encoding, with all detailed predecessor stages retained for audit and replay;
+- non-empty artifacts are independently reconstructed from the candidate stream
+  and detailed stages, and decode rebuilds the artifact transactionally before
+  accepting canonical bytes;
+- persistent, replay, temporary, and work usage use checked candidate-scaled
+  preflight bounds, deterministic final-size reconciliation, exact resource
+  commits, cancellation rollback, and limit-minus-one qualification; and
+- matched mutations of dispositions, crossings, source-fan cardinality, codec
+  framing, and repaired complete digests are rejected independently.
+
+## Implemented source-fan crossing conservation slice
+
+Boundary contacts now pass through a topology-authoritative fan reduction:
+
+- source-edge groups are required to cover exactly both Component 05 incident
+  source facets, while source-vertex groups cover the complete canonical fan;
+- local before/after occupancy transitions remain distinct from symbolic
+  contributions, tangent groups conserve to zero, and every nonzero numeric
+  total has exactly one canonical owning occurrence;
+- compute-once boundary relations may resolve a conservative point-region bound
+  only through exact original-feature lineage, never coordinate proximity; and
+- the independent verifier reconstructs fan grouping, expected incidence, local
+  transitions, group totals, owner choice, and cardinality from predecessor
+  topology and relation records.
+
+## Implemented evidence-driven symbolic eligibility slice
+
+Symbolic matrix lookup is no longer authorized by a blanket exact-zero stamp:
+
+- each symbolic request carries a stable eligibility reason, evidence formula or
+  kernel version, exact-lineage status, inherited uncertainty, tolerance
+  compatibility, original-source ownership, and an explicit assertion that
+  separated realizations are unavailable under the admitted tie contract;
+- eligibility is reconstructed from the authoritative source-edge collinearity
+  or coplanarity truth, edge/facet boundary ownership or endpoint support truth,
+  facet/facet coplanarity truth, or the coplanar-overlay support relation;
+- derived symbolic keys include the authoritative source relation family, so a
+  facet support and its overlay may publish distinct decisions for the same
+  source-feature pair without key collision;
+- the independent verifier finds the exact source and optional construction
+  dependencies, reconstructs every eligibility field from predecessor truth,
+  and rejects repaired-digest evidence mutations; and
+- strict qualification covers exact formula, coplanar-facet-lineage, and
+  coincident-overlay categories, plus reasonless exact-zero, rounded-zero-only,
+  and potentially separated tie rejection.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Replace the composite provider's local support reconstruction with unified
-   canonical primitive support requests in the frozen relation graph, then
-   integrate primitive truth, source-facet records, source-edge stages, and
-   source-edge/source-facet records into the final non-empty canonical artifact,
-   codec, independent verifier, and decode/replay surface.
-2. Complete source-edge/source-facet source-fan ownership, admitted clustered
-   multi-event ordering, complete occurrence tie keys, numeric crossing
-   conservation, and all symbolic fields that depend on those results.
-3. Publish the implemented canonical coplanar event, oriented-arc, and
-   component tables in the final artifact/codec/replay surface while retaining
-   coordinate-coincident distinct occurrences and complete predecessor links.
-4. Complete authoritative construction selection and deduplication, residual and
-   conditioning evidence, numeric crossing multiplicity, half-open source-fan
-   ownership, and local conservation across all relation families.
-5. Complete all symbolic eligibility categories, frozen matrix lookups, event
-   seeds, incidence, candidate dispositions, canonical partitions, replay
-   diagnostics, and decode support.
+1. Replace remaining composite-local primitive support reconstruction with the
+   unified canonical primitive-support request family and expose its truth and
+   source-facet records directly in the final graph.
+2. Complete admitted clustered multi-event ordering and complete occurrence tie
+   keys for source-edge/source-facet relations, including all supported
+   source-vertex and shared-edge contact fixtures.
+3. Publish the complete coplanar event-node, oriented-arc, and overlap-component
+   tables as first-class final-artifact sections rather than only retaining them
+   inside the detailed overlay stage.
+4. Complete authoritative construction deduplication across relation families
+   and publish full parameter, residual, conditioning, tolerance-ledger, and
+   producer evidence instead of the current bounded component projection.
+5. Complete the remaining symbolic categories, incidence/rank/occurrence
+   constraints, event-seed diagnostics, candidate canonical partitions, and
+   replay diagnostics required by the normative plan.
 6. Add the independent exact-rational/exhaustive oracle, complete known-answer
-   and mutation suites, fuzz/shrink campaigns, resource/cancellation matrices,
-   structural performance gates, and serial/parallel equivalence evidence.
+   and mutation suites, deterministic fuzz/shrink campaigns, full
+   resource/cancellation matrices, structural performance gates, and
+   serial/parallel equivalence evidence.
 7. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed
 identity, or external dependency has been introduced to bridge the outstanding
-work. Non-empty inputs still cannot publish a partial relation artifact.
+work. Supported non-empty streams publish only after complete final-artifact
+verification; unsupported or unresolved contact categories still fail closed.

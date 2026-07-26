@@ -214,10 +214,14 @@ void test_symbolic_boundary() {
       feature(operand_id::a, relation_feature_kind::source_vertex, 1),
       feature(operand_id::b, relation_feature_kind::source_facet, 2));
   eligibility.exact_relation = exact_relation_status::exact_zero;
+  eligibility.reason = symbolic_eligibility_reason::exact_formula_zero;
+  eligibility.evidence_formula_version = 1;
   eligibility.exact_lineage_tie = true;
   eligibility.structural_category_eligible = true;
   eligibility.tolerance_compatible = true;
   eligibility.rounded_nominal_zero = true;
+  eligibility.separated_realizations_possible = false;
+  eligibility.owner_is_original_source_feature = true;
 
   const auto table = materialize_symbolic_policy();
   auto decision = resolve_symbolic_relation_decision(
@@ -240,6 +244,23 @@ void test_symbolic_boundary() {
       relation_family::vertex_face, orientation_relation::same, rounded_only);
   check(!rejected.has_value(),
         "rounded zero without exact relation must not enter symbolic policy");
+
+  auto reasonless = eligibility;
+  reasonless.reason = symbolic_eligibility_reason::none;
+  rejected = resolve_symbolic_relation_decision(
+      table, boolean_operation::set_union, operand_id::a,
+      relation_family::vertex_face, orientation_relation::same, reasonless);
+  check(!rejected.has_value(),
+        "exact zero without a structural eligibility reason must fail closed");
+
+  auto possibly_separated = eligibility;
+  possibly_separated.separated_realizations_possible = true;
+  rejected = resolve_symbolic_relation_decision(
+      table, boolean_operation::set_union, operand_id::a,
+      relation_family::vertex_face, orientation_relation::same,
+      possibly_separated);
+  check(!rejected.has_value(),
+        "a tie admitting separated realizations must not enter symbolic policy");
 }
 
 } // namespace

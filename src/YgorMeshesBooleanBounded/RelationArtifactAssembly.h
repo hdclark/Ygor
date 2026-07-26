@@ -155,6 +155,13 @@ inline std::uint64_t tagged_use(std::uint8_t domain,
          (static_cast<std::uint64_t>(category) << 48U);
 }
 
+inline std::uint64_t tagged_source_use(
+    std::uint8_t domain, std::uint8_t category,
+    relation_request_family source_family) noexcept {
+  return tagged_use(domain, category) |
+         static_cast<std::uint64_t>(source_family);
+}
+
 inline const canonical_relation_request *
 find_request(const relation_request_graph &graph,
              const relation_request_key &key) noexcept {
@@ -718,10 +725,14 @@ private:
     descriptor.occurrence = occurrence;
     descriptor.eligibility_key = derived_key(
         base.key, relation_request_family::symbolic_eligibility,
-        tagged_use(12, static_cast<std::uint8_t>(family)), occurrence);
+        tagged_source_use(12, static_cast<std::uint8_t>(family),
+                          base.key.family),
+        occurrence);
     descriptor.decision_key = derived_key(
         base.key, relation_request_family::symbolic_relation_decision,
-        tagged_use(13, static_cast<std::uint8_t>(family)), occurrence);
+        tagged_source_use(13, static_cast<std::uint8_t>(family),
+                          base.key.family),
+        occurrence);
     descriptor.family = family;
     descriptor.orientation = orientation;
     descriptor.acting_operand = base.key.first.operand;
@@ -1255,20 +1266,211 @@ private:
     return facets.size() >= 2;
   }
 
+  const base_descriptor *find_base_descriptor(
+      const relation_request_key &key) const noexcept {
+    const auto it = std::lower_bound(
+        bases_.begin(), bases_.end(), key,
+        [](const base_descriptor &record,
+           const relation_request_key &candidate) {
+          return record.key < candidate;
+        });
+    return it == bases_.end() || it->key != key ? nullptr : &*it;
+  }
+
+  bool set_truth_symbolic_evidence(
+      const relation_truth_record &truth, symbolic_eligibility_reason reason,
+      symbolic_eligibility_record &eligibility) const noexcept {
+    if (!relation_artifact_assembly_detail::usable_truth(truth) ||
+        truth.exact_relation != exact_relation_status::exact_zero ||
+        truth.exact_formula == 0)
+      return false;
+    eligibility.exact_relation = truth.exact_relation;
+    eligibility.reason = reason;
+    eligibility.evidence_formula_version = truth.exact_formula;
+    eligibility.exact_lineage_tie = true;
+    eligibility.rounded_nominal_zero =
+        from_bits<T>(static_cast<floating_uint_t<T>>(
+            truth.rounded_nominal_bits)) == T(0);
+    eligibility.inherited_uncertainty =
+        truth.bounded_sign == bounded_sign_status::overlaps_boundary;
+    return true;
+  }
+
+  bool set_region_symbolic_evidence(
+      const source_facet_point_region_record<T> &region,
+      symbolic_eligibility_record &eligibility) const noexcept {
+    if (!region.boundary_ownership_resolved ||
+        (region.classification !=
+             source_facet_point_region_class::original_edge &&
+         region.classification !=
+             source_facet_point_region_class::original_vertex))
+      return false;
+    bool exact = true;
+    bool uncertain = false;
+    std::uint16_t formula = 0;
+    const auto accept_owner = [&](const source_facet_boundary_edge_owner &owner) {
+      if (owner.edge_ordinal >= region.orientation_evidence.size())
+        return false;
+      const auto &evidence = region.orientation_evidence[owner.edge_ordinal];
+      if (evidence.exact_sign != 0 || evidence.formula_version == 0)
+        return false;
+      if (formula == 0)
+        formula = evidence.formula_version;
+      else if (formula != evidence.formula_version)
+        return false;
+      uncertain = uncertain ||
+                  evidence.bounded_sign == bounded_planar_sign::uncertain;
+      return true;
+    };
+    for (const auto &owner : region.source_edge_owners)
+      exact = exact && accept_owner(owner);
+    if (!exact || formula == 0 || region.source_edge_owners.empty())
+      return false;
+    eligibility.exact_relation = exact_relation_status::exact_zero;
+    eligibility.reason =
+        region.classification == source_facet_point_region_class::original_vertex
+            ? symbolic_eligibility_reason::shared_source_endpoint
+            : symbolic_eligibility_reason::collinear_source_edge_lineage;
+    eligibility.evidence_formula_version = formula;
+    eligibility.exact_lineage_tie = true;
+    eligibility.rounded_nominal_zero = false;
+    eligibility.inherited_uncertainty = uncertain;
+    return true;
+  }
+
+  bool build_symbolic_eligibility(
+      const symbolic_descriptor &descriptor,
+      symbolic_eligibility_record &eligibility,
+      bounded_boolean_error &error) const {
+    eligibility = symbolic_eligibility_record{};
+    eligibility.request = descriptor.eligibility_key;
+    const auto *base = find_base_descriptor(descriptor.source_relation);
+    if (!base)
+      return fail(error, relation_subcode::missing_dependency,
+                  "Component 07 symbolic source relation is absent",
+                  relation_checkpoint::symbolic_eligibility);
+
+    bool evidence = false;
+    switch (base->kind) {
+    case base_kind::edge: {
+      if (base->ordinal >= edge_stage_->relations.size())
+        break;
+      const auto &source = edge_stage_->relations[base->ordinal];
+      const source_edge_point_construction<T> *point = nullptr;
+      if (descriptor.has_construction) {
+        if (descriptor.occurrence >= source.point_count)
+          break;
+        point = &source.points[descriptor.occurrence];
+      }
+      if (source.contact == source_edge_contact_class::partial_overlap ||
+          source.contact == source_edge_contact_class::first_contains_second ||
+          source.contact == source_edge_contact_class::second_contains_first ||
+          source.contact == source_edge_contact_class::equal) {
+        evidence = source.has_collinearity_truth &&
+                   set_truth_symbolic_evidence(
+                       source.collinearity_truth,
+                       source.contact == source_edge_contact_class::equal
+                           ? symbolic_eligibility_reason::equal_source_feature_lineage
+                           : symbolic_eligibility_reason::collinear_source_edge_lineage,
+                       eligibility);
+      } else if (source.contact == source_edge_contact_class::endpoint_contact ||
+                 source.contact == source_edge_contact_class::point_contact) {
+        const auto reason =
+            point && point->first_endpoint_owner_mask != 0 &&
+                    point->second_endpoint_owner_mask != 0
+                ? symbolic_eligibility_reason::shared_source_endpoint
+                : symbolic_eligibility_reason::exact_formula_zero;
+        if (source.has_collinearity_truth &&
+            source.collinearity_truth.exact_relation ==
+                exact_relation_status::exact_zero)
+          evidence = set_truth_symbolic_evidence(
+              source.collinearity_truth, reason, eligibility);
+        else if (source.has_coplanarity_truth)
+          evidence = set_truth_symbolic_evidence(
+              source.coplanarity_truth, reason, eligibility);
+      }
+      break;
+    }
+    case base_kind::edge_facet: {
+      if (base->ordinal >= edge_facet_stage_->relations.size())
+        break;
+      const auto &source = edge_facet_stage_->relations[base->ordinal];
+      const source_edge_facet_event_record<T> *event = nullptr;
+      for (const auto &candidate : source.events)
+        if (candidate.occurrence == descriptor.occurrence) {
+          if (event)
+            return fail(error,
+                        relation_subcode::incompatible_duplicate_request,
+                        "Component 07 symbolic edge/facet occurrence is duplicated",
+                        relation_checkpoint::symbolic_eligibility);
+          event = &candidate;
+        }
+      if (!event)
+        break;
+      if (event->region.classification ==
+              source_facet_point_region_class::original_edge ||
+          event->region.classification ==
+              source_facet_point_region_class::original_vertex)
+        evidence = set_region_symbolic_evidence(event->region, eligibility);
+      else {
+        for (const auto &truth : source.endpoint_support_truth)
+          if (!evidence &&
+              truth.exact_relation == exact_relation_status::exact_zero)
+            evidence = set_truth_symbolic_evidence(
+                truth, symbolic_eligibility_reason::exact_formula_zero,
+                eligibility);
+      }
+      break;
+    }
+    case base_kind::facet: {
+      if (base->ordinal >= facet_stage_->relations.size())
+        break;
+      const auto &source = facet_stage_->relations[base->ordinal];
+      evidence = source.has_coplanarity_truth &&
+                 set_truth_symbolic_evidence(
+                     source.coplanarity_truth,
+                     symbolic_eligibility_reason::coplanar_source_facet_lineage,
+                     eligibility);
+      break;
+    }
+    case base_kind::overlay: {
+      if (base->ordinal >= overlay_stage_->overlays.size())
+        break;
+      const auto &source = overlay_stage_->overlays[base->ordinal];
+      evidence = source.support_relation.has_coplanarity_truth &&
+                 set_truth_symbolic_evidence(
+                     source.support_relation.coplanarity_truth,
+                     symbolic_eligibility_reason::coincident_source_contract,
+                     eligibility);
+      break;
+    }
+    }
+
+    eligibility.representational_tie_evidence = false;
+    eligibility.structural_category_eligible = evidence;
+    eligibility.tolerance_compatible =
+        evidence && (!descriptor.has_construction ||
+                     construction_tolerance_compatible(
+                         descriptor.construction_key));
+    eligibility.separated_realizations_possible = false;
+    eligibility.owner_is_original_source_feature =
+        base->key.first.kind != relation_feature_kind::facet_internal_diagonal &&
+        base->key.second.kind != relation_feature_kind::facet_internal_diagonal;
+    if (!evidence || !eligibility.tolerance_compatible ||
+        !eligibility.owner_is_original_source_feature)
+      return fail(error, relation_subcode::symbolic_ineligible,
+                  "Component 07 symbolic request lacks qualified exact and structural evidence",
+                  relation_checkpoint::symbolic_eligibility);
+    return true;
+  }
+
   bool publish_symbolics_and_crossings(bounded_boolean_error &error) {
     eligibility_.reserve(symbolics_.size());
     decisions_.reserve(symbolics_.size());
     for (const auto &descriptor : symbolics_) {
       symbolic_eligibility_record eligibility;
-      eligibility.request = descriptor.eligibility_key;
-      eligibility.exact_relation = exact_relation_status::exact_zero;
-      eligibility.exact_lineage_tie = true;
-      eligibility.representational_tie_evidence = descriptor.has_construction;
-      eligibility.structural_category_eligible = true;
-      eligibility.tolerance_compatible =
-          !descriptor.has_construction ||
-          construction_tolerance_compatible(descriptor.construction_key);
-      eligibility.rounded_nominal_zero = true;
+      if (!build_symbolic_eligibility(descriptor, eligibility, error))
+        return false;
       auto decision = resolve_symbolic_relation_decision(
           context_.symbolic, context_.operation, descriptor.acting_operand,
           descriptor.family, descriptor.orientation, eligibility);

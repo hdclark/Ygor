@@ -7,8 +7,12 @@ namespace {
 bool eligible(const symbolic_eligibility_record &record) noexcept {
   return valid_relation_request_key(record.request) &&
          record.exact_relation == exact_relation_status::exact_zero &&
+         record.reason != symbolic_eligibility_reason::none &&
+         record.evidence_formula_version != 0 &&
          (record.exact_lineage_tie || record.representational_tie_evidence) &&
          record.structural_category_eligible && record.tolerance_compatible &&
+         !record.separated_realizations_possible &&
+         record.owner_is_original_source_feature && record.reserved8 == 0 &&
          record.reserved == 0;
 }
 
