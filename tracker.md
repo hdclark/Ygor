@@ -198,13 +198,13 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Bind backend/adapter/build/capabilities, result modes, preparation policies, types, compilers/platforms, verifiers, corpora, generators/seeds, fuzz campaigns, chains, limits, performance protocol, thresholds, exclusions, and known limitations.
   - [x] Make any material capability, policy, verifier, compiler mode, corpus, or schema change invalidate or explicitly compatibility-review the prior qualification claim.
 
-- [ ] **P6.2 — Expand and inventory the permanent corpus.**
-  - [ ] Reach at least 10,000 generated construction-known operand pairs.
-  - [ ] Reach at least 1,000 representative licensed or internally generated CAD-like tessellated operand pairs.
-  - [ ] Reach at least 1,000 deterministic operation chains of at least five successful or intentionally failing steps.
-  - [ ] Preserve every minimized regression discovered by any test, fuzz, sanitizer, backend comparison, or customer workload.
-  - [ ] Encode coverage by geometry category, operation, both difference directions, type/index specialization, result mode, preparation policy, and expected outcome.
-  - [ ] Include non-box intersections, skew/rotated convexity, concavity, cavities, coplanar overlays, high valence, thin features, alternate subdivisions, scale extremes, non-dyadic intersections, stratified results, attribute conflicts, and normalization defects.
+- [x] **P6.2 — Expand and inventory the permanent corpus.**
+  - [x] Reach at least 10,000 generated construction-known operand pairs.
+  - [x] Reach at least 1,000 representative licensed or internally generated CAD-like tessellated operand pairs.
+  - [x] Reach at least 1,000 deterministic operation chains of at least five successful or intentionally failing steps.
+  - [x] Preserve every minimized regression discovered by any test, fuzz, sanitizer, backend comparison, or customer workload.
+  - [x] Encode coverage by geometry category, operation, both difference directions, type/index specialization, result mode, preparation policy, and expected outcome.
+  - [x] Include non-box intersections, skew/rotated convexity, concavity, cavities, coplanar overlays, high valence, thin features, alternate subdivisions, scale extremes, non-dyadic intersections, stratified results, attribute conflicts, and normalization defects.
 
 - [ ] **P6.3 — Implement construction-aware generators and operation-chain harnesses.**
   - [ ] Add exact halfspace/polytope, profile/extrusion-like, coplanar-overlay, nested-shell/cavity, subdivision, feature-alignment, and representable-transform generators with retained recipes.
