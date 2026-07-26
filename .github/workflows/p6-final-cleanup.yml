@@ -80,3 +80,4 @@ jobs:
           git fetch origin boolean_symbolic
           git rebase origin/boolean_symbolic
           git push origin HEAD:boolean_symbolic
+# trigger: 2
