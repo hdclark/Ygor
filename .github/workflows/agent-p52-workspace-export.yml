@@ -1,4 +1,4 @@
-name: Agent P5.2 workspace export
+name: Agent P5.3 patch application
 
 on:
   push:
@@ -6,28 +6,34 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/agent-p52-workspace-export.yml'
+      - '.github/p53-agent-patch/**'
   pull_request:
     paths:
       - '.github/workflows/agent-p52-workspace-export.yml'
+      - '.github/p53-agent-patch/**'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  apply:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: boolean_symbolic
           fetch-depth: 0
-      - name: Create workspace archive
-        run: tar --exclude='./.git' -czf /tmp/ygor-p52-workspace.tar.gz .
-      - name: Upload workspace archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: ygor-p52-workspace
-          path: /tmp/ygor-p52-workspace.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+      - name: Apply validated P5.3 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/p53-agent-patch/part-* | base64 --decode | gzip --decompress > /tmp/p53.patch
+          git apply --index --whitespace=error /tmp/p53.patch
+          rm -rf .github/p53-agent-patch
+          git add .
+          git diff --cached --check
+          git config user.name hdclark
+          git config user.email 934858+hdclark@users.noreply.github.com
+          git commit -m 'P5.3: replace product example and add migration guidance'
+          git push origin HEAD:boolean_symbolic
