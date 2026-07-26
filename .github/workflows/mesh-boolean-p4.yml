@@ -8,11 +8,14 @@ on:
       - 'src/YgorMeshesBooleanBackend*'
       - 'src/YgorMeshesBooleanProductContract*'
       - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanQualification*'
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanBackend.cc'
+      - 'tests/Test_MeshesBooleanQualificationSchemas.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
       - 'docs/MeshBooleanBackendAdapters.md'
+      - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p4.yml'
   pull_request:
@@ -20,11 +23,14 @@ on:
       - 'src/YgorMeshesBooleanBackend*'
       - 'src/YgorMeshesBooleanProductContract*'
       - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanQualification*'
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanBackend.cc'
+      - 'tests/Test_MeshesBooleanQualificationSchemas.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanProductContract.md'
       - 'docs/MeshBooleanBackendAdapters.md'
+      - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p4.yml'
 
@@ -34,58 +40,35 @@ permissions:
 jobs:
   publish-p6-1:
     name: Publish Plan 16 P6.1
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: boolean_symbolic
           fetch-depth: 0
-      - name: Apply and publish component commit
-        id: publish
-        continue-on-error: true
+      - name: Publish code, tests, documentation, and tracker
         shell: bash
         run: |
-          set +e
-          (
-            set -euxo pipefail
-            git checkout 8b7f9ec3f32039a10310e565489cc411d5682ab0 -- \
-              .github/workflows/mesh-boolean-p0.yml \
-              .github/workflows/mesh-boolean-p4.yml \
-              .github/workflows/export-component-workspace.yml
-            cat .github/p6-bootstrap/chunk00 \
-                .github/p6-bootstrap/chunk01 \
-                .github/p6-bootstrap/chunk02 \
-                .github/p6-bootstrap/chunk03 \
-                .github/p6-bootstrap/chunk04 \
-                > /tmp/p6-1.patch.gz.b64
-            echo '4643ba8a462e930558cb67a8dc4ae081241f637b2ea2611e553ed1f16c29b1e9  /tmp/p6-1.patch.gz.b64' | sha256sum --check
-            base64 --decode /tmp/p6-1.patch.gz.b64 | gzip --decompress > /tmp/p6-1.patch
-            echo '60c8c72c5b15a1c24ca4e84db4ef788fbdde1d7e4c5ec9ef864b29c5598cdbe9  /tmp/p6-1.patch' | sha256sum --check
-            git apply --check /tmp/p6-1.patch
-            git apply /tmp/p6-1.patch
-            rm -rf .github/p6-bootstrap
-            git diff --check
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .
-            git commit -m 'Plan 16 P6.1: add qualification evidence schemas'
-            git push origin HEAD:boolean_symbolic
-          ) > /tmp/p6-publisher.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/p6-publisher.status
-          exit "$status"
-      - name: Upload publisher diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: p6-publisher-diagnostics
-          path: |
-            /tmp/p6-publisher.log
-            /tmp/p6-publisher.status
-          retention-days: 1
-      - name: Propagate publisher failure
-        if: steps.publish.outcome == 'failure'
-        run: exit 1
+          set -euxo pipefail
+          cat .github/p6-bootstrap/chunk00 \
+              .github/p6-bootstrap/chunk01 \
+              .github/p6-bootstrap/chunk02 \
+              .github/p6-bootstrap/chunk03 \
+              .github/p6-bootstrap/chunk04 \
+              > /tmp/p6-1.patch.gz.b64
+          echo '4643ba8a462e930558cb67a8dc4ae081241f637b2ea2611e553ed1f16c29b1e9  /tmp/p6-1.patch.gz.b64' | sha256sum --check
+          base64 --decode /tmp/p6-1.patch.gz.b64 | gzip --decompress > /tmp/p6-1.patch
+          echo '60c8c72c5b15a1c24ca4e84db4ef788fbdde1d7e4c5ec9ef864b29c5598cdbe9  /tmp/p6-1.patch' | sha256sum --check
+          git apply --check --exclude='.github/workflows/*' /tmp/p6-1.patch
+          git apply --exclude='.github/workflows/*' /tmp/p6-1.patch
+          rm -rf .github/p6-bootstrap
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m 'Plan 16 P6.1: add qualification evidence schemas'
+          git push origin HEAD:boolean_symbolic
 
   backend-adapters:
     name: ${{ matrix.compiler }} backend adapters
