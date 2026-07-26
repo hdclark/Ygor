@@ -147,3 +147,17 @@ mutation or substitution makes `qualified_default` fail closed. P6.2 through
 P6.11 must generate the corpus, execute the frozen campaign, resolve every
 blocking outcome, and commit the reproducible evidence before any actual
 profile is promoted.
+
+
+## Independent backend comparison (P6.4)
+
+`YgorMeshesBooleanQualificationComparison.h` and
+`MeshBooleanQualificationComparison.md` define the diagnostic-only comparison
+evidence used by P6.4. The frozen `axis_aligned_box_pair_v1` profile executes
+all five Boolean operations against `experimental_exact_v1` and the
+independently implemented axis-aligned-box adapter. It retains complete attempt
+payloads and typed failures, exact open-cell probe classifications, semantic
+differences, deterministic minimization transcripts, and explicit reviewed
+resolution classifications. A complete campaign remains blocking until every
+material disagreement is explained; comparison never selects or repairs the
+producer result and does not promote any backend.

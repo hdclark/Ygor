@@ -213,11 +213,11 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Add chain execution with re-ingestion, exact-result retention, varied association/order, explicit normalization boundaries, and transactional failure propagation.
   - [x] Add deterministic provenance-guided minimization and automatic permanent-regression promotion.
 
-- [ ] **P6.4 — Run independent backend comparison in diagnostic-only mode.**
-  - [ ] Execute at least one mature independent backend over the declared workload profile.
-  - [ ] Preserve inputs, options, versions, all outputs/failures, semantic differences, and guarded/exact probe evidence for every disagreement.
-  - [ ] Minimize and classify every disagreement as correct, incorrect, unsupported, policy-different, or unresolved.
-  - [ ] Block qualification while any material disagreement remains unexplained.
+- [x] **P6.4 — Run independent backend comparison in diagnostic-only mode.**
+  - [x] Execute at least one mature independent backend over the declared workload profile.
+  - [x] Preserve inputs, options, versions, all outputs/failures, semantic differences, and guarded/exact probe evidence for every disagreement.
+  - [x] Minimize and classify every disagreement as correct, incorrect, unsupported, policy-different, or unresolved.
+  - [x] Block qualification while any material disagreement remains unexplained.
 
 - [ ] **P6.5 — Add false-success detection and accounting.**
   - [ ] Normalize all outcomes into verified exact success, verified approximate success, expected/unexpected typed failure, backend/verifier disagreement, false success, nondeterminism, resource/timeout, or infrastructure failure.

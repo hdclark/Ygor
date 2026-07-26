@@ -134,6 +134,7 @@ add_component14_test(Test_MeshesBooleanFuzz MeshBoolean.Fuzz "fuzz;scheduled" 12
 add_component14_test(Test_MeshesBooleanMutation MeshBoolean.Mutation "mutation;scheduled" 600)
 add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualification;scheduled" 360)
 add_component14_test(Test_MeshesBooleanQualificationGeneration MeshBoolean.QualificationGeneration "qualification;p6;p6.3;continuous" 1200)
+add_component14_test(Test_MeshesBooleanQualificationComparison MeshBoolean.QualificationComparison "qualification;p6;p6.4;continuous" 1800)
 add_component14_test(Test_MeshesBooleanPerformanceBaselines
     MeshBoolean.PerformanceBaselines "performance" 600)
 
