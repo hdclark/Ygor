@@ -4,61 +4,61 @@ on:
   push:
     branches:
       - boolean_symbolic
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanProductContract.cc'
+      - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'tests/Test_MeshesBooleanBackend.cc'
+      - 'tests/Test_MeshesBooleanSelection.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p0.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  publish-p6-1:
-    name: Publish Plan 16 P6.1
+  product-contract:
+    name: ${{ matrix.compiler }} product contract
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: boolean_symbolic
-          fetch-depth: 0
-      - name: Apply and publish component commit
-        id: publish
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          (
-            set -euxo pipefail
-            git checkout 8b7f9ec3f32039a10310e565489cc411d5682ab0 -- \
-              .github/workflows/mesh-boolean-p0.yml \
-              .github/workflows/export-component-workspace.yml
-            cat .github/p6-bootstrap/chunk00 \
-                .github/p6-bootstrap/chunk01 \
-                .github/p6-bootstrap/chunk02 \
-                .github/p6-bootstrap/chunk03 \
-                .github/p6-bootstrap/chunk04 \
-                > /tmp/p6-1.patch.gz.b64
-            echo '4643ba8a462e930558cb67a8dc4ae081241f637b2ea2611e553ed1f16c29b1e9  /tmp/p6-1.patch.gz.b64' | sha256sum --check
-            base64 --decode /tmp/p6-1.patch.gz.b64 | gzip --decompress > /tmp/p6-1.patch
-            echo '60c8c72c5b15a1c24ca4e84db4ef788fbdde1d7e4c5ec9ef864b29c5598cdbe9  /tmp/p6-1.patch' | sha256sum --check
-            git apply --check /tmp/p6-1.patch
-            git apply /tmp/p6-1.patch
-            rm -rf .github/p6-bootstrap
-            git diff --check
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .
-            git commit -m 'Plan 16 P6.1: add qualification evidence schemas'
-            git push origin HEAD:boolean_symbolic
-          ) > /tmp/p6-publisher.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/p6-publisher.status
-          exit "$status"
-      - name: Upload publisher diagnostics
-        if: always()
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p0 -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build contract tests
+        run: >-
+          cmake --build build-p0
+          --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult Test_MeshesBooleanBackend ygor_mesh_boolean_exact_result_verifier_isolation
+          --parallel 2
+      - name: Run contract tests
+        run: >-
+          ctest --test-dir build-p0 --output-on-failure
+          -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit)$'
+          --timeout 360
+      - name: Retain failing test log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: p6-publisher-diagnostics
-          path: |
-            /tmp/p6-publisher.log
-            /tmp/p6-publisher.status
-          retention-days: 1
-      - name: Propagate publisher failure
-        if: steps.publish.outcome == 'failure'
-        run: exit 1
+          name: mesh-boolean-product-contract-${{ matrix.compiler }}-failure
+          path: build-p0/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
