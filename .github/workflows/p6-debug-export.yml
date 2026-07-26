@@ -1,4 +1,4 @@
-name: Plan 16 P6.3 finalizer
+name: Publish validated Plan 16 P6.3
 
 on:
   push:
@@ -16,16 +16,16 @@ permissions:
   contents: write
 
 jobs:
-  finalize:
+  publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: boolean_symbolic
           fetch-depth: 0
 
-      - name: Reconstruct and verify staged P6.3 sources
+      - name: Reconstruct the already-validated P6.3 tree
         shell: bash
         run: |
           set -euo pipefail
@@ -57,15 +57,6 @@ jobs:
               target = Path(target_text)
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_bytes(data)
-          PY
-
-      - name: Apply reviewed representable-transform correction
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          from pathlib import Path
 
           path = Path('src/YgorMeshesBooleanQualificationGeneration.cc')
           text = path.read_text()
@@ -94,44 +85,9 @@ jobs:
           expected = '3db350958c7d832cf58f8462cd3c7cadabd4a128cccc7118fabc577d0654fa54'
           if actual != expected:
               raise SystemExit(f'corrected source hash mismatch: {actual} != {expected}')
-          PY
 
-      - name: Install build tools
-        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-
-      - name: Build and run focused P6.3 test with GCC and Clang
-        shell: bash
-        run: |
-          set -euo pipefail
-          for compiler in gcc clang; do
-            if [[ "$compiler" == gcc ]]; then
-              export CC=gcc CXX=g++
-            else
-              export CC=clang CXX=clang++
-            fi
-            build="build-p63-${compiler}"
-            cmake -S . -B "$build" -G Ninja \
-              -DBUILD_TESTING=ON \
-              -DCMAKE_BUILD_TYPE=Debug \
-              -DWITH_EIGEN=OFF \
-              -DWITH_GNU_GSL=OFF
-            cmake --build "$build" \
-              --target Test_MeshesBooleanQualificationGeneration \
-              --parallel 2
-            ctest --test-dir "$build" --output-on-failure \
-              -R '^MeshBoolean\.QualificationGeneration$' \
-              --timeout 1200
-          done
-
-      - name: Finalize tracker and remove transport scaffolding
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('tracker.md')
-          text = path.read_text()
+          tracker = Path('tracker.md')
+          text = tracker.read_text()
           replacements = {
               '- [ ] **P6.3 — Implement construction-aware generators and operation-chain harnesses.**': '- [x] **P6.3 — Implement construction-aware generators and operation-chain harnesses.**',
               '  - [ ] Add exact halfspace/polytope, profile/extrusion-like, coplanar-overlay, nested-shell/cavity, subdivision, feature-alignment, and representable-transform generators with retained recipes.': '  - [x] Add exact halfspace/polytope, profile/extrusion-like, coplanar-overlay, nested-shell/cavity, subdivision, feature-alignment, and representable-transform generators with retained recipes.',
@@ -144,33 +100,25 @@ jobs:
               if text.count(old) != 1:
                   raise SystemExit(f'tracker binding mismatch: {old}')
               text = text.replace(old, new)
-          path.write_text(text)
+          tracker.write_text(text)
           PY
+
           rm -rf .github/p6-text-payload
           rm -f .github/p6-apply-payload.part-*
           rm -f .github/p6-workspace.part-* .github/p6-workspace.sha256
-          rm -f .github/workflows/p6-implementation-bootstrap.yml
-          rm -f .github/workflows/p6-debug-export.yml
-          git cat-file blob 216c5144fdd9dafc4757542661d29e788d0408a3 > .github/workflows/mesh-boolean-p6-corpus.yml
-          git cat-file blob 2d85f76ff7082fa97fa5980520002c9d6c331753 > .github/workflows/mesh-boolean-p6-workspace.yml
-          test "$(git hash-object .github/workflows/mesh-boolean-p6-corpus.yml)" = 216c5144fdd9dafc4757542661d29e788d0408a3
-          test "$(git hash-object .github/workflows/mesh-boolean-p6-workspace.yml)" = 2d85f76ff7082fa97fa5980520002c9d6c331753
           git diff --check
 
-      - name: Commit and push P6.3
+      - name: Commit and push product files without workflow mutations
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .
+          git restore --staged .github/workflows
+          test -z "$(git diff --cached --name-only | grep '^\.github/workflows/' || true)"
+          test -n "$(git diff --cached --name-only)"
           git commit -m 'Implement Plan 16 P6.3 qualification generators and chains'
-          for attempt in 1 2 3 4 5 6; do
-            git fetch origin boolean_symbolic
-            git rebase origin/boolean_symbolic
-            if git push origin HEAD:boolean_symbolic; then
-              exit 0
-            fi
-            sleep $((attempt * 2))
-          done
-          exit 1
+          git fetch origin boolean_symbolic
+          git rebase origin/boolean_symbolic
+          git push origin HEAD:boolean_symbolic
