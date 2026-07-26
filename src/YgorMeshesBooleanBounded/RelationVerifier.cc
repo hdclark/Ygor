@@ -867,6 +867,671 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 truth record is invalid");
 
+  struct expected_interval_evidence final {
+    relation_request_key key{};
+    feature_relation_id source_relation{0};
+    relation_interval_evidence_record value{};
+  };
+  struct expected_region_evidence final {
+    relation_request_key key{};
+    feature_relation_id source_relation{0};
+    relation_source_facet_region_record<T> value{};
+  };
+  std::vector<expected_interval_evidence> expected_intervals;
+  std::vector<expected_region_evidence> expected_regions;
+
+  const auto accepted_unit_interval = [](const finite_interval<T> &interval) {
+    return finite_bits(interval.lower()) && finite_bits(interval.upper()) &&
+           !finite_numeric_less(interval.upper(), interval.lower()) &&
+           interval.lower() >= T(0) && interval.upper() <= T(1);
+  };
+  const auto accepted_residual = [](const finite_interval<T> &interval,
+                                    T boundary) {
+    return finite_bits(boundary) && boundary >= T(0) &&
+           finite_bits(interval.lower()) && finite_bits(interval.upper()) &&
+           !finite_numeric_less(interval.upper(), interval.lower()) &&
+           interval.lower() >= -boundary && interval.upper() <= boundary;
+  };
+  const auto set_contributors = [](relation_interval_evidence_record &out,
+                                   const uncertainty_contributors &value) {
+    const double contributors[]{value.inherited_a, value.inherited_b,
+                                value.machine_floor, value.construction,
+                                value.conditioning, value.conversion,
+                                value.prior_cleanup, value.current_cleanup};
+    for (std::size_t i = 0; i < out.contributor_bits.size(); ++i)
+      out.contributor_bits[i] =
+          static_cast<std::uint64_t>(to_bits(contributors[i]));
+  };
+  const auto primitive_dependencies = [&](const feature_relation_record &relation,
+                                          const relation_request_key &base,
+                                          std::vector<relation_request_id> &out) {
+    out.clear();
+    const auto add = [&](const relation_request_key &key) {
+      const auto *request = find_request(artifact.request_graph_, key);
+      if (!request) return false;
+      out.push_back(request->id);
+      return true;
+    };
+    if (!add(verifier_imported_geometry_key(base.semantic_namespace, base.first,
+                                            relation.scope)) ||
+        (base.second.kind != relation_feature_kind::none &&
+         !add(verifier_imported_geometry_key(base.semantic_namespace,
+                                             base.second, relation.scope))))
+      return false;
+    for (std::uint64_t local = 0; local < relation.truth_count; ++local) {
+      if (local > std::numeric_limits<std::uint32_t>::max()) return false;
+      const auto truth_index = relation.truth_begin + local;
+      if (truth_index >= artifact.truth_records_.size()) return false;
+      if (!add(verifier_derived_key(
+              base, relation_request_family::rounded_bounded_primitive,
+              verifier_tagged_use(0x10U,
+                                  static_cast<std::uint8_t>(base.family)),
+              static_cast<std::uint32_t>(local))))
+        return false;
+      if (artifact.truth_records_[truth_index].exact_formula != 0 &&
+          !add(verifier_derived_key(
+              base,
+              relation_request_family::exact_stored_coordinate_relation,
+              verifier_tagged_use(0x11U,
+                                  static_cast<std::uint8_t>(base.family)),
+              static_cast<std::uint32_t>(local))))
+        return false;
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return true;
+  };
+  const auto exact_dependencies = [&](const canonical_relation_request &request,
+                                      std::vector<relation_request_id> expected) {
+    if (request.dependency_begin > artifact.request_graph_.dependencies.size() ||
+        request.dependency_count >
+            artifact.request_graph_.dependencies.size() - request.dependency_begin)
+      return false;
+    std::vector<relation_request_id> actual;
+    actual.reserve(request.dependency_count);
+    for (std::uint64_t offset = 0; offset < request.dependency_count; ++offset)
+      actual.push_back(artifact.request_graph_
+                           .dependencies[request.dependency_begin + offset]
+                           .producer);
+    std::sort(actual.begin(), actual.end());
+    actual.erase(std::unique(actual.begin(), actual.end()), actual.end());
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    return actual == expected;
+  };
+  const auto next_interval = [](relation_interval_evidence_kind kind,
+                                std::array<std::uint64_t, 16> &counters,
+                                std::uint32_t &out) {
+    const auto index = static_cast<std::size_t>(kind);
+    if (index == 0 || index >= counters.size() ||
+        counters[index] > std::numeric_limits<std::uint32_t>::max())
+      return false;
+    out = static_cast<std::uint32_t>(counters[index]++);
+    return true;
+  };
+  const auto next_region = [](relation_source_facet_region_kind kind,
+                              std::array<std::uint64_t, 7> &counters,
+                              std::uint32_t &out) {
+    const auto index = static_cast<std::size_t>(kind);
+    if (index == 0 || index >= counters.size() ||
+        counters[index] > std::numeric_limits<std::uint32_t>::max())
+      return false;
+    out = static_cast<std::uint32_t>(counters[index]++);
+    return true;
+  };
+  const auto append_interval = [&](const relation_request_key &base,
+                                   feature_relation_id source_relation,
+                                   relation_interval_evidence_kind kind,
+                                   std::uint32_t occurrence,
+                                   std::uint8_t component,
+                                   const finite_interval<T> &interval,
+                                   bool has_rounded_nominal, T rounded,
+                                   bool has_parameter_metadata,
+                                   parameter_domain_status domain,
+                                   T domain_margin,
+                                   exact_relation_status exact_zero,
+                                   exact_relation_status exact_one,
+                                   const uncertainty_contributors &contributors,
+                                   std::uint64_t trace_root,
+                                   T comparison_boundary,
+                                   bool within_authorized_boundary) {
+    if (!finite_bits(interval.lower()) || !finite_bits(interval.upper()) ||
+        finite_numeric_less(interval.upper(), interval.lower()) ||
+        (has_rounded_nominal &&
+         (!finite_bits(rounded) || !interval.contains(rounded))) ||
+        !finite_bits(domain_margin) || !finite_bits(comparison_boundary))
+      return false;
+    expected_interval_evidence expected;
+    expected.key = verifier_derived_key(
+        base, relation_request_family::source_point_source_facet_region,
+        verifier_tagged_use(0x20U, static_cast<std::uint8_t>(kind)) |
+            static_cast<std::uint64_t>(component),
+        occurrence);
+    expected.source_relation = source_relation;
+    expected.value.kind = kind;
+    expected.value.occurrence = occurrence;
+    expected.value.component = component;
+    expected.value.has_rounded_nominal = has_rounded_nominal;
+    expected.value.has_parameter_metadata = has_parameter_metadata;
+    expected.value.within_authorized_boundary = within_authorized_boundary;
+    expected.value.rounded_nominal_bits =
+        has_rounded_nominal ? static_cast<std::uint64_t>(to_bits(rounded)) : 0;
+    expected.value.lower_bits =
+        static_cast<std::uint64_t>(to_bits(interval.lower()));
+    expected.value.upper_bits =
+        static_cast<std::uint64_t>(to_bits(interval.upper()));
+    expected.value.domain = has_parameter_metadata
+                                ? domain
+                                : parameter_domain_status::invalid;
+    expected.value.domain_margin_bits =
+        has_parameter_metadata
+            ? static_cast<std::uint64_t>(to_bits(domain_margin))
+            : 0;
+    expected.value.exact_zero = has_parameter_metadata
+                                    ? exact_zero
+                                    : exact_relation_status::unavailable;
+    expected.value.exact_one = has_parameter_metadata
+                                   ? exact_one
+                                   : exact_relation_status::unavailable;
+    if (has_parameter_metadata)
+      set_contributors(expected.value, contributors);
+    expected.value.trace_root = has_parameter_metadata ? trace_root : 0;
+    expected.value.comparison_boundary_bits =
+        static_cast<std::uint64_t>(to_bits(comparison_boundary));
+    expected_intervals.push_back(std::move(expected));
+    return true;
+  };
+  const auto append_parameter = [&](const relation_request_key &base,
+                                    feature_relation_id source_relation,
+                                    relation_interval_evidence_kind kind,
+                                    std::uint32_t occurrence,
+                                    const source_edge_parameter_evidence<T> &p) {
+    return append_interval(base, source_relation, kind, occurrence, 0,
+                           p.enclosure, true, p.rounded_nominal, true, p.domain,
+                           p.domain_margin, p.exact_zero, p.exact_one,
+                           p.contributors, p.trace_root, T(0),
+                           p.domain != parameter_domain_status::invalid);
+  };
+  const auto append_simple_parameter =
+      [&](const relation_request_key &base, feature_relation_id source_relation,
+          relation_interval_evidence_kind kind, std::uint32_t occurrence,
+          T rounded, const finite_interval<T> &interval) {
+        return append_interval(
+            base, source_relation, kind, occurrence, 0, interval, true, rounded,
+            false, parameter_domain_status::invalid, T(0),
+            exact_relation_status::unavailable,
+            exact_relation_status::unavailable, uncertainty_contributors{}, 0,
+            T(0), accepted_unit_interval(interval));
+      };
+  const auto append_plain =
+      [&](const relation_request_key &base, feature_relation_id source_relation,
+          relation_interval_evidence_kind kind, std::uint32_t occurrence,
+          std::uint8_t component, const finite_interval<T> &interval,
+          T comparison_boundary, bool accepted) {
+        return append_interval(
+            base, source_relation, kind, occurrence, component, interval,
+            false, T(0), false, parameter_domain_status::invalid, T(0),
+            exact_relation_status::unavailable,
+            exact_relation_status::unavailable, uncertainty_contributors{}, 0,
+            comparison_boundary, accepted);
+      };
+  const auto append_region_snapshot =
+      [&](const relation_request_key &base, feature_relation_id source_relation,
+          relation_source_facet_region_kind kind, std::uint32_t occurrence,
+          const source_edge_geometry_snapshot<T> &point,
+          const source_facet_point_region_record<T> &region) {
+        if (!valid_source_facet_point_region_record(region)) return false;
+        expected_region_evidence expected;
+        expected.key = verifier_derived_key(
+            base, relation_request_family::source_point_source_facet_region,
+            verifier_tagged_use(0x21U, static_cast<std::uint8_t>(kind)),
+            occurrence);
+        expected.source_relation = source_relation;
+        expected.value.kind = kind;
+        expected.value.occurrence = occurrence;
+        expected.value.query_component_count = 3;
+        expected.value.query_source_identity_valid =
+            region.query_source_identity_valid;
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+          expected.value.query_nominal_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.rounded_nominal[axis]));
+          expected.value.query_lower_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.enclosure[axis].lower()));
+          expected.value.query_upper_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.enclosure[axis].upper()));
+        }
+        expected.value.region = region;
+        expected_regions.push_back(std::move(expected));
+        return true;
+      };
+  const auto append_region_projected =
+      [&](const relation_request_key &base, feature_relation_id source_relation,
+          relation_source_facet_region_kind kind, std::uint32_t occurrence,
+          const projected_source_point<T> &point,
+          const source_facet_point_region_record<T> &region) {
+        if (!valid_source_facet_point_region_record(region)) return false;
+        expected_region_evidence expected;
+        expected.key = verifier_derived_key(
+            base, relation_request_family::source_point_source_facet_region,
+            verifier_tagged_use(0x21U, static_cast<std::uint8_t>(kind)),
+            occurrence);
+        expected.source_relation = source_relation;
+        expected.value.kind = kind;
+        expected.value.occurrence = occurrence;
+        expected.value.query_component_count = 2;
+        expected.value.query_source_identity_valid =
+            region.query_source_identity_valid;
+        for (std::size_t axis = 0; axis < 2; ++axis) {
+          expected.value.query_nominal_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.nominal[axis]));
+          expected.value.query_lower_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.enclosure[axis].lower()));
+          expected.value.query_upper_bits[axis] =
+              static_cast<std::uint64_t>(to_bits(point.enclosure[axis].upper()));
+        }
+        expected.value.region = region;
+        expected_regions.push_back(std::move(expected));
+        return true;
+      };
+  const auto append_partition =
+      [&](const relation_request_key &base, feature_relation_id source_relation,
+          const source_facet_segment_partition_record<T> &partition,
+          relation_source_facet_region_kind breakpoint_kind,
+          relation_source_facet_region_kind interval_kind,
+          std::array<std::uint64_t, 16> &interval_counters,
+          std::array<std::uint64_t, 7> &region_counters) {
+        if (!valid_source_facet_segment_partition_record(partition)) return false;
+        for (const auto &contact : partition.contacts) {
+          std::uint32_t occurrence = 0;
+          if (!next_interval(
+                  relation_interval_evidence_kind::segment_contact_first_parameter,
+                  interval_counters, occurrence) ||
+              !append_simple_parameter(
+                  base, source_relation,
+                  relation_interval_evidence_kind::segment_contact_first_parameter,
+                  occurrence, contact.first_rounded_parameter,
+                  contact.first_parameter))
+            return false;
+          if (contact.kind ==
+              source_facet_segment_contact_kind::boundary_overlap) {
+            if (!next_interval(
+                    relation_interval_evidence_kind::segment_contact_second_parameter,
+                    interval_counters, occurrence) ||
+                !append_simple_parameter(
+                    base, source_relation,
+                    relation_interval_evidence_kind::segment_contact_second_parameter,
+                    occurrence, contact.second_rounded_parameter,
+                    contact.second_parameter))
+              return false;
+          }
+        }
+        for (const auto &breakpoint : partition.breakpoints) {
+          std::uint32_t interval_occurrence = 0, region_occurrence = 0;
+          if (!next_interval(
+                  relation_interval_evidence_kind::segment_breakpoint_parameter,
+                  interval_counters, interval_occurrence) ||
+              !append_simple_parameter(
+                  base, source_relation,
+                  relation_interval_evidence_kind::segment_breakpoint_parameter,
+                  interval_occurrence, breakpoint.rounded_parameter,
+                  breakpoint.parameter) ||
+              !next_region(breakpoint_kind, region_counters,
+                           region_occurrence) ||
+              !append_region_projected(base, source_relation, breakpoint_kind,
+                                       region_occurrence, breakpoint.point,
+                                       breakpoint.region))
+            return false;
+        }
+        for (const auto &interval : partition.intervals) {
+          std::uint32_t interval_occurrence = 0, region_occurrence = 0;
+          if (!next_interval(
+                  relation_interval_evidence_kind::segment_interval_witness_parameter,
+                  interval_counters, interval_occurrence) ||
+              !append_simple_parameter(
+                  base, source_relation,
+                  relation_interval_evidence_kind::segment_interval_witness_parameter,
+                  interval_occurrence, interval.rounded_witness_parameter,
+                  interval.witness_parameter) ||
+              !next_region(interval_kind, region_counters,
+                           region_occurrence) ||
+              !append_region_projected(base, source_relation, interval_kind,
+                                       region_occurrence,
+                                       interval.witness_point,
+                                       interval.witness_region))
+            return false;
+        }
+        for (const auto &witness : partition.triangle_witnesses) {
+          std::uint32_t occurrence = 0;
+          if (!next_interval(
+                  relation_interval_evidence_kind::segment_triangle_witness_parameter,
+                  interval_counters, occurrence) ||
+              !append_plain(
+                  base, source_relation,
+                  relation_interval_evidence_kind::segment_triangle_witness_parameter,
+                  occurrence, 0, witness.parameter, T(0),
+                  accepted_unit_interval(witness.parameter)))
+            return false;
+        }
+        return true;
+      };
+
+  for (const auto &relation : artifact.relations_) {
+    const auto &base = artifact.request_graph_.requests[relation.producer.ordinal()].key;
+    std::array<std::uint64_t, 16> interval_counters{};
+    std::array<std::uint64_t, 7> region_counters{};
+    switch (base.family) {
+    case relation_request_family::source_edge_source_edge: {
+      const auto *request = find_request(artifact.source_edge_stage_->request_graph,
+                                         base);
+      if (!request || request->id.ordinal() >=
+                          artifact.source_edge_stage_->relations.size())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 family-04 edge source is absent");
+      const auto &source =
+          artifact.source_edge_stage_->relations[request->id.ordinal()];
+      for (std::uint32_t i = 0; i < source.parameter_count; ++i) {
+        std::uint32_t occurrence = 0;
+        if (!next_interval(
+                relation_interval_evidence_kind::source_edge_first_parameter,
+                interval_counters, occurrence) ||
+            !append_parameter(
+                base, relation.id,
+                relation_interval_evidence_kind::source_edge_first_parameter,
+                occurrence, source.first_parameters[i]) ||
+            !next_interval(
+                relation_interval_evidence_kind::source_edge_second_parameter,
+                interval_counters, occurrence) ||
+            !append_parameter(
+                base, relation.id,
+                relation_interval_evidence_kind::source_edge_second_parameter,
+                occurrence, source.second_parameters[i]))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 family-04 edge parameters do not reconstruct");
+      }
+      for (std::uint32_t point = 0; point < source.point_count; ++point) {
+        std::uint32_t first_occurrence = 0, second_occurrence = 0;
+        if (!next_interval(
+                relation_interval_evidence_kind::source_edge_first_carrier_residual,
+                interval_counters, first_occurrence) ||
+            !next_interval(
+                relation_interval_evidence_kind::source_edge_second_carrier_residual,
+                interval_counters, second_occurrence))
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 family-04 edge residual occurrence overflow");
+        for (std::uint8_t axis = 0; axis < 3; ++axis) {
+          const auto &first = source.points[point].first_carrier_residual[axis];
+          const auto &second = source.points[point].second_carrier_residual[axis];
+          if (!append_plain(
+                  base, relation.id,
+                  relation_interval_evidence_kind::source_edge_first_carrier_residual,
+                  first_occurrence, axis, first, source.residual_boundary,
+                  accepted_residual(first, source.residual_boundary)) ||
+              !append_plain(
+                  base, relation.id,
+                  relation_interval_evidence_kind::source_edge_second_carrier_residual,
+                  second_occurrence, axis, second, source.residual_boundary,
+                  accepted_residual(second, source.residual_boundary)))
+            return fail(relation_subcode::verifier_rejection,
+                        "Component 07 family-04 edge residuals do not reconstruct");
+        }
+      }
+      break;
+    }
+    case relation_request_family::source_edge_source_facet: {
+      const auto *request = find_request(
+          artifact.source_edge_facet_stage_->request_graph, base);
+      if (!request || request->id.ordinal() >=
+                          artifact.source_edge_facet_stage_->relations.size())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 family-04 edge/facet source is absent");
+      const auto &source = artifact.source_edge_facet_stage_->relations[
+          request->id.ordinal()];
+      for (const auto &event : source.events) {
+        std::uint32_t parameter_occurrence = 0, residual_occurrence = 0;
+        std::uint32_t support_occurrence = 0, region_occurrence = 0;
+        if (!next_interval(
+                relation_interval_evidence_kind::edge_facet_event_parameter,
+                interval_counters, parameter_occurrence) ||
+            !append_parameter(
+                base, relation.id,
+                relation_interval_evidence_kind::edge_facet_event_parameter,
+                parameter_occurrence, event.parameter) ||
+            !next_interval(
+                relation_interval_evidence_kind::edge_facet_edge_carrier_residual,
+                interval_counters, residual_occurrence) ||
+            !next_interval(
+                relation_interval_evidence_kind::edge_facet_support_residual,
+                interval_counters, support_occurrence) ||
+            !next_region(relation_source_facet_region_kind::edge_facet_event,
+                         region_counters, region_occurrence))
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 family-04 edge/facet occurrence overflow");
+        for (std::uint8_t axis = 0; axis < 3; ++axis) {
+          const auto &residual = event.construction.edge_carrier_residual[axis];
+          if (!append_plain(
+                  base, relation.id,
+                  relation_interval_evidence_kind::edge_facet_edge_carrier_residual,
+                  residual_occurrence, axis, residual,
+                  source.residual_boundary,
+                  accepted_residual(residual, source.residual_boundary)))
+            return fail(relation_subcode::verifier_rejection,
+                        "Component 07 family-04 edge/facet carrier residual does not reconstruct");
+        }
+        if (!append_plain(
+                base, relation.id,
+                relation_interval_evidence_kind::edge_facet_support_residual,
+                support_occurrence, 0, event.construction.support_residual,
+                source.residual_boundary,
+                accepted_residual(event.construction.support_residual,
+                                  source.residual_boundary)) ||
+            !append_region_snapshot(
+                base, relation.id,
+                relation_source_facet_region_kind::edge_facet_event,
+                region_occurrence, event.construction.point, event.region))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 family-04 edge/facet event does not reconstruct");
+      }
+      if (source.has_coplanar_partition &&
+          !append_partition(
+              base, relation.id, source.coplanar_partition,
+              relation_source_facet_region_kind::edge_facet_partition_breakpoint,
+              relation_source_facet_region_kind::edge_facet_partition_interval,
+              interval_counters, region_counters))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 family-04 edge/facet partition does not reconstruct");
+      break;
+    }
+    case relation_request_family::source_facet_source_facet: {
+      const auto *request = find_request(
+          artifact.source_facet_stage_->request_graph, base);
+      if (!request || request->id.ordinal() >=
+                          artifact.source_facet_stage_->relations.size())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 family-04 facet source is absent");
+      const auto &source =
+          artifact.source_facet_stage_->relations[request->id.ordinal()];
+      if (source.has_transverse_carrier) {
+        std::uint32_t occurrence = 0;
+        if (!next_interval(
+                relation_interval_evidence_kind::facet_facet_direction_squared,
+                interval_counters, occurrence) ||
+            !append_plain(
+                base, relation.id,
+                relation_interval_evidence_kind::facet_facet_direction_squared,
+                occurrence, 0, source.transverse_carrier.direction_squared,
+                T(0), source.transverse_carrier.direction_squared.lower() > T(0)))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 family-04 carrier conditioning does not reconstruct");
+        if (!next_interval(
+                relation_interval_evidence_kind::facet_facet_point_plane_residual,
+                interval_counters, occurrence))
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 family-04 point-plane occurrence overflow");
+        for (std::uint8_t component = 0; component < 2; ++component) {
+          const auto &residual =
+              source.transverse_carrier.point_plane_residuals[component];
+          if (!append_plain(
+                  base, relation.id,
+                  relation_interval_evidence_kind::facet_facet_point_plane_residual,
+                  occurrence, component, residual, source.residual_boundary,
+                  accepted_residual(residual, source.residual_boundary)))
+            return fail(relation_subcode::verifier_rejection,
+                        "Component 07 family-04 point-plane residual does not reconstruct");
+        }
+        if (!next_interval(
+                relation_interval_evidence_kind::facet_facet_direction_plane_residual,
+                interval_counters, occurrence))
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 family-04 direction-plane occurrence overflow");
+        for (std::uint8_t component = 0; component < 2; ++component) {
+          const auto &residual =
+              source.transverse_carrier.direction_plane_residuals[component];
+          if (!append_plain(
+                  base, relation.id,
+                  relation_interval_evidence_kind::facet_facet_direction_plane_residual,
+                  occurrence, component, residual, source.residual_boundary,
+                  accepted_residual(residual, source.residual_boundary)))
+            return fail(relation_subcode::verifier_rejection,
+                        "Component 07 family-04 direction-plane residual does not reconstruct");
+        }
+      }
+      break;
+    }
+    case relation_request_family::coplanar_source_facet_overlay: {
+      const auto descriptor = std::lower_bound(
+          overlay_descriptors.begin(), overlay_descriptors.end(), base,
+          [](const verifier_overlay_descriptor &candidate,
+             const relation_request_key &key) { return candidate.key < key; });
+      if (descriptor == overlay_descriptors.end() || !(descriptor->key == base))
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 family-04 overlay source is absent");
+      const auto &source =
+          artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
+      for (const auto &witness : source.vertex_regions) {
+        if (witness.polygon >= source.facets.size() ||
+            witness.vertex_ordinal >=
+                source.facets[witness.polygon].polygon.size())
+          return fail(relation_subcode::coplanar_overlay_region_unresolved,
+                      "Component 07 family-04 overlay witness is out of range");
+        std::uint32_t occurrence = 0;
+        if (!next_region(
+                relation_source_facet_region_kind::overlay_vertex_witness,
+                region_counters, occurrence) ||
+            !append_region_projected(
+                base, relation.id,
+                relation_source_facet_region_kind::overlay_vertex_witness,
+                occurrence,
+                source.facets[witness.polygon].polygon[witness.vertex_ordinal],
+                witness.region))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 family-04 overlay vertex region does not reconstruct");
+      }
+      for (const auto &partition : source.boundary_partitions)
+        if (!append_partition(
+                base, relation.id, partition.partition,
+                relation_source_facet_region_kind::overlay_partition_breakpoint,
+                relation_source_facet_region_kind::overlay_partition_interval,
+                interval_counters, region_counters))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 family-04 overlay partition does not reconstruct");
+      break;
+    }
+    default:
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 family-04 source family is invalid");
+    }
+  }
+
+  std::sort(expected_intervals.begin(), expected_intervals.end(),
+            [](const expected_interval_evidence &a,
+               const expected_interval_evidence &b) { return a.key < b.key; });
+  std::sort(expected_regions.begin(), expected_regions.end(),
+            [](const expected_region_evidence &a,
+               const expected_region_evidence &b) { return a.key < b.key; });
+  if (artifact.interval_evidence_.size() != expected_intervals.size() ||
+      artifact.source_facet_regions_.size() != expected_regions.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 family-04 evidence tables are incomplete");
+
+  const auto same_interval = [](const relation_interval_evidence_record &a,
+                                const relation_interval_evidence_record &b) {
+    return a.kind == b.kind && a.occurrence == b.occurrence &&
+           a.component == b.component &&
+           a.has_rounded_nominal == b.has_rounded_nominal &&
+           a.has_parameter_metadata == b.has_parameter_metadata &&
+           a.within_authorized_boundary == b.within_authorized_boundary &&
+           a.rounded_nominal_bits == b.rounded_nominal_bits &&
+           a.lower_bits == b.lower_bits && a.upper_bits == b.upper_bits &&
+           a.domain == b.domain &&
+           a.domain_margin_bits == b.domain_margin_bits &&
+           a.exact_zero == b.exact_zero && a.exact_one == b.exact_one &&
+           a.contributor_bits == b.contributor_bits &&
+           a.trace_root == b.trace_root &&
+           a.comparison_boundary_bits == b.comparison_boundary_bits &&
+           a.reserved8 == 0 && a.reserved16 == 0 && a.reserved32 == 0;
+  };
+  for (std::size_t i = 0; i < expected_intervals.size(); ++i) {
+    const auto &expected = expected_intervals[i];
+    const auto &record = artifact.interval_evidence_[i];
+    const auto *producer = find_request(artifact.request_graph_, expected.key);
+    if (!producer || record.id.ordinal() != i ||
+        record.producer != producer->id ||
+        record.source_relation != expected.source_relation ||
+        !same_interval(record, expected.value))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 interval evidence does not reconstruct");
+    const auto &base_request = artifact.request_graph_.requests[
+        artifact.relations_[record.source_relation.ordinal()].producer.ordinal()];
+    std::vector<relation_request_id> dependencies;
+    if (!primitive_dependencies(
+            artifact.relations_[record.source_relation.ordinal()],
+            base_request.key, dependencies) ||
+        !exact_dependencies(*producer, dependencies) ||
+        !request_has_dependency(artifact.request_graph_, base_request,
+                                producer->id))
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 interval evidence dependency closure is incomplete");
+  }
+
+  const auto region_bytes = [](const source_facet_point_region_record<T> &region) {
+    canonical_writer writer;
+    source_edge_facet_detail::encode_region(writer, region);
+    return writer.take();
+  };
+  for (std::size_t i = 0; i < expected_regions.size(); ++i) {
+    const auto &expected = expected_regions[i];
+    const auto &record = artifact.source_facet_regions_[i];
+    const auto *producer = find_request(artifact.request_graph_, expected.key);
+    if (!producer || record.id.ordinal() != i ||
+        record.producer != producer->id ||
+        record.source_relation != expected.source_relation ||
+        record.kind != expected.value.kind ||
+        record.occurrence != expected.value.occurrence ||
+        record.query_component_count != expected.value.query_component_count ||
+        record.query_source_identity_valid !=
+            expected.value.query_source_identity_valid ||
+        record.query_nominal_bits != expected.value.query_nominal_bits ||
+        record.query_lower_bits != expected.value.query_lower_bits ||
+        record.query_upper_bits != expected.value.query_upper_bits ||
+        !valid_source_facet_point_region_record(record.region) ||
+        region_bytes(record.region) != region_bytes(expected.value.region) ||
+        record.reserved8 != 0 || record.reserved16 != 0 ||
+        record.reserved32 != 0)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 source-facet region evidence does not reconstruct");
+    const auto &base_request = artifact.request_graph_.requests[
+        artifact.relations_[record.source_relation.ordinal()].producer.ordinal()];
+    std::vector<relation_request_id> dependencies;
+    if (!primitive_dependencies(
+            artifact.relations_[record.source_relation.ordinal()],
+            base_request.key, dependencies) ||
+        !exact_dependencies(*producer, dependencies) ||
+        !request_has_dependency(artifact.request_graph_, base_request,
+                                producer->id))
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 source-facet region dependency closure is incomplete");
+  }
+
   std::size_t expected_constructions = 0;
   for (const auto &record : artifact.source_edge_stage_->relations)
     expected_constructions += record.point_count;
@@ -1616,6 +2281,10 @@ bool verify_signed_feature_relations(
           artifact.exact_relations_.size() ||
       artifact.statistics_.truth_lineage_count !=
           artifact.truth_lineage_.size() ||
+      artifact.statistics_.interval_evidence_count !=
+          artifact.interval_evidence_.size() ||
+      artifact.statistics_.source_facet_region_count !=
+          artifact.source_facet_regions_.size() ||
       artifact.statistics_.public_relation_count +
               artifact.statistics_.bookkeeping_relation_count !=
           artifact.relations_.size() ||

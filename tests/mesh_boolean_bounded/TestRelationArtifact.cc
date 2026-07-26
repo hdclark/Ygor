@@ -44,6 +44,16 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &interval_evidence(signed_feature_relations<T, I> &artifact) {
+    return artifact.interval_evidence_;
+  }
+
+  template <class T, class I>
+  static auto &source_facet_regions(signed_feature_relations<T, I> &artifact) {
+    return artifact.source_facet_regions_;
+  }
+
+  template <class T, class I>
   static auto &crossings(signed_feature_relations<T, I> &artifact) {
     return artifact.crossings_;
   }
@@ -188,6 +198,8 @@ void test_nonempty_determinism_and_decode() {
               first->bounded_primitives().size() ==
                   first->truth_records().size() &&
               first->truth_lineage().size() == first->truth_records().size() &&
+              !first->interval_evidence().empty() &&
+              !first->source_facet_regions().empty() &&
               first->candidate_dispositions().size() ==
                   first_fixture.artifact->candidates().size(),
           "nonempty artifact publishes primitive support, relations, and complete dispositions");
@@ -202,8 +214,12 @@ void test_nonempty_determinism_and_decode() {
               first->statistics().exact_relation_count ==
                   first->exact_relations().size() &&
               first->statistics().truth_lineage_count ==
-                  first->truth_lineage().size(),
-          "primitive support counts reconstruct from final truth records");
+                  first->truth_lineage().size() &&
+              first->statistics().interval_evidence_count ==
+                  first->interval_evidence().size() &&
+              first->statistics().source_facet_region_count ==
+                  first->source_facet_regions().size(),
+          "primitive and family-04 evidence counts reconstruct from final records");
   require(first->canonical_bytes() == second->canonical_bytes() &&
               first->digest() == second->digest(),
           "different runtime owner anchors produce identical relation semantics");
@@ -294,6 +310,34 @@ void test_matched_mutation_rejection() {
     require(!bounded::verify_signed_feature_relations(exact_mutation, error),
             "matched exact-relation mutation is independently rejected");
   }
+
+  auto interval_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!interval_mutation.interval_evidence().empty(),
+          "mutation fixture requires interval evidence");
+  auto &interval_record =
+      bounded::relation_artifact_test_access::interval_evidence(
+          interval_mutation)
+          .front();
+  interval_record.lower_bits ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(interval_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(interval_mutation, error),
+          "matched interval-evidence mutation is independently rejected");
+
+  auto region_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!region_mutation.source_facet_regions().empty(),
+          "mutation fixture requires source-facet region evidence");
+  auto &region_record =
+      bounded::relation_artifact_test_access::source_facet_regions(
+          region_mutation)
+          .front();
+  region_record.query_nominal_bits[0] ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(region_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(region_mutation, error),
+          "matched source-facet-region mutation is independently rejected");
 
   auto lineage_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);

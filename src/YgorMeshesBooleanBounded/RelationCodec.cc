@@ -147,6 +147,51 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  writer.u16(contract_versions::relation_interval_evidence_schema);
+  writer.u16(contract_versions::relation_source_facet_region_publication_schema);
+  writer.u64(artifact.interval_evidence_.size());
+  for (const auto &record : artifact.interval_evidence_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.producer.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.kind));
+    writer.u32(record.occurrence);
+    writer.u8(record.component);
+    writer.boolean(record.has_rounded_nominal);
+    writer.boolean(record.has_parameter_metadata);
+    writer.boolean(record.within_authorized_boundary);
+    writer.u64(record.rounded_nominal_bits);
+    writer.u64(record.lower_bits);
+    writer.u64(record.upper_bits);
+    writer.u8(static_cast<std::uint8_t>(record.domain));
+    writer.u64(record.domain_margin_bits);
+    writer.u8(static_cast<std::uint8_t>(record.exact_zero));
+    writer.u8(static_cast<std::uint8_t>(record.exact_one));
+    for (const auto bits : record.contributor_bits)
+      writer.u64(bits);
+    writer.u64(record.trace_root);
+    writer.u64(record.comparison_boundary_bits);
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.source_facet_regions_.size());
+  for (const auto &record : artifact.source_facet_regions_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.producer.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.kind));
+    writer.u32(record.occurrence);
+    writer.u8(record.query_component_count);
+    writer.boolean(record.query_source_identity_valid);
+    for (const auto bits : record.query_nominal_bits) writer.u64(bits);
+    for (const auto bits : record.query_lower_bits) writer.u64(bits);
+    for (const auto bits : record.query_upper_bits) writer.u64(bits);
+    source_edge_facet_detail::encode_region(writer, record.region);
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
   writer.u64(artifact.truth_records_.size());
   for (const auto &record : artifact.truth_records_)
     encode_truth(writer, record);
@@ -309,6 +354,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.bounded_primitive_count);
   writer.u64(artifact.statistics_.exact_relation_count);
   writer.u64(artifact.statistics_.truth_lineage_count);
+  writer.u64(artifact.statistics_.interval_evidence_count);
+  writer.u64(artifact.statistics_.source_facet_region_count);
   writer.u64(artifact.statistics_.public_relation_count);
   writer.u64(artifact.statistics_.bookkeeping_relation_count);
   writer.u64(artifact.statistics_.construction_count);
@@ -430,6 +477,89 @@ inline bool read_truth_lineage_record(canonical_reader &reader) {
          reader.u64(bounded) && reader.u64(exact) &&
          reader.boolean(has_exact) && reader.u8(reserved8) &&
          reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+inline bool read_interval_evidence_record(canonical_reader &reader) {
+  std::uint64_t value = 0;
+  std::uint32_t occurrence = 0, reserved32 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint8_t byte = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u8(byte) || !reader.u32(occurrence) || !reader.u8(byte))
+    return false;
+  for (std::size_t i = 0; i < 3; ++i)
+    if (!reader.boolean(flag)) return false;
+  for (std::size_t i = 0; i < 3; ++i)
+    if (!reader.u64(value)) return false;
+  if (!reader.u8(byte) || !reader.u64(value) || !reader.u8(byte) ||
+      !reader.u8(byte))
+    return false;
+  for (std::size_t i = 0; i < 8; ++i)
+    if (!reader.u64(value)) return false;
+  return reader.u64(value) && reader.u64(value) && reader.u8(byte) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+template <class T>
+bool read_source_orientation(canonical_reader &reader) {
+  T value = T(0);
+  std::uint8_t byte = 0;
+  std::uint16_t formula = 0;
+  return reader.floating(value) && reader.floating(value) &&
+         reader.u8(byte) && reader.u8(byte) && reader.u16(formula);
+}
+
+template <class T>
+bool read_source_facet_region(canonical_reader &reader,
+                              const relation_capabilities &capabilities) {
+  std::uint16_t schema = 0, policy = 0;
+  std::uint8_t byte = 0;
+  std::uint64_t value = 0, count = 0;
+  std::uint32_t reserved = 0;
+  bool flag = false;
+  if (!reader.u16(schema) || !reader.u16(policy) || !reader.u8(byte) ||
+      !reader.u64(value) || !reader.u64(value) || !reader.u8(byte))
+    return false;
+  for (std::size_t i = 0; i < 3; ++i)
+    if (!reader.boolean(flag)) return false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(count) ||
+      !count_fits(reader, count, capabilities.maximum_dependencies, 8))
+    return false;
+  for (std::uint64_t i = 0; i < count; ++i)
+    if (!reader.u64(value)) return false;
+  if (!reader.u64(count) ||
+      !count_fits(reader, count, capabilities.maximum_dependencies, 24))
+    return false;
+  for (std::uint64_t i = 0; i < count; ++i)
+    for (std::size_t component = 0; component < 3; ++component)
+      if (!reader.u64(value)) return false;
+  if (!read_source_orientation<T>(reader) || !reader.u64(count) ||
+      !count_fits(reader, count, capabilities.maximum_dependencies,
+                  2 * sizeof(T) + 4))
+    return false;
+  for (std::uint64_t i = 0; i < count; ++i)
+    if (!read_source_orientation<T>(reader)) return false;
+  return reader.u32(reserved);
+}
+
+template <class T>
+bool read_source_facet_region_record(
+    canonical_reader &reader, const relation_capabilities &capabilities) {
+  std::uint64_t value = 0;
+  std::uint32_t occurrence = 0, reserved32 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint8_t byte = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u8(byte) || !reader.u32(occurrence) || !reader.u8(byte) ||
+      !reader.boolean(flag))
+    return false;
+  for (std::size_t i = 0; i < 9; ++i)
+    if (!reader.u64(value)) return false;
+  return read_source_facet_region<T>(reader, capabilities) &&
+         reader.u8(byte) && reader.u16(reserved16) &&
+         reader.u32(reserved32);
 }
 
 inline bool read_truth_record(canonical_reader &reader) {
@@ -760,6 +890,40 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 truth lineage table is truncated");
 
+  if (!reader.u16(envelope.interval_evidence_schema) ||
+      !reader.u16(envelope.source_facet_region_schema) ||
+      envelope.interval_evidence_schema !=
+          contract_versions::relation_interval_evidence_schema ||
+      envelope.source_facet_region_schema !=
+          contract_versions::relation_source_facet_region_publication_schema)
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 family-04 evidence section version is unsupported");
+
+  if (!reader.u64(envelope.interval_evidence_count) ||
+      !count_fits(reader, envelope.interval_evidence_count,
+                  capabilities.maximum_interval_evidence, 150))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 interval-evidence count is malformed");
+  for (std::uint64_t i = 0; i < envelope.interval_evidence_count; ++i)
+    if (!read_interval_evidence_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 interval-evidence table is truncated");
+
+  if (!reader.u64(envelope.source_facet_region_count) ||
+      !count_fits(reader, envelope.source_facet_region_count,
+                  capabilities.maximum_region_records, 140))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 source-facet-region count is malformed");
+  for (std::uint64_t i = 0; i < envelope.source_facet_region_count; ++i)
+    if (!read_source_facet_region_record<T>(reader, capabilities))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 source-facet-region table is truncated");
+
   if (!reader.u64(envelope.truth_count) ||
       !count_fits(reader, envelope.truth_count,
                   capabilities.maximum_dependencies, 19))
@@ -925,6 +1089,8 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.bounded_primitive_count) ||
       !reader.u64(statistics.exact_relation_count) ||
       !reader.u64(statistics.truth_lineage_count) ||
+      !reader.u64(statistics.interval_evidence_count) ||
+      !reader.u64(statistics.source_facet_region_count) ||
       !reader.u64(statistics.public_relation_count) ||
       !reader.u64(statistics.bookkeeping_relation_count) ||
       !reader.u64(statistics.construction_count) ||
@@ -967,6 +1133,9 @@ bool parse_relation_artifact_envelope(
       statistics.bounded_primitive_count != envelope.bounded_primitive_count ||
       statistics.exact_relation_count != envelope.exact_relation_count ||
       statistics.truth_lineage_count != envelope.truth_lineage_count ||
+      statistics.interval_evidence_count != envelope.interval_evidence_count ||
+      statistics.source_facet_region_count !=
+          envelope.source_facet_region_count ||
       statistics.public_relation_count + statistics.bookkeeping_relation_count !=
           envelope.relation_count ||
       statistics.construction_count != envelope.construction_count ||

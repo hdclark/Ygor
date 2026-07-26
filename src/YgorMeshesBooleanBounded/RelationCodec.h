@@ -37,6 +37,10 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t bounded_primitive_count = 0;
   std::uint64_t exact_relation_count = 0;
   std::uint64_t truth_lineage_count = 0;
+  std::uint16_t interval_evidence_schema = 0;
+  std::uint16_t source_facet_region_schema = 0;
+  std::uint64_t interval_evidence_count = 0;
+  std::uint64_t source_facet_region_count = 0;
   std::uint64_t truth_count = 0;
   std::uint64_t relation_count = 0;
   std::uint64_t construction_count = 0;

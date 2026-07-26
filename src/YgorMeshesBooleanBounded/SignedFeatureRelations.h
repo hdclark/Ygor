@@ -2,6 +2,7 @@
 
 #include "CanonicalCandidateStream.h"
 #include "RelationRequestGraph.h"
+#include "SourceFacetRegionKernel.h"
 #include "SymbolicPerturbation.h"
 
 #include <array>
@@ -59,6 +60,50 @@ struct relation_truth_lineage_record final {
   relation_bounded_primitive_id bounded_primitive{0};
   relation_exact_relation_id exact_relation{0};
   bool has_exact_relation = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_interval_evidence_record final {
+  relation_interval_evidence_id id{0};
+  relation_request_id producer{0};
+  feature_relation_id source_relation{0};
+  relation_interval_evidence_kind kind =
+      relation_interval_evidence_kind::source_edge_first_parameter;
+  std::uint32_t occurrence = 0;
+  std::uint8_t component = 0;
+  bool has_rounded_nominal = false;
+  bool has_parameter_metadata = false;
+  bool within_authorized_boundary = false;
+  std::uint64_t rounded_nominal_bits = 0;
+  std::uint64_t lower_bits = 0;
+  std::uint64_t upper_bits = 0;
+  parameter_domain_status domain = parameter_domain_status::invalid;
+  std::uint64_t domain_margin_bits = 0;
+  exact_relation_status exact_zero = exact_relation_status::unavailable;
+  exact_relation_status exact_one = exact_relation_status::unavailable;
+  std::array<std::uint64_t, 8> contributor_bits{};
+  std::uint64_t trace_root = 0;
+  std::uint64_t comparison_boundary_bits = 0;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+template <class T> struct relation_source_facet_region_record final {
+  relation_source_facet_region_id id{0};
+  relation_request_id producer{0};
+  feature_relation_id source_relation{0};
+  relation_source_facet_region_kind kind =
+      relation_source_facet_region_kind::edge_facet_event;
+  std::uint32_t occurrence = 0;
+  std::uint8_t query_component_count = 0;
+  bool query_source_identity_valid = false;
+  std::array<std::uint64_t, 3> query_nominal_bits{};
+  std::array<std::uint64_t, 3> query_lower_bits{};
+  std::array<std::uint64_t, 3> query_upper_bits{};
+  source_facet_point_region_record<T> region{};
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
   std::uint32_t reserved32 = 0;
@@ -266,6 +311,10 @@ public:
   exact_relations() const noexcept { return exact_relations_; }
   const std::vector<relation_truth_lineage_record> &
   truth_lineage() const noexcept { return truth_lineage_; }
+  const std::vector<relation_interval_evidence_record> &
+  interval_evidence() const noexcept { return interval_evidence_; }
+  const std::vector<relation_source_facet_region_record<T>> &
+  source_facet_regions() const noexcept { return source_facet_regions_; }
   const std::vector<relation_truth_record> &truth_records() const noexcept {
     return truth_records_;
   }
@@ -359,6 +408,8 @@ private:
   std::vector<relation_bounded_primitive_record> bounded_primitives_;
   std::vector<relation_exact_relation_record> exact_relations_;
   std::vector<relation_truth_lineage_record> truth_lineage_;
+  std::vector<relation_interval_evidence_record> interval_evidence_;
+  std::vector<relation_source_facet_region_record<T>> source_facet_regions_;
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;

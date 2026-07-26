@@ -104,6 +104,40 @@ bool preflight_relation_foundation(
   plan.event_seed_upper_bound = plan.construction_upper_bound;
   plan.disposition_upper_bound = plan.candidate_count;
 
+  // Family 04 publishes every accepted parameter, residual/conditioning
+  // interval, complete point/facet region classification, and every
+  // partition breakpoint/interval witness. Pairwise source-boundary closure
+  // dominates these tables. The coefficients deliberately cover both
+  // directed incident facets, all three residual axes, complete polygon
+  // traversal evidence, and triangle-local reconciliation witnesses.
+  std::uint64_t family04_pair_evidence = 0;
+  std::uint64_t family04_linear_evidence = 0;
+  std::uint64_t family04_per_candidate = 0;
+  if (!checked_multiply<std::uint64_t>(boundary_pair_requests,
+                                       std::uint64_t{64},
+                                       family04_pair_evidence) ||
+      !checked_multiply<std::uint64_t>(maximum_facet_boundary,
+                                       std::uint64_t{128},
+                                       family04_linear_evidence) ||
+      !checked_add<std::uint64_t>(family04_pair_evidence,
+                                  family04_linear_evidence,
+                                  family04_per_candidate) ||
+      !checked_add<std::uint64_t>(family04_per_candidate,
+                                  std::uint64_t{256},
+                                  family04_per_candidate) ||
+      !checked_multiply<std::uint64_t>(plan.candidate_count,
+                                       family04_per_candidate,
+                                       plan.interval_evidence_upper_bound) ||
+      !checked_multiply<std::uint64_t>(plan.candidate_count,
+                                       family04_per_candidate,
+                                       plan.region_record_upper_bound)) {
+    error = relation_error(relation_subcode::count_overflow,
+                           bounded_boolean_error_category::index_overflow,
+                           "Component 07 family-04 evidence count overflow",
+                           relation_checkpoint::count_representability_preflight);
+    return false;
+  }
+
   std::uint64_t multiplicity_upper_bound = plan.candidate_count;
   std::uint64_t primitive_support_upper_bound = 0;
   // Each authoritative base relation contributes at most two imported-source
@@ -114,6 +148,12 @@ bool preflight_relation_foundation(
                                        primitive_support_upper_bound) ||
       !checked_add<std::uint64_t>(plan.initial_request_upper_bound,
                                   primitive_support_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  plan.interval_evidence_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  plan.region_record_upper_bound,
                                   plan.request_upper_bound) ||
       !checked_add<std::uint64_t>(plan.request_upper_bound,
                                   plan.construction_upper_bound,
@@ -157,6 +197,15 @@ bool preflight_relation_foundation(
                                   plan.dependency_upper_bound) ||
       !checked_multiply<std::uint64_t>(plan.initial_request_upper_bound,
                                        std::uint64_t{18},
+                                       primitive_support_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.dependency_upper_bound,
+                                  primitive_support_upper_bound,
+                                  plan.dependency_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.interval_evidence_upper_bound,
+                                  plan.region_record_upper_bound,
+                                  primitive_support_upper_bound) ||
+      !checked_multiply<std::uint64_t>(primitive_support_upper_bound,
+                                       std::uint64_t{10},
                                        primitive_support_upper_bound) ||
       !checked_add<std::uint64_t>(plan.dependency_upper_bound,
                                   primitive_support_upper_bound,
@@ -245,6 +294,9 @@ bool preflight_relation_foundation(
   }
   if (plan.request_upper_bound > capabilities.maximum_requests ||
       plan.relation_upper_bound > capabilities.maximum_relations ||
+      plan.interval_evidence_upper_bound >
+          capabilities.maximum_interval_evidence ||
+      plan.region_record_upper_bound > capabilities.maximum_region_records ||
       plan.construction_upper_bound > capabilities.maximum_constructions ||
       plan.symbolic_upper_bound > capabilities.maximum_symbolic_decisions ||
       plan.event_seed_upper_bound > capabilities.maximum_event_seeds ||

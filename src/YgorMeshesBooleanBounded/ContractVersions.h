@@ -120,7 +120,7 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 5;
+    static constexpr std::uint16_t relation_artifact_schema = 6;
     static constexpr std::uint16_t relation_provider = 1;
     static constexpr std::uint16_t relation_graph_policy = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
@@ -128,6 +128,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_primitive_formula_binding = 1;
     static constexpr std::uint16_t relation_source_facet_region_schema = 1;
     static constexpr std::uint16_t relation_source_facet_region_policy = 1;
+    static constexpr std::uint16_t relation_interval_evidence_schema = 1;
+    static constexpr std::uint16_t relation_source_facet_region_publication_schema = 1;
     static constexpr std::uint16_t relation_source_facet_segment_schema = 1;
     static constexpr std::uint16_t relation_source_facet_segment_policy = 1;
     static constexpr std::uint16_t relation_source_facet_segment_witness_policy = 1;
@@ -160,8 +162,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_candidate_disposition_schema = 1;
     static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
     static constexpr std::uint16_t relation_selection_boundary_policy = 1;
-    static constexpr std::uint16_t relation_codec = 6;
-    static constexpr std::uint16_t relation_verifier = 6;
+    static constexpr std::uint16_t relation_codec = 7;
+    static constexpr std::uint16_t relation_verifier = 7;
 
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;

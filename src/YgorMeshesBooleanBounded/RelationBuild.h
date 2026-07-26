@@ -66,6 +66,8 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.bounded_primitives()) ||
       !add_vector(artifact.exact_relations()) ||
       !add_vector(artifact.truth_lineage()) ||
+      !add_vector(artifact.interval_evidence()) ||
+      !add_vector(artifact.source_facet_regions()) ||
       !add_vector(artifact.truth_records()) ||
       !add_vector(artifact.relations()) ||
       !add_vector(artifact.constructions()) ||
@@ -80,6 +82,13 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.candidate_dispositions()) ||
       !add_vector(artifact.canonical_bytes()))
     return false;
+
+  for (const auto &record : artifact.source_facet_regions()) {
+    if (!add_vector(record.region.source_vertex_owners) ||
+        !add_vector(record.region.source_edge_owners) ||
+        !add_vector(record.region.orientation_evidence))
+      return false;
+  }
 
   for (const auto &node : artifact.coplanar_event_nodes()) {
     if (!add_vector(node.occurrences))
@@ -417,6 +426,8 @@ private:
         !add_work(artifact_->bounded_primitives_.size()) ||
         !add_work(artifact_->exact_relations_.size()) ||
         !add_work(artifact_->truth_lineage_.size()) ||
+        !add_work(artifact_->interval_evidence_.size()) ||
+        !add_work(artifact_->source_facet_regions_.size()) ||
         !add_work(artifact_->truth_records_.size()) ||
         !add_work(artifact_->relations_.size()) ||
         !add_work(artifact_->constructions_.size()) ||

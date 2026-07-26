@@ -17,6 +17,8 @@ struct relation_imported_geometry_tag;
 struct relation_bounded_primitive_tag;
 struct relation_exact_relation_tag;
 struct relation_truth_lineage_tag;
+struct relation_interval_evidence_tag;
+struct relation_source_facet_region_tag;
 struct relation_construction_tag;
 struct symbolic_relation_decision_tag;
 struct relation_event_seed_tag;
@@ -33,6 +35,8 @@ using relation_imported_geometry_id = strong_id<relation_imported_geometry_tag>;
 using relation_bounded_primitive_id = strong_id<relation_bounded_primitive_tag>;
 using relation_exact_relation_id = strong_id<relation_exact_relation_tag>;
 using relation_truth_lineage_id = strong_id<relation_truth_lineage_tag>;
+using relation_interval_evidence_id = strong_id<relation_interval_evidence_tag>;
+using relation_source_facet_region_id = strong_id<relation_source_facet_region_tag>;
 using relation_construction_id = strong_id<relation_construction_tag>;
 using symbolic_relation_decision_id = strong_id<symbolic_relation_decision_tag>;
 using relation_event_seed_id = strong_id<relation_event_seed_tag>;
@@ -87,6 +91,36 @@ enum class relation_request_family : std::uint8_t {
 enum class relation_record_scope : std::uint8_t {
   public_source_feature = 1,
   bookkeeping_only = 2,
+};
+
+// Family-04 evidence categories are stable canonical/replay values.  They
+// distinguish the authoritative bounded interval or source-facet region
+// operation without relying on vector position or a coordinate-derived key.
+enum class relation_interval_evidence_kind : std::uint8_t {
+  source_edge_first_parameter = 1,
+  source_edge_second_parameter = 2,
+  source_edge_first_carrier_residual = 3,
+  source_edge_second_carrier_residual = 4,
+  edge_facet_event_parameter = 5,
+  edge_facet_edge_carrier_residual = 6,
+  edge_facet_support_residual = 7,
+  facet_facet_direction_squared = 8,
+  facet_facet_point_plane_residual = 9,
+  facet_facet_direction_plane_residual = 10,
+  segment_contact_first_parameter = 11,
+  segment_contact_second_parameter = 12,
+  segment_breakpoint_parameter = 13,
+  segment_interval_witness_parameter = 14,
+  segment_triangle_witness_parameter = 15,
+};
+
+enum class relation_source_facet_region_kind : std::uint8_t {
+  edge_facet_event = 1,
+  edge_facet_partition_breakpoint = 2,
+  edge_facet_partition_interval = 3,
+  overlay_vertex_witness = 4,
+  overlay_partition_breakpoint = 5,
+  overlay_partition_interval = 6,
 };
 
 enum class feature_relation_family : std::uint8_t {
@@ -281,6 +315,8 @@ struct relation_capabilities final {
   std::uint64_t maximum_consumers = (std::uint64_t{1} << 35);
   std::uint64_t maximum_relations = (std::uint64_t{1} << 34);
   std::uint64_t maximum_constructions = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_interval_evidence = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_region_records = (std::uint64_t{1} << 36);
   std::uint64_t maximum_symbolic_decisions = (std::uint64_t{1} << 34);
   std::uint64_t maximum_event_seeds = (std::uint64_t{1} << 34);
   std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
@@ -304,6 +340,8 @@ struct relation_statistics final {
   std::uint64_t bounded_primitive_count = 0;
   std::uint64_t exact_relation_count = 0;
   std::uint64_t truth_lineage_count = 0;
+  std::uint64_t interval_evidence_count = 0;
+  std::uint64_t source_facet_region_count = 0;
   std::uint64_t public_relation_count = 0;
   std::uint64_t bookkeeping_relation_count = 0;
   std::uint64_t construction_count = 0;

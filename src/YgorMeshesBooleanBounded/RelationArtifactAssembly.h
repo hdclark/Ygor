@@ -376,10 +376,11 @@ public:
     try {
       if (!validate_inputs(error) || !discover_base_relations(error) ||
           !discover_primitive_support(error) ||
+          !discover_family04_evidence(error) ||
           !discover_constructions_and_symbolics(error) ||
           !discover_candidate_dispositions(error) || !build_graph(error) ||
           !publish_imported_geometry(error) || !publish_relations(error) ||
-          !publish_constructions(error) ||
+          !publish_family04_evidence(error) || !publish_constructions(error) ||
           !publish_coplanar_topology(error) ||
           !publish_symbolics_and_crossings(error) || !publish_event_seeds(error) ||
           !publish_candidate_dispositions(error))
@@ -396,6 +397,8 @@ public:
       artifact.bounded_primitives_ = std::move(bounded_primitives_);
       artifact.exact_relations_ = std::move(exact_relations_);
       artifact.truth_lineage_ = std::move(truth_lineage_);
+      artifact.interval_evidence_ = std::move(interval_evidence_);
+      artifact.source_facet_regions_ = std::move(source_facet_regions_);
       artifact.truth_records_ = std::move(truth_records_);
       artifact.relations_ = std::move(relations_);
       artifact.constructions_ = std::move(constructions_);
@@ -471,6 +474,20 @@ private:
     std::vector<relation_feature_key> incidence;
     bool emit_seed = false;
     bool distinct_occurrence = false;
+    std::vector<candidate_id> witnesses;
+  };
+
+  struct interval_descriptor final {
+    relation_request_key key{};
+    relation_request_key source_relation{};
+    relation_interval_evidence_record value{};
+    std::vector<candidate_id> witnesses;
+  };
+
+  struct region_descriptor final {
+    relation_request_key key{};
+    relation_request_key source_relation{};
+    relation_source_facet_region_record<T> value{};
     std::vector<candidate_id> witnesses;
   };
 
@@ -791,6 +808,639 @@ private:
     imported_keys_.erase(
         std::unique(imported_keys_.begin(), imported_keys_.end()),
         imported_keys_.end());
+    return true;
+  }
+
+
+  std::vector<relation_request_key>
+  primitive_dependencies(const base_descriptor &base) const {
+    using namespace relation_artifact_assembly_detail;
+    std::vector<relation_request_key> out;
+    out.push_back(imported_geometry_key(base.key.semantic_namespace,
+                                        base.key.first, base.scope));
+    if (base.key.second.kind != relation_feature_kind::none)
+      out.push_back(imported_geometry_key(base.key.semantic_namespace,
+                                          base.key.second, base.scope));
+    for (std::size_t truth = 0; truth < base.truth.size(); ++truth) {
+      const auto ordinal = static_cast<std::uint32_t>(truth);
+      out.push_back(derived_key(
+          base.key, relation_request_family::rounded_bounded_primitive,
+          tagged_use(0x10U, static_cast<std::uint8_t>(base.key.family)),
+          ordinal));
+      if (base.truth[truth].exact_formula != 0)
+        out.push_back(derived_key(
+            base.key,
+            relation_request_family::exact_stored_coordinate_relation,
+            tagged_use(0x11U,
+                       static_cast<std::uint8_t>(base.key.family)),
+            ordinal));
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return out;
+  }
+
+  static bool accepted_residual(const finite_interval<T> &interval,
+                                T boundary) noexcept {
+    return finite_bits(boundary) && boundary >= T(0) &&
+           finite_bits(interval.lower()) && finite_bits(interval.upper()) &&
+           !finite_numeric_less(interval.upper(), interval.lower()) &&
+           interval.lower() >= -boundary && interval.upper() <= boundary;
+  }
+
+  static bool accepted_unit_interval(const finite_interval<T> &interval) noexcept {
+    return finite_bits(interval.lower()) && finite_bits(interval.upper()) &&
+           !finite_numeric_less(interval.upper(), interval.lower()) &&
+           interval.lower() >= T(0) && interval.upper() <= T(1);
+  }
+
+  static void set_contributor_bits(
+      relation_interval_evidence_record &out,
+      const uncertainty_contributors &contributors) noexcept {
+    const double values[]{contributors.inherited_a, contributors.inherited_b,
+                          contributors.machine_floor,
+                          contributors.construction,
+                          contributors.conditioning, contributors.conversion,
+                          contributors.prior_cleanup,
+                          contributors.current_cleanup};
+    for (std::size_t i = 0; i < out.contributor_bits.size(); ++i)
+      out.contributor_bits[i] =
+          static_cast<std::uint64_t>(to_bits(values[i]));
+  }
+
+  bool next_interval_occurrence(
+      relation_interval_evidence_kind kind,
+      std::array<std::uint64_t, 16> &counters, std::uint32_t &out,
+      bounded_boolean_error &error) const {
+    const auto index = static_cast<std::size_t>(kind);
+    if (index == 0 || index >= counters.size() ||
+        counters[index] > std::numeric_limits<std::uint32_t>::max())
+      return fail(error, relation_subcode::count_overflow,
+                  "Component 07 family-04 interval occurrence is not representable",
+                  relation_checkpoint::count_representability_preflight);
+    out = static_cast<std::uint32_t>(counters[index]++);
+    return true;
+  }
+
+  bool next_region_occurrence(
+      relation_source_facet_region_kind kind,
+      std::array<std::uint64_t, 7> &counters, std::uint32_t &out,
+      bounded_boolean_error &error) const {
+    const auto index = static_cast<std::size_t>(kind);
+    if (index == 0 || index >= counters.size() ||
+        counters[index] > std::numeric_limits<std::uint32_t>::max())
+      return fail(error, relation_subcode::count_overflow,
+                  "Component 07 family-04 region occurrence is not representable",
+                  relation_checkpoint::count_representability_preflight);
+    out = static_cast<std::uint32_t>(counters[index]++);
+    return true;
+  }
+
+  bool add_interval_evidence(
+      const base_descriptor &base, relation_interval_evidence_kind kind,
+      std::uint32_t occurrence, std::uint8_t component,
+      const finite_interval<T> &interval, bool has_rounded_nominal,
+      T rounded_nominal, bool has_parameter_metadata,
+      parameter_domain_status domain, T domain_margin,
+      exact_relation_status exact_zero, exact_relation_status exact_one,
+      const uncertainty_contributors &contributors, std::uint64_t trace_root,
+      T comparison_boundary, bool within_authorized_boundary,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    if (!finite_bits(interval.lower()) || !finite_bits(interval.upper()) ||
+        finite_numeric_less(interval.upper(), interval.lower()) ||
+        (has_rounded_nominal &&
+         (!finite_bits(rounded_nominal) || !interval.contains(rounded_nominal))) ||
+        !finite_bits(domain_margin) || !finite_bits(comparison_boundary))
+      return fail(error, relation_subcode::bounded_operation_invalid,
+                  "Component 07 family-04 interval evidence is malformed",
+                  relation_checkpoint::source_facet_region_evaluation);
+
+    interval_descriptor descriptor;
+    descriptor.key = derived_key(
+        base.key, relation_request_family::source_point_source_facet_region,
+        tagged_use(0x20U, static_cast<std::uint8_t>(kind)) |
+            static_cast<std::uint64_t>(component),
+        occurrence);
+    descriptor.source_relation = base.key;
+    descriptor.value.kind = kind;
+    descriptor.value.occurrence = occurrence;
+    descriptor.value.component = component;
+    descriptor.value.has_rounded_nominal = has_rounded_nominal;
+    descriptor.value.has_parameter_metadata = has_parameter_metadata;
+    descriptor.value.within_authorized_boundary =
+        within_authorized_boundary;
+    descriptor.value.rounded_nominal_bits =
+        has_rounded_nominal
+            ? static_cast<std::uint64_t>(to_bits(rounded_nominal))
+            : std::uint64_t{0};
+    descriptor.value.lower_bits =
+        static_cast<std::uint64_t>(to_bits(interval.lower()));
+    descriptor.value.upper_bits =
+        static_cast<std::uint64_t>(to_bits(interval.upper()));
+    descriptor.value.domain =
+        has_parameter_metadata ? domain : parameter_domain_status::invalid;
+    descriptor.value.domain_margin_bits =
+        has_parameter_metadata
+            ? static_cast<std::uint64_t>(to_bits(domain_margin))
+            : std::uint64_t{0};
+    descriptor.value.exact_zero =
+        has_parameter_metadata ? exact_zero
+                               : exact_relation_status::unavailable;
+    descriptor.value.exact_one =
+        has_parameter_metadata ? exact_one
+                               : exact_relation_status::unavailable;
+    if (has_parameter_metadata)
+      set_contributor_bits(descriptor.value, contributors);
+    descriptor.value.trace_root = has_parameter_metadata ? trace_root : 0;
+    descriptor.value.comparison_boundary_bits =
+        static_cast<std::uint64_t>(to_bits(comparison_boundary));
+    descriptor.witnesses = base.witnesses;
+    if (!valid_relation_request_key(descriptor.key))
+      return fail(error, relation_subcode::malformed_request_key,
+                  "Component 07 family-04 interval key is malformed",
+                  relation_checkpoint::dependency_closure);
+
+    relation_request_proposal proposal;
+    proposal.key = descriptor.key;
+    proposal.dependencies = dependencies;
+    proposal.candidate_witnesses = descriptor.witnesses;
+    proposals_.push_back(std::move(proposal));
+    closure.push_back(descriptor.key);
+    interval_desc_.push_back(std::move(descriptor));
+    return true;
+  }
+
+  bool add_parameter_evidence(
+      const base_descriptor &base, relation_interval_evidence_kind kind,
+      std::uint32_t occurrence,
+      const source_edge_parameter_evidence<T> &parameter,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    return add_interval_evidence(
+        base, kind, occurrence, 0, parameter.enclosure, true,
+        parameter.rounded_nominal, true, parameter.domain,
+        parameter.domain_margin, parameter.exact_zero, parameter.exact_one,
+        parameter.contributors, parameter.trace_root, T(0),
+        parameter.domain != parameter_domain_status::invalid, dependencies,
+        closure, error);
+  }
+
+  bool add_simple_parameter_evidence(
+      const base_descriptor &base, relation_interval_evidence_kind kind,
+      std::uint32_t occurrence, T rounded,
+      const finite_interval<T> &interval,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    return add_interval_evidence(
+        base, kind, occurrence, 0, interval, true, rounded, false,
+        parameter_domain_status::invalid, T(0),
+        exact_relation_status::unavailable,
+        exact_relation_status::unavailable, uncertainty_contributors{}, 0,
+        T(0), accepted_unit_interval(interval), dependencies, closure, error);
+  }
+
+  bool add_plain_interval_evidence(
+      const base_descriptor &base, relation_interval_evidence_kind kind,
+      std::uint32_t occurrence, std::uint8_t component,
+      const finite_interval<T> &interval, T comparison_boundary,
+      bool within_authorized_boundary,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    return add_interval_evidence(
+        base, kind, occurrence, component, interval, false, T(0), false,
+        parameter_domain_status::invalid, T(0),
+        exact_relation_status::unavailable,
+        exact_relation_status::unavailable, uncertainty_contributors{}, 0,
+        comparison_boundary, within_authorized_boundary, dependencies, closure,
+        error);
+  }
+
+  static void set_region_query(
+      relation_source_facet_region_record<T> &out,
+      const source_edge_geometry_snapshot<T> &point) noexcept {
+    out.query_component_count = 3;
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      out.query_nominal_bits[axis] =
+          static_cast<std::uint64_t>(to_bits(point.rounded_nominal[axis]));
+      out.query_lower_bits[axis] =
+          static_cast<std::uint64_t>(to_bits(point.enclosure[axis].lower()));
+      out.query_upper_bits[axis] =
+          static_cast<std::uint64_t>(to_bits(point.enclosure[axis].upper()));
+    }
+  }
+
+  static void set_region_query(
+      relation_source_facet_region_record<T> &out,
+      const projected_source_point<T> &point) noexcept {
+    out.query_component_count = 2;
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+      out.query_nominal_bits[axis] =
+          static_cast<std::uint64_t>(to_bits(point.nominal[axis]));
+      out.query_lower_bits[axis] = static_cast<std::uint64_t>(
+          to_bits(point.enclosure[axis].lower()));
+      out.query_upper_bits[axis] = static_cast<std::uint64_t>(
+          to_bits(point.enclosure[axis].upper()));
+    }
+  }
+
+  template <class Point>
+  bool add_region_evidence(
+      const base_descriptor &base, relation_source_facet_region_kind kind,
+      std::uint32_t occurrence, const Point &point,
+      const source_facet_point_region_record<T> &region,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    if (!valid_source_facet_point_region_record(region))
+      return fail(error, relation_subcode::source_facet_region_unresolved,
+                  "Component 07 family-04 region evidence is malformed",
+                  relation_checkpoint::source_facet_region_evaluation);
+    region_descriptor descriptor;
+    descriptor.key = derived_key(
+        base.key, relation_request_family::source_point_source_facet_region,
+        tagged_use(0x21U, static_cast<std::uint8_t>(kind)), occurrence);
+    descriptor.source_relation = base.key;
+    descriptor.value.kind = kind;
+    descriptor.value.occurrence = occurrence;
+    descriptor.value.query_source_identity_valid =
+        region.query_source_identity_valid;
+    set_region_query(descriptor.value, point);
+    descriptor.value.region = region;
+    descriptor.witnesses = base.witnesses;
+    if (!valid_relation_request_key(descriptor.key))
+      return fail(error, relation_subcode::malformed_request_key,
+                  "Component 07 family-04 region key is malformed",
+                  relation_checkpoint::dependency_closure);
+    relation_request_proposal proposal;
+    proposal.key = descriptor.key;
+    proposal.dependencies = dependencies;
+    proposal.candidate_witnesses = descriptor.witnesses;
+    proposals_.push_back(std::move(proposal));
+    closure.push_back(descriptor.key);
+    region_desc_.push_back(std::move(descriptor));
+    return true;
+  }
+
+  bool add_partition_evidence(
+      const base_descriptor &base,
+      const source_facet_segment_partition_record<T> &partition,
+      relation_source_facet_region_kind breakpoint_region_kind,
+      relation_source_facet_region_kind interval_region_kind,
+      std::array<std::uint64_t, 16> &interval_counters,
+      std::array<std::uint64_t, 7> &region_counters,
+      const std::vector<relation_request_key> &dependencies,
+      std::vector<relation_request_key> &closure,
+      bounded_boolean_error &error) {
+    if (!valid_source_facet_segment_partition_record(partition))
+      return fail(error, relation_subcode::source_facet_segment_malformed,
+                  "Component 07 family-04 source-facet partition is malformed",
+                  relation_checkpoint::source_facet_region_evaluation);
+
+    for (const auto &contact : partition.contacts) {
+      std::uint32_t occurrence = 0;
+      if (!next_interval_occurrence(
+              relation_interval_evidence_kind::segment_contact_first_parameter,
+              interval_counters, occurrence, error) ||
+          !add_simple_parameter_evidence(
+              base,
+              relation_interval_evidence_kind::segment_contact_first_parameter,
+              occurrence, contact.first_rounded_parameter,
+              contact.first_parameter, dependencies, closure, error))
+        return false;
+      if (contact.kind ==
+          source_facet_segment_contact_kind::boundary_overlap) {
+        if (!next_interval_occurrence(
+                relation_interval_evidence_kind::segment_contact_second_parameter,
+                interval_counters, occurrence, error) ||
+            !add_simple_parameter_evidence(
+                base,
+                relation_interval_evidence_kind::segment_contact_second_parameter,
+                occurrence, contact.second_rounded_parameter,
+                contact.second_parameter, dependencies, closure, error))
+          return false;
+      }
+    }
+
+    for (const auto &breakpoint : partition.breakpoints) {
+      std::uint32_t interval_occurrence = 0;
+      std::uint32_t region_occurrence = 0;
+      if (!next_interval_occurrence(
+              relation_interval_evidence_kind::segment_breakpoint_parameter,
+              interval_counters, interval_occurrence, error) ||
+          !add_simple_parameter_evidence(
+              base,
+              relation_interval_evidence_kind::segment_breakpoint_parameter,
+              interval_occurrence, breakpoint.rounded_parameter,
+              breakpoint.parameter, dependencies, closure, error) ||
+          !next_region_occurrence(breakpoint_region_kind, region_counters,
+                                  region_occurrence, error) ||
+          !add_region_evidence(base, breakpoint_region_kind,
+                               region_occurrence, breakpoint.point,
+                               breakpoint.region, dependencies, closure,
+                               error))
+        return false;
+    }
+
+    for (const auto &interval : partition.intervals) {
+      std::uint32_t interval_occurrence = 0;
+      std::uint32_t region_occurrence = 0;
+      if (!next_interval_occurrence(
+              relation_interval_evidence_kind::segment_interval_witness_parameter,
+              interval_counters, interval_occurrence, error) ||
+          !add_simple_parameter_evidence(
+              base,
+              relation_interval_evidence_kind::segment_interval_witness_parameter,
+              interval_occurrence, interval.rounded_witness_parameter,
+              interval.witness_parameter, dependencies, closure, error) ||
+          !next_region_occurrence(interval_region_kind, region_counters,
+                                  region_occurrence, error) ||
+          !add_region_evidence(base, interval_region_kind,
+                               region_occurrence, interval.witness_point,
+                               interval.witness_region, dependencies, closure,
+                               error))
+        return false;
+    }
+
+    for (const auto &witness : partition.triangle_witnesses) {
+      std::uint32_t occurrence = 0;
+      if (!next_interval_occurrence(
+              relation_interval_evidence_kind::segment_triangle_witness_parameter,
+              interval_counters, occurrence, error) ||
+          !add_plain_interval_evidence(
+              base,
+              relation_interval_evidence_kind::segment_triangle_witness_parameter,
+              occurrence, 0, witness.parameter, T(0),
+              accepted_unit_interval(witness.parameter), dependencies,
+              closure, error))
+        return false;
+    }
+    return true;
+  }
+
+  bool discover_family04_evidence(bounded_boolean_error &error) {
+    interval_desc_.clear();
+    region_desc_.clear();
+    for (const auto &base : bases_) {
+      const auto dependencies = primitive_dependencies(base);
+      std::vector<relation_request_key> closure;
+      std::array<std::uint64_t, 16> interval_counters{};
+      std::array<std::uint64_t, 7> region_counters{};
+
+      switch (base.kind) {
+      case base_kind::edge: {
+        if (base.ordinal >= edge_stage_->relations.size())
+          return fail(error, relation_subcode::source_edge_relation_malformed,
+                      "Component 07 family-04 edge relation is out of range",
+                      relation_checkpoint::source_facet_region_evaluation);
+        const auto &source = edge_stage_->relations[base.ordinal];
+        for (std::uint32_t i = 0; i < source.parameter_count; ++i) {
+          std::uint32_t occurrence = 0;
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::source_edge_first_parameter,
+                  interval_counters, occurrence, error) ||
+              !add_parameter_evidence(
+                  base,
+                  relation_interval_evidence_kind::source_edge_first_parameter,
+                  occurrence, source.first_parameters[i], dependencies,
+                  closure, error) ||
+              !next_interval_occurrence(
+                  relation_interval_evidence_kind::source_edge_second_parameter,
+                  interval_counters, occurrence, error) ||
+              !add_parameter_evidence(
+                  base,
+                  relation_interval_evidence_kind::source_edge_second_parameter,
+                  occurrence, source.second_parameters[i], dependencies,
+                  closure, error))
+            return false;
+        }
+        for (std::uint32_t point = 0; point < source.point_count; ++point) {
+          std::uint32_t first_occurrence = 0;
+          std::uint32_t second_occurrence = 0;
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::source_edge_first_carrier_residual,
+                  interval_counters, first_occurrence, error) ||
+              !next_interval_occurrence(
+                  relation_interval_evidence_kind::source_edge_second_carrier_residual,
+                  interval_counters, second_occurrence, error))
+            return false;
+          for (std::uint8_t axis = 0; axis < 3; ++axis) {
+            const auto &first = source.points[point].first_carrier_residual[axis];
+            const auto &second =
+                source.points[point].second_carrier_residual[axis];
+            if (!add_plain_interval_evidence(
+                    base,
+                    relation_interval_evidence_kind::source_edge_first_carrier_residual,
+                    first_occurrence, axis, first, source.residual_boundary,
+                    accepted_residual(first, source.residual_boundary),
+                    dependencies, closure, error) ||
+                !add_plain_interval_evidence(
+                    base,
+                    relation_interval_evidence_kind::source_edge_second_carrier_residual,
+                    second_occurrence, axis, second, source.residual_boundary,
+                    accepted_residual(second, source.residual_boundary),
+                    dependencies, closure, error))
+              return false;
+          }
+        }
+        break;
+      }
+      case base_kind::edge_facet: {
+        if (base.ordinal >= edge_facet_stage_->relations.size())
+          return fail(error, relation_subcode::source_edge_facet_malformed,
+                      "Component 07 family-04 edge/facet relation is out of range",
+                      relation_checkpoint::source_facet_region_evaluation);
+        const auto &source = edge_facet_stage_->relations[base.ordinal];
+        for (const auto &event : source.events) {
+          std::uint32_t parameter_occurrence = 0;
+          std::uint32_t residual_occurrence = 0;
+          std::uint32_t support_occurrence = 0;
+          std::uint32_t region_occurrence = 0;
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::edge_facet_event_parameter,
+                  interval_counters, parameter_occurrence, error) ||
+              !add_parameter_evidence(
+                  base,
+                  relation_interval_evidence_kind::edge_facet_event_parameter,
+                  parameter_occurrence, event.parameter, dependencies,
+                  closure, error) ||
+              !next_interval_occurrence(
+                  relation_interval_evidence_kind::edge_facet_edge_carrier_residual,
+                  interval_counters, residual_occurrence, error) ||
+              !next_interval_occurrence(
+                  relation_interval_evidence_kind::edge_facet_support_residual,
+                  interval_counters, support_occurrence, error) ||
+              !next_region_occurrence(
+                  relation_source_facet_region_kind::edge_facet_event,
+                  region_counters, region_occurrence, error))
+            return false;
+          for (std::uint8_t axis = 0; axis < 3; ++axis) {
+            const auto &residual =
+                event.construction.edge_carrier_residual[axis];
+            if (!add_plain_interval_evidence(
+                    base,
+                    relation_interval_evidence_kind::edge_facet_edge_carrier_residual,
+                    residual_occurrence, axis, residual,
+                    source.residual_boundary,
+                    accepted_residual(residual, source.residual_boundary),
+                    dependencies, closure, error))
+              return false;
+          }
+          if (!add_plain_interval_evidence(
+                  base,
+                  relation_interval_evidence_kind::edge_facet_support_residual,
+                  support_occurrence, 0, event.construction.support_residual,
+                  source.residual_boundary,
+                  accepted_residual(event.construction.support_residual,
+                                    source.residual_boundary),
+                  dependencies, closure, error) ||
+              !add_region_evidence(
+                  base, relation_source_facet_region_kind::edge_facet_event,
+                  region_occurrence, event.construction.point, event.region,
+                  dependencies, closure, error))
+            return false;
+        }
+        if (source.has_coplanar_partition &&
+            !add_partition_evidence(
+                base, source.coplanar_partition,
+                relation_source_facet_region_kind::edge_facet_partition_breakpoint,
+                relation_source_facet_region_kind::edge_facet_partition_interval,
+                interval_counters, region_counters, dependencies, closure,
+                error))
+          return false;
+        break;
+      }
+      case base_kind::facet: {
+        if (base.ordinal >= facet_stage_->relations.size())
+          return fail(error, relation_subcode::source_facet_relation_malformed,
+                      "Component 07 family-04 facet relation is out of range",
+                      relation_checkpoint::source_facet_region_evaluation);
+        const auto &source = facet_stage_->relations[base.ordinal];
+        if (source.has_transverse_carrier) {
+          std::uint32_t occurrence = 0;
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::facet_facet_direction_squared,
+                  interval_counters, occurrence, error) ||
+              !add_plain_interval_evidence(
+                  base,
+                  relation_interval_evidence_kind::facet_facet_direction_squared,
+                  occurrence, 0, source.transverse_carrier.direction_squared,
+                  T(0), source.transverse_carrier.direction_squared.lower() > T(0),
+                  dependencies, closure, error))
+            return false;
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::facet_facet_point_plane_residual,
+                  interval_counters, occurrence, error))
+            return false;
+          for (std::uint8_t component = 0; component < 2; ++component) {
+            const auto &residual =
+                source.transverse_carrier.point_plane_residuals[component];
+            if (!add_plain_interval_evidence(
+                    base,
+                    relation_interval_evidence_kind::facet_facet_point_plane_residual,
+                    occurrence, component, residual, source.residual_boundary,
+                    accepted_residual(residual, source.residual_boundary),
+                    dependencies, closure, error))
+              return false;
+          }
+          if (!next_interval_occurrence(
+                  relation_interval_evidence_kind::facet_facet_direction_plane_residual,
+                  interval_counters, occurrence, error))
+            return false;
+          for (std::uint8_t component = 0; component < 2; ++component) {
+            const auto &residual =
+                source.transverse_carrier.direction_plane_residuals[component];
+            if (!add_plain_interval_evidence(
+                    base,
+                    relation_interval_evidence_kind::facet_facet_direction_plane_residual,
+                    occurrence, component, residual, source.residual_boundary,
+                    accepted_residual(residual, source.residual_boundary),
+                    dependencies, closure, error))
+              return false;
+          }
+        }
+        break;
+      }
+      case base_kind::overlay: {
+        if (base.ordinal >= overlay_stage_->overlays.size())
+          return fail(error, relation_subcode::coplanar_overlay_malformed,
+                      "Component 07 family-04 overlay relation is out of range",
+                      relation_checkpoint::source_facet_region_evaluation);
+        const auto &source = overlay_stage_->overlays[base.ordinal];
+        for (const auto &witness : source.vertex_regions) {
+          if (witness.polygon >= source.facets.size() ||
+              witness.vertex_ordinal >=
+                  source.facets[witness.polygon].polygon.size())
+            return fail(error, relation_subcode::coplanar_overlay_region_unresolved,
+                        "Component 07 family-04 overlay vertex witness is out of range",
+                        relation_checkpoint::source_facet_region_evaluation);
+          std::uint32_t occurrence = 0;
+          if (!next_region_occurrence(
+                  relation_source_facet_region_kind::overlay_vertex_witness,
+                  region_counters, occurrence, error) ||
+              !add_region_evidence(
+                  base,
+                  relation_source_facet_region_kind::overlay_vertex_witness,
+                  occurrence,
+                  source.facets[witness.polygon].polygon[
+                      witness.vertex_ordinal],
+                  witness.region, dependencies, closure, error))
+            return false;
+        }
+        for (const auto &partition : source.boundary_partitions)
+          if (!add_partition_evidence(
+                  base, partition.partition,
+                  relation_source_facet_region_kind::overlay_partition_breakpoint,
+                  relation_source_facet_region_kind::overlay_partition_interval,
+                  interval_counters, region_counters, dependencies, closure,
+                  error))
+            return false;
+        break;
+      }
+      }
+
+      if (!closure.empty()) {
+        std::sort(closure.begin(), closure.end());
+        closure.erase(std::unique(closure.begin(), closure.end()), closure.end());
+        relation_request_proposal consumer;
+        consumer.key = base.key;
+        consumer.dependencies = closure;
+        consumer.candidate_witnesses = base.witnesses;
+        proposals_.push_back(std::move(consumer));
+      }
+    }
+
+    const auto interval_order = [](const interval_descriptor &a,
+                                   const interval_descriptor &b) {
+      return a.key < b.key;
+    };
+    const auto region_order = [](const region_descriptor &a,
+                                 const region_descriptor &b) {
+      return a.key < b.key;
+    };
+    std::sort(interval_desc_.begin(), interval_desc_.end(), interval_order);
+    std::sort(region_desc_.begin(), region_desc_.end(), region_order);
+    for (std::size_t i = 1; i < interval_desc_.size(); ++i)
+      if (interval_desc_[i - 1].key == interval_desc_[i].key)
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 family-04 interval producer is duplicated",
+                    relation_checkpoint::graph_finalization);
+    for (std::size_t i = 1; i < region_desc_.size(); ++i)
+      if (region_desc_[i - 1].key == region_desc_[i].key)
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 family-04 region producer is duplicated",
+                    relation_checkpoint::graph_finalization);
+    if (interval_desc_.size() > capabilities_.maximum_interval_evidence ||
+        region_desc_.size() > capabilities_.maximum_region_records)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 family-04 evidence exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
     return true;
   }
 
@@ -1272,6 +1922,50 @@ private:
     if (relations_.size() > capabilities_.maximum_relations)
       return fail(error, relation_subcode::work_limit,
                   "Component 07 final relation table exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
+    return true;
+  }
+
+  bool publish_family04_evidence(bounded_boolean_error &error) {
+    interval_evidence_.clear();
+    source_facet_regions_.clear();
+    interval_evidence_.reserve(interval_desc_.size());
+    source_facet_regions_.reserve(region_desc_.size());
+
+    for (const auto &descriptor : interval_desc_) {
+      const auto *producer =
+          relation_artifact_assembly_detail::find_request(graph_, descriptor.key);
+      const auto relation = relation_ids_.find(descriptor.source_relation);
+      if (!producer || relation == relation_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 family-04 interval producer or source relation is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      relation_interval_evidence_record record = descriptor.value;
+      record.id = relation_interval_evidence_id(interval_evidence_.size());
+      record.producer = producer->id;
+      record.source_relation = relation->second;
+      interval_evidence_.push_back(record);
+    }
+
+    for (const auto &descriptor : region_desc_) {
+      const auto *producer =
+          relation_artifact_assembly_detail::find_request(graph_, descriptor.key);
+      const auto relation = relation_ids_.find(descriptor.source_relation);
+      if (!producer || relation == relation_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 family-04 region producer or source relation is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      relation_source_facet_region_record<T> record = descriptor.value;
+      record.id = relation_source_facet_region_id(source_facet_regions_.size());
+      record.producer = producer->id;
+      record.source_relation = relation->second;
+      source_facet_regions_.push_back(std::move(record));
+    }
+
+    if (interval_evidence_.size() > capabilities_.maximum_interval_evidence ||
+        source_facet_regions_.size() > capabilities_.maximum_region_records)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 family-04 published evidence exceeds capacity",
                   relation_checkpoint::count_representability_preflight);
     return true;
   }
@@ -2168,6 +2862,10 @@ private:
         artifact.exact_relations_.size();
     artifact.statistics_.truth_lineage_count =
         artifact.truth_lineage_.size();
+    artifact.statistics_.interval_evidence_count =
+        artifact.interval_evidence_.size();
+    artifact.statistics_.source_facet_region_count =
+        artifact.source_facet_regions_.size();
     for (const auto &record : artifact.relations_)
       if (record.scope == relation_record_scope::public_source_feature)
         ++artifact.statistics_.public_relation_count;
@@ -2193,7 +2891,8 @@ private:
         artifact.request_graph_.dependencies.size() +
         artifact.imported_geometry_.size() +
         artifact.bounded_primitives_.size() + artifact.exact_relations_.size() +
-        artifact.truth_lineage_.size() + artifact.relations_.size() +
+        artifact.truth_lineage_.size() + artifact.interval_evidence_.size() +
+        artifact.source_facet_regions_.size() + artifact.relations_.size() +
         artifact.constructions_.size() + artifact.coplanar_event_nodes_.size() +
         artifact.coplanar_oriented_arcs_.size() +
         artifact.coplanar_overlap_components_.size() +
@@ -2214,6 +2913,8 @@ private:
   std::vector<relation_request_proposal> proposals_;
   std::vector<base_descriptor> bases_;
   std::vector<construction_descriptor> constructions_desc_;
+  std::vector<interval_descriptor> interval_desc_;
+  std::vector<region_descriptor> region_desc_;
   std::vector<symbolic_descriptor> symbolics_;
   std::vector<disposition_descriptor> disposition_desc_;
   std::vector<std::vector<relation_request_key>> candidate_base_keys_;
@@ -2226,6 +2927,8 @@ private:
   std::vector<relation_bounded_primitive_record> bounded_primitives_;
   std::vector<relation_exact_relation_record> exact_relations_;
   std::vector<relation_truth_lineage_record> truth_lineage_;
+  std::vector<relation_interval_evidence_record> interval_evidence_;
+  std::vector<relation_source_facet_region_record<T>> source_facet_regions_;
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;

@@ -580,33 +580,60 @@ previously visible only inside composite relation records:
 - repaired-codec mutations of imported features, rounded evidence, exact formula
   identity, and truth lineage are independently rejected.
 
-This slice deliberately does not synthesize missing residual intervals or
-source-facet region predicates from the compact composite projection. Publishing
-those complete records requires carrying the already-qualified detailed
-enclosures and region evidence into first-class family-04 tables.
+## Implemented first-class interval and source-facet-region publication slice
+
+The previously qualified bounded enclosures and complete source-polygon
+classifications are now canonical family-04 graph producers rather than nested
+composite-only audit data:
+
+- every source-edge parameter, carrier residual, edge/facet event parameter,
+  support residual, facet/facet conditioning interval, plane residual, segment
+  contact parameter, breakpoint parameter, certified open-cell witness, and
+  triangle reconciliation witness is published with a stable evidence kind,
+  occurrence, component, authoritative source relation, and canonical request;
+- parameter records retain rounded bits, complete enclosures, domain status and
+  margin, exact zero/one status, all eight uncertainty contributors, and the
+  precision trace root, while residual and conditioning records retain the
+  exact authorized comparison boundary and independently reconstructed
+  acceptance result;
+- every edge/facet event, coplanar partition breakpoint/open-cell witness,
+  overlay source vertex, and overlay boundary-partition witness publishes its
+  query enclosure together with the complete source-facet region record,
+  including polygon orientation, full boundary traversal evidence, parity,
+  original source-vertex/source-edge owners, and source-identity validity;
+- each family-04 producer depends exactly on the imported, bounded, and optional
+  exact primitive producers for its authoritative relation, and the relation
+  depends on every family-04 record it consumes; no region identity is inferred
+  from coordinates, proximity, or vector position;
+- versioned owner-free codec/decode sections, table statistics, checked
+  candidate-scaled preflight limits, exact persistent accounting for nested
+  owner/orientation vectors, and work reconciliation cover both new tables;
+- the independent verifier reconstructs every key, occurrence, bit pattern,
+  parameter metadata field, residual decision, query enclosure, complete region
+  semantic record, and dependency range directly from the four verified
+  predecessor stages; and
+- focused qualification checks non-empty completeness, canonical decode, exact
+  persistent limit-minus-one rollback, and repaired-codec mutations of both an
+  interval enclosure and a region query.
 
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Publish complete bounded residual/interval primitive evidence and the
-   already-qualified source-point/source-facet region records as first-class
-   family-04 graph producers; the imported, rounded/bounded, exact, and explicit
-   truth-lineage foundation is now implemented.
-2. Complete admitted clustered multi-event ordering and complete occurrence tie
+1. Complete admitted clustered multi-event ordering and complete occurrence tie
    keys for source-edge/source-facet relations, including all supported
    source-vertex and shared-edge contact fixtures.
-3. Complete authoritative construction deduplication across relation families
-   and publish full parameter, residual, conditioning, tolerance-ledger, and
-   producer evidence instead of the current bounded component projection.
-4. Complete the remaining symbolic categories, incidence/rank/occurrence
+2. Complete authoritative construction deduplication across relation families
+   and publish the remaining tolerance-ledger and producer evidence beyond the
+   now first-class parameter, residual, conditioning, and region tables.
+3. Complete the remaining symbolic categories, incidence/rank/occurrence
    constraints, event-seed diagnostics, candidate canonical partitions, and
    replay diagnostics required by the normative plan.
-5. Add the independent exact-rational/exhaustive oracle, complete known-answer
+4. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and
    serial/parallel equivalence evidence.
-6. Complete Component 08-10 handoff qualification proving no authoritative
+5. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed
