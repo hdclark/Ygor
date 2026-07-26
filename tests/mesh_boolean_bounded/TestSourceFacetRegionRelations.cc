@@ -217,6 +217,37 @@ void test_uncertainty_fails_closed() {
         "unresolved boundary has stable Component 07 failure");
 }
 
+void test_certified_boundary_ownership() {
+  const auto polygon = square();
+  auto query = point(99, 1.0, 0.5);
+  query.enclosure[0] = *finite_interval<double>::create(0.9, 1.1);
+  std::vector<source_facet_boundary_edge_owner> certified_edges{
+      edge_owner(polygon, 1)};
+  auto certified = classify_source_facet_point(
+      4, 2, query, false, polygon, bounded_planar_sign::positive, nullptr,
+      &certified_edges);
+  check(certified.has_value(),
+        "compute-once boundary relation may certify unresolved point bounds");
+  if (certified.has_value()) {
+    check(certified.value()->classification ==
+              source_facet_point_region_class::original_edge &&
+              certified.value()->source_edge_owners == certified_edges,
+          "certified boundary ownership remains source-lineage based");
+    check(valid_source_facet_point_region_record(*certified.value()),
+          "certified boundary record independently validates");
+  }
+
+  auto wrong_edges = certified_edges;
+  wrong_edges.front() = edge_owner(polygon, 0);
+  auto wrong = classify_source_facet_point(
+      4, 2, query, false, polygon, bounded_planar_sign::positive, nullptr,
+      &wrong_edges);
+  check(!wrong.has_value() && wrong.error() &&
+            wrong.error()->subcode == static_cast<std::uint32_t>(
+                relation_subcode::source_facet_boundary_ownership),
+        "certified owner without exact collinearity is rejected");
+}
+
 void test_orientation_mismatch_rejected() {
   const auto polygon = square();
   auto result = classify_source_facet_point(
@@ -465,6 +496,7 @@ int main() {
   test_concave_and_reversed_rings();
   test_boundary_ownership();
   test_uncertainty_fails_closed();
+  test_certified_boundary_ownership();
   test_orientation_mismatch_rejected();
   test_orientation_uncertainty_fails_closed();
   test_identity_geometry_mismatch_rejected();

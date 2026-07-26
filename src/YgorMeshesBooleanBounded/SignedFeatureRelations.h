@@ -64,6 +64,11 @@ struct relation_crossing_record final {
   std::int8_t symbolic_crossing = 0;
   operand_id half_open_owner = operand_id::a;
   std::uint32_t occurrence = 0;
+  std::uint64_t source_fan_group = 0;
+  std::uint32_t source_fan_group_size = 1;
+  std::uint32_t source_fan_group_ordinal = 0;
+  std::int8_t local_transition = 0;
+  bool numeric_owner = false;
   bool source_fan_resolved = false;
   bool locally_conservative = false;
   std::uint16_t reserved16 = 0;

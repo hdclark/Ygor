@@ -296,7 +296,10 @@ classify_source_facet_point(
     const projected_source_point<T> &query,
     bool query_source_identity_valid,
     const std::vector<projected_source_point<T>> &polygon,
-    bounded_planar_sign polygon_orientation) {
+    bounded_planar_sign polygon_orientation,
+    const std::vector<std::uint64_t> *certified_source_vertices = nullptr,
+    const std::vector<source_facet_boundary_edge_owner> *certified_source_edges =
+        nullptr) {
   static_assert(supported_precision_scalar_v<T>);
   using namespace source_facet_region_detail;
 
@@ -319,6 +322,33 @@ classify_source_facet_point(
     polygon_vertices.push_back(point.source_vertex);
   }
   std::sort(polygon_vertices.begin(), polygon_vertices.end());
+  if (certified_source_vertices) {
+    for (const auto source_vertex : *certified_source_vertices)
+      if (!std::binary_search(polygon_vertices.begin(), polygon_vertices.end(),
+                              source_vertex))
+        return boolean_outcome<source_facet_point_region_record<T>>::failure(
+            source_facet_region_error(
+                relation_subcode::source_facet_boundary_ownership,
+                "Component 07 certified source vertex is absent from the facet ring"));
+  }
+  if (certified_source_edges) {
+    for (const auto &owner : *certified_source_edges) {
+      if (owner.edge_ordinal >= polygon.size())
+        return boolean_outcome<source_facet_point_region_record<T>>::failure(
+            source_facet_region_error(
+                relation_subcode::source_facet_boundary_ownership,
+                "Component 07 certified source edge ordinal is outside the facet ring"));
+      const auto &origin = polygon[owner.edge_ordinal];
+      const auto &destination =
+          polygon[(owner.edge_ordinal + 1) % polygon.size()];
+      if (owner.origin_source_vertex != origin.source_vertex ||
+          owner.destination_source_vertex != destination.source_vertex)
+        return boolean_outcome<source_facet_point_region_record<T>>::failure(
+            source_facet_region_error(
+                relation_subcode::source_facet_boundary_ownership,
+                "Component 07 certified source edge disagrees with the facet ring"));
+    }
+  }
   if (std::adjacent_find(polygon_vertices.begin(), polygon_vertices.end()) !=
       polygon_vertices.end())
     return boolean_outcome<source_facet_point_region_record<T>>::failure(
@@ -342,6 +372,21 @@ classify_source_facet_point(
         source_facet_region_error(
             relation_subcode::source_facet_region_unresolved,
             "Component 07 complete source-facet orientation is unresolved"));
+
+  if (certified_source_vertices &&
+      !std::is_sorted(certified_source_vertices->begin(),
+                      certified_source_vertices->end()))
+    return boolean_outcome<source_facet_point_region_record<T>>::failure(
+        source_facet_region_error(
+            relation_subcode::source_facet_boundary_ownership,
+            "Component 07 certified source vertices are not canonical"));
+  if (certified_source_edges &&
+      !std::is_sorted(certified_source_edges->begin(),
+                      certified_source_edges->end()))
+    return boolean_outcome<source_facet_point_region_record<T>>::failure(
+        source_facet_region_error(
+            relation_subcode::source_facet_boundary_ownership,
+            "Component 07 certified source edges are not canonical"));
 
   source_facet_point_region_record<T> result;
   result.source_facet = source_facet;
@@ -383,13 +428,47 @@ classify_source_facet_point(
     result.orientation_evidence.push_back(evidence);
     ++result.boundary_test_count;
 
+    bool certified_vertex_owned = false;
+    if (certified_source_vertices) {
+      certified_vertex_owned =
+          std::binary_search(certified_source_vertices->begin(),
+                             certified_source_vertices->end(), a.source_vertex) ||
+          std::binary_search(certified_source_vertices->begin(),
+                             certified_source_vertices->end(), b.source_vertex);
+      if (certified_vertex_owned && evidence.exact_sign != 0)
+        return boolean_outcome<source_facet_point_region_record<T>>::failure(
+            source_facet_region_error(
+                relation_subcode::source_facet_boundary_ownership,
+                "Component 07 certified source vertex lacks exact boundary support"));
+      if (certified_vertex_owned) {
+        if (std::binary_search(certified_source_vertices->begin(),
+                               certified_source_vertices->end(), a.source_vertex))
+          result.source_vertex_owners.push_back(a.source_vertex);
+        if (std::binary_search(certified_source_vertices->begin(),
+                               certified_source_vertices->end(), b.source_vertex))
+          result.source_vertex_owners.push_back(b.source_vertex);
+      }
+    }
+    bool certified_edge_owned = false;
+    if (certified_source_edges) {
+      source_facet_boundary_edge_owner owner{
+          static_cast<std::uint64_t>(i), a.source_vertex, b.source_vertex};
+      certified_edge_owned =
+          std::binary_search(certified_source_edges->begin(),
+                             certified_source_edges->end(), owner);
+      if (certified_edge_owned && evidence.exact_sign != 0)
+        return boolean_outcome<source_facet_point_region_record<T>>::failure(
+            source_facet_region_error(
+                relation_subcode::source_facet_boundary_ownership,
+                "Component 07 certified source edge lacks exact collinearity evidence"));
+    }
     const bool identity_owned =
         query_source_identity_valid &&
         (query.source_vertex == a.source_vertex ||
          query.source_vertex == b.source_vertex);
     const bool geometric_owned =
         definite_point_on_edge(query, a, b, evidence);
-    if (identity_owned || geometric_owned) {
+    if (identity_owned || geometric_owned || certified_edge_owned) {
       result.source_edge_owners.push_back(
           {static_cast<std::uint64_t>(i), a.source_vertex,
            b.source_vertex});

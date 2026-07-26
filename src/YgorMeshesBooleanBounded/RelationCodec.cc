@@ -139,6 +139,11 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing));
     writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
     writer.u32(record.occurrence);
+    writer.u64(record.source_fan_group);
+    writer.u32(record.source_fan_group_size);
+    writer.u32(record.source_fan_group_ordinal);
+    writer.u8(static_cast<std::uint8_t>(record.local_transition));
+    writer.boolean(record.numeric_owner);
     writer.boolean(record.source_fan_resolved);
     writer.boolean(record.locally_conservative);
     writer.u16(record.reserved16);
@@ -319,16 +324,19 @@ inline bool read_symbolic_record(canonical_reader &reader) {
 }
 
 inline bool read_crossing_record(canonical_reader &reader) {
-  std::uint64_t relation = 0;
-  std::uint32_t numeric = 0, occurrence = 0, reserved32 = 0;
-  std::uint8_t symbolic = 0, owner = 0;
-  bool resolved = false, conservative = false;
+  std::uint64_t relation = 0, group = 0;
+  std::uint32_t numeric = 0, occurrence = 0, group_size = 0,
+                group_ordinal = 0, reserved32 = 0;
+  std::uint8_t symbolic = 0, owner = 0, local_transition = 0;
+  bool numeric_owner = false, resolved = false, conservative = false;
   std::uint16_t reserved16 = 0;
   return reader.u64(relation) && reader.u32(numeric) &&
          reader.u8(symbolic) && reader.u8(owner) &&
-         reader.u32(occurrence) && reader.boolean(resolved) &&
-         reader.boolean(conservative) && reader.u16(reserved16) &&
-         reader.u32(reserved32);
+         reader.u32(occurrence) && reader.u64(group) &&
+         reader.u32(group_size) && reader.u32(group_ordinal) &&
+         reader.u8(local_transition) && reader.boolean(numeric_owner) &&
+         reader.boolean(resolved) && reader.boolean(conservative) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
 }
 
 inline bool read_event_seed_record(canonical_reader &reader) {
@@ -500,7 +508,7 @@ bool parse_relation_artifact_envelope(
 
   if (!reader.u64(envelope.crossing_count) ||
       !count_fits(reader, envelope.crossing_count,
-                  capabilities.maximum_relations, 26))
+                  capabilities.maximum_relations, 44))
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 crossing table count is malformed");

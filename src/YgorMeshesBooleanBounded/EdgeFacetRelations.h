@@ -683,6 +683,62 @@ bool valid_boundary_relations(const source_edge_facet_input<T> &input) {
 }
 
 template <class T>
+bool certified_non_coplanar_boundary_owners(
+    const source_edge_facet_input<T> &input,
+    std::vector<std::uint64_t> &source_vertices,
+    std::vector<source_facet_boundary_edge_owner> &source_edges,
+    bounded_boolean_error &error) {
+  source_vertices.clear();
+  source_edges.clear();
+  for (const auto &boundary : input.boundary_relations) {
+    const auto &relation = boundary.relation;
+    if (relation.contact == source_edge_contact_class::none)
+      continue;
+    if (relation.contact == source_edge_contact_class::partial_overlap ||
+        relation.contact == source_edge_contact_class::first_contains_second ||
+        relation.contact == source_edge_contact_class::second_contains_first ||
+        relation.contact == source_edge_contact_class::equal ||
+        relation.point_count != 1) {
+      error = source_edge_facet_error(
+          relation_subcode::source_edge_facet_boundary_coverage,
+          "Component 07 non-coplanar facet boundary has incompatible overlap evidence");
+      return false;
+    }
+    const bool boundary_is_first =
+        relation.first_feature == boundary.binding.feature;
+    const bool boundary_is_second =
+        relation.second_feature == boundary.binding.feature;
+    const bool query_is_first = relation.first_feature == input.edge.feature;
+    const bool query_is_second = relation.second_feature == input.edge.feature;
+    if (boundary_is_first == boundary_is_second ||
+        query_is_first == query_is_second || boundary_is_first == query_is_first) {
+      error = source_edge_facet_error(
+          relation_subcode::source_edge_facet_boundary_coverage,
+          "Component 07 boundary relation feature roles are inconsistent");
+      return false;
+    }
+    source_edges.push_back(boundary.binding.owner);
+    const auto mask = boundary_is_first
+                          ? relation.points[0].first_endpoint_owner_mask
+                          : relation.points[0].second_endpoint_owner_mask;
+    if ((mask & std::uint8_t{1}) != 0)
+      source_vertices.push_back(
+          boundary.binding.parameter_source_vertices[0]);
+    if ((mask & std::uint8_t{2}) != 0)
+      source_vertices.push_back(
+          boundary.binding.parameter_source_vertices[1]);
+    if ((mask & ~std::uint8_t{3}) != 0) {
+      error = source_edge_facet_error(
+          relation_subcode::source_edge_facet_boundary_coverage,
+          "Component 07 boundary endpoint ownership mask is invalid");
+      return false;
+    }
+  }
+  source_facet_region_detail::canonicalize_owners(source_vertices, source_edges);
+  return true;
+}
+
+template <class T>
 bool validate_input(const source_edge_facet_input<T> &input,
                     const context_owner_token &owner) {
   if (!owner.anchor || input.reserved != 0 || input.edge.reserved != 0 ||
@@ -1004,9 +1060,18 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
           *construction.error());
     auto projected = project_point(*point.value(), input.dropped_axis);
+    std::vector<std::uint64_t> certified_vertices;
+    std::vector<source_facet_boundary_edge_owner> certified_edges;
+    bounded_boolean_error ownership_error;
+    if (!certified_non_coplanar_boundary_owners(
+            input, certified_vertices, certified_edges, ownership_error))
+      return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+          ownership_error);
     auto region = classify_source_facet_point(
         input.source_facet, input.ring, projected, false, input.polygon,
-        input.polygon_orientation);
+        input.polygon_orientation,
+        certified_vertices.empty() ? nullptr : &certified_vertices,
+        certified_edges.empty() ? nullptr : &certified_edges);
     if (!region.has_value())
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
           *region.error());
@@ -1071,9 +1136,18 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
           *construction.error());
     auto projected = project_point(point, input.dropped_axis,
                                    input.edge_source_vertices[endpoint]);
+    std::vector<std::uint64_t> certified_vertices;
+    std::vector<source_facet_boundary_edge_owner> certified_edges;
+    bounded_boolean_error ownership_error;
+    if (!certified_non_coplanar_boundary_owners(
+            input, certified_vertices, certified_edges, ownership_error))
+      return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+          ownership_error);
     auto region = classify_source_facet_point(
         input.source_facet, input.ring, projected, false, input.polygon,
-        input.polygon_orientation);
+        input.polygon_orientation,
+        certified_vertices.empty() ? nullptr : &certified_vertices,
+        certified_edges.empty() ? nullptr : &certified_edges);
     if (!region.has_value())
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
           *region.error());

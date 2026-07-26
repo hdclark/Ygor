@@ -199,6 +199,16 @@ void test_matched_mutation_rejection() {
     error = bounded_boolean_error{};
     require(!bounded::verify_signed_feature_relations(crossing_mutation, error),
             "matched crossing multiplicity mutation is rejected");
+
+    auto fan_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &fan =
+        bounded::relation_artifact_test_access::crossings(fan_mutation).front();
+    ++fan.source_fan_group_size;
+    bounded::relation_artifact_test_access::repair_codec(fan_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(fan_mutation, error),
+            "matched source-fan cardinality mutation is rejected");
   }
 
   auto trailing = artifact->canonical_bytes();

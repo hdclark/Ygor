@@ -220,6 +220,9 @@ enum class relation_subcode : std::uint32_t {
   coplanar_overlay_region_unresolved = 70067,
   coplanar_overlay_boundary_incomplete = 70068,
   coplanar_overlay_invariant = 70069,
+  crossing_multiplicity_invalid = 70070,
+  crossing_fan_incomplete = 70071,
+  crossing_conservation_failed = 70072,
 };
 
 inline bounded_boolean_error relation_error(

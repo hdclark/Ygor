@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <tuple>
 #include <vector>
 
 namespace ygor::mesh_boolean::bounded {
@@ -166,6 +167,199 @@ bool public_contact(feature_relation_status value) noexcept {
          value != feature_relation_status::definitely_separated;
 }
 
+struct verifier_source_fan_group_key final {
+  bool boundary_group = false;
+  relation_feature_key query_edge{};
+  operand_id opposite_operand = operand_id::a;
+  std::uint8_t boundary_kind = 0;
+  std::uint64_t owner_primary = 0;
+  std::uint64_t owner_secondary = 0;
+  relation_request_key singleton_relation{};
+  std::uint32_t singleton_occurrence = 0;
+
+  friend bool operator<(const verifier_source_fan_group_key &a,
+                        const verifier_source_fan_group_key &b) noexcept {
+    return std::tie(a.boundary_group, a.query_edge, a.opposite_operand,
+                    a.boundary_kind, a.owner_primary, a.owner_secondary,
+                    a.singleton_relation, a.singleton_occurrence) <
+           std::tie(b.boundary_group, b.query_edge, b.opposite_operand,
+                    b.boundary_kind, b.owner_primary, b.owner_secondary,
+                    b.singleton_relation, b.singleton_occurrence);
+  }
+  friend bool operator==(const verifier_source_fan_group_key &a,
+                         const verifier_source_fan_group_key &b) noexcept {
+    return std::tie(a.boundary_group, a.query_edge, a.opposite_operand,
+                    a.boundary_kind, a.owner_primary, a.owner_secondary,
+                    a.singleton_relation, a.singleton_occurrence) ==
+           std::tie(b.boundary_group, b.query_edge, b.opposite_operand,
+                    b.boundary_kind, b.owner_primary, b.owner_secondary,
+                    b.singleton_relation, b.singleton_occurrence);
+  }
+};
+
+template <class T> struct verifier_crossing_descriptor final {
+  verifier_source_fan_group_key group{};
+  relation_request_key source_relation{};
+  feature_relation_id relation{0};
+  const source_edge_facet_event_record<T> *event = nullptr;
+  std::int8_t local_transition = 0;
+  std::int8_t symbolic_crossing = 0;
+  operand_id half_open_owner = operand_id::a;
+};
+
+template <class T>
+std::int8_t verifier_local_transition(
+    const source_edge_facet_event_record<T> &event) noexcept {
+  const auto occupancy = [](source_edge_facet_occupancy_state state) {
+    return state == source_edge_facet_occupancy_state::occupied
+               ? std::int8_t{1}
+           : state == source_edge_facet_occupancy_state::unoccupied
+               ? std::int8_t{0}
+               : std::int8_t{2};
+  };
+  const auto before = occupancy(event.before);
+  const auto after = occupancy(event.after);
+  return before <= 1 && after <= 1
+             ? static_cast<std::int8_t>(after - before)
+             : std::int8_t{0};
+}
+
+template <class T>
+bool verifier_source_fan_key(const relation_request_key &relation,
+                             const source_edge_facet_event_record<T> &event,
+                             verifier_source_fan_group_key &key) {
+  key = verifier_source_fan_group_key{};
+  key.query_edge = relation.first;
+  key.opposite_operand = relation.second.operand;
+  const bool source_boundary =
+      event.region.classification ==
+          source_facet_point_region_class::original_edge ||
+      event.region.classification ==
+          source_facet_point_region_class::original_vertex;
+  if (!source_boundary) {
+    key.singleton_relation = relation;
+    key.singleton_occurrence = event.occurrence;
+    return true;
+  }
+  if (event.kind != source_edge_facet_event_kind::boundary_crossing &&
+      event.kind != source_edge_facet_event_kind::tangent_contact)
+    return false;
+  key.boundary_group = true;
+  if (event.region.classification ==
+      source_facet_point_region_class::original_vertex) {
+    if (event.region.source_vertex_owners.size() != 1)
+      return false;
+    key.boundary_kind = 2;
+    key.owner_primary = event.region.source_vertex_owners.front();
+    return true;
+  }
+  if (event.region.classification !=
+          source_facet_point_region_class::original_edge ||
+      event.region.source_edge_owners.empty())
+    return false;
+  key.boundary_kind = 1;
+  const auto canonical_endpoints = [](const auto &owner) {
+    return std::minmax(owner.origin_source_vertex,
+                       owner.destination_source_vertex);
+  };
+  const auto first = canonical_endpoints(event.region.source_edge_owners.front());
+  key.owner_primary = first.first;
+  key.owner_secondary = first.second;
+  for (const auto &owner : event.region.source_edge_owners) {
+    const auto endpoints = canonical_endpoints(owner);
+    if (endpoints.first != key.owner_primary ||
+        endpoints.second != key.owner_secondary)
+      return false;
+  }
+  return true;
+}
+
+template <class T, class I>
+bool verifier_source_facet_feature(
+    const canonical_halfedge_operand<T, I> &topology,
+    std::uint64_t source_facet,
+    relation_feature_key &feature) noexcept {
+  if (source_facet >= topology.source_facet_to_group().size())
+    return false;
+  const auto group = topology.source_facet_to_group()[source_facet];
+  if (group >= topology.facet_groups().size())
+    return false;
+  const auto &record = topology.facet_groups()[group];
+  if (record.canonical_id != group || record.source_facet != source_facet)
+    return false;
+  feature = relation_feature_key{};
+  feature.operand = topology.operand();
+  feature.kind = relation_feature_kind::source_facet;
+  feature.primary = source_facet;
+  feature.secondary = record.ring;
+  return valid_relation_feature_key(feature);
+}
+
+template <class T, class I>
+bool verifier_expected_source_fan_facets(
+    const canonical_candidate_stream<T, I> &candidates,
+    const verifier_source_fan_group_key &key,
+    std::vector<relation_feature_key> &facets) {
+  facets.clear();
+  if (!key.boundary_group || !candidates.manifolds())
+    return false;
+  const auto topology =
+      key.opposite_operand == operand_id::a ? candidates.manifolds()->a()
+                                            : candidates.manifolds()->b();
+  if (!topology || topology->operand() != key.opposite_operand)
+    return false;
+  if (key.boundary_kind == 1) {
+    const auto wanted = std::minmax(key.owner_primary, key.owner_secondary);
+    const canonical_manifold_edge_record<T> *match = nullptr;
+    for (const auto &edge : topology->edges()) {
+      if (edge.edge_class != canonical_edge_class::source_edge ||
+          !edge.source_feature_owner ||
+          edge.halfedges[0] >= topology->halfedges().size())
+        continue;
+      const auto &halfedge = topology->halfedges()[edge.halfedges[0]];
+      const auto endpoints =
+          std::minmax(halfedge.source_origin, halfedge.source_destination);
+      if (endpoints.first == wanted.first && endpoints.second == wanted.second) {
+        if (match)
+          return false;
+        match = &edge;
+      }
+    }
+    if (!match)
+      return false;
+    for (const auto source_facet : match->facets) {
+      relation_feature_key feature;
+      if (!verifier_source_facet_feature(*topology, source_facet, feature))
+        return false;
+      facets.push_back(feature);
+    }
+  } else if (key.boundary_kind == 2) {
+    if (key.owner_primary >= topology->source_vertex_to_vertex().size())
+      return false;
+    const auto vertex = topology->source_vertex_to_vertex()[key.owner_primary];
+    if (vertex >= topology->vertices().size())
+      return false;
+    const auto fan = topology->vertices()[vertex].fan;
+    if (fan >= topology->fans().size())
+      return false;
+    for (const auto halfedge_id : topology->fans()[fan].outgoing_halfedges) {
+      if (halfedge_id >= topology->halfedges().size())
+        return false;
+      relation_feature_key feature;
+      if (!verifier_source_facet_feature(
+              *topology, topology->halfedges()[halfedge_id].source_facet,
+              feature))
+        return false;
+      facets.push_back(feature);
+    }
+  } else {
+    return false;
+  }
+  std::sort(facets.begin(), facets.end());
+  facets.erase(std::unique(facets.begin(), facets.end()), facets.end());
+  return facets.size() >= 2;
+}
+
 } // namespace
 
 template <class T, class I>
@@ -301,13 +495,9 @@ bool verify_signed_feature_relations(
       const auto &source = artifact.source_edge_facet_stage_->relations[
           request->id.ordinal()];
       expected = edge_facet_status(source.contact);
-      std::int32_t crossing = 0;
-      for (const auto &event : source.events)
-        crossing += event.numeric_crossing;
-      if (record.numeric_crossing_multiplicity != crossing ||
-          record.family != feature_relation_family::source_edge_source_facet)
+      if (record.family != feature_relation_family::source_edge_source_facet)
         return fail(relation_subcode::verifier_rejection,
-                    "Component 07 edge/facet crossing summary mismatch");
+                    "Component 07 edge/facet relation family mismatch");
       break;
     }
     case relation_request_family::source_facet_source_facet: {
@@ -431,21 +621,197 @@ bool verify_signed_feature_relations(
                   "Component 07 symbolic decision request is absent");
   }
 
+  std::map<std::pair<relation_request_key, std::uint32_t>,
+           const symbolic_relation_decision_record *>
+      symbolic_by_source_occurrence;
+  for (std::size_t i = 0; i < artifact.symbolic_eligibility_.size(); ++i) {
+    const auto &eligibility = artifact.symbolic_eligibility_[i];
+    const auto *request = find_request(artifact.request_graph_, eligibility.request);
+    if (!request)
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 symbolic eligibility producer is absent");
+    const relation_request_key *source = nullptr;
+    for (std::uint64_t offset = 0; offset < request->dependency_count; ++offset) {
+      const auto index = request->dependency_begin + offset;
+      if (index >= artifact.request_graph_.dependencies.size())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 symbolic dependency range is malformed");
+      const auto producer =
+          artifact.request_graph_.dependencies[index].producer.ordinal();
+      if (producer >= artifact.request_graph_.requests.size())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 symbolic dependency producer is absent");
+      const auto &key = artifact.request_graph_.requests[producer].key;
+      if (key.family == relation_request_family::source_edge_source_facet) {
+        if (source)
+          return fail(relation_subcode::duplicate_authoritative_producer,
+                      "Component 07 symbolic eligibility has multiple source relations");
+        source = &key;
+      }
+    }
+    if (source &&
+        !symbolic_by_source_occurrence
+             .emplace(std::make_pair(*source,
+                                     eligibility.request.occurrence_discriminator),
+                      &artifact.symbolic_decisions_[i])
+             .second)
+      return fail(relation_subcode::duplicate_authoritative_producer,
+                  "Component 07 symbolic source occurrence is duplicated");
+  }
+
+  std::vector<verifier_crossing_descriptor<T>> expected_crossings;
+  for (std::size_t i = 0;
+       i < artifact.source_edge_facet_stage_->request_graph.requests.size(); ++i) {
+    const auto &request =
+        artifact.source_edge_facet_stage_->request_graph.requests[i];
+    const auto relation = relation_by_key.find(request.key);
+    if (relation == relation_by_key.end() ||
+        i >= artifact.source_edge_facet_stage_->relations.size())
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 crossing detailed producer is absent");
+    const auto &source = artifact.source_edge_facet_stage_->relations[i];
+    for (const auto &event : source.events) {
+      verifier_crossing_descriptor<T> descriptor;
+      if (!verifier_source_fan_key(request.key, event, descriptor.group))
+        return fail(relation_subcode::crossing_fan_incomplete,
+                    "Component 07 verifier could not reconstruct source-fan lineage");
+      descriptor.source_relation = request.key;
+      descriptor.relation = relation->second;
+      descriptor.event = &event;
+      descriptor.local_transition = verifier_local_transition(event);
+      descriptor.half_open_owner = request.key.first.operand;
+      const auto symbolic = symbolic_by_source_occurrence.find(
+          std::make_pair(request.key, event.occurrence));
+      if (symbolic != symbolic_by_source_occurrence.end()) {
+        descriptor.symbolic_crossing =
+            symbolic->second->symbolic_crossing_contribution;
+        descriptor.half_open_owner = symbolic->second->half_open_owner;
+      }
+      expected_crossings.push_back(descriptor);
+    }
+  }
+  std::sort(expected_crossings.begin(), expected_crossings.end(),
+            [](const verifier_crossing_descriptor<T> &a,
+               const verifier_crossing_descriptor<T> &b) {
+              return std::tie(a.group, a.source_relation,
+                              a.event->occurrence) <
+                     std::tie(b.group, b.source_relation,
+                              b.event->occurrence);
+            });
+  if (artifact.crossings_.size() != expected_crossings.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 crossing contribution table is incomplete");
+
   std::vector<std::int64_t> crossing_sums(artifact.relations_.size(), 0);
-  for (const auto &record : artifact.crossings_) {
-    if (record.relation.ordinal() >= artifact.relations_.size() ||
-        record.numeric_crossing < -1 || record.numeric_crossing > 1 ||
-        record.symbolic_crossing < -1 || record.symbolic_crossing > 1 ||
-        !record.source_fan_resolved || !record.locally_conservative ||
-        record.reserved16 != 0 || record.reserved32 != 0)
-      return fail(relation_subcode::verifier_rejection,
-                  "Component 07 crossing/source-fan record is malformed");
-    crossing_sums[record.relation.ordinal()] += record.numeric_crossing;
+  std::size_t published = 0;
+  for (std::size_t begin = 0, group = 0; begin < expected_crossings.size(); ++group) {
+    std::size_t end = begin + 1;
+    while (end < expected_crossings.size() &&
+           expected_crossings[end].group == expected_crossings[begin].group)
+      ++end;
+    const auto count = end - begin;
+    bool has_positive = false;
+    bool has_negative = false;
+    bool complete = true;
+    bool boundary_crossing_group = false;
+    bool tangent_group = false;
+    for (std::size_t i = begin; i < end; ++i) {
+      const auto &event = *expected_crossings[i].event;
+      if (expected_crossings[i].group.boundary_group) {
+        boundary_crossing_group =
+            boundary_crossing_group ||
+            event.kind == source_edge_facet_event_kind::boundary_crossing;
+        tangent_group = tangent_group ||
+                        event.kind ==
+                            source_edge_facet_event_kind::tangent_contact;
+        if (event.kind == source_edge_facet_event_kind::boundary_crossing) {
+          complete = complete &&
+                     (expected_crossings[i].local_transition == -1 ||
+                      expected_crossings[i].local_transition == 1);
+          has_positive = has_positive ||
+                         expected_crossings[i].local_transition > 0;
+          has_negative = has_negative ||
+                         expected_crossings[i].local_transition < 0;
+        } else {
+          complete = complete &&
+                     event.kind ==
+                         source_edge_facet_event_kind::tangent_contact &&
+                     expected_crossings[i].local_transition == 0 &&
+                     event.numeric_crossing == 0;
+        }
+      } else {
+        complete = complete &&
+                   (event.kind !=
+                        source_edge_facet_event_kind::proper_face_crossing ||
+                    (expected_crossings[i].local_transition ==
+                         event.numeric_crossing &&
+                     event.numeric_crossing != 0));
+      }
+      complete = complete &&
+                 expected_crossings[i].half_open_owner ==
+                     expected_crossings[begin].half_open_owner;
+    }
+    if (expected_crossings[begin].group.boundary_group) {
+      std::vector<relation_feature_key> expected_facets;
+      std::vector<relation_feature_key> actual_facets;
+      if (!artifact.candidates_ ||
+          !verifier_expected_source_fan_facets(
+              *artifact.candidates_, expected_crossings[begin].group,
+              expected_facets))
+        complete = false;
+      for (std::size_t i = begin; i < end; ++i)
+        actual_facets.push_back(expected_crossings[i].source_relation.second);
+      std::sort(actual_facets.begin(), actual_facets.end());
+      actual_facets.erase(
+          std::unique(actual_facets.begin(), actual_facets.end()),
+          actual_facets.end());
+      complete = complete && count >= 2 &&
+                 actual_facets == expected_facets &&
+                 boundary_crossing_group != tangent_group;
+    }
+    if (!complete)
+      return fail(relation_subcode::crossing_fan_incomplete,
+                  "Component 07 independently reconstructed source fan is incomplete");
+
+    std::int32_t group_total = 0;
+    if (expected_crossings[begin].group.boundary_group) {
+      if (boundary_crossing_group && has_positive != has_negative)
+        group_total = has_positive ? 1 : -1;
+    } else {
+      group_total = expected_crossings[begin].event->numeric_crossing;
+    }
+    const bool has_numeric_owner = group_total != 0;
+    for (std::size_t i = begin; i < end; ++i, ++published) {
+      const auto &expected = expected_crossings[i];
+      const auto &record = artifact.crossings_[published];
+      const auto ordinal = static_cast<std::uint32_t>(i - begin);
+      const auto expected_numeric =
+          has_numeric_owner && i == begin ? group_total : 0;
+      const auto expected_symbolic =
+          i == begin ? expected.symbolic_crossing : 0;
+      if (record.relation != expected.relation ||
+          record.numeric_crossing != expected_numeric ||
+          record.symbolic_crossing != expected_symbolic ||
+          record.half_open_owner !=
+              expected_crossings[begin].half_open_owner ||
+          record.occurrence != expected.event->occurrence ||
+          record.source_fan_group != group ||
+          record.source_fan_group_size != count ||
+          record.source_fan_group_ordinal != ordinal ||
+          record.local_transition != expected.local_transition ||
+          record.numeric_owner != (has_numeric_owner && i == begin) ||
+          !record.source_fan_resolved || !record.locally_conservative ||
+          record.reserved16 != 0 || record.reserved32 != 0)
+        return fail(relation_subcode::crossing_conservation_failed,
+                    "Component 07 crossing/source-fan record does not reconstruct");
+      crossing_sums[record.relation.ordinal()] += record.numeric_crossing;
+    }
+    begin = end;
   }
   for (std::size_t i = 0; i < artifact.relations_.size(); ++i)
     if (crossing_sums[i] !=
         artifact.relations_[i].numeric_crossing_multiplicity)
-      return fail(relation_subcode::verifier_rejection,
+      return fail(relation_subcode::crossing_conservation_failed,
                   "Component 07 local numeric crossing conservation failed");
 
   if (!std::is_sorted(
