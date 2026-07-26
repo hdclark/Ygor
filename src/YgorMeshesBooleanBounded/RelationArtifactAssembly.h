@@ -175,6 +175,21 @@ inline relation_request_key derived_key(const relation_request_key &base,
   return out;
 }
 
+inline relation_request_key imported_geometry_key(
+    const bounded_boolean_digest &semantic_namespace,
+    const relation_feature_key &feature, relation_record_scope scope) noexcept {
+  relation_request_key out;
+  out.semantic_namespace = semantic_namespace;
+  out.family = relation_request_family::imported_source_geometry;
+  out.scope = scope;
+  out.first = feature;
+  out.second = relation_feature_key{};
+  out.second.operand = feature.operand;
+  out.formula_version = contract_versions::exact_relation_formulas;
+  out.policy_version = contract_versions::relation_request_key_schema;
+  return out;
+}
+
 inline std::uint64_t tagged_use(std::uint8_t domain,
                                 std::uint8_t category = 0) noexcept {
   return (static_cast<std::uint64_t>(domain) << 56U) |
@@ -360,9 +375,11 @@ public:
   bool assemble(artifact_type &artifact, bounded_boolean_error &error) {
     try {
       if (!validate_inputs(error) || !discover_base_relations(error) ||
+          !discover_primitive_support(error) ||
           !discover_constructions_and_symbolics(error) ||
           !discover_candidate_dispositions(error) || !build_graph(error) ||
-          !publish_relations(error) || !publish_constructions(error) ||
+          !publish_imported_geometry(error) || !publish_relations(error) ||
+          !publish_constructions(error) ||
           !publish_coplanar_topology(error) ||
           !publish_symbolics_and_crossings(error) || !publish_event_seeds(error) ||
           !publish_candidate_dispositions(error))
@@ -375,6 +392,10 @@ public:
       artifact.source_facet_stage_ = facet_stage_;
       artifact.coplanar_overlay_stage_ = overlay_stage_;
       artifact.request_graph_ = std::move(graph_);
+      artifact.imported_geometry_ = std::move(imported_geometry_);
+      artifact.bounded_primitives_ = std::move(bounded_primitives_);
+      artifact.exact_relations_ = std::move(exact_relations_);
+      artifact.truth_lineage_ = std::move(truth_lineage_);
       artifact.truth_records_ = std::move(truth_records_);
       artifact.relations_ = std::move(relations_);
       artifact.constructions_ = std::move(constructions_);
@@ -708,6 +729,68 @@ private:
         return fail(error, relation_subcode::duplicate_authoritative_producer,
                     "Component 07 final relation producer is duplicated",
                     relation_checkpoint::graph_finalization);
+    return true;
+  }
+
+  bool discover_primitive_support(bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    imported_keys_.clear();
+    for (const auto &base : bases_) {
+      std::vector<relation_request_key> imports;
+      imports.push_back(imported_geometry_key(
+          base.key.semantic_namespace, base.key.first, base.scope));
+      if (base.key.second.kind != relation_feature_kind::none)
+        imports.push_back(imported_geometry_key(
+            base.key.semantic_namespace, base.key.second, base.scope));
+      std::sort(imports.begin(), imports.end());
+      imports.erase(std::unique(imports.begin(), imports.end()), imports.end());
+      for (const auto &key : imports) {
+        relation_request_proposal proposal;
+        proposal.key = key;
+        proposal.candidate_witnesses = base.witnesses;
+        proposals_.push_back(std::move(proposal));
+        imported_keys_.push_back(key);
+      }
+
+      relation_request_proposal closure;
+      closure.key = base.key;
+      closure.candidate_witnesses = base.witnesses;
+      for (std::size_t truth = 0; truth < base.truth.size(); ++truth) {
+        if (truth > std::numeric_limits<std::uint32_t>::max())
+          return fail(error, relation_subcode::count_overflow,
+                      "Component 07 primitive truth ordinal is not representable",
+                      relation_checkpoint::count_representability_preflight);
+        const auto bounded_key = derived_key(
+            base.key, relation_request_family::rounded_bounded_primitive,
+            tagged_use(0x10U, static_cast<std::uint8_t>(base.key.family)),
+            static_cast<std::uint32_t>(truth));
+        relation_request_proposal bounded;
+        bounded.key = bounded_key;
+        bounded.dependencies = imports;
+        bounded.candidate_witnesses = base.witnesses;
+        proposals_.push_back(std::move(bounded));
+        closure.dependencies.push_back(bounded_key);
+
+        if (base.truth[truth].exact_formula != 0) {
+          const auto exact_key = derived_key(
+              base.key,
+              relation_request_family::exact_stored_coordinate_relation,
+              tagged_use(0x11U, static_cast<std::uint8_t>(base.key.family)),
+              static_cast<std::uint32_t>(truth));
+          relation_request_proposal exact;
+          exact.key = exact_key;
+          exact.dependencies = imports;
+          exact.candidate_witnesses = base.witnesses;
+          proposals_.push_back(std::move(exact));
+          closure.dependencies.push_back(exact_key);
+        }
+      }
+      proposals_.push_back(std::move(closure));
+    }
+    std::sort(imported_keys_.begin(), imported_keys_.end());
+    imported_keys_.erase(
+        std::unique(imported_keys_.begin(), imported_keys_.end()),
+        imported_keys_.end());
     return true;
   }
 
@@ -1073,8 +1156,33 @@ private:
     return true;
   }
 
+  bool publish_imported_geometry(bounded_boolean_error &error) {
+    imported_geometry_.clear();
+    imported_geometry_.reserve(imported_keys_.size());
+    for (const auto &key : imported_keys_) {
+      const auto *producer =
+          relation_artifact_assembly_detail::find_request(graph_, key);
+      if (!producer || key.family !=
+                           relation_request_family::imported_source_geometry ||
+          key.second.kind != relation_feature_kind::none)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 imported geometry producer is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      relation_imported_geometry_record record;
+      record.id = relation_imported_geometry_id(imported_geometry_.size());
+      record.producer = producer->id;
+      record.feature = key.first;
+      record.scope = key.scope;
+      imported_geometry_.push_back(record);
+    }
+    return true;
+  }
+
   bool publish_relations(bounded_boolean_error &error) {
     truth_records_.clear();
+    bounded_primitives_.clear();
+    exact_relations_.clear();
+    truth_lineage_.clear();
     relations_.clear();
     relations_.reserve(bases_.size());
     for (const auto &descriptor : bases_) {
@@ -1095,8 +1203,67 @@ private:
       record.numeric_crossing_multiplicity = descriptor.numeric_crossing;
       record.occurrence = descriptor.occurrence;
       relations_.push_back(record);
-      truth_records_.insert(truth_records_.end(), descriptor.truth.begin(),
-                            descriptor.truth.end());
+      for (std::size_t truth = 0; truth < descriptor.truth.size(); ++truth) {
+        if (truth > std::numeric_limits<std::uint32_t>::max())
+          return fail(error, relation_subcode::count_overflow,
+                      "Component 07 primitive truth ordinal is not representable",
+                      relation_checkpoint::canonical_id_and_reference_remap);
+        const auto &value = descriptor.truth[truth];
+        const auto bounded_key = relation_artifact_assembly_detail::derived_key(
+            descriptor.key,
+            relation_request_family::rounded_bounded_primitive,
+            relation_artifact_assembly_detail::tagged_use(
+                0x10U, static_cast<std::uint8_t>(descriptor.key.family)),
+            static_cast<std::uint32_t>(truth));
+        const auto *bounded_producer =
+            relation_artifact_assembly_detail::find_request(graph_, bounded_key);
+        if (!bounded_producer)
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 bounded primitive producer is absent",
+                      relation_checkpoint::canonical_id_and_reference_remap);
+        relation_bounded_primitive_record bounded;
+        bounded.id = relation_bounded_primitive_id(bounded_primitives_.size());
+        bounded.producer = bounded_producer->id;
+        bounded.source_relation = record.id;
+        bounded.truth_ordinal = static_cast<std::uint32_t>(truth);
+        bounded.rounded_nominal_bits = value.rounded_nominal_bits;
+        bounded.bounded_sign = value.bounded_sign;
+        bounded.disposition = value.disposition;
+        bounded.rounded_formula = value.rounded_formula;
+        bounded_primitives_.push_back(bounded);
+
+        relation_truth_lineage_record lineage;
+        lineage.id = relation_truth_lineage_id(truth_lineage_.size());
+        lineage.source_relation = record.id;
+        lineage.truth_ordinal = static_cast<std::uint32_t>(truth);
+        lineage.bounded_primitive = bounded.id;
+        if (value.exact_formula != 0) {
+          const auto exact_key = relation_artifact_assembly_detail::derived_key(
+              descriptor.key,
+              relation_request_family::exact_stored_coordinate_relation,
+              relation_artifact_assembly_detail::tagged_use(
+                  0x11U, static_cast<std::uint8_t>(descriptor.key.family)),
+              static_cast<std::uint32_t>(truth));
+          const auto *exact_producer =
+              relation_artifact_assembly_detail::find_request(graph_, exact_key);
+          if (!exact_producer)
+            return fail(error, relation_subcode::missing_dependency,
+                        "Component 07 exact relation producer is absent",
+                        relation_checkpoint::canonical_id_and_reference_remap);
+          relation_exact_relation_record exact;
+          exact.id = relation_exact_relation_id(exact_relations_.size());
+          exact.producer = exact_producer->id;
+          exact.source_relation = record.id;
+          exact.truth_ordinal = static_cast<std::uint32_t>(truth);
+          exact.status = value.exact_relation;
+          exact.exact_formula = value.exact_formula;
+          exact_relations_.push_back(exact);
+          lineage.exact_relation = exact.id;
+          lineage.has_exact_relation = true;
+        }
+        truth_lineage_.push_back(lineage);
+        truth_records_.push_back(value);
+      }
       if (!relation_ids_.emplace(descriptor.key, record.id).second)
         return fail(error, relation_subcode::incompatible_duplicate_request,
                     "Component 07 final relation key is duplicated",
@@ -1993,6 +2160,14 @@ private:
         artifact.request_graph_.reverse_consumers.size();
     artifact.statistics_.candidate_witness_count =
         artifact.request_graph_.candidate_witnesses.size();
+    artifact.statistics_.imported_geometry_count =
+        artifact.imported_geometry_.size();
+    artifact.statistics_.bounded_primitive_count =
+        artifact.bounded_primitives_.size();
+    artifact.statistics_.exact_relation_count =
+        artifact.exact_relations_.size();
+    artifact.statistics_.truth_lineage_count =
+        artifact.truth_lineage_.size();
     for (const auto &record : artifact.relations_)
       if (record.scope == relation_record_scope::public_source_feature)
         ++artifact.statistics_.public_relation_count;
@@ -2015,7 +2190,10 @@ private:
         artifact.request_graph_.sort_comparisons;
     artifact.statistics_.verifier_work_units =
         1 + artifact.request_graph_.requests.size() +
-        artifact.request_graph_.dependencies.size() + artifact.relations_.size() +
+        artifact.request_graph_.dependencies.size() +
+        artifact.imported_geometry_.size() +
+        artifact.bounded_primitives_.size() + artifact.exact_relations_.size() +
+        artifact.truth_lineage_.size() + artifact.relations_.size() +
         artifact.constructions_.size() + artifact.coplanar_event_nodes_.size() +
         artifact.coplanar_oriented_arcs_.size() +
         artifact.coplanar_overlap_components_.size() +
@@ -2043,6 +2221,11 @@ private:
   std::vector<relation_request_key> seed_request_keys_;
 
   relation_request_graph graph_{};
+  std::vector<relation_request_key> imported_keys_;
+  std::vector<relation_imported_geometry_record> imported_geometry_;
+  std::vector<relation_bounded_primitive_record> bounded_primitives_;
+  std::vector<relation_exact_relation_record> exact_relations_;
+  std::vector<relation_truth_lineage_record> truth_lineage_;
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;

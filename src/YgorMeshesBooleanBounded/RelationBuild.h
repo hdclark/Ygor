@@ -62,6 +62,10 @@ bool estimate_relation_persistent_bytes(
   std::uint64_t graph_bytes = 0;
   if (!relation_graph_storage_bytes(artifact.request_graph(), graph_bytes) ||
       !checked_accumulate_relation_bytes(graph_bytes, bytes) ||
+      !add_vector(artifact.imported_geometry()) ||
+      !add_vector(artifact.bounded_primitives()) ||
+      !add_vector(artifact.exact_relations()) ||
+      !add_vector(artifact.truth_lineage()) ||
       !add_vector(artifact.truth_records()) ||
       !add_vector(artifact.relations()) ||
       !add_vector(artifact.constructions()) ||
@@ -409,6 +413,10 @@ private:
         !add_work(artifact_->request_graph_.dependencies.size()) ||
         !add_work(artifact_->request_graph_.reverse_consumers.size()) ||
         !add_work(artifact_->request_graph_.candidate_witnesses.size()) ||
+        !add_work(artifact_->imported_geometry_.size()) ||
+        !add_work(artifact_->bounded_primitives_.size()) ||
+        !add_work(artifact_->exact_relations_.size()) ||
+        !add_work(artifact_->truth_lineage_.size()) ||
         !add_work(artifact_->truth_records_.size()) ||
         !add_work(artifact_->relations_.size()) ||
         !add_work(artifact_->constructions_.size()) ||

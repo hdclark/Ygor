@@ -33,6 +33,10 @@ template <class T> struct relation_artifact_envelope final {
   std::array<bool, 4> detailed_stage_present{};
   bounded_boolean_digest detailed_stage_digest{};
   bounded_boolean_digest graph_section_digest{};
+  std::uint64_t imported_geometry_count = 0;
+  std::uint64_t bounded_primitive_count = 0;
+  std::uint64_t exact_relation_count = 0;
+  std::uint64_t truth_lineage_count = 0;
   std::uint64_t truth_count = 0;
   std::uint64_t relation_count = 0;
   std::uint64_t construction_count = 0;

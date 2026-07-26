@@ -18,6 +18,52 @@ template <class T> struct candidate_coplanar_overlay_stage;
 template <class T, class I> class relation_artifact_assembler;
 struct relation_artifact_test_access;
 
+struct relation_imported_geometry_record final {
+  relation_imported_geometry_id id{0};
+  relation_request_id producer{0};
+  relation_feature_key feature{};
+  relation_record_scope scope = relation_record_scope::public_source_feature;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_bounded_primitive_record final {
+  relation_bounded_primitive_id id{0};
+  relation_request_id producer{0};
+  feature_relation_id source_relation{0};
+  std::uint32_t truth_ordinal = 0;
+  std::uint64_t rounded_nominal_bits = 0;
+  bounded_sign_status bounded_sign = bounded_sign_status::invalid;
+  predicate_disposition disposition = predicate_disposition::fail_invalid;
+  std::uint16_t rounded_formula = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_exact_relation_record final {
+  relation_exact_relation_id id{0};
+  relation_request_id producer{0};
+  feature_relation_id source_relation{0};
+  std::uint32_t truth_ordinal = 0;
+  exact_relation_status status = exact_relation_status::unavailable;
+  std::uint16_t exact_formula = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_truth_lineage_record final {
+  relation_truth_lineage_id id{0};
+  feature_relation_id source_relation{0};
+  std::uint32_t truth_ordinal = 0;
+  relation_bounded_primitive_id bounded_primitive{0};
+  relation_exact_relation_id exact_relation{0};
+  bool has_exact_relation = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
 struct relation_truth_record final {
   std::uint64_t rounded_nominal_bits = 0;
   bounded_sign_status bounded_sign = bounded_sign_status::invalid;
@@ -212,6 +258,14 @@ public:
   source_facet_stage() const noexcept { return source_facet_stage_; }
   const std::shared_ptr<const candidate_coplanar_overlay_stage<T>> &
   coplanar_overlay_stage() const noexcept { return coplanar_overlay_stage_; }
+  const std::vector<relation_imported_geometry_record> &
+  imported_geometry() const noexcept { return imported_geometry_; }
+  const std::vector<relation_bounded_primitive_record> &
+  bounded_primitives() const noexcept { return bounded_primitives_; }
+  const std::vector<relation_exact_relation_record> &
+  exact_relations() const noexcept { return exact_relations_; }
+  const std::vector<relation_truth_lineage_record> &
+  truth_lineage() const noexcept { return truth_lineage_; }
   const std::vector<relation_truth_record> &truth_records() const noexcept {
     return truth_records_;
   }
@@ -301,6 +355,10 @@ private:
   std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> source_edge_facet_stage_;
   std::shared_ptr<const candidate_source_facet_relation_stage<T>> source_facet_stage_;
   std::shared_ptr<const candidate_coplanar_overlay_stage<T>> coplanar_overlay_stage_;
+  std::vector<relation_imported_geometry_record> imported_geometry_;
+  std::vector<relation_bounded_primitive_record> bounded_primitives_;
+  std::vector<relation_exact_relation_record> exact_relations_;
+  std::vector<relation_truth_lineage_record> truth_lineage_;
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;

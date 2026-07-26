@@ -160,8 +160,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_candidate_disposition_schema = 1;
     static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
     static constexpr std::uint16_t relation_selection_boundary_policy = 1;
-    static constexpr std::uint16_t relation_codec = 5;
-    static constexpr std::uint16_t relation_verifier = 5;
+    static constexpr std::uint16_t relation_codec = 6;
+    static constexpr std::uint16_t relation_verifier = 6;
 
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;

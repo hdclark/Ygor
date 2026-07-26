@@ -554,13 +554,45 @@ Component 07 artifact rather than only nested audit data:
   and repaired-codec mutations of node sheet masks, arc endpoints, and component
   closure.
 
+## Implemented canonical primitive-support publication foundation
+
+The final relation graph now exposes the primitive truth lineage that was
+previously visible only inside composite relation records:
+
+- every authoritative source feature used by a final relation has one canonical
+  imported-geometry producer, with public/bookkeeping scope retained and no
+  runtime owner identity in semantic bytes;
+- every retained final truth record has one first-class rounded/bounded
+  primitive request and record carrying nominal bits, bounded sign, consumer
+  disposition, formula version, source relation, and local truth ordinal;
+- every requested exact stored-coordinate evaluation has one first-class exact
+  producer and record carrying exact status, formula version, source relation,
+  and local truth ordinal, while unavailable exact evaluations have no invented
+  producer;
+- explicit truth-lineage records bind the raw four-layer truth record to its
+  bounded producer and optional exact producer, and the authoritative composite
+  relation depends on both compute-once primitive requests;
+- bounded and exact primitive producers depend on the canonical imported source
+  features used by the relation, closing request families 01-03 ahead of the
+  existing relation families without coordinate or tolerance identity;
+- canonical codec/decode, statistics, checked preflight bounds, exact persistent
+  accounting, and independent verification cover all four new tables; and
+- repaired-codec mutations of imported features, rounded evidence, exact formula
+  identity, and truth lineage are independently rejected.
+
+This slice deliberately does not synthesize missing residual intervals or
+source-facet region predicates from the compact composite projection. Publishing
+those complete records requires carrying the already-qualified detailed
+enclosures and region evidence into first-class family-04 tables.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Replace remaining composite-local primitive support reconstruction with the
-   unified canonical primitive-support request family and expose its truth and
-   source-facet records directly in the final graph.
+1. Publish complete bounded residual/interval primitive evidence and the
+   already-qualified source-point/source-facet region records as first-class
+   family-04 graph producers; the imported, rounded/bounded, exact, and explicit
+   truth-lineage foundation is now implemented.
 2. Complete admitted clustered multi-event ordering and complete occurrence tie
    keys for source-edge/source-facet relations, including all supported
    source-vertex and shared-edge contact fixtures.

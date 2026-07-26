@@ -24,6 +24,26 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &imported_geometry(signed_feature_relations<T, I> &artifact) {
+    return artifact.imported_geometry_;
+  }
+
+  template <class T, class I>
+  static auto &bounded_primitives(signed_feature_relations<T, I> &artifact) {
+    return artifact.bounded_primitives_;
+  }
+
+  template <class T, class I>
+  static auto &exact_relations(signed_feature_relations<T, I> &artifact) {
+    return artifact.exact_relations_;
+  }
+
+  template <class T, class I>
+  static auto &truth_lineage(signed_feature_relations<T, I> &artifact) {
+    return artifact.truth_lineage_;
+  }
+
+  template <class T, class I>
   static auto &crossings(signed_feature_relations<T, I> &artifact) {
     return artifact.crossings_;
   }
@@ -164,9 +184,26 @@ void test_nonempty_determinism_and_decode() {
   const auto second = build_artifact(second_fixture, &second_resources);
 
   require(!first->relations().empty() &&
+              !first->imported_geometry().empty() &&
+              first->bounded_primitives().size() ==
+                  first->truth_records().size() &&
+              first->truth_lineage().size() == first->truth_records().size() &&
               first->candidate_dispositions().size() ==
                   first_fixture.artifact->candidates().size(),
-          "nonempty artifact publishes relations and complete dispositions");
+          "nonempty artifact publishes primitive support, relations, and complete dispositions");
+  std::size_t expected_exact = 0;
+  for (const auto &truth : first->truth_records())
+    expected_exact += truth.exact_formula != 0 ? 1U : 0U;
+  require(first->exact_relations().size() == expected_exact &&
+              first->statistics().imported_geometry_count ==
+                  first->imported_geometry().size() &&
+              first->statistics().bounded_primitive_count ==
+                  first->bounded_primitives().size() &&
+              first->statistics().exact_relation_count ==
+                  first->exact_relations().size() &&
+              first->statistics().truth_lineage_count ==
+                  first->truth_lineage().size(),
+          "primitive support counts reconstruct from final truth records");
   require(first->canonical_bytes() == second->canonical_bytes() &&
               first->digest() == second->digest(),
           "different runtime owner anchors produce identical relation semantics");
@@ -217,6 +254,59 @@ void test_matched_mutation_rejection() {
   bounded::relation_artifact_test_access::repair_codec(disposition_mutation);
   require(!bounded::verify_signed_feature_relations(disposition_mutation, error),
           "matched candidate-disposition mutation is rejected");
+
+  auto import_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!import_mutation.imported_geometry().empty(),
+          "mutation fixture requires imported geometry");
+  auto &import_record =
+      bounded::relation_artifact_test_access::imported_geometry(import_mutation)
+          .front();
+  ++import_record.feature.primary;
+  bounded::relation_artifact_test_access::repair_codec(import_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(import_mutation, error),
+          "matched imported-geometry mutation is independently rejected");
+
+  auto bounded_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!bounded_mutation.bounded_primitives().empty(),
+          "mutation fixture requires bounded primitives");
+  auto &bounded_record =
+      bounded::relation_artifact_test_access::bounded_primitives(
+          bounded_mutation)
+          .front();
+  bounded_record.rounded_nominal_bits ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(bounded_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(bounded_mutation, error),
+          "matched bounded-primitive mutation is independently rejected");
+
+  if (!artifact->exact_relations().empty()) {
+    auto exact_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &exact_record =
+        bounded::relation_artifact_test_access::exact_relations(exact_mutation)
+            .front();
+    exact_record.exact_formula ^= std::uint16_t{1};
+    bounded::relation_artifact_test_access::repair_codec(exact_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(exact_mutation, error),
+            "matched exact-relation mutation is independently rejected");
+  }
+
+  auto lineage_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!lineage_mutation.truth_lineage().empty(),
+          "mutation fixture requires truth lineage");
+  auto &lineage_record =
+      bounded::relation_artifact_test_access::truth_lineage(lineage_mutation)
+          .front();
+  lineage_record.truth_ordinal += 1U;
+  bounded::relation_artifact_test_access::repair_codec(lineage_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(lineage_mutation, error),
+          "matched truth-lineage mutation is independently rejected");
 
   if (!artifact->crossings().empty()) {
     auto crossing_mutation =

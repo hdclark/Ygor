@@ -105,7 +105,17 @@ bool preflight_relation_foundation(
   plan.disposition_upper_bound = plan.candidate_count;
 
   std::uint64_t multiplicity_upper_bound = plan.candidate_count;
-  if (!checked_add<std::uint64_t>(plan.initial_request_upper_bound,
+  std::uint64_t primitive_support_upper_bound = 0;
+  // Each authoritative base relation contributes at most two imported-source
+  // requests, three bounded primitive producers, and three exact producers.
+  // Canonical grouping only reduces this deliberately proposal-safe bound.
+  if (!checked_multiply<std::uint64_t>(plan.initial_request_upper_bound,
+                                       std::uint64_t{8},
+                                       primitive_support_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.initial_request_upper_bound,
+                                  primitive_support_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
                                   plan.construction_upper_bound,
                                   plan.request_upper_bound) ||
       !checked_add<std::uint64_t>(plan.request_upper_bound,
@@ -144,6 +154,12 @@ bool preflight_relation_foundation(
                                   plan.dependency_upper_bound) ||
       !checked_add<std::uint64_t>(plan.dependency_upper_bound,
                                   plan.initial_request_upper_bound,
+                                  plan.dependency_upper_bound) ||
+      !checked_multiply<std::uint64_t>(plan.initial_request_upper_bound,
+                                       std::uint64_t{18},
+                                       primitive_support_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.dependency_upper_bound,
+                                  primitive_support_upper_bound,
                                   plan.dependency_upper_bound)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,

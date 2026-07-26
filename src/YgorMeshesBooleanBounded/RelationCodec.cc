@@ -101,6 +101,52 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   const auto graph_bytes =
       encode_relation_request_graph_semantics(artifact.request_graph_);
   writer.sized_bytes(graph_bytes);
+  writer.u64(artifact.imported_geometry_.size());
+  for (const auto &record : artifact.imported_geometry_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.producer.ordinal());
+    encode_relation_feature_key(writer, record.feature);
+    writer.u8(static_cast<std::uint8_t>(record.scope));
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.bounded_primitives_.size());
+  for (const auto &record : artifact.bounded_primitives_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.producer.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u32(record.truth_ordinal);
+    writer.u64(record.rounded_nominal_bits);
+    writer.u8(static_cast<std::uint8_t>(record.bounded_sign));
+    writer.u8(static_cast<std::uint8_t>(record.disposition));
+    writer.u16(record.rounded_formula);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.exact_relations_.size());
+  for (const auto &record : artifact.exact_relations_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.producer.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u32(record.truth_ordinal);
+    writer.u8(static_cast<std::uint8_t>(record.status));
+    writer.u16(record.exact_formula);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.truth_lineage_.size());
+  for (const auto &record : artifact.truth_lineage_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u32(record.truth_ordinal);
+    writer.u64(record.bounded_primitive.ordinal());
+    writer.u64(record.exact_relation.ordinal());
+    writer.boolean(record.has_exact_relation);
+    writer.u8(record.reserved8);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
   writer.u64(artifact.truth_records_.size());
   for (const auto &record : artifact.truth_records_)
     encode_truth(writer, record);
@@ -259,6 +305,10 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.dependency_count);
   writer.u64(artifact.statistics_.reverse_consumer_count);
   writer.u64(artifact.statistics_.candidate_witness_count);
+  writer.u64(artifact.statistics_.imported_geometry_count);
+  writer.u64(artifact.statistics_.bounded_primitive_count);
+  writer.u64(artifact.statistics_.exact_relation_count);
+  writer.u64(artifact.statistics_.truth_lineage_count);
   writer.u64(artifact.statistics_.public_relation_count);
   writer.u64(artifact.statistics_.bookkeeping_relation_count);
   writer.u64(artifact.statistics_.construction_count);
@@ -337,6 +387,49 @@ inline bool count_fits(canonical_reader &reader, std::uint64_t count,
          (minimum_record_bytes == 0 ||
           count <= static_cast<std::uint64_t>(reader.remaining()) /
                        minimum_record_bytes);
+}
+
+inline bool read_imported_geometry_record(canonical_reader &reader) {
+  std::uint64_t id = 0, producer = 0;
+  std::uint8_t scope = 0, reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+  return reader.u64(id) && reader.u64(producer) && read_feature_key(reader) &&
+         reader.u8(scope) && reader.u8(reserved8) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+inline bool read_bounded_primitive_record(canonical_reader &reader) {
+  std::uint64_t id = 0, producer = 0, source = 0, nominal = 0;
+  std::uint32_t truth = 0, reserved32 = 0;
+  std::uint8_t bounded = 0, disposition = 0;
+  std::uint16_t formula = 0, reserved16 = 0;
+  return reader.u64(id) && reader.u64(producer) && reader.u64(source) &&
+         reader.u32(truth) && reader.u64(nominal) && reader.u8(bounded) &&
+         reader.u8(disposition) && reader.u16(formula) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+inline bool read_exact_relation_record(canonical_reader &reader) {
+  std::uint64_t id = 0, producer = 0, source = 0;
+  std::uint32_t truth = 0, reserved32 = 0;
+  std::uint8_t status = 0;
+  std::uint16_t formula = 0, reserved16 = 0;
+  return reader.u64(id) && reader.u64(producer) && reader.u64(source) &&
+         reader.u32(truth) && reader.u8(status) && reader.u16(formula) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
+}
+
+inline bool read_truth_lineage_record(canonical_reader &reader) {
+  std::uint64_t id = 0, source = 0, bounded = 0, exact = 0;
+  std::uint32_t truth = 0, reserved32 = 0;
+  bool has_exact = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t reserved16 = 0;
+  return reader.u64(id) && reader.u64(source) && reader.u32(truth) &&
+         reader.u64(bounded) && reader.u64(exact) &&
+         reader.boolean(has_exact) && reader.u8(reserved8) &&
+         reader.u16(reserved16) && reader.u32(reserved32);
 }
 
 inline bool read_truth_record(canonical_reader &reader) {
@@ -619,6 +712,54 @@ bool parse_relation_artifact_envelope(
                          "Component 07 request-graph section is malformed");
   envelope.graph_section_digest = sha256::digest(graph_section);
 
+  if (!reader.u64(envelope.imported_geometry_count) ||
+      !count_fits(reader, envelope.imported_geometry_count,
+                  capabilities.maximum_relations, 48))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 imported geometry count is malformed");
+  for (std::uint64_t i = 0; i < envelope.imported_geometry_count; ++i)
+    if (!read_imported_geometry_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 imported geometry table is truncated");
+
+  if (!reader.u64(envelope.bounded_primitive_count) ||
+      !count_fits(reader, envelope.bounded_primitive_count,
+                  capabilities.maximum_dependencies, 46))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 bounded primitive count is malformed");
+  for (std::uint64_t i = 0; i < envelope.bounded_primitive_count; ++i)
+    if (!read_bounded_primitive_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 bounded primitive table is truncated");
+
+  if (!reader.u64(envelope.exact_relation_count) ||
+      !count_fits(reader, envelope.exact_relation_count,
+                  capabilities.maximum_dependencies, 37))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 exact relation count is malformed");
+  for (std::uint64_t i = 0; i < envelope.exact_relation_count; ++i)
+    if (!read_exact_relation_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 exact relation table is truncated");
+
+  if (!reader.u64(envelope.truth_lineage_count) ||
+      !count_fits(reader, envelope.truth_lineage_count,
+                  capabilities.maximum_dependencies, 44))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 truth lineage count is malformed");
+  for (std::uint64_t i = 0; i < envelope.truth_lineage_count; ++i)
+    if (!read_truth_lineage_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 truth lineage table is truncated");
+
   if (!reader.u64(envelope.truth_count) ||
       !count_fits(reader, envelope.truth_count,
                   capabilities.maximum_dependencies, 19))
@@ -780,6 +921,10 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.dependency_count) ||
       !reader.u64(statistics.reverse_consumer_count) ||
       !reader.u64(statistics.candidate_witness_count) ||
+      !reader.u64(statistics.imported_geometry_count) ||
+      !reader.u64(statistics.bounded_primitive_count) ||
+      !reader.u64(statistics.exact_relation_count) ||
+      !reader.u64(statistics.truth_lineage_count) ||
       !reader.u64(statistics.public_relation_count) ||
       !reader.u64(statistics.bookkeeping_relation_count) ||
       !reader.u64(statistics.construction_count) ||
@@ -818,6 +963,10 @@ bool parse_relation_artifact_envelope(
                          "Component 07 encoded artifact has malformed or trailing data");
 
   if (statistics.candidate_count != envelope.candidate_disposition_count ||
+      statistics.imported_geometry_count != envelope.imported_geometry_count ||
+      statistics.bounded_primitive_count != envelope.bounded_primitive_count ||
+      statistics.exact_relation_count != envelope.exact_relation_count ||
+      statistics.truth_lineage_count != envelope.truth_lineage_count ||
       statistics.public_relation_count + statistics.bookkeeping_relation_count !=
           envelope.relation_count ||
       statistics.construction_count != envelope.construction_count ||

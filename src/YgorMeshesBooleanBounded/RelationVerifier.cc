@@ -166,6 +166,21 @@ relation_coplanar_component_kind verifier_coplanar_component_kind(
   return relation_coplanar_component_kind::isolated_point;
 }
 
+relation_request_key verifier_imported_geometry_key(
+    const bounded_boolean_digest &semantic_namespace,
+    const relation_feature_key &feature, relation_record_scope scope) noexcept {
+  relation_request_key out;
+  out.semantic_namespace = semantic_namespace;
+  out.family = relation_request_family::imported_source_geometry;
+  out.scope = scope;
+  out.first = feature;
+  out.second = relation_feature_key{};
+  out.second.operand = feature.operand;
+  out.formula_version = contract_versions::exact_relation_formulas;
+  out.policy_version = contract_versions::relation_request_key_schema;
+  return out;
+}
+
 relation_request_key verifier_derived_key(const relation_request_key &base,
                                           relation_request_family family,
                                           std::uint64_t directed_use,
@@ -702,6 +717,147 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 generic relation status disagrees with detailed evidence");
   }
+
+  std::vector<relation_request_key> expected_imports;
+  expected_imports.reserve(artifact.relations_.size() * 2U);
+  for (const auto &relation : artifact.relations_) {
+    const auto &key = artifact.request_graph_.requests[
+                          relation.producer.ordinal()]
+                          .key;
+    expected_imports.push_back(verifier_imported_geometry_key(
+        key.semantic_namespace, key.first, relation.scope));
+    if (key.second.kind != relation_feature_kind::none)
+      expected_imports.push_back(verifier_imported_geometry_key(
+          key.semantic_namespace, key.second, relation.scope));
+  }
+  std::sort(expected_imports.begin(), expected_imports.end());
+  expected_imports.erase(
+      std::unique(expected_imports.begin(), expected_imports.end()),
+      expected_imports.end());
+  if (artifact.imported_geometry_.size() != expected_imports.size() ||
+      artifact.bounded_primitives_.size() != artifact.truth_records_.size() ||
+      artifact.truth_lineage_.size() != artifact.truth_records_.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 primitive support tables are incomplete");
+  for (std::size_t i = 0; i < expected_imports.size(); ++i) {
+    const auto &record = artifact.imported_geometry_[i];
+    const auto *producer = find_request(artifact.request_graph_,
+                                        expected_imports[i]);
+    if (!producer || record.id.ordinal() != i ||
+        record.producer != producer->id ||
+        record.feature != expected_imports[i].first ||
+        record.scope != expected_imports[i].scope || record.reserved8 != 0 ||
+        record.reserved16 != 0 || record.reserved32 != 0)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 imported geometry record does not reconstruct");
+  }
+
+  std::size_t exact_ordinal = 0;
+  for (const auto &relation : artifact.relations_) {
+    const auto &relation_request = artifact.request_graph_.requests[
+        relation.producer.ordinal()];
+    for (std::uint64_t local = 0; local < relation.truth_count; ++local) {
+      const auto truth_index = relation.truth_begin + local;
+      if (truth_index >= artifact.truth_records_.size() ||
+          local > std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 primitive truth range is malformed");
+      const auto &truth = artifact.truth_records_[truth_index];
+      const auto &bounded = artifact.bounded_primitives_[truth_index];
+      const auto &lineage = artifact.truth_lineage_[truth_index];
+      const auto bounded_key = verifier_derived_key(
+          relation_request.key,
+          relation_request_family::rounded_bounded_primitive,
+          verifier_tagged_use(
+              0x10U, static_cast<std::uint8_t>(relation_request.key.family)),
+          static_cast<std::uint32_t>(local));
+      const auto *bounded_producer =
+          find_request(artifact.request_graph_, bounded_key);
+      if (!bounded_producer || bounded.id.ordinal() != truth_index ||
+          bounded.producer != bounded_producer->id ||
+          bounded.source_relation != relation.id ||
+          bounded.truth_ordinal != local ||
+          bounded.rounded_nominal_bits != truth.rounded_nominal_bits ||
+          bounded.bounded_sign != truth.bounded_sign ||
+          bounded.disposition != truth.disposition ||
+          bounded.rounded_formula != truth.rounded_formula ||
+          bounded.reserved16 != 0 || bounded.reserved32 != 0 ||
+          lineage.id.ordinal() != truth_index ||
+          lineage.source_relation != relation.id ||
+          lineage.truth_ordinal != local ||
+          lineage.bounded_primitive != bounded.id || lineage.reserved8 != 0 ||
+          lineage.reserved16 != 0 || lineage.reserved32 != 0 ||
+          !request_has_dependency(artifact.request_graph_, relation_request,
+                                  bounded.producer))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 bounded primitive lineage does not reconstruct");
+
+      const auto check_import_dependency =
+          [&](const relation_feature_key &feature) {
+            const auto key = verifier_imported_geometry_key(
+                relation_request.key.semantic_namespace, feature,
+                relation.scope);
+            const auto *import = find_request(artifact.request_graph_, key);
+            return import && request_has_dependency(
+                                 artifact.request_graph_, *bounded_producer,
+                                 import->id);
+          };
+      if (!check_import_dependency(relation_request.key.first) ||
+          (relation_request.key.second.kind != relation_feature_kind::none &&
+           !check_import_dependency(relation_request.key.second)))
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 bounded primitive omits imported geometry lineage");
+
+      if (truth.exact_formula != 0) {
+        if (exact_ordinal >= artifact.exact_relations_.size())
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 exact relation table is truncated");
+        const auto &exact = artifact.exact_relations_[exact_ordinal];
+        const auto exact_key = verifier_derived_key(
+            relation_request.key,
+            relation_request_family::exact_stored_coordinate_relation,
+            verifier_tagged_use(
+                0x11U, static_cast<std::uint8_t>(relation_request.key.family)),
+            static_cast<std::uint32_t>(local));
+        const auto *exact_producer =
+            find_request(artifact.request_graph_, exact_key);
+        if (!exact_producer || exact.id.ordinal() != exact_ordinal ||
+            exact.producer != exact_producer->id ||
+            exact.source_relation != relation.id ||
+            exact.truth_ordinal != local || exact.status != truth.exact_relation ||
+            exact.exact_formula != truth.exact_formula ||
+            exact.reserved16 != 0 || exact.reserved32 != 0 ||
+            !lineage.has_exact_relation ||
+            lineage.exact_relation != exact.id ||
+            !request_has_dependency(artifact.request_graph_, relation_request,
+                                    exact.producer))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 exact relation lineage does not reconstruct");
+        const auto check_exact_import =
+            [&](const relation_feature_key &feature) {
+              const auto key = verifier_imported_geometry_key(
+                  relation_request.key.semantic_namespace, feature,
+                  relation.scope);
+              const auto *import = find_request(artifact.request_graph_, key);
+              return import && request_has_dependency(
+                                   artifact.request_graph_, *exact_producer,
+                                   import->id);
+            };
+        if (!check_exact_import(relation_request.key.first) ||
+            (relation_request.key.second.kind != relation_feature_kind::none &&
+             !check_exact_import(relation_request.key.second)))
+          return fail(relation_subcode::missing_dependency,
+                      "Component 07 exact relation omits imported geometry lineage");
+        ++exact_ordinal;
+      } else if (lineage.has_exact_relation) {
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 unavailable exact truth has an exact producer");
+      }
+    }
+  }
+  if (exact_ordinal != artifact.exact_relations_.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 exact relation table has trailing records");
 
   for (const auto &truth : artifact.truth_records_)
     if (truth.reserved != 0 ||
@@ -1452,6 +1608,14 @@ bool verify_signed_feature_relations(
           artifact.request_graph_.reverse_consumers.size() ||
       artifact.statistics_.candidate_witness_count !=
           artifact.request_graph_.candidate_witnesses.size() ||
+      artifact.statistics_.imported_geometry_count !=
+          artifact.imported_geometry_.size() ||
+      artifact.statistics_.bounded_primitive_count !=
+          artifact.bounded_primitives_.size() ||
+      artifact.statistics_.exact_relation_count !=
+          artifact.exact_relations_.size() ||
+      artifact.statistics_.truth_lineage_count !=
+          artifact.truth_lineage_.size() ||
       artifact.statistics_.public_relation_count +
               artifact.statistics_.bookkeeping_relation_count !=
           artifact.relations_.size() ||
