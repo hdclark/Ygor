@@ -1,0 +1,232 @@
+name: Temporary scheduled Component 07 runner
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: component07-coplanar-event-topology
+  cancel-in-progress: false
+
+jobs:
+  apply-validate-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: hdclark/Ygor
+          fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Check whether the reviewed patch remains pending
+        id: pending
+        shell: bash
+        run: |
+          if compgen -G '.github/component07-coplanar-event-topology.patch.part-*' > /dev/null; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify and apply reviewed patch
+        if: steps.pending.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/component07-coplanar-event-topology.patch.part-* \
+            | base64 -d | gzip -d > /tmp/component07-coplanar-event-topology.patch
+          echo "0a4b10d4e0046f3d113dc9654ff2953e41e08099f7c4b577631444c177b4096b  /tmp/component07-coplanar-event-topology.patch" \
+            | sha256sum -c -
+          git apply --check /tmp/component07-coplanar-event-topology.patch
+          git apply --index /tmp/component07-coplanar-event-topology.patch
+          git diff --check --cached
+
+      - name: Configure strict C++17 focused chain
+        if: steps.pending.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ygor-component07-focused
+          python3 - <<'PY'
+          from pathlib import Path
+          repo = Path.cwd()
+          source_cmake = (repo / "src/YgorMeshesBooleanBounded/CMakeLists.txt").read_text()
+          start = source_cmake.index("add_library(ygor_mesh_boolean_bounded_strict")
+          end = source_cmake.index(
+              "set_property(TARGET ygor_mesh_boolean_bounded_strict", start)
+          block = source_cmake[start:end]
+          files = []
+          for line in block.splitlines()[1:]:
+              value = line.strip()
+              if not value:
+                  continue
+              if value.endswith(")"):
+                  value = value[:-1]
+                  if value:
+                      files.append(value)
+                  break
+              files.append(value)
+
+          output = '''cmake_minimum_required(VERSION 3.16)
+          project(YgorComponent07Focused LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+          find_package(Threads REQUIRED)
+
+          function(strict target)
+            target_compile_definitions(${target} PRIVATE YGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1)
+            if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+              target_compile_options(${target} PRIVATE
+                -fno-fast-math -frounding-math -fno-associative-math
+                -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only
+                -ffp-contract=off)
+            elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+              target_compile_options(${target} PRIVATE
+                -fno-fast-math -frounding-math -fsigned-zeros -ffp-contract=off)
+            else()
+              message(FATAL_ERROR "Unqualified strict floating profile")
+            endif()
+          endfunction()
+
+          set(REPO $ENV{GITHUB_WORKSPACE})
+          configure_file(${REPO}/src/YgorDefinitions.h.in
+                         ${CMAKE_BINARY_DIR}/YgorDefinitions.h)
+
+          add_library(core
+            ${REPO}/src/YgorMeshesExactFloatExpansionCore.cc
+            ${REPO}/src/YgorMeshesAdaptivePredicates.cc)
+          target_include_directories(core PUBLIC ${REPO}/src ${CMAKE_BINARY_DIR})
+          strict(core)
+
+          add_library(strictlib
+          '''
+          for filename in files:
+              output += f"  ${{REPO}}/src/YgorMeshesBooleanBounded/{filename}\n"
+          output += ''')
+          target_include_directories(strictlib PUBLIC ${REPO}/src ${CMAKE_BINARY_DIR})
+          target_link_libraries(strictlib PUBLIC core)
+          strict(strictlib)
+
+          function(component07_test target)
+            add_executable(${target} ${ARGN})
+            target_include_directories(${target} PRIVATE
+              ${REPO}/src ${CMAKE_BINARY_DIR}
+              ${REPO}/tests/mesh_boolean_bounded)
+            target_link_libraries(${target} PRIVATE strictlib Threads::Threads)
+            strict(${target})
+          endfunction()
+
+          component07_test(candidate_edge
+            ${REPO}/tests/mesh_boolean_bounded/TestCandidateSourceEdgeRelations.cc
+            ${REPO}/tests/mesh_boolean_bounded/BroadPhaseFixtures.cc
+            ${REPO}/tests/mesh_boolean_bounded/MinimalPublicMeshCarriers.cc
+            ${REPO}/src/YgorMeshesBooleanBounded/Cancellation.cc)
+          component07_test(edge_facet
+            ${REPO}/tests/mesh_boolean_bounded/TestEdgeFacetKernel.cc
+            ${REPO}/src/YgorMeshesBooleanBounded/Cancellation.cc)
+          component07_test(edge_facet_integration
+            ${REPO}/tests/mesh_boolean_bounded/TestEdgeFacetRelations.cc
+            ${REPO}/tests/mesh_boolean_bounded/BroadPhaseFixtures.cc
+            ${REPO}/tests/mesh_boolean_bounded/MinimalPublicMeshCarriers.cc
+            ${REPO}/src/YgorMeshesBooleanBounded/Cancellation.cc)
+          component07_test(facet_facet
+            ${REPO}/tests/mesh_boolean_bounded/TestFacetFacetKernel.cc
+            ${REPO}/src/YgorMeshesBooleanBounded/Cancellation.cc)
+          component07_test(coplanar
+            ${REPO}/tests/mesh_boolean_bounded/TestCoplanarRelationOverlay.cc
+            ${REPO}/src/YgorMeshesBooleanBounded/Cancellation.cc)
+          '''
+          Path("/tmp/ygor-component07-focused/CMakeLists.txt").write_text(output)
+          PY
+
+          cmake -S /tmp/ygor-component07-focused \
+                -B /tmp/ygor-component07-focused/build \
+                -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build and run focused Component 07 chain
+        if: steps.pending.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build /tmp/ygor-component07-focused/build -j2 \
+            --target candidate_edge edge_facet edge_facet_integration facet_facet coplanar
+          for test in candidate_edge edge_facet edge_facet_integration facet_facet coplanar; do
+            "/tmp/ygor-component07-focused/build/${test}"
+          done
+
+      - name: Commit validated implementation to PR 90
+        if: steps.pending.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/component07-coplanar-event-topology.patch.part-*
+          rm -f .github/component07-workspace-archive.md
+
+          cat > .github/component07-apply-trigger.md <<'TRIGGER'
+          Trigger the checked-in Component 07 coplanar event topology apply-and-validate workflow.
+
+          Run requested for PR #90 on 2026-07-25 (America/Vancouver).
+
+          Execution retriggered after confirming the branch-contained patch checksum and focused validation workflow on 2026-07-25.
+
+          Execution retriggered by the implementation agent on 2026-07-25 to apply, validate, commit, and push the reviewed Component 07 coplanar event-topology patch.
+
+          Execution retriggered on 2026-07-25 after tracker review confirmed Component 07 is the next incomplete component; workflow must apply the checked-in patch, run focused strict C++17 validation, commit, and push.
+          TRIGGER
+
+          cat > .github/component07-child-pr-trigger.md <<'TRIGGER'
+          Trigger the reviewed Component 07 coplanar event topology apply-and-validate workflow.
+          TRIGGER
+
+          cat > .github/workflows/component07-workspace.yml <<'EXPORT'
+          name: Component 07 workspace export
+
+          on:
+            pull_request:
+              branches:
+                - master
+            push:
+              branches:
+                - agent/bounded-manifold-mesh-boolean-plan
+
+          jobs:
+            export:
+              runs-on: ubuntu-latest
+              timeout-minutes: 15
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    fetch-depth: 0
+                - name: Package checkout
+                  run: |
+                    git status --short --branch
+                    tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: ygor-component07-workspace
+                    path: /tmp/ygor-component07-workspace.tar.gz
+                    if-no-files-found: error
+                    retention-days: 1
+          EXPORT
+
+          git diff --check
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement Component 07 coplanar event topology (plan 07)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component07-coplanar-event-topology-failure
+          path: |
+            /tmp/component07-coplanar-event-topology.patch
+            /tmp/ygor-component07-focused/build/CMakeFiles/CMakeOutput.log
+          if-no-files-found: ignore
+          retention-days: 3
