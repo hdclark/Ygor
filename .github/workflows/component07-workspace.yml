@@ -9,9 +9,6 @@ on:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
 
-permissions:
-  contents: write
-
 jobs:
   export:
     runs-on: ubuntu-latest
@@ -20,19 +17,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply queued Component 07 patch series
-        if: ${{ github.event_name == 'push' && hashFiles('.github/component07-series.ready') != '' }}
-        run: |
-          git config user.name "OpenAI"
-          git config user.email "noreply@openai.com"
-          cat .github/component07-patch-b64/part-* > /tmp/component07-series.patch.gz.b64
-          test "$(sha256sum /tmp/component07-series.patch.gz.b64 | cut -d' ' -f1)" = "1a9f05c1a9cc40df6f04f33040a6826215725cc1da3ae08f06233784a85e41fc"
-          base64 --decode /tmp/component07-series.patch.gz.b64 | gzip --decompress > /tmp/component07-series.patch
-          test "$(sha256sum /tmp/component07-series.patch | cut -d' ' -f1)" = "fb849644d7694510e9e9dd01b6cdbbbfc06fb48b6c54d86ff91f8b2fe10fe3ac"
-          git am --3way /tmp/component07-series.patch
-          git rm -r .github/component07-patch-b64 .github/component07-series.ready
-          git commit -m "Component 07: remove applied patch bundle"
-          git push origin HEAD:"${GITHUB_REF_NAME}"
       - name: Package checkout
         run: |
           git status --short --branch
