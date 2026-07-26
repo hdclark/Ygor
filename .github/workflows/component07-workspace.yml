@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply queued Component 07 implementation series
-        if: ${{ github.event_name == 'push' && hashFiles('.github/component07-series.ready') != '' }}
+        if: ${{ github.event_name == 'push' }}
         run: |
           git config user.name "OpenAI"
           git config user.email "noreply@openai.com"
