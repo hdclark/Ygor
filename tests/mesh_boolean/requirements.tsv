@@ -19,3 +19,4 @@ C14-GAP-G9C	plan-gap.G9c	standalone realization verification rejects producer-sh
 C14-META-001	plan14.9	Boolean operand and exact transform relations	C14.META.commutative.geometry	property	continuous
 C14-MUT-001	plan14.12	independent output verifier rejects topology and evidence corruption	C14.MUT.output.detectors	mutation	extended
 C14-PERF-001	plan14.15	fixed correctness-preserving benchmark remains outside CTest	MeshBooleanBenchmark	qualification	qualification
+P6-CORPUS-001	plan16.P6.2	permanent corpus floors, coverage dimensions, regression retention, and digest bindings	C14.QUAL.corpus.inventory.P6.2	qualification	continuous
