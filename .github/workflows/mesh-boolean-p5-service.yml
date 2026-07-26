@@ -1,4 +1,4 @@
-name: Mesh Boolean P5.2 service
+name: Mesh Boolean P5 service and examples
 
 on:
   push:
@@ -15,8 +15,11 @@ on:
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanService.cc'
       - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'examples/MeshBooleanExample.cc'
+      - 'examples/MeshBooleanExpertExample.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanService.md'
+      - 'docs/MeshBooleanMigration.md'
       - 'docs/MeshBooleanProductContract.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p5-service.yml'
@@ -32,8 +35,11 @@ on:
       - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanService.cc'
       - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'examples/MeshBooleanExample.cc'
+      - 'examples/MeshBooleanExpertExample.cc'
       - 'tests/CMakeLists.txt'
       - 'docs/MeshBooleanService.md'
+      - 'docs/MeshBooleanMigration.md'
       - 'docs/MeshBooleanProductContract.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p5-service.yml'
@@ -63,7 +69,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug
           -DWITH_EIGEN=OFF
           -DWITH_GNU_GSL=OFF
-      - name: Build P5.2 targets
+      - name: Build P5 targets
         run: >-
           cmake --build build-p5-service
           --target ygor_mesh_boolean_attribute_verifier_isolation
@@ -76,9 +82,11 @@ jobs:
           Test_MeshesBooleanAttributes
           Test_MeshesBooleanService
           Test_MeshesBooleanEndToEnd
+          MeshBooleanExample
+          MeshBooleanExpertExample
           --parallel 2
-      - name: Run P5.2 integration gates
+      - name: Run P5 integration gates
         run: >-
           ctest --test-dir build-p5-service --output-on-failure
-          -R '^(MeshesBooleanProductContract|MeshBooleanPreparation.Unit|MeshBooleanNormalization.Unit|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit|MeshBooleanAttributes.Unit|MeshBooleanService.Unit|MeshBoolean.EndToEnd)$'
+          -R '^(MeshesBooleanProductContract|MeshBooleanPreparation.Unit|MeshBooleanNormalization.Unit|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit|MeshBooleanAttributes.Unit|MeshBooleanService.Unit|MeshBoolean.EndToEnd|MeshBoolean.Example.Ordinary|MeshBoolean.Example.Expert)$'
           --timeout 900
