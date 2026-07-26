@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   export-workspace:
-    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
