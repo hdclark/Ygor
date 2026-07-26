@@ -4,9 +4,10 @@ This document defines the product boundary introduced by Plan 15 P0, the
 durable exact-result authority introduced by P1, the explicit strict and
 normalized preparation services introduced by P2, the complete output modes
 introduced by P3, the capability-described backend boundary introduced by P4,
-and the stable provenance and attribute-transfer contract introduced by P5.1.
-It does not promote any backend to production qualification or implement the
-one-call application service from P5.2.
+the stable provenance and attribute-transfer contract introduced by P5.1,
+the conservative one-call service introduced by P5.2, and the ordinary-caller
+and migration guidance introduced by P5.3. It does not promote any backend to
+production qualification.
 
 ## Current support boundary
 
@@ -558,4 +559,6 @@ exact authority is retained after a requested mesh realization fails. Explicit
 experimental use requires both backend selection and unqualified-use opt-in.
 Kernel, verifier, executor, backend-registry, and immutable result-store
 dependency injection remains available only through the separately documented
-`boolean_operation_expert` API. See `docs/MeshBooleanService.md`.
+`boolean_operation_expert` API. See `docs/MeshBooleanService.md` for the service
+contract and `docs/MeshBooleanMigration.md` for ordinary-caller migration,
+result handling, and the explicit unknown-provenance preparation boundary.

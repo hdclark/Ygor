@@ -60,3 +60,21 @@ already verified immutable result and may persist it, but cannot replace the
 published handle. Ordinary callers should use `boolean_operation(...)`; they do
 not register internal verifiers, inject executors, manage backend adapters, or
 control publication storage.
+
+
+## Examples and migration
+
+`examples/MeshBooleanExample.cc` is the ordinary application example. It uses
+only `boolean_operation(...)` and covers conservative-default rejection,
+explicit experimental-backend opt-in, strict versus structural-normalized
+preparation, strict exact-in-`T` output, retained exact authority after a finite
+realization failure, separately certified approximate output, attribute-report
+inspection, and typed malformed-input rejection.
+
+`examples/MeshBooleanExpertExample.cc` is explicitly expert/internal. It uses
+`boolean_operation_expert(...)` to inject an executor factory and immutable
+product store. It is retained for controlled dependency injection and does not
+represent the recommended ordinary-caller setup.
+
+See `docs/MeshBooleanMigration.md` for the replacement of the former manual
+verifier/context example and for the unknown-provenance input boundary.

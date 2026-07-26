@@ -1,84 +1,14 @@
-#include <YgorMeshesBooleanOutput.h>
-#include <YgorMeshesBooleanPreparation.h>
-#include <YgorMeshesExactKernel.h>
+#include <YgorMeshesBooleanService.h>
 
-#include <array>
 #include <cstdint>
 #include <iostream>
-#include <memory>
 #include <string>
 
 namespace {
 
-using mesh_type = fv_surface_mesh<double, std::uint64_t>;
 using namespace ygor::mesh_boolean;
+using mesh_type = fv_surface_mesh<double, std::uint32_t>;
 
-// The engine verifies every intermediate artifact. Register the verifiers once
-// and reuse the resulting immutable service for as many operations as needed.
-status_or<std::shared_ptr<const verifier_service>> make_verifier_service() {
-  auto registry = std::make_shared<verifier_registry>();
-  constexpr auto coordinate = coordinate_tag::binary64;
-  constexpr auto index = index_tag::uint64;
-
-  const std::array<status_or<bool>, 10> registrations{{
-      register_input_topology_verifier(*registry, coordinate, index),
-      register_broad_phase_verifier(*registry, coordinate, index),
-      register_intersection_events_verifier(*registry, coordinate, index),
-      register_symbolic_registry_verifier(*registry, coordinate, index),
-      register_local_refinement_verifier(*registry, coordinate, index),
-      register_global_arrangement_verifier(*registry, coordinate, index),
-      register_cell_classification_verifier(*registry, coordinate, index),
-      register_boolean_selection_verifier(*registry, coordinate, index),
-      register_geometry_realization_verifier(*registry, coordinate, index),
-      register_boolean_output_verifier(*registry, coordinate, index),
-  }};
-  for (const auto &registration : registrations) {
-    if (!registration.has_value())
-      return registration.error();
-  }
-
-  auto frozen = registry->freeze();
-  if (!frozen.has_value())
-    return frozen.error();
-  return std::shared_ptr<const verifier_service>(std::move(registry));
-}
-
-// This is the current expert workflow after operands have passed an explicit
-// preparation decision. The future one-call product service is tracked by P5.
-boolean_result<double, std::uint64_t>
-run_boolean(const prepared_operand<double, std::uint64_t> &a,
-            const prepared_operand<double, std::uint64_t> &b,
-            operation requested,
-            const std::shared_ptr<const exact_kernel_services<double>> &kernel,
-            const std::shared_ptr<const verifier_service> &verifiers) {
-  // This expert API defaults to strict exact-in-double realization and manifold
-  // output. That mode is useful for dyadic/exact workflows, but it is not the
-  // ordinary CAD-output target; P5 will replace this product-facing example.
-  boolean_options options;
-
-  auto context =
-      make_boolean_context(a, b, requested, options, kernel, verifiers);
-  if (!context.has_value())
-    return context.error();
-
-  // This runs the remaining exact Boolean stages. Success guarantees that the
-  // public mesh passed manifold, embedding, orientation, and realization checks.
-  return assemble_boolean_output(*context.value());
-}
-
-void report_error(const boolean_error &error) {
-  std::cerr << render_error(error) << '\n';
-  if (error.code == boolean_error_code::result_topology_not_supported) {
-    std::cerr << "The exact selected boundary exists, but is not a closed "
-                 "embedded two-manifold.\n";
-  } else if (error.code == boolean_error_code::output_not_representable) {
-    std::cerr << "The exact result cannot be represented by double coordinates "
-                 "without changing it.\n";
-  }
-}
-
-// Only the executable test needs sample inputs. Applications already have the
-// two meshes described in run_boolean(); outward face winding is significant.
 mesh_type make_box(double lo, double hi) {
   mesh_type mesh;
   mesh.vertices = {{lo, lo, lo}, {hi, lo, lo}, {hi, hi, lo}, {lo, hi, lo},
@@ -88,81 +18,235 @@ mesh_type make_box(double lo, double hi) {
   return mesh;
 }
 
+mesh_type make_third_intersection_prism() {
+  mesh_type mesh;
+  mesh.vertices = {{0.0, 0.0, 0.0}, {1.0, 3.0, 0.0}, {0.0, 3.0, 0.0},
+                   {0.0, 0.0, 1.0}, {1.0, 3.0, 1.0}, {0.0, 3.0, 1.0}};
+  mesh.faces = {{0, 2, 1}, {3, 4, 5}, {0, 1, 4, 3},
+                {1, 2, 5, 4}, {2, 0, 3, 5}};
+  return mesh;
+}
+
+void report_error(const char *where, const product_error &error) {
+  std::cerr << where << ": product error "
+            << static_cast<unsigned>(error.code) << " (" << error.message_key
+            << ')';
+  if (!error.detail.empty())
+    std::cerr << ": " << error.detail;
+  std::cerr << '\n';
+}
+
+boolean_service_options experimental_options(result_representation result) {
+  boolean_service_options options;
+
+  // The built-in backend is experimental, so ordinary callers must opt in to
+  // both its identity/maturity and explicit unqualified use. The conservative
+  // default never makes this choice silently.
+  options.product.backend.mode = backend_selection_mode::explicit_backend;
+  options.product.backend.requested_backend =
+      backend_id::experimental_exact_v1;
+  options.product.backend.allow_experimental_backend = true;
+  options.product.qualification.mode =
+      qualification_policy_mode::allow_explicit_unqualified;
+  options.product.result.representation = result;
+  options.product.attributes.mode =
+      attribute_transfer_mode::preserve_supported_with_report;
+
+  if (result == result_representation::exact_in_T_mesh) {
+    options.product.realization.semantics =
+        product_realization_semantics::exact_in_T;
+    options.product.realization.search.strategy =
+        realization_search_strategy::nearest_only;
+  } else if (result ==
+             result_representation::certified_approximate_mesh) {
+    auto &realization = options.product.realization;
+    realization.semantics = product_realization_semantics::
+        certified_approximate_embedding_v1;
+    realization.search.strategy =
+        realization_search_strategy::deterministic_bounded_search;
+    realization.search.max_candidates = 27;
+    realization.search.max_candidate_evaluations = 100000;
+    realization.search.max_search_nodes = 1000000;
+    realization.search.max_obligations = 1000000;
+    realization.search.max_triangle_pairs = 1000000;
+    realization.search.max_predicate_checks = 100000000;
+    realization.search.max_verifier_work = 100000000;
+    realization.search.max_verifier_records = 10000000;
+    realization.search.max_verifier_bytes = 256U * 1024U * 1024U;
+    realization.approximation.enabled = true;
+    realization.approximation.unit = model_unit::unitless;
+    realization.approximation.max_vertex_displacement = 1.0e-12;
+    realization.approximation.max_support_plane_deviation = 1.0e-12;
+    realization.approximation.declared_model_tolerance = 1.0e-11;
+    realization.approximation.candidate_generation_version = 1;
+    realization.approximation.candidate_ulp_radius = 1;
+    realization.approximation.application_acceptance_metadata =
+        "example-unitless-model-tolerance";
+  }
+  return options;
+}
+
+bool check_product(const boolean_product_result<double, std::uint32_t> &product,
+                   const char *where) {
+  const auto checked = validate_product_result(product);
+  if (!checked.has_value()) {
+    report_error(where, checked.error());
+    return false;
+  }
+  return true;
+}
+
+void report_attributes(
+    const boolean_product_result<double, std::uint32_t> &product) {
+  std::cout << "attributes: " << product.attributes.transfers.size()
+            << " transfers, " << product.attributes.omissions
+            << " omissions, " << product.attributes.conflicts
+            << " conflicts\n";
+}
+
 } // namespace
 
 int main() {
-  auto verifiers = make_verifier_service();
-  if (!verifiers.has_value()) {
-    report_error(verifiers.error());
-    return 1;
-  }
-  std::shared_ptr<const exact_kernel_services<double>> kernel =
-      std::make_shared<exact_kernel<double>>();
-
-  // These generated fixtures have known provenance and are intended to satisfy
-  // the strict B-rep contract. Imported STL/OBJ/scan/CAD tessellations require
-  // an explicit diagnosis or repair policy and application review; they must
-  // not be substituted here as though strict validation were automatic healing.
   const mesh_type a = make_box(0.0, 1.0);
   const mesh_type b = make_box(3.0, 4.0);
-  const strict_validation_policy strict_policy;
-  const boolean_options options;
-  auto prepared_a = validate_operand_strict(a, strict_policy, options, kernel,
-                                            verifiers.value());
-  auto prepared_b = validate_operand_strict(b, strict_policy, options, kernel,
-                                            verifiers.value());
-  if (!prepared_a.has_value() || !prepared_b.has_value()) {
-    report_error(!prepared_a.has_value() ? prepared_a.error()
-                                         : prepared_b.error());
+
+  // Conservative defaults require a qualified backend/profile. They do not
+  // silently select the experimental in-tree backend.
+  const auto conservative =
+      boolean_operation(a, b, operation::regularized_union);
+  if (conservative.has_value() ||
+      conservative.error().code != product_error_code::backend_unqualified) {
+    std::cerr << "conservative default did not fail closed\n";
     return 1;
   }
-  struct example_case {
-    const char *name;
-    operation requested;
-    std::size_t expected_vertices;
-    std::size_t expected_faces;
-  };
-  const std::array<example_case, 4> cases{{
-      {"union", operation::regularized_union, 16, 24},
-      {"intersection", operation::regularized_intersection, 0, 0},
-      {"subtraction A-B", operation::a_minus_b, 8, 12},
-      {"exclusion (symmetric difference)", operation::symmetric_difference, 16,
-       24},
-  }};
+  report_error("expected conservative-default rejection", conservative.error());
 
-  for (const auto &entry : cases) {
-    auto result = run_boolean(prepared_a.value(), prepared_b.value(),
-                              entry.requested, kernel, verifiers.value());
-    if (!result.has_value()) {
-      std::cerr << entry.name << " failed: ";
-      report_error(result.error());
-      return 1;
-    }
-
-    // Copying success.mesh extracts an ordinary manifold mesh independent of
-    // the result wrapper. An empty intersection is a successful empty mesh.
-    mesh_type manifold_mesh = result.value()->mesh;
-    if (manifold_mesh.vertices.size() != entry.expected_vertices ||
-        manifold_mesh.faces.size() != entry.expected_faces) {
-      std::cerr << entry.name << " produced unexpected output dimensions\n";
-      return 1;
-    }
-    std::cout << entry.name << ": " << manifold_mesh.vertices.size()
-              << " vertices, " << manifold_mesh.faces.size() << " faces\n";
-  }
-
-  // The explicit validation call above must reject malformed input instead of
-  // repairing it. This also keeps the example's error path covered by CTest.
-  mesh_type open_mesh = a;
-  open_mesh.faces.pop_back();
-  auto rejected = validate_operand_strict(open_mesh, strict_policy, options,
-                                          kernel, verifiers.value());
-  if (rejected.has_value() ||
-      rejected.error().code != boolean_error_code::input_contract_error ||
-      rejected.error().stage != boolean_stage::input_validation) {
-    std::cerr << "invalid input did not produce the expected typed error\n";
+  // Strict preparation plus exact-in-double mesh output for known-provenance,
+  // already-valid B-reps.
+  auto strict_options =
+      experimental_options(result_representation::exact_in_T_mesh);
+  const auto strict =
+      boolean_operation(a, b, operation::regularized_union, strict_options);
+  if (!strict.has_value()) {
+    report_error("strict exact mesh", strict.error());
     return 1;
   }
+  const auto &strict_product = *strict.value();
+  if (!check_product(strict_product, "strict exact mesh") ||
+      !strict_product.mesh || !strict_product.mesh->success ||
+      strict_product.backend.producer.maturity != backend_maturity::experimental) {
+    std::cerr << "strict exact mesh result was incomplete\n";
+    return 1;
+  }
+  const auto &strict_mesh = strict_product.mesh->success->mesh;
+  std::cout << "strict exact mesh: " << strict_mesh.vertices.size()
+            << " vertices, " << strict_mesh.faces.size() << " faces\n";
+  report_attributes(strict_product);
+
+  // Normalization is a separate, explicit preparation choice. This structural
+  // policy removes only irrelevant storage; it is not automatic healing.
+  mesh_type normalized_a = a;
+  mesh_type normalized_b = b;
+  normalized_a.vertices.push_back({99.0, 99.0, 99.0});
+  normalized_b.vertices.push_back({98.0, 98.0, 98.0});
+  auto normalized_options =
+      experimental_options(result_representation::exact_stratified);
+  normalization_policy normalization;
+  normalization.mode = normalization_mode::structural_only;
+  normalization.enabled_operations = normalization_operation_bit(
+      normalization_operation::irrelevant_storage_removal);
+  normalized_options.normalization = normalization;
+  normalized_options.product.preparation.mode = preparation_mode::normalized;
+  auto &bound = normalized_options.product.preparation.normalization;
+  bound.mode = normalization.mode;
+  bound.unit = normalization.unit;
+  bound.model_tolerance = normalization.model_tolerance;
+  bound.enabled_operations = normalization.enabled_operations;
+  bound.nonplanar_facets = normalization.nonplanar_facets;
+  const auto normalized = boolean_operation(normalized_a, normalized_b,
+                                            operation::regularized_union,
+                                            normalized_options);
+  if (!normalized.has_value()) {
+    report_error("explicit normalization", normalized.error());
+    return 1;
+  }
+  const auto &normalized_product = *normalized.value();
+  if (!check_product(normalized_product, "explicit normalization") ||
+      normalized_product.preparation.mode != preparation_mode::normalized ||
+      normalized_product.preparation.input_digest ==
+          normalized_product.preparation.prepared_digest) {
+    std::cerr << "normalization provenance was not retained\n";
+    return 1;
+  }
+  std::cout << "explicit structural normalization retained an auditable report\n";
+
+  // A one-third intersection is not exactly representable in binary64. The
+  // failed exact-in-T realization remains a successful durable exact result.
+  const mesh_type cube = make_box(0.0, 1.0);
+  const mesh_type prism = make_third_intersection_prism();
+  auto retained_options =
+      experimental_options(result_representation::exact_in_T_mesh);
+  retained_options.product.result.retain_exact_result_on_realization_failure =
+      true;
+  const auto retained = boolean_operation(cube, prism,
+                                          operation::regularized_intersection,
+                                          retained_options);
+  if (!retained.has_value()) {
+    report_error("retained exact authority", retained.error());
+    return 1;
+  }
+  const auto &retained_product = *retained.value();
+  if (!check_product(retained_product, "retained exact authority") ||
+      retained_product.representation !=
+          result_representation::exact_stratified ||
+      retained_product.mesh || !retained_product.exact_result.valid() ||
+      !retained_product.realization ||
+      !retained_product.realization->failure ||
+      retained_product.realization->failure->code !=
+          product_error_code::output_not_representable) {
+    std::cerr << "finite realization failure erased exact authority\n";
+    return 1;
+  }
+  std::cout << "exact authority retained after exact-in-T realization failure\n";
+
+  // Approximate geometry is requested and labelled separately, with an
+  // application-declared tolerance and an independently verified certificate.
+  const auto approximate = boolean_operation(
+      cube, prism, operation::regularized_intersection,
+      experimental_options(result_representation::certified_approximate_mesh));
+  if (!approximate.has_value()) {
+    report_error("certified approximate mesh", approximate.error());
+    return 1;
+  }
+  const auto &approximate_product = *approximate.value();
+  if (!check_product(approximate_product, "certified approximate mesh") ||
+      approximate_product.representation !=
+          result_representation::certified_approximate_mesh ||
+      !approximate_product.mesh || !approximate_product.mesh->success ||
+      !approximate_product.mesh->approximate_certificate) {
+    std::cerr << "approximate mesh lacked its certificate\n";
+    return 1;
+  }
+  std::cout << "certified approximate mesh: "
+            << approximate_product.mesh->success->mesh.vertices.size()
+            << " vertices\n";
+  report_attributes(approximate_product);
+
+  // Imported STL/OBJ/scan/CAD tessellations of unknown provenance must first be
+  // diagnosed and reviewed under an explicit preparation policy. Passing them
+  // to the strict path does not imply repair. This open mesh demonstrates the
+  // typed failure returned by strict validation.
+  mesh_type open = a;
+  open.faces.pop_back();
+  const auto malformed = boolean_operation(
+      open, b, operation::regularized_union,
+      experimental_options(result_representation::exact_stratified));
+  if (malformed.has_value() ||
+      malformed.error().code != product_error_code::input_contract_error) {
+    std::cerr << "malformed input did not produce a typed contract error\n";
+    return 1;
+  }
+  report_error("expected strict-input rejection", malformed.error());
 
   return 0;
 }

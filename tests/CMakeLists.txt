@@ -135,16 +135,27 @@ add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualifi
 add_component14_test(Test_MeshesBooleanPerformanceBaselines
     MeshBoolean.PerformanceBaselines "performance" 600)
 
-# Keep the documented end-user example independent of test-only support code.
+# Keep the documented ordinary and expert examples independent of test-only
+# support code. Both executables are end-to-end contract tests.
 add_executable(MeshBooleanExample
     ${PROJECT_SOURCE_DIR}/examples/MeshBooleanExample.cc)
 target_link_libraries(MeshBooleanExample PRIVATE ygor Threads::Threads)
 target_compile_features(MeshBooleanExample PRIVATE cxx_std_17)
 mesh_boolean_strict_fp(MeshBooleanExample)
-add_test(NAME MeshBoolean.Example COMMAND MeshBooleanExample)
-set_tests_properties(MeshBoolean.Example PROPERTIES
-    TIMEOUT 600
-    LABELS "mesh_boolean;component14;example;continuous")
+add_test(NAME MeshBoolean.Example.Ordinary COMMAND MeshBooleanExample)
+set_tests_properties(MeshBoolean.Example.Ordinary PROPERTIES
+    TIMEOUT 900
+    LABELS "mesh_boolean;component14;example;p5;p5.3;continuous")
+
+add_executable(MeshBooleanExpertExample
+    ${PROJECT_SOURCE_DIR}/examples/MeshBooleanExpertExample.cc)
+target_link_libraries(MeshBooleanExpertExample PRIVATE ygor Threads::Threads)
+target_compile_features(MeshBooleanExpertExample PRIVATE cxx_std_17)
+mesh_boolean_strict_fp(MeshBooleanExpertExample)
+add_test(NAME MeshBoolean.Example.Expert COMMAND MeshBooleanExpertExample)
+set_tests_properties(MeshBoolean.Example.Expert PROPERTIES
+    TIMEOUT 900
+    LABELS "mesh_boolean;component14;example;expert;p5;p5.3;continuous")
 
 add_executable(Test_MeshesBooleanPlanGaps Test_MeshesBooleanPlanGaps.cc)
 target_link_libraries(Test_MeshesBooleanPlanGaps PRIVATE mesh_boolean_test_support)

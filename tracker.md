@@ -182,10 +182,10 @@ Start only after P4.
   - [x] Keep kernel/verifier/executor/backend/store dependency injection behind a separately documented expert API.
   - [x] Add service-level cancellation, resource-limit, thread-count, replay, exception-safety, and partial-publication tests.
 
-- [ ] **P5.3 — Replace the product-facing example and migration guidance.**
-  - [ ] Add a minimal ordinary-caller example using the one-call service, strict versus normalized preparation choices, explicit backend/maturity selection, exact-result retention, exact/approximate mesh handling, attribute reports, and typed failures.
-  - [ ] Retain an advanced example for dependency injection, clearly labeled as expert/internal usage.
-  - [ ] Add end-to-end tests for both examples and remove any implication that unknown-provenance meshes are accepted without a preparation policy.
+- [x] **P5.3 — Replace the product-facing example and migration guidance.**
+  - [x] Add a minimal ordinary-caller example using the one-call service, strict versus normalized preparation choices, explicit backend/maturity selection, exact-result retention, exact/approximate mesh handling, attribute reports, and typed failures.
+  - [x] Retain an advanced example for dependency injection, clearly labeled as expert/internal usage.
+  - [x] Add end-to-end tests for both examples and remove any implication that unknown-provenance meshes are accepted without a preparation policy.
 
 **P5 exit gate:** ordinary callers do not register internal verifiers manually; provenance and attribute behavior is explicit; the simple service cannot select an experimental/unqualified or semantically incompatible path silently.
 
