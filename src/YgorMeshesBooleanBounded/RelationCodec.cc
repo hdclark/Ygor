@@ -1,5 +1,6 @@
 #include "StrictFloatingBuild.h"
 #include "RelationCodec.h"
+#include "CoplanarRelationOverlay.h"
 
 namespace ygor::mesh_boolean::bounded {
 namespace {
@@ -18,6 +19,19 @@ void encode_truth(canonical_writer &writer,
   writer.u8(static_cast<std::uint8_t>(record.disposition));
   writer.u16(record.rounded_formula);
   writer.u16(record.exact_formula);
+  writer.u32(record.reserved);
+}
+
+
+void encode_eligibility(canonical_writer &writer,
+                        const symbolic_eligibility_record &record) {
+  encode_relation_request_key(writer, record.request);
+  writer.u8(static_cast<std::uint8_t>(record.exact_relation));
+  writer.boolean(record.exact_lineage_tie);
+  writer.boolean(record.representational_tie_evidence);
+  writer.boolean(record.structural_category_eligible);
+  writer.boolean(record.tolerance_compatible);
+  writer.boolean(record.rounded_nominal_zero);
   writer.u32(record.reserved);
 }
 
@@ -59,6 +73,25 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   encode_digest(writer, artifact.precision_digest_);
   encode_digest(writer, artifact.candidate_digest_);
   encode_digest(writer, artifact.graph_digest_);
+  writer.u8(static_cast<std::uint8_t>(artifact.operation_));
+  writer.floating(artifact.residual_boundary_);
+  encode_digest(writer, artifact.symbolic_policy_digest_);
+  writer.boolean(static_cast<bool>(artifact.source_edge_stage_));
+  if (artifact.source_edge_stage_)
+    writer.sized_bytes(encode_candidate_source_edge_relation_semantics(
+        *artifact.source_edge_stage_));
+  writer.boolean(static_cast<bool>(artifact.source_edge_facet_stage_));
+  if (artifact.source_edge_facet_stage_)
+    writer.sized_bytes(encode_candidate_source_edge_facet_relation_semantics(
+        *artifact.source_edge_facet_stage_));
+  writer.boolean(static_cast<bool>(artifact.source_facet_stage_));
+  if (artifact.source_facet_stage_)
+    writer.sized_bytes(encode_candidate_source_facet_relation_semantics(
+        *artifact.source_facet_stage_));
+  writer.boolean(static_cast<bool>(artifact.coplanar_overlay_stage_));
+  if (artifact.coplanar_overlay_stage_)
+    writer.sized_bytes(encode_candidate_coplanar_overlay_semantics(
+        *artifact.coplanar_overlay_stage_));
   const auto graph_bytes =
       encode_relation_request_graph_semantics(artifact.request_graph_);
   writer.sized_bytes(graph_bytes);
@@ -93,9 +126,24 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.boolean(record.tolerance_compatible);
     writer.u32(record.reserved);
   }
+  writer.u64(artifact.symbolic_eligibility_.size());
+  for (const auto &record : artifact.symbolic_eligibility_)
+    encode_eligibility(writer, record);
   writer.u64(artifact.symbolic_decisions_.size());
   for (const auto &record : artifact.symbolic_decisions_)
     encode_symbolic(writer, record);
+  writer.u64(artifact.crossings_.size());
+  for (const auto &record : artifact.crossings_) {
+    writer.u64(record.relation.ordinal());
+    writer.u32(static_cast<std::uint32_t>(record.numeric_crossing));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing));
+    writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
+    writer.u32(record.occurrence);
+    writer.boolean(record.source_fan_resolved);
+    writer.boolean(record.locally_conservative);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
   writer.u64(artifact.event_seeds_.size());
   for (const auto &record : artifact.event_seeds_) {
     writer.u64(record.id.ordinal());
@@ -128,7 +176,9 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.public_relation_count);
   writer.u64(artifact.statistics_.bookkeeping_relation_count);
   writer.u64(artifact.statistics_.construction_count);
+  writer.u64(artifact.statistics_.symbolic_eligibility_count);
   writer.u64(artifact.statistics_.symbolic_decision_count);
+  writer.u64(artifact.statistics_.crossing_record_count);
   writer.u64(artifact.statistics_.event_seed_count);
   writer.u64(artifact.statistics_.sort_comparisons);
   writer.u64(artifact.statistics_.verifier_work_units);

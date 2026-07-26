@@ -1,0 +1,1316 @@
+#pragma once
+
+#include "CoplanarRelationOverlay.h"
+#include "RelationCanonicalization.h"
+#include "RelationEventSeeds.h"
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+namespace ygor::mesh_boolean::bounded {
+namespace relation_artifact_assembly_detail {
+
+inline bool usable_truth(const relation_truth_record &truth) noexcept {
+  return truth.reserved == 0 &&
+         truth.bounded_sign != bounded_sign_status::invalid &&
+         truth.exact_relation != exact_relation_status::invalid &&
+         truth.disposition != predicate_disposition::fail_invalid;
+}
+
+inline feature_relation_status
+edge_status(source_edge_contact_class contact,
+            source_edge_orientation_relation orientation) noexcept {
+  switch (contact) {
+  case source_edge_contact_class::none:
+    return feature_relation_status::definitely_separated;
+  case source_edge_contact_class::proper_crossing:
+    return feature_relation_status::proper_crossing;
+  case source_edge_contact_class::endpoint_contact:
+    return feature_relation_status::endpoint_crossing;
+  case source_edge_contact_class::point_contact:
+    return feature_relation_status::point_contact;
+  case source_edge_contact_class::partial_overlap:
+    return feature_relation_status::overlap;
+  case source_edge_contact_class::first_contains_second:
+  case source_edge_contact_class::second_contains_first:
+    return feature_relation_status::containment;
+  case source_edge_contact_class::equal:
+    return orientation == source_edge_orientation_relation::opposite
+               ? feature_relation_status::coincidence_opposite_orientation
+               : feature_relation_status::coincidence_same_orientation;
+  }
+  return feature_relation_status::not_evaluated;
+}
+
+inline feature_relation_status
+edge_facet_status(source_edge_facet_contact_class contact) noexcept {
+  switch (contact) {
+  case source_edge_facet_contact_class::none:
+    return feature_relation_status::definitely_separated;
+  case source_edge_facet_contact_class::proper_face_crossing:
+    return feature_relation_status::proper_crossing;
+  case source_edge_facet_contact_class::boundary_crossing:
+    return feature_relation_status::endpoint_crossing;
+  case source_edge_facet_contact_class::endpoint_contact:
+  case source_edge_facet_contact_class::coplanar_point_contact:
+    return feature_relation_status::point_contact;
+  case source_edge_facet_contact_class::tangent_contact:
+    return feature_relation_status::tangency;
+  case source_edge_facet_contact_class::coplanar_boundary_overlap:
+    return feature_relation_status::overlap;
+  case source_edge_facet_contact_class::coplanar_containment:
+    return feature_relation_status::containment;
+  }
+  return feature_relation_status::not_evaluated;
+}
+
+inline feature_relation_status facet_status(
+    source_facet_support_relation_class classification) noexcept {
+  switch (classification) {
+  case source_facet_support_relation_class::transverse:
+    return feature_relation_status::proper_crossing;
+  case source_facet_support_relation_class::parallel_separated:
+    return feature_relation_status::definitely_separated;
+  case source_facet_support_relation_class::coplanar_same_orientation:
+    return feature_relation_status::coincidence_same_orientation;
+  case source_facet_support_relation_class::coplanar_opposite_orientation:
+    return feature_relation_status::coincidence_opposite_orientation;
+  }
+  return feature_relation_status::not_evaluated;
+}
+
+inline feature_relation_status overlay_status(
+    coplanar_facet_overlay_class classification) noexcept {
+  switch (classification) {
+  case coplanar_facet_overlay_class::disjoint:
+    return feature_relation_status::definitely_separated;
+  case coplanar_facet_overlay_class::point_contact:
+    return feature_relation_status::point_contact;
+  case coplanar_facet_overlay_class::segment_contact:
+    return feature_relation_status::segment_contact;
+  case coplanar_facet_overlay_class::area_overlap:
+    return feature_relation_status::overlap;
+  case coplanar_facet_overlay_class::first_contains_second:
+  case coplanar_facet_overlay_class::second_contains_first:
+    return feature_relation_status::containment;
+  case coplanar_facet_overlay_class::equal_same_orientation:
+    return feature_relation_status::coincidence_same_orientation;
+  case coplanar_facet_overlay_class::equal_opposite_orientation:
+    return feature_relation_status::coincidence_opposite_orientation;
+  }
+  return feature_relation_status::not_evaluated;
+}
+
+inline orientation_relation orientation_from_edge(
+    source_edge_orientation_relation value) noexcept {
+  switch (value) {
+  case source_edge_orientation_relation::same:
+    return orientation_relation::same;
+  case source_edge_orientation_relation::opposite:
+    return orientation_relation::opposite;
+  case source_edge_orientation_relation::not_applicable:
+    return orientation_relation::indeterminate;
+  }
+  return orientation_relation::indeterminate;
+}
+
+inline orientation_relation orientation_from_status(
+    feature_relation_status value) noexcept {
+  return value == feature_relation_status::coincidence_same_orientation
+             ? orientation_relation::same
+         : value == feature_relation_status::coincidence_opposite_orientation
+             ? orientation_relation::opposite
+             : orientation_relation::indeterminate;
+}
+
+inline bool public_contact(feature_relation_status value) noexcept {
+  return value != feature_relation_status::definitely_separated &&
+         value != feature_relation_status::not_evaluated;
+}
+
+inline relation_request_key derived_key(const relation_request_key &base,
+                                        relation_request_family family,
+                                        std::uint64_t directed_use,
+                                        std::uint32_t occurrence) noexcept {
+  relation_request_key out = base;
+  out.family = family;
+  out.directed_use = directed_use;
+  out.occurrence_discriminator = occurrence;
+  out.formula_version = contract_versions::exact_relation_formulas;
+  out.policy_version = contract_versions::relation_request_key_schema;
+  out.reserved = 0;
+  return out;
+}
+
+inline std::uint64_t tagged_use(std::uint8_t domain,
+                                std::uint8_t category = 0) noexcept {
+  return (static_cast<std::uint64_t>(domain) << 56U) |
+         (static_cast<std::uint64_t>(category) << 48U);
+}
+
+inline const canonical_relation_request *
+find_request(const relation_request_graph &graph,
+             const relation_request_key &key) noexcept {
+  const auto it = std::lower_bound(
+      graph.requests.begin(), graph.requests.end(), key,
+      [](const canonical_relation_request &record,
+         const relation_request_key &candidate) {
+        return record.key < candidate;
+      });
+  return it == graph.requests.end() || it->key != key ? nullptr : &*it;
+}
+
+inline std::vector<candidate_id>
+request_witnesses(const relation_request_graph &graph,
+                  const canonical_relation_request &request) {
+  std::vector<candidate_id> out;
+  if (request.witness_begin > graph.candidate_witnesses.size() ||
+      request.witness_count >
+          graph.candidate_witnesses.size() - request.witness_begin)
+    return out;
+  out.insert(out.end(),
+             graph.candidate_witnesses.begin() +
+                 static_cast<std::ptrdiff_t>(request.witness_begin),
+             graph.candidate_witnesses.begin() + static_cast<std::ptrdiff_t>(
+                                                      request.witness_begin +
+                                                      request.witness_count));
+  return out;
+}
+
+inline std::vector<relation_request_key>
+request_dependencies(const relation_request_graph &graph,
+                     const canonical_relation_request &request) {
+  std::vector<relation_request_key> out;
+  if (request.dependency_begin > graph.dependencies.size() ||
+      request.dependency_count >
+          graph.dependencies.size() - request.dependency_begin)
+    return out;
+  for (std::uint64_t offset = 0; offset < request.dependency_count; ++offset) {
+    const auto &dependency =
+        graph.dependencies[request.dependency_begin + offset];
+    if (dependency.producer.ordinal() < graph.requests.size())
+      out.push_back(graph.requests[dependency.producer.ordinal()].key);
+  }
+  return out;
+}
+
+template <class T>
+void set_construction_components(relation_construction_record &out,
+                                 const std::array<T, 3> &nominal,
+                                 const std::array<finite_interval<T>, 3> &bounds) {
+  out.component_count = 3;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    out.nominal_bits[axis] = static_cast<std::uint64_t>(to_bits(nominal[axis]));
+    out.lower_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(bounds[axis].lower()));
+    out.upper_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(bounds[axis].upper()));
+  }
+}
+
+template <class T>
+void set_construction_components(relation_construction_record &out,
+                                 const bounded_geometry_snapshot3<T> &point,
+                                 const bounded_geometry_snapshot3<T> &direction) {
+  out.component_count = 6;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    out.nominal_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.rounded[axis]));
+    out.lower_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.lower[axis]));
+    out.upper_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.upper[axis]));
+    out.nominal_bits[axis + 3] =
+        static_cast<std::uint64_t>(to_bits(direction.rounded[axis]));
+    out.lower_bits[axis + 3] =
+        static_cast<std::uint64_t>(to_bits(direction.lower[axis]));
+    out.upper_bits[axis + 3] =
+        static_cast<std::uint64_t>(to_bits(direction.upper[axis]));
+  }
+}
+
+template <class T>
+void set_construction_components(relation_construction_record &out,
+                                 const projected_source_point<T> &point) {
+  out.component_count = 2;
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    out.nominal_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.nominal[axis]));
+    out.lower_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.enclosure[axis].lower()));
+    out.upper_bits[axis] =
+        static_cast<std::uint64_t>(to_bits(point.enclosure[axis].upper()));
+  }
+}
+
+inline relation_feature_key sheet_occurrence_feature(
+    const relation_feature_key &facet, std::uint32_t occurrence) noexcept {
+  relation_feature_key out = facet;
+  out.kind = relation_feature_kind::sheet_occurrence;
+  out.occurrence = occurrence;
+  return out;
+}
+
+inline relation_family symbolic_family_for_edge(
+    source_edge_contact_class contact) noexcept {
+  switch (contact) {
+  case source_edge_contact_class::partial_overlap:
+  case source_edge_contact_class::first_contains_second:
+  case source_edge_contact_class::second_contains_first:
+  case source_edge_contact_class::equal:
+    return relation_family::equal_edge;
+  case source_edge_contact_class::endpoint_contact:
+  case source_edge_contact_class::point_contact:
+    return relation_family::edge_edge;
+  default:
+    return relation_family::edge_edge;
+  }
+}
+
+inline relation_family symbolic_family_for_edge_facet(
+    source_edge_facet_event_kind kind,
+    source_edge_facet_contact_class contact) noexcept {
+  if (kind == source_edge_facet_event_kind::tangent_contact ||
+      contact == source_edge_facet_contact_class::tangent_contact)
+    return relation_family::tangent;
+  if (contact == source_edge_facet_contact_class::coplanar_point_contact ||
+      contact == source_edge_facet_contact_class::coplanar_boundary_overlap ||
+      contact == source_edge_facet_contact_class::coplanar_containment)
+    return relation_family::coplanar;
+  return relation_family::edge_face;
+}
+
+inline relation_family symbolic_family_for_overlay(
+    coplanar_facet_overlay_class value) noexcept {
+  switch (value) {
+  case coplanar_facet_overlay_class::equal_same_orientation:
+  case coplanar_facet_overlay_class::equal_opposite_orientation:
+    return relation_family::coincident_face;
+  case coplanar_facet_overlay_class::segment_contact:
+    return relation_family::equal_edge;
+  default:
+    return relation_family::coplanar;
+  }
+}
+
+} // namespace relation_artifact_assembly_detail
+
+template <class T, class I> class relation_artifact_assembler final {
+public:
+  using artifact_type = signed_feature_relations<T, I>;
+  using edge_stage_type = candidate_source_edge_relation_stage<T>;
+  using edge_facet_stage_type = candidate_source_edge_facet_relation_stage<T>;
+  using facet_stage_type = candidate_source_facet_relation_stage<T>;
+  using overlay_stage_type = candidate_coplanar_overlay_stage<T>;
+
+  relation_artifact_assembler(
+      const boolean_context<T, I> &context, const precision_context<T> &precision,
+      std::shared_ptr<const canonical_candidate_stream<T, I>> candidates,
+      std::shared_ptr<const edge_stage_type> edge_stage,
+      std::shared_ptr<const edge_facet_stage_type> edge_facet_stage,
+      std::shared_ptr<const facet_stage_type> facet_stage,
+      std::shared_ptr<const overlay_stage_type> overlay_stage,
+      const relation_capabilities &capabilities)
+      : context_(context), precision_(precision), candidates_(std::move(candidates)),
+        edge_stage_(std::move(edge_stage)),
+        edge_facet_stage_(std::move(edge_facet_stage)),
+        facet_stage_(std::move(facet_stage)),
+        overlay_stage_(std::move(overlay_stage)), capabilities_(capabilities) {}
+
+  bool assemble(artifact_type &artifact, bounded_boolean_error &error) {
+    try {
+      if (!validate_inputs(error) || !discover_base_relations(error) ||
+          !discover_constructions_and_symbolics(error) ||
+          !discover_candidate_dispositions(error) || !build_graph(error) ||
+          !publish_relations(error) || !publish_constructions(error) ||
+          !publish_symbolics_and_crossings(error) || !publish_event_seeds(error) ||
+          !publish_candidate_dispositions(error))
+        return false;
+
+      artifact.owner_ = capabilities_.owner;
+      artifact.candidates_ = candidates_;
+      artifact.source_edge_stage_ = edge_stage_;
+      artifact.source_edge_facet_stage_ = edge_facet_stage_;
+      artifact.source_facet_stage_ = facet_stage_;
+      artifact.coplanar_overlay_stage_ = overlay_stage_;
+      artifact.request_graph_ = std::move(graph_);
+      artifact.truth_records_ = std::move(truth_records_);
+      artifact.relations_ = std::move(relations_);
+      artifact.constructions_ = std::move(constructions_);
+      artifact.symbolic_eligibility_ = std::move(eligibility_);
+      artifact.symbolic_decisions_ = std::move(decisions_);
+      artifact.crossings_ = std::move(crossings_);
+      artifact.event_seeds_ = std::move(seed_table_.records);
+      artifact.event_seed_incidence_ = std::move(seed_table_.incidence);
+      artifact.candidate_dispositions_ = std::move(dispositions_);
+      artifact.context_digest_ = context_.context_digest;
+      artifact.precision_digest_ = precision_.digest();
+      artifact.candidate_digest_ = candidates_->candidate_digest();
+      artifact.graph_digest_ = artifact.request_graph_.semantic_digest;
+      artifact.operation_ = context_.operation;
+      artifact.residual_boundary_ = precision_.tolerance();
+      artifact.symbolic_policy_digest_ = context_.symbolic.digest;
+      fill_statistics(artifact);
+      artifact.verification_evidence_.id = relation_verifier_evidence_id(0);
+      artifact.verification_evidence_.verifier_version =
+          contract_versions::relation_verifier;
+      artifact.verification_evidence_.graph_reconstructed = true;
+      artifact.verification_evidence_.owner_exclusion_checked = true;
+      artifact.verification_evidence_.selection_boundary_checked = true;
+      artifact.verification_evidence_.candidate_dispositions_complete = true;
+      artifact.verification_evidence_.verifier_work_units =
+          artifact.statistics_.verifier_work_units;
+      artifact.verification_evidence_.semantic_digest = artifact.graph_digest_;
+      artifact.verification_ =
+          relation_verification_disposition::independently_verified;
+      return true;
+    } catch (const std::bad_alloc &) {
+      error = relation_error(relation_subcode::resource_preflight,
+                             bounded_boolean_error_category::resource_limit,
+                             "Component 07 final artifact allocation failed",
+                             relation_checkpoint::discovery_resource_reservation);
+      return false;
+    } catch (...) {
+      error = relation_error(relation_subcode::internal_invariant,
+                             bounded_boolean_error_category::internal_invariant_error,
+                             "Component 07 final artifact assembly raised an unexpected exception",
+                             relation_checkpoint::canonical_id_and_reference_remap);
+      return false;
+    }
+  }
+
+private:
+  enum class base_kind : std::uint8_t { edge = 1, edge_facet = 2, facet = 3, overlay = 4 };
+
+  struct base_descriptor final {
+    base_kind kind = base_kind::edge;
+    std::uint64_t ordinal = 0;
+    relation_request_key key{};
+    feature_relation_family family = feature_relation_family::source_edge_source_edge;
+    feature_relation_status status = feature_relation_status::not_evaluated;
+    relation_record_scope scope = relation_record_scope::public_source_feature;
+    std::vector<relation_truth_record> truth;
+    std::int32_t numeric_crossing = 0;
+    std::uint32_t occurrence = 0;
+    std::vector<candidate_id> witnesses;
+  };
+
+  struct construction_descriptor final {
+    relation_request_key key{};
+    relation_request_key source_relation{};
+    relation_construction_kind kind = relation_construction_kind::bounded_point;
+    relation_construction_record value{};
+    std::uint32_t occurrence = 0;
+    feature_relation_family seed_family = feature_relation_family::source_edge_source_edge;
+    std::vector<relation_feature_key> incidence;
+    bool emit_seed = false;
+    bool distinct_occurrence = false;
+    std::vector<candidate_id> witnesses;
+  };
+
+  struct symbolic_descriptor final {
+    relation_request_key eligibility_key{};
+    relation_request_key decision_key{};
+    relation_request_key source_relation{};
+    relation_request_key construction_key{};
+    relation_request_key multiplicity_key{};
+    relation_family family = relation_family::edge_edge;
+    orientation_relation orientation = orientation_relation::indeterminate;
+    operand_id acting_operand = operand_id::a;
+    std::uint32_t occurrence = 0;
+    bool has_construction = false;
+    bool has_multiplicity = false;
+    std::vector<candidate_id> witnesses;
+  };
+
+  struct disposition_descriptor final {
+    relation_request_key key{};
+    std::vector<relation_request_key> dependencies;
+    std::vector<candidate_id> witnesses;
+  };
+
+  bool fail(bounded_boolean_error &error, relation_subcode subcode,
+            const char *summary, relation_checkpoint checkpoint) const {
+    error = relation_error(subcode,
+                           bounded_boolean_error_category::internal_invariant_error,
+                           summary, checkpoint);
+    return false;
+  }
+
+  bool validate_inputs(bounded_boolean_error &error) const {
+    if (!candidates_ || !edge_stage_ || !edge_facet_stage_ || !facet_stage_ ||
+        !overlay_stage_ || !capabilities_.owner.anchor ||
+        !candidates_->owner().same_owner(capabilities_.owner) ||
+        !edge_stage_->owner.same_owner(capabilities_.owner) ||
+        !edge_facet_stage_->owner.same_owner(capabilities_.owner) ||
+        !facet_stage_->owner.same_owner(capabilities_.owner) ||
+        !overlay_stage_->owner.same_owner(capabilities_.owner) ||
+        edge_stage_->relations.size() != edge_stage_->request_graph.requests.size() ||
+        edge_facet_stage_->relations.size() !=
+            edge_facet_stage_->request_graph.requests.size() ||
+        facet_stage_->relations.size() != facet_stage_->request_graph.requests.size() ||
+        overlay_stage_->links.size() != overlay_stage_->overlays.size())
+      return fail(error, relation_subcode::predecessor_mismatch,
+                  "Component 07 final assembly predecessor handshake failed",
+                  relation_checkpoint::predecessor_validation);
+    return true;
+  }
+
+  void add_stage_proposal(const relation_request_graph &source,
+                          const canonical_relation_request &request) {
+    relation_request_proposal proposal;
+    proposal.key = request.key;
+    proposal.dependencies =
+        relation_artifact_assembly_detail::request_dependencies(source, request);
+    proposal.candidate_witnesses =
+        relation_artifact_assembly_detail::request_witnesses(source, request);
+    proposals_.push_back(std::move(proposal));
+  }
+
+  void append_truth(base_descriptor &descriptor,
+                    const relation_truth_record &truth) {
+    if (relation_artifact_assembly_detail::usable_truth(truth))
+      descriptor.truth.push_back(truth);
+  }
+
+  bool discover_base_relations(bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    candidate_base_keys_.assign(candidates_->candidates().size(), {});
+
+    for (std::size_t i = 0; i < edge_stage_->request_graph.requests.size(); ++i) {
+      const auto &request = edge_stage_->request_graph.requests[i];
+      const auto &source = edge_stage_->relations[i];
+      add_stage_proposal(edge_stage_->request_graph, request);
+      base_descriptor descriptor;
+      descriptor.kind = base_kind::edge;
+      descriptor.ordinal = i;
+      descriptor.key = request.key;
+      descriptor.family = feature_relation_family::source_edge_source_edge;
+      descriptor.status = edge_status(source.contact, source.orientation);
+      descriptor.scope = request.key.scope;
+      descriptor.witnesses = request_witnesses(edge_stage_->request_graph, request);
+      append_truth(descriptor, source.parallel_truth);
+      if (source.has_coplanarity_truth)
+        append_truth(descriptor, source.coplanarity_truth);
+      if (source.has_collinearity_truth)
+        append_truth(descriptor, source.collinearity_truth);
+      bases_.push_back(std::move(descriptor));
+      record_candidate_base(request.key, bases_.back().witnesses);
+    }
+
+    for (std::size_t i = 0; i < edge_facet_stage_->request_graph.requests.size(); ++i) {
+      const auto &request = edge_facet_stage_->request_graph.requests[i];
+      const auto &source = edge_facet_stage_->relations[i];
+      relation_request_proposal proposal;
+      proposal.key = request.key;
+      proposal.candidate_witnesses =
+          request_witnesses(edge_facet_stage_->request_graph, request);
+      for (const auto dependency : source.boundary_relation_requests) {
+        if (dependency.ordinal() >= edge_stage_->request_graph.requests.size())
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 edge/facet boundary dependency is out of range",
+                      relation_checkpoint::dependency_closure);
+        proposal.dependencies.push_back(
+            edge_stage_->request_graph.requests[dependency.ordinal()].key);
+      }
+      proposals_.push_back(std::move(proposal));
+      base_descriptor descriptor;
+      descriptor.kind = base_kind::edge_facet;
+      descriptor.ordinal = i;
+      descriptor.key = request.key;
+      descriptor.family = feature_relation_family::source_edge_source_facet;
+      descriptor.status = edge_facet_status(source.contact);
+      descriptor.scope = request.key.scope;
+      descriptor.witnesses =
+          request_witnesses(edge_facet_stage_->request_graph, request);
+      for (const auto &truth : source.endpoint_support_truth)
+        append_truth(descriptor, truth);
+      for (const auto &event : source.events)
+        descriptor.numeric_crossing += event.numeric_crossing;
+      bases_.push_back(std::move(descriptor));
+      record_candidate_base(request.key, bases_.back().witnesses);
+    }
+
+    for (std::size_t i = 0; i < facet_stage_->request_graph.requests.size(); ++i) {
+      const auto &request = facet_stage_->request_graph.requests[i];
+      const auto &source = facet_stage_->relations[i];
+      relation_request_proposal proposal;
+      proposal.key = request.key;
+      proposal.candidate_witnesses =
+          request_witnesses(facet_stage_->request_graph, request);
+      for (const auto dependency : source.edge_facet_consumers) {
+        if (dependency.ordinal() >=
+            edge_facet_stage_->request_graph.requests.size())
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 facet/facet edge consumer is out of range",
+                      relation_checkpoint::dependency_closure);
+        proposal.dependencies.push_back(
+            edge_facet_stage_->request_graph.requests[dependency.ordinal()].key);
+      }
+      proposals_.push_back(std::move(proposal));
+      base_descriptor descriptor;
+      descriptor.kind = base_kind::facet;
+      descriptor.ordinal = i;
+      descriptor.key = request.key;
+      descriptor.family = feature_relation_family::source_facet_source_facet;
+      descriptor.status = facet_status(source.classification);
+      descriptor.scope = request.key.scope;
+      descriptor.witnesses =
+          request_witnesses(facet_stage_->request_graph, request);
+      append_truth(descriptor, source.parallelism_truth);
+      if (source.has_coplanarity_truth)
+        append_truth(descriptor, source.coplanarity_truth);
+      if (source.has_orientation_truth)
+        append_truth(descriptor, source.orientation_truth);
+      bases_.push_back(std::move(descriptor));
+      record_candidate_base(request.key, bases_.back().witnesses);
+    }
+
+    for (std::size_t i = 0; i < overlay_stage_->overlays.size(); ++i) {
+      const auto &source = overlay_stage_->overlays[i];
+      const auto &link = overlay_stage_->links[i];
+      if (link.overlay_ordinal != i ||
+          link.support_relation.ordinal() >= facet_stage_->request_graph.requests.size())
+        return fail(error, relation_subcode::coplanar_overlay_dependency_missing,
+                    "Component 07 overlay support link is malformed",
+                    relation_checkpoint::dependency_closure);
+      relation_request_key key =
+          facet_stage_->request_graph.requests[link.support_relation.ordinal()].key;
+      key.family = relation_request_family::coplanar_source_facet_overlay;
+      key.directed_use = 0;
+      key.occurrence_discriminator = 0;
+      relation_request_proposal proposal;
+      proposal.key = key;
+      proposal.dependencies.push_back(
+          facet_stage_->request_graph.requests[link.support_relation.ordinal()].key);
+      for (const auto &boundary : source.boundary_relations) {
+        if (boundary.request.ordinal() >= edge_stage_->request_graph.requests.size())
+          return fail(error, relation_subcode::coplanar_overlay_dependency_missing,
+                      "Component 07 overlay boundary dependency is out of range",
+                      relation_checkpoint::dependency_closure);
+        proposal.dependencies.push_back(
+            edge_stage_->request_graph.requests[boundary.request.ordinal()].key);
+      }
+      proposal.candidate_witnesses = request_witnesses(
+          facet_stage_->request_graph,
+          facet_stage_->request_graph.requests[link.support_relation.ordinal()]);
+      proposals_.push_back(std::move(proposal));
+      base_descriptor descriptor;
+      descriptor.kind = base_kind::overlay;
+      descriptor.ordinal = i;
+      descriptor.key = key;
+      descriptor.family = feature_relation_family::source_facet_source_facet;
+      descriptor.status = overlay_status(source.classification);
+      descriptor.scope = relation_record_scope::public_source_feature;
+      descriptor.witnesses = request_witnesses(
+          facet_stage_->request_graph,
+          facet_stage_->request_graph.requests[link.support_relation.ordinal()]);
+      append_truth(descriptor, source.support_relation.parallelism_truth);
+      if (source.support_relation.has_coplanarity_truth)
+        append_truth(descriptor, source.support_relation.coplanarity_truth);
+      if (source.support_relation.has_orientation_truth)
+        append_truth(descriptor, source.support_relation.orientation_truth);
+      bases_.push_back(std::move(descriptor));
+      record_candidate_base(key, bases_.back().witnesses);
+    }
+
+    std::sort(bases_.begin(), bases_.end(),
+              [](const base_descriptor &a, const base_descriptor &b) {
+                return a.key < b.key;
+              });
+    for (std::size_t i = 1; i < bases_.size(); ++i)
+      if (bases_[i - 1].key == bases_[i].key)
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 final relation producer is duplicated",
+                    relation_checkpoint::graph_finalization);
+    return true;
+  }
+
+  void record_candidate_base(const relation_request_key &key,
+                             const std::vector<candidate_id> &witnesses) {
+    for (const auto candidate : witnesses)
+      if (candidate.ordinal() < candidate_base_keys_.size())
+        candidate_base_keys_[candidate.ordinal()].push_back(key);
+  }
+
+  void add_construction_proposal(const construction_descriptor &descriptor) {
+    relation_request_proposal proposal;
+    proposal.key = descriptor.key;
+    proposal.dependencies.push_back(descriptor.source_relation);
+    proposal.candidate_witnesses = descriptor.witnesses;
+    proposals_.push_back(std::move(proposal));
+  }
+
+  void add_symbolic_proposals(const symbolic_descriptor &descriptor) {
+    relation_request_proposal eligibility;
+    eligibility.key = descriptor.eligibility_key;
+    eligibility.dependencies.push_back(descriptor.source_relation);
+    if (descriptor.has_construction)
+      eligibility.dependencies.push_back(descriptor.construction_key);
+    if (descriptor.has_multiplicity)
+      eligibility.dependencies.push_back(descriptor.multiplicity_key);
+    eligibility.candidate_witnesses = descriptor.witnesses;
+    proposals_.push_back(std::move(eligibility));
+
+    relation_request_proposal decision;
+    decision.key = descriptor.decision_key;
+    decision.dependencies.push_back(descriptor.eligibility_key);
+    decision.candidate_witnesses = descriptor.witnesses;
+    proposals_.push_back(std::move(decision));
+  }
+
+  void add_symbolic_descriptor(const base_descriptor &base,
+                               relation_family family,
+                               orientation_relation orientation,
+                               std::uint32_t occurrence,
+                               const relation_request_key *construction,
+                               const relation_request_key *multiplicity) {
+    using namespace relation_artifact_assembly_detail;
+    symbolic_descriptor descriptor;
+    descriptor.source_relation = base.key;
+    descriptor.occurrence = occurrence;
+    descriptor.eligibility_key = derived_key(
+        base.key, relation_request_family::symbolic_eligibility,
+        tagged_use(12, static_cast<std::uint8_t>(family)), occurrence);
+    descriptor.decision_key = derived_key(
+        base.key, relation_request_family::symbolic_relation_decision,
+        tagged_use(13, static_cast<std::uint8_t>(family)), occurrence);
+    descriptor.family = family;
+    descriptor.orientation = orientation;
+    descriptor.acting_operand = base.key.first.operand;
+    descriptor.witnesses = base.witnesses;
+    if (construction) {
+      descriptor.construction_key = *construction;
+      descriptor.has_construction = true;
+    }
+    if (multiplicity) {
+      descriptor.multiplicity_key = *multiplicity;
+      descriptor.has_multiplicity = true;
+    }
+    symbolics_.push_back(descriptor);
+    add_symbolic_proposals(symbolics_.back());
+  }
+
+  bool discover_constructions_and_symbolics(bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    for (const auto &base : bases_) {
+      switch (base.kind) {
+      case base_kind::edge: {
+        const auto &source = edge_stage_->relations[base.ordinal];
+        std::vector<relation_request_key> point_keys;
+        for (std::uint32_t point = 0; point < source.point_count; ++point) {
+          construction_descriptor descriptor;
+          descriptor.key = derived_key(
+              base.key, relation_request_family::authoritative_construction,
+              tagged_use(10, 1), point);
+          descriptor.source_relation = base.key;
+          descriptor.kind = relation_construction_kind::bounded_point;
+          descriptor.value.kind = descriptor.kind;
+          set_construction_components(descriptor.value,
+                                      source.points[point].point.rounded_nominal,
+                                      source.points[point].point.enclosure);
+          descriptor.value.finite = true;
+          descriptor.value.tolerance_compatible =
+              source.points[point].tolerance_compatible;
+          descriptor.occurrence = point;
+          descriptor.seed_family = base.family;
+          descriptor.incidence = {base.key.first, base.key.second};
+          descriptor.emit_seed = source.contact != source_edge_contact_class::none;
+          descriptor.distinct_occurrence =
+              source.contact == source_edge_contact_class::equal;
+          descriptor.witnesses = base.witnesses;
+          constructions_desc_.push_back(descriptor);
+          point_keys.push_back(descriptor.key);
+          add_construction_proposal(constructions_desc_.back());
+        }
+        if (source.contact != source_edge_contact_class::none &&
+            source.contact != source_edge_contact_class::proper_crossing) {
+          if (point_keys.empty()) {
+            add_symbolic_descriptor(base, symbolic_family_for_edge(source.contact),
+                                    orientation_from_edge(source.orientation), 0,
+                                    nullptr, nullptr);
+          } else {
+            for (std::uint32_t point = 0; point < point_keys.size(); ++point)
+              add_symbolic_descriptor(
+                  base, symbolic_family_for_edge(source.contact),
+                  orientation_from_edge(source.orientation), point,
+                  &point_keys[point], nullptr);
+          }
+        }
+        break;
+      }
+      case base_kind::edge_facet: {
+        const auto &source = edge_facet_stage_->relations[base.ordinal];
+        relation_request_key multiplicity = derived_key(
+            base.key, relation_request_family::numeric_crossing_multiplicity,
+            tagged_use(11, 2), 0);
+        relation_request_proposal multiplicity_proposal;
+        multiplicity_proposal.key = multiplicity;
+        multiplicity_proposal.dependencies.push_back(base.key);
+        multiplicity_proposal.candidate_witnesses = base.witnesses;
+        proposals_.push_back(std::move(multiplicity_proposal));
+        if (!multiplicity_keys_.emplace(base.key, multiplicity).second)
+        return fail(error, relation_subcode::incompatible_duplicate_request,
+                    "Component 07 multiplicity request is duplicated",
+                    relation_checkpoint::crossing_multiplicity);
+
+        for (const auto &event : source.events) {
+          construction_descriptor descriptor;
+          descriptor.key = derived_key(
+              base.key, relation_request_family::authoritative_construction,
+              tagged_use(10, static_cast<std::uint8_t>(event.kind)),
+              event.occurrence);
+          descriptor.source_relation = base.key;
+          descriptor.kind = relation_construction_kind::bounded_point;
+          descriptor.value.kind = descriptor.kind;
+          set_construction_components(
+              descriptor.value, event.construction.point.rounded_nominal,
+              event.construction.point.enclosure);
+          descriptor.value.finite = true;
+          descriptor.value.tolerance_compatible =
+              event.construction.tolerance_compatible;
+          descriptor.occurrence = event.occurrence;
+          descriptor.seed_family = base.family;
+          descriptor.incidence = {base.key.first, base.key.second};
+          descriptor.emit_seed = true;
+          descriptor.distinct_occurrence = false;
+          descriptor.witnesses = base.witnesses;
+          constructions_desc_.push_back(descriptor);
+          add_construction_proposal(constructions_desc_.back());
+
+          if (event.kind != source_edge_facet_event_kind::proper_face_crossing) {
+            add_symbolic_descriptor(
+                base, symbolic_family_for_edge_facet(event.kind, source.contact),
+                orientation_relation::indeterminate, event.occurrence,
+                &descriptor.key, &multiplicity);
+          }
+        }
+        break;
+      }
+      case base_kind::facet: {
+        const auto &source = facet_stage_->relations[base.ordinal];
+        if (source.has_transverse_carrier) {
+          construction_descriptor descriptor;
+          descriptor.key = derived_key(
+              base.key, relation_request_family::authoritative_construction,
+              tagged_use(10, 3), 0);
+          descriptor.source_relation = base.key;
+          descriptor.kind = relation_construction_kind::bounded_carrier;
+          descriptor.value.kind = descriptor.kind;
+          set_construction_components(descriptor.value,
+                                      source.transverse_carrier.point,
+                                      source.transverse_carrier.direction);
+          descriptor.value.finite = true;
+          descriptor.value.tolerance_compatible =
+              source.transverse_carrier.residuals_accepted;
+          descriptor.seed_family = base.family;
+          descriptor.witnesses = base.witnesses;
+          constructions_desc_.push_back(descriptor);
+          add_construction_proposal(constructions_desc_.back());
+        }
+        if (source.classification ==
+                source_facet_support_relation_class::coplanar_same_orientation ||
+            source.classification ==
+                source_facet_support_relation_class::coplanar_opposite_orientation)
+          add_symbolic_descriptor(
+              base, relation_family::coplanar,
+              orientation_from_status(base.status), 0, nullptr, nullptr);
+        break;
+      }
+      case base_kind::overlay: {
+        const auto &source = overlay_stage_->overlays[base.ordinal];
+        for (const auto &node : source.event_nodes) {
+          if (node.id > std::numeric_limits<std::uint32_t>::max())
+            return fail(error, relation_subcode::count_overflow,
+                        "Component 07 coplanar event occurrence is not representable",
+                        relation_checkpoint::count_representability_preflight);
+          construction_descriptor descriptor;
+          descriptor.key = derived_key(
+              base.key, relation_request_family::authoritative_construction,
+              tagged_use(10, 4), static_cast<std::uint32_t>(node.id));
+          descriptor.source_relation = base.key;
+          descriptor.kind = relation_construction_kind::bounded_point;
+          descriptor.value.kind = descriptor.kind;
+          set_construction_components(descriptor.value, node.representative);
+          descriptor.value.finite = true;
+          descriptor.value.tolerance_compatible = true;
+          descriptor.occurrence = static_cast<std::uint32_t>(node.id);
+          descriptor.seed_family = base.family;
+          descriptor.incidence = {base.key.first, base.key.second};
+          for (const auto &occurrence : node.occurrences) {
+            const auto &facet = source.facets[occurrence.polygon].feature;
+            descriptor.incidence.push_back(sheet_occurrence_feature(
+                facet, static_cast<std::uint32_t>(occurrence.polygon)));
+          }
+          descriptor.emit_seed = true;
+          descriptor.distinct_occurrence = source.distinct_sheet_occurrences;
+          descriptor.witnesses = base.witnesses;
+          constructions_desc_.push_back(descriptor);
+          add_construction_proposal(constructions_desc_.back());
+        }
+        if (source.classification != coplanar_facet_overlay_class::disjoint)
+          add_symbolic_descriptor(
+              base, symbolic_family_for_overlay(source.classification),
+              orientation_from_status(base.status), 0, nullptr, nullptr);
+        break;
+      }
+      }
+    }
+
+    std::sort(constructions_desc_.begin(), constructions_desc_.end(),
+              [](const construction_descriptor &a,
+                 const construction_descriptor &b) { return a.key < b.key; });
+    for (std::size_t i = 1; i < constructions_desc_.size(); ++i)
+      if (constructions_desc_[i - 1].key == constructions_desc_[i].key)
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 authoritative construction key is duplicated",
+                    relation_checkpoint::construction_validation);
+    std::sort(symbolics_.begin(), symbolics_.end(),
+              [](const symbolic_descriptor &a, const symbolic_descriptor &b) {
+                return a.eligibility_key < b.eligibility_key;
+              });
+    for (std::size_t i = 1; i < symbolics_.size(); ++i)
+      if (symbolics_[i - 1].eligibility_key == symbolics_[i].eligibility_key)
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 symbolic eligibility key is duplicated",
+                    relation_checkpoint::symbolic_eligibility);
+
+    for (const auto &descriptor : constructions_desc_) {
+      if (!descriptor.emit_seed)
+        continue;
+      relation_request_proposal seed;
+      seed.key = derived_key(
+          descriptor.source_relation, relation_request_family::event_seed,
+          descriptor.key.directed_use, descriptor.occurrence);
+      seed.dependencies = {descriptor.source_relation, descriptor.key};
+      const auto *symbolic = find_symbolic_descriptor(
+          descriptor.source_relation, descriptor.occurrence);
+      if (symbolic)
+        seed.dependencies.push_back(symbolic->decision_key);
+      seed.candidate_witnesses = descriptor.witnesses;
+      seed_request_keys_.push_back(seed.key);
+      proposals_.push_back(std::move(seed));
+    }
+    return true;
+  }
+
+  relation_feature_key candidate_edge_feature(
+      const canonical_candidate_record<T> &candidate) const {
+    const operand_id operand =
+        candidate.role == directed_candidate_role::a_edge_b_triangle
+            ? operand_id::a
+            : operand_id::b;
+    const auto &table = candidates_->primitive_table(operand);
+    relation_feature_key out;
+    out.operand = operand;
+    if (candidate.edge.ordinal() >= table.edges.size())
+      return out;
+    const auto &edge = table.edges[candidate.edge.ordinal()];
+    if (edge.edge_class == canonical_edge_class::source_edge) {
+      out.kind = relation_feature_kind::source_edge;
+      out.primary = edge.semantic_key.primary;
+      out.secondary = edge.semantic_key.secondary;
+    } else {
+      out.kind = relation_feature_kind::facet_internal_diagonal;
+      out.primary = edge.source_facet;
+      out.secondary = edge.source_diagonal;
+    }
+    return out;
+  }
+
+  relation_feature_key candidate_triangle_feature(
+      const canonical_candidate_record<T> &candidate) const {
+    const operand_id operand =
+        candidate.role == directed_candidate_role::a_edge_b_triangle
+            ? operand_id::b
+            : operand_id::a;
+    const auto &table = candidates_->primitive_table(operand);
+    relation_feature_key out;
+    out.operand = operand;
+    out.kind = relation_feature_kind::source_triangle;
+    if (candidate.triangle.ordinal() < table.triangles.size()) {
+      const auto &triangle = table.triangles[candidate.triangle.ordinal()];
+      out.primary = triangle.source_triangle;
+      out.secondary = triangle.source_facet;
+    }
+    return out;
+  }
+
+  bool discover_candidate_dispositions(bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    disposition_desc_.reserve(candidates_->candidates().size());
+    for (const auto &candidate : candidates_->candidates()) {
+      relation_request_key key;
+      key.semantic_namespace = context_.context_digest;
+      key.family = relation_request_family::candidate_disposition;
+      key.scope = relation_record_scope::bookkeeping_only;
+      key.first = candidate_edge_feature(candidate);
+      key.second = candidate_triangle_feature(candidate);
+      key.directed_use = candidate.id.ordinal();
+      key.occurrence_discriminator = 0;
+      if (!valid_relation_request_key(key))
+        return fail(error, relation_subcode::malformed_request_key,
+                    "Component 07 candidate disposition key is malformed",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      disposition_descriptor descriptor;
+      descriptor.key = key;
+      descriptor.dependencies = candidate_base_keys_[candidate.id.ordinal()];
+      std::sort(descriptor.dependencies.begin(), descriptor.dependencies.end());
+      descriptor.dependencies.erase(
+          std::unique(descriptor.dependencies.begin(), descriptor.dependencies.end()),
+          descriptor.dependencies.end());
+      descriptor.witnesses.push_back(candidate.id);
+      disposition_desc_.push_back(descriptor);
+      relation_request_proposal proposal;
+      proposal.key = key;
+      proposal.dependencies = descriptor.dependencies;
+      proposal.candidate_witnesses = descriptor.witnesses;
+      proposals_.push_back(std::move(proposal));
+    }
+    return true;
+  }
+
+  bool build_graph(bounded_boolean_error &error) {
+    if (proposals_.size() > capabilities_.maximum_requests)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 final request graph exceeds request capacity",
+                  relation_checkpoint::count_representability_preflight);
+    auto graph = build_relation_request_graph(std::move(proposals_), capabilities_);
+    if (!graph.has_value()) {
+      error = *graph.error();
+      return false;
+    }
+    graph_ = std::move(*graph.value());
+    return true;
+  }
+
+  bool publish_relations(bounded_boolean_error &error) {
+    truth_records_.clear();
+    relations_.clear();
+    relations_.reserve(bases_.size());
+    for (const auto &descriptor : bases_) {
+      const auto *producer =
+          relation_artifact_assembly_detail::find_request(graph_, descriptor.key);
+      if (!producer)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 final relation producer is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      feature_relation_record record;
+      record.id = feature_relation_id(relations_.size());
+      record.producer = producer->id;
+      record.family = descriptor.family;
+      record.scope = descriptor.scope;
+      record.status = descriptor.status;
+      record.truth_begin = truth_records_.size();
+      record.truth_count = descriptor.truth.size();
+      record.numeric_crossing_multiplicity = descriptor.numeric_crossing;
+      record.occurrence = descriptor.occurrence;
+      relations_.push_back(record);
+      truth_records_.insert(truth_records_.end(), descriptor.truth.begin(),
+                            descriptor.truth.end());
+      if (!relation_ids_.emplace(descriptor.key, record.id).second)
+        return fail(error, relation_subcode::incompatible_duplicate_request,
+                    "Component 07 final relation key is duplicated",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+    }
+    if (relations_.size() > capabilities_.maximum_relations)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 final relation table exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
+    return true;
+  }
+
+  bool publish_constructions(bounded_boolean_error &error) {
+    constructions_.reserve(constructions_desc_.size());
+    for (const auto &descriptor : constructions_desc_) {
+      const auto *producer =
+          relation_artifact_assembly_detail::find_request(graph_, descriptor.key);
+      if (!producer || relation_ids_.find(descriptor.source_relation) ==
+                           relation_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 construction producer or source relation is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      relation_construction_record record = descriptor.value;
+      record.id = relation_construction_id(constructions_.size());
+      record.producer = producer->id;
+      constructions_.push_back(record);
+      if (!construction_ids_.emplace(descriptor.key, record.id).second)
+        return fail(error, relation_subcode::incompatible_duplicate_request,
+                    "Component 07 construction key is duplicated",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+    }
+    if (constructions_.size() > capabilities_.maximum_constructions)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 construction table exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
+    return true;
+  }
+
+  bool publish_symbolics_and_crossings(bounded_boolean_error &error) {
+    eligibility_.reserve(symbolics_.size());
+    decisions_.reserve(symbolics_.size());
+    for (const auto &descriptor : symbolics_) {
+      symbolic_eligibility_record eligibility;
+      eligibility.request = descriptor.eligibility_key;
+      eligibility.exact_relation = exact_relation_status::exact_zero;
+      eligibility.exact_lineage_tie = true;
+      eligibility.representational_tie_evidence = descriptor.has_construction;
+      eligibility.structural_category_eligible = true;
+      eligibility.tolerance_compatible =
+          !descriptor.has_construction ||
+          construction_tolerance_compatible(descriptor.construction_key);
+      eligibility.rounded_nominal_zero = true;
+      auto decision = resolve_symbolic_relation_decision(
+          context_.symbolic, context_.operation, descriptor.acting_operand,
+          descriptor.family, descriptor.orientation, eligibility);
+      if (!decision.has_value()) {
+        error = *decision.error();
+        return false;
+      }
+      decision.value()->id = symbolic_relation_decision_id(decisions_.size());
+      eligibility_.push_back(eligibility);
+      decisions_.push_back(std::move(*decision.value()));
+      if (!decision_ids_
+               .emplace(std::make_pair(descriptor.source_relation,
+                                       descriptor.occurrence),
+                        decisions_.back().id)
+               .second)
+        return fail(error, relation_subcode::incompatible_duplicate_request,
+                    "Component 07 symbolic decision occurrence is duplicated",
+                    relation_checkpoint::symbolic_matrix_lookup);
+    }
+
+    for (const auto &base : bases_) {
+      if (base.kind != base_kind::edge_facet)
+        continue;
+      const auto &source = edge_facet_stage_->relations[base.ordinal];
+      const auto relation = relation_ids_.find(base.key);
+      if (relation == relation_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 crossing source relation is absent",
+                    relation_checkpoint::crossing_multiplicity);
+      for (const auto &event : source.events) {
+        relation_crossing_record record;
+        record.relation = relation->second;
+        record.numeric_crossing = event.numeric_crossing;
+        record.occurrence = event.occurrence;
+        const auto decision = decision_ids_.find(
+            std::make_pair(base.key, event.occurrence));
+        if (decision != decision_ids_.end()) {
+          const auto &symbolic = decisions_[decision->second.ordinal()];
+          record.symbolic_crossing = symbolic.symbolic_crossing_contribution;
+          record.half_open_owner = symbolic.half_open_owner;
+          record.source_fan_resolved = true;
+        } else {
+          record.symbolic_crossing = 0;
+          record.half_open_owner = base.key.first.operand;
+          record.source_fan_resolved =
+              event.kind == source_edge_facet_event_kind::proper_face_crossing;
+        }
+        record.locally_conservative = locally_conservative(event);
+        crossings_.push_back(record);
+      }
+    }
+    if (decisions_.size() > capabilities_.maximum_symbolic_decisions)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 symbolic table exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
+    return true;
+  }
+
+  bool construction_tolerance_compatible(
+      const relation_request_key &key) const noexcept {
+    const auto it = construction_ids_.find(key);
+    return it != construction_ids_.end() &&
+           it->second.ordinal() < constructions_.size() &&
+           constructions_[it->second.ordinal()].tolerance_compatible;
+  }
+
+  bool locally_conservative(
+      const source_edge_facet_event_record<T> &event) const noexcept {
+    const auto occupancy = [](source_edge_facet_occupancy_state state) {
+      return state == source_edge_facet_occupancy_state::occupied
+                 ? 1
+             : state == source_edge_facet_occupancy_state::unoccupied ? 0 : 2;
+    };
+    const int before = occupancy(event.before);
+    const int after = occupancy(event.after);
+    if (before <= 1 && after <= 1)
+      return event.numeric_crossing == after - before;
+    return event.numeric_crossing >= -1 && event.numeric_crossing <= 1;
+  }
+
+  bool publish_event_seeds(bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    std::vector<relation_event_seed_proposal> proposals;
+    for (const auto &descriptor : constructions_desc_) {
+      if (!descriptor.emit_seed)
+        continue;
+      const auto relation = relation_ids_.find(descriptor.source_relation);
+      const auto construction = construction_ids_.find(descriptor.key);
+      if (relation == relation_ids_.end() ||
+          construction == construction_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 event seed source is absent",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      relation_event_seed_proposal proposal;
+      proposal.key.semantic_namespace = context_.context_digest;
+      proposal.key.family = descriptor.seed_family;
+      proposal.key.first = descriptor.source_relation.first;
+      proposal.key.second = descriptor.source_relation.second;
+      proposal.key.occurrence = descriptor.occurrence;
+      proposal.source_relation = relation->second;
+      proposal.construction = construction->second;
+      proposal.incidence = descriptor.incidence;
+      proposal.distinct_occurrence_required = descriptor.distinct_occurrence;
+      if (!valid_relation_event_seed_key(proposal.key))
+        return fail(error, relation_subcode::malformed_request_key,
+                    "Component 07 event seed key is malformed",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      proposals.push_back(proposal);
+
+    }
+
+    auto table = canonicalize_relation_event_seeds(std::move(proposals),
+                                                    capabilities_);
+    if (!table.has_value()) {
+      error = *table.error();
+      return false;
+    }
+    seed_table_ = std::move(*table.value());
+    return true;
+  }
+
+  const symbolic_descriptor *find_symbolic_descriptor(
+      const relation_request_key &source, std::uint32_t occurrence) const {
+    for (const auto &descriptor : symbolics_)
+      if (descriptor.source_relation == source &&
+          descriptor.occurrence == occurrence)
+        return &descriptor;
+    return nullptr;
+  }
+
+  bool publish_candidate_dispositions(bounded_boolean_error &error) {
+    std::vector<relation_candidate_disposition_proposal> proposals;
+    proposals.reserve(candidates_->candidates().size());
+    for (const auto &candidate : candidates_->candidates()) {
+      relation_candidate_disposition_proposal proposal;
+      proposal.candidate = candidate.id;
+      const auto &keys = candidate_base_keys_[candidate.id.ordinal()];
+      const feature_relation_record *selected = nullptr;
+      for (const auto &key : keys) {
+        const auto relation = relation_ids_.find(key);
+        if (relation == relation_ids_.end())
+          continue;
+        const auto &record = relations_[relation->second.ordinal()];
+        if (!relation_artifact_assembly_detail::public_contact(record.status))
+          continue;
+        if (!selected || record.producer < selected->producer)
+          selected = &record;
+      }
+      const auto *request = relation_artifact_assembly_detail::find_request(
+          graph_, disposition_desc_[candidate.id.ordinal()].key);
+      if (!request)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 candidate disposition producer is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      proposal.bookkeeping_request = request->id;
+      if (selected) {
+        proposal.disposition =
+            candidate_relation_disposition_kind::mapped_to_public_relation;
+        proposal.public_relation = selected->id;
+      } else if (!keys.empty()) {
+        proposal.disposition =
+            candidate_relation_disposition_kind::bookkeeping_witness;
+      } else {
+        proposal.disposition =
+            candidate_relation_disposition_kind::no_public_relation;
+      }
+      proposals.push_back(proposal);
+    }
+    auto records = canonicalize_candidate_dispositions(
+        std::move(proposals), candidates_->candidates().size(), capabilities_);
+    if (!records.has_value()) {
+      error = *records.error();
+      return false;
+    }
+    dispositions_ = std::move(*records.value());
+    return true;
+  }
+
+  void fill_statistics(artifact_type &artifact) const {
+    artifact.statistics_.candidate_count = candidates_->candidates().size();
+    artifact.statistics_.request_proposal_count =
+        artifact.request_graph_.proposal_count;
+    artifact.statistics_.unique_request_count =
+        artifact.request_graph_.requests.size();
+    artifact.statistics_.dependency_count =
+        artifact.request_graph_.dependencies.size();
+    artifact.statistics_.reverse_consumer_count =
+        artifact.request_graph_.reverse_consumers.size();
+    artifact.statistics_.candidate_witness_count =
+        artifact.request_graph_.candidate_witnesses.size();
+    for (const auto &record : artifact.relations_)
+      if (record.scope == relation_record_scope::public_source_feature)
+        ++artifact.statistics_.public_relation_count;
+      else
+        ++artifact.statistics_.bookkeeping_relation_count;
+    artifact.statistics_.construction_count = artifact.constructions_.size();
+    artifact.statistics_.symbolic_eligibility_count =
+        artifact.symbolic_eligibility_.size();
+    artifact.statistics_.symbolic_decision_count =
+        artifact.symbolic_decisions_.size();
+    artifact.statistics_.crossing_record_count = artifact.crossings_.size();
+    artifact.statistics_.event_seed_count = artifact.event_seeds_.size();
+    artifact.statistics_.sort_comparisons =
+        artifact.request_graph_.sort_comparisons;
+    artifact.statistics_.verifier_work_units =
+        1 + artifact.request_graph_.requests.size() +
+        artifact.request_graph_.dependencies.size() + artifact.relations_.size() +
+        artifact.constructions_.size() + artifact.symbolic_decisions_.size() +
+        artifact.crossings_.size() + artifact.event_seeds_.size() +
+        artifact.candidate_dispositions_.size();
+  }
+
+  const boolean_context<T, I> &context_;
+  const precision_context<T> &precision_;
+  std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
+  std::shared_ptr<const edge_stage_type> edge_stage_;
+  std::shared_ptr<const edge_facet_stage_type> edge_facet_stage_;
+  std::shared_ptr<const facet_stage_type> facet_stage_;
+  std::shared_ptr<const overlay_stage_type> overlay_stage_;
+  const relation_capabilities &capabilities_;
+
+  std::vector<relation_request_proposal> proposals_;
+  std::vector<base_descriptor> bases_;
+  std::vector<construction_descriptor> constructions_desc_;
+  std::vector<symbolic_descriptor> symbolics_;
+  std::vector<disposition_descriptor> disposition_desc_;
+  std::vector<std::vector<relation_request_key>> candidate_base_keys_;
+  std::map<relation_request_key, relation_request_key> multiplicity_keys_;
+  std::vector<relation_request_key> seed_request_keys_;
+
+  relation_request_graph graph_{};
+  std::vector<relation_truth_record> truth_records_;
+  std::vector<feature_relation_record> relations_;
+  std::vector<relation_construction_record> constructions_;
+  std::vector<symbolic_eligibility_record> eligibility_;
+  std::vector<symbolic_relation_decision_record> decisions_;
+  std::vector<relation_crossing_record> crossings_;
+  relation_event_seed_table seed_table_{};
+  std::vector<relation_candidate_disposition_record> dispositions_;
+  std::map<relation_request_key, feature_relation_id> relation_ids_;
+  std::map<relation_request_key, relation_construction_id> construction_ids_;
+  std::map<std::pair<relation_request_key, std::uint32_t>,
+           symbolic_relation_decision_id>
+      decision_ids_;
+};
+
+} // namespace ygor::mesh_boolean::bounded

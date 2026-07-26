@@ -305,7 +305,7 @@ void test_mutation_rejection() {
   }
 }
 
-void test_empty_stage_and_publication_gate() {
+void test_empty_stage_and_publication() {
   auto separated = broad_phase_tests::build(
       broad_phase_tests::box(),
       broad_phase_tests::box(4.0, 4.0, 4.0, 5.0, 5.0, 5.0));
@@ -327,14 +327,24 @@ void test_empty_stage_and_publication_gate() {
   auto result = bounded::build_signed_feature_relations(
       fixture.predecessor.context, *fixture.predecessor.precision,
       fixture.artifact, caps);
-  require(!result.has_value(),
-          "non-empty Component 07 still refuses partial publication");
-  require(result.error() &&
-              result.error()->subcode == static_cast<std::uint32_t>(
-                  bounded::relation_subcode::unsupported_relation_kernel) &&
-              result.error()->checkpoint == static_cast<std::uint32_t>(
-                  bounded::relation_checkpoint::coplanar_overlay_evaluation),
-          "publication gate advances only after verified facet/facet support relations");
+  if (!result.has_value())
+    throw std::runtime_error(diagnostic(*result.error()));
+  const auto &artifact = **result.value();
+  require(artifact.verification() ==
+              bounded::relation_verification_disposition::independently_verified,
+          "non-empty Component 07 publishes only an independently verified artifact");
+  require(artifact.source_edge_stage() && artifact.source_edge_facet_stage() &&
+              artifact.source_facet_stage() && artifact.coplanar_overlay_stage(),
+          "final artifact retains every independently verified numerical and coplanar stage");
+  require(!artifact.relations().empty() &&
+              artifact.candidate_dispositions().size() ==
+                  fixture.artifact->candidates().size(),
+          "final artifact publishes canonical relations and complete candidate dispositions");
+  require(!artifact.constructions().empty() && !artifact.event_seeds().empty(),
+          "intersecting fixture publishes shared constructions and event seeds");
+  bounded_boolean_error verify_error;
+  require(bounded::verify_signed_feature_relations(artifact, verify_error),
+          "published relation artifact independently verifies");
 }
 
 } // namespace
@@ -345,7 +355,7 @@ int main() {
     test_candidate_request_integration();
     test_candidate_coplanar_overlay_integration();
     test_mutation_rejection();
-    test_empty_stage_and_publication_gate();
+    test_empty_stage_and_publication();
     std::cout << "Component 07 edge/facet integration checks passed\n";
     return 0;
   } catch (const std::exception &error) {

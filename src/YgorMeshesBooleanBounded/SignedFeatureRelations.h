@@ -4,11 +4,18 @@
 #include "RelationRequestGraph.h"
 #include "SymbolicPerturbation.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 namespace ygor::mesh_boolean::bounded {
+
+template <class T> struct candidate_source_edge_relation_stage;
+template <class T> struct candidate_source_edge_facet_relation_stage;
+template <class T> struct candidate_source_facet_relation_stage;
+template <class T> struct candidate_coplanar_overlay_stage;
+template <class T, class I> class relation_artifact_assembler;
 
 struct relation_truth_record final {
   std::uint64_t rounded_nominal_bits = 0;
@@ -25,9 +32,9 @@ struct relation_construction_record final {
   relation_request_id producer{0};
   relation_construction_kind kind = relation_construction_kind::bounded_point;
   std::uint8_t component_count = 0;
-  std::array<std::uint64_t, 4> nominal_bits{};
-  std::array<std::uint64_t, 4> lower_bits{};
-  std::array<std::uint64_t, 4> upper_bits{};
+  std::array<std::uint64_t, 6> nominal_bits{};
+  std::array<std::uint64_t, 6> lower_bits{};
+  std::array<std::uint64_t, 6> upper_bits{};
   std::uint64_t residual_truth_begin = 0;
   std::uint64_t residual_truth_count = 0;
   bool finite = false;
@@ -47,6 +54,19 @@ struct feature_relation_record final {
   std::int32_t numeric_crossing_multiplicity = 0;
   std::uint32_t occurrence = 0;
   std::uint32_t reserved = 0;
+};
+
+
+struct relation_crossing_record final {
+  feature_relation_id relation{0};
+  std::int32_t numeric_crossing = 0;
+  std::int8_t symbolic_crossing = 0;
+  operand_id half_open_owner = operand_id::a;
+  std::uint32_t occurrence = 0;
+  bool source_fan_resolved = false;
+  bool locally_conservative = false;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
 };
 
 struct relation_event_seed_record final {
@@ -106,6 +126,14 @@ public:
   const relation_request_graph &request_graph() const noexcept {
     return request_graph_;
   }
+  const std::shared_ptr<const candidate_source_edge_relation_stage<T>> &
+  source_edge_stage() const noexcept { return source_edge_stage_; }
+  const std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> &
+  source_edge_facet_stage() const noexcept { return source_edge_facet_stage_; }
+  const std::shared_ptr<const candidate_source_facet_relation_stage<T>> &
+  source_facet_stage() const noexcept { return source_facet_stage_; }
+  const std::shared_ptr<const candidate_coplanar_overlay_stage<T>> &
+  coplanar_overlay_stage() const noexcept { return coplanar_overlay_stage_; }
   const std::vector<relation_truth_record> &truth_records() const noexcept {
     return truth_records_;
   }
@@ -115,9 +143,16 @@ public:
   const std::vector<relation_construction_record> &constructions() const noexcept {
     return constructions_;
   }
+  const std::vector<symbolic_eligibility_record> &symbolic_eligibility()
+      const noexcept {
+    return symbolic_eligibility_;
+  }
   const std::vector<symbolic_relation_decision_record> &symbolic_decisions()
       const noexcept {
     return symbolic_decisions_;
+  }
+  const std::vector<relation_crossing_record> &crossings() const noexcept {
+    return crossings_;
   }
   const std::vector<relation_event_seed_record> &event_seeds() const noexcept {
     return event_seeds_;
@@ -145,6 +180,11 @@ public:
   const bounded_boolean_digest &graph_digest() const noexcept {
     return graph_digest_;
   }
+  boolean_operation operation() const noexcept { return operation_; }
+  T residual_boundary() const noexcept { return residual_boundary_; }
+  const bounded_boolean_digest &symbolic_policy_digest() const noexcept {
+    return symbolic_policy_digest_;
+  }
   const std::vector<std::uint8_t> &canonical_bytes() const noexcept {
     return canonical_bytes_;
   }
@@ -171,10 +211,16 @@ private:
   context_owner_token owner_{};
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
   relation_request_graph request_graph_{};
+  std::shared_ptr<const candidate_source_edge_relation_stage<T>> source_edge_stage_;
+  std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> source_edge_facet_stage_;
+  std::shared_ptr<const candidate_source_facet_relation_stage<T>> source_facet_stage_;
+  std::shared_ptr<const candidate_coplanar_overlay_stage<T>> coplanar_overlay_stage_;
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;
+  std::vector<symbolic_eligibility_record> symbolic_eligibility_;
   std::vector<symbolic_relation_decision_record> symbolic_decisions_;
+  std::vector<relation_crossing_record> crossings_;
   std::vector<relation_event_seed_record> event_seeds_;
   std::vector<relation_feature_key> event_seed_incidence_;
   std::vector<relation_candidate_disposition_record> candidate_dispositions_;
@@ -184,10 +230,14 @@ private:
   bounded_boolean_digest precision_digest_{};
   bounded_boolean_digest candidate_digest_{};
   bounded_boolean_digest graph_digest_{};
+  boolean_operation operation_ = boolean_operation::set_union;
+  T residual_boundary_ = T(0);
+  bounded_boolean_digest symbolic_policy_digest_{};
   std::vector<std::uint8_t> canonical_bytes_;
   bounded_boolean_digest digest_{};
 
   template <class U, class J> friend class relation_builder;
+  template <class U, class J> friend class relation_artifact_assembler;
   template <class U, class J>
   friend std::vector<std::uint8_t>
   encode_signed_feature_relations(const signed_feature_relations<U, J> &);

@@ -115,8 +115,10 @@ bool preflight_relation_foundation(
       !checked_add<std::uint64_t>(candidate_bytes, std::uint64_t{4096},
                                   plan.fixed_temporary_bytes) ||
       !checked_add<std::uint64_t>(
-          static_cast<std::uint64_t>(sizeof(relation_request_graph)),
-          std::uint64_t{4096}, plan.fixed_persistent_bytes)) {
+          candidate_bytes,
+          static_cast<std::uint64_t>(sizeof(relation_request_graph)) +
+              std::uint64_t{65536},
+          plan.fixed_persistent_bytes)) {
     error = relation_error(relation_subcode::byte_count_overflow,
                            bounded_boolean_error_category::index_overflow,
                            "Component 07 preflight byte count overflow",

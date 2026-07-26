@@ -271,7 +271,9 @@ struct relation_statistics final {
   std::uint64_t public_relation_count = 0;
   std::uint64_t bookkeeping_relation_count = 0;
   std::uint64_t construction_count = 0;
+  std::uint64_t symbolic_eligibility_count = 0;
   std::uint64_t symbolic_decision_count = 0;
+  std::uint64_t crossing_record_count = 0;
   std::uint64_t event_seed_count = 0;
   std::uint64_t sort_comparisons = 0;
   std::uint64_t verifier_work_units = 0;

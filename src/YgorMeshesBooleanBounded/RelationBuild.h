@@ -4,6 +4,7 @@
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
+#include "RelationArtifactAssembly.h"
 #include "RelationVerifier.h"
 #include "Transaction.h"
 
@@ -42,8 +43,7 @@ public:
           !build_candidate_edge_facet_relations() ||
           !build_candidate_facet_relations() ||
           !build_candidate_coplanar_overlays() ||
-          !require_remaining_families() ||
-          !build_foundation_artifact() || !encode_and_verify())
+          !build_final_artifact() || !encode_and_verify())
         return failure();
       auto published =
           std::shared_ptr<const signed_feature_relations<T, I>>(
@@ -148,16 +148,8 @@ private:
                                        error_))
       return false;
 
-    std::uint64_t persistent_reserve = 0;
-    if (!checked_add<std::uint64_t>(
-            static_cast<std::uint64_t>(sizeof(artifact_type)),
-            static_cast<std::uint64_t>(4096), persistent_reserve))
-      return fail(relation_subcode::byte_count_overflow,
-                  bounded_boolean_error_category::index_overflow,
-                  "Component 07 persistent reservation overflow",
-                  relation_checkpoint::count_representability_preflight);
     persistent_reservation_ = capabilities_.resources->reserve(
-        resource_kind::persistent_bytes, persistent_reserve);
+        resource_kind::persistent_bytes, preflight_.fixed_persistent_bytes);
     temporary_reservation_ = capabilities_.resources->reserve(
         resource_kind::temporary_bytes, preflight_.fixed_temporary_bytes);
     work_reservation_ = capabilities_.resources->reserve(
@@ -245,51 +237,29 @@ private:
     return true;
   }
 
-  bool require_remaining_families() {
-    if (preflight_.candidate_count == 0)
-      return true;
-    return fail(
-        relation_subcode::unsupported_relation_kernel,
-        bounded_boolean_error_category::result_geometry_not_validated,
-        "Component 07 candidate-derived edge, facet-support, and coplanar boundary classification stages are verified; canonical overlay-component assembly, multiplicity, symbolic, and later relation families are not yet implemented",
-        relation_checkpoint::coplanar_overlay_evaluation);
-  }
-
-  bool build_foundation_artifact() {
+  bool build_final_artifact() {
     if (!check_cancel(relation_checkpoint::initial_request_grouping))
       return false;
-    auto graph = build_relation_request_graph({}, capabilities_);
-    if (!graph.has_value()) {
-      error_ = *graph.error();
-      return false;
-    }
+    if (!edge_stage_ || !edge_facet_stage_ || !facet_stage_ || !overlay_stage_)
+      return fail(relation_subcode::internal_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 final assembly is missing a verified predecessor stage",
+                  relation_checkpoint::predecessor_validation);
+
+    auto edge = std::make_shared<const edge_stage_type>(
+        std::move(*edge_stage_));
+    auto edge_facet = std::make_shared<const edge_facet_stage_type>(
+        std::move(*edge_facet_stage_));
+    auto facet = std::make_shared<const facet_stage_type>(
+        std::move(*facet_stage_));
+    auto overlay = std::make_shared<const overlay_stage_type>(
+        std::move(*overlay_stage_));
     artifact_ = std::make_unique<artifact_type>();
-    artifact_->owner_ = capabilities_.owner;
-    artifact_->candidates_ = candidates_;
-    artifact_->request_graph_ = std::move(*graph.value());
-    artifact_->context_digest_ = context_.context_digest;
-    artifact_->precision_digest_ = precision_.digest();
-    artifact_->candidate_digest_ = candidates_->candidate_digest();
-    artifact_->graph_digest_ = artifact_->request_graph_.semantic_digest;
-    artifact_->statistics_.candidate_count = 0;
-    artifact_->statistics_.request_proposal_count = 0;
-    artifact_->statistics_.unique_request_count = 0;
-    artifact_->statistics_.dependency_count = 0;
-    artifact_->statistics_.reverse_consumer_count = 0;
-    artifact_->statistics_.candidate_witness_count = 0;
-    artifact_->verification_evidence_.id = relation_verifier_evidence_id(0);
-    artifact_->verification_evidence_.verifier_version =
-        contract_versions::relation_verifier;
-    artifact_->verification_evidence_.graph_reconstructed = true;
-    artifact_->verification_evidence_.owner_exclusion_checked = true;
-    artifact_->verification_evidence_.selection_boundary_checked = true;
-    artifact_->verification_evidence_.candidate_dispositions_complete = true;
-    artifact_->verification_evidence_.verifier_work_units = 1;
-    artifact_->verification_evidence_.semantic_digest = artifact_->graph_digest_;
-    artifact_->statistics_.verifier_work_units = 1;
-    artifact_->verification_ =
-        relation_verification_disposition::independently_verified;
-    return true;
+    relation_artifact_assembler<T, I> assembler(
+        context_, precision_, candidates_, std::move(edge),
+        std::move(edge_facet), std::move(facet), std::move(overlay),
+        capabilities_);
+    return assembler.assemble(*artifact_, error_);
   }
 
   bool encode_and_verify() {
