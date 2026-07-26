@@ -17,7 +17,81 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Apply and verify P6.3 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import shutil
+          from pathlib import Path
+
+          manifest = [
+              ('00', 'src/YgorMeshesBooleanQualificationGeneration.h', '1b083cf474188f940c875439a5873407c9c6c7cf230906b7d5a8454fab97a6d8'),
+              ('01', 'src/YgorMeshesBooleanQualificationGeneration.cc', 'ae667d33a8b3b4e58b21a57161cec47fc8b220b34271e2cc7d7e432ee4371c7f'),
+              ('02', 'src/YgorMeshesBooleanProductContract.h', 'da24dfb97facfa0c1eee5a7be14e08698a526c897907e0db49f2d4b80f0b1d9b'),
+              ('03', 'src/CMakeLists.txt', '7e3f11285878eebb532614ad54ab91ce319f3d04813d60b42fd09b6da090b16d'),
+              ('04', 'tests/Test_MeshesBooleanQualificationGeneration.cc', '063b6c32477c24a0a41a1be77deedcf0587d7d941afb89b0393a72b1a6413f89'),
+              ('05', 'tests/CMakeLists.txt', 'fec7240b2f34dd72d99cb7e7959c42ea8505ae48ea3b37748419ba5de0a3847d'),
+              ('06', 'tests/mesh_boolean/requirements.tsv', 'dfb910a4a774c5a619da2c9f97c1bae42cae18f087072c301fcc05115e32efd8'),
+              ('07', 'tests/mesh_boolean/corpus/README.md', '03edfad4b38dba4981fc103ba1cd79d997a7433dd6147b2d43ecf3bc6f111f48'),
+              ('08', 'docs/MeshBooleanQualificationGeneration.md', 'd2376621f2b5455b6a192b7dc15a27e4c056914aa7e0109fe311e7da057c9be0'),
+              ('09', '.github/workflows/mesh-boolean-p6-generation.yml', '4ae8f48bd07722ac8aa0caf1aa48430825ae30f4826ed4d2a41d1621b8617227'),
+          ]
+          root = Path('.github/p6-text-payload')
+          for key, target_text, expected in manifest:
+              parts = sorted((root / key).glob('[0-9][0-9][0-9]'))
+              if not parts:
+                  raise SystemExit(f'missing staged parts for {key}')
+              data = b''.join(part.read_bytes() for part in parts)
+              actual = hashlib.sha256(data).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f'hash mismatch for {target_text}: {actual} != {expected}')
+              target = Path(target_text)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(data)
+          shutil.rmtree(root)
+          bootstrap = Path('.github/workflows/p6-implementation-bootstrap.yml')
+          if bootstrap.exists():
+              bootstrap.unlink()
+          Path('.github/workflows/mesh-boolean-p6-workspace.yml').write_text('''name: Mesh Boolean P6 workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Package exact checkout into committed transport chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/p6-workspace.part-* .github/p6-workspace.sha256
+          tar --exclude=.git --exclude=build --exclude=build-* \\
+              --exclude='.github/p6-workspace.part-*' \\
+              --exclude='.github/p6-workspace.sha256' \\
+              -czf /tmp/ygor-p6-workspace.tar.gz .
+          sha256sum /tmp/ygor-p6-workspace.tar.gz | awk '{print $1}' > .github/p6-workspace.sha256
+          base64 -w 0 /tmp/ygor-p6-workspace.tar.gz | split -b 750000 -d -a 3 - .github/p6-workspace.part-
+          git add .github/p6-workspace.part-* .github/p6-workspace.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Export PR workspace archive for P6.3'
+          git push origin HEAD:boolean_symbolic
+''')
+          PY
+      - name: Package exact checkout and publish component
         shell: bash
         run: |
           set -euo pipefail
@@ -28,8 +102,16 @@ jobs:
               -czf /tmp/ygor-p6-workspace.tar.gz .
           sha256sum /tmp/ygor-p6-workspace.tar.gz | awk '{print $1}' > .github/p6-workspace.sha256
           base64 -w 0 /tmp/ygor-p6-workspace.tar.gz | split -b 750000 -d -a 3 - .github/p6-workspace.part-
-          git add .github/p6-workspace.part-* .github/p6-workspace.sha256
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Export PR workspace archive for P6.3'
-          git push origin HEAD:boolean_symbolic
+          git add -A
+          git commit -m 'Implement Plan 16 P6.3 qualification generators and chains'
+          for attempt in 1 2 3 4 5 6; do
+            git fetch origin boolean_symbolic
+            git rebase origin/boolean_symbolic
+            if git push origin HEAD:boolean_symbolic; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          exit 1
