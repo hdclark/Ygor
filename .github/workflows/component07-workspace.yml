@@ -7,7 +7,7 @@ on:
       - synchronize
       - edited
     branches:
-      - agent/bounded-manifold-mesh-boolean-plan
+      - master
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
