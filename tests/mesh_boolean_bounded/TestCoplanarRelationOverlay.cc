@@ -154,6 +154,40 @@ std::uint64_t interval_count(
   return result;
 }
 
+
+template <class T>
+void check_topology_tables(
+    const source_facet_coplanar_overlay_record<T> &record,
+    const std::string &name) {
+  check(record.complete_event_lineage &&
+            record.complete_authorized_arc_coverage &&
+            record.complete_overlap_component_assembly,
+        name + " complete coplanar topology flags");
+  for (std::size_t i = 0; i < record.event_nodes.size(); ++i) {
+    const auto &node = record.event_nodes[i];
+    check(node.id == i && !node.occurrences.empty() &&
+              std::is_sorted(node.occurrences.begin(), node.occurrences.end()),
+          name + " canonical event node");
+  }
+  for (std::size_t i = 0; i < record.oriented_arcs.size(); ++i) {
+    const auto &arc = record.oriented_arcs[i];
+    check(arc.id == i && arc.start_node < record.event_nodes.size() &&
+              arc.end_node < record.event_nodes.size() &&
+              arc.start_node != arc.end_node && !arc.occurrences.empty() &&
+              std::is_sorted(arc.occurrences.begin(), arc.occurrences.end()),
+          name + " canonical oriented arc");
+  }
+  for (std::size_t i = 0; i < record.overlap_components.size(); ++i) {
+    const auto &component = record.overlap_components[i];
+    check(component.id == i && !component.node_ids.empty() &&
+              std::is_sorted(component.node_ids.begin(),
+                             component.node_ids.end()) &&
+              std::is_sorted(component.arc_ids.begin(),
+                             component.arc_ids.end()),
+          name + " canonical overlap component");
+  }
+}
+
 template <class T>
 source_facet_coplanar_overlay_record<T> classify(
     const char *name, polygon_fixture<T> first, polygon_fixture<T> second,
@@ -184,6 +218,7 @@ source_facet_coplanar_overlay_record<T> classify(
             sha256::digest(
                 encode_coplanar_overlay_semantics(*overlay.value())),
         std::string(name) + " digest reproduces");
+  check_topology_tables(*overlay.value(), name);
   return std::move(*overlay.value());
 }
 
@@ -204,12 +239,22 @@ void known_answers() {
             interval_count(disjoint,
                            source_facet_segment_interval_class::interior) == 0,
         "disjoint overlay publishes complete outside boundary partitions");
+  check(disjoint.event_nodes.empty() && disjoint.oriented_arcs.empty() &&
+            disjoint.overlap_components.empty(),
+        "disjoint overlay has no event topology");
 
   auto point = classify(
       "point", polygon<double>(owner, operand_id::a, 3, square(0, 0, 1, 1)),
       polygon<double>(owner, operand_id::b, 4, square(1, 1, 2, 2)), owner);
   check(point.classification == coplanar_facet_overlay_class::point_contact,
         "point-only coplanar contact");
+  check(point.event_nodes.size() == 1 && point.oriented_arcs.empty() &&
+            point.overlap_components.size() == 1 &&
+            point.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::isolated_point &&
+            point.overlap_components[0].sheet_mask == 3 &&
+            !point.overlap_components[0].closed,
+        "point contact is one distinct-sheet event component");
 
   auto segment = classify(
       "segment", polygon<double>(owner, operand_id::a, 5, square(0, 0, 1, 1)),
@@ -221,6 +266,18 @@ void known_answers() {
             segment,
             source_facet_segment_interval_class::original_edge_overlap) != 0,
         "segment contact retains overlap intervals and source ownership");
+  check(segment.event_nodes.size() == 2 &&
+            segment.oriented_arcs.size() == 1 &&
+            segment.oriented_arcs[0].kind ==
+                coplanar_overlap_arc_kind::shared_boundary &&
+            segment.oriented_arcs[0].occurrences.size() == 2 &&
+            segment.oriented_arcs[0].overlap_lineages.size() == 1 &&
+            segment.overlap_components.size() == 1 &&
+            segment.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::boundary_segment &&
+            segment.overlap_components[0].sheet_mask == 3 &&
+            !segment.overlap_components[0].closed,
+        "segment contact merges mirrored occurrences only by relation lineage");
 
   auto overlap = classify(
       "area overlap",
@@ -232,6 +289,14 @@ void known_answers() {
   check(interval_count(overlap,
                        source_facet_segment_interval_class::interior) == 4,
         "crossing overlay partitions retain four authorized interior arcs");
+  check(overlap.event_nodes.size() == 4 &&
+            overlap.oriented_arcs.size() == 4 &&
+            overlap.overlap_components.size() == 1 &&
+            overlap.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::area_boundary &&
+            overlap.overlap_components[0].sheet_mask == 3 &&
+            overlap.overlap_components[0].closed,
+        "crossing overlap assembles one closed mixed-sheet boundary");
 
   auto containment = classify(
       "containment",
@@ -243,6 +308,14 @@ void known_answers() {
   check(interval_count(containment,
                        source_facet_segment_interval_class::interior) == 4,
         "contained facet boundary is completely classified as interior");
+  check(containment.event_nodes.size() == 4 &&
+            containment.oriented_arcs.size() == 4 &&
+            containment.overlap_components.size() == 1 &&
+            containment.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::area_boundary &&
+            containment.overlap_components[0].sheet_mask == 2 &&
+            containment.overlap_components[0].closed,
+        "containment preserves the contained source-sheet boundary cycle");
 
   auto equal = classify(
       "equal",
@@ -256,6 +329,38 @@ void known_answers() {
             equal,
             source_facet_segment_interval_class::original_edge_overlap) == 8,
         "equal facets retain complete double-sheet boundary partitions");
+  check(equal.event_nodes.size() == 4 && equal.oriented_arcs.size() == 4 &&
+            equal.overlap_components.size() == 1 &&
+            equal.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::coincident_sheet_boundary &&
+            equal.overlap_components[0].sheet_mask == 3 &&
+            equal.overlap_components[0].closed,
+        "equal facets retain one closed distinct-occurrence sheet cycle");
+  for (const auto &arc : equal.oriented_arcs)
+    check(arc.kind == coplanar_overlap_arc_kind::shared_boundary &&
+              arc.occurrences.size() == 2 &&
+              arc.occurrences[0].polygon != arc.occurrences[1].polygon &&
+              arc.overlap_lineages.size() == 1,
+          "equal shared arc retains two source-sheet occurrences");
+
+  const std::vector<std::array<double, 2>> split_boundary{
+      {{0, 0}}, {{2, 0}}, {{2, 2}}, {{1, 2}}, {{0, 2}}};
+  auto equal_split = classify(
+      "equal split boundary",
+      polygon<double>(owner, operand_id::a, 15, square(0, 0, 2, 2)),
+      polygon<double>(owner, operand_id::b, 16, split_boundary), owner);
+  check(equal_split.classification ==
+            coplanar_facet_overlay_class::equal_same_orientation &&
+            equal_split.event_nodes.size() == 5 &&
+            equal_split.oriented_arcs.size() == 5 &&
+            equal_split.overlap_components.size() == 1 &&
+            equal_split.overlap_components[0].closed,
+        "equal facets with distinct source-boundary tessellations canonicalize");
+  for (const auto &arc : equal_split.oriented_arcs)
+    check(arc.kind == coplanar_overlap_arc_kind::shared_boundary &&
+              arc.occurrences.size() == 2 &&
+              arc.overlap_lineages.size() == 1,
+          "split equality retains exact mirrored source-edge lineage");
 
   auto opposite = classify(
       "equal opposite",
@@ -265,6 +370,11 @@ void known_answers() {
   check(opposite.classification ==
             coplanar_facet_overlay_class::equal_opposite_orientation,
         "equal opposite sheets retain orientation relation");
+  check(opposite.overlap_components.size() == 1 &&
+            opposite.overlap_components[0].kind ==
+                coplanar_overlap_component_kind::coincident_sheet_boundary &&
+            opposite.overlap_components[0].closed,
+        "opposite coincident sheets retain a closed occurrence cycle");
 }
 
 void failures_and_mutations() {
@@ -295,9 +405,68 @@ void failures_and_mutations() {
     forged.classification = coplanar_facet_overlay_class::disjoint;
     forged.semantic_digest =
         sha256::digest(encode_coplanar_overlay_semantics(forged));
-    check(valid_coplanar_overlay_record(forged) &&
+    check(!valid_coplanar_overlay_record(forged) &&
               !verify_coplanar_overlay_record(forged),
           "self-consistent forged classification is independently rejected");
+
+    auto split_event = *overlay.value();
+    check(!split_event.event_nodes.empty() &&
+              split_event.event_nodes.front().occurrences.size() >= 2,
+          "split-event mutation source is available");
+    if (!split_event.event_nodes.empty() &&
+        split_event.event_nodes.front().occurrences.size() >= 2) {
+      auto occurrence = split_event.event_nodes.front().occurrences.back();
+      split_event.event_nodes.front().occurrences.pop_back();
+      coplanar_overlap_event_node<double> extra;
+      extra.id = split_event.event_nodes.size();
+      extra.occurrences = {std::move(occurrence)};
+      extra.representative = split_event.event_nodes.front().representative;
+      split_event.event_nodes.push_back(std::move(extra));
+      split_event.semantic_digest = sha256::digest(
+          encode_coplanar_overlay_semantics(split_event));
+      check(!valid_coplanar_overlay_record(split_event),
+            "split exact event-equivalence class is rejected after digest repair");
+    }
+
+    auto forged_lineage = *overlay.value();
+    check(!forged_lineage.oriented_arcs.empty(),
+          "shared-lineage mutation source is available");
+    if (!forged_lineage.oriented_arcs.empty()) {
+      forged_lineage.oriented_arcs.front().overlap_lineages = {
+          relation_request_id(999999)};
+      forged_lineage.semantic_digest = sha256::digest(
+          encode_coplanar_overlay_semantics(forged_lineage));
+      check(!valid_coplanar_overlay_record(forged_lineage),
+            "forged shared-boundary lineage is rejected after digest repair");
+    }
+
+    auto self_loop = *overlay.value();
+    if (!self_loop.oriented_arcs.empty()) {
+      self_loop.oriented_arcs.front().end_node =
+          self_loop.oriented_arcs.front().start_node;
+      self_loop.semantic_digest =
+          sha256::digest(encode_coplanar_overlay_semantics(self_loop));
+      check(!valid_coplanar_overlay_record(self_loop),
+            "self-loop boundary arc is rejected after digest repair");
+    }
+
+    auto open_component = *overlay.value();
+    if (!open_component.overlap_components.empty()) {
+      open_component.overlap_components.front().closed = false;
+      open_component.semantic_digest = sha256::digest(
+          encode_coplanar_overlay_semantics(open_component));
+      check(!valid_coplanar_overlay_record(open_component),
+            "open coincident-sheet component is rejected after digest repair");
+    }
+
+    auto missing_interval = *overlay.value();
+    if (!missing_interval.oriented_arcs.empty()) {
+      missing_interval.oriented_arcs.pop_back();
+      missing_interval.semantic_digest = sha256::digest(
+          encode_coplanar_overlay_semantics(missing_interval));
+      check(!valid_coplanar_overlay_record(missing_interval),
+            "missing authorized interval arc is rejected after digest repair");
+    }
     auto partition_mutation = *overlay.value();
     partition_mutation.boundary_partitions.front()
         .partition.semantic_digest.bytes[0] ^= 0x80U;

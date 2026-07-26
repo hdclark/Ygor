@@ -429,6 +429,46 @@ assembly. The partitions are immutable authoritative input for that next slice;
 they do not themselves infer event equivalence, final sheet selection, or output
 orientation.
 
+## Implemented canonical coplanar event, arc, and component slice
+
+The complete certified boundary partitions now feed a canonical, lineage-keyed
+coplanar topology reduction:
+
+- every relevant partition breakpoint is represented by one source-boundary
+  occurrence carrying its exact source-vertex incidence and ordered
+  compute-once contact-lineage/endpoint-role evidence;
+- event nodes are equivalence classes formed only by exact same-source-vertex
+  incidence on one source polygon or by identical relation lineage and endpoint
+  role, with transitive closure, compatible projected enclosures, canonical
+  occurrence ordering, and no coordinate, proximity, hash, or tolerance key;
+- every certified interior or opposite-boundary-overlap interval appears exactly
+  once as an oriented boundary-arc occurrence, using the frozen source-facet
+  orientation to select traversal direction;
+- mirrored shared-boundary intervals are merged into one conceptual arc only
+  through their common compute-once source-edge relation lineage, while both
+  source-sheet occurrences remain explicit and distinct;
+- deterministic connected components distinguish isolated point contact,
+  boundary-segment contact, positive-area overlap/containment boundary cycles,
+  and coincident same/opposite-orientation sheet cycles without performing final
+  Boolean selection or output orientation;
+- component closure, node degrees, exact interval coverage, occurrence sheet
+  masks, canonical node/arc/component order, and zero reserved fields are
+  reconstructed and validated independently of the outer semantic digest;
+- matched mutations reject split event-equivalence classes, forged shared
+  relation lineage, self-loop arcs, open area/coincident components, missing
+  interval coverage, and digest repair attempts;
+- equality qualification includes distinct legal source-boundary tessellations,
+  proving that conceptual arcs are reduced from exact relation lineage rather
+  than matching source-edge counts or coordinates; and
+- the candidate-derived transaction stage consumes these records directly and
+  continues to fail closed before crossing multiplicity, source-fan ownership,
+  symbolic policy, event seeds, final artifact/codec/replay publication, or any
+  Component 10 selection.
+
+Focused strict qualification passes the complete five-test predecessor chain for
+candidate source-edge closure, source-edge/source-facet relations, candidate
+integration, source-facet support, and coplanar overlay topology.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
@@ -441,11 +481,9 @@ The tracker remains unchecked. The following Plan 07 work is still required:
 2. Complete source-edge/source-facet source-fan ownership, admitted clustered
    multi-event ordering, complete occurrence tie keys, numeric crossing
    conservation, and all symbolic fields that depend on those results.
-3. Assemble canonical coplanar crossing/overlap components and oriented arcs
-   from the implemented complete source-boundary partitions and overlay
-   classifications, then publish
-   the resulting overlay table in the final artifact while retaining
-   coordinate-coincident distinct occurrences.
+3. Publish the implemented canonical coplanar event, oriented-arc, and
+   component tables in the final artifact/codec/replay surface while retaining
+   coordinate-coincident distinct occurrences and complete predecessor links.
 4. Complete authoritative construction selection and deduplication, residual and
    conditioning evidence, numeric crossing multiplicity, half-open source-fan
    ownership, and local conservation across all relation families.
