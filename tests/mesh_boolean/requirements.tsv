@@ -24,3 +24,6 @@ P6-CHAIN-001	plan16.P6.3	operation chains re-ingest mesh successes, retain exact
 P6-FUZZ-001	plan16.P6.3	construction-aware valid fuzzing and exact-label invalid/preparation fuzzing with report checks	P6.3.fuzz.valid_invalid	property	continuous
 P6-GEN-001	plan16.P6.3	executable exact and CAD-like retained recipes for every frozen P6.2 pair-family ordinal and type specialization	P6.3.generators.descriptors	qualification	continuous
 P6-MIN-001	plan16.P6.3	deterministic provenance-guided minimization and validated permanent-regression promotion	P6.3.minimization.promotion	qualification	continuous
+P6-ACCOUNT-001	plan16.P6.5	normalize every execution to one outcome and count safe failures, false successes, and blocking issues separately across full qualification dimensions	P6.5.campaign	qualification	continuous
+P6-FALSE-001	plan16.P6.5	published semantic, binding, topology, occupancy, embedding, orientation, nesting, certificate, attribute, or approximation defects are blocking false successes	P6.5.false_success	mutation	continuous
+P6-REINGEST-001	plan16.P6.5	re-ingest every mesh success, independently reconstruct topology, replay certificates, check guarded probes, and feed verified outputs into chains	P6.5.real_success	oracle	continuous
