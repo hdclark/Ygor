@@ -76,13 +76,20 @@ void test_candidate_derived_preflight_bound() {
                                                  error),
           "candidate-derived relation preflight succeeds");
   const auto boundary_pairs = 2 * maximum_boundary * maximum_boundary;
-  require(plan.request_upper_bound ==
+  require(plan.initial_request_upper_bound ==
               fixture.artifact->candidates().size() * (boundary_pairs + 3),
           "preflight covers complete facet-pair boundary closure and composite proposals");
-  require(plan.dependency_upper_bound ==
+  require(plan.relation_upper_bound == plan.initial_request_upper_bound &&
+              plan.request_upper_bound > plan.initial_request_upper_bound &&
+              plan.construction_upper_bound != 0 &&
+              plan.symbolic_upper_bound == 2 * plan.construction_upper_bound &&
+              plan.event_seed_upper_bound == plan.construction_upper_bound &&
+              plan.disposition_upper_bound == fixture.artifact->candidates().size(),
+          "preflight covers all final relation families before discovery");
+  require(plan.dependency_upper_bound >
               fixture.artifact->candidates().size() *
                   (boundary_pairs + maximum_boundary),
-          "preflight covers edge/facet and coplanar overlay dependencies");
+          "preflight covers derived construction, symbolic, seed, and disposition dependencies");
 }
 
 void test_candidate_request_integration() {

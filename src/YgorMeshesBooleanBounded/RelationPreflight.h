@@ -7,6 +7,12 @@ namespace ygor::mesh_boolean::bounded {
 
 struct relation_preflight_plan final {
   std::uint64_t candidate_count = 0;
+  std::uint64_t initial_request_upper_bound = 0;
+  std::uint64_t relation_upper_bound = 0;
+  std::uint64_t construction_upper_bound = 0;
+  std::uint64_t symbolic_upper_bound = 0;
+  std::uint64_t event_seed_upper_bound = 0;
+  std::uint64_t disposition_upper_bound = 0;
   std::uint64_t request_upper_bound = 0;
   std::uint64_t dependency_upper_bound = 0;
   std::uint64_t witness_upper_bound = 0;

@@ -47,11 +47,11 @@ bool preflight_relation_foundation(
   }
 
   std::uint64_t boundary_pair_requests = 0;
-  std::uint64_t requests_per_candidate = 0;
+  std::uint64_t initial_requests_per_candidate = 0;
   // Each original candidate edge has two incident source facets. Closing a
   // candidate-derived facet pair requires every original boundary edge of an
   // incident facet against every original boundary edge of the opposite facet.
-  // The remaining three proposals cover one edge/facet request and the two
+  // The remaining three requests cover one edge/facet composite and the two
   // incident facet/facet support requests.
   if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
                                        maximum_facet_boundary,
@@ -60,45 +60,120 @@ bool preflight_relation_foundation(
                                        std::uint64_t{2},
                                        boundary_pair_requests) ||
       !checked_add<std::uint64_t>(boundary_pair_requests, std::uint64_t{3},
-                                  requests_per_candidate) ||
+                                  initial_requests_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
-                                       requests_per_candidate,
-                                       plan.request_upper_bound)) {
+                                       initial_requests_per_candidate,
+                                       plan.initial_request_upper_bound)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
                            "Component 07 candidate-derived request count overflow",
                            relation_checkpoint::count_representability_preflight);
     return false;
   }
-  std::uint64_t dependencies_per_candidate = 0;
-  if (!checked_add<std::uint64_t>(maximum_facet_boundary,
-                                  boundary_pair_requests,
-                                  dependencies_per_candidate) ||
+  plan.relation_upper_bound = plan.initial_request_upper_bound;
+
+  // A simple source polygon has at most O(m^2) coplanar event nodes under the
+  // frozen pairwise-boundary policy. The following closed formulas cover every
+  // final-family producer without relying on observed output size:
+  //   * two point constructions per edge/edge relation;
+  //   * one event construction per possible boundary-pair event plus carriers;
+  //   * two symbolic requests per lower-dimensional occurrence;
+  //   * one event seed per point occurrence; and
+  //   * one disposition per candidate.
+  std::uint64_t event_occurrences_per_candidate = 0;
+  std::uint64_t linear_events = 0;
+  if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
+                                       std::uint64_t{4}, linear_events) ||
+      !checked_add<std::uint64_t>(boundary_pair_requests, linear_events,
+                                  event_occurrences_per_candidate) ||
+      !checked_add<std::uint64_t>(event_occurrences_per_candidate,
+                                  std::uint64_t{8},
+                                  event_occurrences_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
-                                       dependencies_per_candidate,
-                                       plan.dependency_upper_bound)) {
+                                       event_occurrences_per_candidate,
+                                       plan.construction_upper_bound) ||
+      !checked_multiply<std::uint64_t>(plan.construction_upper_bound,
+                                       std::uint64_t{2},
+                                       plan.symbolic_upper_bound)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
-                           "Component 07 edge/facet dependency count overflow",
+                           "Component 07 derived relation count overflow",
                            relation_checkpoint::count_representability_preflight);
     return false;
   }
+  plan.event_seed_upper_bound = plan.construction_upper_bound;
+  plan.disposition_upper_bound = plan.candidate_count;
+
+  std::uint64_t multiplicity_upper_bound = plan.candidate_count;
+  if (!checked_add<std::uint64_t>(plan.initial_request_upper_bound,
+                                  plan.construction_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  multiplicity_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  plan.symbolic_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  plan.event_seed_upper_bound,
+                                  plan.request_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.request_upper_bound,
+                                  plan.disposition_upper_bound,
+                                  plan.request_upper_bound)) {
+    error = relation_error(relation_subcode::count_overflow,
+                           bounded_boolean_error_category::index_overflow,
+                           "Component 07 final request count overflow",
+                           relation_checkpoint::count_representability_preflight);
+    return false;
+  }
+
+  std::uint64_t initial_dependencies_per_candidate = 0;
+  std::uint64_t initial_dependency_upper_bound = 0;
+  std::uint64_t derived_dependency_upper_bound = 0;
+  if (!checked_add<std::uint64_t>(maximum_facet_boundary,
+                                  boundary_pair_requests,
+                                  initial_dependencies_per_candidate) ||
+      !checked_multiply<std::uint64_t>(plan.candidate_count,
+                                       initial_dependencies_per_candidate,
+                                       initial_dependency_upper_bound) ||
+      !checked_multiply<std::uint64_t>(
+          plan.request_upper_bound - plan.initial_request_upper_bound,
+          std::uint64_t{4}, derived_dependency_upper_bound) ||
+      !checked_add<std::uint64_t>(initial_dependency_upper_bound,
+                                  derived_dependency_upper_bound,
+                                  plan.dependency_upper_bound) ||
+      !checked_add<std::uint64_t>(plan.dependency_upper_bound,
+                                  plan.initial_request_upper_bound,
+                                  plan.dependency_upper_bound)) {
+    error = relation_error(relation_subcode::count_overflow,
+                           bounded_boolean_error_category::index_overflow,
+                           "Component 07 dependency count overflow",
+                           relation_checkpoint::count_representability_preflight);
+    return false;
+  }
+  // Every proposal is candidate-derived. Canonical grouping can only reduce the
+  // number of distinct candidate witnesses, never increase it.
   plan.witness_upper_bound = plan.request_upper_bound;
 
   std::uint64_t boundary_work = 0;
   std::uint64_t work_per_candidate = 0;
   std::uint64_t candidate_work = 0;
+  std::uint64_t final_family_work = 0;
   if (!checked_multiply<std::uint64_t>(boundary_pair_requests,
                                        std::uint64_t{128}, boundary_work) ||
       !checked_add<std::uint64_t>(boundary_work, std::uint64_t{384},
                                   work_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        work_per_candidate, candidate_work) ||
-      !checked_add<std::uint64_t>(candidate_work, std::uint64_t{1},
+      !checked_multiply<std::uint64_t>(plan.request_upper_bound,
+                                       std::uint64_t{32}, final_family_work) ||
+      !checked_add<std::uint64_t>(candidate_work, final_family_work,
+                                  plan.fixed_work_units) ||
+      !checked_add<std::uint64_t>(plan.fixed_work_units, std::uint64_t{1},
                                   plan.fixed_work_units)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
-                           "Component 07 source-edge work count overflow",
+                           "Component 07 work count overflow",
                            relation_checkpoint::count_representability_preflight);
     return false;
   }
@@ -106,6 +181,10 @@ bool preflight_relation_foundation(
   std::uint64_t boundary_bytes = 0;
   std::uint64_t bytes_per_candidate = 0;
   std::uint64_t candidate_bytes = 0;
+  std::uint64_t graph_bytes = 0;
+  std::uint64_t dependency_bytes = 0;
+  std::uint64_t witness_bytes = 0;
+  std::uint64_t table_bytes = 0;
   if (!checked_multiply<std::uint64_t>(boundary_pair_requests,
                                        std::uint64_t{4096}, boundary_bytes) ||
       !checked_add<std::uint64_t>(boundary_bytes, std::uint64_t{49152},
@@ -114,8 +193,22 @@ bool preflight_relation_foundation(
                                        bytes_per_candidate, candidate_bytes) ||
       !checked_add<std::uint64_t>(candidate_bytes, std::uint64_t{4096},
                                   plan.fixed_temporary_bytes) ||
-      !checked_add<std::uint64_t>(
-          candidate_bytes,
+      !checked_multiply<std::uint64_t>(plan.request_upper_bound,
+          static_cast<std::uint64_t>(sizeof(canonical_relation_request)),
+          graph_bytes) ||
+      !checked_multiply<std::uint64_t>(plan.dependency_upper_bound,
+          static_cast<std::uint64_t>(sizeof(canonical_relation_dependency)),
+          dependency_bytes) ||
+      !checked_multiply<std::uint64_t>(plan.witness_upper_bound,
+          static_cast<std::uint64_t>(sizeof(candidate_id) +
+                                     sizeof(relation_request_id)),
+          witness_bytes) ||
+      !checked_multiply<std::uint64_t>(plan.request_upper_bound,
+                                       std::uint64_t{512}, table_bytes) ||
+      !checked_add<std::uint64_t>(graph_bytes, dependency_bytes, graph_bytes) ||
+      !checked_add<std::uint64_t>(graph_bytes, witness_bytes, graph_bytes) ||
+      !checked_add<std::uint64_t>(graph_bytes, table_bytes, graph_bytes) ||
+      !checked_add<std::uint64_t>(graph_bytes,
           static_cast<std::uint64_t>(sizeof(relation_request_graph)) +
               std::uint64_t{65536},
           plan.fixed_persistent_bytes)) {
@@ -135,7 +228,10 @@ bool preflight_relation_foundation(
     return false;
   }
   if (plan.request_upper_bound > capabilities.maximum_requests ||
-      plan.request_upper_bound > capabilities.maximum_relations ||
+      plan.relation_upper_bound > capabilities.maximum_relations ||
+      plan.construction_upper_bound > capabilities.maximum_constructions ||
+      plan.symbolic_upper_bound > capabilities.maximum_symbolic_decisions ||
+      plan.event_seed_upper_bound > capabilities.maximum_event_seeds ||
       plan.dependency_upper_bound > capabilities.maximum_dependencies ||
       plan.witness_upper_bound > capabilities.maximum_consumers ||
       plan.fixed_work_units > capabilities.maximum_work_units) {

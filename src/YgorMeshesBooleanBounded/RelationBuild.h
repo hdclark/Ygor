@@ -24,6 +24,87 @@ inline void bind_relation_error(bounded_boolean_error &error,
   error.replay_digest = replay_digest;
 }
 
+inline bool checked_accumulate_relation_bytes(std::uint64_t value,
+                                              std::uint64_t &total) noexcept {
+  return checked_add<std::uint64_t>(total, value, total);
+}
+
+template <class U>
+inline bool relation_vector_storage_bytes(const std::vector<U> &values,
+                                          std::uint64_t &bytes) noexcept {
+  return checked_multiply<std::uint64_t>(
+      static_cast<std::uint64_t>(values.size()),
+      static_cast<std::uint64_t>(sizeof(U)), bytes);
+}
+
+inline bool relation_graph_storage_bytes(const relation_request_graph &graph,
+                                         std::uint64_t &bytes) noexcept {
+  bytes = sizeof(relation_request_graph);
+  const auto add = [&](const auto &values) {
+    std::uint64_t contribution = 0;
+    return relation_vector_storage_bytes(values, contribution) &&
+           checked_accumulate_relation_bytes(contribution, bytes);
+  };
+  return add(graph.requests) && add(graph.dependencies) &&
+         add(graph.reverse_consumers) && add(graph.candidate_witnesses);
+}
+
+template <class T, class I>
+bool estimate_relation_persistent_bytes(
+    const signed_feature_relations<T, I> &artifact,
+    std::uint64_t &bytes) {
+  bytes = sizeof(signed_feature_relations<T, I>);
+  const auto add_vector = [&](const auto &values) {
+    std::uint64_t contribution = 0;
+    return relation_vector_storage_bytes(values, contribution) &&
+           checked_accumulate_relation_bytes(contribution, bytes);
+  };
+  std::uint64_t graph_bytes = 0;
+  if (!relation_graph_storage_bytes(artifact.request_graph(), graph_bytes) ||
+      !checked_accumulate_relation_bytes(graph_bytes, bytes) ||
+      !add_vector(artifact.truth_records()) ||
+      !add_vector(artifact.relations()) ||
+      !add_vector(artifact.constructions()) ||
+      !add_vector(artifact.symbolic_eligibility()) ||
+      !add_vector(artifact.symbolic_decisions()) ||
+      !add_vector(artifact.crossings()) ||
+      !add_vector(artifact.event_seeds()) ||
+      !add_vector(artifact.event_seed_incidence()) ||
+      !add_vector(artifact.candidate_dispositions()) ||
+      !add_vector(artifact.canonical_bytes()))
+    return false;
+
+  // Detailed relation stages contain nested variable-length records. Their
+  // owner-free semantic encodings are a deterministic, architecture-independent
+  // accounting projection of that persistent content; the stage objects
+  // themselves are charged separately.
+  const auto add_stage = [&](const auto &stage, const auto &encoder) {
+    if (!stage)
+      return true;
+    const auto semantic = encoder(*stage);
+    return checked_accumulate_relation_bytes(
+               static_cast<std::uint64_t>(sizeof(*stage)), bytes) &&
+           checked_accumulate_relation_bytes(
+               static_cast<std::uint64_t>(semantic.size()), bytes);
+  };
+  return add_stage(artifact.source_edge_stage(),
+                   [](const auto &stage) {
+                     return encode_candidate_source_edge_relation_semantics(stage);
+                   }) &&
+         add_stage(artifact.source_edge_facet_stage(),
+                   [](const auto &stage) {
+                     return encode_candidate_source_edge_facet_relation_semantics(stage);
+                   }) &&
+         add_stage(artifact.source_facet_stage(),
+                   [](const auto &stage) {
+                     return encode_candidate_source_facet_relation_semantics(stage);
+                   }) &&
+         add_stage(artifact.coplanar_overlay_stage(),
+                   [](const auto &stage) {
+                     return encode_candidate_coplanar_overlay_semantics(stage);
+                   });
+}
+
 } // namespace relation_build_detail
 
 template <class T, class I> class relation_builder final {
@@ -265,33 +346,82 @@ private:
   bool encode_and_verify() {
     if (!check_cancel(relation_checkpoint::canonical_encoding))
       return false;
+    artifact_->statistics_.persistent_bytes = 0;
     artifact_->canonical_bytes_ = encode_signed_feature_relations(*artifact_);
-    std::uint64_t used = 0;
-    if (!checked_add<std::uint64_t>(
-            static_cast<std::uint64_t>(sizeof(artifact_type)),
-            static_cast<std::uint64_t>(artifact_->canonical_bytes_.size()),
-            used) ||
-        used > capabilities_.maximum_canonical_bytes ||
-        used > persistent_reservation_->amount())
-      return fail(relation_subcode::byte_count_overflow,
+    if (artifact_->canonical_bytes_.size() >
+        capabilities_.maximum_canonical_bytes)
+      return fail(relation_subcode::resource_preflight,
                   bounded_boolean_error_category::resource_limit,
-                  "Component 07 canonical artifact exceeds reserved bytes",
+                  "Component 07 canonical bytes exceed the configured limit",
                   relation_checkpoint::canonical_encoding);
-    artifact_->statistics_.persistent_bytes = used;
+
+    std::uint64_t persistent = 0;
+    if (!relation_build_detail::estimate_relation_persistent_bytes(*artifact_,
+                                                                   persistent))
+      return fail(relation_subcode::byte_count_overflow,
+                  bounded_boolean_error_category::index_overflow,
+                  "Component 07 persistent byte count overflow",
+                  relation_checkpoint::resource_reconciliation);
+    artifact_->statistics_.persistent_bytes = persistent;
     artifact_->canonical_bytes_ = encode_signed_feature_relations(*artifact_);
     artifact_->digest_ = sha256::digest(artifact_->canonical_bytes_);
+
+    const std::uint64_t covered = persistent_reservation_->amount();
+    const std::uint64_t extra = persistent > covered ? persistent - covered : 0;
+    final_persistent_reservation_ = capabilities_.resources->reserve(
+        resource_kind::persistent_bytes, extra);
+    codec_reservation_ = capabilities_.resources->reserve(
+        resource_kind::replay_bytes, artifact_->canonical_bytes_.size());
+    if (!final_persistent_reservation_ || !codec_reservation_)
+      return fail(relation_subcode::resource_preflight,
+                  bounded_boolean_error_category::resource_limit,
+                  "Component 07 final artifact reservation failed",
+                  relation_checkpoint::resource_reconciliation);
+
     bounded_boolean_error verification_error;
     if (!verify_signed_feature_relations(*artifact_, verification_error)) {
       error_ = verification_error;
       return false;
     }
-    persistent_used_ = used;
+
+    std::uint64_t actual_work = artifact_->request_graph_.proposal_count;
+    const auto add_work = [&](std::uint64_t value) {
+      return checked_add<std::uint64_t>(actual_work, value, actual_work);
+    };
+    if (!add_work(artifact_->request_graph_.requests.size()) ||
+        !add_work(artifact_->request_graph_.dependencies.size()) ||
+        !add_work(artifact_->request_graph_.reverse_consumers.size()) ||
+        !add_work(artifact_->request_graph_.candidate_witnesses.size()) ||
+        !add_work(artifact_->truth_records_.size()) ||
+        !add_work(artifact_->relations_.size()) ||
+        !add_work(artifact_->constructions_.size()) ||
+        !add_work(artifact_->symbolic_eligibility_.size()) ||
+        !add_work(artifact_->symbolic_decisions_.size()) ||
+        !add_work(artifact_->crossings_.size()) ||
+        !add_work(artifact_->event_seeds_.size()) ||
+        !add_work(artifact_->event_seed_incidence_.size()) ||
+        !add_work(artifact_->candidate_dispositions_.size()) ||
+        !add_work(artifact_->statistics_.verifier_work_units) ||
+        actual_work > work_reservation_->amount())
+      return fail(relation_subcode::resource_preflight,
+                  bounded_boolean_error_category::resource_limit,
+                  "Component 07 actual work exceeds reserved work",
+                  relation_checkpoint::resource_reconciliation);
+    persistent_used_ = persistent;
+    replay_used_ = artifact_->canonical_bytes_.size();
+    work_used_ = actual_work;
     return true;
   }
 
   bool commit_resources() {
-    return persistent_reservation_->commit(persistent_used_) &&
-           temporary_reservation_->commit(0) && work_reservation_->commit(0);
+    const auto fixed_used =
+        std::min(persistent_reservation_->amount(), persistent_used_);
+    const auto final_used = persistent_used_ - fixed_used;
+    return persistent_reservation_->commit(fixed_used) &&
+           final_persistent_reservation_->commit(final_used) &&
+           codec_reservation_->commit(replay_used_) &&
+           temporary_reservation_->commit(0) &&
+           work_reservation_->commit(work_used_);
   }
 
   const boolean_context<T, I> &context_;
@@ -306,9 +436,13 @@ private:
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;
   std::optional<resource_reservation> persistent_reservation_;
+  std::optional<resource_reservation> final_persistent_reservation_;
+  std::optional<resource_reservation> codec_reservation_;
   std::optional<resource_reservation> temporary_reservation_;
   std::optional<resource_reservation> work_reservation_;
   std::uint64_t persistent_used_ = 0;
+  std::uint64_t replay_used_ = 0;
+  std::uint64_t work_used_ = 0;
   bounded_boolean_error error_{};
 };
 
