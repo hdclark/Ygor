@@ -36,113 +36,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > .github/workflows/mesh-boolean-p0.yml <<'EXPECTED_P0'
-          name: Mesh Boolean product contracts
-
-          on:
-            push:
-              branches:
-                - boolean_symbolic
-            pull_request:
-              paths:
-                - 'src/YgorMeshesBooleanProductContract*'
-                - 'src/YgorMeshesBooleanExactResult*'
-                - 'src/YgorMeshesBooleanBackend*'
-                - 'src/CMakeLists.txt'
-                - 'tests/Test_MeshesBooleanProductContract.cc'
-                - 'tests/Test_MeshesBooleanExactResult.cc'
-                - 'tests/Test_MeshesBooleanBackend.cc'
-                - 'tests/Test_MeshesBooleanSelection.cc'
-                - 'tests/CMakeLists.txt'
-                - 'docs/MeshBooleanProductContract.md'
-                - 'tracker.md'
-                - '.github/workflows/mesh-boolean-p0.yml'
-
-          permissions:
-            contents: read
-
-          jobs:
-            product-contract:
-              name: ${{ matrix.compiler }} product contract
-              runs-on: ubuntu-latest
-              strategy:
-                fail-fast: false
-                matrix:
-                  compiler: [gcc, clang]
-              steps:
-                - uses: actions/checkout@v4
-                - name: Export source checkout
-                  if: matrix.compiler == 'gcc'
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ygor-boolean-symbolic-source
-                    path: .
-                    include-hidden-files: true
-                    retention-days: 1
-                - name: Install build tools
-                  run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-                - name: Configure
-                  env:
-                    CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
-                    CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
-                  run: >-
-                    cmake -S . -B build-p0 -G Ninja
-                    -DBUILD_TESTING=ON
-                    -DCMAKE_BUILD_TYPE=Debug
-                    -DWITH_EIGEN=OFF
-                    -DWITH_GNU_GSL=OFF
-                - name: Build contract tests
-                  run: >-
-                    cmake --build build-p0
-                    --target Test_MeshesBooleanContract Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult Test_MeshesBooleanBackend ygor_mesh_boolean_exact_result_verifier_isolation
-                    --parallel 2
-                - name: Run contract tests
-                  run: >-
-                    ctest --test-dir build-p0 --output-on-failure
-                    -R '^(MeshesBooleanContract|MeshesBooleanProductContract|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit)$'
-                    --timeout 360
-                - name: Retain failing test log
-                  if: failure()
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: mesh-boolean-product-contract-${{ matrix.compiler }}-failure
-                    path: build-p0/Testing/Temporary/LastTest.log
-                    if-no-files-found: ignore
-                    retention-days: 7
-          EXPECTED_P0
-          cat > .github/workflows/export-component-workspace.yml <<'EXPECTED_EXPORT'
-          name: Export component workspace
-
-          on:
-            push:
-              branches:
-                - boolean_symbolic
-              paths:
-                - '.github/workflows/export-component-workspace.yml'
-
-          permissions:
-            contents: read
-
-          jobs:
-            export:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - name: Upload source checkout
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ygor-boolean-symbolic-source
-                    path: .
-                    include-hidden-files: true
-                    compression-level: 6
-                    retention-days: 1
-          EXPECTED_EXPORT
+          git checkout 8b7f9ec3f32039a10310e565489cc411d5682ab0 -- \
+            .github/workflows/mesh-boolean-p0.yml \
+            .github/workflows/export-component-workspace.yml
           cat .github/p6-bootstrap/chunk00 \
               .github/p6-bootstrap/chunk01 \
               .github/p6-bootstrap/chunk02 \
               .github/p6-bootstrap/chunk03 \
               .github/p6-bootstrap/chunk04 \
-              | base64 --decode | gzip --decompress > /tmp/p6-1.patch
+              > /tmp/p6-1.patch.gz.b64
+          echo '4643ba8a462e930558cb67a8dc4ae081241f637b2ea2611e553ed1f16c29b1e9  /tmp/p6-1.patch.gz.b64' | sha256sum --check
+          base64 --decode /tmp/p6-1.patch.gz.b64 | gzip --decompress > /tmp/p6-1.patch
+          echo '60c8c72c5b15a1c24ca4e84db4ef788fbdde1d7e4c5ec9ef864b29c5598cdbe9  /tmp/p6-1.patch' | sha256sum --check
           git apply --check /tmp/p6-1.patch
           git apply /tmp/p6-1.patch
           rm -rf .github/p6-bootstrap
