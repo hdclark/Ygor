@@ -33,3 +33,4 @@ jobs:
             /tmp/ygor-p63-debug.sha256
           if-no-files-found: error
           retention-days: 1
+# trigger: 2
