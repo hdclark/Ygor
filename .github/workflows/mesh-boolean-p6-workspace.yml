@@ -17,50 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply and verify P6.3 implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import shutil
-          from pathlib import Path
-
-          manifest = [
-              ('00', 'src/YgorMeshesBooleanQualificationGeneration.h', '1b083cf474188f940c875439a5873407c9c6c7cf230906b7d5a8454fab97a6d8'),
-              ('01', 'src/YgorMeshesBooleanQualificationGeneration.cc', 'ae667d33a8b3b4e58b21a57161cec47fc8b220b34271e2cc7d7e432ee4371c7f'),
-              ('02', 'src/YgorMeshesBooleanProductContract.h', 'da24dfb97facfa0c1eee5a7be14e08698a526c897907e0db49f2d4b80f0b1d9b'),
-              ('03', 'src/CMakeLists.txt', '7e3f11285878eebb532614ad54ab91ce319f3d04813d60b42fd09b6da090b16d'),
-              ('04', 'tests/Test_MeshesBooleanQualificationGeneration.cc', '063b6c32477c24a0a41a1be77deedcf0587d7d941afb89b0393a72b1a6413f89'),
-              ('05', 'tests/CMakeLists.txt', 'fec7240b2f34dd72d99cb7e7959c42ea8505ae48ea3b37748419ba5de0a3847d'),
-              ('06', 'tests/mesh_boolean/requirements.tsv', 'dfb910a4a774c5a619da2c9f97c1bae42cae18f087072c301fcc05115e32efd8'),
-              ('07', 'tests/mesh_boolean/corpus/README.md', '03edfad4b38dba4981fc103ba1cd79d997a7433dd6147b2d43ecf3bc6f111f48'),
-              ('08', 'docs/MeshBooleanQualificationGeneration.md', 'd2376621f2b5455b6a192b7dc15a27e4c056914aa7e0109fe311e7da057c9be0'),
-              ('09', '.github/workflows/mesh-boolean-p6-generation.yml', '4ae8f48bd07722ac8aa0caf1aa48430825ae30f4826ed4d2a41d1621b8617227'),
-          ]
-          root = Path('.github/p6-text-payload')
-          for key, target_text, expected in manifest:
-              parts = sorted((root / key).glob('[0-9][0-9][0-9]'))
-              if not parts:
-                  raise SystemExit(f'missing staged parts for {key}')
-              data = b''.join(part.read_bytes() for part in parts)
-              actual = hashlib.sha256(data).hexdigest()
-              if actual != expected:
-                  raise SystemExit(f'hash mismatch for {target_text}: {actual} != {expected}')
-              target = Path(target_text)
-              target.parent.mkdir(parents=True, exist_ok=True)
-              target.write_bytes(data)
-          shutil.rmtree(root)
-          bootstrap = Path('.github/workflows/p6-implementation-bootstrap.yml')
-          if bootstrap.exists():
-              bootstrap.unlink()
-          import base64
-          original_workflow = base64.b64decode('bmFtZTogTWVzaCBCb29sZWFuIFA2IHdvcmtzcGFjZSBleHBvcnQKCm9uOgogIHB1c2g6CiAgICBicmFuY2hlczoKICAgICAgLSBib29sZWFuX3N5bWJvbGljCgpwZXJtaXNzaW9uczoKICBjb250ZW50czogd3JpdGUKCmpvYnM6CiAgZXhwb3J0OgogICAgaWY6IGdpdGh1Yi5hY3RvciAhPSAnZ2l0aHViLWFjdGlvbnNbYm90XScKICAgIHJ1bnMtb246IHVidW50dS1sYXRlc3QKICAgIHRpbWVvdXQtbWludXRlczogMTUKICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFjdGlvbnMvY2hlY2tvdXRAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgZmV0Y2gtZGVwdGg6IDAKICAgICAgLSBuYW1lOiBQYWNrYWdlIGV4YWN0IGNoZWNrb3V0IGludG8gY29tbWl0dGVkIHRyYW5zcG9ydCBjaHVua3MKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1ldW8gcGlwZWZhaWwKICAgICAgICAgIHJtIC1mIC5naXRodWIvcDYtd29ya3NwYWNlLnBhcnQtKiAuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYKICAgICAgICAgIHRhciAtLWV4Y2x1ZGU9LmdpdCAtLWV4Y2x1ZGU9YnVpbGQgLS1leGNsdWRlPWJ1aWxkLSogXAogICAgICAgICAgICAgIC0tZXhjbHVkZT0nLmdpdGh1Yi9wNi13b3Jrc3BhY2UucGFydC0qJyBcCiAgICAgICAgICAgICAgLS1leGNsdWRlPScuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYnIFwKICAgICAgICAgICAgICAtY3pmIC90bXAveWdvci1wNi13b3Jrc3BhY2UudGFyLmd6IC4KICAgICAgICAgIHNoYTI1NnN1bSAvdG1wL3lnb3ItcDYtd29ya3NwYWNlLnRhci5neiB8IGF3ayAne3ByaW50ICQxfScgPiAuZ2l0aHViL3A2LXdvcmtzcGFjZS5zaGEyNTYKICAgICAgICAgIGJhc2U2NCAtdyAwIC90bXAveWdvci1wNi13b3Jrc3BhY2UudGFyLmd6IHwgc3BsaXQgLWIgNzUwMDAwIC1kIC1hIDMgLSAuZ2l0aHViL3A2LXdvcmtzcGFjZS5wYXJ0LQogICAgICAgICAgZ2l0IGFkZCAuZ2l0aHViL3A2LXdvcmtzcGFjZS5wYXJ0LSogLmdpdGh1Yi9wNi13b3Jrc3BhY2Uuc2hhMjU2CiAgICAgICAgICBnaXQgY29uZmlnIHVzZXIubmFtZSAnZ2l0aHViLWFjdGlvbnNbYm90XScKICAgICAgICAgIGdpdCBjb25maWcgdXNlci5lbWFpbCAnNDE4OTgyODIrZ2l0aHViLWFjdGlvbnNbYm90XUB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20nCiAgICAgICAgICBnaXQgY29tbWl0IC1tICdFeHBvcnQgUFIgd29ya3NwYWNlIGFyY2hpdmUgZm9yIFA2LjMnCiAgICAgICAgICBnaXQgcHVzaCBvcmlnaW4gSEVBRDpib29sZWFuX3N5bWJvbGljCg==')
-          if hashlib.sha1(b'blob ' + str(len(original_workflow)).encode() + b'\0' + original_workflow).hexdigest() != '2d85f76ff7082fa97fa5980520002c9d6c331753':
-              raise SystemExit('original workspace workflow binding mismatch')
-          Path('.github/workflows/mesh-boolean-p6-workspace.yml').write_bytes(original_workflow)
-          PY
-      - name: Package exact checkout and publish component
+      - name: Package exact checkout into committed transport chunks
         shell: bash
         run: |
           set -euo pipefail
@@ -71,16 +28,8 @@ jobs:
               -czf /tmp/ygor-p6-workspace.tar.gz .
           sha256sum /tmp/ygor-p6-workspace.tar.gz | awk '{print $1}' > .github/p6-workspace.sha256
           base64 -w 0 /tmp/ygor-p6-workspace.tar.gz | split -b 750000 -d -a 3 - .github/p6-workspace.part-
+          git add .github/p6-workspace.part-* .github/p6-workspace.sha256
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Implement Plan 16 P6.3 qualification generators and chains'
-          for attempt in 1 2 3 4 5 6; do
-            git fetch origin boolean_symbolic
-            git rebase origin/boolean_symbolic
-            if git push origin HEAD:boolean_symbolic; then
-              exit 0
-            fi
-            sleep $((attempt * 2))
-          done
-          exit 1
+          git commit -m 'Export PR workspace archive for P6.3'
+          git push origin HEAD:boolean_symbolic
