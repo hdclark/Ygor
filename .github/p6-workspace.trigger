@@ -1,1 +1,1 @@
-P6.4 workspace export trigger
+P6.4 workspace artifact trigger
