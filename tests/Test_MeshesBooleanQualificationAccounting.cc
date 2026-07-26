@@ -6,6 +6,7 @@
 #include <YgorMeshesBooleanQualificationAccounting.h>
 #include <YgorMeshesBooleanService.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -385,6 +386,19 @@ void dimensioned_campaign_and_summary() {
               passing.value().counts.size() == 2 &&
               qualification_false_success_gate_passes(passing.value()),
           "campaign counts safe failures by full dimensions");
+
+  auto reordered_verification = synthetic_approximate_verification();
+  std::reverse(reordered_verification.checks.begin(),
+               reordered_verification.checks.end());
+  require(!validate_qualification_success_verification(reordered_verification)
+               .has_value(),
+          "noncanonical nested check order fails closed");
+  auto reordered_campaign = passing.value();
+  std::reverse(reordered_campaign.records.begin(),
+               reordered_campaign.records.end());
+  require(!validate_qualification_accounting_campaign(reordered_campaign)
+               .has_value(),
+          "noncanonical campaign record order fails closed");
 
   auto summary = make_qualification_result_summary_from_accounting(
       passing.value(), tagged_digest('M', 1), "p6.5-run", "test-commit",
