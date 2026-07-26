@@ -161,3 +161,15 @@ differences, deterministic minimization transcripts, and explicit reviewed
 resolution classifications. A complete campaign remains blocking until every
 material disagreement is explained; comparison never selects or repairs the
 producer result and does not promote any backend.
+
+## False-success detection and accounting (P6.5)
+
+`YgorMeshesBooleanQualificationAccounting.h` and
+`MeshBooleanQualificationAccounting.md` define the external observer that audits
+every published success, distinguishes failed checks from missing verifier
+evidence, normalizes each execution to one outcome, and aggregates outcomes over
+the full qualification dimensions. False successes retain explicit semantic,
+binding, topology, certificate, occupancy, embedding, orientation, nesting,
+attribute, and approximation-bound reasons and remain separate from safe typed
+failures. A complete campaign can pass the P6.5 gate only with zero false
+successes and zero other blocking outcomes.
