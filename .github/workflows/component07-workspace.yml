@@ -25,8 +25,9 @@ jobs:
         run: |
           git config user.name "OpenAI"
           git config user.email "noreply@openai.com"
-          git am --3way .github/component07-series.patch
-          git rm .github/component07-series.patch
+          cat .github/component07-patches/part-* > /tmp/component07-series.patch
+          git am --3way /tmp/component07-series.patch
+          git rm -r .github/component07-patches .github/component07-series.patch
           git commit -m "Component 07: remove applied patch bundle"
           git push origin HEAD:"${GITHUB_REF_NAME}"
       - name: Package checkout
