@@ -7,3 +7,4 @@ C14-CORPUS-005	boolean_case	1	edge_touching_boxes	result_topology_not_supported	
 C14-CORPUS-006	boolean_case	1	one_third_intersection	output_not_representable	C14.PLANGAP.G2a
 C14-CORPUS-007	normalization_case	3	triangular_sliver	diagnose_or_explicit_rejection	P2.3.NORMALIZATION.sliver
 C14-CORPUS-008	normalization_case	4	self_intersection	exact_diagnosis_and_explicit_rejection	P2.3.NORMALIZATION.self_intersection
+C14-CORPUS-009	qualification_inventory	1	permanent_recipe_families	floor_coverage_and_digest_bound	C14.QUAL.corpus.inventory.P6.2
