@@ -32,6 +32,14 @@ jobs:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
+      - name: Export source checkout
+        if: matrix.compiler == 'gcc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-boolean-symbolic-source
+          path: .
+          include-hidden-files: true
+          retention-days: 1
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
       - name: Configure
