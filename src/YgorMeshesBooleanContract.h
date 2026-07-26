@@ -1002,6 +1002,7 @@ struct context_preparation_provenance {
   digest prepared_digest;
   digest policy_digest;
   digest report_digest;
+  bool normalized = false;
   bool geometry_changed = false;
 };
 inline bool operator==(const context_preparation_provenance &a,
@@ -1010,6 +1011,7 @@ inline bool operator==(const context_preparation_provenance &a,
          a.prepared_digest == b.prepared_digest &&
          a.policy_digest == b.policy_digest &&
          a.report_digest == b.report_digest &&
+         a.normalized == b.normalized &&
          a.geometry_changed == b.geometry_changed;
 }
 inline bool operator!=(const context_preparation_provenance &a,
@@ -1051,6 +1053,9 @@ struct replay_descriptor {
   platform_facts platform;
 };
 class deterministic_executor;
+using deterministic_executor_factory =
+    std::function<std::unique_ptr<deterministic_executor>(
+        const execution_policy &)>;
 class performance_collector;
 template <class T, class I> class prepared_operand;
 struct normalization_report;
@@ -1084,7 +1089,8 @@ template <class T, class I> class boolean_context {
                   context_owner_token,
                   std::shared_ptr<const exact_kernel_services<T>>,
                   std::shared_ptr<const verifier_service>,
-                  cancellation_source *, diagnostic_consumer);
+                  cancellation_source *, diagnostic_consumer,
+                  deterministic_executor_factory);
   template <class U, class J,
             typename std::enable_if<is_supported_boolean_types<U, J>::value,
                                     int>::type>
@@ -1092,14 +1098,14 @@ template <class T, class I> class boolean_context {
       const fv_surface_mesh<U, J> &, const fv_surface_mesh<U, J> &, operation,
       const boolean_options &, std::shared_ptr<const exact_kernel_services<U>>,
       std::shared_ptr<const verifier_service>, cancellation_source *,
-      diagnostic_consumer);
+      diagnostic_consumer, deterministic_executor_factory);
   template <class U, class J>
   friend status_or<std::unique_ptr<boolean_context<U, J>>> make_boolean_context(
       const prepared_operand<U, J> &, const prepared_operand<U, J> &,
       operation, const boolean_options &,
       std::shared_ptr<const exact_kernel_services<U>>,
       std::shared_ptr<const verifier_service>, cancellation_source *,
-      diagnostic_consumer);
+      diagnostic_consumer, deterministic_executor_factory);
 
 public:
   ~boolean_context();
@@ -1150,7 +1156,7 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
     const fv_surface_mesh<T, I> &, const fv_surface_mesh<T, I> &, operation,
     const boolean_options &, std::shared_ptr<const exact_kernel_services<T>>,
     std::shared_ptr<const verifier_service>, cancellation_source * = nullptr,
-    diagnostic_consumer = {});
+    diagnostic_consumer = {}, deterministic_executor_factory = {});
 struct output_assembly_certificate;
 struct output_summary {
   std::uint64_t vertices = 0, faces = 0, components = 0, face_indices = 0,

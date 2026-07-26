@@ -611,7 +611,8 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
     operation op, const boolean_options &options,
     std::shared_ptr<const exact_kernel_services<T>> kernel,
     std::shared_ptr<const verifier_service> verifiers,
-    cancellation_source *cancel, diagnostic_consumer diagnostics) {
+    cancellation_source *cancel, diagnostic_consumer diagnostics,
+    deterministic_executor_factory executor_factory) {
   auto valid_a = verify_prepared_operand(a, options, kernel, verifiers, cancel);
   if (!valid_a.has_value()) return valid_a.error();
   auto valid_b = verify_prepared_operand(b, options, kernel, verifiers, cancel);
@@ -619,7 +620,8 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
   auto owned_a = a.shared_mesh();
   auto owned_b = b.shared_mesh();
   auto context = make_boolean_context(*owned_a, *owned_b, op, options, kernel,
-                                      verifiers, cancel, std::move(diagnostics));
+                                      verifiers, cancel, std::move(diagnostics),
+                                      std::move(executor_factory));
   if (!context.has_value()) return context.error();
   context.value()->input_lifetimes_[0] = owned_a;
   context.value()->input_lifetimes_[1] = owned_b;
@@ -637,7 +639,13 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
           b.certificate().invariant_set_digest)
     return preparation_error(preparation_validation_subcode::stale_report_digest,
                              "prepared_operand_invariant_set");
+  const bool normalized_a = a.normalization() != nullptr;
+  const bool normalized_b = b.normalization() != nullptr;
+  if (normalized_a != normalized_b)
+    return preparation_error(preparation_validation_subcode::semantic_mismatch,
+                             "prepared_operand_mixed_preparation_mode");
   context_preparation_provenance provenance;
+  provenance.normalized = normalized_a;
   provenance.input_digest = pair_digest(a.certificate().input_digest,
                                         b.certificate().input_digest, 0);
   provenance.prepared_digest = pair_digest(a.certificate().prepared_digest,
@@ -651,6 +659,8 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
                             ? b.normalization()->report_digest
                             : b.certificate().validation_report_digest;
   provenance.report_digest = pair_digest(report_a, report_b, 3);
+  provenance.geometry_changed = a.certificate().geometry_changed ||
+                                b.certificate().geometry_changed;
   context.value()->preparation_provenance_ = provenance;
   return std::move(context.value());
 }
@@ -677,7 +687,7 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
       const boolean_options &,                                                  \
       std::shared_ptr<const exact_kernel_services<T>>,                          \
       std::shared_ptr<const verifier_service>, cancellation_source *,           \
-      diagnostic_consumer)
+      diagnostic_consumer, deterministic_executor_factory)
 
 YGOR_PREPARATION_INSTANTIATE(float, std::uint32_t);
 YGOR_PREPARATION_INSTANTIATE(float, std::uint64_t);

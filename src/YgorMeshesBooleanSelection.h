@@ -5,7 +5,7 @@
 
 namespace ygor { namespace mesh_boolean {
 constexpr std::uint64_t selected_exact_boundary_type_tag = 0x59474253454c3130ULL;
-constexpr std::uint16_t selected_exact_boundary_schema = 3;
+constexpr std::uint16_t selected_exact_boundary_schema = 4;
 enum class patch_decision_kind : std::uint8_t { discard_exterior, discard_internal, select_preserved, select_reversed };
 enum class selected_orientation : std::uint8_t { none, preserved, reversed };
 enum class selected_boundary_topology : std::uint8_t {

@@ -142,7 +142,9 @@ product_status_or<backend_request_handle<T, I>> make_backend_request(
     std::shared_ptr<const exact_kernel_services<T>> kernel,
     std::shared_ptr<const verifier_service> verifiers,
     std::shared_ptr<cancellation_source> cancellation,
-    diagnostic_consumer diagnostics, const backend_request_limits &limits) {
+    diagnostic_consumer diagnostics,
+    deterministic_executor_factory executor_factory,
+    const backend_request_limits &limits) {
   try {
     if (!kernel || !verifiers)
       return error(product_error_code::backend_unavailable,
@@ -176,7 +178,8 @@ product_status_or<backend_request_handle<T, I>> make_backend_request(
     return std::make_shared<const backend_request<T, I>>(
         std::move(a), std::move(b), op, std::move(engine), std::move(product),
         limits, std::move(kernel), std::move(verifiers),
-        std::move(cancellation), std::move(diagnostics), request_digest);
+        std::move(cancellation), std::move(diagnostics),
+        std::move(executor_factory), request_digest);
   } catch (const std::bad_alloc &) {
     return error(product_error_code::resource_limit,
                  "backend.request_allocation");
@@ -534,7 +537,7 @@ product_status_or<bool> validate_backend_execution_result(
       std::shared_ptr<const exact_kernel_services<T>>,                          \
       std::shared_ptr<const verifier_service>,                                  \
       std::shared_ptr<cancellation_source>, diagnostic_consumer,                \
-      const backend_request_limits &);                                          \
+      deterministic_executor_factory, const backend_request_limits &);          \
   template product_status_or<bool> validate_backend_request(                    \
       const backend_request<T, I> &) noexcept;                                  \
   template product_status_or<std::shared_ptr<const boolean_backend<T, I>>>      \

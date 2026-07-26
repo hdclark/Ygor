@@ -20,7 +20,8 @@ public:
     auto context = make_boolean_context(
         request.operand_a, request.operand_b, request.selected_operation,
         request.engine_options, request.kernel, request.verifiers,
-        request.cancellation.get(), request.diagnostics);
+        request.cancellation.get(), request.diagnostics,
+        request.executor_factory);
     if (!context.has_value())
       return error_from_boolean(context.error());
     auto preparation = preparation_binding_for(request, *context.value());

@@ -174,13 +174,13 @@ Start only after P4.
   - [x] Bind output vertex/facet mappings to exact entities and source contributors; report every omission or conflict.
   - [x] Add independent mapping verification, replay, conflict, seam, removed-internal-face, coincident-source, and attribute-value-invariance tests.
 
-- [ ] **P5.2 — Add the one-call conservative service.**
-  - [ ] Implement the simple `boolean_operation(a, b, op, boolean_service_options)` product API.
-  - [ ] Default to no geometry-changing normalization, no silent fallback, mandatory verification, explicit result representation, retained exact result when requested, and qualification-manifest enforcement.
-  - [ ] Require explicit opt-in for experimental backends and reject an unavailable qualified default with a typed error.
-  - [ ] Return backend, preparation, exact-result, realization, attribute, verification, and qualification provenance in one result envelope.
-  - [ ] Keep kernel/verifier/executor/backend/store dependency injection behind a separately documented expert API.
-  - [ ] Add service-level cancellation, resource-limit, thread-count, replay, exception-safety, and partial-publication tests.
+- [x] **P5.2 — Add the one-call conservative service.**
+  - [x] Implement the simple `boolean_operation(a, b, op, boolean_service_options)` product API.
+  - [x] Default to no geometry-changing normalization, no silent fallback, mandatory verification, explicit result representation, retained exact result when requested, and qualification-manifest enforcement.
+  - [x] Require explicit opt-in for experimental backends and reject an unavailable qualified default with a typed error.
+  - [x] Return backend, preparation, exact-result, realization, attribute, verification, and qualification provenance in one result envelope.
+  - [x] Keep kernel/verifier/executor/backend/store dependency injection behind a separately documented expert API.
+  - [x] Add service-level cancellation, resource-limit, thread-count, replay, exception-safety, and partial-publication tests.
 
 - [ ] **P5.3 — Replace the product-facing example and migration guidance.**
   - [ ] Add a minimal ordinary-caller example using the one-call service, strict versus normalized preparation choices, explicit backend/maturity selection, exact-result retention, exact/approximate mesh handling, attribute reports, and typed failures.

@@ -32,7 +32,7 @@ template <class Id> void ids(canonical_encoder &e, const std::vector<Id> &v) {
 template <class T, class I>
 std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
   canonical_encoder e;
-  const char tag[] = "YGBCAN10";
+  const char tag[] = "YGBCAN11";
   e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
   e.u16(selected_exact_boundary_schema);
   e.byte(static_cast<std::uint8_t>(a.selected_operation));
@@ -142,7 +142,7 @@ std::vector<std::uint8_t> semantic(const selected_exact_boundary<T, I> &a) {
 template <class T, class I>
 std::vector<std::uint8_t> invocation(const selected_exact_boundary<T, I> &a) {
   canonical_encoder e;
-  const char tag[] = "YGBSEL10";
+  const char tag[] = "YGBSEL11";
   e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
   e.u16(selected_exact_boundary_schema);
   e.raw(a.setup_digest.bytes.data(), 16);
@@ -154,6 +154,7 @@ std::vector<std::uint8_t> invocation(const selected_exact_boundary<T, I> &a) {
     e.raw(a.preparation_provenance->prepared_digest.bytes.data(), 16);
     e.raw(a.preparation_provenance->policy_digest.bytes.data(), 16);
     e.raw(a.preparation_provenance->report_digest.bytes.data(), 16);
+    e.boolean(a.preparation_provenance->normalized);
     e.boolean(a.preparation_provenance->geometry_changed);
   }
   e.byte_string(a.canonical_bytes);

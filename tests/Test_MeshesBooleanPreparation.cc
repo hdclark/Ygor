@@ -220,8 +220,19 @@ void normalized_lifetime_and_provenance() {
       decoded.value(), normalized_b.value(), operation::regularized_union,
       boolean_options{}, kernel, verifier);
   require(made.has_value() && made.value()->preparation_provenance() &&
+              made.value()->preparation_provenance()->normalized &&
               made.value()->preparation_provenance()->report_digest != digest{},
-          "context provenance binds normalization report digests");
+          "context provenance binds normalization report digests and mode");
+
+  auto strict = prepare(tetra<T, I>(), registry);
+  auto mixed = make_boolean_context(
+      strict, normalized_b.value(), operation::regularized_union,
+      boolean_options{}, kernel, verifier);
+  require(!mixed.has_value() &&
+              mixed.error().subcode == static_cast<std::uint32_t>(
+                                           preparation_validation_subcode::
+                                               semantic_mismatch),
+          "mixed strict and normalized preparation fails closed");
 
   auto structural_source = tetra<T, I>();
   structural_source.vertices.push_back({T(7), T(8), T(9)});

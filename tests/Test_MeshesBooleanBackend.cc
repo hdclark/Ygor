@@ -285,7 +285,8 @@ make_request(const prepared_fixture &fixture,
              const backend_request_limits &limits = {}) {
   auto made = make_backend_request(
       fixture.a, fixture.b, op, boolean_options{}, std::move(options),
-      fixture.kernel, fixture.verifiers, std::move(cancellation), {}, limits);
+      fixture.kernel, fixture.verifiers, std::move(cancellation), {}, {},
+      limits);
   require(made.has_value(), "make backend request");
   return made.value();
 }

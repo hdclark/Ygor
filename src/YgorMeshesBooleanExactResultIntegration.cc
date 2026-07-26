@@ -94,7 +94,8 @@ detach_exact_stratified_boundary(const selected_exact_boundary<T, I> &s,
       return error(product_error_code::stale_binding,
                    "exact_result.selected_canonical_binding");
     if (s.preparation_provenance &&
-        (p.mode != preparation_mode::strict_validation ||
+        ((p.mode == preparation_mode::normalized) !=
+             s.preparation_provenance->normalized ||
          p.input_digest != s.preparation_provenance->input_digest ||
          p.prepared_digest != s.preparation_provenance->prepared_digest ||
          p.policy_digest != s.preparation_provenance->policy_digest ||
@@ -437,7 +438,10 @@ evaluate_boolean_product_result(boolean_context<T, I> &context,
                                  attribute_transfer_policy_contract
                                      attribute_policy) {
   if (const auto &bound = context.preparation_provenance()) {
-    if (preparation.mode != preparation_mode::strict_validation ||
+    const auto expected_mode = bound->normalized
+                                   ? preparation_mode::normalized
+                                   : preparation_mode::strict_validation;
+    if (preparation.mode != expected_mode ||
         preparation.input_digest != bound->input_digest ||
         preparation.prepared_digest != bound->prepared_digest ||
         preparation.policy_digest != bound->policy_digest ||

@@ -541,3 +541,21 @@ The current productized scope does not:
 - provide a general-purpose external CAD backend beyond the narrow
   diagnostic-only axis-aligned-box profile;
 - claim any production-qualified backend/result/preparation profile.
+
+## One-call conservative service
+
+P5.2 adds `boolean_operation(a, b, op, boolean_service_options)` as the ordinary
+product entry point. It creates and owns the default exact kernel, mandatory
+verifier set, and backend registry, performs explicit strict or normalized
+preparation, evaluates the capability-described backend request, independently
+validates the execution envelope, and publishes one immutable
+`boolean_product_result`.
+
+Defaults do not authorize the experimental backend: `qualified_default`
+requires a matching manifest/profile, normalization is disabled, fallback is
+absent, exact stratified output is requested, mandatory verification is on, and
+exact authority is retained after a requested mesh realization fails. Explicit
+experimental use requires both backend selection and unqualified-use opt-in.
+Kernel, verifier, executor, backend-registry, and immutable result-store
+dependency injection remains available only through the separately documented
+`boolean_operation_expert` API. See `docs/MeshBooleanService.md`.

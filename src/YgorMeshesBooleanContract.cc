@@ -662,13 +662,16 @@ boolean_context<T, I>::boolean_context(
     operation op, boolean_options opts, platform_facts pf, replay_descriptor rd,
     context_owner_token own, std::shared_ptr<const exact_kernel_services<T>> k,
     std::shared_ptr<const verifier_service> v, cancellation_source *c,
-    diagnostic_consumer d)
+    diagnostic_consumer d, deterministic_executor_factory executor_factory)
     : a_(&a), b_(&b), contract_(op), options_(std::move(opts)), platform_(pf),
       replay_(std::move(rd)), owner_(own), kernel_(std::move(k)),
-      verifiers_(std::move(v)),
-      executor_(new deterministic_executor(options_.execution)),
-      accountant_(options_.resources), artifacts_(owner_), caller_cancel_(c),
-      consumer_(std::move(d)) {
+      verifiers_(std::move(v)), accountant_(options_.resources),
+      artifacts_(owner_), caller_cancel_(c), consumer_(std::move(d)) {
+  executor_ = executor_factory
+                  ? executor_factory(options_.execution)
+                  : std::make_unique<deterministic_executor>(options_.execution);
+  if (!executor_)
+    throw std::invalid_argument("executor factory returned null");
   const auto level = options_.tracing.level;
   if (options_.tracing.collect_noncanonical_timings ||
       level == trace_level::stages || level == trace_level::full) {
@@ -696,7 +699,8 @@ make_boolean_context(const fv_surface_mesh<T, I> &a,
                      const boolean_options &o,
                      std::shared_ptr<const exact_kernel_services<T>> k,
                      std::shared_ptr<const verifier_service> v,
-                     cancellation_source *c, diagnostic_consumer d) {
+                     cancellation_source *c, diagnostic_consumer d,
+                     deterministic_executor_factory executor_factory) {
   auto valid = validate_options(o);
   if (!valid.has_value())
     return valid.error();
@@ -743,7 +747,7 @@ make_boolean_context(const fv_surface_mesh<T, I> &a,
   try {
     return std::unique_ptr<boolean_context<T, I>>(new boolean_context<T, I>(
         a, b, op, o, p, std::move(rd), make_context_owner_token(), std::move(k),
-        std::move(v), c, std::move(d)));
+        std::move(v), c, std::move(d), std::move(executor_factory)));
   } catch (const std::bad_alloc &) {
     return make_error(boolean_error_code::resource_limit,
                       boolean_stage::context_setup, "allocation");
@@ -762,7 +766,7 @@ make_boolean_context(const fv_surface_mesh<T, I> &a,
       const boolean_options &,                                                 \
       std::shared_ptr<const exact_kernel_services<T>>,                         \
       std::shared_ptr<const verifier_service>, cancellation_source *,          \
-      diagnostic_consumer)
+      diagnostic_consumer, deterministic_executor_factory)
 INST(float, std::uint32_t);
 INST(float, std::uint64_t);
 INST(double, std::uint32_t);

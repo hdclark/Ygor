@@ -550,6 +550,7 @@ void prepared_product_binding() {
           "prepared product context provenance");
   const auto &bound = *context.value()->preparation_provenance();
   exact_result_preparation_binding preparation;
+  preparation.mode = preparation_mode::strict_validation;
   preparation.input_digest = bound.input_digest;
   preparation.prepared_digest = bound.prepared_digest;
   preparation.policy_digest = bound.policy_digest;
@@ -567,6 +568,13 @@ void prepared_product_binding() {
   require(!direct_rejected.has_value() &&
               direct_rejected.error().code == product_error_code::stale_binding,
           "direct detach rejects foreign preparation provenance");
+  auto wrong_mode = preparation;
+  wrong_mode.mode = preparation_mode::normalized;
+  auto mode_rejected = detach_exact_stratified_boundary(
+      *selected.value()->payload, backend, wrong_mode);
+  require(!mode_rejected.has_value() &&
+              mode_rejected.error().code == product_error_code::stale_binding,
+          "direct detach rejects foreign preparation mode");
   auto mutated_selection = *selected.value()->payload;
   mutated_selection.preparation_provenance->report_digest.bytes[0] ^= 1U;
   auto matching_mutation = preparation;

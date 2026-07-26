@@ -143,7 +143,7 @@ status_or<std::unique_ptr<boolean_context<T, I>>> make_boolean_context(
     const prepared_operand<T, I> &, const prepared_operand<T, I> &, operation,
     const boolean_options &, std::shared_ptr<const exact_kernel_services<T>>,
     std::shared_ptr<const verifier_service>, cancellation_source * = nullptr,
-    diagnostic_consumer = {});
+    diagnostic_consumer = {}, deterministic_executor_factory = {});
 
 extern template class prepared_operand<float, std::uint32_t>;
 extern template class prepared_operand<float, std::uint64_t>;

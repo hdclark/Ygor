@@ -59,6 +59,7 @@ template <class T, class I> struct backend_request {
   std::shared_ptr<const verifier_service> verifiers;
   std::shared_ptr<cancellation_source> cancellation;
   diagnostic_consumer diagnostics;
+  deterministic_executor_factory executor_factory;
   digest request_digest;
 
   backend_request(prepared_operand<T, I> a, prepared_operand<T, I> b,
@@ -67,12 +68,14 @@ template <class T, class I> struct backend_request {
                   std::shared_ptr<const exact_kernel_services<T>> k,
                   std::shared_ptr<const verifier_service> v,
                   std::shared_ptr<cancellation_source> c,
-                  diagnostic_consumer d, digest request)
+                  diagnostic_consumer d, deterministic_executor_factory e,
+                  digest request)
       : operand_a(std::move(a)), operand_b(std::move(b)),
         selected_operation(op), engine_options(std::move(engine)),
         product_options(std::move(product)), limits(l), kernel(std::move(k)),
         verifiers(std::move(v)), cancellation(std::move(c)),
-        diagnostics(std::move(d)), request_digest(request) {}
+        diagnostics(std::move(d)), executor_factory(std::move(e)),
+        request_digest(request) {}
 };
 
 template <class T, class I>
@@ -207,7 +210,7 @@ product_status_or<backend_request_handle<T, I>> make_backend_request(
     std::shared_ptr<const exact_kernel_services<T>>,
     std::shared_ptr<const verifier_service>,
     std::shared_ptr<cancellation_source> = {}, diagnostic_consumer = {},
-    const backend_request_limits & = {});
+    deterministic_executor_factory = {}, const backend_request_limits & = {});
 
 template <class T, class I>
 product_status_or<bool>
@@ -245,7 +248,7 @@ product_status_or<bool> validate_backend_execution_result(
       std::shared_ptr<const exact_kernel_services<T>>,                         \
       std::shared_ptr<const verifier_service>,                                 \
       std::shared_ptr<cancellation_source>, diagnostic_consumer,               \
-      const backend_request_limits &);                                         \
+      deterministic_executor_factory, const backend_request_limits &);         \
   extern template product_status_or<bool> validate_backend_request(            \
       const backend_request<T, I> &) noexcept;                                 \
   extern template product_status_or<                                           \
