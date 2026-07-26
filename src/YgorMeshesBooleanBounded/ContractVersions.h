@@ -143,7 +143,7 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_source_facet_facet_policy = 1;
     static constexpr std::uint16_t relation_source_facet_facet_stage_schema = 1;
     static constexpr std::uint16_t relation_source_facet_facet_stage_policy = 1;
-    static constexpr std::uint16_t relation_coplanar_overlay_schema = 2;
+    static constexpr std::uint16_t relation_coplanar_overlay_schema = 3;
     static constexpr std::uint16_t relation_coplanar_overlay_policy = 1;
     static constexpr std::uint16_t relation_coplanar_overlay_stage_schema = 1;
     static constexpr std::uint16_t relation_coplanar_overlay_stage_policy = 1;
