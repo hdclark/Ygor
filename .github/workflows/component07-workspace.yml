@@ -7,7 +7,7 @@ on:
       - synchronize
       - edited
     branches:
-      - agent/component07-runner-base
+      - agent/bounded-manifold-mesh-boolean-plan
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
