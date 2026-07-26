@@ -1,35 +1,37 @@
 name: Mesh Boolean P6 workspace export
 
 on:
-  push:
+  pull_request:
     branches:
-      - boolean_symbolic
+      - master
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   export:
-    if: github.actor != 'github-actions[bot]' && github.event.head_commit.message != 'Restore P6 workspace export workflow'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Package exact checkout into committed transport chunks
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Package exact checkout
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/p6-workspace.part-* .github/p6-workspace.sha256
           tar --exclude=.git --exclude=build --exclude=build-* \
               --exclude='.github/p6-workspace.part-*' \
               --exclude='.github/p6-workspace.sha256' \
               -czf /tmp/ygor-p6-workspace.tar.gz .
-          sha256sum /tmp/ygor-p6-workspace.tar.gz | awk '{print $1}' > .github/p6-workspace.sha256
-          base64 -w 0 /tmp/ygor-p6-workspace.tar.gz | split -b 750000 -d -a 3 - .github/p6-workspace.part-
-          git add .github/p6-workspace.part-* .github/p6-workspace.sha256
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Export PR workspace archive for P6.3'
-          git push origin HEAD:boolean_symbolic
+          sha256sum /tmp/ygor-p6-workspace.tar.gz > /tmp/ygor-p6-workspace.sha256
+      - name: Upload workspace archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: p6-workspace-${{ github.event.pull_request.head.sha }}
+          path: |
+            /tmp/ygor-p6-workspace.tar.gz
+            /tmp/ygor-p6-workspace.sha256
+          if-no-files-found: error
+          retention-days: 1
