@@ -504,9 +504,53 @@ observe_qualification_product_success(
   bool approximation_ok =
       result.representation != result_representation::certified_approximate_mesh;
   if (result.representation == result_representation::exact_in_T_mesh) {
+    // Replay the public certificate bytes independently instead of calling the
+    // producer-side strict_mesh_certificate_digest helper.
+    canonical_encoder certificate_replay;
+    certificate_replay.raw(payload.exact_result_digest.bytes.data(),
+                           payload.exact_result_digest.bytes.size());
+    certificate_replay.raw(payload.realization_semantic_digest.bytes.data(),
+                           payload.realization_semantic_digest.bytes.size());
+    certificate_replay.raw(payload.output_semantic_digest.bytes.data(),
+                           payload.output_semantic_digest.bytes.size());
+    certificate_replay.byte_string(payload.realization_canonical_bytes);
+    certificate_replay.byte_string(payload.output_canonical_bytes);
+    certificate_replay.u64(payload.strict_vertices.size());
+    for (const auto &vertex : payload.strict_vertices) {
+      certificate_replay.u64(vertex.output_vertex);
+      certificate_replay.u64(vertex.selected_vertex);
+      for (const auto bits : vertex.accepted_bits)
+        certificate_replay.u64(bits);
+      certificate_replay.raw(vertex.exact_coordinate_digest.bytes.data(),
+                             vertex.exact_coordinate_digest.bytes.size());
+    }
+    certificate_replay.u16(payload.attribute_binding.schema);
+    certificate_replay.byte(
+        static_cast<std::uint8_t>(payload.attribute_binding.coordinate));
+    certificate_replay.byte(
+        static_cast<std::uint8_t>(payload.attribute_binding.index));
+    certificate_replay.raw(
+        payload.attribute_binding.exact_result_digest.bytes.data(),
+        payload.attribute_binding.exact_result_digest.bytes.size());
+    certificate_replay.raw(payload.attribute_binding.output_digest.bytes.data(),
+                           payload.attribute_binding.output_digest.bytes.size());
+    certificate_replay.u64(
+        payload.attribute_binding.output_vertex_exact_vertices.size());
+    for (const auto id :
+         payload.attribute_binding.output_vertex_exact_vertices)
+      certificate_replay.u64(id);
+    certificate_replay.u64(
+        payload.attribute_binding.output_face_exact_patches.size());
+    for (const auto id : payload.attribute_binding.output_face_exact_patches)
+      certificate_replay.u64(id);
+    certificate_replay.u64(payload.obligation_count);
+    certificate_replay.u64(payload.defining_relation_obligation_count);
+    certificate_replay.u64(payload.constraint_component_count);
+    const auto replayed_certificate_digest = domain_digest(
+        {{'Y', 'G', 'B', 'E', 'X', 'M', '0', '3'}},
+        certificate_replay.bytes());
     certificate_ok =
-        payload.certificate.certificate_digest ==
-            strict_mesh_certificate_digest(payload) &&
+        payload.certificate.certificate_digest == replayed_certificate_digest &&
         payload.output_semantic_digest ==
             payload.success->canonical_output_digest &&
         payload.output_semantic_digest == payload.success->summary.semantic_digest;
