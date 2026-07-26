@@ -1,0 +1,33 @@
+name: Agent P5.2 workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/agent-p52-workspace-export.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/agent-p52-workspace-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 0
+      - name: Create workspace archive
+        run: tar --exclude='./.git' -czf /tmp/ygor-p52-workspace.tar.gz .
+      - name: Upload workspace archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p52-workspace
+          path: /tmp/ygor-p52-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
