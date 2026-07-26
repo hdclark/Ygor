@@ -24,10 +24,13 @@ jobs:
         with:
           ref: boolean_symbolic
           fetch-depth: 0
+          show-progress: false
       - name: Apply validated P5.3 patch
         shell: bash
         run: |
           set -euo pipefail
+          exec > >(tee /tmp/p53-apply.log) 2>&1
+          set -x
           cat .github/p53-agent-patch/part-* | base64 --decode | gzip --decompress > /tmp/p53.patch
           git apply --index --whitespace=error /tmp/p53.patch
           rm -rf .github/p53-agent-patch
@@ -37,3 +40,11 @@ jobs:
           git config user.email 934858+hdclark@users.noreply.github.com
           git commit -m 'P5.3: replace product example and add migration guidance'
           git push origin HEAD:boolean_symbolic
+      - name: Upload apply diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p53-apply-diagnostic
+          path: /tmp/p53-apply.log
+          if-no-files-found: warn
+          retention-days: 1
