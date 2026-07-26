@@ -33,15 +33,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Package exact checkout
+      - name: Export Git tree identity
         shell: bash
-        run: >-
-          tar --exclude=.git --exclude=build --exclude=build-*
-          -czf /tmp/ygor-p6-workspace.tar.gz .
+        run: git rev-parse 'HEAD^{tree}' > /tmp/tree-sha.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ygor-p6-workspace
-          path: /tmp/ygor-p6-workspace.tar.gz
+          name: ygor-p6-tree-sha
+          path: /tmp/tree-sha.txt
           if-no-files-found: error
           retention-days: 1
 
