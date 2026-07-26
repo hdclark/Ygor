@@ -22,13 +22,28 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
       - name: Apply queued Component 07 implementation series
+        id: publish
+        continue-on-error: true
         if: ${{ github.event_name == 'pull_request' }}
-        run: bash .github/component07-apply.sh
+        run: bash .github/component07-apply.sh > /tmp/component07-publisher.log 2>&1
+      - name: Upload publisher diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component07-publisher-log
+          path: /tmp/component07-publisher.log
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Fail on publisher error
+        if: steps.publish.outcome == 'failure'
+        run: exit 1
       - name: Package checkout
+        if: steps.publish.outcome != 'failure'
         run: |
           git status --short --branch
           tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
       - uses: actions/upload-artifact@v4
+        if: steps.publish.outcome != 'failure'
         with:
           name: ygor-component07-workspace
           path: /tmp/ygor-component07-workspace.tar.gz
