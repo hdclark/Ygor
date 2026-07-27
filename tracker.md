@@ -241,11 +241,11 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Run one/multiple workers, queue/task partitions, broad-phase variants, filter accept/fallback/mixed paths, allocation perturbations, configurable hash seeds, ambient rounding modes, and separate-process replay.
   - [x] Run at least the Plan 16 minimum valid, invalid/preparation, and chain fuzz CPU-hour campaigns per required sanitizer/configuration; preserve and minimize every unique outcome.
 
-- [ ] **P6.9 — Freeze performance/memory/cancellation methodology and enforce gates.**
-  - [ ] Benchmark strict validation, each normalization class, backend evaluation, topology preflight, exact-result serialization, all realization modes, mandatory/exhaustive verification, and operation chains on representative/adversarial workloads.
-  - [ ] Record wall/CPU time, peak RSS and authoritative bytes separately, exact-number growth, candidate/event/patch growth, verifier overhead, realization search, serialization size, cancellation latency, and outcome category.
-  - [ ] Preserve the approved `plan_speed.md` P0 baseline comparisons and review the original targets (including B1-B7 geometric mean, B6, per-case regression, and authoritative-byte constraints) against the amended product path; record any explicitly approved revised threshold rather than silently dropping it.
-  - [ ] Prove resource-limit and cancellation failures remain transactional with no partial publication.
+- [x] **P6.9 — Freeze performance/memory/cancellation methodology and enforce gates.**
+  - [x] Benchmark strict validation, each normalization class, backend evaluation, topology preflight, exact-result serialization, all realization modes, mandatory/exhaustive verification, and operation chains on representative/adversarial workloads.
+  - [x] Record wall/CPU time, peak RSS and authoritative bytes separately, exact-number growth, candidate/event/patch growth, verifier overhead, realization search, serialization size, cancellation latency, and outcome category.
+  - [x] Preserve the approved `plan_speed.md` P0 baseline comparisons and review the original targets (including B1-B7 geometric mean, B6, per-case regression, and authoritative-byte constraints) against the amended product path; record any explicitly approved revised threshold rather than silently dropping it.
+  - [x] Prove resource-limit and cancellation failures remain transactional with no partial publication.
 
 - [ ] **P6.10 — Execute the frozen candidate campaign and resolve outcomes.**
   - [ ] Run the complete frozen manifest on controlled infrastructure.
