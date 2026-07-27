@@ -1,0 +1,54 @@
+name: Inspect P6.7 staged patches
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/p67-bootstrap.yml'
+      - '.github/p67.patch.*'
+      - '.github/p67code.patch.*'
+  pull_request:
+    paths:
+      - '.github/workflows/p67-bootstrap.yml'
+      - '.github/p67.patch.*'
+      - '.github/p67code.patch.*'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode staged patch bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/p67.patch.* | base64 --decode | gzip -dc > /tmp/p67.patch
+          cat .github/p67code.patch.* | base64 --decode | gzip -dc > /tmp/p67code.patch
+          echo '=== p67.patch digest/stat ==='
+          sha256sum /tmp/p67.patch
+          git apply --stat /tmp/p67.patch
+          echo '=== p67code.patch digest/stat ==='
+          sha256sum /tmp/p67code.patch
+          git apply --stat /tmp/p67code.patch
+      - name: Verify sequential application in scratch checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/p67-work
+          cp -a "$GITHUB_WORKSPACE" /tmp/p67-work
+          cd /tmp/p67-work
+          git apply --check /tmp/p67.patch
+          git apply /tmp/p67.patch
+          git apply --check /tmp/p67code.patch
+          git apply /tmp/p67code.patch
+          echo '=== resulting paths ==='
+          git status --short
+          echo '=== resulting diff stat ==='
+          git diff --stat
