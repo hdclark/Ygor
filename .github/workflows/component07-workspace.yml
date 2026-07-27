@@ -54,7 +54,7 @@ jobs:
           git apply --index /tmp/component07.patch
           git diff --cached --check
 
-      - name: Restore permanent workflow and verify tree
+      - name: Verify exact permanent tree projection
         run: |
           set -euo pipefail
           git restore --source=dee60d62958eb96059c54f42943285701c195ed0 --staged --worktree .github/workflows/component07-workspace.yml
@@ -64,8 +64,10 @@ jobs:
           echo "expected tree: ${expected_tree}"
           echo "actual tree:   ${actual_tree}"
           test "${actual_tree}" = "${expected_tree}"
+          git restore --source=HEAD --staged --worktree .github/workflows/component07-workspace.yml
+          git diff --cached --check
 
-      - name: Commit and publish Component 07
+      - name: Commit and publish Component 07 implementation
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
