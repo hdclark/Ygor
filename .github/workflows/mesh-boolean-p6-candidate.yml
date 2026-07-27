@@ -6,9 +6,8 @@ on:
       - boolean_symbolic
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
-      - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
-      - 'tests/p610/CMakeLists.txt'
+      - 'tests/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements_p610.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
@@ -17,9 +16,8 @@ on:
   pull_request:
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
-      - 'src/CMakeLists.txt'
       - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
-      - 'tests/p610/CMakeLists.txt'
+      - 'tests/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements_p610.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
@@ -47,8 +45,15 @@ jobs:
           CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
           CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
         run: >-
-          cmake -S tests/p610 -B build-p6-candidate -G Ninja
+          cmake -S . -B build-p6-candidate -G Ninja
+          -DBUILD_TESTING=ON
+          -DYGOR_BUILD_BOOLEAN_TESTS=ON
+          -DYGOR_BUILD_BOOLEAN_BENCHMARKS=OFF
           -DCMAKE_BUILD_TYPE=Debug
+          -DMEMORY_CONSTRAINED_BUILD=ON
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+          -DYGOR_BOOLEAN_TEST_TIER=continuous
       - name: Build P6.10 target
         run: >-
           cmake --build build-p6-candidate
