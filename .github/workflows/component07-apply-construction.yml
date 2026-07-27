@@ -5,7 +5,7 @@ on:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
     paths:
-      - .github/component07-construction.patch.b64
+      - .github/component07-construction.patch.gz
       - .github/workflows/component07-apply-construction.yml
 
 permissions:
@@ -25,15 +25,10 @@ jobs:
           BRANCH_REF: refs/heads/agent/bounded-manifold-mesh-boolean-plan
         run: |
           set -euo pipefail
-          if [[ ! -f .github/component07-construction.patch.b64 ]]; then
-            echo "Patch payload not present yet; transport is waiting."
-            exit 0
-          fi
           git merge-base --is-ancestor "$BASE_SHA" HEAD
-          base64 --decode .github/component07-construction.patch.b64 \
-            | gzip -dc > /tmp/component07.patch
+          gzip -dc .github/component07-construction.patch.gz > /tmp/component07.patch
           git apply --index --3way /tmp/component07.patch
-          git rm .github/component07-construction.patch.b64 \
+          git rm .github/component07-construction.patch.gz \
                  .github/workflows/component07-apply-construction.yml
           git diff --cached --check
           git config user.name "github-actions[bot]"
