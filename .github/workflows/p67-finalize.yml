@@ -45,7 +45,7 @@ jobs:
           decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
           Path('/tmp/p67.patch').write_bytes(decoded)
           PY
-          echo '310e84cf483860fdd4ac3e465fa71f73e30b8505d04c6a7573fe3c48a230fe48  /tmp/p67.patch' > /tmp/p67.sha256
+          echo 'f7bf3d4be781ee2653e4d0c05182a665cfe66d8095a78ecc95b7a06002e34dd8  /tmp/p67.patch' > /tmp/p67.sha256
           sha256sum --check /tmp/p67.sha256
           git apply --check \
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
@@ -120,7 +120,7 @@ jobs:
           decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
           Path('/tmp/p67.patch').write_bytes(decoded)
           PY
-          echo '310e84cf483860fdd4ac3e465fa71f73e30b8505d04c6a7573fe3c48a230fe48  /tmp/p67.patch' > /tmp/p67.sha256
+          echo 'f7bf3d4be781ee2653e4d0c05182a665cfe66d8095a78ecc95b7a06002e34dd8  /tmp/p67.patch' > /tmp/p67.sha256
           sha256sum --check /tmp/p67.sha256
           git apply --check \
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
@@ -147,3 +147,5 @@ jobs:
           git status --short
           git commit -m 'Implement component P6.7 qualification suites'
           git push origin HEAD:boolean_symbolic
+
+# trigger: corrected-reviewed-patch-digest
