@@ -22,6 +22,10 @@ on:
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-performance.yml'
 
+concurrency:
+  group: mesh-boolean-p6-performance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
