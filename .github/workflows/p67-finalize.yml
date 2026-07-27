@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mesh-boolean-p67-finalize
+  group: mesh-boolean-p67-finalize-hardened
   cancel-in-progress: true
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-      - name: Decode and apply reviewed P6.7 implementation
+      - name: Decode reviewed implementation and hardening patches
         shell: bash
         run: |
           set -euo pipefail
@@ -40,13 +40,23 @@ jobs:
           import gzip
           from pathlib import Path
 
-          encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
-                            for path in sorted(glob.glob('.github/p67.patch.*')))
-          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
-          Path('/tmp/p67.patch').write_bytes(decoded)
+          def decode(pattern, destination):
+              encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
+                                for path in sorted(glob.glob(pattern)))
+              Path(destination).write_bytes(
+                  gzip.decompress(base64.b64decode(encoded, validate=True)))
+
+          decode('.github/p67.patch.*', '/tmp/p67.patch')
+          decode('.github/p67code.patch.*', '/tmp/p67-hardening.patch')
           PY
           echo 'f7bf3d4be781ee2653e4d0c05182a665cfe66d8095a78ecc95b7a06002e34dd8  /tmp/p67.patch' > /tmp/p67.sha256
+          echo 'b468b0f413c611646cb78d9c2b1c717ed203920fe2e965b30012021d5846c336  /tmp/p67-hardening.patch' > /tmp/p67-hardening.sha256
           sha256sum --check /tmp/p67.sha256
+          sha256sum --check /tmp/p67-hardening.sha256
+      - name: Apply reviewed P6.7 implementation and hardening
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply --check \
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
             --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
@@ -55,6 +65,8 @@ jobs:
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
             --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
             /tmp/p67.patch
+          git apply --check /tmp/p67-hardening.patch
+          git apply /tmp/p67-hardening.patch
           git diff --check
       - name: Configure focused qualification build
         env:
@@ -89,7 +101,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: p67-${{ matrix.compiler }}-failure
+          name: p67-hardened-${{ matrix.compiler }}-failure
           path: build-p67-${{ matrix.compiler }}/Testing/Temporary/LastTest.log
           if-no-files-found: ignore
           retention-days: 7
@@ -106,7 +118,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Apply verified patch and remove temporary plumbing
+      - name: Decode and apply verified patches
         shell: bash
         run: |
           set -euo pipefail
@@ -116,13 +128,19 @@ jobs:
           import gzip
           from pathlib import Path
 
-          encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
-                            for path in sorted(glob.glob('.github/p67.patch.*')))
-          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
-          Path('/tmp/p67.patch').write_bytes(decoded)
+          def decode(pattern, destination):
+              encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
+                                for path in sorted(glob.glob(pattern)))
+              Path(destination).write_bytes(
+                  gzip.decompress(base64.b64decode(encoded, validate=True)))
+
+          decode('.github/p67.patch.*', '/tmp/p67.patch')
+          decode('.github/p67code.patch.*', '/tmp/p67-hardening.patch')
           PY
           echo 'f7bf3d4be781ee2653e4d0c05182a665cfe66d8095a78ecc95b7a06002e34dd8  /tmp/p67.patch' > /tmp/p67.sha256
+          echo 'b468b0f413c611646cb78d9c2b1c717ed203920fe2e965b30012021d5846c336  /tmp/p67-hardening.patch' > /tmp/p67-hardening.sha256
           sha256sum --check /tmp/p67.sha256
+          sha256sum --check /tmp/p67-hardening.sha256
           git apply --check \
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
             --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
@@ -131,6 +149,8 @@ jobs:
             --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
             --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
             /tmp/p67.patch
+          git apply --check /tmp/p67-hardening.patch
+          git apply /tmp/p67-hardening.patch
           git show 171927e57130996344757d2b162e9389db09421a:.github/workflows/mesh-boolean-p6-generation.yml \
             > .github/workflows/mesh-boolean-p6-generation.yml
           rm -f .github/p67.patch.* .github/p67code.patch.*
@@ -155,5 +175,9 @@ jobs:
           git status --short
           git diff --cached --check
           git diff --cached --stat
-          git commit -m 'Implement P6.7 qualification suites (plan 16)'
+          git commit -m 'Implement component P6.7 qualification suites'
+          git fetch origin boolean_symbolic
+          git rebase origin/boolean_symbolic
           git push origin HEAD:boolean_symbolic
+
+# trigger: hardened-reviewed-p67
