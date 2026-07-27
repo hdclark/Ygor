@@ -1,4 +1,4 @@
-name: Mesh Boolean P6.9 workspace bridge
+name: Mesh Boolean P6.9 atomic publisher
 
 on:
   push:
@@ -8,25 +8,143 @@ on:
       - '.github/workflows/mesh-boolean-p69-workspace.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  archive:
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out branch
+      - name: Check out transfer commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Create workspace archive
+      - name: Reconstruct validated payload
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git -czf "${RUNNER_TEMP}/ygor-p6.9-workspace.tar.gz" .
+          cat .github/p69-transfer/part-* > "${RUNNER_TEMP}/p69.tar.gz.b64"
+          base64 --decode "${RUNNER_TEMP}/p69.tar.gz.b64" > "${RUNNER_TEMP}/p69.tar.gz"
+          echo 'f92c54260ca72ede5a5a6f4e2bda49403c000b111eefecbe7d20870096295ff0  p69.tar.gz' |
+            (cd "${RUNNER_TEMP}" && sha256sum --check -)
 
-      - name: Upload workspace archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: ygor-p6.9-workspace
-          path: ${{ runner.temp }}/ygor-p6.9-workspace.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+      - name: Assemble clean P6.9 tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard ab6527bc8362e2c6b6b9ee1a5f882a109af9d212
+          tar -xzf "${RUNNER_TEMP}/p69.tar.gz" -C .
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path}: expected exactly one patch anchor')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/CMakeLists.txt',
+              '    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationMatrix.cc\n',
+              '    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationMatrix.cc\n'
+              '    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationPerformance.cc\n')
+
+          replace_once(
+              'tests/CMakeLists.txt',
+              'add_component14_test(Test_MeshesBooleanQualificationMatrix MeshBoolean.QualificationMatrix "qualification;p6;p6.8;continuous" 900)\n',
+              'add_component14_test(Test_MeshesBooleanQualificationMatrix MeshBoolean.QualificationMatrix "qualification;p6;p6.8;continuous" 900)\n'
+              'add_component14_test(Test_MeshesBooleanQualificationPerformance MeshBoolean.QualificationPerformance "qualification;p6;p6.9;performance;continuous" 900)\n')
+
+          qualification_doc = Path('docs/MeshBooleanQualification.md')
+          text = qualification_doc.read_text()
+          marker = '## Performance, memory, and cancellation methodology (P6.9)'
+          if marker in text:
+              raise SystemExit('P6.9 qualification section already exists')
+          section = '''
+
+## Performance, memory, and cancellation methodology (P6.9)
+
+`YgorMeshesBooleanQualificationPerformance.h` and
+`MeshBooleanQualificationPerformance.md` freeze a controlled strict-FP Release
+measurement protocol, the complete amended product-path workload catalog, the
+preserved Plan Speed P0 comparison set, and transactional resource/cancellation
+evidence. The plan binds 76 small/medium/large/adversarial stage workloads, 17
+B0-B8/B1-B7/B6 comparisons, and 44 per-stage authoritative-byte, work-unit,
+wall-timeout, and cancellation cases.
+
+Reports retain wall and CPU time separately, producer/verifier time, peak RSS
+and three distinct accounted-byte classes, exact-number and arrangement growth,
+realization search, serialization, outcomes, commands, logs, and canonical
+semantic bindings. The original 4x B1-B7 geometric-mean, 5x B6, 15-percent
+per-case, and no-authoritative-byte-growth targets remain immutable. Any revised
+effective threshold or permitted non-authoritative tradeoff requires an
+approved review bound to the exact measured change. Exact aggregate decisions
+use multi-precision integer products, and resource/cancellation gates require
+identical pre/post publication state, rollback, no partial output, replay, and
+the frozen cancellation-latency limit. Ordinary GCC/Clang CI only exercises the
+checker; controlled candidate measurements are P6.10 evidence.
+'''
+          qualification_doc.write_text(text.rstrip() + section + '\n')
+
+          requirements = Path('tests/mesh_boolean/requirements.tsv')
+          text = requirements.read_text()
+          rows = [
+              'P6-PERF-METHOD-001\tplan16.P6.9\tcontrolled same-host median/MAD methodology covers every amended product stage, repair class, scale, metric, and typed outcome\tP6.9.catalog\tqualification\tcontinuous',
+              'P6-P0-GATES-001\tplan16.P6.9;plan_speed.P13\tP0 continuity, B1-B7 geometric mean, B6 family, nontrivial per-case, exact-work, allocation, candidate-bound, identity, and byte gates are preserved\tP6.9.regressions\tqualification\tcontinuous',
+              'P6-PERF-REVIEW-001\tplan16.P6.9\toriginal thresholds are immutable and revised thresholds or tradeoffs require approvals bound to the exact measured change\tP6.9.thresholds\tnegative\tcontinuous',
+              'P6-PERF-MEMORY-001\tplan16.P6.9\tpeak RSS remains separate from authoritative, stage-private, and verifier-scratch bytes and authoritative growth cannot be waived\tP6.9.memory_identity\tnegative\tcontinuous',
+              'P6-PERF-TRANSACTION-001\tplan16.P6.9\tauthoritative-byte, work-unit, wall-timeout, and cancellation failures are typed, replayable, latency-bounded, and transactionally publish nothing\tP6.9.transaction_measurements\tnegative\tcontinuous',
+              'P6-PERF-REPORT-001\tplan16.P6.9\tcomplete performance reports reconstruct canonically independent of observation arrival order and fail on missing or stale evidence\tP6.9.report\tqualification\tcontinuous',
+          ]
+          for row in rows:
+              key = row.split('\t', 1)[0]
+              if any(line.startswith(key + '\t') for line in text.splitlines()):
+                  raise SystemExit(f'duplicate requirement {key}')
+          requirements.write_text(text.rstrip() + '\n' + '\n'.join(rows) + '\n')
+
+          old_tracker = '''- [ ] **P6.9 — Freeze performance/memory/cancellation methodology and enforce gates.**
+  - [ ] Benchmark strict validation, each normalization class, backend evaluation, topology preflight, exact-result serialization, all realization modes, mandatory/exhaustive verification, and operation chains on representative/adversarial workloads.
+  - [ ] Record wall/CPU time, peak RSS and authoritative bytes separately, exact-number growth, candidate/event/patch growth, verifier overhead, realization search, serialization size, cancellation latency, and outcome category.
+  - [ ] Preserve the approved `plan_speed.md` P0 baseline comparisons and review the original targets (including B1-B7 geometric mean, B6, per-case regression, and authoritative-byte constraints) against the amended product path; record any explicitly approved revised threshold rather than silently dropping it.
+  - [ ] Prove resource-limit and cancellation failures remain transactional with no partial publication.
+'''
+          new_tracker = old_tracker.replace('- [ ]', '- [x]')
+          replace_once('tracker.md', old_tracker, new_tracker)
+          PY
+
+          test ! -e .github/p69-transfer
+          test ! -e .github/workflows/mesh-boolean-p69-workspace.yml
+          git diff --check
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libeigen3-dev
+
+      - name: Configure and build P6.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DYGOR_BUILD_BOOLEAN_TESTS=ON \
+            -DYGOR_BOOLEAN_STRICT_FP=ON
+          cmake --build build --target Test_MeshesBooleanQualificationPerformance -j2
+
+      - name: Run P6.9 contracts
+        run: ctest --test-dir build --output-on-failure -R '^MeshBoolean.QualificationPerformance$'
+
+      - name: Publish clean component commit to staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build
+          git add .
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          tree_sha="$(git write-tree)"
+          commit_sha="$(printf '%s\n' 'Implement P6.9 performance methodology (plan 16)' | \
+            git commit-tree "${tree_sha}" -p ab6527bc8362e2c6b6b9ee1a5f882a109af9d212)"
+          echo "P69_TREE_SHA=${tree_sha}"
+          echo "P69_COMMIT_SHA=${commit_sha}"
+          git push --force origin "${commit_sha}:refs/heads/p69-publish-staging"
