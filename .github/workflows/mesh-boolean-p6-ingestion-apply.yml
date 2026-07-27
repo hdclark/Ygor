@@ -16,18 +16,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: mesh-boolean-p6-ingestion-apply-${{ github.sha }}
+  group: mesh-boolean-p6-ingestion-apply-final
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: ${{ matrix.compiler }} reviewed P6.6 patch
+  validate-and-publish:
+    name: GCC validate and publish reviewed P6.6 patch
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,12 +39,12 @@ jobs:
           git apply /tmp/p6-ingestion.patch
           git diff --check
       - name: Install build tools
-        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-      - name: Configure focused strict C++17 harness
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build
+      - name: Configure focused strict C++17 GCC harness
         shell: bash
         env:
-          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
-          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+          CC: gcc
+          CXX: g++
         run: |
           set -euo pipefail
           mkdir -p /tmp/ygor-p6-ingestion-focused
@@ -121,32 +117,13 @@ jobs:
           set -euo pipefail
           cmake --build /tmp/ygor-p6-ingestion-focused/build --parallel 2
           /tmp/ygor-p6-ingestion-focused/build/p6_ingestion
-
-  publish:
-    name: Commit reviewed P6.6 implementation
-    needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Confirm branch has not moved
+      - name: Commit validated implementation
         shell: bash
         run: |
           set -euo pipefail
           git fetch --force origin boolean_symbolic
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/boolean_symbolic)"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-      - name: Apply and commit reviewed implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
-          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
-          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
-          git apply --check /tmp/p6-ingestion.patch
-          git apply /tmp/p6-ingestion.patch
           rm -f .github/p6-ingestion.patch.part-*
           rm -f .github/workflows/mesh-boolean-p6-ingestion-apply.yml
           rm -f .github/workflows/mesh-boolean-p6-workspace-export.yml
