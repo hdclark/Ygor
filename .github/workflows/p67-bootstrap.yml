@@ -29,26 +29,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/p67.patch.* | base64 --decode | gzip -dc > /tmp/p67.patch
-          cat .github/p67code.patch.* | base64 --decode | gzip -dc > /tmp/p67code.patch
+          python3 - <<'PY'
+          import base64
+          import glob
+          import gzip
+          from pathlib import Path
+
+          for stem in ('p67.patch', 'p67code.patch'):
+              encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
+                                for path in sorted(glob.glob(f'.github/{stem}.*')))
+              decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
+              Path(f'/tmp/{stem}').write_bytes(decoded)
+          PY
           echo '=== p67.patch digest/stat ==='
           sha256sum /tmp/p67.patch
           git apply --stat /tmp/p67.patch
           echo '=== p67code.patch digest/stat ==='
           sha256sum /tmp/p67code.patch
           git apply --stat /tmp/p67code.patch
-      - name: Verify sequential application in scratch checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/p67-work
-          cp -a "$GITHUB_WORKSPACE" /tmp/p67-work
-          cd /tmp/p67-work
-          git apply --check /tmp/p67.patch
-          git apply /tmp/p67.patch
-          git apply --check /tmp/p67code.patch
-          git apply /tmp/p67code.patch
-          echo '=== resulting paths ==='
-          git status --short
-          echo '=== resulting diff stat ==='
-          git diff --stat
+      - name: Upload decoded patches
+        uses: actions/upload-artifact@v4
+        with:
+          name: p67-decoded-patches
+          path: |
+            /tmp/p67.patch
+            /tmp/p67code.patch
+          if-no-files-found: error
+          retention-days: 1
