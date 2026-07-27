@@ -18,7 +18,7 @@ jobs:
   validate:
     name: ${{ matrix.compiler }} P6.7 validation
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -68,29 +68,66 @@ jobs:
           git apply --check /tmp/p67-hardening.patch
           git apply /tmp/p67-hardening.patch
           git diff --check
-      - name: Configure focused qualification build
+      - name: Configure and verify CMake integration
         env:
           CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
           CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
-        run: >-
-          cmake -S . -B build-p67-${{ matrix.compiler }} -G Ninja
-          -DBUILD_TESTING=ON
-          -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_FLAGS_DEBUG='-O0 -g0'
-          -DWITH_EIGEN=OFF
-          -DWITH_GNU_GSL=OFF
-      - name: Build P6.6 and P6.7 targets
-        run: >-
-          cmake --build build-p67-${{ matrix.compiler }}
-          --target
-          Test_MeshesBooleanQualificationIngestion
-          Test_MeshesBooleanQualificationSuites
-          --parallel 4
-      - name: Run focused qualification gates
-        run: >-
-          ctest --test-dir build-p67-${{ matrix.compiler }} --output-on-failure
-          -R '^(MeshBoolean\.QualificationIngestion|MeshBoolean\.QualificationSuites)$'
-          --timeout 1200
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-p67-${{ matrix.compiler }} -G Ninja \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS_DEBUG='-O0 -g0' \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF
+          cmake --build build-p67-${{ matrix.compiler }} --target help \
+            | grep -F 'Test_MeshesBooleanQualificationIngestion'
+          cmake --build build-p67-${{ matrix.compiler }} --target help \
+            | grep -F 'Test_MeshesBooleanQualificationSuites'
+          ctest --test-dir build-p67-${{ matrix.compiler }} -N \
+            -R '^(MeshBoolean\.QualificationIngestion|MeshBoolean\.QualificationSuites)$' \
+            | grep -F 'Total Tests: 2'
+      - name: Compile and run focused P6.6 and P6.7 executables
+        shell: bash
+        env:
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: |
+          set -euo pipefail
+          root="$PWD"
+          build="$root/build-p67-${{ matrix.compiler }}"
+          obj="$build/focused-objects"
+          mkdir -p "$obj/common" "$obj/ingestion" "$obj/suites"
+          flags=(
+            -std=c++17 -O0 -g0 -ffunction-sections -fdata-sections
+            -frounding-math -fno-fast-math -ffp-contract=off
+            -fno-associative-math -fno-finite-math-only
+            -fno-reciprocal-math -fsigned-zeros -ftrapping-math
+            -I. -Isrc -Itests -I"$build" -I"$build/src"
+          )
+          compile() {
+            "$CXX" "${flags[@]}" -c "$1" -o "$2"
+          }
+          compile src/YgorMeshesBooleanContract.cc "$obj/common/contract.o"
+          compile src/YgorMeshesBooleanProductContract.cc "$obj/common/product_contract.o"
+          compile tests/MeshBooleanTestHarness.cc "$obj/common/harness.o"
+          compile src/External/MD5/md5.cc "$obj/common/md5.o"
+
+          compile src/YgorMeshesBooleanQualificationIngestion.cc "$obj/ingestion/ingestion.o"
+          compile tests/Test_MeshesBooleanQualificationIngestion.cc "$obj/ingestion/test.o"
+          "$CXX" -Wl,--gc-sections "$obj/common"/*.o "$obj/ingestion"/*.o \
+            -pthread -o "$build/Test_MeshesBooleanQualificationIngestion.focused"
+          TERM=xterm "$build/Test_MeshesBooleanQualificationIngestion.focused" \
+            | tee "$build/p66-focused.log"
+
+          compile src/YgorMeshesBooleanNormalization.cc "$obj/suites/normalization.o"
+          compile src/YgorMeshesBooleanQualificationSuites.cc "$obj/suites/suites.o"
+          compile tests/Test_MeshesBooleanQualificationSuites.cc "$obj/suites/test.o"
+          "$CXX" -Wl,--gc-sections "$obj/common"/*.o "$obj/suites"/*.o \
+            -pthread -o "$build/Test_MeshesBooleanQualificationSuites.focused"
+          TERM=xterm "$build/Test_MeshesBooleanQualificationSuites.focused" \
+            | tee "$build/p67-focused.log"
+          grep -Fq $'SUMMARY\t3\t0' "$build/p66-focused.log"
+          grep -Fq $'SUMMARY\t5\t0' "$build/p67-focused.log"
       - name: Verify tracker boundary
         shell: bash
         run: |
@@ -102,7 +139,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: p67-hardened-${{ matrix.compiler }}-failure
-          path: build-p67-${{ matrix.compiler }}/Testing/Temporary/LastTest.log
+          path: |
+            build-p67-${{ matrix.compiler }}/p66-focused.log
+            build-p67-${{ matrix.compiler }}/p67-focused.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -175,9 +214,7 @@ jobs:
           git status --short
           git diff --cached --check
           git diff --cached --stat
-          git commit -m 'Implement component P6.7 qualification suites'
+          git commit -m 'Implement P6.7 qualification suites (plan 16)'
           git fetch origin boolean_symbolic
           git rebase origin/boolean_symbolic
           git push origin HEAD:boolean_symbolic
-
-# trigger: hardened-reviewed-p67
