@@ -219,11 +219,11 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Minimize and classify every disagreement as correct, incorrect, unsupported, policy-different, or unresolved.
   - [x] Block qualification while any material disagreement remains unexplained.
 
-- [ ] **P6.5 — Add false-success detection and accounting.**
-  - [ ] Normalize all outcomes into verified exact success, verified approximate success, expected/unexpected typed failure, backend/verifier disagreement, false success, nondeterminism, resource/timeout, or infrastructure failure.
-  - [ ] Re-ingest every mesh success, independently reconstruct topology, replay certificates from output bits, classify guarded probes, check embedding/orientation/nesting, bind to exact-result digest, and feed it into later chain operations.
-  - [ ] Count false success separately from safe failure by backend, mode, preparation policy, category, operation, specialization, and platform.
-  - [ ] Treat any semantic mislabeling, incorrect occupancy/topology/orientation/embedding, stale binding, or incorrect attribute map as a blocking false success.
+- [x] **P6.5 — Add false-success detection and accounting.**
+  - [x] Normalize all outcomes into verified exact success, verified approximate success, expected/unexpected typed failure, backend/verifier disagreement, false success, nondeterminism, resource/timeout, or infrastructure failure.
+  - [x] Re-ingest every mesh success, independently reconstruct topology, replay certificates from output bits, classify guarded probes, check embedding/orientation/nesting, bind to exact-result digest, and feed it into later chain operations.
+  - [x] Count false success separately from safe failure by backend, mode, preparation policy, category, operation, specialization, and platform.
+  - [x] Treat any semantic mislabeling, incorrect occupancy/topology/orientation/embedding, stale binding, or incorrect attribute map as a blocking false success.
 
 - [ ] **P6.6 — Add controlled CAD-like corpus ingestion.**
   - [ ] Record source/generator class, intended model tolerance, provenance/license, preparation report, expected product outcome, and redistribution constraints.
