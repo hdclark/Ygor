@@ -1,6 +1,11 @@
 name: Validate Mesh Boolean P6.5 accounting fix
 
 on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/mesh-boolean-p6-workspace.yml'
   push:
     branches:
       - boolean_symbolic
@@ -8,7 +13,7 @@ on:
       - '.github/workflows/mesh-boolean-p6-workspace.yml'
 
 concurrency:
-  group: mesh-boolean-p6-accounting-fix-validation
+  group: mesh-boolean-p6-accounting-fix-validation-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -24,9 +29,6 @@ jobs:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: boolean_symbolic
-
       - name: Apply the non-deduced service boundary fix
         shell: bash
         run: |
