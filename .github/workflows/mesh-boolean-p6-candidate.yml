@@ -6,6 +6,7 @@ on:
       - boolean_symbolic
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
       - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
@@ -16,6 +17,7 @@ on:
   pull_request:
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
       - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
