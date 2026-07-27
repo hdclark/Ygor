@@ -54,7 +54,7 @@ jobs:
           git apply --index /tmp/component07.patch
           git diff --cached --check
 
-      - name: Verify exact permanent tree projection
+      - name: Verify exact permanent tree
         run: |
           set -euo pipefail
           git restore --source=dee60d62958eb96059c54f42943285701c195ed0 --staged --worktree .github/workflows/component07-workspace.yml
@@ -64,13 +64,92 @@ jobs:
           echo "expected tree: ${expected_tree}"
           echo "actual tree:   ${actual_tree}"
           test "${actual_tree}" = "${expected_tree}"
-          git restore --source=HEAD --staged --worktree .github/workflows/component07-workspace.yml
-          git diff --cached --check
 
-      - name: Commit and publish Component 07 implementation
+      - name: Create verified remote commit object
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_HEAD: 78b5ff84c3b3e624299986b85b593ef50b8eec8c
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Component 07: complete replay and qualification"
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import subprocess
+          import urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          expected_head = os.environ["EXPECTED_HEAD"]
+          parent = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True).strip()
+          if parent != expected_head:
+              raise SystemExit(f"head moved: expected {expected_head}, found {parent}")
+
+          def api(method, path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}{path}",
+                  data=data,
+                  method=method)
+              request.add_header("Authorization", f"Bearer {token}")
+              request.add_header("Accept", "application/vnd.github+json")
+              request.add_header("X-GitHub-Api-Version", "2022-11-28")
+              if data is not None:
+                  request.add_header("Content-Type", "application/json")
+              with urllib.request.urlopen(request) as response:
+                  return json.load(response)
+
+          base_commit = api("GET", f"/git/commits/{parent}")
+          base_tree = base_commit["tree"]["sha"]
+          raw = subprocess.check_output(
+              ["git", "diff", "--cached", "--name-status", "-z", "HEAD"])
+          fields = raw.decode("utf-8").split("\0")
+          entries = []
+          index = 0
+          while index < len(fields) and fields[index]:
+              status = fields[index]
+              index += 1
+              if status.startswith(("R", "C")):
+                  index += 1
+                  path = fields[index]
+                  index += 1
+              else:
+                  path = fields[index]
+                  index += 1
+              if status.startswith("D"):
+                  entries.append({"path": path, "mode": "100644",
+                                  "type": "blob", "sha": None})
+                  continue
+              mode = subprocess.check_output(
+                  ["git", "ls-files", "-s", "--", path],
+                  text=True).split()[0]
+              with open(path, "rb") as source:
+                  encoded = base64.b64encode(source.read()).decode("ascii")
+              blob = api("POST", "/git/blobs",
+                         {"content": encoded, "encoding": "base64"})
+              entries.append({"path": path, "mode": mode,
+                              "type": "blob", "sha": blob["sha"]})
+
+          tree = api("POST", "/git/trees",
+                     {"base_tree": base_tree, "tree": entries})
+          expected_tree = "a3566b705aa2b9a7767f11bec8c504cebc3ad4ef"
+          if tree["sha"] != expected_tree:
+              raise SystemExit(
+                  f"remote tree mismatch: expected {expected_tree}, found {tree['sha']}")
+          commit = api("POST", "/git/commits", {
+              "message": "Component 07: complete replay and qualification",
+              "tree": tree["sha"],
+              "parents": [parent],
+          })
+          with open("/tmp/component07-remote-commit.txt", "w", encoding="ascii") as out:
+              out.write(commit["sha"] + "\n")
+          print(f"verified remote commit: {commit['sha']}")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: component07-publication-commit
+          path: /tmp/component07-remote-commit.txt
+          if-no-files-found: error
+          retention-days: 1
