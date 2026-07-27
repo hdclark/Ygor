@@ -6,6 +6,9 @@ on:
       - p69-known-runner
     paths:
       - '.github/workflows/mesh-boolean-p6-matrix.yml'
+  pull_request:
+    branches:
+      - p69-known-runner
 
 permissions:
   contents: write
