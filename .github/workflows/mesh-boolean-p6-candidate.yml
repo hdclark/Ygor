@@ -6,9 +6,9 @@ on:
       - boolean_symbolic
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
-      - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
-      - 'tests/mesh_boolean/requirements_p610.tsv'
+      - 'tests/mesh_boolean/requirements.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
@@ -16,9 +16,9 @@ on:
   pull_request:
     paths:
       - 'src/YgorMeshesBooleanQualificationCandidate.*'
-      - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
-      - 'tests/mesh_boolean/requirements_p610.tsv'
+      - 'tests/mesh_boolean/requirements.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
