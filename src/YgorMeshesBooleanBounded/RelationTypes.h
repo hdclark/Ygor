@@ -23,10 +23,12 @@ struct relation_construction_tag;
 struct relation_construction_ledger_tag;
 struct symbolic_relation_decision_tag;
 struct relation_event_seed_tag;
+struct relation_event_seed_incidence_tag;
 struct relation_coplanar_event_node_tag;
 struct relation_coplanar_oriented_arc_tag;
 struct relation_coplanar_overlap_component_tag;
 struct relation_candidate_disposition_tag;
+struct relation_candidate_partition_tag;
 struct relation_verifier_evidence_tag;
 
 using relation_request_id = strong_id<relation_request_tag>;
@@ -43,6 +45,8 @@ using relation_construction_ledger_id =
     strong_id<relation_construction_ledger_tag>;
 using symbolic_relation_decision_id = strong_id<symbolic_relation_decision_tag>;
 using relation_event_seed_id = strong_id<relation_event_seed_tag>;
+using relation_event_seed_incidence_id =
+    strong_id<relation_event_seed_incidence_tag>;
 using relation_coplanar_event_node_id =
     strong_id<relation_coplanar_event_node_tag>;
 using relation_coplanar_oriented_arc_id =
@@ -51,6 +55,8 @@ using relation_coplanar_overlap_component_id =
     strong_id<relation_coplanar_overlap_component_tag>;
 using relation_candidate_disposition_id =
     strong_id<relation_candidate_disposition_tag>;
+using relation_candidate_partition_id =
+    strong_id<relation_candidate_partition_tag>;
 using relation_verifier_evidence_id = strong_id<relation_verifier_evidence_tag>;
 
 inline constexpr std::uint64_t relation_invalid_ordinal =
@@ -162,9 +168,32 @@ enum class relation_coplanar_component_kind : std::uint8_t {
 };
 
 enum class candidate_relation_disposition_kind : std::uint8_t {
-  no_public_relation = 1,
-  mapped_to_public_relation = 2,
-  bookkeeping_witness = 3,
+  definitely_separated = 1,
+  duplicate_discovery_absorbed = 2,
+  primitive_dependency_only = 3,
+  contributed_event_seeds = 4,
+  contributed_coplanar_or_coincident_relation = 5,
+  retained_zero_measure_contact = 6,
+  internal_diagonal_bookkeeping_absorbed = 7,
+};
+
+enum class relation_contact_dimension : std::uint8_t {
+  none = 0,
+  point = 1,
+  curve = 2,
+  area = 3,
+};
+
+enum candidate_relation_coverage_flag : std::uint16_t {
+  candidate_coverage_relation = 1U << 0U,
+  candidate_coverage_public_contact = 1U << 1U,
+  candidate_coverage_event_seed = 1U << 2U,
+  candidate_coverage_coplanar_or_coincident = 1U << 3U,
+  candidate_coverage_zero_measure = 1U << 4U,
+  candidate_coverage_definitely_separated = 1U << 5U,
+  candidate_coverage_duplicate_discovery = 1U << 6U,
+  candidate_coverage_internal_diagonal = 1U << 7U,
+  candidate_coverage_complete = 1U << 15U,
 };
 
 enum class relation_construction_kind : std::uint8_t {
@@ -338,6 +367,8 @@ struct relation_capabilities final {
   std::uint64_t maximum_region_records = (std::uint64_t{1} << 36);
   std::uint64_t maximum_symbolic_decisions = (std::uint64_t{1} << 34);
   std::uint64_t maximum_event_seeds = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_event_seed_incidence = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_candidate_coverage = (std::uint64_t{1} << 36);
   std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
   std::uint64_t maximum_work_units = (std::uint64_t{1} << 38);
   std::uint32_t reserved = 0;
@@ -372,6 +403,10 @@ struct relation_statistics final {
   std::uint64_t symbolic_decision_count = 0;
   std::uint64_t crossing_record_count = 0;
   std::uint64_t event_seed_count = 0;
+  std::uint64_t event_seed_candidate_incidence_count = 0;
+  std::uint64_t candidate_relation_coverage_count = 0;
+  std::uint64_t candidate_seed_coverage_count = 0;
+  std::uint64_t candidate_partition_count = 0;
   std::uint64_t sort_comparisons = 0;
   std::uint64_t verifier_work_units = 0;
   std::uint64_t persistent_bytes = 0;

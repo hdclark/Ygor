@@ -226,9 +226,48 @@ struct relation_event_seed_record final {
   relation_event_seed_key key{};
   feature_relation_id source_relation{0};
   relation_construction_id construction{0};
+  feature_relation_status contact_status =
+      feature_relation_status::not_evaluated;
+  relation_contact_dimension contact_dimension = relation_contact_dimension::none;
+  relation_construction_kind construction_kind =
+      relation_construction_kind::bounded_point;
+  relation_feature_key accepted_source_vertex{};
+  bool accepted_source_vertex_reused = false;
+  bool has_symbolic_decision = false;
+  symbolic_relation_decision_id symbolic_decision{0};
+  std::uint64_t symbolic_rule_ordinal = 0;
+  std::uint32_t symbolic_occurrence_rank = 0;
+  symbolic_relation_side conceptual_side = symbolic_relation_side::coincident;
+  std::int32_t numeric_crossing = 0;
+  std::int8_t symbolic_crossing = 0;
+  operand_id half_open_owner = operand_id::a;
+  std::uint64_t truth_begin = 0;
+  std::uint64_t truth_count = 0;
+  std::uint64_t construction_ledger_begin = 0;
+  std::uint64_t construction_ledger_count = 0;
   std::uint64_t incidence_begin = 0;
   std::uint64_t incidence_count = 0;
+  std::uint64_t candidate_incidence_begin = 0;
+  std::uint64_t candidate_incidence_count = 0;
+  bool precision_evidence_complete = false;
   bool distinct_occurrence_required = false;
+  std::uint16_t schema_version = contract_versions::relation_event_seed_schema;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_event_seed_candidate_incidence_record final {
+  relation_event_seed_incidence_id id{0};
+  relation_event_seed_id seed{0};
+  candidate_id candidate{0};
+  relation_candidate_disposition_id disposition{0};
+  relation_feature_key candidate_edge{};
+  relation_feature_key source_triangle{};
+  std::array<std::uint64_t, 2> edge_halfedges{};
+  std::array<std::uint64_t, 3> triangle_halfedges{};
+  bool internal_diagonal_witness = false;
+  bool source_feature_owner = false;
+  std::uint16_t schema_version =
+      contract_versions::relation_event_seed_incidence_schema;
   std::uint32_t reserved = 0;
 };
 
@@ -308,9 +347,34 @@ struct relation_candidate_disposition_record final {
   relation_candidate_disposition_id id{0};
   candidate_id candidate{0};
   candidate_relation_disposition_kind disposition =
-      candidate_relation_disposition_kind::no_public_relation;
+      candidate_relation_disposition_kind::primitive_dependency_only;
   feature_relation_id public_relation{0};
   relation_request_id bookkeeping_request{0};
+  std::uint64_t relation_begin = 0;
+  std::uint64_t relation_count = 0;
+  std::uint64_t event_seed_begin = 0;
+  std::uint64_t event_seed_count = 0;
+  std::uint16_t coverage_flags = 0;
+  bool coverage_complete = false;
+  std::uint16_t schema_version =
+      contract_versions::relation_candidate_disposition_schema;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_candidate_partition_record final {
+  relation_candidate_partition_id id{0};
+  candidate_partition_id source_partition{0};
+  std::uint64_t candidate_begin = 0;
+  std::uint64_t candidate_count = 0;
+  std::uint64_t disposition_begin = 0;
+  std::uint64_t disposition_count = 0;
+  std::uint64_t relation_begin = 0;
+  std::uint64_t relation_count = 0;
+  std::uint64_t event_seed_begin = 0;
+  std::uint64_t event_seed_count = 0;
+  std::uint64_t maximum_records = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_candidate_partition_schema;
   std::uint32_t reserved = 0;
 };
 
@@ -408,10 +472,20 @@ public:
   const std::vector<relation_feature_key> &event_seed_incidence() const noexcept {
     return event_seed_incidence_;
   }
+  const std::vector<relation_event_seed_candidate_incidence_record> &
+  event_seed_candidate_incidence() const noexcept {
+    return event_seed_candidate_incidence_;
+  }
   const std::vector<relation_candidate_disposition_record> &
   candidate_dispositions() const noexcept {
     return candidate_dispositions_;
   }
+  const std::vector<feature_relation_id> &candidate_relation_coverage()
+      const noexcept { return candidate_relation_coverage_; }
+  const std::vector<relation_event_seed_id> &candidate_event_seed_coverage()
+      const noexcept { return candidate_event_seed_coverage_; }
+  const std::vector<relation_candidate_partition_record> &candidate_partitions()
+      const noexcept { return candidate_partitions_; }
   const relation_statistics &statistics() const noexcept { return statistics_; }
   const relation_verification_evidence &verification_evidence() const noexcept {
     return verification_evidence_;
@@ -482,7 +556,12 @@ private:
   std::vector<relation_coplanar_overlap_component_record>
       coplanar_overlap_components_;
   std::vector<relation_feature_key> event_seed_incidence_;
+  std::vector<relation_event_seed_candidate_incidence_record>
+      event_seed_candidate_incidence_;
   std::vector<relation_candidate_disposition_record> candidate_dispositions_;
+  std::vector<feature_relation_id> candidate_relation_coverage_;
+  std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
+  std::vector<relation_candidate_partition_record> candidate_partitions_;
   relation_statistics statistics_{};
   relation_verification_evidence verification_evidence_{};
   bounded_boolean_digest context_digest_{};

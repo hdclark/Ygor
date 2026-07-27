@@ -162,6 +162,30 @@ inline bool public_contact(feature_relation_status value) noexcept {
          value != feature_relation_status::not_evaluated;
 }
 
+inline relation_contact_dimension contact_dimension(
+    feature_relation_family family, feature_relation_status status) noexcept {
+  switch (status) {
+  case feature_relation_status::proper_crossing:
+  case feature_relation_status::endpoint_crossing:
+  case feature_relation_status::point_contact:
+  case feature_relation_status::tangency:
+    return relation_contact_dimension::point;
+  case feature_relation_status::segment_contact:
+    return relation_contact_dimension::curve;
+  case feature_relation_status::overlap:
+  case feature_relation_status::containment:
+  case feature_relation_status::coincidence_same_orientation:
+  case feature_relation_status::coincidence_opposite_orientation:
+    return family == feature_relation_family::source_facet_source_facet
+               ? relation_contact_dimension::area
+               : relation_contact_dimension::curve;
+  case feature_relation_status::not_evaluated:
+  case feature_relation_status::definitely_separated:
+    return relation_contact_dimension::none;
+  }
+  return relation_contact_dimension::none;
+}
+
 inline relation_request_key derived_key(const relation_request_key &base,
                                         relation_request_family family,
                                         std::uint64_t directed_use,
@@ -489,7 +513,14 @@ public:
       artifact.crossings_ = std::move(crossings_);
       artifact.event_seeds_ = std::move(seed_table_.records);
       artifact.event_seed_incidence_ = std::move(seed_table_.incidence);
+      artifact.event_seed_candidate_incidence_ =
+          std::move(seed_table_.candidate_incidence);
       artifact.candidate_dispositions_ = std::move(dispositions_);
+      artifact.candidate_relation_coverage_ =
+          std::move(candidate_relation_coverage_);
+      artifact.candidate_event_seed_coverage_ =
+          std::move(candidate_event_seed_coverage_);
+      artifact.candidate_partitions_ = std::move(candidate_partitions_);
       artifact.context_digest_ = context_.context_digest;
       artifact.precision_digest_ = precision_.digest();
       artifact.candidate_digest_ = candidates_->candidate_digest();
@@ -3217,6 +3248,9 @@ private:
         return fail(error, relation_subcode::missing_dependency,
                     "Component 07 event seed source is absent",
                     relation_checkpoint::event_seed_and_disposition_reconciliation);
+      const auto &relation_record = relations_[relation->second.ordinal()];
+      const auto &construction_record =
+          constructions_[construction->second.ordinal()];
       relation_event_seed_proposal proposal;
       proposal.key.semantic_namespace = context_.context_digest;
       proposal.key.family = descriptor.seed_family;
@@ -3225,14 +3259,114 @@ private:
       proposal.key.occurrence = descriptor.occurrence;
       proposal.source_relation = relation->second;
       proposal.construction = construction->second;
+      proposal.contact_status = relation_record.status;
+      proposal.contact_dimension =
+          contact_dimension(relation_record.family, relation_record.status);
+      proposal.construction_kind = construction_record.kind;
+      proposal.accepted_source_vertex = relation_feature_key{};
+      proposal.accepted_source_vertex.operand =
+          descriptor.source_relation.first.operand;
+      proposal.accepted_source_vertex_reused =
+          construction_record.authoritative_source_feature.kind ==
+          relation_feature_kind::source_vertex;
+      if (proposal.accepted_source_vertex_reused)
+        proposal.accepted_source_vertex =
+            construction_record.authoritative_source_feature;
+      proposal.truth_begin = relation_record.truth_begin;
+      proposal.truth_count = relation_record.truth_count;
+      proposal.construction_ledger_begin = construction_record.ledger_begin;
+      proposal.construction_ledger_count = construction_record.ledger_count;
+      proposal.precision_evidence_complete =
+          construction_record.finite && construction_record.tolerance_compatible;
+      if (construction_record.ledger_begin > construction_ledger_.size() ||
+          construction_record.ledger_count >
+              construction_ledger_.size() - construction_record.ledger_begin)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 event seed construction ledger is invalid",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      for (std::uint64_t offset = 0;
+           offset < construction_record.ledger_count; ++offset)
+        proposal.precision_evidence_complete =
+            proposal.precision_evidence_complete &&
+            construction_ledger_[construction_record.ledger_begin + offset]
+                .precision_evidence_complete;
+
       proposal.incidence = descriptor.incidence;
       proposal.distinct_occurrence_required = descriptor.distinct_occurrence;
+      proposal.half_open_owner = descriptor.source_relation.first.operand;
+      const auto decision = decision_ids_.find(
+          std::make_pair(descriptor.source_relation, descriptor.occurrence));
+      if (decision != decision_ids_.end()) {
+        const auto &symbolic = decisions_[decision->second.ordinal()];
+        proposal.has_symbolic_decision = true;
+        proposal.symbolic_decision = symbolic.id;
+        proposal.symbolic_rule_ordinal = symbolic.stable_rule_ordinal;
+        proposal.symbolic_occurrence_rank = symbolic.feature_priority;
+        proposal.conceptual_side = symbolic.conceptual_side;
+        proposal.symbolic_crossing =
+            symbolic.symbolic_crossing_contribution;
+        proposal.half_open_owner = symbolic.half_open_owner;
+        proposal.distinct_occurrence_required =
+            proposal.distinct_occurrence_required ||
+            symbolic.occurrence_separation_required;
+      }
+      for (const auto &crossing : crossings_)
+        if (crossing.relation == proposal.source_relation &&
+            crossing.occurrence == descriptor.occurrence) {
+          proposal.numeric_crossing += crossing.numeric_crossing;
+          proposal.symbolic_crossing = crossing.symbolic_crossing;
+          proposal.half_open_owner = crossing.half_open_owner;
+        }
+      if (proposal.numeric_crossing < -1 || proposal.numeric_crossing > 1)
+        return fail(error, relation_subcode::crossing_multiplicity_invalid,
+                    "Component 07 event seed crossing is not locally bounded",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+
+      for (const auto candidate_id : descriptor.witnesses) {
+        if (candidate_id.ordinal() >= candidates_->candidates().size())
+          return fail(error, relation_subcode::candidate_disposition_missing,
+                      "Component 07 event seed candidate witness is absent",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        const auto &candidate =
+            candidates_->candidates()[candidate_id.ordinal()];
+        const auto edge_operand =
+            candidate.role == directed_candidate_role::a_edge_b_triangle
+                ? operand_id::a
+                : operand_id::b;
+        const auto triangle_operand =
+            edge_operand == operand_id::a ? operand_id::b : operand_id::a;
+        const auto &edge_table = candidates_->primitive_table(edge_operand);
+        const auto &triangle_table =
+            candidates_->primitive_table(triangle_operand);
+        if (candidate.edge.ordinal() >= edge_table.edges.size() ||
+            candidate.triangle.ordinal() >= triangle_table.triangles.size())
+          return fail(error, relation_subcode::candidate_disposition_missing,
+                      "Component 07 event seed primitive witness is absent",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        const auto &edge = edge_table.edges[candidate.edge.ordinal()];
+        const auto &triangle =
+            triangle_table.triangles[candidate.triangle.ordinal()];
+        relation_event_seed_candidate_incidence_record incidence;
+        incidence.candidate = candidate.id;
+        incidence.disposition =
+            relation_candidate_disposition_id(candidate.id.ordinal());
+        incidence.candidate_edge = candidate_edge_feature(candidate);
+        incidence.source_triangle = candidate_triangle_feature(candidate);
+        incidence.edge_halfedges = {edge.halfedges[0].ordinal(),
+                                    edge.halfedges[1].ordinal()};
+        incidence.triangle_halfedges = {
+            triangle.halfedges[0].ordinal(), triangle.halfedges[1].ordinal(),
+            triangle.halfedges[2].ordinal()};
+        incidence.internal_diagonal_witness =
+            candidate.edge_class == canonical_edge_class::facet_internal_diagonal;
+        incidence.source_feature_owner = edge.source_feature_owner;
+        proposal.candidate_incidence.push_back(incidence);
+      }
       if (!valid_relation_event_seed_key(proposal.key))
         return fail(error, relation_subcode::malformed_request_key,
                     "Component 07 event seed key is malformed",
                     relation_checkpoint::event_seed_and_disposition_reconciliation);
-      proposals.push_back(proposal);
-
+      proposals.push_back(std::move(proposal));
     }
 
     auto table = canonicalize_relation_event_seeds(std::move(proposals),
@@ -3257,21 +3391,97 @@ private:
   bool publish_candidate_dispositions(bounded_boolean_error &error) {
     std::vector<relation_candidate_disposition_proposal> proposals;
     proposals.reserve(candidates_->candidates().size());
+    candidate_relation_coverage_.clear();
+    candidate_event_seed_coverage_.clear();
+    candidate_partitions_.clear();
+
     for (const auto &candidate : candidates_->candidates()) {
       relation_candidate_disposition_proposal proposal;
       proposal.candidate = candidate.id;
+      proposal.relation_begin = candidate_relation_coverage_.size();
       const auto &keys = candidate_base_keys_[candidate.id.ordinal()];
-      const feature_relation_record *selected = nullptr;
+      std::vector<feature_relation_id> relations;
       for (const auto &key : keys) {
         const auto relation = relation_ids_.find(key);
-        if (relation == relation_ids_.end())
-          continue;
-        const auto &record = relations_[relation->second.ordinal()];
-        if (!relation_artifact_assembly_detail::public_contact(record.status))
-          continue;
-        if (!selected || record.producer < selected->producer)
-          selected = &record;
+        if (relation != relation_ids_.end())
+          relations.push_back(relation->second);
       }
+      std::sort(relations.begin(), relations.end());
+      relations.erase(std::unique(relations.begin(), relations.end()),
+                      relations.end());
+      candidate_relation_coverage_.insert(candidate_relation_coverage_.end(),
+                                          relations.begin(), relations.end());
+      proposal.relation_count = relations.size();
+      proposal.event_seed_begin = candidate_event_seed_coverage_.size();
+      std::vector<relation_event_seed_id> seeds;
+      for (const auto &incidence : seed_table_.candidate_incidence)
+        if (incidence.candidate == candidate.id)
+          seeds.push_back(incidence.seed);
+      std::sort(seeds.begin(), seeds.end());
+      seeds.erase(std::unique(seeds.begin(), seeds.end()), seeds.end());
+      candidate_event_seed_coverage_.insert(
+          candidate_event_seed_coverage_.end(), seeds.begin(), seeds.end());
+      proposal.event_seed_count = seeds.size();
+
+      bool has_public_contact = false;
+      bool has_coplanar_or_coincident = false;
+      bool has_zero_measure = false;
+      bool all_separated = !relations.empty();
+      bool has_earlier_witness = false;
+      bool has_canonical_contribution = false;
+      const feature_relation_record *selected = nullptr;
+      for (const auto id : relations) {
+        if (id.ordinal() >= relations_.size())
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 candidate relation coverage is invalid",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        const auto &record = relations_[id.ordinal()];
+        all_separated = all_separated &&
+                        record.status ==
+                            feature_relation_status::definitely_separated;
+        if (relation_artifact_assembly_detail::public_contact(record.status)) {
+          has_public_contact = true;
+          if (!selected || record.producer < selected->producer)
+            selected = &record;
+        }
+        has_coplanar_or_coincident =
+            has_coplanar_or_coincident ||
+            record.status == feature_relation_status::overlap ||
+            record.status == feature_relation_status::containment ||
+            record.status ==
+                feature_relation_status::coincidence_same_orientation ||
+            record.status ==
+                feature_relation_status::coincidence_opposite_orientation;
+        has_zero_measure =
+            has_zero_measure ||
+            record.status == feature_relation_status::endpoint_crossing ||
+            record.status == feature_relation_status::point_contact ||
+            record.status == feature_relation_status::segment_contact ||
+            record.status == feature_relation_status::tangency;
+        const auto &request =
+            graph_.requests[record.producer.ordinal()];
+        if (request.witness_count != 0) {
+          const auto first =
+              graph_.candidate_witnesses[request.witness_begin];
+          has_earlier_witness =
+              has_earlier_witness || first.ordinal() < candidate.id.ordinal();
+          has_canonical_contribution =
+              has_canonical_contribution || first == candidate.id;
+        }
+      }
+      for (const auto seed : seeds) {
+        const auto &record = seed_table_.records[seed.ordinal()];
+        if (record.candidate_incidence_count != 0) {
+          const auto &first = seed_table_.candidate_incidence[
+              record.candidate_incidence_begin];
+          has_earlier_witness = has_earlier_witness ||
+                                first.candidate.ordinal() <
+                                    candidate.id.ordinal();
+          has_canonical_contribution =
+              has_canonical_contribution || first.candidate == candidate.id;
+        }
+      }
+
       const auto *request = relation_artifact_assembly_detail::find_request(
           graph_, disposition_desc_[candidate.id.ordinal()].key);
       if (!request)
@@ -3279,19 +3489,60 @@ private:
                     "Component 07 candidate disposition producer is absent",
                     relation_checkpoint::canonical_id_and_reference_remap);
       proposal.bookkeeping_request = request->id;
-      if (selected) {
-        proposal.disposition =
-            candidate_relation_disposition_kind::mapped_to_public_relation;
+      if (selected)
         proposal.public_relation = selected->id;
-      } else if (!keys.empty()) {
+
+      proposal.coverage_flags = candidate_coverage_complete;
+      if (!relations.empty())
+        proposal.coverage_flags |= candidate_coverage_relation;
+      if (has_public_contact)
+        proposal.coverage_flags |= candidate_coverage_public_contact;
+      if (!seeds.empty())
+        proposal.coverage_flags |= candidate_coverage_event_seed;
+      if (has_coplanar_or_coincident)
+        proposal.coverage_flags |=
+            candidate_coverage_coplanar_or_coincident;
+      if (has_zero_measure)
+        proposal.coverage_flags |= candidate_coverage_zero_measure;
+      if (all_separated)
+        proposal.coverage_flags |= candidate_coverage_definitely_separated;
+      if (has_earlier_witness && !has_canonical_contribution)
+        proposal.coverage_flags |= candidate_coverage_duplicate_discovery;
+      if (candidate.edge_class == canonical_edge_class::facet_internal_diagonal)
+        proposal.coverage_flags |= candidate_coverage_internal_diagonal;
+      proposal.coverage_complete = true;
+
+      if (candidate.edge_class == canonical_edge_class::facet_internal_diagonal) {
+        proposal.disposition = candidate_relation_disposition_kind::
+            internal_diagonal_bookkeeping_absorbed;
+      } else if (has_earlier_witness && !has_canonical_contribution) {
+        proposal.disposition = candidate_relation_disposition_kind::
+            duplicate_discovery_absorbed;
+      } else if (has_coplanar_or_coincident) {
+        proposal.disposition = candidate_relation_disposition_kind::
+            contributed_coplanar_or_coincident_relation;
+      } else if (!seeds.empty()) {
         proposal.disposition =
-            candidate_relation_disposition_kind::bookkeeping_witness;
+            candidate_relation_disposition_kind::contributed_event_seeds;
+      } else if (has_zero_measure) {
+        proposal.disposition = candidate_relation_disposition_kind::
+            retained_zero_measure_contact;
+      } else if (all_separated) {
+        proposal.disposition =
+            candidate_relation_disposition_kind::definitely_separated;
       } else {
         proposal.disposition =
-            candidate_relation_disposition_kind::no_public_relation;
+            candidate_relation_disposition_kind::primitive_dependency_only;
       }
       proposals.push_back(proposal);
     }
+    if (candidate_relation_coverage_.size() >
+            capabilities_.maximum_candidate_coverage ||
+        candidate_event_seed_coverage_.size() >
+            capabilities_.maximum_candidate_coverage)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 candidate coverage exceeds capacity",
+                  relation_checkpoint::count_representability_preflight);
     auto records = canonicalize_candidate_dispositions(
         std::move(proposals), candidates_->candidates().size(), capabilities_);
     if (!records.has_value()) {
@@ -3299,6 +3550,36 @@ private:
       return false;
     }
     dispositions_ = std::move(*records.value());
+
+    for (const auto &partition : candidates_->partitions()) {
+      if (partition.id.ordinal() != candidate_partitions_.size() ||
+          partition.begin > dispositions_.size() ||
+          partition.count > dispositions_.size() - partition.begin)
+        return fail(error, relation_subcode::candidate_disposition_contradiction,
+                    "Component 07 candidate partition is malformed",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      relation_candidate_partition_record record;
+      record.id = relation_candidate_partition_id(candidate_partitions_.size());
+      record.source_partition = partition.id;
+      record.candidate_begin = partition.begin;
+      record.candidate_count = partition.count;
+      record.disposition_begin = partition.begin;
+      record.disposition_count = partition.count;
+      record.maximum_records = partition.maximum_records;
+      if (partition.count != 0) {
+        const auto &first = dispositions_[partition.begin];
+        const auto &last =
+            dispositions_[partition.begin + partition.count - 1];
+        record.relation_begin = first.relation_begin;
+        record.relation_count =
+            last.relation_begin + last.relation_count - record.relation_begin;
+        record.event_seed_begin = first.event_seed_begin;
+        record.event_seed_count =
+            last.event_seed_begin + last.event_seed_count -
+            record.event_seed_begin;
+      }
+      candidate_partitions_.push_back(record);
+    }
     return true;
   }
 
@@ -3346,6 +3627,14 @@ private:
         artifact.symbolic_decisions_.size();
     artifact.statistics_.crossing_record_count = artifact.crossings_.size();
     artifact.statistics_.event_seed_count = artifact.event_seeds_.size();
+    artifact.statistics_.event_seed_candidate_incidence_count =
+        artifact.event_seed_candidate_incidence_.size();
+    artifact.statistics_.candidate_relation_coverage_count =
+        artifact.candidate_relation_coverage_.size();
+    artifact.statistics_.candidate_seed_coverage_count =
+        artifact.candidate_event_seed_coverage_.size();
+    artifact.statistics_.candidate_partition_count =
+        artifact.candidate_partitions_.size();
     artifact.statistics_.sort_comparisons =
         artifact.request_graph_.sort_comparisons;
     artifact.statistics_.verifier_work_units =
@@ -3408,6 +3697,9 @@ private:
   std::vector<relation_crossing_record> crossings_;
   relation_event_seed_table seed_table_{};
   std::vector<relation_candidate_disposition_record> dispositions_;
+  std::vector<feature_relation_id> candidate_relation_coverage_;
+  std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
+  std::vector<relation_candidate_partition_record> candidate_partitions_;
   std::map<relation_request_key, feature_relation_id> relation_ids_;
   std::map<relation_request_key, relation_construction_id> construction_ids_;
   std::map<std::pair<relation_request_key, std::uint32_t>,

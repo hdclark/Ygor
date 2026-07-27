@@ -222,6 +222,9 @@ bool preflight_relation_foundation(
   // Every proposal is candidate-derived. Canonical grouping can only reduce the
   // number of distinct candidate witnesses, never increase it.
   plan.witness_upper_bound = plan.request_upper_bound;
+  plan.event_seed_incidence_upper_bound = plan.witness_upper_bound;
+  plan.candidate_coverage_upper_bound = plan.witness_upper_bound;
+  plan.candidate_partition_upper_bound = candidates.partitions().size();
 
   std::uint64_t boundary_work = 0;
   std::uint64_t work_per_candidate = 0;
@@ -305,6 +308,10 @@ bool preflight_relation_foundation(
           capabilities.maximum_construction_ledger ||
       plan.symbolic_upper_bound > capabilities.maximum_symbolic_decisions ||
       plan.event_seed_upper_bound > capabilities.maximum_event_seeds ||
+      plan.event_seed_incidence_upper_bound >
+          capabilities.maximum_event_seed_incidence ||
+      plan.candidate_coverage_upper_bound >
+          capabilities.maximum_candidate_coverage ||
       plan.dependency_upper_bound > capabilities.maximum_dependencies ||
       plan.witness_upper_bound > capabilities.maximum_consumers ||
       plan.fixed_work_units > capabilities.maximum_work_units) {

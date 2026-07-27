@@ -684,13 +684,52 @@ retains every secondary witness needed to audit that choice:
   limit-minus-one rollback, byte-identical decode, and the complete thirteen-test
   Component 07 predecessor chain.
 
+## Implemented canonical event-seed provenance and candidate coverage slice
+
+The final artifact now publishes the complete candidate-facing evidence required
+by Plan 07 Sections 19 and 20 rather than only a lineage key and a coarse
+candidate disposition:
+
+- every event seed retains its contact category and dimension, authoritative
+  relation and construction, accepted source-vertex reuse, complete truth and
+  construction-ledger ranges, symbolic rule/rank/side evidence, numeric and
+  symbolic crossing contributions, half-open owner, precision completeness, and
+  independently reconstructed occurrence-separation requirement;
+- source incidence remains canonically sorted by complete owner-free feature key,
+  while a separate one-per-candidate incidence table records the candidate edge,
+  opposite source triangle, both canonical edge halfedge uses, all three triangle
+  halfedge uses, internal-diagonal discovery status, and original-source
+  ownership without promoting triangle-local identity into event equivalence;
+- duplicate seed discoveries merge only when all semantic evidence agrees, must
+  retain complete candidate incidence, and remain occurrence-specific when one
+  construction authority serves several topological uses;
+- each Component 06 candidate publishes exactly one of the seven successful
+  dispositions together with complete canonical relation and event-seed ranges,
+  explicit coverage flags, the selected operation-neutral public relation when
+  present, and its candidate-disposition request producer;
+- first-class candidate partition records reproduce every Component 06 canonical
+  partition and its candidate, disposition, relation, seed, and maximum-record
+  ranges without traversal-order inference;
+- codec/decode, semantic bytes, statistics, preflight limits, exact persistent
+  accounting, and verifier work include all new incidence, coverage, and
+  partition tables;
+- an independent strict translation unit reconstructs event-seed request closure,
+  truth and precision lineage, symbolic/crossing metadata, coplanar distinct-sheet
+  occurrence semantics, every candidate primitive and halfedge incidence,
+  candidate coverage/disposition, and partition correspondence directly from
+  predecessor artifacts; and
+- focused qualification rejects repaired mutations of candidate halfedges,
+  relation coverage, partition ranges, and occurrence separation, exercises both
+  new limit-minus-one boundaries, and passes the complete thirteen-test Component
+  07 predecessor chain under the strict Clang C++17 profile.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Complete the remaining symbolic categories, incidence/rank/occurrence
-   constraints, event-seed diagnostics, candidate canonical partitions, and
-   replay diagnostics required by the normative plan.
+1. Complete the remaining symbolic categories, residual owner-rank and
+   occurrence constraints, and replay diagnostics required by the normative
+   plan.
 2. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and

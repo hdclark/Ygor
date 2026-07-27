@@ -2,6 +2,7 @@
 #include "RelationVerifier.h"
 #include "CoplanarRelationOverlay.h"
 #include "RelationConstructionPolicy.h"
+#include "RelationCandidateEvidenceVerifier.h"
 
 #include <algorithm>
 #include <cmath>
@@ -44,19 +45,6 @@ bool request_has_dependency(const relation_request_graph &graph,
   for (std::uint64_t offset = 0; offset < consumer.dependency_count; ++offset)
     if (graph.dependencies[consumer.dependency_begin + offset].producer ==
         producer)
-      return true;
-  return false;
-}
-
-bool request_has_witness(const relation_request_graph &graph,
-                         const canonical_relation_request &request,
-                         candidate_id candidate) noexcept {
-  if (request.witness_begin > graph.candidate_witnesses.size() ||
-      request.witness_count >
-          graph.candidate_witnesses.size() - request.witness_begin)
-    return false;
-  for (std::uint64_t offset = 0; offset < request.witness_count; ++offset)
-    if (graph.candidate_witnesses[request.witness_begin + offset] == candidate)
       return true;
   return false;
 }
@@ -218,11 +206,6 @@ bool finite_construction_component(const relation_construction_record &record,
 bool valid_operation(boolean_operation operation) noexcept {
   const auto raw = static_cast<std::uint8_t>(operation);
   return raw >= 1 && raw <= 5;
-}
-
-bool public_contact(feature_relation_status value) noexcept {
-  return value != feature_relation_status::not_evaluated &&
-         value != feature_relation_status::definitely_separated;
 }
 
 bool verifier_symbolic_source_family(
@@ -2628,126 +2611,9 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::crossing_conservation_failed,
                   "Component 07 local numeric crossing conservation failed");
 
-  std::vector<bool> event_seed_request_seen(
-      artifact.request_graph_.requests.size(), false);
-  std::size_t expected_event_seed_count = 0;
-  for (const auto &request : artifact.request_graph_.requests)
-    if (request.key.family == relation_request_family::event_seed)
-      ++expected_event_seed_count;
-  if (artifact.event_seeds_.size() != expected_event_seed_count)
-    return fail(relation_subcode::verifier_rejection,
-                "Component 07 event-seed table is incomplete");
-
-  if (!std::is_sorted(
-          artifact.event_seeds_.begin(), artifact.event_seeds_.end(),
-          [](const relation_event_seed_record &a,
-             const relation_event_seed_record &b) { return a.key < b.key; }))
-    return fail(relation_subcode::canonical_order_mismatch,
-                "Component 07 event seeds are not ordered");
-  for (std::size_t i = 0; i < artifact.event_seeds_.size(); ++i) {
-    const auto &record = artifact.event_seeds_[i];
-    if (record.id.ordinal() != i || !valid_relation_event_seed_key(record.key) ||
-        record.source_relation.ordinal() >= artifact.relations_.size() ||
-        record.construction.ordinal() >= artifact.constructions_.size() ||
-        record.incidence_begin > artifact.event_seed_incidence_.size() ||
-        record.incidence_count < 2 ||
-        record.incidence_count >
-            artifact.event_seed_incidence_.size() - record.incidence_begin ||
-        record.reserved != 0)
-      return fail(relation_subcode::verifier_rejection,
-                  "Component 07 event seed is malformed");
-    if (i != 0 && !(artifact.event_seeds_[i - 1].key < record.key))
-      return fail(relation_subcode::canonical_order_mismatch,
-                  "Component 07 event seeds are not strictly ordered");
-    bool has_first = false;
-    bool has_second = false;
-    for (std::uint64_t offset = 0; offset < record.incidence_count; ++offset) {
-      const auto index = record.incidence_begin + offset;
-      const auto &feature = artifact.event_seed_incidence_[index];
-      if (!valid_relation_feature_key(feature) ||
-          (offset != 0 &&
-           !(artifact.event_seed_incidence_[index - 1] < feature)))
-        return fail(relation_subcode::canonical_order_mismatch,
-                    "Component 07 event-seed incidence is malformed");
-      has_first = has_first || feature == record.key.first;
-      has_second = has_second || feature == record.key.second;
-    }
-    if (!has_first || !has_second)
-      return fail(relation_subcode::verifier_rejection,
-                  "Component 07 event seed omits authoritative source incidence");
-    const auto &construction_request = artifact.request_graph_.requests[
-        artifact.constructions_[record.construction.ordinal()].producer.ordinal()];
-    const auto &source_request = artifact.request_graph_.requests[
-        artifact.relations_[record.source_relation.ordinal()].producer.ordinal()];
-    if (record.key.family !=
-        artifact.relations_[record.source_relation.ordinal()].family)
-      return fail(relation_subcode::verifier_rejection,
-                  "Component 07 event seed family disagrees with its source relation");
-    const canonical_relation_request *matched_seed_request = nullptr;
-    for (const auto &request : artifact.request_graph_.requests)
-      if (request.key.family == relation_request_family::event_seed &&
-          request.key.first == record.key.first &&
-          request.key.second == record.key.second &&
-          request.key.directed_use == construction_request.key.directed_use &&
-          request.key.occurrence_discriminator == record.key.occurrence &&
-          request_has_dependency(artifact.request_graph_, request,
-                                 source_request.id) &&
-          request_has_dependency(artifact.request_graph_, request,
-                                 construction_request.id)) {
-        if (matched_seed_request)
-          return fail(relation_subcode::duplicate_authoritative_producer,
-                      "Component 07 event seed request is ambiguous");
-        matched_seed_request = &request;
-      }
-    if (!matched_seed_request ||
-        matched_seed_request->id.ordinal() >= event_seed_request_seen.size() ||
-        event_seed_request_seen[matched_seed_request->id.ordinal()])
-      return fail(relation_subcode::missing_dependency,
-                  "Component 07 event seed request is absent or duplicated");
-    event_seed_request_seen[matched_seed_request->id.ordinal()] = true;
-  }
-  for (const auto &request : artifact.request_graph_.requests)
-    if (request.key.family == relation_request_family::event_seed &&
-        !event_seed_request_seen[request.id.ordinal()])
-      return fail(relation_subcode::verifier_rejection,
-                  "Component 07 event-seed request has no published record");
-
-  if (!std::is_sorted(
-          artifact.candidate_dispositions_.begin(),
-          artifact.candidate_dispositions_.end(),
-          [](const relation_candidate_disposition_record &a,
-             const relation_candidate_disposition_record &b) {
-            return a.candidate < b.candidate;
-          }))
-    return fail(relation_subcode::canonical_order_mismatch,
-                "Component 07 candidate dispositions are not ordered");
+  if (!verify_relation_event_candidate_evidence(artifact, error))
+    return false;
   const auto expected_candidates = artifact.candidates_->candidates().size();
-  if (artifact.candidate_dispositions_.size() != expected_candidates)
-    return fail(relation_subcode::candidate_disposition_missing,
-                "Component 07 does not contain exactly one disposition per candidate");
-  for (std::size_t i = 0; i < artifact.candidate_dispositions_.size(); ++i) {
-    const auto &record = artifact.candidate_dispositions_[i];
-    if (record.id.ordinal() != i || record.candidate.ordinal() != i ||
-        record.bookkeeping_request.ordinal() >=
-            artifact.request_graph_.requests.size() ||
-        artifact.request_graph_.requests[record.bookkeeping_request.ordinal()]
-                .key.family != relation_request_family::candidate_disposition ||
-        !request_has_witness(
-            artifact.request_graph_,
-            artifact.request_graph_.requests[record.bookkeeping_request.ordinal()],
-            record.candidate) ||
-        record.reserved != 0)
-      return fail(relation_subcode::candidate_disposition_contradiction,
-                  "Component 07 candidate disposition is malformed");
-    if (record.disposition ==
-        candidate_relation_disposition_kind::mapped_to_public_relation) {
-      if (record.public_relation.ordinal() >= artifact.relations_.size() ||
-          !public_contact(
-              artifact.relations_[record.public_relation.ordinal()].status))
-        return fail(relation_subcode::candidate_disposition_contradiction,
-                    "Component 07 mapped candidate lacks a public contact relation");
-    }
-  }
 
   if (artifact.statistics_.candidate_count != expected_candidates ||
       artifact.statistics_.unique_request_count !=
@@ -2788,7 +2654,15 @@ bool verify_signed_feature_relations(
       artifact.statistics_.symbolic_decision_count !=
           artifact.symbolic_decisions_.size() ||
       artifact.statistics_.crossing_record_count != artifact.crossings_.size() ||
-      artifact.statistics_.event_seed_count != artifact.event_seeds_.size())
+      artifact.statistics_.event_seed_count != artifact.event_seeds_.size() ||
+      artifact.statistics_.event_seed_candidate_incidence_count !=
+          artifact.event_seed_candidate_incidence_.size() ||
+      artifact.statistics_.candidate_relation_coverage_count !=
+          artifact.candidate_relation_coverage_.size() ||
+      artifact.statistics_.candidate_seed_coverage_count !=
+          artifact.candidate_event_seed_coverage_.size() ||
+      artifact.statistics_.candidate_partition_count !=
+          artifact.candidate_partitions_.size())
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 statistics do not reconstruct from records");
 

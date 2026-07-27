@@ -80,6 +80,30 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &event_seed_candidate_incidence(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seed_candidate_incidence_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_relation_coverage(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_relation_coverage_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_event_seed_coverage(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_event_seed_coverage_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_partitions(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_partitions_;
+  }
+
+  template <class T, class I>
   static auto &symbolic_eligibility(
       signed_feature_relations<T, I> &artifact) {
     return artifact.symbolic_eligibility_;
@@ -223,9 +247,13 @@ void test_nonempty_determinism_and_decode() {
               !first->source_facet_regions().empty() &&
               !first->constructions().empty() &&
               !first->construction_ledger().empty() &&
+              !first->event_seeds().empty() &&
+              !first->event_seed_candidate_incidence().empty() &&
               first->candidate_dispositions().size() ==
-                  first_fixture.artifact->candidates().size(),
-          "nonempty artifact publishes primitive support, relations, and complete dispositions");
+                  first_fixture.artifact->candidates().size() &&
+              first->candidate_partitions().size() ==
+                  first_fixture.artifact->partitions().size(),
+          "nonempty artifact publishes primitive support, complete event incidence, and candidate partitions");
   std::size_t expected_exact = 0;
   for (const auto &truth : first->truth_records())
     expected_exact += truth.exact_formula != 0 ? 1U : 0U;
@@ -245,8 +273,16 @@ void test_nonempty_determinism_and_decode() {
               first->statistics().construction_count ==
                   first->constructions().size() &&
               first->statistics().construction_ledger_count ==
-                  first->construction_ledger().size(),
-          "primitive, family-04, and construction evidence counts reconstruct from final records");
+                  first->construction_ledger().size() &&
+              first->statistics().event_seed_candidate_incidence_count ==
+                  first->event_seed_candidate_incidence().size() &&
+              first->statistics().candidate_relation_coverage_count ==
+                  first->candidate_relation_coverage().size() &&
+              first->statistics().candidate_seed_coverage_count ==
+                  first->candidate_event_seed_coverage().size() &&
+              first->statistics().candidate_partition_count ==
+                  first->candidate_partitions().size(),
+          "primitive, construction, event-incidence, and candidate-coverage counts reconstruct from final records");
 
   std::size_t expected_ledger_begin = 0;
   for (const auto &construction : first->constructions()) {
@@ -291,6 +327,67 @@ void test_nonempty_determinism_and_decode() {
   }
   require(expected_ledger_begin == first->construction_ledger().size(),
           "construction registry partitions the complete witness ledger");
+
+  std::size_t expected_candidate_incidence = 0;
+  for (const auto &seed : first->event_seeds()) {
+    require(seed.schema_version ==
+                bounded::contract_versions::relation_event_seed_schema &&
+                seed.candidate_incidence_begin == expected_candidate_incidence &&
+                seed.candidate_incidence_count != 0 &&
+                seed.precision_evidence_complete &&
+                seed.contact_dimension != bounded::relation_contact_dimension::none,
+            "each event seed retains complete contact, precision, and candidate incidence");
+    for (std::uint64_t offset = 0; offset < seed.candidate_incidence_count;
+         ++offset) {
+      const auto &incidence = first->event_seed_candidate_incidence()[
+          seed.candidate_incidence_begin + offset];
+      require(incidence.id.ordinal() ==
+                  seed.candidate_incidence_begin + offset &&
+                  incidence.seed == seed.id &&
+                  incidence.disposition.ordinal() ==
+                      incidence.candidate.ordinal() &&
+                  incidence.schema_version ==
+                      bounded::contract_versions::
+                          relation_event_seed_incidence_schema,
+              "event-seed incidence retains canonical candidate and disposition identity");
+    }
+    expected_candidate_incidence += seed.candidate_incidence_count;
+  }
+  require(expected_candidate_incidence ==
+              first->event_seed_candidate_incidence().size(),
+          "event seeds partition the complete candidate-incidence table");
+
+  std::size_t relation_coverage = 0;
+  std::size_t seed_coverage = 0;
+  for (const auto &disposition : first->candidate_dispositions()) {
+    require(disposition.relation_begin == relation_coverage &&
+                disposition.event_seed_begin == seed_coverage &&
+                disposition.coverage_complete &&
+                (disposition.coverage_flags &
+                 bounded::candidate_coverage_complete) != 0 &&
+                disposition.schema_version ==
+                    bounded::contract_versions::
+                        relation_candidate_disposition_schema,
+            "each candidate publishes canonical complete relation and seed coverage");
+    relation_coverage += disposition.relation_count;
+    seed_coverage += disposition.event_seed_count;
+  }
+  require(relation_coverage == first->candidate_relation_coverage().size() &&
+              seed_coverage ==
+                  first->candidate_event_seed_coverage().size(),
+          "candidate dispositions partition the complete coverage tables");
+  for (std::size_t i = 0; i < first->candidate_partitions().size(); ++i) {
+    const auto &published = first->candidate_partitions()[i];
+    const auto &source = first_fixture.artifact->partitions()[i];
+    require(published.id.ordinal() == i &&
+                published.source_partition == source.id &&
+                published.candidate_begin == source.begin &&
+                published.candidate_count == source.count &&
+                published.disposition_begin == source.begin &&
+                published.disposition_count == source.count &&
+                published.maximum_records == source.maximum_records,
+            "candidate partitions preserve Component 06 canonical boundaries");
+  }
 
   require(first->canonical_bytes() == second->canonical_bytes() &&
               first->digest() == second->digest(),
@@ -456,6 +553,71 @@ void test_matched_mutation_rejection() {
   error = bounded_boolean_error{};
   require(!bounded::verify_signed_feature_relations(seed_table_mutation, error),
           "matched missing event-seed table is independently rejected");
+
+  auto occurrence_separation_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!occurrence_separation_mutation.event_seeds().empty(),
+          "mutation fixture requires an event seed");
+  auto &mutated_seed =
+      bounded::relation_artifact_test_access::event_seeds(
+          occurrence_separation_mutation)
+          .front();
+  mutated_seed.distinct_occurrence_required =
+      !mutated_seed.distinct_occurrence_required;
+  bounded::relation_artifact_test_access::repair_codec(
+      occurrence_separation_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              occurrence_separation_mutation, error),
+          "matched event-seed occurrence-separation mutation is independently rejected");
+
+  auto candidate_incidence_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_incidence_mutation.event_seed_candidate_incidence().empty(),
+          "mutation fixture requires event-seed candidate incidence");
+  auto &candidate_incidence =
+      bounded::relation_artifact_test_access::event_seed_candidate_incidence(
+          candidate_incidence_mutation)
+          .front();
+  ++candidate_incidence.triangle_halfedges[0];
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_incidence_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_incidence_mutation, error),
+          "matched event-seed candidate-halfedge mutation is independently rejected");
+
+  auto candidate_coverage_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_coverage_mutation.candidate_relation_coverage().empty(),
+          "mutation fixture requires candidate relation coverage");
+  auto &coverage =
+      bounded::relation_artifact_test_access::candidate_relation_coverage(
+          candidate_coverage_mutation)
+          .front();
+  coverage = bounded::feature_relation_id(
+      static_cast<std::uint64_t>(artifact->relations().size()));
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_coverage_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_coverage_mutation, error),
+          "matched candidate relation-coverage mutation is independently rejected");
+
+  auto candidate_partition_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_partition_mutation.candidate_partitions().empty(),
+          "mutation fixture requires candidate partitions");
+  ++bounded::relation_artifact_test_access::candidate_partitions(
+         candidate_partition_mutation)
+         .front()
+         .maximum_records;
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_partition_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_partition_mutation, error),
+          "matched candidate-partition mutation is independently rejected");
 
   auto lineage_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);
@@ -702,6 +864,48 @@ void test_resource_boundary_and_cancellation() {
   require_no_live_resources(
       ledger_limited_resources,
       "construction-ledger capability failure must release every lease");
+
+  auto incidence_limited_fixture = overlapping_fixture();
+  bounded::resource_manager incidence_limited_resources(
+      resource_policy::conservative_defaults());
+  auto incidence_limited_caps =
+      capabilities(incidence_limited_fixture, &incidence_limited_resources);
+  incidence_limited_caps.maximum_event_seed_incidence =
+      reference->event_seed_candidate_incidence().size() - 1;
+  auto incidence_limited = bounded::build_signed_feature_relations(
+      incidence_limited_fixture.predecessor.context,
+      *incidence_limited_fixture.predecessor.precision,
+      incidence_limited_fixture.artifact, incidence_limited_caps);
+  require(!incidence_limited.has_value() &&
+              incidence_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "event-seed candidate-incidence limit-minus-one fails before publication");
+  require_no_live_resources(
+      incidence_limited_resources,
+      "event-seed incidence capability failure must release every lease");
+
+  auto coverage_limited_fixture = overlapping_fixture();
+  bounded::resource_manager coverage_limited_resources(
+      resource_policy::conservative_defaults());
+  auto coverage_limited_caps =
+      capabilities(coverage_limited_fixture, &coverage_limited_resources);
+  const auto maximum_coverage = std::max(
+      reference->candidate_relation_coverage().size(),
+      reference->candidate_event_seed_coverage().size());
+  require(maximum_coverage != 0,
+          "coverage resource fixture requires nonempty candidate coverage");
+  coverage_limited_caps.maximum_candidate_coverage = maximum_coverage - 1;
+  auto coverage_limited = bounded::build_signed_feature_relations(
+      coverage_limited_fixture.predecessor.context,
+      *coverage_limited_fixture.predecessor.precision,
+      coverage_limited_fixture.artifact, coverage_limited_caps);
+  require(!coverage_limited.has_value() &&
+              coverage_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "candidate coverage limit-minus-one fails before publication");
+  require_no_live_resources(
+      coverage_limited_resources,
+      "candidate coverage capability failure must release every lease");
 
   auto cancelled_fixture = overlapping_fixture();
   bounded::resource_manager cancelled_resources(

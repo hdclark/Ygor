@@ -171,6 +171,22 @@ void test_seed_and_disposition_canonicalization() {
   a.key.second = feature(operand_id::b, relation_feature_kind::source_edge, 3, 4);
   a.source_relation = feature_relation_id(7);
   a.construction = relation_construction_id(8);
+  a.contact_status = feature_relation_status::point_contact;
+  a.contact_dimension = relation_contact_dimension::point;
+  a.construction_kind = relation_construction_kind::bounded_point;
+  a.truth_count = 1;
+  a.construction_ledger_count = 1;
+  a.precision_evidence_complete = true;
+  relation_event_seed_candidate_incidence_record candidate_incidence;
+  candidate_incidence.candidate = candidate_id(0);
+  candidate_incidence.disposition = relation_candidate_disposition_id(0);
+  candidate_incidence.candidate_edge =
+      feature(operand_id::a, relation_feature_kind::source_edge, 1, 2);
+  candidate_incidence.source_triangle =
+      feature(operand_id::b, relation_feature_kind::source_triangle, 3, 4);
+  candidate_incidence.schema_version =
+      contract_versions::relation_event_seed_incidence_schema;
+  a.candidate_incidence.push_back(candidate_incidence);
   a.incidence = {feature(operand_id::b, relation_feature_kind::source_edge, 3, 4),
                  feature(operand_id::a, relation_feature_kind::source_edge, 1, 2)};
   auto duplicate = a;
@@ -189,6 +205,12 @@ void test_seed_and_disposition_canonicalization() {
   std::vector<relation_candidate_disposition_proposal> proposals(2);
   proposals[0].candidate = candidate_id(1);
   proposals[1].candidate = candidate_id(0);
+  for (auto &proposal : proposals) {
+    proposal.disposition =
+        candidate_relation_disposition_kind::primitive_dependency_only;
+    proposal.coverage_flags = candidate_coverage_complete;
+    proposal.coverage_complete = true;
+  }
   auto dispositions = canonicalize_candidate_dispositions(
       proposals, 2, capabilities(context_owner_token::create()));
   check(dispositions.has_value(),

@@ -80,7 +80,11 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.crossings()) ||
       !add_vector(artifact.event_seeds()) ||
       !add_vector(artifact.event_seed_incidence()) ||
+      !add_vector(artifact.event_seed_candidate_incidence()) ||
       !add_vector(artifact.candidate_dispositions()) ||
+      !add_vector(artifact.candidate_relation_coverage()) ||
+      !add_vector(artifact.candidate_event_seed_coverage()) ||
+      !add_vector(artifact.candidate_partitions()) ||
       !add_vector(artifact.canonical_bytes()))
     return false;
 
@@ -438,7 +442,11 @@ private:
         !add_work(artifact_->crossings_.size()) ||
         !add_work(artifact_->event_seeds_.size()) ||
         !add_work(artifact_->event_seed_incidence_.size()) ||
+        !add_work(artifact_->event_seed_candidate_incidence_.size()) ||
         !add_work(artifact_->candidate_dispositions_.size()) ||
+        !add_work(artifact_->candidate_relation_coverage_.size()) ||
+        !add_work(artifact_->candidate_event_seed_coverage_.size()) ||
+        !add_work(artifact_->candidate_partitions_.size()) ||
         !add_work(artifact_->statistics_.verifier_work_units) ||
         actual_work > work_reservation_->amount())
       return fail(relation_subcode::resource_preflight,

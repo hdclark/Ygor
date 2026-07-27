@@ -381,14 +381,52 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     encode_relation_event_seed_key(writer, record.key);
     writer.u64(record.source_relation.ordinal());
     writer.u64(record.construction.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.contact_status));
+    writer.u8(static_cast<std::uint8_t>(record.contact_dimension));
+    writer.u8(static_cast<std::uint8_t>(record.construction_kind));
+    encode_relation_feature_key(writer, record.accepted_source_vertex);
+    writer.boolean(record.accepted_source_vertex_reused);
+    writer.boolean(record.has_symbolic_decision);
+    writer.u64(record.symbolic_decision.ordinal());
+    writer.u64(record.symbolic_rule_ordinal);
+    writer.u32(record.symbolic_occurrence_rank);
+    writer.u8(static_cast<std::uint8_t>(record.conceptual_side));
+    writer.u32(static_cast<std::uint32_t>(record.numeric_crossing));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing));
+    writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
+    writer.u64(record.truth_begin);
+    writer.u64(record.truth_count);
+    writer.u64(record.construction_ledger_begin);
+    writer.u64(record.construction_ledger_count);
     writer.u64(record.incidence_begin);
     writer.u64(record.incidence_count);
+    writer.u64(record.candidate_incidence_begin);
+    writer.u64(record.candidate_incidence_count);
+    writer.boolean(record.precision_evidence_complete);
     writer.boolean(record.distinct_occurrence_required);
+    writer.u16(record.schema_version);
     writer.u32(record.reserved);
   }
   writer.u64(artifact.event_seed_incidence_.size());
   for (const auto &feature : artifact.event_seed_incidence_)
     encode_relation_feature_key(writer, feature);
+  writer.u64(artifact.event_seed_candidate_incidence_.size());
+  for (const auto &record : artifact.event_seed_candidate_incidence_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.seed.ordinal());
+    writer.u64(record.candidate.ordinal());
+    writer.u64(record.disposition.ordinal());
+    encode_relation_feature_key(writer, record.candidate_edge);
+    encode_relation_feature_key(writer, record.source_triangle);
+    for (const auto halfedge : record.edge_halfedges)
+      writer.u64(halfedge);
+    for (const auto halfedge : record.triangle_halfedges)
+      writer.u64(halfedge);
+    writer.boolean(record.internal_diagonal_witness);
+    writer.boolean(record.source_feature_owner);
+    writer.u16(record.schema_version);
+    writer.u32(record.reserved);
+  }
   writer.u64(artifact.candidate_dispositions_.size());
   for (const auto &record : artifact.candidate_dispositions_) {
     writer.u64(record.id.ordinal());
@@ -396,6 +434,35 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u8(static_cast<std::uint8_t>(record.disposition));
     writer.u64(record.public_relation.ordinal());
     writer.u64(record.bookkeeping_request.ordinal());
+    writer.u64(record.relation_begin);
+    writer.u64(record.relation_count);
+    writer.u64(record.event_seed_begin);
+    writer.u64(record.event_seed_count);
+    writer.u16(record.coverage_flags);
+    writer.boolean(record.coverage_complete);
+    writer.u16(record.schema_version);
+    writer.u32(record.reserved);
+  }
+  writer.u64(artifact.candidate_relation_coverage_.size());
+  for (const auto relation : artifact.candidate_relation_coverage_)
+    writer.u64(relation.ordinal());
+  writer.u64(artifact.candidate_event_seed_coverage_.size());
+  for (const auto seed : artifact.candidate_event_seed_coverage_)
+    writer.u64(seed.ordinal());
+  writer.u64(artifact.candidate_partitions_.size());
+  for (const auto &record : artifact.candidate_partitions_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.source_partition.ordinal());
+    writer.u64(record.candidate_begin);
+    writer.u64(record.candidate_count);
+    writer.u64(record.disposition_begin);
+    writer.u64(record.disposition_count);
+    writer.u64(record.relation_begin);
+    writer.u64(record.relation_count);
+    writer.u64(record.event_seed_begin);
+    writer.u64(record.event_seed_count);
+    writer.u64(record.maximum_records);
+    writer.u16(record.schema_version);
     writer.u32(record.reserved);
   }
   writer.u64(artifact.statistics_.candidate_count);
@@ -421,6 +488,10 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.symbolic_decision_count);
   writer.u64(artifact.statistics_.crossing_record_count);
   writer.u64(artifact.statistics_.event_seed_count);
+  writer.u64(artifact.statistics_.event_seed_candidate_incidence_count);
+  writer.u64(artifact.statistics_.candidate_relation_coverage_count);
+  writer.u64(artifact.statistics_.candidate_seed_coverage_count);
+  writer.u64(artifact.statistics_.candidate_partition_count);
   writer.u64(artifact.statistics_.sort_comparisons);
   writer.u64(artifact.statistics_.verifier_work_units);
   writer.u64(artifact.statistics_.persistent_bytes);
@@ -815,21 +886,61 @@ inline bool read_crossing_record(canonical_reader &reader) {
 
 inline bool read_event_seed_record(canonical_reader &reader) {
   std::uint64_t value = 0;
-  bool distinct = false;
-  std::uint32_t reserved = 0;
+  std::uint32_t numeric = 0, rank = 0, reserved = 0;
+  std::uint16_t schema = 0;
+  std::uint8_t byte = 0;
+  bool flag = false;
   return reader.u64(value) && read_event_seed_key(reader) &&
+         reader.u64(value) && reader.u64(value) && reader.u8(byte) &&
+         reader.u8(byte) && reader.u8(byte) && read_feature_key(reader) &&
+         reader.boolean(flag) && reader.boolean(flag) && reader.u64(value) &&
+         reader.u64(value) && reader.u32(rank) && reader.u8(byte) &&
+         reader.u32(numeric) && reader.u8(byte) && reader.u8(byte) &&
          reader.u64(value) && reader.u64(value) && reader.u64(value) &&
-         reader.u64(value) && reader.boolean(distinct) &&
-         reader.u32(reserved);
+         reader.u64(value) && reader.u64(value) && reader.u64(value) &&
+         reader.u64(value) && reader.u64(value) && reader.boolean(flag) &&
+         reader.boolean(flag) && reader.u16(schema) && reader.u32(reserved);
+}
+
+inline bool read_event_seed_candidate_incidence_record(
+    canonical_reader &reader) {
+  std::uint64_t value = 0;
+  std::uint16_t schema = 0;
+  std::uint32_t reserved = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u64(value) || !read_feature_key(reader) ||
+      !read_feature_key(reader))
+    return false;
+  for (std::size_t i = 0; i < 5; ++i)
+    if (!reader.u64(value))
+      return false;
+  return reader.boolean(flag) && reader.boolean(flag) &&
+         reader.u16(schema) && reader.u32(reserved);
 }
 
 inline bool read_candidate_disposition_record(canonical_reader &reader) {
   std::uint64_t value = 0;
+  std::uint16_t flags = 0, schema = 0;
   std::uint8_t disposition = 0;
+  bool complete = false;
   std::uint32_t reserved = 0;
   return reader.u64(value) && reader.u64(value) &&
          reader.u8(disposition) && reader.u64(value) &&
-         reader.u64(value) && reader.u32(reserved);
+         reader.u64(value) && reader.u64(value) && reader.u64(value) &&
+         reader.u64(value) && reader.u64(value) && reader.u16(flags) &&
+         reader.boolean(complete) && reader.u16(schema) &&
+         reader.u32(reserved);
+}
+
+inline bool read_candidate_partition_record(canonical_reader &reader) {
+  std::uint64_t value = 0;
+  std::uint16_t schema = 0;
+  std::uint32_t reserved = 0;
+  for (std::size_t i = 0; i < 11; ++i)
+    if (!reader.u64(value))
+      return false;
+  return reader.u16(schema) && reader.u32(reserved);
 }
 
 } // namespace relation_codec_detail
@@ -1167,9 +1278,22 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 event incidence table is truncated");
 
+  if (!reader.u64(envelope.event_seed_candidate_incidence_count) ||
+      !count_fits(reader, envelope.event_seed_candidate_incidence_count,
+                  capabilities.maximum_event_seed_incidence, 104))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 event-seed candidate incidence count is malformed");
+  for (std::uint64_t i = 0;
+       i < envelope.event_seed_candidate_incidence_count; ++i)
+    if (!read_event_seed_candidate_incidence_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 event-seed candidate incidence table is truncated");
+
   if (!reader.u64(envelope.candidate_disposition_count) ||
       !count_fits(reader, envelope.candidate_disposition_count,
-                  capabilities.maximum_relations, 37))
+                  capabilities.maximum_relations, 71))
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 candidate disposition count is malformed");
@@ -1178,6 +1302,44 @@ bool parse_relation_artifact_envelope(
       return codec_failure(relation_subcode::codec_error,
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 candidate disposition table is truncated");
+
+  if (!reader.u64(envelope.candidate_relation_coverage_count) ||
+      !count_fits(reader, envelope.candidate_relation_coverage_count,
+                  capabilities.maximum_candidate_coverage, 8))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 candidate relation coverage count is malformed");
+  for (std::uint64_t i = 0; i < envelope.candidate_relation_coverage_count; ++i) {
+    std::uint64_t value = 0;
+    if (!reader.u64(value))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 candidate relation coverage is truncated");
+  }
+  if (!reader.u64(envelope.candidate_seed_coverage_count) ||
+      !count_fits(reader, envelope.candidate_seed_coverage_count,
+                  capabilities.maximum_candidate_coverage, 8))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 candidate seed coverage count is malformed");
+  for (std::uint64_t i = 0; i < envelope.candidate_seed_coverage_count; ++i) {
+    std::uint64_t value = 0;
+    if (!reader.u64(value))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 candidate seed coverage is truncated");
+  }
+  if (!reader.u64(envelope.candidate_partition_count) ||
+      !count_fits(reader, envelope.candidate_partition_count,
+                  capabilities.maximum_relations, 92))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 candidate partition count is malformed");
+  for (std::uint64_t i = 0; i < envelope.candidate_partition_count; ++i)
+    if (!read_candidate_partition_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 candidate partition table is truncated");
 
   auto &statistics = envelope.statistics;
   if (!reader.u64(statistics.candidate_count) ||
@@ -1203,6 +1365,10 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.symbolic_decision_count) ||
       !reader.u64(statistics.crossing_record_count) ||
       !reader.u64(statistics.event_seed_count) ||
+      !reader.u64(statistics.event_seed_candidate_incidence_count) ||
+      !reader.u64(statistics.candidate_relation_coverage_count) ||
+      !reader.u64(statistics.candidate_seed_coverage_count) ||
+      !reader.u64(statistics.candidate_partition_count) ||
       !reader.u64(statistics.sort_comparisons) ||
       !reader.u64(statistics.verifier_work_units) ||
       !reader.u64(statistics.persistent_bytes))
@@ -1254,6 +1420,14 @@ bool parse_relation_artifact_envelope(
       statistics.symbolic_decision_count != envelope.symbolic_decision_count ||
       statistics.crossing_record_count != envelope.crossing_count ||
       statistics.event_seed_count != envelope.event_seed_count ||
+      statistics.event_seed_candidate_incidence_count !=
+          envelope.event_seed_candidate_incidence_count ||
+      statistics.candidate_relation_coverage_count !=
+          envelope.candidate_relation_coverage_count ||
+      statistics.candidate_seed_coverage_count !=
+          envelope.candidate_seed_coverage_count ||
+      statistics.candidate_partition_count !=
+          envelope.candidate_partition_count ||
       evidence_id != 0 ||
       evidence_version != contract_versions::relation_verifier ||
       evidence_reserved != 0)

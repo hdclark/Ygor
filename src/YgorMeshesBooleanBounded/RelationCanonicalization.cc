@@ -19,7 +19,7 @@ bounded_boolean_error disposition_error(
 
 bool valid_disposition(candidate_relation_disposition_kind value) noexcept {
   const auto raw = static_cast<std::uint8_t>(value);
-  return raw >= 1 && raw <= 3;
+  return raw >= 1 && raw <= 7;
 }
 
 } // namespace
@@ -81,8 +81,21 @@ canonicalize_candidate_dispositions(
       record.id = relation_candidate_disposition_id(i);
       record.candidate = proposal.candidate;
       record.disposition = proposal.disposition;
+      if (!proposal.coverage_complete ||
+          (proposal.coverage_flags & candidate_coverage_complete) == 0)
+        return boolean_outcome<
+            std::vector<relation_candidate_disposition_record>>::failure(
+            disposition_error(
+                relation_subcode::candidate_disposition_contradiction,
+                "candidate disposition coverage is incomplete"));
       record.public_relation = proposal.public_relation;
       record.bookkeeping_request = proposal.bookkeeping_request;
+      record.relation_begin = proposal.relation_begin;
+      record.relation_count = proposal.relation_count;
+      record.event_seed_begin = proposal.event_seed_begin;
+      record.event_seed_count = proposal.event_seed_count;
+      record.coverage_flags = proposal.coverage_flags;
+      record.coverage_complete = proposal.coverage_complete;
       records.push_back(record);
     }
     return boolean_outcome<

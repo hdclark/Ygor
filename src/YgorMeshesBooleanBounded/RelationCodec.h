@@ -58,7 +58,11 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t crossing_count = 0;
   std::uint64_t event_seed_count = 0;
   std::uint64_t incidence_count = 0;
+  std::uint64_t event_seed_candidate_incidence_count = 0;
   std::uint64_t candidate_disposition_count = 0;
+  std::uint64_t candidate_relation_coverage_count = 0;
+  std::uint64_t candidate_seed_coverage_count = 0;
+  std::uint64_t candidate_partition_count = 0;
   relation_statistics statistics{};
 };
 

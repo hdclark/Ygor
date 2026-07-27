@@ -85,6 +85,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     SymbolicPerturbation.cc
     RelationBuild.cc
     RelationCodec.cc
+    RelationCandidateEvidenceVerifier.cc
     RelationVerifier.cc
     ToleranceBudget.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
