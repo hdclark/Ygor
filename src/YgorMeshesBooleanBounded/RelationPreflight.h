@@ -12,6 +12,7 @@ struct relation_preflight_plan final {
   std::uint64_t interval_evidence_upper_bound = 0;
   std::uint64_t region_record_upper_bound = 0;
   std::uint64_t construction_upper_bound = 0;
+  std::uint64_t construction_ledger_upper_bound = 0;
   std::uint64_t symbolic_upper_bound = 0;
   std::uint64_t event_seed_upper_bound = 0;
   std::uint64_t disposition_upper_bound = 0;

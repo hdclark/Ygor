@@ -122,15 +122,70 @@ struct relation_truth_record final {
 struct relation_construction_record final {
   relation_construction_id id{0};
   relation_request_id producer{0};
+  feature_relation_id source_relation{0};
   relation_construction_kind kind = relation_construction_kind::bounded_point;
+  relation_construction_precedence precedence =
+      relation_construction_precedence::verification_witness;
+  relation_construction_coordinate_space coordinate_space =
+      relation_construction_coordinate_space::world_3d;
   std::uint8_t component_count = 0;
+  std::uint8_t projection_axis = 3;
+  relation_feature_key authoritative_source_feature{};
   std::array<std::uint64_t, 6> nominal_bits{};
   std::array<std::uint64_t, 6> lower_bits{};
   std::array<std::uint64_t, 6> upper_bits{};
-  std::uint64_t residual_truth_begin = 0;
-  std::uint64_t residual_truth_count = 0;
+  std::uint64_t source_provenance = 0;
+  std::uint64_t geometric_lineage = 0;
+  bool accepted_source_vertex = false;
   bool finite = false;
   bool tolerance_compatible = false;
+  bool precision_evidence_complete = false;
+  std::uint64_t tolerance_boundary_bits = 0;
+  std::uint64_t residual_truth_begin = 0;
+  std::uint64_t residual_truth_count = 0;
+  std::uint64_t interval_evidence_begin = 0;
+  std::uint64_t interval_evidence_count = 0;
+  std::uint64_t source_facet_region_begin = 0;
+  std::uint64_t source_facet_region_count = 0;
+  std::uint64_t consumer_begin = 0;
+  std::uint64_t consumer_count = 0;
+  std::uint64_t ledger_begin = 0;
+  std::uint64_t ledger_count = 0;
+  std::uint32_t reserved = 0;
+};
+
+struct relation_construction_ledger_record final {
+  relation_construction_ledger_id id{0};
+  relation_construction_id construction{0};
+  feature_relation_id source_relation{0};
+  relation_construction_precedence precedence =
+      relation_construction_precedence::verification_witness;
+  relation_construction_coordinate_space coordinate_space =
+      relation_construction_coordinate_space::world_3d;
+  std::uint8_t component_count = 0;
+  std::uint8_t projection_axis = 3;
+  std::uint32_t occurrence = 0;
+  std::array<std::uint64_t, 6> nominal_bits{};
+  std::array<std::uint64_t, 6> lower_bits{};
+  std::array<std::uint64_t, 6> upper_bits{};
+  std::uint64_t source_provenance = 0;
+  std::uint64_t geometric_lineage = 0;
+  bool accepted_source_vertex = false;
+  bool finite = false;
+  bool tolerance_compatible = false;
+  bool synthetic_authority = false;
+  bool lineage_compatible = false;
+  bool enclosure_compatible = false;
+  bool parameter_compatible = false;
+  bool residual_compatible = false;
+  bool precision_evidence_complete = false;
+  std::uint64_t tolerance_boundary_bits = 0;
+  std::uint64_t truth_begin = 0;
+  std::uint64_t truth_count = 0;
+  std::uint64_t interval_evidence_begin = 0;
+  std::uint64_t interval_evidence_count = 0;
+  std::uint64_t source_facet_region_begin = 0;
+  std::uint64_t source_facet_region_count = 0;
   std::uint32_t reserved = 0;
 };
 
@@ -324,6 +379,10 @@ public:
   const std::vector<relation_construction_record> &constructions() const noexcept {
     return constructions_;
   }
+  const std::vector<relation_construction_ledger_record> &
+  construction_ledger() const noexcept {
+    return construction_ledger_;
+  }
   const std::vector<symbolic_eligibility_record> &symbolic_eligibility()
       const noexcept {
     return symbolic_eligibility_;
@@ -413,6 +472,7 @@ private:
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;
+  std::vector<relation_construction_ledger_record> construction_ledger_;
   std::vector<symbolic_eligibility_record> symbolic_eligibility_;
   std::vector<symbolic_relation_decision_record> symbolic_decisions_;
   std::vector<relation_crossing_record> crossings_;

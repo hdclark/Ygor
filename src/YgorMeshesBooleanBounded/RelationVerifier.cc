@@ -1,6 +1,7 @@
 #include "StrictFloatingBuild.h"
 #include "RelationVerifier.h"
 #include "CoplanarRelationOverlay.h"
+#include "RelationConstructionPolicy.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1554,43 +1555,455 @@ bool verify_signed_feature_relations(
                   "Component 07 source-facet region dependency closure is incomplete");
   }
 
-  std::size_t expected_constructions = 0;
-  for (const auto &record : artifact.source_edge_stage_->relations)
-    expected_constructions += record.point_count;
-  for (const auto &record : artifact.source_edge_facet_stage_->relations)
-    expected_constructions += record.events.size();
-  for (const auto &record : artifact.source_facet_stage_->relations)
-    expected_constructions += record.has_transverse_carrier ? 1U : 0U;
-  for (const auto &record : artifact.coplanar_overlay_stage_->overlays)
-    expected_constructions += record.event_nodes.size();
-  if (artifact.constructions_.size() != expected_constructions)
-    return fail(relation_subcode::verifier_rejection,
-                "Component 07 authoritative construction table is incomplete");
-  std::map<relation_request_key, relation_construction_id>
-      construction_by_key;
-  for (std::size_t i = 0; i < artifact.constructions_.size(); ++i) {
-    const auto &record = artifact.constructions_[i];
-    if (record.id.ordinal() != i ||
-        record.producer.ordinal() >= artifact.request_graph_.requests.size() ||
-        artifact.request_graph_.requests[record.producer.ordinal()].key.family !=
-            relation_request_family::authoritative_construction ||
-        record.component_count == 0 || record.component_count > 6 ||
-        record.residual_truth_begin > artifact.truth_records_.size() ||
-        record.residual_truth_count >
-            artifact.truth_records_.size() - record.residual_truth_begin ||
-        !record.finite || !record.tolerance_compatible || record.reserved != 0)
+  struct expected_construction_use final {
+    relation_request_key key{};
+    relation_request_key source_relation{};
+    relation_request_key authoritative_source_relation{};
+    relation_construction_precedence authority_precedence =
+        relation_construction_precedence::verification_witness;
+    relation_feature_key authoritative_source_feature{};
+    relation_construction_policy_detail::geometry_snapshot<T> authority_geometry{};
+    relation_construction_precedence witness_precedence =
+        relation_construction_precedence::verification_witness;
+    relation_construction_policy_detail::geometry_snapshot<T> witness_geometry{};
+    std::uint32_t occurrence = 0;
+  };
+  std::vector<expected_construction_use> expected_uses;
+  const auto append_expected_use =
+      [&](const relation_request_key &source_relation,
+          const relation_construction_policy_detail::authority<T> &authority,
+          relation_construction_precedence witness_precedence,
+          const relation_construction_policy_detail::geometry_snapshot<T> &witness,
+          std::uint32_t occurrence) {
+        if (!valid_relation_request_key(authority.key) ||
+            !valid_relation_request_key(authority.source_relation) ||
+            !relation_construction_policy_detail::valid_geometry(
+                authority.geometry) ||
+            !relation_construction_policy_detail::valid_geometry(witness) ||
+            !relation_construction_policy_detail::compatible_geometry(
+                authority.geometry, witness))
+          return false;
+        expected_construction_use use;
+        use.key = authority.key;
+        use.source_relation = source_relation;
+        use.authoritative_source_relation = authority.source_relation;
+        use.authority_precedence = authority.precedence;
+        use.authoritative_source_feature = authority.source_feature;
+        use.authority_geometry = authority.geometry;
+        use.witness_precedence = witness_precedence;
+        use.witness_geometry = witness;
+        use.occurrence = occurrence;
+        expected_uses.push_back(std::move(use));
+        return true;
+      };
+
+  for (std::size_t relation_index = 0;
+       relation_index < artifact.source_edge_stage_->relations.size();
+       ++relation_index) {
+    if (relation_index >=
+        artifact.source_edge_stage_->request_graph.requests.size())
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 edge construction source request is absent");
+    const auto &source =
+        artifact.source_edge_stage_->relations[relation_index];
+    const auto &key =
+        artifact.source_edge_stage_->request_graph.requests[relation_index].key;
+    for (std::uint32_t point = 0; point < source.point_count; ++point) {
+      relation_construction_policy_detail::authority<T> authority;
+      if (!relation_construction_policy_detail::edge_point_authority(
+              *artifact.candidates_, key, source, point, authority) ||
+          !append_expected_use(
+              key, authority,
+              source.points[point].accepted_source_vertex
+                  ? relation_construction_precedence::accepted_source_vertex
+                  : relation_construction_precedence::
+                        source_edge_source_edge_point,
+              relation_construction_policy_detail::geometry_from_point(
+                  source.points[point].point,
+                  source.points[point].accepted_source_vertex,
+                  source.points[point].tolerance_compatible),
+              point))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 edge construction authority does not reconstruct");
+    }
+  }
+
+  for (std::size_t relation_index = 0;
+       relation_index < artifact.source_edge_facet_stage_->relations.size();
+       ++relation_index) {
+    if (relation_index >=
+        artifact.source_edge_facet_stage_->request_graph.requests.size())
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 edge/facet construction source request is absent");
+    const auto &source =
+        artifact.source_edge_facet_stage_->relations[relation_index];
+    const auto &request = artifact.source_edge_facet_stage_->request_graph
+                              .requests[relation_index];
+    for (std::size_t local = 0; local < source.events.size(); ++local) {
+      if (local > std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::count_overflow,
+                    "Component 07 edge/facet construction occurrence overflows");
+      std::uint32_t occurrence = 0;
+      if (!canonical_event_occurrence(
+              request.id, static_cast<std::uint32_t>(local), occurrence))
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 edge/facet canonical occurrence is absent");
+      const auto &event = source.events[local];
+      relation_construction_policy_detail::authority<T> authority;
+      if (!relation_construction_policy_detail::edge_facet_event_authority(
+              *artifact.candidates_, *artifact.source_edge_stage_, request.key,
+              source, event, occurrence, authority) ||
+          !append_expected_use(
+              request.key, authority,
+              event.construction.accepted_source_vertex ||
+                      event.region.classification ==
+                          source_facet_point_region_class::original_vertex
+                  ? relation_construction_precedence::accepted_source_vertex
+                  : relation_construction_precedence::
+                        source_edge_source_facet_point,
+              relation_construction_policy_detail::geometry_from_point(
+                  event.construction.point,
+                  event.construction.accepted_source_vertex,
+                  event.construction.tolerance_compatible),
+              occurrence))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 edge/facet construction authority does not reconstruct");
+    }
+  }
+
+  for (std::size_t relation_index = 0;
+       relation_index < artifact.source_facet_stage_->relations.size();
+       ++relation_index) {
+    if (relation_index >=
+        artifact.source_facet_stage_->request_graph.requests.size())
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 facet construction source request is absent");
+    const auto &source =
+        artifact.source_facet_stage_->relations[relation_index];
+    if (!source.has_transverse_carrier)
+      continue;
+    const auto &key =
+        artifact.source_facet_stage_->request_graph.requests[relation_index].key;
+    relation_construction_policy_detail::authority<T> authority;
+    if (!relation_construction_policy_detail::carrier_authority(
+            key, source.transverse_carrier, authority) ||
+        !append_expected_use(
+            key, authority,
+            relation_construction_precedence::
+                source_facet_source_facet_carrier,
+            relation_construction_policy_detail::geometry_from_carrier(
+                source.transverse_carrier),
+            0))
       return fail(relation_subcode::verifier_rejection,
-                  "Component 07 construction record is malformed");
-    for (std::size_t component = 0; component < record.component_count; ++component)
+                  "Component 07 carrier construction authority does not reconstruct");
+  }
+
+  for (const auto &descriptor : overlay_descriptors) {
+    const auto &source =
+        artifact.coplanar_overlay_stage_->overlays[descriptor.ordinal];
+    for (const auto &node : source.event_nodes) {
+      if (node.id > std::numeric_limits<std::uint32_t>::max())
+        return fail(relation_subcode::count_overflow,
+                    "Component 07 overlay construction occurrence overflows");
+      relation_construction_policy_detail::authority<T> authority;
+      if (!relation_construction_policy_detail::overlay_node_authority(
+              *artifact.candidates_, *artifact.source_edge_stage_,
+              descriptor.key, source, node, authority) ||
+          !append_expected_use(
+              descriptor.key, authority,
+              relation_construction_precedence::coplanar_overlap_endpoint,
+              relation_construction_policy_detail::geometry_from_projected(
+                  node.representative, source.facets[0].dropped_axis,
+                  authority.precedence ==
+                      relation_construction_precedence::accepted_source_vertex),
+              static_cast<std::uint32_t>(node.id)))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 overlay construction authority does not reconstruct");
+    }
+  }
+
+  std::sort(expected_uses.begin(), expected_uses.end(),
+            [](const expected_construction_use &a,
+               const expected_construction_use &b) {
+              return std::tie(a.key, a.authority_precedence,
+                              a.authoritative_source_relation,
+                              a.source_relation, a.occurrence) <
+                     std::tie(b.key, b.authority_precedence,
+                              b.authoritative_source_relation,
+                              b.source_relation, b.occurrence);
+            });
+
+  struct evidence_range final {
+    std::uint64_t begin = 0;
+    std::uint64_t count = 0;
+  };
+  std::vector<evidence_range> interval_ranges(artifact.relations_.size());
+  std::vector<evidence_range> region_ranges(artifact.relations_.size());
+  const auto accumulate_range = [](auto &ranges, feature_relation_id relation,
+                                   std::uint64_t index) {
+    if (relation.ordinal() >= ranges.size()) return false;
+    auto &range = ranges[relation.ordinal()];
+    if (range.count == 0)
+      range.begin = index;
+    else if (range.begin + range.count != index)
+      return false;
+    ++range.count;
+    return true;
+  };
+  for (std::size_t index = 0; index < artifact.interval_evidence_.size();
+       ++index)
+    if (!accumulate_range(interval_ranges,
+                          artifact.interval_evidence_[index].source_relation,
+                          index))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 construction interval evidence is not contiguous");
+  for (std::size_t index = 0; index < artifact.source_facet_regions_.size();
+       ++index)
+    if (!accumulate_range(region_ranges,
+                          artifact.source_facet_regions_[index].source_relation,
+                          index))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 construction region evidence is not contiguous");
+
+  const auto geometry_matches_record =
+      [](const relation_construction_policy_detail::geometry_snapshot<T> &geometry,
+         const relation_construction_record &record) {
+        if (record.kind != geometry.kind ||
+            record.coordinate_space != geometry.coordinate_space ||
+            record.component_count != geometry.component_count ||
+            record.projection_axis != geometry.projection_axis ||
+            record.source_provenance != geometry.provenance ||
+            record.geometric_lineage != geometry.lineage ||
+            record.accepted_source_vertex != geometry.accepted_source_vertex ||
+            record.finite != geometry.finite ||
+            record.tolerance_compatible != geometry.tolerance_compatible)
+          return false;
+        for (std::size_t component = 0;
+             component < geometry.component_count; ++component)
+          if (record.nominal_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.nominal[component])) ||
+              record.lower_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.lower[component])) ||
+              record.upper_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.upper[component])))
+            return false;
+        for (std::size_t component = geometry.component_count;
+             component < record.nominal_bits.size(); ++component)
+          if (record.nominal_bits[component] != 0 ||
+              record.lower_bits[component] != 0 ||
+              record.upper_bits[component] != 0)
+            return false;
+        return true;
+      };
+  const auto geometry_matches_ledger =
+      [](const relation_construction_policy_detail::geometry_snapshot<T> &geometry,
+         const relation_construction_ledger_record &record) {
+        if (record.coordinate_space != geometry.coordinate_space ||
+            record.component_count != geometry.component_count ||
+            record.projection_axis != geometry.projection_axis ||
+            record.source_provenance != geometry.provenance ||
+            record.geometric_lineage != geometry.lineage ||
+            record.accepted_source_vertex != geometry.accepted_source_vertex ||
+            record.finite != geometry.finite ||
+            record.tolerance_compatible != geometry.tolerance_compatible)
+          return false;
+        for (std::size_t component = 0;
+             component < geometry.component_count; ++component)
+          if (record.nominal_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.nominal[component])) ||
+              record.lower_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.lower[component])) ||
+              record.upper_bits[component] !=
+                  static_cast<std::uint64_t>(to_bits(geometry.upper[component])))
+            return false;
+        for (std::size_t component = geometry.component_count;
+             component < record.nominal_bits.size(); ++component)
+          if (record.nominal_bits[component] != 0 ||
+              record.lower_bits[component] != 0 ||
+              record.upper_bits[component] != 0)
+            return false;
+        return true;
+      };
+  const auto valid_tolerance_bits = [](std::uint64_t bits) {
+    using bits_type = floating_uint_t<T>;
+    const auto value = from_bits<T>(static_cast<bits_type>(bits));
+    return finite_bits(value) && value >= T(0);
+  };
+  const auto expected_evidence =
+      [&](feature_relation_id relation, std::uint64_t truth_begin,
+          std::uint64_t truth_count, std::uint64_t interval_begin,
+          std::uint64_t interval_count, std::uint64_t region_begin,
+          std::uint64_t region_count) {
+        if (relation.ordinal() >= artifact.relations_.size()) return false;
+        const auto &source = artifact.relations_[relation.ordinal()];
+        return truth_begin == source.truth_begin &&
+               truth_count == source.truth_count &&
+               interval_begin == interval_ranges[relation.ordinal()].begin &&
+               interval_count == interval_ranges[relation.ordinal()].count &&
+               region_begin == region_ranges[relation.ordinal()].begin &&
+               region_count == region_ranges[relation.ordinal()].count;
+      };
+
+  std::size_t expected_group_count = 0;
+  for (std::size_t begin = 0; begin < expected_uses.size();) {
+    ++expected_group_count;
+    std::size_t end_group = begin + 1;
+    while (end_group < expected_uses.size() &&
+           expected_uses[end_group].key == expected_uses[begin].key)
+      ++end_group;
+    begin = end_group;
+  }
+  if (artifact.constructions_.size() != expected_group_count ||
+      artifact.construction_ledger_.size() !=
+          expected_uses.size() + expected_group_count)
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 construction registry or ledger count is incomplete");
+
+  std::map<relation_request_key, relation_construction_id> construction_by_key;
+  std::size_t construction_index = 0;
+  std::size_t ledger_index = 0;
+  for (std::size_t begin = 0; begin < expected_uses.size();) {
+    std::size_t end_group = begin + 1;
+    while (end_group < expected_uses.size() &&
+           expected_uses[end_group].key == expected_uses[begin].key)
+      ++end_group;
+    const auto &expected = expected_uses[begin];
+    for (std::size_t index = begin; index < end_group; ++index)
+      if (expected_uses[index].authority_precedence !=
+              expected.authority_precedence ||
+          expected_uses[index].authoritative_source_feature !=
+              expected.authoritative_source_feature ||
+          !relation_construction_policy_detail::same_geometry(
+              expected.authority_geometry,
+              expected_uses[index].authority_geometry) ||
+          !relation_construction_policy_detail::compatible_geometry(
+              expected.authority_geometry,
+              expected_uses[index].witness_geometry))
+        return fail(relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 reconstructed construction authorities disagree");
+
+    const auto &record = artifact.constructions_[construction_index];
+    const auto *producer = find_request(artifact.request_graph_, expected.key);
+    const auto source_relation =
+        relation_by_key.find(expected.authoritative_source_relation);
+    if (!producer || source_relation == relation_by_key.end() ||
+        record.id.ordinal() != construction_index ||
+        record.producer != producer->id ||
+        record.source_relation != source_relation->second ||
+        record.precedence != expected.authority_precedence ||
+        record.authoritative_source_feature !=
+            expected.authoritative_source_feature ||
+        !geometry_matches_record(expected.authority_geometry, record) ||
+        !record.precision_evidence_complete ||
+        !valid_tolerance_bits(record.tolerance_boundary_bits) ||
+        record.consumer_begin != producer->reverse_consumer_begin ||
+        record.consumer_count != producer->reverse_consumer_count ||
+        record.ledger_begin != ledger_index ||
+        record.ledger_count != (end_group - begin) + 1 ||
+        !expected_evidence(
+            record.source_relation, record.residual_truth_begin,
+            record.residual_truth_count, record.interval_evidence_begin,
+            record.interval_evidence_count, record.source_facet_region_begin,
+            record.source_facet_region_count) ||
+        record.reserved != 0)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 authoritative construction does not reconstruct");
+    for (std::size_t component = 0; component < record.component_count;
+         ++component)
       if (!finite_construction_component<T>(record, component))
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 construction enclosure is not finite and ordered");
-    const auto &producer =
-        artifact.request_graph_.requests[record.producer.ordinal()];
-    if (!construction_by_key.emplace(producer.key, record.id).second)
+
+    std::vector<relation_request_id> expected_dependencies;
+    for (std::size_t index = begin; index < end_group; ++index) {
+      const auto *witness_source =
+          find_request(artifact.request_graph_,
+                       expected_uses[index].source_relation);
+      const auto *authority_source =
+          find_request(artifact.request_graph_,
+                       expected_uses[index].authoritative_source_relation);
+      if (!witness_source || !authority_source)
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 construction source dependency is absent");
+      expected_dependencies.push_back(witness_source->id);
+      expected_dependencies.push_back(authority_source->id);
+    }
+    if (!exact_dependencies(*producer, expected_dependencies))
+      return fail(relation_subcode::missing_dependency,
+                  "Component 07 construction dependency closure is incomplete");
+
+    const auto &authority_entry = artifact.construction_ledger_[ledger_index];
+    if (authority_entry.id.ordinal() != ledger_index ||
+        authority_entry.construction != record.id ||
+        authority_entry.source_relation != record.source_relation ||
+        authority_entry.precedence != record.precedence ||
+        authority_entry.occurrence != 0 ||
+        !geometry_matches_ledger(expected.authority_geometry,
+                                 authority_entry) ||
+        !authority_entry.synthetic_authority ||
+        !authority_entry.lineage_compatible ||
+        !authority_entry.enclosure_compatible ||
+        !authority_entry.parameter_compatible ||
+        !authority_entry.residual_compatible ||
+        !authority_entry.precision_evidence_complete ||
+        authority_entry.tolerance_boundary_bits !=
+            record.tolerance_boundary_bits ||
+        !expected_evidence(
+            authority_entry.source_relation, authority_entry.truth_begin,
+            authority_entry.truth_count,
+            authority_entry.interval_evidence_begin,
+            authority_entry.interval_evidence_count,
+            authority_entry.source_facet_region_begin,
+            authority_entry.source_facet_region_count) ||
+        authority_entry.reserved != 0)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 synthetic construction authority ledger entry is malformed");
+    ++ledger_index;
+
+    for (std::size_t index = begin; index < end_group; ++index) {
+      const auto &expected_witness = expected_uses[index];
+      const auto witness_relation =
+          relation_by_key.find(expected_witness.source_relation);
+      if (witness_relation == relation_by_key.end())
+        return fail(relation_subcode::missing_dependency,
+                    "Component 07 construction witness source relation is absent");
+      const auto &witness = artifact.construction_ledger_[ledger_index];
+      if (witness.id.ordinal() != ledger_index ||
+          witness.construction != record.id ||
+          witness.source_relation != witness_relation->second ||
+          witness.precedence != expected_witness.witness_precedence ||
+          witness.occurrence != expected_witness.occurrence ||
+          !geometry_matches_ledger(expected_witness.witness_geometry,
+                                   witness) ||
+          witness.synthetic_authority ||
+          !witness.lineage_compatible ||
+          !witness.enclosure_compatible ||
+          !witness.parameter_compatible ||
+          !witness.residual_compatible ||
+          !witness.precision_evidence_complete ||
+          witness.tolerance_boundary_bits != record.tolerance_boundary_bits ||
+          !expected_evidence(
+              witness.source_relation, witness.truth_begin,
+              witness.truth_count, witness.interval_evidence_begin,
+              witness.interval_evidence_count,
+              witness.source_facet_region_begin,
+              witness.source_facet_region_count) ||
+          witness.reserved != 0)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 construction witness ledger entry does not reconstruct");
+      ++ledger_index;
+    }
+
+    if (!construction_by_key.emplace(expected.key, record.id).second)
       return fail(relation_subcode::duplicate_authoritative_producer,
                   "Component 07 construction producer is duplicated");
+    ++construction_index;
+    begin = end_group;
   }
+  if (construction_index != artifact.constructions_.size() ||
+      ledger_index != artifact.construction_ledger_.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 construction registry has trailing records");
 
   std::size_t expected_node = 0;
   std::size_t expected_arc = 0;
@@ -1617,10 +2030,13 @@ bool verify_signed_feature_relations(
                     "Component 07 final coplanar event-node table is incomplete");
       const auto &expected = source.event_nodes[local];
       const auto &record = artifact.coplanar_event_nodes_[expected_node];
-      const auto construction_key = verifier_derived_key(
-          descriptor.key, relation_request_family::authoritative_construction,
-          verifier_tagged_use(10, 4), static_cast<std::uint32_t>(local));
-      const auto construction = construction_by_key.find(construction_key);
+      relation_construction_policy_detail::authority<T> node_authority;
+      if (!relation_construction_policy_detail::overlay_node_authority(
+              *artifact.candidates_, *artifact.source_edge_stage_,
+              descriptor.key, source, expected, node_authority))
+        return fail(relation_subcode::coplanar_overlay_invariant,
+                    "Component 07 coplanar event-node authority is unresolved");
+      const auto construction = construction_by_key.find(node_authority.key);
       if (expected.id != local || construction == construction_by_key.end() ||
           record.id.ordinal() != expected_node ||
           record.overlay_relation != relation->second ||
@@ -2212,6 +2628,16 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::crossing_conservation_failed,
                   "Component 07 local numeric crossing conservation failed");
 
+  std::vector<bool> event_seed_request_seen(
+      artifact.request_graph_.requests.size(), false);
+  std::size_t expected_event_seed_count = 0;
+  for (const auto &request : artifact.request_graph_.requests)
+    if (request.key.family == relation_request_family::event_seed)
+      ++expected_event_seed_count;
+  if (artifact.event_seeds_.size() != expected_event_seed_count)
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 event-seed table is incomplete");
+
   if (!std::is_sorted(
           artifact.event_seeds_.begin(), artifact.event_seeds_.end(),
           [](const relation_event_seed_record &a,
@@ -2249,23 +2675,42 @@ bool verify_signed_feature_relations(
     if (!has_first || !has_second)
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 event seed omits authoritative source incidence");
-    const auto construction_request = artifact.request_graph_.requests[
+    const auto &construction_request = artifact.request_graph_.requests[
         artifact.constructions_[record.construction.ordinal()].producer.ordinal()];
-    bool found_seed_request = false;
+    const auto &source_request = artifact.request_graph_.requests[
+        artifact.relations_[record.source_relation.ordinal()].producer.ordinal()];
+    if (record.key.family !=
+        artifact.relations_[record.source_relation.ordinal()].family)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 event seed family disagrees with its source relation");
+    const canonical_relation_request *matched_seed_request = nullptr;
     for (const auto &request : artifact.request_graph_.requests)
       if (request.key.family == relation_request_family::event_seed &&
           request.key.first == record.key.first &&
           request.key.second == record.key.second &&
+          request.key.directed_use == construction_request.key.directed_use &&
           request.key.occurrence_discriminator == record.key.occurrence &&
           request_has_dependency(artifact.request_graph_, request,
+                                 source_request.id) &&
+          request_has_dependency(artifact.request_graph_, request,
                                  construction_request.id)) {
-        found_seed_request = true;
-        break;
+        if (matched_seed_request)
+          return fail(relation_subcode::duplicate_authoritative_producer,
+                      "Component 07 event seed request is ambiguous");
+        matched_seed_request = &request;
       }
-    if (!found_seed_request)
+    if (!matched_seed_request ||
+        matched_seed_request->id.ordinal() >= event_seed_request_seen.size() ||
+        event_seed_request_seen[matched_seed_request->id.ordinal()])
       return fail(relation_subcode::missing_dependency,
-                  "Component 07 event seed request is absent from the graph");
+                  "Component 07 event seed request is absent or duplicated");
+    event_seed_request_seen[matched_seed_request->id.ordinal()] = true;
   }
+  for (const auto &request : artifact.request_graph_.requests)
+    if (request.key.family == relation_request_family::event_seed &&
+        !event_seed_request_seen[request.id.ordinal()])
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 event-seed request has no published record");
 
   if (!std::is_sorted(
           artifact.candidate_dispositions_.begin(),
@@ -2330,6 +2775,8 @@ bool verify_signed_feature_relations(
           artifact.relations_.size() ||
       artifact.statistics_.construction_count !=
           artifact.constructions_.size() ||
+      artifact.statistics_.construction_ledger_count !=
+          artifact.construction_ledger_.size() ||
       artifact.statistics_.coplanar_event_node_count !=
           artifact.coplanar_event_nodes_.size() ||
       artifact.statistics_.coplanar_oriented_arc_count !=

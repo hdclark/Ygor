@@ -208,19 +208,73 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u32(record.occurrence);
     writer.u32(record.reserved);
   }
+  writer.u16(contract_versions::relation_construction_schema);
+  writer.u16(contract_versions::relation_construction_registry_policy);
+  writer.u16(contract_versions::relation_construction_ledger_schema);
   writer.u64(artifact.constructions_.size());
   for (const auto &record : artifact.constructions_) {
     writer.u64(record.id.ordinal());
     writer.u64(record.producer.ordinal());
+    writer.u64(record.source_relation.ordinal());
     writer.u8(static_cast<std::uint8_t>(record.kind));
+    writer.u8(static_cast<std::uint8_t>(record.precedence));
+    writer.u8(static_cast<std::uint8_t>(record.coordinate_space));
     writer.u8(record.component_count);
+    writer.u8(record.projection_axis);
+    encode_relation_feature_key(writer, record.authoritative_source_feature);
     for (const auto bits : record.nominal_bits) writer.u64(bits);
     for (const auto bits : record.lower_bits) writer.u64(bits);
     for (const auto bits : record.upper_bits) writer.u64(bits);
-    writer.u64(record.residual_truth_begin);
-    writer.u64(record.residual_truth_count);
+    writer.u64(record.source_provenance);
+    writer.u64(record.geometric_lineage);
+    writer.boolean(record.accepted_source_vertex);
     writer.boolean(record.finite);
     writer.boolean(record.tolerance_compatible);
+    writer.boolean(record.precision_evidence_complete);
+    writer.u64(record.tolerance_boundary_bits);
+    writer.u64(record.residual_truth_begin);
+    writer.u64(record.residual_truth_count);
+    writer.u64(record.interval_evidence_begin);
+    writer.u64(record.interval_evidence_count);
+    writer.u64(record.source_facet_region_begin);
+    writer.u64(record.source_facet_region_count);
+    writer.u64(record.consumer_begin);
+    writer.u64(record.consumer_count);
+    writer.u64(record.ledger_begin);
+    writer.u64(record.ledger_count);
+    writer.u32(record.reserved);
+  }
+  writer.u64(artifact.construction_ledger_.size());
+  for (const auto &record : artifact.construction_ledger_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.construction.ordinal());
+    writer.u64(record.source_relation.ordinal());
+    writer.u8(static_cast<std::uint8_t>(record.precedence));
+    writer.u8(static_cast<std::uint8_t>(record.coordinate_space));
+    writer.u8(record.component_count);
+    writer.u8(record.projection_axis);
+    writer.u32(record.occurrence);
+    for (const auto bits : record.nominal_bits) writer.u64(bits);
+    for (const auto bits : record.lower_bits) writer.u64(bits);
+    for (const auto bits : record.upper_bits) writer.u64(bits);
+    writer.u64(record.source_provenance);
+    writer.u64(record.geometric_lineage);
+    writer.boolean(record.accepted_source_vertex);
+    writer.boolean(record.finite);
+    writer.boolean(record.tolerance_compatible);
+    writer.boolean(record.synthetic_authority);
+    writer.boolean(record.lineage_compatible);
+    writer.boolean(record.enclosure_compatible);
+    writer.boolean(record.parameter_compatible);
+    writer.boolean(record.residual_compatible);
+    writer.boolean(record.precision_evidence_complete);
+    writer.u64(record.tolerance_boundary_bits);
+    writer.u64(record.truth_begin);
+    writer.u64(record.truth_count);
+    writer.u64(record.interval_evidence_begin);
+    writer.u64(record.interval_evidence_count);
+    writer.u64(record.source_facet_region_begin);
+    writer.u64(record.source_facet_region_count);
     writer.u32(record.reserved);
   }
   writer.u16(contract_versions::relation_coplanar_topology_schema);
@@ -359,6 +413,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.public_relation_count);
   writer.u64(artifact.statistics_.bookkeeping_relation_count);
   writer.u64(artifact.statistics_.construction_count);
+  writer.u64(artifact.statistics_.construction_ledger_count);
   writer.u64(artifact.statistics_.coplanar_event_node_count);
   writer.u64(artifact.statistics_.coplanar_oriented_arc_count);
   writer.u64(artifact.statistics_.coplanar_overlap_component_count);
@@ -583,20 +638,43 @@ inline bool read_relation_record(canonical_reader &reader) {
 }
 
 inline bool read_construction_record(canonical_reader &reader) {
-  std::uint64_t id = 0, producer = 0, value = 0;
-  std::uint8_t kind = 0, component_count = 0;
-  std::uint64_t residual_begin = 0, residual_count = 0;
-  bool finite = false, tolerance = false;
+  std::uint64_t value = 0;
+  std::uint8_t byte = 0;
   std::uint32_t reserved = 0;
-  if (!reader.u64(id) || !reader.u64(producer) || !reader.u8(kind) ||
-      !reader.u8(component_count))
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u8(byte) || !reader.u8(byte) || !reader.u8(byte) ||
+      !reader.u8(byte) || !reader.u8(byte) || !read_feature_key(reader))
     return false;
   for (std::size_t i = 0; i < 18; ++i)
-    if (!reader.u64(value))
-      return false;
-  return reader.u64(residual_begin) && reader.u64(residual_count) &&
-         reader.boolean(finite) && reader.boolean(tolerance) &&
-         reader.u32(reserved);
+    if (!reader.u64(value)) return false;
+  if (!reader.u64(value) || !reader.u64(value)) return false;
+  for (std::size_t i = 0; i < 4; ++i)
+    if (!reader.boolean(flag)) return false;
+  if (!reader.u64(value)) return false;
+  for (std::size_t i = 0; i < 10; ++i)
+    if (!reader.u64(value)) return false;
+  return reader.u32(reserved);
+}
+
+inline bool read_construction_ledger_record(canonical_reader &reader) {
+  std::uint64_t value = 0;
+  std::uint8_t byte = 0;
+  std::uint32_t occurrence = 0, reserved = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u8(byte) || !reader.u8(byte) || !reader.u8(byte) ||
+      !reader.u8(byte) || !reader.u32(occurrence))
+    return false;
+  for (std::size_t i = 0; i < 18; ++i)
+    if (!reader.u64(value)) return false;
+  if (!reader.u64(value) || !reader.u64(value)) return false;
+  for (std::size_t i = 0; i < 9; ++i)
+    if (!reader.boolean(flag)) return false;
+  if (!reader.u64(value)) return false;
+  for (std::size_t i = 0; i < 6; ++i)
+    if (!reader.u64(value)) return false;
+  return reader.u32(reserved);
 }
 
 inline bool read_coplanar_event_node_record(
@@ -948,9 +1026,21 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 relation table is truncated");
 
+  if (!reader.u16(envelope.construction_schema) ||
+      !reader.u16(envelope.construction_registry_policy) ||
+      !reader.u16(envelope.construction_ledger_schema) ||
+      envelope.construction_schema !=
+          contract_versions::relation_construction_schema ||
+      envelope.construction_registry_policy !=
+          contract_versions::relation_construction_registry_policy ||
+      envelope.construction_ledger_schema !=
+          contract_versions::relation_construction_ledger_schema)
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 construction section version is unsupported");
   if (!reader.u64(envelope.construction_count) ||
       !count_fits(reader, envelope.construction_count,
-                  capabilities.maximum_constructions, 184))
+                  capabilities.maximum_constructions, 320))
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 construction table count is malformed");
@@ -959,6 +1049,17 @@ bool parse_relation_artifact_envelope(
       return codec_failure(relation_subcode::codec_error,
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 construction table is truncated");
+  if (!reader.u64(envelope.construction_ledger_count) ||
+      !count_fits(reader, envelope.construction_ledger_count,
+                  capabilities.maximum_construction_ledger, 260))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 construction-ledger count is malformed");
+  for (std::uint64_t i = 0; i < envelope.construction_ledger_count; ++i)
+    if (!read_construction_ledger_record(reader))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 construction ledger is truncated");
 
   if (!reader.u16(envelope.coplanar_topology_schema) ||
       !reader.u16(envelope.coplanar_topology_policy) ||
@@ -1094,6 +1195,7 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.public_relation_count) ||
       !reader.u64(statistics.bookkeeping_relation_count) ||
       !reader.u64(statistics.construction_count) ||
+      !reader.u64(statistics.construction_ledger_count) ||
       !reader.u64(statistics.coplanar_event_node_count) ||
       !reader.u64(statistics.coplanar_oriented_arc_count) ||
       !reader.u64(statistics.coplanar_overlap_component_count) ||
@@ -1139,6 +1241,8 @@ bool parse_relation_artifact_envelope(
       statistics.public_relation_count + statistics.bookkeeping_relation_count !=
           envelope.relation_count ||
       statistics.construction_count != envelope.construction_count ||
+      statistics.construction_ledger_count !=
+          envelope.construction_ledger_count ||
       statistics.coplanar_event_node_count !=
           envelope.coplanar_event_node_count ||
       statistics.coplanar_oriented_arc_count !=

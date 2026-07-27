@@ -2,6 +2,7 @@
 
 #include "CoplanarRelationOverlay.h"
 #include "RelationCanonicalization.h"
+#include "RelationConstructionPolicy.h"
 #include "RelationEventSeeds.h"
 
 #include <algorithm>
@@ -298,6 +299,82 @@ void set_construction_components(relation_construction_record &out,
   }
 }
 
+
+template <class T>
+void set_construction_geometry(
+    relation_construction_record &out,
+    const relation_construction_policy_detail::geometry_snapshot<T> &geometry) {
+  out.kind = geometry.kind;
+  out.coordinate_space = geometry.coordinate_space;
+  out.component_count = geometry.component_count;
+  out.projection_axis = geometry.projection_axis;
+  for (std::size_t component = 0; component < geometry.component_count;
+       ++component) {
+    out.nominal_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.nominal[component]));
+    out.lower_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.lower[component]));
+    out.upper_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.upper[component]));
+  }
+  out.source_provenance = geometry.provenance;
+  out.geometric_lineage = geometry.lineage;
+  out.accepted_source_vertex = geometry.accepted_source_vertex;
+  out.finite = geometry.finite;
+  out.tolerance_compatible = geometry.tolerance_compatible;
+}
+
+template <class T>
+void set_construction_ledger_geometry(
+    relation_construction_ledger_record &out,
+    const relation_construction_policy_detail::geometry_snapshot<T> &geometry) {
+  out.coordinate_space = geometry.coordinate_space;
+  out.component_count = geometry.component_count;
+  out.projection_axis = geometry.projection_axis;
+  for (std::size_t component = 0; component < geometry.component_count;
+       ++component) {
+    out.nominal_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.nominal[component]));
+    out.lower_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.lower[component]));
+    out.upper_bits[component] =
+        static_cast<std::uint64_t>(to_bits(geometry.upper[component]));
+  }
+  out.source_provenance = geometry.provenance;
+  out.geometric_lineage = geometry.lineage;
+  out.accepted_source_vertex = geometry.accepted_source_vertex;
+  out.finite = geometry.finite;
+  out.tolerance_compatible = geometry.tolerance_compatible;
+}
+
+template <class T>
+relation_construction_policy_detail::geometry_snapshot<T>
+construction_geometry_from_record(
+    const relation_construction_record &record) noexcept {
+  relation_construction_policy_detail::geometry_snapshot<T> out;
+  out.kind = record.kind;
+  out.coordinate_space = record.coordinate_space;
+  out.component_count = record.component_count;
+  out.projection_axis = record.projection_axis;
+  for (std::size_t component = 0; component < record.component_count &&
+                                  component < out.nominal.size();
+       ++component) {
+    using bits_type = floating_uint_t<T>;
+    out.nominal[component] =
+        from_bits<T>(static_cast<bits_type>(record.nominal_bits[component]));
+    out.lower[component] =
+        from_bits<T>(static_cast<bits_type>(record.lower_bits[component]));
+    out.upper[component] =
+        from_bits<T>(static_cast<bits_type>(record.upper_bits[component]));
+  }
+  out.provenance = record.source_provenance;
+  out.lineage = record.geometric_lineage;
+  out.accepted_source_vertex = record.accepted_source_vertex;
+  out.finite = record.finite;
+  out.tolerance_compatible = record.tolerance_compatible;
+  return out;
+}
+
 inline relation_feature_key sheet_occurrence_feature(
     const relation_feature_key &facet, std::uint32_t occurrence) noexcept {
   relation_feature_key out = facet;
@@ -402,6 +479,7 @@ public:
       artifact.truth_records_ = std::move(truth_records_);
       artifact.relations_ = std::move(relations_);
       artifact.constructions_ = std::move(constructions_);
+      artifact.construction_ledger_ = std::move(construction_ledger_);
       artifact.coplanar_event_nodes_ = std::move(coplanar_event_nodes_);
       artifact.coplanar_oriented_arcs_ = std::move(coplanar_oriented_arcs_);
       artifact.coplanar_overlap_components_ =
@@ -467,11 +545,17 @@ private:
   struct construction_descriptor final {
     relation_request_key key{};
     relation_request_key source_relation{};
-    relation_construction_kind kind = relation_construction_kind::bounded_point;
+    relation_request_key authoritative_source_relation{};
+    relation_construction_precedence precedence =
+        relation_construction_precedence::verification_witness;
+    relation_feature_key authoritative_source_feature{};
     relation_construction_record value{};
+    relation_construction_ledger_record ledger{};
     std::uint32_t occurrence = 0;
-    feature_relation_family seed_family = feature_relation_family::source_edge_source_edge;
+    feature_relation_family seed_family =
+        feature_relation_family::source_edge_source_edge;
     std::vector<relation_feature_key> incidence;
+    std::vector<relation_request_key> dependencies;
     bool emit_seed = false;
     bool distinct_occurrence = false;
     std::vector<candidate_id> witnesses;
@@ -1499,7 +1583,7 @@ private:
   void add_construction_proposal(const construction_descriptor &descriptor) {
     relation_request_proposal proposal;
     proposal.key = descriptor.key;
-    proposal.dependencies.push_back(descriptor.source_relation);
+    proposal.dependencies = descriptor.dependencies;
     proposal.candidate_witnesses = descriptor.witnesses;
     proposals_.push_back(std::move(proposal));
   }
@@ -1560,35 +1644,120 @@ private:
 
   bool discover_constructions_and_symbolics(bounded_boolean_error &error) {
     using namespace relation_artifact_assembly_detail;
+    using namespace relation_construction_policy_detail;
+
+    const auto append_use =
+        [&](const base_descriptor &base, const authority<T> &authority_record,
+            const geometry_snapshot<T> &witness_geometry,
+            relation_construction_precedence witness_precedence,
+            std::uint32_t occurrence, feature_relation_family seed_family,
+            std::vector<relation_feature_key> incidence, bool emit_seed,
+            bool distinct_occurrence) -> bool {
+      if (!valid_relation_request_key(authority_record.key))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 construction authority key is invalid",
+                    relation_checkpoint::construction_validation);
+      if (!valid_relation_request_key(authority_record.source_relation))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 construction source relation is invalid",
+                    relation_checkpoint::construction_validation);
+      if (!valid_geometry(authority_record.geometry))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 construction authority geometry is invalid",
+                    relation_checkpoint::construction_validation);
+      if (!valid_geometry(witness_geometry))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 construction witness geometry is invalid",
+                    relation_checkpoint::construction_validation);
+      if (!compatible_geometry(authority_record.geometry, witness_geometry)) {
+        const char *message =
+            "Component 07 construction witness is incompatible with its authority";
+        switch (witness_precedence) {
+        case relation_construction_precedence::accepted_source_vertex:
+          message = "Component 07 source-vertex construction witness is incompatible with its authority";
+          break;
+        case relation_construction_precedence::source_edge_source_edge_point:
+          message = "Component 07 edge-edge construction witness is incompatible with its authority";
+          break;
+        case relation_construction_precedence::source_edge_source_facet_point:
+          message = "Component 07 edge-facet construction witness is incompatible with its authority";
+          break;
+        case relation_construction_precedence::coplanar_overlap_endpoint:
+          message = "Component 07 coplanar construction witness is incompatible with its authority";
+          break;
+        case relation_construction_precedence::source_facet_source_facet_carrier:
+          message = "Component 07 facet-carrier construction witness is incompatible with its authority";
+          break;
+        case relation_construction_precedence::verification_witness:
+          break;
+        }
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    message, relation_checkpoint::construction_validation);
+      }
+
+      construction_descriptor descriptor;
+      descriptor.key = authority_record.key;
+      descriptor.source_relation = base.key;
+      descriptor.authoritative_source_relation =
+          authority_record.source_relation;
+      descriptor.precedence = authority_record.precedence;
+      descriptor.authoritative_source_feature = authority_record.source_feature;
+      descriptor.value.precedence = authority_record.precedence;
+      descriptor.value.authoritative_source_feature = authority_record.source_feature;
+      descriptor.value.tolerance_boundary_bits =
+          static_cast<std::uint64_t>(to_bits(precision_.tolerance()));
+      descriptor.value.precision_evidence_complete = true;
+      set_construction_geometry(descriptor.value, authority_record.geometry);
+
+      descriptor.ledger.precedence = witness_precedence;
+      descriptor.ledger.occurrence = occurrence;
+      descriptor.ledger.tolerance_boundary_bits =
+          static_cast<std::uint64_t>(to_bits(precision_.tolerance()));
+      descriptor.ledger.lineage_compatible = true;
+      descriptor.ledger.enclosure_compatible = true;
+      descriptor.ledger.parameter_compatible = true;
+      descriptor.ledger.residual_compatible = true;
+      descriptor.ledger.precision_evidence_complete = true;
+      set_construction_ledger_geometry(descriptor.ledger, witness_geometry);
+
+      descriptor.occurrence = occurrence;
+      descriptor.seed_family = seed_family;
+      descriptor.incidence = std::move(incidence);
+      descriptor.emit_seed = emit_seed;
+      descriptor.distinct_occurrence = distinct_occurrence;
+      descriptor.witnesses = base.witnesses;
+      construction_uses_.push_back(std::move(descriptor));
+      return true;
+    };
+
     for (const auto &base : bases_) {
       switch (base.kind) {
       case base_kind::edge: {
         const auto &source = edge_stage_->relations[base.ordinal];
         std::vector<relation_request_key> point_keys;
         for (std::uint32_t point = 0; point < source.point_count; ++point) {
-          construction_descriptor descriptor;
-          descriptor.key = derived_key(
-              base.key, relation_request_family::authoritative_construction,
-              tagged_use(10, 1), point);
-          descriptor.source_relation = base.key;
-          descriptor.kind = relation_construction_kind::bounded_point;
-          descriptor.value.kind = descriptor.kind;
-          set_construction_components(descriptor.value,
-                                      source.points[point].point.rounded_nominal,
-                                      source.points[point].point.enclosure);
-          descriptor.value.finite = true;
-          descriptor.value.tolerance_compatible =
-              source.points[point].tolerance_compatible;
-          descriptor.occurrence = point;
-          descriptor.seed_family = base.family;
-          descriptor.incidence = {base.key.first, base.key.second};
-          descriptor.emit_seed = source.contact != source_edge_contact_class::none;
-          descriptor.distinct_occurrence =
-              source.contact == source_edge_contact_class::equal;
-          descriptor.witnesses = base.witnesses;
-          constructions_desc_.push_back(descriptor);
-          point_keys.push_back(descriptor.key);
-          add_construction_proposal(constructions_desc_.back());
+          authority<T> authority_record;
+          if (!edge_point_authority(*candidates_, base.key, source, point,
+                                    authority_record))
+            return fail(error, relation_subcode::source_edge_relation_invariant,
+                        "Component 07 edge-point construction authority is unresolved",
+                        relation_checkpoint::construction_validation);
+          const auto witness_geometry = geometry_from_point(
+              source.points[point].point,
+              source.points[point].accepted_source_vertex,
+              source.points[point].tolerance_compatible);
+          const auto witness_precedence =
+              source.points[point].accepted_source_vertex
+                  ? relation_construction_precedence::accepted_source_vertex
+                  : relation_construction_precedence::
+                        source_edge_source_edge_point;
+          if (!append_use(base, authority_record, witness_geometry,
+                          witness_precedence, point, base.family,
+                          {base.key.first, base.key.second},
+                          source.contact != source_edge_contact_class::none,
+                          source.contact == source_edge_contact_class::equal))
+            return false;
+          point_keys.push_back(authority_record.key);
         }
         if (source.contact != source_edge_contact_class::none &&
             source.contact != source_edge_contact_class::proper_crossing) {
@@ -1617,9 +1786,9 @@ private:
         multiplicity_proposal.candidate_witnesses = base.witnesses;
         proposals_.push_back(std::move(multiplicity_proposal));
         if (!multiplicity_keys_.emplace(base.key, multiplicity).second)
-        return fail(error, relation_subcode::incompatible_duplicate_request,
-                    "Component 07 multiplicity request is duplicated",
-                    relation_checkpoint::crossing_multiplicity);
+          return fail(error, relation_subcode::incompatible_duplicate_request,
+                      "Component 07 multiplicity request is duplicated",
+                      relation_checkpoint::crossing_multiplicity);
 
         for (std::size_t local_event = 0; local_event < source.events.size();
              ++local_event) {
@@ -1633,34 +1802,34 @@ private:
                   base, static_cast<std::uint32_t>(local_event), occurrence,
                   error))
             return false;
-          construction_descriptor descriptor;
-          descriptor.key = derived_key(
-              base.key, relation_request_family::authoritative_construction,
-              tagged_use(10, static_cast<std::uint8_t>(event.kind)),
-              occurrence);
-          descriptor.source_relation = base.key;
-          descriptor.kind = relation_construction_kind::bounded_point;
-          descriptor.value.kind = descriptor.kind;
-          set_construction_components(
-              descriptor.value, event.construction.point.rounded_nominal,
-              event.construction.point.enclosure);
-          descriptor.value.finite = true;
-          descriptor.value.tolerance_compatible =
-              event.construction.tolerance_compatible;
-          descriptor.occurrence = occurrence;
-          descriptor.seed_family = base.family;
-          descriptor.incidence = {base.key.first, base.key.second};
-          descriptor.emit_seed = true;
-          descriptor.distinct_occurrence = false;
-          descriptor.witnesses = base.witnesses;
-          constructions_desc_.push_back(descriptor);
-          add_construction_proposal(constructions_desc_.back());
+          authority<T> authority_record;
+          if (!edge_facet_event_authority(
+                  *candidates_, *edge_stage_, base.key, source, event,
+                  occurrence, authority_record))
+            return fail(error, relation_subcode::source_edge_facet_invariant,
+                        "Component 07 edge/facet construction authority is unresolved",
+                        relation_checkpoint::construction_validation);
+          const auto witness_geometry = geometry_from_point(
+              event.construction.point,
+              event.construction.accepted_source_vertex,
+              event.construction.tolerance_compatible);
+          const auto witness_precedence =
+              event.construction.accepted_source_vertex ||
+                      event.region.classification ==
+                          source_facet_point_region_class::original_vertex
+                  ? relation_construction_precedence::accepted_source_vertex
+                  : relation_construction_precedence::
+                        source_edge_source_facet_point;
+          if (!append_use(base, authority_record, witness_geometry,
+                          witness_precedence, occurrence, base.family,
+                          {base.key.first, base.key.second}, true, false))
+            return false;
 
           if (event.kind != source_edge_facet_event_kind::proper_face_crossing) {
             add_symbolic_descriptor(
                 base, symbolic_family_for_edge_facet(event.kind, source.contact),
                 orientation_relation::indeterminate, occurrence,
-                &descriptor.key, &multiplicity);
+                &authority_record.key, &multiplicity);
           }
         }
         break;
@@ -1668,23 +1837,19 @@ private:
       case base_kind::facet: {
         const auto &source = facet_stage_->relations[base.ordinal];
         if (source.has_transverse_carrier) {
-          construction_descriptor descriptor;
-          descriptor.key = derived_key(
-              base.key, relation_request_family::authoritative_construction,
-              tagged_use(10, 3), 0);
-          descriptor.source_relation = base.key;
-          descriptor.kind = relation_construction_kind::bounded_carrier;
-          descriptor.value.kind = descriptor.kind;
-          set_construction_components(descriptor.value,
-                                      source.transverse_carrier.point,
-                                      source.transverse_carrier.direction);
-          descriptor.value.finite = true;
-          descriptor.value.tolerance_compatible =
-              source.transverse_carrier.residuals_accepted;
-          descriptor.seed_family = base.family;
-          descriptor.witnesses = base.witnesses;
-          constructions_desc_.push_back(descriptor);
-          add_construction_proposal(constructions_desc_.back());
+          authority<T> authority_record;
+          if (!carrier_authority(base.key, source.transverse_carrier,
+                                 authority_record))
+            return fail(error, relation_subcode::source_facet_carrier_unresolved,
+                        "Component 07 facet carrier construction authority is unresolved",
+                        relation_checkpoint::construction_validation);
+          if (!append_use(
+                  base, authority_record,
+                  geometry_from_carrier(source.transverse_carrier),
+                  relation_construction_precedence::
+                      source_facet_source_facet_carrier,
+                  0, base.family, {}, false, false))
+            return false;
         }
         if (source.classification ==
                 source_facet_support_relation_class::coplanar_same_orientation ||
@@ -1702,29 +1867,30 @@ private:
             return fail(error, relation_subcode::count_overflow,
                         "Component 07 coplanar event occurrence is not representable",
                         relation_checkpoint::count_representability_preflight);
-          construction_descriptor descriptor;
-          descriptor.key = derived_key(
-              base.key, relation_request_family::authoritative_construction,
-              tagged_use(10, 4), static_cast<std::uint32_t>(node.id));
-          descriptor.source_relation = base.key;
-          descriptor.kind = relation_construction_kind::bounded_point;
-          descriptor.value.kind = descriptor.kind;
-          set_construction_components(descriptor.value, node.representative);
-          descriptor.value.finite = true;
-          descriptor.value.tolerance_compatible = true;
-          descriptor.occurrence = static_cast<std::uint32_t>(node.id);
-          descriptor.seed_family = base.family;
-          descriptor.incidence = {base.key.first, base.key.second};
+          authority<T> authority_record;
+          if (!overlay_node_authority(*candidates_, *edge_stage_, base.key,
+                                      source, node, authority_record))
+            return fail(error, relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 overlay construction authority is unresolved",
+                        relation_checkpoint::construction_validation);
+          std::vector<relation_feature_key> incidence{
+              base.key.first, base.key.second};
           for (const auto &occurrence : node.occurrences) {
             const auto &facet = source.facets[occurrence.polygon].feature;
-            descriptor.incidence.push_back(sheet_occurrence_feature(
+            incidence.push_back(sheet_occurrence_feature(
                 facet, static_cast<std::uint32_t>(occurrence.polygon)));
           }
-          descriptor.emit_seed = true;
-          descriptor.distinct_occurrence = source.distinct_sheet_occurrences;
-          descriptor.witnesses = base.witnesses;
-          constructions_desc_.push_back(descriptor);
-          add_construction_proposal(constructions_desc_.back());
+          const auto witness_geometry = geometry_from_projected(
+              node.representative, source.facets[0].dropped_axis,
+              authority_record.precedence ==
+                  relation_construction_precedence::accepted_source_vertex);
+          if (!append_use(
+                  base, authority_record, witness_geometry,
+                  relation_construction_precedence::coplanar_overlap_endpoint,
+                  static_cast<std::uint32_t>(node.id), base.family,
+                  std::move(incidence), true,
+                  source.distinct_sheet_occurrences))
+            return false;
         }
         if (source.classification != coplanar_facet_overlay_class::disjoint)
           add_symbolic_descriptor(
@@ -1735,14 +1901,92 @@ private:
       }
     }
 
-    std::sort(constructions_desc_.begin(), constructions_desc_.end(),
-              [](const construction_descriptor &a,
-                 const construction_descriptor &b) { return a.key < b.key; });
-    for (std::size_t i = 1; i < constructions_desc_.size(); ++i)
-      if (constructions_desc_[i - 1].key == constructions_desc_[i].key)
-        return fail(error, relation_subcode::duplicate_authoritative_producer,
-                    "Component 07 authoritative construction key is duplicated",
-                    relation_checkpoint::construction_validation);
+    std::sort(
+        construction_uses_.begin(), construction_uses_.end(),
+        [](const construction_descriptor &a,
+           const construction_descriptor &b) {
+          return std::tie(a.key, a.precedence,
+                          a.authoritative_source_relation, a.source_relation,
+                          a.occurrence) <
+                 std::tie(b.key, b.precedence,
+                          b.authoritative_source_relation, b.source_relation,
+                          b.occurrence);
+        });
+
+    for (std::size_t begin = 0; begin < construction_uses_.size();) {
+      std::size_t end = begin + 1;
+      while (end < construction_uses_.size() &&
+             construction_uses_[end].key == construction_uses_[begin].key)
+        ++end;
+      construction_descriptor authoritative = construction_uses_[begin];
+      authoritative.dependencies.clear();
+      authoritative.witnesses.clear();
+      authoritative.emit_seed = false;
+      authoritative.incidence.clear();
+      authoritative.value.ledger_begin = begin + constructions_desc_.size();
+      authoritative.value.ledger_count = (end - begin) + 1;
+
+      const auto authority_geometry =
+          construction_geometry_from_record<T>(authoritative.value);
+      for (std::size_t index = begin; index < end; ++index) {
+        auto &use = construction_uses_[index];
+        const auto candidate_geometry =
+            construction_geometry_from_record<T>(use.value);
+        if (use.precedence != authoritative.precedence ||
+            use.authoritative_source_feature !=
+                authoritative.authoritative_source_feature ||
+            !same_geometry(authority_geometry, candidate_geometry))
+          return fail(error, relation_subcode::duplicate_authoritative_producer,
+                      "Component 07 construction authorities disagree within one lineage key",
+                      relation_checkpoint::construction_validation);
+        geometry_snapshot<T> witness;
+        witness.kind = use.value.kind;
+        witness.coordinate_space = use.ledger.coordinate_space;
+        witness.component_count = use.ledger.component_count;
+        witness.projection_axis = use.ledger.projection_axis;
+        for (std::size_t component = 0;
+             component < witness.component_count; ++component) {
+          using bits_type = floating_uint_t<T>;
+          witness.nominal[component] = from_bits<T>(
+              static_cast<bits_type>(use.ledger.nominal_bits[component]));
+          witness.lower[component] = from_bits<T>(
+              static_cast<bits_type>(use.ledger.lower_bits[component]));
+          witness.upper[component] = from_bits<T>(
+              static_cast<bits_type>(use.ledger.upper_bits[component]));
+        }
+        witness.provenance = use.ledger.source_provenance;
+        witness.lineage = use.ledger.geometric_lineage;
+        witness.accepted_source_vertex = use.ledger.accepted_source_vertex;
+        witness.finite = use.ledger.finite;
+        witness.tolerance_compatible = use.ledger.tolerance_compatible;
+        if (!compatible_geometry(authority_geometry, witness))
+          return fail(error, relation_subcode::duplicate_authoritative_producer,
+                      "Component 07 secondary construction witness conflicts with authority",
+                      relation_checkpoint::construction_validation);
+        authoritative.dependencies.push_back(use.source_relation);
+        authoritative.dependencies.push_back(
+            use.authoritative_source_relation);
+        authoritative.witnesses.insert(authoritative.witnesses.end(),
+                                       use.witnesses.begin(),
+                                       use.witnesses.end());
+      }
+      std::sort(authoritative.dependencies.begin(),
+                authoritative.dependencies.end());
+      authoritative.dependencies.erase(
+          std::unique(authoritative.dependencies.begin(),
+                      authoritative.dependencies.end()),
+          authoritative.dependencies.end());
+      std::sort(authoritative.witnesses.begin(),
+                authoritative.witnesses.end());
+      authoritative.witnesses.erase(
+          std::unique(authoritative.witnesses.begin(),
+                      authoritative.witnesses.end()),
+          authoritative.witnesses.end());
+      constructions_desc_.push_back(std::move(authoritative));
+      add_construction_proposal(constructions_desc_.back());
+      begin = end;
+    }
+
     std::sort(symbolics_.begin(), symbolics_.end(),
               [](const symbolic_descriptor &a, const symbolic_descriptor &b) {
                 return a.eligibility_key < b.eligibility_key;
@@ -1753,7 +1997,7 @@ private:
                     "Component 07 symbolic eligibility key is duplicated",
                     relation_checkpoint::symbolic_eligibility);
 
-    for (const auto &descriptor : constructions_desc_) {
+    for (const auto &descriptor : construction_uses_) {
       if (!descriptor.emit_seed)
         continue;
       relation_request_proposal seed;
@@ -2027,27 +2271,176 @@ private:
   }
 
   bool publish_constructions(bounded_boolean_error &error) {
+    struct evidence_range final {
+      std::uint64_t begin = 0;
+      std::uint64_t count = 0;
+    };
+    std::vector<evidence_range> interval_ranges(relations_.size());
+    std::vector<evidence_range> region_ranges(relations_.size());
+    const auto accumulate_range =
+        [&](auto &ranges, feature_relation_id relation,
+            std::uint64_t index) {
+          if (relation.ordinal() >= ranges.size())
+            return false;
+          auto &range = ranges[relation.ordinal()];
+          if (range.count == 0)
+            range.begin = index;
+          else if (range.begin + range.count != index)
+            return false;
+          ++range.count;
+          return true;
+        };
+    for (std::size_t index = 0; index < interval_evidence_.size(); ++index)
+      if (!accumulate_range(interval_ranges,
+                            interval_evidence_[index].source_relation,
+                            index))
+        return fail(error, relation_subcode::internal_invariant,
+                    "Component 07 construction interval evidence is not contiguous",
+                    relation_checkpoint::producer_verification);
+    for (std::size_t index = 0; index < source_facet_regions_.size(); ++index)
+      if (!accumulate_range(region_ranges,
+                            source_facet_regions_[index].source_relation,
+                            index))
+        return fail(error, relation_subcode::internal_invariant,
+                    "Component 07 construction region evidence is not contiguous",
+                    relation_checkpoint::producer_verification);
+
+    std::uint64_t ledger_count = 0;
+    if (!checked_add<std::uint64_t>(
+            static_cast<std::uint64_t>(construction_uses_.size()),
+            static_cast<std::uint64_t>(constructions_desc_.size()),
+            ledger_count) ||
+        ledger_count >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<std::size_t>::max()))
+      return fail(error, relation_subcode::count_overflow,
+                  "Component 07 construction-ledger count is not addressable",
+                  relation_checkpoint::count_representability_preflight);
+
     constructions_.reserve(constructions_desc_.size());
+    construction_ledger_.reserve(static_cast<std::size_t>(ledger_count));
+    std::size_t use_begin = 0;
     for (const auto &descriptor : constructions_desc_) {
       const auto *producer =
           relation_artifact_assembly_detail::find_request(graph_, descriptor.key);
-      if (!producer || relation_ids_.find(descriptor.source_relation) ==
-                           relation_ids_.end())
+      const auto source_relation =
+          relation_ids_.find(descriptor.authoritative_source_relation);
+      if (!producer || source_relation == relation_ids_.end())
         return fail(error, relation_subcode::missing_dependency,
-                    "Component 07 construction producer or source relation is absent",
+                    "Component 07 construction producer or authoritative source relation is absent",
                     relation_checkpoint::canonical_id_and_reference_remap);
+      while (use_begin < construction_uses_.size() &&
+             construction_uses_[use_begin].key < descriptor.key)
+        ++use_begin;
+      std::size_t use_end = use_begin;
+      while (use_end < construction_uses_.size() &&
+             construction_uses_[use_end].key == descriptor.key)
+        ++use_end;
+      if (use_begin == use_end)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 construction has no retained witness",
+                    relation_checkpoint::producer_verification);
+
       relation_construction_record record = descriptor.value;
       record.id = relation_construction_id(constructions_.size());
       record.producer = producer->id;
+      record.source_relation = source_relation->second;
+      record.consumer_begin = producer->reverse_consumer_begin;
+      record.consumer_count = producer->reverse_consumer_count;
+      record.ledger_begin = construction_ledger_.size();
+      record.ledger_count = (use_end - use_begin) + 1;
+      const auto &relation = relations_[record.source_relation.ordinal()];
+      record.residual_truth_begin = relation.truth_begin;
+      record.residual_truth_count = relation.truth_count;
+      record.interval_evidence_begin =
+          interval_ranges[record.source_relation.ordinal()].begin;
+      record.interval_evidence_count =
+          interval_ranges[record.source_relation.ordinal()].count;
+      record.source_facet_region_begin =
+          region_ranges[record.source_relation.ordinal()].begin;
+      record.source_facet_region_count =
+          region_ranges[record.source_relation.ordinal()].count;
       constructions_.push_back(record);
       if (!construction_ids_.emplace(descriptor.key, record.id).second)
         return fail(error, relation_subcode::incompatible_duplicate_request,
                     "Component 07 construction key is duplicated",
                     relation_checkpoint::canonical_id_and_reference_remap);
+
+      relation_construction_ledger_record authority_entry;
+      authority_entry.id =
+          relation_construction_ledger_id(construction_ledger_.size());
+      authority_entry.construction = record.id;
+      authority_entry.source_relation = record.source_relation;
+      authority_entry.precedence = record.precedence;
+      authority_entry.coordinate_space = record.coordinate_space;
+      authority_entry.component_count = record.component_count;
+      authority_entry.projection_axis = record.projection_axis;
+      authority_entry.nominal_bits = record.nominal_bits;
+      authority_entry.lower_bits = record.lower_bits;
+      authority_entry.upper_bits = record.upper_bits;
+      authority_entry.source_provenance = record.source_provenance;
+      authority_entry.geometric_lineage = record.geometric_lineage;
+      authority_entry.accepted_source_vertex = record.accepted_source_vertex;
+      authority_entry.finite = record.finite;
+      authority_entry.tolerance_compatible = record.tolerance_compatible;
+      authority_entry.synthetic_authority = true;
+      authority_entry.lineage_compatible = true;
+      authority_entry.enclosure_compatible = true;
+      authority_entry.parameter_compatible = true;
+      authority_entry.residual_compatible = true;
+      authority_entry.precision_evidence_complete =
+          record.precision_evidence_complete;
+      authority_entry.tolerance_boundary_bits =
+          record.tolerance_boundary_bits;
+      authority_entry.truth_begin = record.residual_truth_begin;
+      authority_entry.truth_count = record.residual_truth_count;
+      authority_entry.interval_evidence_begin =
+          record.interval_evidence_begin;
+      authority_entry.interval_evidence_count =
+          record.interval_evidence_count;
+      authority_entry.source_facet_region_begin =
+          record.source_facet_region_begin;
+      authority_entry.source_facet_region_count =
+          record.source_facet_region_count;
+      construction_ledger_.push_back(authority_entry);
+
+      for (std::size_t index = use_begin; index < use_end; ++index) {
+        const auto &use = construction_uses_[index];
+        const auto witness_relation = relation_ids_.find(use.source_relation);
+        if (witness_relation == relation_ids_.end())
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 construction witness relation is absent",
+                      relation_checkpoint::canonical_id_and_reference_remap);
+        relation_construction_ledger_record witness = use.ledger;
+        witness.id =
+            relation_construction_ledger_id(construction_ledger_.size());
+        witness.construction = record.id;
+        witness.source_relation = witness_relation->second;
+        witness.synthetic_authority = false;
+        const auto &source = relations_[witness.source_relation.ordinal()];
+        witness.truth_begin = source.truth_begin;
+        witness.truth_count = source.truth_count;
+        witness.interval_evidence_begin =
+            interval_ranges[witness.source_relation.ordinal()].begin;
+        witness.interval_evidence_count =
+            interval_ranges[witness.source_relation.ordinal()].count;
+        witness.source_facet_region_begin =
+            region_ranges[witness.source_relation.ordinal()].begin;
+        witness.source_facet_region_count =
+            region_ranges[witness.source_relation.ordinal()].count;
+        construction_ledger_.push_back(witness);
+      }
+      use_begin = use_end;
     }
-    if (constructions_.size() > capabilities_.maximum_constructions)
+    if (use_begin != construction_uses_.size())
+      return fail(error, relation_subcode::internal_invariant,
+                  "Component 07 construction witness grouping is incomplete",
+                  relation_checkpoint::producer_verification);
+    if (constructions_.size() > capabilities_.maximum_constructions ||
+        construction_ledger_.size() >
+            capabilities_.maximum_construction_ledger)
       return fail(error, relation_subcode::work_limit,
-                  "Component 07 construction table exceeds capacity",
+                  "Component 07 construction registry exceeds capacity",
                   relation_checkpoint::count_representability_preflight);
     return true;
   }
@@ -2083,11 +2476,14 @@ private:
           return fail(error, relation_subcode::coplanar_overlay_invariant,
                       "Component 07 coplanar event node is malformed",
                       relation_checkpoint::producer_verification);
-        const auto construction_key = relation_artifact_assembly_detail::derived_key(
-            base.key, relation_request_family::authoritative_construction,
-            relation_artifact_assembly_detail::tagged_use(10, 4),
-            static_cast<std::uint32_t>(local));
-        const auto construction = construction_ids_.find(construction_key);
+        relation_construction_policy_detail::authority<T> node_authority;
+        if (!relation_construction_policy_detail::overlay_node_authority(
+                *candidates_, *edge_stage_, base.key, source, node,
+                node_authority))
+          return fail(error, relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 coplanar node authority is unresolved",
+                      relation_checkpoint::construction_validation);
+        const auto construction = construction_ids_.find(node_authority.key);
         if (construction == construction_ids_.end())
           return fail(error, relation_subcode::missing_dependency,
                       "Component 07 coplanar node construction is absent",
@@ -2811,7 +3207,7 @@ private:
   bool publish_event_seeds(bounded_boolean_error &error) {
     using namespace relation_artifact_assembly_detail;
     std::vector<relation_event_seed_proposal> proposals;
-    for (const auto &descriptor : constructions_desc_) {
+    for (const auto &descriptor : construction_uses_) {
       if (!descriptor.emit_seed)
         continue;
       const auto relation = relation_ids_.find(descriptor.source_relation);
@@ -2936,6 +3332,8 @@ private:
       else
         ++artifact.statistics_.bookkeeping_relation_count;
     artifact.statistics_.construction_count = artifact.constructions_.size();
+    artifact.statistics_.construction_ledger_count =
+        artifact.construction_ledger_.size();
     artifact.statistics_.coplanar_event_node_count =
         artifact.coplanar_event_nodes_.size();
     artifact.statistics_.coplanar_oriented_arc_count =
@@ -2957,7 +3355,8 @@ private:
         artifact.bounded_primitives_.size() + artifact.exact_relations_.size() +
         artifact.truth_lineage_.size() + artifact.interval_evidence_.size() +
         artifact.source_facet_regions_.size() + artifact.relations_.size() +
-        artifact.constructions_.size() + artifact.coplanar_event_nodes_.size() +
+        artifact.constructions_.size() + artifact.construction_ledger_.size() +
+        artifact.coplanar_event_nodes_.size() +
         artifact.coplanar_oriented_arcs_.size() +
         artifact.coplanar_overlap_components_.size() +
         artifact.symbolic_decisions_.size() + artifact.crossings_.size() +
@@ -2977,6 +3376,7 @@ private:
   std::vector<relation_request_proposal> proposals_;
   std::vector<base_descriptor> bases_;
   std::vector<construction_descriptor> constructions_desc_;
+  std::vector<construction_descriptor> construction_uses_;
   std::vector<interval_descriptor> interval_desc_;
   std::vector<region_descriptor> region_desc_;
   std::vector<symbolic_descriptor> symbolics_;
@@ -2998,6 +3398,7 @@ private:
   std::vector<relation_truth_record> truth_records_;
   std::vector<feature_relation_record> relations_;
   std::vector<relation_construction_record> constructions_;
+  std::vector<relation_construction_ledger_record> construction_ledger_;
   std::vector<relation_coplanar_event_node_record> coplanar_event_nodes_;
   std::vector<relation_coplanar_oriented_arc_record> coplanar_oriented_arcs_;
   std::vector<relation_coplanar_overlap_component_record>

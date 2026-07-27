@@ -20,6 +20,7 @@ struct relation_truth_lineage_tag;
 struct relation_interval_evidence_tag;
 struct relation_source_facet_region_tag;
 struct relation_construction_tag;
+struct relation_construction_ledger_tag;
 struct symbolic_relation_decision_tag;
 struct relation_event_seed_tag;
 struct relation_coplanar_event_node_tag;
@@ -38,6 +39,8 @@ using relation_truth_lineage_id = strong_id<relation_truth_lineage_tag>;
 using relation_interval_evidence_id = strong_id<relation_interval_evidence_tag>;
 using relation_source_facet_region_id = strong_id<relation_source_facet_region_tag>;
 using relation_construction_id = strong_id<relation_construction_tag>;
+using relation_construction_ledger_id =
+    strong_id<relation_construction_ledger_tag>;
 using symbolic_relation_decision_id = strong_id<symbolic_relation_decision_tag>;
 using relation_event_seed_id = strong_id<relation_event_seed_tag>;
 using relation_coplanar_event_node_id =
@@ -169,6 +172,21 @@ enum class relation_construction_kind : std::uint8_t {
   bounded_parameter = 2,
   bounded_interval = 3,
   bounded_carrier = 4,
+};
+
+// Fixed Plan 07 authority precedence. Lower values are more authoritative.
+enum class relation_construction_precedence : std::uint8_t {
+  accepted_source_vertex = 1,
+  source_edge_source_edge_point = 2,
+  source_edge_source_facet_point = 3,
+  coplanar_overlap_endpoint = 4,
+  source_facet_source_facet_carrier = 5,
+  verification_witness = 6,
+};
+
+enum class relation_construction_coordinate_space : std::uint8_t {
+  world_3d = 1,
+  source_facet_projection = 2,
 };
 
 enum class symbolic_relation_side : std::int8_t {
@@ -315,6 +333,7 @@ struct relation_capabilities final {
   std::uint64_t maximum_consumers = (std::uint64_t{1} << 35);
   std::uint64_t maximum_relations = (std::uint64_t{1} << 34);
   std::uint64_t maximum_constructions = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_construction_ledger = (std::uint64_t{1} << 35);
   std::uint64_t maximum_interval_evidence = (std::uint64_t{1} << 36);
   std::uint64_t maximum_region_records = (std::uint64_t{1} << 36);
   std::uint64_t maximum_symbolic_decisions = (std::uint64_t{1} << 34);
@@ -345,6 +364,7 @@ struct relation_statistics final {
   std::uint64_t public_relation_count = 0;
   std::uint64_t bookkeeping_relation_count = 0;
   std::uint64_t construction_count = 0;
+  std::uint64_t construction_ledger_count = 0;
   std::uint64_t coplanar_event_node_count = 0;
   std::uint64_t coplanar_oriented_arc_count = 0;
   std::uint64_t coplanar_overlap_component_count = 0;

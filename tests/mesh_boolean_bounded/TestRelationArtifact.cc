@@ -54,8 +54,29 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &constructions(signed_feature_relations<T, I> &artifact) {
+    return artifact.constructions_;
+  }
+
+  template <class T, class I>
+  static auto &construction_ledger(signed_feature_relations<T, I> &artifact) {
+    return artifact.construction_ledger_;
+  }
+
+  template <class T, class I>
   static auto &crossings(signed_feature_relations<T, I> &artifact) {
     return artifact.crossings_;
+  }
+
+  template <class T, class I>
+  static auto &event_seeds(signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seeds_;
+  }
+
+  template <class T, class I>
+  static auto &event_seed_incidence(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seed_incidence_;
   }
 
   template <class T, class I>
@@ -200,6 +221,8 @@ void test_nonempty_determinism_and_decode() {
               first->truth_lineage().size() == first->truth_records().size() &&
               !first->interval_evidence().empty() &&
               !first->source_facet_regions().empty() &&
+              !first->constructions().empty() &&
+              !first->construction_ledger().empty() &&
               first->candidate_dispositions().size() ==
                   first_fixture.artifact->candidates().size(),
           "nonempty artifact publishes primitive support, relations, and complete dispositions");
@@ -218,8 +241,57 @@ void test_nonempty_determinism_and_decode() {
               first->statistics().interval_evidence_count ==
                   first->interval_evidence().size() &&
               first->statistics().source_facet_region_count ==
-                  first->source_facet_regions().size(),
-          "primitive and family-04 evidence counts reconstruct from final records");
+                  first->source_facet_regions().size() &&
+              first->statistics().construction_count ==
+                  first->constructions().size() &&
+              first->statistics().construction_ledger_count ==
+                  first->construction_ledger().size(),
+          "primitive, family-04, and construction evidence counts reconstruct from final records");
+
+  std::size_t expected_ledger_begin = 0;
+  for (const auto &construction : first->constructions()) {
+    require(construction.id.ordinal() < first->constructions().size() &&
+                construction.ledger_begin == expected_ledger_begin &&
+                construction.ledger_count >= 2 &&
+                construction.ledger_begin + construction.ledger_count <=
+                    first->construction_ledger().size() &&
+                construction.source_relation.ordinal() <
+                    first->relations().size() &&
+                construction.precision_evidence_complete &&
+                construction.finite && construction.tolerance_compatible,
+            "each authoritative construction owns one complete contiguous ledger range");
+    const auto &authority =
+        first->construction_ledger()[construction.ledger_begin];
+    require(authority.id.ordinal() == construction.ledger_begin &&
+                authority.construction == construction.id &&
+                authority.source_relation == construction.source_relation &&
+                authority.precedence == construction.precedence &&
+                authority.synthetic_authority &&
+                authority.lineage_compatible &&
+                authority.enclosure_compatible &&
+                authority.parameter_compatible &&
+                authority.residual_compatible &&
+                authority.precision_evidence_complete,
+            "construction ledger begins with the reconstructed synthetic authority");
+    for (std::uint64_t offset = 1; offset < construction.ledger_count; ++offset) {
+      const auto &witness =
+          first->construction_ledger()[construction.ledger_begin + offset];
+      require(witness.id.ordinal() == construction.ledger_begin + offset &&
+                  witness.construction == construction.id &&
+                  witness.source_relation.ordinal() < first->relations().size() &&
+                  !witness.synthetic_authority &&
+                  witness.lineage_compatible &&
+                  witness.enclosure_compatible &&
+                  witness.parameter_compatible &&
+                  witness.residual_compatible &&
+                  witness.precision_evidence_complete,
+              "every construction witness retains complete compatibility evidence");
+    }
+    expected_ledger_begin += construction.ledger_count;
+  }
+  require(expected_ledger_begin == first->construction_ledger().size(),
+          "construction registry partitions the complete witness ledger");
+
   require(first->canonical_bytes() == second->canonical_bytes() &&
               first->digest() == second->digest(),
           "different runtime owner anchors produce identical relation semantics");
@@ -339,6 +411,52 @@ void test_matched_mutation_rejection() {
   require(!bounded::verify_signed_feature_relations(region_mutation, error),
           "matched source-facet-region mutation is independently rejected");
 
+  auto construction_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!construction_mutation.constructions().empty(),
+          "mutation fixture requires authoritative constructions");
+  auto &construction_record =
+      bounded::relation_artifact_test_access::constructions(
+          construction_mutation)
+          .front();
+  ++construction_record.authoritative_source_feature.primary;
+  bounded::relation_artifact_test_access::repair_codec(construction_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(construction_mutation, error),
+          "matched construction-authority mutation is independently rejected");
+
+  auto ledger_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(ledger_mutation.construction_ledger().size() >= 2,
+          "mutation fixture requires construction witness ledger entries");
+  auto &ledger =
+      bounded::relation_artifact_test_access::construction_ledger(
+          ledger_mutation);
+  const auto witness = std::find_if(
+      ledger.begin(), ledger.end(),
+      [](const auto &record) { return !record.synthetic_authority; });
+  require(witness != ledger.end(),
+          "mutation fixture requires a non-authority construction witness");
+  witness->enclosure_compatible = false;
+  bounded::relation_artifact_test_access::repair_codec(ledger_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(ledger_mutation, error),
+          "matched construction-ledger compatibility mutation is independently rejected");
+
+  auto seed_table_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!seed_table_mutation.event_seeds().empty(),
+          "mutation fixture requires event seeds");
+  bounded::relation_artifact_test_access::event_seeds(seed_table_mutation)
+      .clear();
+  bounded::relation_artifact_test_access::event_seed_incidence(
+      seed_table_mutation)
+      .clear();
+  bounded::relation_artifact_test_access::repair_codec(seed_table_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(seed_table_mutation, error),
+          "matched missing event-seed table is independently rejected");
+
   auto lineage_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);
   require(!lineage_mutation.truth_lineage().empty(),
@@ -380,6 +498,26 @@ void test_matched_mutation_rejection() {
       resource_policy::conservative_defaults());
   const auto symbolic_artifact =
       build_artifact(symbolic_source, &symbolic_resources);
+  bool saw_source_vertex_authority = false;
+  bool saw_cross_family_construction = false;
+  for (const auto &construction : symbolic_artifact->constructions()) {
+    if (construction.precedence !=
+        bounded::relation_construction_precedence::accepted_source_vertex)
+      continue;
+    saw_source_vertex_authority = true;
+    const auto authority_family = symbolic_artifact->relations()[
+        construction.source_relation.ordinal()].family;
+    for (std::uint64_t offset = 1; offset < construction.ledger_count; ++offset) {
+      const auto &witness = symbolic_artifact->construction_ledger()[
+          construction.ledger_begin + offset];
+      saw_cross_family_construction =
+          saw_cross_family_construction ||
+          symbolic_artifact->relations()[witness.source_relation.ordinal()].family !=
+              authority_family;
+    }
+  }
+  require(saw_source_vertex_authority && saw_cross_family_construction,
+          "accepted source vertices are deduplicated across edge-facet and coplanar relation families");
   require(!symbolic_artifact->symbolic_eligibility().empty() &&
               symbolic_artifact->symbolic_eligibility().size() ==
                   symbolic_artifact->symbolic_decisions().size(),
@@ -545,6 +683,25 @@ void test_resource_boundary_and_cancellation() {
   require_no_live_resources(
       limited_resources,
       "resource-limited relation build must release every lease");
+
+  auto ledger_limited_fixture = overlapping_fixture();
+  bounded::resource_manager ledger_limited_resources(
+      resource_policy::conservative_defaults());
+  auto ledger_limited_caps =
+      capabilities(ledger_limited_fixture, &ledger_limited_resources);
+  ledger_limited_caps.maximum_construction_ledger =
+      reference->construction_ledger().size() - 1;
+  auto ledger_limited = bounded::build_signed_feature_relations(
+      ledger_limited_fixture.predecessor.context,
+      *ledger_limited_fixture.predecessor.precision,
+      ledger_limited_fixture.artifact, ledger_limited_caps);
+  require(!ledger_limited.has_value() &&
+              ledger_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "construction-ledger limit-minus-one fails before publication");
+  require_no_live_resources(
+      ledger_limited_resources,
+      "construction-ledger capability failure must release every lease");
 
   auto cancelled_fixture = overlapping_fixture();
   bounded::resource_manager cancelled_resources(

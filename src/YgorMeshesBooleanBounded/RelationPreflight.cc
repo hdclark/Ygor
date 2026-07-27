@@ -94,6 +94,9 @@ bool preflight_relation_foundation(
                                        plan.construction_upper_bound) ||
       !checked_multiply<std::uint64_t>(plan.construction_upper_bound,
                                        std::uint64_t{2},
+                                       plan.construction_ledger_upper_bound) ||
+      !checked_multiply<std::uint64_t>(plan.construction_upper_bound,
+                                       std::uint64_t{2},
                                        plan.symbolic_upper_bound)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
@@ -298,6 +301,8 @@ bool preflight_relation_foundation(
           capabilities.maximum_interval_evidence ||
       plan.region_record_upper_bound > capabilities.maximum_region_records ||
       plan.construction_upper_bound > capabilities.maximum_constructions ||
+      plan.construction_ledger_upper_bound >
+          capabilities.maximum_construction_ledger ||
       plan.symbolic_upper_bound > capabilities.maximum_symbolic_decisions ||
       plan.event_seed_upper_bound > capabilities.maximum_event_seeds ||
       plan.dependency_upper_bound > capabilities.maximum_dependencies ||

@@ -71,6 +71,7 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.truth_records()) ||
       !add_vector(artifact.relations()) ||
       !add_vector(artifact.constructions()) ||
+      !add_vector(artifact.construction_ledger()) ||
       !add_vector(artifact.coplanar_event_nodes()) ||
       !add_vector(artifact.coplanar_oriented_arcs()) ||
       !add_vector(artifact.coplanar_overlap_components()) ||
@@ -431,6 +432,7 @@ private:
         !add_work(artifact_->truth_records_.size()) ||
         !add_work(artifact_->relations_.size()) ||
         !add_work(artifact_->constructions_.size()) ||
+        !add_work(artifact_->construction_ledger_.size()) ||
         !add_work(artifact_->symbolic_eligibility_.size()) ||
         !add_work(artifact_->symbolic_decisions_.size()) ||
         !add_work(artifact_->crossings_.size()) ||

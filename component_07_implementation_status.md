@@ -650,21 +650,52 @@ and occurrence slice for admitted multi-event contacts:
   shared-source-edge clusters, plus tie-order, occurrence, cluster-range, and
   coordinate-equal-but-lineage-distinct rejection cases.
 
+## Implemented authoritative construction registry and evidence ledger
+
+Construction publication now follows the fixed Plan 07 producer precedence and
+retains every secondary witness needed to audit that choice:
+
+- a standalone owner-free policy reconstructs canonical construction authority
+  from accepted source-vertex identity, compute-once source-edge/source-edge
+  lineage, source-edge/source-facet lineage, coplanar endpoint lineage, and
+  facet/facet carrier lineage, in that exact precedence order;
+- accepted source vertices are resolved through Component 05 primitive and
+  topology tables rather than misinterpreting source-edge feature fields as
+  endpoint IDs, and identical source-vertex authorities deduplicate across
+  edge/facet and coplanar-overlay relation families;
+- every canonical construction publishes one synthetic authority ledger entry
+  followed by all producer and verification-witness entries, with coordinate
+  space, nominal and enclosure bits, source provenance, geometric lineage,
+  tolerance boundary, truth ranges, interval/region evidence ranges, and
+  independently reconstructed compatibility dispositions;
+- authority/witness compatibility checks require finite ordered bounds, admitted
+  tolerance, source-lineage agreement, enclosure containment, parameter and
+  residual compatibility, and complete precision evidence without coordinate or
+  proximity identity and without unioning contradictory enclosures;
+- relation requests, reverse dependencies, consumers, event seeds, codec/decode,
+  statistics, preflight capacity, persistent accounting, and verification work
+  now include the canonical registry and evidence ledger; event seeds remain
+  occurrence-specific even when several witnesses share one construction;
+- the independent verifier rebuilds all authority groups and witness records from
+  predecessor stages, verifies exact request/dependency closure, rejects missing
+  seed-table publication, and does not reuse the mutable assembly registry; and
+- focused qualification covers cross-family source-vertex deduplication, repaired
+  authority and ledger mutations, missing event-seed publication, exact ledger
+  limit-minus-one rollback, byte-identical decode, and the complete thirteen-test
+  Component 07 predecessor chain.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Complete authoritative construction deduplication across relation families
-   and publish the remaining tolerance-ledger and producer evidence beyond the
-   now first-class parameter, residual, conditioning, and region tables.
-2. Complete the remaining symbolic categories, incidence/rank/occurrence
+1. Complete the remaining symbolic categories, incidence/rank/occurrence
    constraints, event-seed diagnostics, candidate canonical partitions, and
    replay diagnostics required by the normative plan.
-3. Add the independent exact-rational/exhaustive oracle, complete known-answer
+2. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and
    serial/parallel equivalence evidence.
-4. Complete Component 08-10 handoff qualification proving no authoritative
+3. Complete Component 08-10 handoff qualification proving no authoritative
    geometric recomputation and that Component 10 alone performs final selection.
 
 No approximation, legacy predicate, tolerance-based welding, coordinate-keyed

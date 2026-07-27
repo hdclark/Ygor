@@ -43,7 +43,11 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t source_facet_region_count = 0;
   std::uint64_t truth_count = 0;
   std::uint64_t relation_count = 0;
+  std::uint16_t construction_schema = 0;
+  std::uint16_t construction_registry_policy = 0;
+  std::uint16_t construction_ledger_schema = 0;
   std::uint64_t construction_count = 0;
+  std::uint64_t construction_ledger_count = 0;
   std::uint16_t coplanar_topology_schema = 0;
   std::uint16_t coplanar_topology_policy = 0;
   std::uint64_t coplanar_event_node_count = 0;
