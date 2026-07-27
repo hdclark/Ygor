@@ -45,18 +45,32 @@ void encode_symbolic(canonical_writer &writer,
                      const symbolic_relation_decision_record &record) {
   writer.u64(record.id.ordinal());
   encode_relation_request_key(writer, record.request);
+  encode_symbolic_rule_key(writer, record.rule_key);
+  encode_symbolic_rule_key(writer, record.exchanged_rule_key);
+  writer.u8(static_cast<std::uint8_t>(record.subject_kind));
+  writer.u64(record.subject_ordinal);
   writer.u8(static_cast<std::uint8_t>(record.operation));
   writer.u8(static_cast<std::uint8_t>(record.acting_operand));
   writer.u8(static_cast<std::uint8_t>(record.matrix_family));
   writer.u8(static_cast<std::uint8_t>(record.orientation));
   writer.u64(record.stable_rule_ordinal);
+  writer.u64(record.exchange_rule_ordinal);
   writer.u8(record.feature_priority);
   writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
   writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing_contribution));
   writer.u8(static_cast<std::uint8_t>(record.coincident_owner_rank));
   writer.u8(static_cast<std::uint8_t>(record.conceptual_side));
+  writer.u8(static_cast<std::uint8_t>(record.conceptual_order));
+  writer.u8(static_cast<std::uint8_t>(record.contact_class));
+  writer.u8(static_cast<std::uint8_t>(record.expected_disposition));
+  writer.u16(static_cast<std::uint16_t>(record.explanation));
+  encode_symbolic_tie_key_description(writer, record.tie_key);
+  writer.u16(record.tie_key_schema);
+  writer.boolean(record.owner_rank_eligible);
   writer.boolean(record.occurrence_separation_required);
   writer.boolean(record.nominal_geometry_unchanged);
+  writer.u8(record.reserved8);
+  writer.u16(record.schema_version);
   writer.u32(record.reserved);
 }
 
@@ -389,8 +403,18 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.boolean(record.has_symbolic_decision);
     writer.u64(record.symbolic_decision.ordinal());
     writer.u64(record.symbolic_rule_ordinal);
+    writer.u64(record.symbolic_exchange_rule_ordinal);
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_subject_kind));
+    writer.u64(record.symbolic_subject_ordinal);
     writer.u32(record.symbolic_occurrence_rank);
     writer.u8(static_cast<std::uint8_t>(record.conceptual_side));
+    writer.u8(static_cast<std::uint8_t>(record.conceptual_order));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_contact));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_expected));
+    writer.u16(static_cast<std::uint16_t>(record.symbolic_explanation));
+    writer.u16(record.symbolic_tie_key_schema);
+    writer.u8(static_cast<std::uint8_t>(record.coincident_owner_rank));
+    writer.boolean(record.symbolic_owner_rank_eligible);
     writer.u32(static_cast<std::uint32_t>(record.numeric_crossing));
     writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing));
     writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
@@ -540,6 +564,15 @@ inline bool read_request_key(canonical_reader &reader) {
          read_feature_key(reader) && reader.u64(directed_use) &&
          reader.u16(formula) && reader.u16(policy) &&
          reader.u32(occurrence) && reader.u32(reserved);
+}
+
+inline bool read_symbolic_rule_key(canonical_reader &reader) {
+  std::uint8_t byte = 0;
+  std::uint16_t version = 0, reserved = 0;
+  for (std::size_t i = 0; i < 8; ++i)
+    if (!reader.u8(byte))
+      return false;
+  return reader.u16(version) && reader.u16(reserved);
 }
 
 inline bool read_event_seed_key(canonical_reader &reader) {
@@ -849,22 +882,40 @@ inline bool read_eligibility_record(canonical_reader &reader) {
   return reader.u8(reserved8) && reader.u32(reserved);
 }
 
+inline bool read_symbolic_tie_key_description(canonical_reader &reader) {
+  std::uint8_t byte = 0;
+  std::uint16_t value16 = 0;
+  for (std::size_t component = 0;
+       component < symbolic_tie_key_component_count; ++component)
+    if (!reader.u8(byte))
+      return false;
+  return reader.u8(byte) && reader.u8(byte) && reader.u16(value16) &&
+         reader.u16(value16);
+}
+
 inline bool read_symbolic_record(canonical_reader &reader) {
-  std::uint64_t id = 0, rule = 0;
+  std::uint64_t id = 0, value64 = 0;
   std::uint8_t value = 0;
   bool flag = false;
+  std::uint16_t value16 = 0;
   std::uint32_t reserved = 0;
-  if (!reader.u64(id) || !read_request_key(reader))
+  if (!reader.u64(id) || !read_request_key(reader) ||
+      !read_symbolic_rule_key(reader) ||
+      !read_symbolic_rule_key(reader) || !reader.u8(value) ||
+      !reader.u64(value64))
     return false;
   for (std::size_t i = 0; i < 4; ++i)
     if (!reader.u8(value))
       return false;
-  if (!reader.u64(rule))
+  if (!reader.u64(value64) || !reader.u64(value64))
     return false;
-  for (std::size_t i = 0; i < 5; ++i)
+  for (std::size_t i = 0; i < 8; ++i)
     if (!reader.u8(value))
       return false;
-  return reader.boolean(flag) && reader.boolean(flag) &&
+  return reader.u16(value16) &&
+         read_symbolic_tie_key_description(reader) && reader.u16(value16) &&
+         reader.boolean(flag) && reader.boolean(flag) &&
+         reader.boolean(flag) && reader.u8(value) && reader.u16(value16) &&
          reader.u32(reserved);
 }
 
@@ -894,7 +945,11 @@ inline bool read_event_seed_record(canonical_reader &reader) {
          reader.u64(value) && reader.u64(value) && reader.u8(byte) &&
          reader.u8(byte) && reader.u8(byte) && read_feature_key(reader) &&
          reader.boolean(flag) && reader.boolean(flag) && reader.u64(value) &&
+         reader.u64(value) && reader.u64(value) && reader.u8(byte) &&
          reader.u64(value) && reader.u32(rank) && reader.u8(byte) &&
+         reader.u8(byte) && reader.u8(byte) && reader.u8(byte) &&
+         reader.u16(schema) && reader.u16(schema) && reader.u8(byte) &&
+         reader.boolean(flag) &&
          reader.u32(numeric) && reader.u8(byte) && reader.u8(byte) &&
          reader.u64(value) && reader.u64(value) && reader.u64(value) &&
          reader.u64(value) && reader.u64(value) && reader.u64(value) &&

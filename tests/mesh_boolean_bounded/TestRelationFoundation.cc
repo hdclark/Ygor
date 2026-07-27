@@ -245,41 +245,113 @@ void test_symbolic_boundary() {
   eligibility.separated_realizations_possible = false;
   eligibility.owner_is_original_source_feature = true;
 
-  const auto table = materialize_symbolic_policy();
+  const auto &table = materialize_symbolic_policy();
+  symbolic_rule_key rule_key;
+  rule_key.operation = boolean_operation::set_union;
+  rule_key.acting_operand = operand_id::a;
+  rule_key.relation = relation_family::vertex_face;
+  rule_key.orientation = orientation_relation::same;
+  rule_key.ownership_role =
+      symbolic_ownership_role::acting_source_feature;
+  rule_key.half_open_role = symbolic_half_open_role::interior;
+  rule_key.transition = symbolic_transition_orientation::none;
+  rule_key.occurrence_class =
+      symbolic_occurrence_class::lower_dimensional_contact;
   auto decision = resolve_symbolic_relation_decision(
-      table, boolean_operation::set_union, operand_id::a,
-      relation_family::vertex_face, orientation_relation::same, eligibility);
+      table, rule_key, symbolic_relation_subject_kind::event_occurrence, 7,
+      eligibility);
   check(decision.has_value(), "eligible exact tie should resolve symbolically");
   if (decision.has_value()) {
     check(decision.value()->nominal_geometry_unchanged,
           "symbolic decision must preserve nominal geometry");
+    check(decision.value()->rule_key == rule_key &&
+              decision.value()->subject_kind ==
+                  symbolic_relation_subject_kind::event_occurrence &&
+              decision.value()->subject_ordinal == 7 &&
+              decision.value()->exchanged_rule_key ==
+                  exchange_symbolic_rule_key(rule_key) &&
+              valid_symbolic_tie_key_description(decision.value()->tie_key) &&
+              decision.value()->tie_key.feature_priority ==
+                  decision.value()->feature_priority &&
+              decision.value()->tie_key.preferred_operand ==
+                  decision.value()->coincident_owner_rank &&
+              decision.value()->exchange_rule_ordinal < symbolic_rule_count,
+          "symbolic decision must retain its complete key and exchange");
     bounded_boolean_error error;
     check(verify_symbolic_relation_decision(table, eligibility,
                                             *decision.value(), error),
           "symbolic decision should independently reproduce matrix rule");
+    auto mutated = *decision.value();
+    mutated.exchanged_rule_key.acting_operand = operand_id::a;
+    check(!verify_symbolic_relation_decision(table, eligibility, mutated,
+                                             error),
+          "mutated symbolic operand exchange must be rejected");
+    mutated = *decision.value();
+    mutated.tie_key.components[0] =
+        symbolic_tie_key_component::operand_priority;
+    check(!verify_symbolic_relation_decision(table, eligibility, mutated,
+                                             error),
+          "mutated symbolic tie-key description must be rejected");
+  }
+
+  const std::array<symbolic_ownership_role, 4> ownership_roles = {
+      symbolic_ownership_role::acting_source_feature,
+      symbolic_ownership_role::opposite_source_feature,
+      symbolic_ownership_role::shared_source_feature,
+      symbolic_ownership_role::coincident_sheet_pair};
+  for (std::size_t role_ordinal = 0; role_ordinal < ownership_roles.size();
+       ++role_ordinal) {
+    auto ownership_key = rule_key;
+    ownership_key.ownership_role = ownership_roles[role_ordinal];
+    ownership_key.half_open_role =
+        role_ordinal == 0 ? symbolic_half_open_role::interior
+        : role_ordinal == 1 ? symbolic_half_open_role::source_edge
+        : role_ordinal == 2 ? symbolic_half_open_role::source_endpoint
+                            : symbolic_half_open_role::none;
+    ownership_key.occurrence_class =
+        role_ordinal == 3 ? symbolic_occurrence_class::coincident_sheet
+                          : symbolic_occurrence_class::lower_dimensional_contact;
+    const auto ownership_decision = resolve_symbolic_relation_decision(
+        table, ownership_key,
+        role_ordinal == 3
+            ? symbolic_relation_subject_kind::coplanar_component
+            : symbolic_relation_subject_kind::event_occurrence,
+        20 + role_ordinal, eligibility);
+    check(ownership_decision.has_value(),
+          "every ownership role must resolve through the Component 07 symbolic adapter");
+    if (!ownership_decision.has_value())
+      continue;
+    bounded_boolean_error ownership_error;
+    check(ownership_decision.value()->rule_key.ownership_role ==
+                  ownership_roles[role_ordinal] &&
+              ownership_decision.value()->exchanged_rule_key ==
+                  exchange_symbolic_rule_key(ownership_key) &&
+              verify_symbolic_relation_decision(
+                  table, eligibility, *ownership_decision.value(),
+                  ownership_error),
+          "Component 07 must retain and independently reproduce every ownership role");
   }
 
   auto rounded_only = eligibility;
   rounded_only.exact_relation = exact_relation_status::unavailable;
   auto rejected = resolve_symbolic_relation_decision(
-      table, boolean_operation::set_union, operand_id::a,
-      relation_family::vertex_face, orientation_relation::same, rounded_only);
+      table, rule_key, symbolic_relation_subject_kind::event_occurrence, 7,
+      rounded_only);
   check(!rejected.has_value(),
         "rounded zero without exact relation must not enter symbolic policy");
 
   auto reasonless = eligibility;
   reasonless.reason = symbolic_eligibility_reason::none;
   rejected = resolve_symbolic_relation_decision(
-      table, boolean_operation::set_union, operand_id::a,
-      relation_family::vertex_face, orientation_relation::same, reasonless);
+      table, rule_key, symbolic_relation_subject_kind::event_occurrence, 7,
+      reasonless);
   check(!rejected.has_value(),
         "exact zero without a structural eligibility reason must fail closed");
 
   auto possibly_separated = eligibility;
   possibly_separated.separated_realizations_possible = true;
   rejected = resolve_symbolic_relation_decision(
-      table, boolean_operation::set_union, operand_id::a,
-      relation_family::vertex_face, orientation_relation::same,
+      table, rule_key, symbolic_relation_subject_kind::event_occurrence, 7,
       possibly_separated);
   check(!rejected.has_value(),
         "a tie admitting separated realizations must not enter symbolic policy");

@@ -16,10 +16,23 @@ bool eligible(const symbolic_eligibility_record &record) noexcept {
          record.reserved == 0;
 }
 
-symbolic_relation_side side_from_contribution(std::int8_t value) noexcept {
-  return value < 0 ? symbolic_relation_side::negative
-                   : (value > 0 ? symbolic_relation_side::positive
-                                : symbolic_relation_side::coincident);
+bool valid_subject(symbolic_relation_subject_kind kind) noexcept {
+  switch (kind) {
+  case symbolic_relation_subject_kind::relation:
+  case symbolic_relation_subject_kind::event_occurrence:
+  case symbolic_relation_subject_kind::coplanar_component:
+    return true;
+  }
+  return false;
+}
+
+symbolic_relation_side side_from_offset(
+    symbolic_offset_disposition value) noexcept {
+  return value == symbolic_offset_disposition::negative
+             ? symbolic_relation_side::negative
+         : value == symbolic_offset_disposition::positive
+             ? symbolic_relation_side::positive
+             : symbolic_relation_side::coincident;
 }
 
 bounded_boolean_error symbolic_error(relation_subcode subcode,
@@ -34,50 +47,52 @@ bounded_boolean_error symbolic_error(relation_subcode subcode,
 
 boolean_outcome<symbolic_relation_decision_record>
 resolve_symbolic_relation_decision(
-    const symbolic_policy_table &table, boolean_operation operation,
-    operand_id acting_operand, relation_family family,
-    orientation_relation orientation,
+    const symbolic_policy_table &table, const symbolic_rule_key &key,
+    symbolic_relation_subject_kind subject_kind, std::uint64_t subject_ordinal,
     const symbolic_eligibility_record &eligibility) {
-  if (!verify_symbolic_policy(table) || !eligible(eligibility))
+  if (!verify_symbolic_policy(table) || !eligible(eligibility) ||
+      !valid_symbolic_rule_key(key) || !valid_subject(subject_kind))
     return boolean_outcome<symbolic_relation_decision_record>::failure(
         symbolic_error(relation_subcode::symbolic_ineligible,
                        "symbolic relation is not eligible for matrix lookup"));
 
-  const symbolic_rule *match = nullptr;
-  std::uint64_t match_ordinal = 0;
-  for (std::uint64_t i = 0; i < table.rules.size(); ++i) {
-    const auto &rule = table.rules[static_cast<std::size_t>(i)];
-    if (rule.operation == operation && rule.acting_operand == acting_operand &&
-        rule.relation == family && rule.orientation == orientation) {
-      if (match)
-        return boolean_outcome<symbolic_relation_decision_record>::failure(
-            symbolic_error(relation_subcode::internal_invariant,
-                           "symbolic matrix lookup is not unique"));
-      match = &rule;
-      match_ordinal = i;
-    }
-  }
-  if (!match)
+  const auto ordinal = symbolic_rule_ordinal(key);
+  if (ordinal >= table.rules.size())
     return boolean_outcome<symbolic_relation_decision_record>::failure(
         symbolic_error(relation_subcode::unsupported_version,
                        "symbolic matrix lookup is not total"));
+  const auto &rule = table.rules[static_cast<std::size_t>(ordinal)];
+  if (rule.key != key)
+    return boolean_outcome<symbolic_relation_decision_record>::failure(
+        symbolic_error(relation_subcode::internal_invariant,
+                       "symbolic matrix lookup key is inconsistent"));
 
   symbolic_relation_decision_record decision;
   decision.request = eligibility.request;
-  decision.operation = operation;
-  decision.acting_operand = acting_operand;
-  decision.matrix_family = family;
-  decision.orientation = orientation;
-  decision.stable_rule_ordinal = match_ordinal;
-  decision.feature_priority = match->feature_priority;
-  decision.half_open_owner = match->half_open_owner;
-  decision.symbolic_crossing_contribution = match->crossing_contribution;
-  decision.coincident_owner_rank = match->coincident_owner;
-  decision.conceptual_side = side_from_contribution(match->crossing_contribution);
+  decision.rule_key = rule.key;
+  decision.exchanged_rule_key = rule.exchanged_key;
+  decision.subject_kind = subject_kind;
+  decision.subject_ordinal = subject_ordinal;
+  decision.operation = key.operation;
+  decision.acting_operand = key.acting_operand;
+  decision.matrix_family = key.relation;
+  decision.orientation = key.orientation;
+  decision.stable_rule_ordinal = ordinal;
+  decision.exchange_rule_ordinal = rule.exchange_rule_ordinal;
+  decision.feature_priority = rule.feature_priority;
+  decision.half_open_owner = rule.half_open_owner;
+  decision.symbolic_crossing_contribution = rule.crossing_contribution;
+  decision.coincident_owner_rank = rule.coincident_owner;
+  decision.conceptual_side = side_from_offset(rule.conceptual_offset);
+  decision.conceptual_order = rule.conceptual_offset;
+  decision.contact_class = rule.contact_class;
+  decision.expected_disposition = rule.expected_disposition;
+  decision.explanation = rule.explanation;
+  decision.tie_key = rule.tie_key;
+  decision.tie_key_schema = rule.tie_key_schema;
+  decision.owner_rank_eligible = rule.owner_rank_eligible;
   decision.occurrence_separation_required =
-      family == relation_family::vertex_vertex ||
-      family == relation_family::equal_edge ||
-      family == relation_family::coincident_face;
+      rule.occurrence_separation_required;
   decision.nominal_geometry_unchanged = true;
   bounded_boolean_error error;
   if (!verify_symbolic_relation_decision(table, eligibility, decision, error))
@@ -96,26 +111,51 @@ bool verify_symbolic_relation_decision(
     return false;
   };
   if (!verify_symbolic_policy(table) || !eligible(eligibility) ||
-      decision.request != eligibility.request || decision.reserved != 0)
+      decision.request != eligibility.request ||
+      !valid_subject(decision.subject_kind) || decision.reserved8 != 0 ||
+      decision.schema_version !=
+          contract_versions::relation_symbolic_decision_schema ||
+      decision.reserved != 0)
     return fail(relation_subcode::verifier_rejection,
-                "symbolic relation eligibility or request mismatch");
-  if (decision.stable_rule_ordinal >= table.rules.size())
+                "symbolic relation eligibility, subject, or request mismatch");
+  if (!valid_symbolic_rule_key(decision.rule_key) ||
+      decision.stable_rule_ordinal !=
+          symbolic_rule_ordinal(decision.rule_key) ||
+      decision.stable_rule_ordinal >= table.rules.size())
     return fail(relation_subcode::unsupported_version,
                 "symbolic relation rule ordinal is out of range");
   const auto &rule = table.rules[decision.stable_rule_ordinal];
-  if (rule.operation != decision.operation ||
-      rule.acting_operand != decision.acting_operand ||
-      rule.relation != decision.matrix_family ||
-      rule.orientation != decision.orientation ||
-      rule.feature_priority != decision.feature_priority ||
-      rule.half_open_owner != decision.half_open_owner ||
-      rule.crossing_contribution !=
-          decision.symbolic_crossing_contribution ||
-      rule.coincident_owner != decision.coincident_owner_rank ||
-      decision.conceptual_side !=
-          side_from_contribution(rule.crossing_contribution))
+  if (rule.key != decision.rule_key ||
+      decision.exchanged_rule_key != rule.exchanged_key ||
+      decision.exchange_rule_ordinal != rule.exchange_rule_ordinal ||
+      decision.operation != rule.key.operation ||
+      decision.acting_operand != rule.key.acting_operand ||
+      decision.matrix_family != rule.key.relation ||
+      decision.orientation != rule.key.orientation ||
+      decision.feature_priority != rule.feature_priority ||
+      decision.half_open_owner != rule.half_open_owner ||
+      decision.symbolic_crossing_contribution !=
+          rule.crossing_contribution ||
+      decision.coincident_owner_rank != rule.coincident_owner ||
+      decision.conceptual_side != side_from_offset(rule.conceptual_offset) ||
+      decision.conceptual_order != rule.conceptual_offset ||
+      decision.contact_class != rule.contact_class ||
+      decision.expected_disposition != rule.expected_disposition ||
+      decision.explanation != rule.explanation ||
+      !(decision.tie_key == rule.tie_key) ||
+      decision.tie_key_schema != rule.tie_key_schema ||
+      decision.owner_rank_eligible != rule.owner_rank_eligible ||
+      decision.occurrence_separation_required !=
+          rule.occurrence_separation_required)
     return fail(relation_subcode::verifier_rejection,
                 "symbolic relation does not reproduce its frozen matrix rule");
+  if (decision.exchange_rule_ordinal >= table.rules.size() ||
+      table.rules[decision.exchange_rule_ordinal].key !=
+          decision.exchanged_rule_key ||
+      table.rules[decision.exchange_rule_ordinal].exchange_rule_ordinal !=
+          decision.stable_rule_ordinal)
+    return fail(relation_subcode::verifier_rejection,
+                "symbolic relation operand exchange is not involutive");
   if (!decision.nominal_geometry_unchanged)
     return fail(relation_subcode::symbolic_geometry_change,
                 "symbolic relation attempted to alter nominal geometry");

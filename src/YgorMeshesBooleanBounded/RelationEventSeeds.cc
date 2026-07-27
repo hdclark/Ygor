@@ -57,6 +57,42 @@ bool valid_conceptual_side(symbolic_relation_side side) noexcept {
          side == symbolic_relation_side::positive;
 }
 
+bool valid_symbolic_subject(symbolic_relation_subject_kind kind) noexcept {
+  return kind == symbolic_relation_subject_kind::relation ||
+         kind == symbolic_relation_subject_kind::event_occurrence ||
+         kind == symbolic_relation_subject_kind::coplanar_component;
+}
+
+bool valid_symbolic_order(symbolic_offset_disposition value) noexcept {
+  return value == symbolic_offset_disposition::negative ||
+         value == symbolic_offset_disposition::coincident ||
+         value == symbolic_offset_disposition::positive;
+}
+
+symbolic_relation_side side_for_order(
+    symbolic_offset_disposition value) noexcept {
+  return value == symbolic_offset_disposition::negative
+             ? symbolic_relation_side::negative
+         : value == symbolic_offset_disposition::positive
+             ? symbolic_relation_side::positive
+             : symbolic_relation_side::coincident;
+}
+
+bool valid_symbolic_contact(symbolic_contact_class value) noexcept {
+  const auto encoded = static_cast<std::uint8_t>(value);
+  return encoded >= 1 && encoded <= 5;
+}
+
+bool valid_symbolic_expected(symbolic_expected_disposition value) noexcept {
+  const auto encoded = static_cast<std::uint8_t>(value);
+  return encoded >= 1 && encoded <= 4;
+}
+
+bool valid_symbolic_explanation(symbolic_explanation_code value) noexcept {
+  const auto encoded = static_cast<std::uint16_t>(value);
+  return encoded >= 1 && encoded <= 6;
+}
+
 bool candidate_incidence_less(
     const relation_event_seed_candidate_incidence_record &a,
     const relation_event_seed_candidate_incidence_record &b) noexcept {
@@ -120,7 +156,13 @@ bool proposal_semantics_equal(const relation_event_seed_proposal &a,
                   a.accepted_source_vertex,
                   a.accepted_source_vertex_reused, a.has_symbolic_decision,
                   a.symbolic_decision, a.symbolic_rule_ordinal,
+                  a.symbolic_exchange_rule_ordinal,
+                  a.symbolic_subject_kind, a.symbolic_subject_ordinal,
                   a.symbolic_occurrence_rank, a.conceptual_side,
+                  a.conceptual_order, a.symbolic_contact,
+                  a.symbolic_expected, a.symbolic_explanation,
+                  a.symbolic_tie_key_schema, a.coincident_owner_rank,
+                  a.symbolic_owner_rank_eligible,
                   a.numeric_crossing, a.symbolic_crossing, a.half_open_owner,
                   a.truth_begin, a.truth_count,
                   a.construction_ledger_begin,
@@ -132,7 +174,13 @@ bool proposal_semantics_equal(const relation_event_seed_proposal &a,
                   b.accepted_source_vertex,
                   b.accepted_source_vertex_reused, b.has_symbolic_decision,
                   b.symbolic_decision, b.symbolic_rule_ordinal,
+                  b.symbolic_exchange_rule_ordinal,
+                  b.symbolic_subject_kind, b.symbolic_subject_ordinal,
                   b.symbolic_occurrence_rank, b.conceptual_side,
+                  b.conceptual_order, b.symbolic_contact,
+                  b.symbolic_expected, b.symbolic_explanation,
+                  b.symbolic_tie_key_schema, b.coincident_owner_rank,
+                  b.symbolic_owner_rank_eligible,
                   b.numeric_crossing, b.symbolic_crossing, b.half_open_owner,
                   b.truth_begin, b.truth_count,
                   b.construction_ledger_begin,
@@ -151,6 +199,39 @@ bool valid_proposal_semantics(const relation_event_seed_proposal &proposal) {
       proposal.symbolic_crossing < -1 || proposal.symbolic_crossing > 1 ||
       proposal.truth_count == 0 || proposal.construction_ledger_count == 0 ||
       !proposal.precision_evidence_complete)
+    return false;
+  if (proposal.has_symbolic_decision) {
+    if (proposal.symbolic_rule_ordinal >= symbolic_rule_count ||
+        proposal.symbolic_exchange_rule_ordinal >= symbolic_rule_count ||
+        !valid_symbolic_subject(proposal.symbolic_subject_kind) ||
+        !valid_symbolic_order(proposal.conceptual_order) ||
+        !valid_symbolic_contact(proposal.symbolic_contact) ||
+        !valid_symbolic_expected(proposal.symbolic_expected) ||
+        !valid_symbolic_explanation(proposal.symbolic_explanation) ||
+        proposal.conceptual_side != side_for_order(proposal.conceptual_order) ||
+        proposal.symbolic_tie_key_schema !=
+            contract_versions::symbolic_policy ||
+        !valid_operand(proposal.coincident_owner_rank))
+      return false;
+  } else if (proposal.symbolic_decision.ordinal() != 0 ||
+             proposal.symbolic_rule_ordinal != 0 ||
+             proposal.symbolic_exchange_rule_ordinal != 0 ||
+             proposal.symbolic_subject_kind !=
+                 symbolic_relation_subject_kind::relation ||
+             proposal.symbolic_subject_ordinal != 0 ||
+             proposal.symbolic_occurrence_rank != 0 ||
+             proposal.conceptual_side != symbolic_relation_side::coincident ||
+             proposal.conceptual_order !=
+                 symbolic_offset_disposition::coincident ||
+             proposal.symbolic_contact !=
+                 symbolic_contact_class::point_contact ||
+             proposal.symbolic_expected !=
+                 symbolic_expected_disposition::classification_only ||
+             proposal.symbolic_explanation !=
+                 symbolic_explanation_code::exact_vertex_tie ||
+             proposal.coincident_owner_rank != operand_id::a ||
+             proposal.symbolic_tie_key_schema != 0 ||
+             proposal.symbolic_owner_rank_eligible)
     return false;
   if (!valid_relation_feature_key(proposal.accepted_source_vertex, true))
     return false;
@@ -202,8 +283,18 @@ encode_relation_event_seed_table(const relation_event_seed_table &table) {
     writer.boolean(record.has_symbolic_decision);
     writer.u64(record.symbolic_decision.ordinal());
     writer.u64(record.symbolic_rule_ordinal);
+    writer.u64(record.symbolic_exchange_rule_ordinal);
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_subject_kind));
+    writer.u64(record.symbolic_subject_ordinal);
     writer.u32(record.symbolic_occurrence_rank);
     writer.u8(static_cast<std::uint8_t>(record.conceptual_side));
+    writer.u8(static_cast<std::uint8_t>(record.conceptual_order));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_contact));
+    writer.u8(static_cast<std::uint8_t>(record.symbolic_expected));
+    writer.u16(static_cast<std::uint16_t>(record.symbolic_explanation));
+    writer.u16(record.symbolic_tie_key_schema);
+    writer.u8(static_cast<std::uint8_t>(record.coincident_owner_rank));
+    writer.boolean(record.symbolic_owner_rank_eligible);
     writer.u32(static_cast<std::uint32_t>(record.numeric_crossing));
     writer.u8(static_cast<std::uint8_t>(record.symbolic_crossing));
     writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
@@ -308,8 +399,20 @@ boolean_outcome<relation_event_seed_table> canonicalize_relation_event_seeds(
       record.has_symbolic_decision = source.has_symbolic_decision;
       record.symbolic_decision = source.symbolic_decision;
       record.symbolic_rule_ordinal = source.symbolic_rule_ordinal;
+      record.symbolic_exchange_rule_ordinal =
+          source.symbolic_exchange_rule_ordinal;
+      record.symbolic_subject_kind = source.symbolic_subject_kind;
+      record.symbolic_subject_ordinal = source.symbolic_subject_ordinal;
       record.symbolic_occurrence_rank = source.symbolic_occurrence_rank;
       record.conceptual_side = source.conceptual_side;
+      record.conceptual_order = source.conceptual_order;
+      record.symbolic_contact = source.symbolic_contact;
+      record.symbolic_expected = source.symbolic_expected;
+      record.symbolic_explanation = source.symbolic_explanation;
+      record.symbolic_tie_key_schema = source.symbolic_tie_key_schema;
+      record.coincident_owner_rank = source.coincident_owner_rank;
+      record.symbolic_owner_rank_eligible =
+          source.symbolic_owner_rank_eligible;
       record.numeric_crossing = source.numeric_crossing;
       record.symbolic_crossing = source.symbolic_crossing;
       record.half_open_owner = source.half_open_owner;

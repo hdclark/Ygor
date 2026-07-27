@@ -228,6 +228,21 @@ inline std::uint64_t tagged_source_use(
          static_cast<std::uint64_t>(source_family);
 }
 
+inline std::uint64_t symbolic_directed_use(
+    std::uint8_t domain, const symbolic_rule_key &key,
+    symbolic_relation_subject_kind subject_kind) noexcept {
+  return tagged_use(domain) |
+         (static_cast<std::uint64_t>(key.operation) << 0U) |
+         (static_cast<std::uint64_t>(key.acting_operand) << 3U) |
+         (static_cast<std::uint64_t>(key.relation) << 4U) |
+         (static_cast<std::uint64_t>(key.orientation) << 8U) |
+         (static_cast<std::uint64_t>(key.ownership_role) << 10U) |
+         (static_cast<std::uint64_t>(key.half_open_role) << 13U) |
+         (static_cast<std::uint64_t>(key.transition) << 15U) |
+         (static_cast<std::uint64_t>(key.occurrence_class) << 17U) |
+         (static_cast<std::uint64_t>(subject_kind) << 19U);
+}
+
 inline const canonical_relation_request *
 find_request(const relation_request_graph &graph,
              const relation_request_key &key) noexcept {
@@ -407,8 +422,10 @@ inline relation_feature_key sheet_occurrence_feature(
   return out;
 }
 
+template <class T>
 inline relation_family symbolic_family_for_edge(
-    source_edge_contact_class contact) noexcept {
+    source_edge_contact_class contact,
+    const source_edge_point_construction<T> *point) noexcept {
   switch (contact) {
   case source_edge_contact_class::partial_overlap:
   case source_edge_contact_class::first_contains_second:
@@ -417,23 +434,42 @@ inline relation_family symbolic_family_for_edge(
     return relation_family::equal_edge;
   case source_edge_contact_class::endpoint_contact:
   case source_edge_contact_class::point_contact:
+    if (point) {
+      const bool first_endpoint = point->first_endpoint_owner_mask != 0;
+      const bool second_endpoint = point->second_endpoint_owner_mask != 0;
+      if (first_endpoint && second_endpoint)
+        return relation_family::vertex_vertex;
+      if (first_endpoint || second_endpoint)
+        return relation_family::vertex_edge;
+    }
     return relation_family::edge_edge;
   default:
     return relation_family::edge_edge;
   }
 }
 
+template <class T>
 inline relation_family symbolic_family_for_edge_facet(
-    source_edge_facet_event_kind kind,
+    const source_edge_facet_event_record<T> &event,
     source_edge_facet_contact_class contact) noexcept {
-  if (kind == source_edge_facet_event_kind::tangent_contact ||
+  if (event.kind == source_edge_facet_event_kind::tangent_contact ||
       contact == source_edge_facet_contact_class::tangent_contact)
     return relation_family::tangent;
   if (contact == source_edge_facet_contact_class::coplanar_point_contact ||
       contact == source_edge_facet_contact_class::coplanar_boundary_overlap ||
       contact == source_edge_facet_contact_class::coplanar_containment)
     return relation_family::coplanar;
-  return relation_family::edge_face;
+  const bool query_endpoint = event.construction.edge_endpoint_owner_mask != 0;
+  if (event.region.classification ==
+      source_facet_point_region_class::original_vertex)
+    return query_endpoint ? relation_family::vertex_vertex
+                          : relation_family::vertex_edge;
+  if (event.region.classification ==
+      source_facet_point_region_class::original_edge)
+    return query_endpoint ? relation_family::vertex_edge
+                          : relation_family::edge_edge;
+  return query_endpoint ? relation_family::vertex_face
+                        : relation_family::edge_face;
 }
 
 inline relation_family symbolic_family_for_overlay(
@@ -612,9 +648,10 @@ private:
     relation_request_key source_relation{};
     relation_request_key construction_key{};
     relation_request_key multiplicity_key{};
-    relation_family family = relation_family::edge_edge;
-    orientation_relation orientation = orientation_relation::indeterminate;
-    operand_id acting_operand = operand_id::a;
+    symbolic_rule_key rule_key{};
+    symbolic_relation_subject_kind subject_kind =
+        symbolic_relation_subject_kind::relation;
+    std::uint64_t subject_ordinal = 0;
     std::uint32_t occurrence = 0;
     bool has_construction = false;
     bool has_multiplicity = false;
@@ -1637,29 +1674,43 @@ private:
     proposals_.push_back(std::move(decision));
   }
 
-  void add_symbolic_descriptor(const base_descriptor &base,
-                               relation_family family,
-                               orientation_relation orientation,
-                               std::uint32_t occurrence,
-                               const relation_request_key *construction,
-                               const relation_request_key *multiplicity) {
+  symbolic_rule_key make_symbolic_rule_key(
+      relation_family family, orientation_relation orientation,
+      operand_id acting_operand, symbolic_ownership_role ownership_role,
+      symbolic_half_open_role half_open_role,
+      symbolic_transition_orientation transition,
+      symbolic_occurrence_class occurrence_class) const noexcept {
+    symbolic_rule_key key;
+    key.operation = context_.operation;
+    key.acting_operand = acting_operand;
+    key.relation = family;
+    key.orientation = orientation;
+    key.ownership_role = ownership_role;
+    key.half_open_role = half_open_role;
+    key.transition = transition;
+    key.occurrence_class = occurrence_class;
+    return key;
+  }
+
+  void add_symbolic_descriptor(
+      const base_descriptor &base, const symbolic_rule_key &rule_key,
+      symbolic_relation_subject_kind subject_kind,
+      std::uint64_t subject_ordinal, std::uint32_t occurrence,
+      const relation_request_key *construction,
+      const relation_request_key *multiplicity) {
     using namespace relation_artifact_assembly_detail;
     symbolic_descriptor descriptor;
     descriptor.source_relation = base.key;
     descriptor.occurrence = occurrence;
+    descriptor.rule_key = rule_key;
+    descriptor.subject_kind = subject_kind;
+    descriptor.subject_ordinal = subject_ordinal;
     descriptor.eligibility_key = derived_key(
         base.key, relation_request_family::symbolic_eligibility,
-        tagged_source_use(12, static_cast<std::uint8_t>(family),
-                          base.key.family),
-        occurrence);
+        symbolic_directed_use(12, rule_key, subject_kind), occurrence);
     descriptor.decision_key = derived_key(
         base.key, relation_request_family::symbolic_relation_decision,
-        tagged_source_use(13, static_cast<std::uint8_t>(family),
-                          base.key.family),
-        occurrence);
-    descriptor.family = family;
-    descriptor.orientation = orientation;
-    descriptor.acting_operand = base.key.first.operand;
+        symbolic_directed_use(13, rule_key, subject_kind), occurrence);
     descriptor.witnesses = base.witnesses;
     if (construction) {
       descriptor.construction_key = *construction;
@@ -1793,15 +1844,50 @@ private:
         if (source.contact != source_edge_contact_class::none &&
             source.contact != source_edge_contact_class::proper_crossing) {
           if (point_keys.empty()) {
-            add_symbolic_descriptor(base, symbolic_family_for_edge(source.contact),
-                                    orientation_from_edge(source.orientation), 0,
-                                    nullptr, nullptr);
+            const auto occurrence_class =
+                source.contact == source_edge_contact_class::equal
+                    ? symbolic_occurrence_class::shared_source_feature
+                    : symbolic_occurrence_class::lower_dimensional_contact;
+            const auto rule_key = make_symbolic_rule_key(
+                symbolic_family_for_edge<T>(source.contact, nullptr),
+                orientation_from_edge(source.orientation),
+                base.key.first.operand,
+                symbolic_ownership_role::shared_source_feature,
+                symbolic_half_open_role::source_edge,
+                symbolic_transition_orientation::none, occurrence_class);
+            add_symbolic_descriptor(
+                base, rule_key, symbolic_relation_subject_kind::relation, 0, 0,
+                nullptr, nullptr);
           } else {
-            for (std::uint32_t point = 0; point < point_keys.size(); ++point)
+            for (std::uint32_t point = 0; point < point_keys.size(); ++point) {
+              const auto &construction = source.points[point];
+              const bool first_endpoint =
+                  construction.first_endpoint_owner_mask != 0;
+              const bool second_endpoint =
+                  construction.second_endpoint_owner_mask != 0;
+              const auto ownership =
+                  first_endpoint && second_endpoint
+                      ? symbolic_ownership_role::shared_source_feature
+                  : second_endpoint
+                      ? symbolic_ownership_role::opposite_source_feature
+                      : symbolic_ownership_role::acting_source_feature;
+              const auto occurrence_class =
+                  first_endpoint && second_endpoint
+                      ? symbolic_occurrence_class::shared_source_feature
+                      : symbolic_occurrence_class::lower_dimensional_contact;
+              const auto rule_key = make_symbolic_rule_key(
+                  symbolic_family_for_edge(source.contact, &construction),
+                  orientation_from_edge(source.orientation),
+                  base.key.first.operand, ownership,
+                  first_endpoint || second_endpoint
+                      ? symbolic_half_open_role::source_endpoint
+                      : symbolic_half_open_role::interior,
+                  symbolic_transition_orientation::none, occurrence_class);
               add_symbolic_descriptor(
-                  base, symbolic_family_for_edge(source.contact),
-                  orientation_from_edge(source.orientation), point,
-                  &point_keys[point], nullptr);
+                  base, rule_key,
+                  symbolic_relation_subject_kind::event_occurrence, point,
+                  point, &point_keys[point], nullptr);
+            }
           }
         }
         break;
@@ -1857,10 +1943,48 @@ private:
             return false;
 
           if (event.kind != source_edge_facet_event_kind::proper_face_crossing) {
+            const auto local_transition = event_local_transition(event);
+            const auto transition =
+                event.kind == source_edge_facet_event_kind::tangent_contact
+                    ? symbolic_transition_orientation::tangent
+                : local_transition > 0
+                    ? symbolic_transition_orientation::negative_to_positive
+                : local_transition < 0
+                    ? symbolic_transition_orientation::positive_to_negative
+                    : symbolic_transition_orientation::none;
+            const bool query_endpoint =
+                event.construction.edge_endpoint_owner_mask != 0;
+            const bool opposite_vertex =
+                event.region.classification ==
+                source_facet_point_region_class::original_vertex;
+            const bool opposite_edge =
+                event.region.classification ==
+                source_facet_point_region_class::original_edge;
+            const auto ownership =
+                query_endpoint && (opposite_vertex || opposite_edge)
+                    ? symbolic_ownership_role::shared_source_feature
+                : query_endpoint
+                    ? symbolic_ownership_role::acting_source_feature
+                : opposite_vertex || opposite_edge
+                    ? symbolic_ownership_role::opposite_source_feature
+                    : symbolic_ownership_role::acting_source_feature;
+            const auto rule_key = make_symbolic_rule_key(
+                symbolic_family_for_edge_facet(event, source.contact),
+                orientation_relation::indeterminate,
+                base.key.first.operand, ownership,
+                query_endpoint || opposite_vertex
+                    ? symbolic_half_open_role::source_endpoint
+                : opposite_edge
+                    ? symbolic_half_open_role::source_edge
+                    : symbolic_half_open_role::interior,
+                transition,
+                query_endpoint && (opposite_vertex || opposite_edge)
+                    ? symbolic_occurrence_class::shared_source_feature
+                    : symbolic_occurrence_class::lower_dimensional_contact);
             add_symbolic_descriptor(
-                base, symbolic_family_for_edge_facet(event.kind, source.contact),
-                orientation_relation::indeterminate, occurrence,
-                &authority_record.key, &multiplicity);
+                base, rule_key,
+                symbolic_relation_subject_kind::event_occurrence, occurrence,
+                occurrence, &authority_record.key, &multiplicity);
           }
         }
         break;
@@ -1885,10 +2009,20 @@ private:
         if (source.classification ==
                 source_facet_support_relation_class::coplanar_same_orientation ||
             source.classification ==
-                source_facet_support_relation_class::coplanar_opposite_orientation)
-          add_symbolic_descriptor(
-              base, relation_family::coplanar,
-              orientation_from_status(base.status), 0, nullptr, nullptr);
+                source_facet_support_relation_class::coplanar_opposite_orientation) {
+          for (const auto acting : {operand_id::a, operand_id::b}) {
+            const auto rule_key = make_symbolic_rule_key(
+                relation_family::coplanar,
+                orientation_from_status(base.status), acting,
+                symbolic_ownership_role::coincident_sheet_pair,
+                symbolic_half_open_role::none,
+                symbolic_transition_orientation::none,
+                symbolic_occurrence_class::coincident_sheet);
+            add_symbolic_descriptor(
+                base, rule_key, symbolic_relation_subject_kind::relation, 0, 0,
+                nullptr, nullptr);
+          }
+        }
         break;
       }
       case base_kind::overlay: {
@@ -1923,10 +2057,51 @@ private:
                   source.distinct_sheet_occurrences))
             return false;
         }
-        if (source.classification != coplanar_facet_overlay_class::disjoint)
-          add_symbolic_descriptor(
-              base, symbolic_family_for_overlay(source.classification),
-              orientation_from_status(base.status), 0, nullptr, nullptr);
+        if (source.classification != coplanar_facet_overlay_class::disjoint) {
+          if (source.overlap_components.empty())
+            return fail(error, relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 symbolic overlay has no overlap component",
+                        relation_checkpoint::symbolic_eligibility);
+          for (const auto &component : source.overlap_components) {
+            if (component.id > std::numeric_limits<std::uint32_t>::max())
+              return fail(error, relation_subcode::count_overflow,
+                          "Component 07 symbolic component is not representable",
+                          relation_checkpoint::count_representability_preflight);
+            const auto component_kind =
+                relation_artifact_assembly_detail::final_coplanar_component_kind(
+                    component.kind);
+            const bool coincident =
+                component_kind ==
+                    relation_coplanar_component_kind::area_boundary ||
+                component_kind ==
+                    relation_coplanar_component_kind::coincident_sheet_boundary;
+            const auto half_open_role =
+                component_kind ==
+                    relation_coplanar_component_kind::isolated_point
+                    ? symbolic_half_open_role::source_endpoint
+                : component_kind ==
+                          relation_coplanar_component_kind::boundary_segment
+                    ? symbolic_half_open_role::source_edge
+                    : symbolic_half_open_role::none;
+            for (const auto acting : {operand_id::a, operand_id::b}) {
+              const auto rule_key = make_symbolic_rule_key(
+                  symbolic_family_for_overlay(source.classification),
+                  orientation_from_status(base.status), acting,
+                  coincident
+                      ? symbolic_ownership_role::coincident_sheet_pair
+                      : symbolic_ownership_role::shared_source_feature,
+                  half_open_role, symbolic_transition_orientation::none,
+                  coincident
+                      ? symbolic_occurrence_class::coincident_sheet
+                      : symbolic_occurrence_class::lower_dimensional_contact);
+              add_symbolic_descriptor(
+                  base, rule_key,
+                  symbolic_relation_subject_kind::coplanar_component,
+                  component.id, static_cast<std::uint32_t>(component.id),
+                  nullptr, nullptr);
+            }
+          }
+        }
         break;
       }
       }
@@ -2036,8 +2211,24 @@ private:
           descriptor.source_relation, relation_request_family::event_seed,
           descriptor.key.directed_use, descriptor.occurrence);
       seed.dependencies = {descriptor.source_relation, descriptor.key};
+      auto symbolic_subject =
+          symbolic_relation_subject_kind::event_occurrence;
+      std::uint64_t symbolic_subject_ordinal = descriptor.occurrence;
+      const auto *seed_base = find_base_descriptor(descriptor.source_relation);
+      if (seed_base && seed_base->kind == base_kind::overlay) {
+        if (!overlay_component_for_event(descriptor.source_relation,
+                                         descriptor.occurrence,
+                                         symbolic_subject_ordinal))
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 event-seed symbolic overlap component is absent",
+                      relation_checkpoint::symbolic_eligibility);
+        symbolic_subject =
+            symbolic_relation_subject_kind::coplanar_component;
+      }
       const auto *symbolic = find_symbolic_descriptor(
-          descriptor.source_relation, descriptor.occurrence);
+          descriptor.source_relation, symbolic_subject,
+          symbolic_subject_ordinal,
+          descriptor.source_relation.first.operand);
       if (symbolic)
         seed.dependencies.push_back(symbolic->decision_key);
       seed.candidate_witnesses = descriptor.witnesses;
@@ -2841,6 +3032,28 @@ private:
     return it == bases_.end() || it->key != key ? nullptr : &*it;
   }
 
+  bool overlay_component_for_event(const relation_request_key &key,
+                                   std::uint32_t event,
+                                   std::uint64_t &component) const noexcept {
+    const auto *base = find_base_descriptor(key);
+    if (!base || base->kind != base_kind::overlay ||
+        base->ordinal >= overlay_stage_->overlays.size())
+      return false;
+    const auto &overlay = overlay_stage_->overlays[base->ordinal];
+    bool found = false;
+    for (const auto &candidate : overlay.overlap_components) {
+      if (std::find(candidate.node_ids.begin(), candidate.node_ids.end(),
+                    static_cast<std::uint64_t>(event)) ==
+          candidate.node_ids.end())
+        continue;
+      if (found)
+        return false;
+      found = true;
+      component = candidate.id;
+    }
+    return found;
+  }
+
   bool set_truth_symbolic_evidence(
       const relation_truth_record &truth, symbolic_eligibility_reason reason,
       symbolic_eligibility_record &eligibility) const noexcept {
@@ -3036,8 +3249,8 @@ private:
       if (!build_symbolic_eligibility(descriptor, eligibility, error))
         return false;
       auto decision = resolve_symbolic_relation_decision(
-          context_.symbolic, context_.operation, descriptor.acting_operand,
-          descriptor.family, descriptor.orientation, eligibility);
+          context_.symbolic, descriptor.rule_key, descriptor.subject_kind,
+          descriptor.subject_ordinal, eligibility);
       if (!decision.has_value()) {
         error = *decision.error();
         return false;
@@ -3046,8 +3259,10 @@ private:
       eligibility_.push_back(eligibility);
       decisions_.push_back(std::move(*decision.value()));
       if (!decision_ids_
-               .emplace(std::make_pair(descriptor.source_relation,
-                                       descriptor.occurrence),
+               .emplace(std::make_tuple(descriptor.source_relation,
+                                        descriptor.subject_kind,
+                                        descriptor.subject_ordinal,
+                                        descriptor.rule_key.acting_operand),
                         decisions_.back().id)
                .second)
         return fail(error, relation_subcode::incompatible_duplicate_request,
@@ -3084,8 +3299,10 @@ private:
         descriptor.event = &event;
         descriptor.local_transition = event_local_transition(event);
         descriptor.half_open_owner = base.key.first.operand;
-        const auto decision = decision_ids_.find(
-            std::make_pair(base.key, descriptor.occurrence));
+        const auto decision = decision_ids_.find(std::make_tuple(
+            base.key, symbolic_relation_subject_kind::event_occurrence,
+            static_cast<std::uint64_t>(descriptor.occurrence),
+            base.key.first.operand));
         if (decision != decision_ids_.end()) {
           const auto &symbolic = decisions_[decision->second.ordinal()];
           descriptor.symbolic_crossing =
@@ -3294,15 +3511,40 @@ private:
       proposal.incidence = descriptor.incidence;
       proposal.distinct_occurrence_required = descriptor.distinct_occurrence;
       proposal.half_open_owner = descriptor.source_relation.first.operand;
-      const auto decision = decision_ids_.find(
-          std::make_pair(descriptor.source_relation, descriptor.occurrence));
+      auto subject_kind = symbolic_relation_subject_kind::event_occurrence;
+      std::uint64_t subject_ordinal = descriptor.occurrence;
+      const auto *seed_base = find_base_descriptor(descriptor.source_relation);
+      if (seed_base && seed_base->kind == base_kind::overlay) {
+        if (!overlay_component_for_event(descriptor.source_relation,
+                                         descriptor.occurrence,
+                                         subject_ordinal))
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 event seed overlap component is absent",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        subject_kind = symbolic_relation_subject_kind::coplanar_component;
+      }
+      const auto decision = decision_ids_.find(std::make_tuple(
+          descriptor.source_relation, subject_kind, subject_ordinal,
+          descriptor.source_relation.first.operand));
       if (decision != decision_ids_.end()) {
         const auto &symbolic = decisions_[decision->second.ordinal()];
         proposal.has_symbolic_decision = true;
         proposal.symbolic_decision = symbolic.id;
         proposal.symbolic_rule_ordinal = symbolic.stable_rule_ordinal;
+        proposal.symbolic_exchange_rule_ordinal =
+            symbolic.exchange_rule_ordinal;
+        proposal.symbolic_subject_kind = symbolic.subject_kind;
+        proposal.symbolic_subject_ordinal = symbolic.subject_ordinal;
         proposal.symbolic_occurrence_rank = symbolic.feature_priority;
         proposal.conceptual_side = symbolic.conceptual_side;
+        proposal.conceptual_order = symbolic.conceptual_order;
+        proposal.symbolic_contact = symbolic.contact_class;
+        proposal.symbolic_expected = symbolic.expected_disposition;
+        proposal.symbolic_explanation = symbolic.explanation;
+        proposal.symbolic_tie_key_schema = symbolic.tie_key_schema;
+        proposal.coincident_owner_rank = symbolic.coincident_owner_rank;
+        proposal.symbolic_owner_rank_eligible =
+            symbolic.owner_rank_eligible;
         proposal.symbolic_crossing =
             symbolic.symbolic_crossing_contribution;
         proposal.half_open_owner = symbolic.half_open_owner;
@@ -3380,10 +3622,14 @@ private:
   }
 
   const symbolic_descriptor *find_symbolic_descriptor(
-      const relation_request_key &source, std::uint32_t occurrence) const {
+      const relation_request_key &source,
+      symbolic_relation_subject_kind subject_kind,
+      std::uint64_t subject_ordinal, operand_id acting_operand) const {
     for (const auto &descriptor : symbolics_)
       if (descriptor.source_relation == source &&
-          descriptor.occurrence == occurrence)
+          descriptor.subject_kind == subject_kind &&
+          descriptor.subject_ordinal == subject_ordinal &&
+          descriptor.rule_key.acting_operand == acting_operand)
         return &descriptor;
     return nullptr;
   }
@@ -3702,7 +3948,9 @@ private:
   std::vector<relation_candidate_partition_record> candidate_partitions_;
   std::map<relation_request_key, feature_relation_id> relation_ids_;
   std::map<relation_request_key, relation_construction_id> construction_ids_;
-  std::map<std::pair<relation_request_key, std::uint32_t>,
+  std::map<std::tuple<relation_request_key,
+                      symbolic_relation_subject_kind, std::uint64_t,
+                      operand_id>,
            symbolic_relation_decision_id>
       decision_ids_;
 };

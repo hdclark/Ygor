@@ -13,7 +13,7 @@ struct contract_versions final {
     static constexpr std::uint16_t sha256 = 1;
     static constexpr std::uint16_t policies = 1;
     static constexpr std::uint16_t truth_table = 1;
-    static constexpr std::uint16_t symbolic_policy = 1;
+    static constexpr std::uint16_t symbolic_policy = 2;
     static constexpr std::uint16_t identities = 1;
     static constexpr std::uint16_t errors = 1;
     static constexpr std::uint16_t resources = 1;
@@ -120,7 +120,7 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 9;
+    static constexpr std::uint16_t relation_artifact_schema = 10;
     static constexpr std::uint16_t relation_provider = 1;
     static constexpr std::uint16_t relation_graph_policy = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
@@ -161,15 +161,15 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_construction_registry_policy = 1;
     static constexpr std::uint16_t relation_construction_ledger_schema = 1;
     static constexpr std::uint16_t relation_symbolic_eligibility_schema = 1;
-    static constexpr std::uint16_t relation_symbolic_decision_schema = 1;
-    static constexpr std::uint16_t relation_event_seed_schema = 2;
+    static constexpr std::uint16_t relation_symbolic_decision_schema = 2;
+    static constexpr std::uint16_t relation_event_seed_schema = 3;
     static constexpr std::uint16_t relation_event_seed_incidence_schema = 1;
     static constexpr std::uint16_t relation_candidate_disposition_schema = 2;
     static constexpr std::uint16_t relation_candidate_partition_schema = 1;
     static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
     static constexpr std::uint16_t relation_selection_boundary_policy = 1;
-    static constexpr std::uint16_t relation_codec = 10;
-    static constexpr std::uint16_t relation_verifier = 10;
+    static constexpr std::uint16_t relation_codec = 11;
+    static constexpr std::uint16_t relation_verifier = 11;
 
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;

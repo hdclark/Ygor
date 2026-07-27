@@ -110,6 +110,12 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &symbolic_decisions(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.symbolic_decisions_;
+  }
+
+  template <class T, class I>
   static auto &coplanar_event_nodes(
       signed_feature_relations<T, I> &artifact) {
     return artifact.coplanar_event_nodes_;
@@ -184,6 +190,7 @@ built_fixture symbolic_fixture() {
       broad_phase_tests::box(),
       broad_phase_tests::box(0.25, 0.25, 1.0, 0.75, 0.75, 2.0));
 }
+
 
 void require_no_live_resources(const bounded::resource_manager &resources,
                                const char *message) {
@@ -711,6 +718,70 @@ void test_matched_mutation_rejection() {
   require(saw_facet_lineage && saw_coincident_contract,
           "symbolic fixture covers support and overlay eligibility categories");
 
+  bool saw_acting_owner = false;
+  bool saw_opposite_owner = false;
+  bool saw_shared_owner = false;
+  bool saw_coincident_pair = false;
+  const auto inspect_symbolic_decisions =
+      [&](const bounded::signed_feature_relations<double, std::uint32_t>
+              &candidate_artifact,
+          bool require_dual_counterparts) {
+        for (const auto &decision : candidate_artifact.symbolic_decisions()) {
+          saw_acting_owner = saw_acting_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::acting_source_feature;
+          saw_opposite_owner = saw_opposite_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::opposite_source_feature;
+          saw_shared_owner = saw_shared_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::shared_source_feature;
+          saw_coincident_pair = saw_coincident_pair ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::coincident_sheet_pair;
+          require(
+              bounded::valid_symbolic_rule_key(decision.rule_key) &&
+                  bounded::valid_symbolic_tie_key_description(decision.tie_key) &&
+                  decision.tie_key.feature_priority ==
+                      decision.feature_priority &&
+                  decision.tie_key.preferred_operand ==
+                      decision.coincident_owner_rank &&
+                  decision.exchanged_rule_key ==
+                      bounded::exchange_symbolic_rule_key(decision.rule_key) &&
+                  decision.exchange_rule_ordinal ==
+                      bounded::symbolic_rule_ordinal(
+                          decision.exchanged_rule_key),
+              "symbolic decisions publish complete frozen rule and tie-key consequences");
+          const bool dual_subject =
+              decision.subject_kind ==
+                  bounded::symbolic_relation_subject_kind::coplanar_component ||
+              decision.matrix_family == bounded::relation_family::coplanar ||
+              decision.matrix_family ==
+                  bounded::relation_family::coincident_face;
+          if (!require_dual_counterparts || !dual_subject ||
+              decision.exchanged_rule_key.operation !=
+                  candidate_artifact.operation())
+            continue;
+          const auto counterpart = std::find_if(
+              candidate_artifact.symbolic_decisions().begin(),
+              candidate_artifact.symbolic_decisions().end(),
+              [&](const auto &candidate) {
+                return candidate.rule_key == decision.exchanged_rule_key &&
+                       candidate.subject_kind == decision.subject_kind &&
+                       candidate.subject_ordinal == decision.subject_ordinal;
+              });
+          require(counterpart != candidate_artifact.symbolic_decisions().end() &&
+                      counterpart->exchange_rule_ordinal ==
+                          decision.stable_rule_ordinal,
+                  "same-operation operand exchange publishes its exact counterpart");
+        }
+      };
+  inspect_symbolic_decisions(*symbolic_artifact, true);
+  require(saw_acting_owner && saw_coincident_pair,
+          "supported artifact fixtures publish acting-feature and coincident-sheet symbolic roles");
+  require(!saw_opposite_owner && !saw_shared_owner,
+          "unsupported isolated boundary contacts are not fabricated merely to populate symbolic roles");
+
   std::size_t expected_nodes = 0;
   std::size_t expected_arcs = 0;
   std::size_t expected_components = 0;
@@ -796,6 +867,40 @@ void test_matched_mutation_rejection() {
   error = bounded_boolean_error{};
   require(!bounded::verify_signed_feature_relations(symbolic_mutation, error),
           "matched symbolic evidence mutation is independently rejected");
+
+  auto decision_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &decision = bounded::relation_artifact_test_access::symbolic_decisions(
+      decision_mutation).front();
+  decision.tie_key.components[0] =
+      bounded::symbolic_tie_key_component::operand_priority;
+  bounded::relation_artifact_test_access::repair_codec(decision_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(decision_mutation, error),
+          "matched symbolic tie-key mutation is independently rejected");
+
+  auto seed_symbolic_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &symbolic_seeds =
+      bounded::relation_artifact_test_access::event_seeds(
+          seed_symbolic_mutation);
+  const auto symbolic_seed_it = std::find_if(
+      symbolic_seeds.begin(), symbolic_seeds.end(),
+      [](const auto &seed) { return seed.has_symbolic_decision; });
+  require(symbolic_seed_it != symbolic_seeds.end(),
+          "symbolic mutation fixture requires a symbolic event seed");
+  auto &symbolic_seed = *symbolic_seed_it;
+  symbolic_seed.conceptual_order =
+      symbolic_seed.conceptual_order ==
+              bounded::symbolic_offset_disposition::negative
+          ? bounded::symbolic_offset_disposition::positive
+          : bounded::symbolic_offset_disposition::negative;
+  bounded::relation_artifact_test_access::repair_codec(
+      seed_symbolic_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(seed_symbolic_mutation,
+                                                    error),
+          "matched symbolic seed consequence mutation is independently rejected");
 
   auto trailing = artifact->canonical_bytes();
   trailing.push_back(0);

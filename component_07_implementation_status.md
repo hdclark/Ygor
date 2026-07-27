@@ -723,13 +723,54 @@ candidate disposition:
   new limit-minus-one boundaries, and passes the complete thirteen-test Component
   07 predecessor chain under the strict Clang C++17 profile.
 
+## Implemented complete symbolic policy and operand-exchange slice
+
+The reviewed Component 01/07 symbolic contract is now represented by one total,
+versioned, operation-specific matrix rather than the earlier four-field subset:
+
+- the pure policy generator materializes all 34,560 combinations of Boolean
+  operation, acting operand, relation family, orientation relation, source-feature
+  ownership role, half-open endpoint/edge role, transition orientation, and
+  occurrence class with direct canonical ordinal lookup and no fallback path;
+- every rule publishes conceptual offset/order, symbolic crossing, contact class,
+  expected disposition, half-open owner, coincident owner preference, feature
+  priority, owner-rank eligibility, occurrence separation, stable explanation,
+  and an explicit six-component owner-ranking key description covering final
+  orientation capability, operand priority, symbolic feature priority, complete
+  canonical source feature, directed use, and occurrence;
+- operand exchange remaps the operation, acting operand, ownership role, and
+  transition, records the exchanged rule ordinal, is involutive over the complete
+  domain, reverses nonzero conceptual order and crossing contribution, and retains
+  all exchange-invariant contact and ranking consequences;
+- Component 07 symbolic decisions now carry the complete rule key, exact relation,
+  event-occurrence or coplanar-component subject, full ranking descriptor,
+  conceptual side/order, half-open and crossing consequences, owner rank or
+  eligibility, occurrence constraint, explanation, and exchanged rule without
+  modifying nominal geometry or performing final Boolean selection;
+- edge/edge, edge/facet, facet/facet support, and coplanar overlay discovery build
+  the exact matrix key from predecessor evidence; coplanar and coincident subjects
+  publish both operand-role decisions, while lower-dimensional contacts retain the
+  documented transform for the exchanged invocation without inventing a second
+  subject in the current artifact;
+- event-seed requests depend on the exact symbolic subject and acting operand,
+  removing the former ambiguous occurrence-only lookup, and seeds retain the
+  complete symbolic consequence needed by Components 08-10;
+- the independent verifier reconstructs every key dimension, subject identity,
+  decision request and dependency, complete expected subject population, frozen
+  rule, ranking descriptor, seed consequence, and operand-exchange relation from
+  predecessor artifacts and the Component 01 policy digest; and
+- exhaustive Component 01 qualification covers all 34,560 keys, ordinal and
+  exchange round trips, byte/rule mutations, conceptual-order and crossing
+  reversal, while Component 07 matched mutations reject repaired ranking-key and
+  event-seed consequences and the complete thirteen-test strict Clang C++17 chain
+  passes.
+
 ## Outstanding before Component 07 can be checked complete
 
 The tracker remains unchecked. The following Plan 07 work is still required:
 
-1. Complete the remaining symbolic categories, residual owner-rank and
-   occurrence constraints, and replay diagnostics required by the normative
-   plan.
+1. Complete the remaining replay and canonical diagnostic obligations required
+   by the normative plan.
 2. Add the independent exact-rational/exhaustive oracle, complete known-answer
    and mutation suites, deterministic fuzz/shrink campaigns, full
    resource/cancellation matrices, structural performance gates, and

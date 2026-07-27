@@ -404,14 +404,37 @@ bool verify_relation_event_candidate_evidence(
       if (record.symbolic_decision != expected_symbolic->id ||
           record.symbolic_rule_ordinal !=
               expected_symbolic->stable_rule_ordinal ||
+          record.symbolic_exchange_rule_ordinal !=
+              expected_symbolic->exchange_rule_ordinal ||
+          record.symbolic_subject_kind != expected_symbolic->subject_kind ||
+          record.symbolic_subject_ordinal !=
+              expected_symbolic->subject_ordinal ||
           record.symbolic_occurrence_rank !=
               expected_symbolic->feature_priority ||
-          record.conceptual_side != expected_symbolic->conceptual_side)
+          record.conceptual_side != expected_symbolic->conceptual_side ||
+          record.conceptual_order != expected_symbolic->conceptual_order ||
+          record.symbolic_contact != expected_symbolic->contact_class ||
+          record.symbolic_expected !=
+              expected_symbolic->expected_disposition ||
+          record.symbolic_explanation != expected_symbolic->explanation ||
+          record.symbolic_tie_key_schema != expected_symbolic->tie_key_schema ||
+          record.coincident_owner_rank !=
+              expected_symbolic->coincident_owner_rank ||
+          record.symbolic_owner_rank_eligible !=
+              expected_symbolic->owner_rank_eligible)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 event-seed symbolic evidence does not reconstruct");
     } else if (record.symbolic_rule_ordinal != 0 ||
+               record.symbolic_exchange_rule_ordinal != 0 ||
+               record.symbolic_subject_kind !=
+                   symbolic_relation_subject_kind::relation ||
+               record.symbolic_subject_ordinal != 0 ||
                record.symbolic_occurrence_rank != 0 ||
-               record.conceptual_side != symbolic_relation_side::coincident) {
+               record.conceptual_side != symbolic_relation_side::coincident ||
+               record.conceptual_order !=
+                   symbolic_offset_disposition::coincident ||
+               record.symbolic_tie_key_schema != 0 ||
+               record.symbolic_owner_rank_eligible) {
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 event seed invents symbolic evidence");
     }

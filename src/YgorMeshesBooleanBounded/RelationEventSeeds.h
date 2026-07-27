@@ -21,8 +21,23 @@ struct relation_event_seed_proposal final {
   bool has_symbolic_decision = false;
   symbolic_relation_decision_id symbolic_decision{0};
   std::uint64_t symbolic_rule_ordinal = 0;
+  std::uint64_t symbolic_exchange_rule_ordinal = 0;
+  symbolic_relation_subject_kind symbolic_subject_kind =
+      symbolic_relation_subject_kind::relation;
+  std::uint64_t symbolic_subject_ordinal = 0;
   std::uint32_t symbolic_occurrence_rank = 0;
   symbolic_relation_side conceptual_side = symbolic_relation_side::coincident;
+  symbolic_offset_disposition conceptual_order =
+      symbolic_offset_disposition::coincident;
+  symbolic_contact_class symbolic_contact =
+      symbolic_contact_class::point_contact;
+  symbolic_expected_disposition symbolic_expected =
+      symbolic_expected_disposition::classification_only;
+  symbolic_explanation_code symbolic_explanation =
+      symbolic_explanation_code::exact_vertex_tie;
+  std::uint16_t symbolic_tie_key_schema = 0;
+  operand_id coincident_owner_rank = operand_id::a;
+  bool symbolic_owner_rank_eligible = false;
   std::int32_t numeric_crossing = 0;
   std::int8_t symbolic_crossing = 0;
   operand_id half_open_owner = operand_id::a;
