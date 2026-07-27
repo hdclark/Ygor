@@ -4,17 +4,29 @@ namespace {
 
 void runner_contracts() {
   const auto plan = plan_fixture();
-  const auto passing_executor = [&](
-                                    const qualification_candidate_execution_case
-                                        &descriptor)
+  const auto passing_executor = [&]
+      (const qualification_candidate_execution_case &descriptor)
       -> product_status_or<qualification_candidate_execution_observation> {
     if (descriptor.identifier == "candidate.case.expected_failure")
       return observation(descriptor,
                          qualification_outcome::expected_typed_failure, 403);
-    return observation(descriptor, qualification_outcome::verified_exact_success,
+    return observation(descriptor,
+                       qualification_outcome::verified_exact_success,
                        descriptor.identifier == "candidate.case.exact_success"
                            ? 401
                            : 402);
+  };
+
+  const auto anomalous_executor = [&]
+      (const qualification_candidate_execution_case &descriptor)
+      -> product_status_or<qualification_candidate_execution_observation> {
+    if (descriptor.identifier != "candidate.case.expected_failure")
+      return passing_executor(descriptor);
+    auto wrong = observation(
+        descriptor, qualification_outcome::expected_typed_failure, 410);
+    wrong.error_code = product_error_code::resource_limit;
+    wrong.observation_digest = {};
+    return make_qualification_candidate_execution_observation(std::move(wrong));
   };
 
   std::vector<std::string> visited;
@@ -41,19 +53,8 @@ void runner_contracts() {
     require(visited[i] == plan.execution_cases[i].identifier,
             "runner executes the frozen canonical case order");
 
-  auto anomalous = run_qualification_candidate_campaign(
-      plan, [&](const auto &descriptor)
-                -> product_status_or<
-                    qualification_candidate_execution_observation> {
-        if (descriptor.identifier != "candidate.case.expected_failure")
-          return passing_executor(descriptor);
-        auto wrong = observation(
-            descriptor, qualification_outcome::expected_typed_failure, 410);
-        wrong.error_code = product_error_code::resource_limit;
-        wrong.observation_digest = {};
-        return make_qualification_candidate_execution_observation(
-            std::move(wrong));
-      });
+  auto anomalous =
+      run_qualification_candidate_campaign(plan, anomalous_executor);
   require(anomalous.has_value() && !anomalous.value().campaign.complete &&
               anomalous.value().campaign.blocking_issue_count != 0 &&
               anomalous.value().campaign.issues.size() == 1 &&
@@ -95,6 +96,23 @@ void runner_contracts() {
               resolved.value().campaign.resolved_issue_count == 1 &&
               resolved.value().campaign.promoted_regression_count == 1,
           "runner closes a reviewed defect only after promotion and rerun");
+
+  qualification_candidate_run_options recurrence_options;
+  recurrence_options.retained_issues = resolved.value().campaign.issues;
+  auto recurring = run_qualification_candidate_campaign(
+      plan, anomalous_executor, std::move(recurrence_options));
+  require(recurring.has_value(),
+          "a recurring deterministic anomaly remains inspectable");
+  const auto unresolved_recurrences = static_cast<std::size_t>(std::count_if(
+      recurring.value().campaign.issues.begin(),
+      recurring.value().campaign.issues.end(), [](const auto &issue) {
+        return issue.disposition ==
+               qualification_candidate_issue_disposition::unresolved_blocking;
+      }));
+  require(!recurring.value().campaign.complete &&
+              recurring.value().campaign.issues.size() == 2 &&
+              unresolved_recurrences == 1,
+          "a resolved deterministic anomaly reopens as a new issue generation");
 
   std::uint64_t executions = 0;
   bool cancellation_sink_called = false;
