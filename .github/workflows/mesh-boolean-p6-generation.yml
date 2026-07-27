@@ -63,20 +63,24 @@ jobs:
       - name: Verify tracker and publish implementation
         shell: bash
         run: |
-          set -euo pipefail
-          grep -Fq -- '- [x] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**' tracker.md
+          exec > >(tee /tmp/p67-publish.log) 2>&1
+          set -euxo pipefail
+          grep -Eq '^- \[x\].*P6\.7.*preparation, result-mode, attribute, and provenance qualification suites' tracker.md
           rm -rf build-p67-apply
+          git status --short
           git diff --check
-          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
           git diff --cached --check
+          git diff --cached --stat
           if git diff --cached --quiet; then
             echo 'No reviewed P6.7 changes were staged' >&2
             exit 1
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Implement P6.7 qualification suites (plan 16)'
-          git push origin HEAD:boolean_symbolic
+          git push --verbose origin HEAD:boolean_symbolic
       - name: Retain failing diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -85,5 +89,6 @@ jobs:
           path: |
             build-p67-apply/Testing/Temporary/LastTest.log
             /tmp/p67.patch
+            /tmp/p67-publish.log
           if-no-files-found: ignore
           retention-days: 7
