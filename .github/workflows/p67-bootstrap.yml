@@ -33,26 +33,38 @@ jobs:
           import base64
           import glob
           import gzip
+          import traceback
           from pathlib import Path
 
+          diagnostics = []
           for stem in ('p67.patch', 'p67code.patch'):
-              encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
-                                for path in sorted(glob.glob(f'.github/{stem}.*')))
-              decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
-              Path(f'/tmp/{stem}').write_bytes(decoded)
+              paths = sorted(glob.glob(f'.github/{stem}.*'))
+              encoded = ''.join(Path(path).read_text(encoding='ascii').strip() for path in paths)
+              padding = '=' * ((4 - (len(encoded) % 4)) % 4)
+              raw = base64.b64decode(encoded + padding, validate=False)
+              Path(f'/tmp/{stem}.gz').write_bytes(raw)
+              try:
+                  decoded = gzip.decompress(raw)
+                  Path(f'/tmp/{stem}').write_bytes(decoded)
+                  diagnostics.append(f'{stem}: {len(paths)} chunks, {len(encoded)} base64 chars, {len(raw)} gzip bytes, {len(decoded)} decoded bytes')
+              except Exception:
+                  diagnostics.append(f'{stem}: decode failure\n{traceback.format_exc()}')
+          Path('/tmp/p67-decode-diagnostics.txt').write_text('\n'.join(diagnostics) + '\n', encoding='utf-8')
           PY
-          echo '=== p67.patch digest/stat ==='
-          sha256sum /tmp/p67.patch
-          git apply --stat /tmp/p67.patch
-          echo '=== p67code.patch digest/stat ==='
-          sha256sum /tmp/p67code.patch
-          git apply --stat /tmp/p67code.patch
+          cat /tmp/p67-decode-diagnostics.txt
+          for patch in /tmp/p67.patch /tmp/p67code.patch; do
+            if [[ -f "$patch" ]]; then
+              sha256sum "$patch"
+              git apply --stat "$patch" || true
+            fi
+          done
       - name: Upload decoded patches
         uses: actions/upload-artifact@v4
         with:
           name: p67-decoded-patches
           path: |
-            /tmp/p67.patch
-            /tmp/p67code.patch
+            /tmp/p67.patch*
+            /tmp/p67code.patch*
+            /tmp/p67-decode-diagnostics.txt
           if-no-files-found: error
           retention-days: 1
