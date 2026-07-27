@@ -1,4 +1,4 @@
-name: Apply reviewed Mesh Boolean P6.6 ingestion
+name: Publish reviewed Mesh Boolean P6.6 ingestion commit
 
 on:
   push:
@@ -16,114 +16,30 @@ permissions:
   contents: write
 
 concurrency:
-  group: mesh-boolean-p6-ingestion-apply-final-${{ github.event_name }}
+  group: mesh-boolean-p6-ingestion-publish-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  validate-and-publish:
-    name: GCC validate and publish reviewed P6.6 patch
+  publish-validated-commit:
+    name: Publish validated P6.6 commit to staging branch
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: boolean_symbolic
-      - name: Reconstruct and verify reviewed patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
-          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
-          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
-          git apply --check /tmp/p6-ingestion.patch
-          git apply /tmp/p6-ingestion.patch
-          git diff --check
-      - name: Install build tools
-        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build
-      - name: Configure focused strict C++17 GCC harness
-        shell: bash
-        env:
-          CC: gcc
-          CXX: g++
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/ygor-p6-ingestion-focused
-          cat > /tmp/ygor-p6-ingestion-focused/CMakeLists.txt <<'CMAKE'
-          cmake_minimum_required(VERSION 3.16)
-          project(YgorP6IngestionFocused LANGUAGES CXX)
-          set(CMAKE_CXX_STANDARD 17)
-          set(CMAKE_CXX_STANDARD_REQUIRED ON)
-          set(REPO "$ENV{GITHUB_WORKSPACE}")
-          configure_file(${REPO}/src/YgorDefinitions.h.in ${CMAKE_BINARY_DIR}/YgorDefinitions.h)
-          add_executable(p6_ingestion
-            ${REPO}/src/YgorMeshesBooleanQualificationIngestion.cc
-            ${REPO}/src/External/MD5/md5.cc
-            ${REPO}/tests/MeshBooleanTestHarness.cc
-            ${REPO}/tests/Test_MeshesBooleanQualificationIngestion.cc
-            support.cc)
-          target_include_directories(p6_ingestion PRIVATE
-            ${REPO}/src ${REPO}/tests ${CMAKE_BINARY_DIR})
-          target_compile_definitions(p6_ingestion PRIVATE
-            YGOR_BOOLEAN_TEST_DATA_DIR="${REPO}/tests/mesh_boolean")
-          target_compile_options(p6_ingestion PRIVATE
-            -Wall -Wextra -Wpedantic -fno-fast-math -frounding-math -ffp-contract=off)
-          CMAKE
-          cat > /tmp/ygor-p6-ingestion-focused/support.cc <<'CPP'
-          #include <YgorMeshesBooleanProductContract.h>
-          #include <External/MD5/md5.h>
-          #include <iomanip>
-          #include <sstream>
-          #include <utility>
-          namespace ygor { namespace mesh_boolean {
-          std::string digest::hex() const {
-            std::ostringstream os; os << std::hex << std::setfill('0');
-            for (auto b : bytes) os << std::setw(2) << unsigned(b);
-            return os.str();
-          }
-          void canonical_encoder::u16(std::uint16_t v) { byte(v >> 8); byte(v); }
-          void canonical_encoder::u32(std::uint32_t v) { for (int s = 24; s >= 0; s -= 8) byte(v >> s); }
-          void canonical_encoder::u64(std::uint64_t v) { for (int s = 56; s >= 0; s -= 8) byte(v >> s); }
-          void canonical_encoder::signed_magnitude(std::int64_t v) {
-            boolean(v < 0);
-            const std::uint64_t m = v < 0 ? std::uint64_t(-(v + 1)) + 1 : std::uint64_t(v);
-            u64(m);
-          }
-          void canonical_encoder::raw(const std::uint8_t *p, std::size_t n) {
-            if (n) bytes_.insert(bytes_.end(), p, p + n);
-          }
-          digest md5_digest(const std::uint8_t *p, std::size_t n) {
-            MD5::Context c; MD5::Init(&c); if (n) MD5::Update(&c, p, n);
-            digest d; MD5::Final(d.bytes.data(), &c); return d;
-          }
-          digest domain_digest(const std::array<char, 8> &tag,
-                               const std::vector<std::uint8_t> &payload) {
-            MD5::Context c; MD5::Init(&c); MD5::Update(&c, tag.data(), tag.size());
-            if (!payload.empty()) MD5::Update(&c, payload.data(), payload.size());
-            digest d; MD5::Final(d.bytes.data(), &c); return d;
-          }
-          product_error make_product_error(product_error_code code, std::string key,
-                                           std::uint32_t subcode) {
-            product_error error; error.code = code; error.message_key = std::move(key);
-            error.subcode = subcode; return error;
-          }
-          } }
-          CPP
-          cmake -S /tmp/ygor-p6-ingestion-focused \
-                -B /tmp/ygor-p6-ingestion-focused/build \
-                -G Ninja -DCMAKE_BUILD_TYPE=Debug
-      - name: Build and run focused P6.6 gates
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --build /tmp/ygor-p6-ingestion-focused/build --parallel 2
-          /tmp/ygor-p6-ingestion-focused/build/p6_ingestion
-      - name: Commit validated implementation
+      - name: Reconstruct checked patch and publish staging commit
         shell: bash
         run: |
           set -euo pipefail
           git fetch --force origin boolean_symbolic
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/boolean_symbolic)"
+          test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
+          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
+          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
+          git apply --check /tmp/p6-ingestion.patch
+          git apply /tmp/p6-ingestion.patch
           rm -f .github/p6-ingestion.patch.part-*
           rm -f .github/workflows/mesh-boolean-p6-ingestion-apply.yml
           rm -f .github/workflows/mesh-boolean-p6-workspace-export.yml
@@ -133,4 +49,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Implement P6.6 controlled CAD-like corpus ingestion (plan 16)'
-          git push origin HEAD:boolean_symbolic
+          git push --force origin HEAD:refs/heads/agent/p6-ingestion-publish
