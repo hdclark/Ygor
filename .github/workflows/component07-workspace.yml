@@ -68,7 +68,6 @@ jobs:
       - name: Create verified remote commit object
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXPECTED_HEAD: 78b5ff84c3b3e624299986b85b593ef50b8eec8c
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -76,15 +75,13 @@ jobs:
           import json
           import os
           import subprocess
+          import urllib.parse
           import urllib.request
 
           repo = os.environ["GITHUB_REPOSITORY"]
           token = os.environ["GH_TOKEN"]
-          expected_head = os.environ["EXPECTED_HEAD"]
           parent = subprocess.check_output(
               ["git", "rev-parse", "HEAD"], text=True).strip()
-          if parent != expected_head:
-              raise SystemExit(f"head moved: expected {expected_head}, found {parent}")
 
           def api(method, path, payload=None):
               data = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -99,6 +96,12 @@ jobs:
                   request.add_header("Content-Type", "application/json")
               with urllib.request.urlopen(request) as response:
                   return json.load(response)
+
+          branch = "agent/bounded-manifold-mesh-boolean-plan"
+          branch_ref = api("GET", "/git/ref/heads/" + urllib.parse.quote(branch, safe="/"))
+          if branch_ref["object"]["sha"] != parent:
+              raise SystemExit(
+                  f"head moved: expected {parent}, found {branch_ref['object']['sha']}")
 
           base_commit = api("GET", f"/git/commits/{parent}")
           base_tree = base_commit["tree"]["sha"]
