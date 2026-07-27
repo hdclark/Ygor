@@ -101,6 +101,7 @@ set(ygor_boolean_strict_arithmetic_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationIngestion.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationComparison.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationAccounting.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanQualificationSuites.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanBackend.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesBooleanService.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactArithmetic.cc

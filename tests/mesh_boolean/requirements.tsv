@@ -30,3 +30,7 @@ P6-REINGEST-001	plan16.P6.5	re-ingest every mesh success, independently reconstr
 P6-INGEST-001	plan16.P6.6	CAD-like records bind source class, model tolerance, license/provenance, preparation report, expected outcome, exact failure vocabulary, and redistribution	P6.6.cases	qualification	continuous
 P6-ARTIFACT-001	plan16.P6.6	repository and content-addressed artifacts verify exact byte count and digest while private digest-only retrieval fails closed	P6.6.artifacts	negative	continuous
 P6-PRIVATE-001	plan16.P6.6	external and private records retain anonymized summaries and distinct bounded repository CI representatives without source disclosure	P6.6.manifest	qualification	continuous
+P6-PREP-001	plan16.P6.7	strict validation, diagnosis-only, and every normalization repair class are qualified independently with strict revalidation and report replay	P6.7.preparation	qualification	continuous
+P6-RESULT-001	plan16.P6.7	exact stratified, strict exact_in_T, and certified approximate representations retain distinct semantics, exact-result bindings, re-ingestion, and certificate evidence	P6.7.result_modes	qualification	continuous
+P6-ATTR-001	plan16.P6.7	all advertised attribute and provenance policies verify seams, conflicts, omissions, multi-source mappings, downstream source queries, and geometry invariance	P6.7.attributes	qualification	continuous
+P6-BOUND-001	plan16.P6.7	normalization and approximate limits use explicit unit-bound binary64 evidence with independently checked observed maxima and no hidden epsilon	P6.7.report	negative	continuous

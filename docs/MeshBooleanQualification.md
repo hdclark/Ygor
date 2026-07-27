@@ -188,3 +188,19 @@ artifacts are never materialized. External/private records require a distinct
 bounded in-repository representative, and the manifest derives anonymized
 category/outcome summaries and ordinary P6.1 corpus bindings from canonical
 records rather than trusting caller-supplied totals.
+
+## Preparation, result-mode, attribute, and provenance suites (P6.7)
+
+`YgorMeshesBooleanQualificationSuites.h` and
+`MeshBooleanQualificationSuites.md` define three independent qualification
+catalogs. Strict validation, diagnosis-only preparation, and every normalization
+repair class have separate policy/case bindings. Exact stratified, strict
+`exact_in_T`, and certified approximate outputs have separate semantic and
+certificate obligations. Every advertised attribute/provenance policy is
+covered, including seams, conflicts, omissions, multi-source mappings, and
+downstream contributor queries. Geometry-changing normalization and approximate
+realization use explicit unit-bearing binary64 bounds, independently checked
+observed maxima, and replayable checker-transcript digests; exact paths reject
+hidden epsilon evidence. A canonical P6.7 report passes only when every planned
+case succeeds, attribute variants preserve the same exact-result and geometry
+digests, and no blocking issue remains.

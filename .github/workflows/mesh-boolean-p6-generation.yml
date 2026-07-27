@@ -1,94 +1,76 @@
-name: Temporary Mesh Boolean P6.7 apply and validate
+name: Mesh Boolean P6.3 generators and chains
 
 on:
   push:
     branches:
       - boolean_symbolic
     paths:
+      - 'src/YgorMeshesBooleanQualificationGeneration.*'
+      - 'src/YgorMeshesBooleanProductContract.h'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationGeneration.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/mesh_boolean/corpus/README.md'
+      - 'docs/MeshBooleanQualificationGeneration.md'
+      - 'docs/MeshBooleanQualificationCorpus.md'
+      - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-generation.yml'
   pull_request:
     paths:
+      - 'src/YgorMeshesBooleanQualificationGeneration.*'
+      - 'src/YgorMeshesBooleanProductContract.h'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationGeneration.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/mesh_boolean/corpus/README.md'
+      - 'docs/MeshBooleanQualificationGeneration.md'
+      - 'docs/MeshBooleanQualificationCorpus.md'
+      - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-generation.yml'
 
 permissions:
-  contents: write
-
-concurrency:
-  group: mesh-boolean-p67-apply
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  apply-validate-push:
-    if: github.actor != 'github-actions[bot]'
+  generation-contracts:
+    name: ${{ matrix.compiler }} generation contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: boolean_symbolic
-          fetch-depth: 0
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-      - name: Verify and apply reviewed P6.7 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .github/p67.patch.00 .github/p67.patch.01 .github/p67.patch.02 .github/p67.patch.03 .github/p67.patch.04 \
-            | base64 -d | gzip -d > /tmp/p67.patch
-          echo 'f7bf3d4be781ee2653e4d0c05182a665cfe66d8095a78ecc95b7a06002e34dd8  /tmp/p67.patch' \
-            | sha256sum -c -
-          git apply --check /tmp/p67.patch
-          git apply /tmp/p67.patch
-          git show 171927e57130996344757d2b162e9389db09421a:.github/workflows/mesh-boolean-p6-generation.yml \
-            > .github/workflows/mesh-boolean-p6-generation.yml
-          rm -f .github/p67.patch.00 .github/p67.patch.01 .github/p67.patch.02 .github/p67.patch.03 .github/p67.patch.04
-          git diff --check
-      - name: Configure focused qualification build
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
         run: >-
-          cmake -S . -B build-p67-apply -G Ninja
+          cmake -S . -B build-p6-generation -G Ninja
           -DBUILD_TESTING=ON
           -DCMAKE_BUILD_TYPE=Debug
           -DWITH_EIGEN=OFF
           -DWITH_GNU_GSL=OFF
-      - name: Build repaired P6.6 and new P6.7 targets
+      - name: Build P6.3 target
         run: >-
-          cmake --build build-p67-apply
-          --target Test_MeshesBooleanQualificationIngestion Test_MeshesBooleanQualificationSuites
+          cmake --build build-p6-generation
+          --target Test_MeshesBooleanQualificationGeneration
           --parallel 2
-      - name: Run focused P6.6 and P6.7 gates
+      - name: Run generator and chain gates
         run: >-
-          ctest --test-dir build-p67-apply --output-on-failure
-          -R '^MeshBoolean\.Qualification(Ingestion|Suites)$'
+          ctest --test-dir build-p6-generation --output-on-failure
+          -R '^MeshBoolean\.QualificationGeneration$'
           --timeout 1200
-      - name: Verify tracker and publish implementation
-        shell: bash
-        run: |
-          exec > >(tee /tmp/p67-publish.log) 2>&1
-          set -euxo pipefail
-          grep -Eq '^- \[x\].*P6\.7.*preparation, result-mode, attribute, and provenance qualification suites' tracker.md
-          rm -rf build-p67-apply
-          git status --short
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git status --short
-          git diff --cached --check
-          git diff --cached --stat
-          if git diff --cached --quiet; then
-            echo 'No reviewed P6.7 changes were staged' >&2
-            exit 1
-          fi
-          git commit -m 'Implement P6.7 qualification suites (plan 16)'
-          git push --verbose origin HEAD:boolean_symbolic
-      - name: Retain failing diagnostics
+      - name: Retain failing test log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: mesh-boolean-p67-apply-failure
-          path: |
-            build-p67-apply/Testing/Temporary/LastTest.log
-            /tmp/p67.patch
-            /tmp/p67-publish.log
+          name: mesh-boolean-p6-generation-${{ matrix.compiler }}-failure
+          path: build-p6-generation/Testing/Temporary/LastTest.log
           if-no-files-found: ignore
           retention-days: 7

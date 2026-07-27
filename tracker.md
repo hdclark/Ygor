@@ -229,11 +229,11 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Record source/generator class, intended model tolerance, provenance/license, preparation report, expected product outcome, and redistribution constraints.
   - [x] Support content-addressed external/private artifacts with repository manifests, digests, retrieval procedures where permitted, anonymized category/outcome summaries, and compact in-repository CI representatives.
 
-- [ ] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**
-  - [ ] Qualify strict validation independently from every normalization mode/repair class.
-  - [ ] Qualify exact stratified, strict `exact_in_T`, and certified approximate representations independently.
-  - [ ] Verify all advertised attribute/provenance policies, seams, conflicts, omissions, multi-source mappings, and downstream-style source queries.
-  - [ ] Demonstrate that approximate and normalization tolerances/displacements are explicit, recorded, independently checked, and never hidden test epsilons.
+- [x] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**
+  - [x] Qualify strict validation independently from every normalization mode/repair class.
+  - [x] Qualify exact stratified, strict `exact_in_T`, and certified approximate representations independently.
+  - [x] Verify all advertised attribute/provenance policies, seams, conflicts, omissions, multi-source mappings, and downstream-style source queries.
+  - [x] Demonstrate that approximate and normalization tolerances/displacements are explicit, recorded, independently checked, and never hidden test epsilons.
 
 - [ ] **P6.8 — Complete compiler, sanitizer, determinism, resource, and fuzz-duration matrices.**
   - [ ] Run current and oldest-supported GCC/Clang, Debug/optimized, supported standard libraries, x86-64 and an independent 64-bit architecture, strict floating-point modes, and 32/64-bit index specializations as applicable.
