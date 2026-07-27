@@ -92,6 +92,7 @@ struct qualification_candidate_execution_observation {
   std::string case_identifier;
   digest case_digest;
   qualification_outcome outcome = qualification_outcome::infrastructure_failure;
+  std::optional<product_error_code> error_code;
   bool completed = false;
   std::string typed_outcome_key;
   digest accounting_digest;
