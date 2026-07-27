@@ -7,24 +7,34 @@ on:
     paths:
       - .github/component07-construction.patch.gz
       - .github/workflows/component07-apply-construction.yml
+  pull_request:
+    branches:
+      - agent/component07-runner-base
+    paths:
+      - .github/component07-construction.patch.gz
+      - .github/workflows/component07-apply-construction.yml
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - name: Publish exact plan commit
         env:
           BASE_SHA: 66d9f14e32743c95c583c330d63c7ecab5cacf46
           BRANCH_REF: refs/heads/agent/bounded-manifold-mesh-boolean-plan
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           gzip -dc .github/component07-construction.patch.gz > /tmp/component07.patch
           git apply --index --3way /tmp/component07.patch
@@ -37,5 +47,5 @@ jobs:
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
           git commit -m "Component 07: authoritative construction registry"
           echo "FINAL_SHA=$(git rev-parse HEAD)"
-          git push --force-with-lease="${BRANCH_REF}:${GITHUB_SHA}" \
+          git push --force-with-lease="${BRANCH_REF}:${EXPECTED_HEAD}" \
                    origin "HEAD:${BRANCH_REF}"
