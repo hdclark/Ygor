@@ -6,6 +6,11 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/mesh-boolean-workspace-export.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/mesh-boolean-workspace-export.yml'
 
 permissions:
   contents: read
