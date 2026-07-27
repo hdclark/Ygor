@@ -1,0 +1,139 @@
+#include <YgorMeshesBooleanQualificationCandidateRunner.h>
+
+namespace {
+
+void runner_contracts() {
+  const auto plan = plan_fixture();
+  const auto passing_executor = [&](
+                                    const qualification_candidate_execution_case
+                                        &descriptor)
+      -> product_status_or<qualification_candidate_execution_observation> {
+    if (descriptor.identifier == "candidate.case.expected_failure")
+      return observation(descriptor,
+                         qualification_outcome::expected_typed_failure, 403);
+    return observation(descriptor, qualification_outcome::verified_exact_success,
+                       descriptor.identifier == "candidate.case.exact_success"
+                           ? 401
+                           : 402);
+  };
+
+  std::vector<std::string> visited;
+  std::uint64_t sink_calls = 0;
+  auto complete = run_qualification_candidate_campaign(
+      plan,
+      [&](const auto &descriptor)
+          -> product_status_or<qualification_candidate_execution_observation> {
+        visited.push_back(descriptor.identifier);
+        return passing_executor(descriptor);
+      },
+      {}, {},
+      [&](const auto &bound_plan, const auto &campaign)
+          -> product_status_or<bool> {
+        ++sink_calls;
+        return qualification_candidate_campaign_gate_passes(campaign,
+                                                             bound_plan);
+      });
+  require(complete.has_value() && complete.value().campaign.complete &&
+              complete.value().published && sink_calls == 1 &&
+              visited.size() == plan.execution_cases.size(),
+          "runner publishes one complete canonical campaign");
+  for (std::size_t i = 0; i != visited.size(); ++i)
+    require(visited[i] == plan.execution_cases[i].identifier,
+            "runner executes the frozen canonical case order");
+
+  auto anomalous = run_qualification_candidate_campaign(
+      plan, [&](const auto &descriptor)
+                -> product_status_or<
+                    qualification_candidate_execution_observation> {
+        if (descriptor.identifier != "candidate.case.expected_failure")
+          return passing_executor(descriptor);
+        auto wrong = observation(
+            descriptor, qualification_outcome::expected_typed_failure, 410);
+        wrong.error_code = product_error_code::resource_limit;
+        wrong.observation_digest = {};
+        return make_qualification_candidate_execution_observation(
+            std::move(wrong));
+      });
+  require(anomalous.has_value() && !anomalous.value().campaign.complete &&
+              anomalous.value().campaign.blocking_issue_count != 0 &&
+              anomalous.value().campaign.issues.size() == 1 &&
+              anomalous.value().campaign.issues.front().kind ==
+                  qualification_candidate_issue_kind::unexpected_typed_failure,
+          "runner retains an exact unresolved issue for a current anomaly");
+
+  qualification_candidate_run_options rerun_options;
+  rerun_options.retained_issues = anomalous.value().campaign.issues;
+  auto resolved = run_qualification_candidate_campaign(
+      plan, passing_executor, std::move(rerun_options),
+      [&](const auto &, const auto &observations,
+          std::vector<qualification_candidate_issue> issues)
+          -> product_status_or<std::vector<qualification_candidate_issue>> {
+        require_equal(issues.size(), std::size_t(1),
+                      "one retained issue enters reconciliation");
+        const auto final_observation = std::find_if(
+            observations.begin(), observations.end(), [&](const auto &entry) {
+              return entry.case_identifier == issues.front().case_identifier;
+            });
+        require(final_observation != observations.end(),
+                "resolved issue has a final rerun observation");
+        auto &issue = issues.front();
+        issue.disposition =
+            qualification_candidate_issue_disposition::resolved_engine_defect;
+        issue.reviewer = "candidate-runner-reviewer";
+        issue.rationale = "The minimized defect was fixed and rerun.";
+        issue.resolution_evidence_digest = tagged_digest('R', 450);
+        issue.regression = regression_fixture();
+        issue.affected_configuration_identifiers = {
+            "gcc-strict-release-x86_64"};
+        issue.rerun_observation_digests = {
+            final_observation->observation_digest};
+        issue.resolution_verified = true;
+        issue.issue_digest = {};
+        return issues;
+      });
+  require(resolved.has_value() && resolved.value().campaign.complete &&
+              resolved.value().campaign.resolved_issue_count == 1 &&
+              resolved.value().campaign.promoted_regression_count == 1,
+          "runner closes a reviewed defect only after promotion and rerun");
+
+  std::uint64_t executions = 0;
+  bool cancellation_sink_called = false;
+  std::uint64_t cancellation_checks = 0;
+  qualification_candidate_run_options cancelled_options;
+  cancelled_options.cancellation_requested = [&] {
+    return cancellation_checks++ == 1;
+  };
+  auto cancelled = run_qualification_candidate_campaign(
+      plan,
+      [&](const auto &descriptor)
+          -> product_status_or<qualification_candidate_execution_observation> {
+        ++executions;
+        return passing_executor(descriptor);
+      },
+      std::move(cancelled_options), {},
+      [&](const auto &, const auto &) -> product_status_or<bool> {
+        cancellation_sink_called = true;
+        return true;
+      });
+  require(!cancelled.has_value() && executions == 1 &&
+              !cancellation_sink_called,
+          "cancellation aborts before any campaign publication");
+
+  bool failure_sink_called = false;
+  auto infrastructure_failure = run_qualification_candidate_campaign(
+      plan,
+      [&](const auto &)
+          -> product_status_or<qualification_candidate_execution_observation> {
+        return make_product_error(product_error_code::resource_limit,
+                                  "candidate.runner.fixture_failure");
+      },
+      {}, {},
+      [&](const auto &, const auto &) -> product_status_or<bool> {
+        failure_sink_called = true;
+        return true;
+      });
+  require(!infrastructure_failure.has_value() && !failure_sink_called,
+          "executor failure cannot leak a partial campaign to the sink");
+}
+
+} // namespace
