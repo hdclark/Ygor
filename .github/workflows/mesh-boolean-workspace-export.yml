@@ -31,3 +31,5 @@ jobs:
           path: /tmp/ygor-boolean-symbolic-workspace.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+# trigger: p6.7-completion
