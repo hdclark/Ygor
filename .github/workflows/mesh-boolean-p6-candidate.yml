@@ -1,0 +1,69 @@
+name: Mesh Boolean P6.10 candidate campaign contracts
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
+      - 'tests/p610/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements_p610.tsv'
+      - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-candidate.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.cc'
+      - 'tests/p610/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements_p610.tsv'
+      - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-candidate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-contracts:
+    name: ${{ matrix.compiler }} P6.10 candidate contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure bounded checker smoke
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S tests/p610 -B build-p6-candidate -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+      - name: Build P6.10 target
+        run: >-
+          cmake --build build-p6-candidate
+          --target Test_MeshesBooleanQualificationCandidate
+          --parallel 2
+      - name: Run candidate closure contracts
+        run: >-
+          ctest --test-dir build-p6-candidate --output-on-failure
+          -R '^MeshBoolean\.QualificationCandidate$'
+          --timeout 1200
+      - name: Retain failing test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-candidate-${{ matrix.compiler }}-failure
+          path: build-p6-candidate/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
