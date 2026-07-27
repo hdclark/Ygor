@@ -24,6 +24,10 @@ on:
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-candidate.yml'
 
+concurrency:
+  group: mesh-boolean-p6-candidate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
