@@ -74,3 +74,23 @@ jobs:
           path: build-p6-generation/Testing/Temporary/LastTest.log
           if-no-files-found: ignore
           retention-days: 7
+
+  workspace-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git --exclude=build --exclude='build-*' -czf /tmp/ygor-boolean-symbolic-workspace.tar.gz .
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-boolean-symbolic-workspace
+          path: /tmp/ygor-boolean-symbolic-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
