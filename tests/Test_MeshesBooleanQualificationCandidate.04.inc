@@ -114,6 +114,31 @@ void runner_contracts() {
               unresolved_recurrences == 1,
           "a resolved deterministic anomaly reopens as a new issue generation");
 
+  auto multiple_anomalies = run_qualification_candidate_campaign(
+      plan, [&](const auto &descriptor)
+                -> product_status_or<
+                    qualification_candidate_execution_observation> {
+        if (descriptor.identifier != "candidate.case.exact_success")
+          return passing_executor(descriptor);
+        auto wrong = observation(descriptor, qualification_outcome::false_success,
+                                 460);
+        wrong.performance_regression_observed = true;
+        wrong.regression_evidence_digest = tagged_digest('P', 460);
+        wrong.observation_digest = {};
+        return make_qualification_candidate_execution_observation(
+            std::move(wrong));
+      });
+  require(multiple_anomalies.has_value() &&
+              multiple_anomalies.value().campaign.issues.size() == 2,
+          "runner retains one issue for every simultaneous anomaly kind");
+  auto incomplete_issues = multiple_anomalies.value().campaign.issues;
+  incomplete_issues.pop_back();
+  require(!make_qualification_candidate_campaign(
+               plan, multiple_anomalies.value().campaign.observations,
+               std::move(incomplete_issues))
+               .has_value(),
+          "one unresolved issue cannot cover multiple current anomalies");
+
   std::uint64_t executions = 0;
   bool cancellation_sink_called = false;
   std::uint64_t cancellation_checks = 0;
