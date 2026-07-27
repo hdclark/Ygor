@@ -6,6 +6,9 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/mesh-boolean-p6-generation.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/mesh-boolean-p6-generation.yml'
 
 permissions:
   contents: write
