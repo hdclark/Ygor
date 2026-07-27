@@ -3,7 +3,8 @@
       observation_by_case.emplace(entry.case_identifier, &entry);
     }
 
-    std::multimap<std::string, const qualification_candidate_issue *> issues_by_case;
+    std::multimap<std::string, const qualification_candidate_issue *>
+        issues_by_case;
     for (const auto &entry : result.issues) {
       const auto descriptor = std::lower_bound(
           plan.execution_cases.begin(), plan.execution_cases.end(),
@@ -15,22 +16,75 @@
           descriptor->case_digest != entry.case_digest)
         return candidate_error("qualification_candidate.issue_foreign");
       issues_by_case.emplace(entry.case_identifier, &entry);
+    }
+
+    const auto has_unresolved_kind =
+        [&](const qualification_candidate_execution_case &descriptor,
+            const qualification_candidate_execution_observation &observation,
+            qualification_candidate_issue_kind kind) {
+          const auto range = issues_by_case.equal_range(descriptor.identifier);
+          return std::any_of(range.first, range.second, [&](const auto &entry) {
+            const auto &issue = *entry.second;
+            return issue.disposition ==
+                       qualification_candidate_issue_disposition::
+                           unresolved_blocking &&
+                   issue.initial_observation_digest ==
+                       observation.observation_digest &&
+                   issue.kind == kind;
+          });
+        };
+
+    const auto has_all_current_issues =
+        [&](const qualification_candidate_execution_case &descriptor,
+            const qualification_candidate_execution_observation &observation) {
+          const bool outcome_ok = expected(descriptor, observation);
+          if (!outcome_ok &&
+              !has_unresolved_kind(descriptor, observation,
+                                   issue_kind_for_mismatch(observation)))
+            return false;
+          if (observation.performance_regression_observed &&
+              !has_unresolved_kind(
+                  descriptor, observation,
+                  qualification_candidate_issue_kind::performance_regression))
+            return false;
+          if (observation.resource_regression_observed &&
+              !has_unresolved_kind(
+                  descriptor, observation,
+                  qualification_candidate_issue_kind::resource_regression))
+            return false;
+          return true;
+        };
+
+    for (const auto &entry : result.issues) {
       if (entry.disposition ==
           qualification_candidate_issue_disposition::unresolved_blocking) {
         ++result.blocking_issue_count;
-      } else {
-        const auto observed = observation_by_case.find(entry.case_identifier);
-        if (observed == observation_by_case.end() ||
-            !expected(*descriptor, *observed->second) ||
-            observed->second->performance_regression_observed ||
-            observed->second->resource_regression_observed ||
-            !contains_digest(entry.rerun_observation_digests,
-                             observed->second->observation_digest))
-          return candidate_error("qualification_candidate.resolution_not_rerun");
-        ++result.resolved_issue_count;
-        if (entry.regression)
-          ++result.promoted_regression_count;
+        continue;
       }
+
+      const auto descriptor = std::lower_bound(
+          plan.execution_cases.begin(), plan.execution_cases.end(),
+          entry.case_identifier, [](const auto &candidate, const std::string &id) {
+            return candidate.identifier < id;
+          });
+      const auto observed = observation_by_case.find(entry.case_identifier);
+      if (descriptor == plan.execution_cases.end() ||
+          observed == observation_by_case.end())
+        return candidate_error("qualification_candidate.resolution_not_rerun");
+
+      const bool resolution_current =
+          expected(*descriptor, *observed->second) &&
+          !observed->second->performance_regression_observed &&
+          !observed->second->resource_regression_observed &&
+          contains_digest(entry.rerun_observation_digests,
+                          observed->second->observation_digest);
+      if (!resolution_current &&
+          !has_all_current_issues(*descriptor, *observed->second))
+        return candidate_error("qualification_candidate.resolution_not_rerun");
+
+      ++result.resolved_issue_count;
+      if (entry.regression)
+        ++result.promoted_regression_count;
     }
 
     for (const auto &descriptor : plan.execution_cases) {
@@ -46,26 +100,7 @@
         ++result.passed_case_count;
         continue;
       }
-      bool matching_unresolved = false;
-      const auto range = issues_by_case.equal_range(descriptor.identifier);
-      for (auto it = range.first; it != range.second; ++it) {
-        const auto &issue = *it->second;
-        if (issue.disposition !=
-                qualification_candidate_issue_disposition::unresolved_blocking ||
-            issue.initial_observation_digest !=
-                observed->second->observation_digest)
-          continue;
-        if ((!outcome_ok &&
-             issue.kind == issue_kind_for_mismatch(*observed->second)) ||
-            (observed->second->performance_regression_observed &&
-             issue.kind ==
-                 qualification_candidate_issue_kind::performance_regression) ||
-            (observed->second->resource_regression_observed &&
-             issue.kind ==
-                 qualification_candidate_issue_kind::resource_regression))
-          matching_unresolved = true;
-      }
-      if (!matching_unresolved)
+      if (!has_all_current_issues(descriptor, *observed->second))
         return candidate_error("qualification_candidate.current_issue_missing");
     }
 
@@ -92,7 +127,8 @@ product_status_or<bool> validate_qualification_candidate_campaign(
       return candidate_error("qualification_candidate.campaign_malformed");
     auto made = make_qualification_candidate_campaign(
         plan, value.observations, value.issues, value.complete);
-    if (!made.has_value()) return made.error();
+    if (!made.has_value())
+      return made.error();
     const auto &rebuilt = made.value();
     return rebuilt.passed_case_count == value.passed_case_count &&
            rebuilt.resolved_issue_count == value.resolved_issue_count &&
@@ -107,7 +143,8 @@ product_status_or<bool> validate_qualification_candidate_campaign(
 }
 
 product_status_or<std::vector<std::uint8_t>>
-encode_qualification_candidate_campaign(const qualification_candidate_campaign &value) {
+encode_qualification_candidate_campaign(
+    const qualification_candidate_campaign &value) {
   if (value.canonical_bytes.empty() || zero(value.campaign_digest) ||
       domain_digest(campaign_tag, value.canonical_bytes) != value.campaign_digest)
     return candidate_error("qualification_candidate.campaign_not_canonical");
@@ -122,3 +159,6 @@ bool qualification_candidate_campaign_gate_passes(
          campaign.blocking_issue_count == 0U &&
          campaign.passed_case_count == plan.execution_cases.size();
 }
+
+} // namespace mesh_boolean
+} // namespace ygor
