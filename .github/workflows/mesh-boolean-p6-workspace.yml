@@ -1,6 +1,11 @@
 name: Temporary Mesh Boolean P6 workspace export
 
 on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/mesh-boolean-p6-workspace.yml'
   push:
     branches:
       - boolean_symbolic
