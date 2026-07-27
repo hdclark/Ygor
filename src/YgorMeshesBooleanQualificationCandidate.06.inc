@@ -51,18 +51,22 @@
       for (auto it = range.first; it != range.second; ++it) {
         const auto &issue = *it->second;
         if (issue.disposition !=
-            qualification_candidate_issue_disposition::unresolved_blocking)
+                qualification_candidate_issue_disposition::unresolved_blocking ||
+            issue.initial_observation_digest !=
+                observed->second->observation_digest)
           continue;
-        const auto outcome_kind = issue_kind_for_outcome(observed->second->outcome);
-        if ((!outcome_ok && outcome_kind && issue.kind == *outcome_kind) ||
+        if ((!outcome_ok &&
+             issue.kind == issue_kind_for_mismatch(*observed->second)) ||
             (observed->second->performance_regression_observed &&
-             issue.kind == qualification_candidate_issue_kind::performance_regression) ||
+             issue.kind ==
+                 qualification_candidate_issue_kind::performance_regression) ||
             (observed->second->resource_regression_observed &&
-             issue.kind == qualification_candidate_issue_kind::resource_regression))
+             issue.kind ==
+                 qualification_candidate_issue_kind::resource_regression))
           matching_unresolved = true;
       }
       if (!matching_unresolved)
-        ++result.blocking_issue_count;
+        return candidate_error("qualification_candidate.current_issue_missing");
     }
 
     result.complete = requested_complete && result.blocking_issue_count == 0U &&
