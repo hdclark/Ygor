@@ -1,5 +1,0 @@
-requirement_id	plan_item	test_name	evidence
-P6-PERFORMANCE-001	P6.9	P6.9.catalog	Frozen 29-case workload catalogue covers every required stage, scale, repair policy, and B1-B7 baseline.
-P6-METRICS-001	P6.9	P6.9.report	Raw samples reconstruct median/MAD statistics and bind timing, RSS, authoritative bytes, exact growth, counters, verifier, realization, serialization, and outcome evidence.
-P6-THRESHOLD-001	P6.9	P6.9.thresholds;P6.9.reviews	Exact arbitrary-width ratio/geometric-mean gates enforce plan_speed P13 and reject silent threshold revisions.
-P6-CANCEL-001	P6.9	P6.9.transaction	Resource and cancellation observations require typed failure, bounded latency, rollback, no partial publication, and replay evidence.
