@@ -326,7 +326,7 @@ boolean_outcome<relation_event_seed_table> canonicalize_relation_event_seeds(
       return boolean_outcome<relation_event_seed_table>::failure(seed_error(
           relation_subcode::wrong_owner,
           "event-seed canonicalization owner is not bound"));
-    if (relation_cancelled(capabilities))
+    if (relation_cancelled(capabilities, relation_checkpoint::event_seed_and_disposition_reconciliation))
       return boolean_outcome<relation_event_seed_table>::failure(seed_error(
           relation_subcode::cancelled,
           "event-seed canonicalization cancelled",

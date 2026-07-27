@@ -99,10 +99,10 @@ boolean_outcome<relation_request_graph> build_relation_request_graph(
       return boolean_outcome<relation_request_graph>::failure(graph_error(
           relation_subcode::wrong_owner, "relation graph owner is not bound",
           relation_checkpoint::context_policy_capability_validation));
-    if (relation_cancelled(capabilities))
+    if (relation_cancelled(capabilities, relation_checkpoint::dependency_closure))
       return boolean_outcome<relation_request_graph>::failure(graph_error(
           relation_subcode::cancelled, "relation graph construction cancelled",
-          relation_checkpoint::initial_request_grouping,
+          relation_checkpoint::dependency_closure,
           bounded_boolean_error_category::cancelled));
     if (proposals.size() > capabilities.maximum_requests)
       return boolean_outcome<relation_request_graph>::failure(graph_error(

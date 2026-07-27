@@ -241,7 +241,11 @@ bool preflight_relation_foundation(
       !checked_add<std::uint64_t>(candidate_work, final_family_work,
                                   plan.fixed_work_units) ||
       !checked_add<std::uint64_t>(plan.fixed_work_units, std::uint64_t{1},
-                                  plan.fixed_work_units)) {
+                                  plan.fixed_work_units) ||
+      !checked_add<std::uint64_t>(
+          plan.fixed_work_units,
+          std::uint64_t{4 + 17},
+          plan.fixed_work_units)) {
     error = relation_error(relation_subcode::count_overflow,
                            bounded_boolean_error_category::index_overflow,
                            "Component 07 work count overflow",
@@ -314,6 +318,8 @@ bool preflight_relation_foundation(
           capabilities.maximum_candidate_coverage ||
       plan.dependency_upper_bound > capabilities.maximum_dependencies ||
       plan.witness_upper_bound > capabilities.maximum_consumers ||
+      capabilities.maximum_diagnostics < 4 ||
+      capabilities.maximum_replay_checkpoints < 17 ||
       plan.fixed_work_units > capabilities.maximum_work_units) {
     error = relation_error(relation_subcode::work_limit,
                            bounded_boolean_error_category::resource_limit,

@@ -30,6 +30,8 @@ struct relation_coplanar_overlap_component_tag;
 struct relation_candidate_disposition_tag;
 struct relation_candidate_partition_tag;
 struct relation_verifier_evidence_tag;
+struct relation_diagnostic_tag;
+struct relation_replay_checkpoint_tag;
 
 using relation_request_id = strong_id<relation_request_tag>;
 using feature_relation_id = strong_id<feature_relation_tag>;
@@ -58,6 +60,8 @@ using relation_candidate_disposition_id =
 using relation_candidate_partition_id =
     strong_id<relation_candidate_partition_tag>;
 using relation_verifier_evidence_id = strong_id<relation_verifier_evidence_tag>;
+using relation_diagnostic_id = strong_id<relation_diagnostic_tag>;
+using relation_replay_checkpoint_id = strong_id<relation_replay_checkpoint_tag>;
 
 inline constexpr std::uint64_t relation_invalid_ordinal =
     std::numeric_limits<std::uint64_t>::max();
@@ -229,6 +233,29 @@ enum class relation_verification_disposition : std::uint8_t {
   independently_verified = 1,
 };
 
+// Canonical Component 07 diagnostics are machine-readable retained findings.
+// They are owner-free and never contain pointers, thread IDs, build paths, or
+// runtime owner-token material.
+enum class relation_diagnostic_kind : std::uint8_t {
+  owner_exclusion_audit = 1,
+  selection_boundary_audit = 2,
+  replay_completeness_audit = 3,
+  resource_reconciliation_audit = 4,
+  primary_failure = 5,
+  cancellation_observation = 6,
+};
+
+enum class relation_diagnostic_severity : std::uint8_t {
+  retained_finding = 1,
+  failure = 2,
+};
+
+enum class relation_replay_checkpoint_status : std::uint8_t {
+  completed = 1,
+  failed = 2,
+  cancelled = 3,
+};
+
 enum class relation_checkpoint : std::uint32_t {
   context_policy_capability_validation = 1,
   predecessor_validation = 2,
@@ -258,6 +285,14 @@ enum class relation_checkpoint : std::uint32_t {
   independent_verification = 26,
   resource_reconciliation = 27,
   transaction_commit = 28,
+};
+
+struct relation_cancellation_observer final {
+  std::uint16_t version = contract_versions::relation_cancellation_observer;
+  std::uint16_t reserved16 = 0;
+  void (*poll)(void *, relation_checkpoint) noexcept = nullptr;
+  void *state = nullptr;
+  std::uint32_t reserved32 = 0;
 };
 
 enum class relation_subcode : std::uint32_t {
@@ -356,6 +391,7 @@ struct relation_capabilities final {
   std::uint16_t verifier_version = contract_versions::relation_verifier;
   context_owner_token owner{};
   const bounded_boolean_cancellation_token *cancellation = nullptr;
+  const relation_cancellation_observer *cancellation_observer = nullptr;
   resource_manager *resources = nullptr;
   std::uint64_t maximum_requests = (std::uint64_t{1} << 34);
   std::uint64_t maximum_dependencies = (std::uint64_t{1} << 35);
@@ -369,12 +405,20 @@ struct relation_capabilities final {
   std::uint64_t maximum_event_seeds = (std::uint64_t{1} << 34);
   std::uint64_t maximum_event_seed_incidence = (std::uint64_t{1} << 36);
   std::uint64_t maximum_candidate_coverage = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_diagnostics = (std::uint64_t{1} << 20);
+  std::uint64_t maximum_replay_checkpoints = 64;
   std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
   std::uint64_t maximum_work_units = (std::uint64_t{1} << 38);
   std::uint32_t reserved = 0;
 };
 
-inline bool relation_cancelled(const relation_capabilities &capabilities) noexcept {
+inline bool relation_cancelled(
+    const relation_capabilities &capabilities,
+    relation_checkpoint checkpoint) noexcept {
+  if (capabilities.cancellation_observer &&
+      capabilities.cancellation_observer->poll)
+    capabilities.cancellation_observer->poll(
+        capabilities.cancellation_observer->state, checkpoint);
   return capabilities.cancellation &&
          capabilities.cancellation->cancellation_requested();
 }
@@ -407,6 +451,8 @@ struct relation_statistics final {
   std::uint64_t candidate_relation_coverage_count = 0;
   std::uint64_t candidate_seed_coverage_count = 0;
   std::uint64_t candidate_partition_count = 0;
+  std::uint64_t diagnostic_count = 0;
+  std::uint64_t replay_checkpoint_count = 0;
   std::uint64_t sort_comparisons = 0;
   std::uint64_t verifier_work_units = 0;
   std::uint64_t persistent_bytes = 0;

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "RelationSemanticProjection.h"
+
 #include "CoplanarRelationOverlay.h"
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
+#include "RelationReplay.h"
 #include "RelationArtifactAssembly.h"
 #include "RelationVerifier.h"
 #include "Transaction.h"
@@ -21,7 +24,7 @@ inline void bind_relation_error(bounded_boolean_error &error,
                                 const bounded_boolean_digest &context_digest,
                                 const bounded_boolean_digest &replay_digest) noexcept {
   error.context_digest = context_digest;
-  error.replay_digest = replay_digest;
+  error.replay_digest = relation_failure_replay_digest(replay_digest, error);
 }
 
 inline bool checked_accumulate_relation_bytes(std::uint64_t value,
@@ -85,6 +88,8 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.candidate_relation_coverage()) ||
       !add_vector(artifact.candidate_event_seed_coverage()) ||
       !add_vector(artifact.candidate_partitions()) ||
+      !add_vector(artifact.diagnostics()) ||
+      !add_vector(artifact.replay_checkpoints()) ||
       !add_vector(artifact.canonical_bytes()))
     return false;
 
@@ -164,7 +169,8 @@ public:
       auto published =
           std::shared_ptr<const signed_feature_relations<T, I>>(
               std::move(artifact_));
-      if (!commit_resources() || !transaction_.begin_join() ||
+      if (!check_cancel(relation_checkpoint::transaction_commit) ||
+          !commit_resources() || !transaction_.begin_join() ||
           !transaction_.begin_verify() || !transaction_.ready() ||
           !transaction_.commit()) {
         fail(relation_subcode::transaction_failure,
@@ -213,7 +219,7 @@ private:
   }
 
   bool check_cancel(relation_checkpoint checkpoint) {
-    return !relation_cancelled(capabilities_) ||
+    return !relation_cancelled(capabilities_, checkpoint) ||
            fail(relation_subcode::cancelled,
                 bounded_boolean_error_category::cancelled,
                 "Component 07 construction cancelled", checkpoint);
@@ -245,7 +251,13 @@ private:
             contract_versions::relation_truth_policy ||
         capabilities_.codec_version != contract_versions::relation_codec ||
         capabilities_.verifier_version != contract_versions::relation_verifier ||
-        capabilities_.reserved != 0)
+        capabilities_.reserved != 0 ||
+        (capabilities_.cancellation_observer &&
+         (capabilities_.cancellation_observer->version !=
+              contract_versions::relation_cancellation_observer ||
+          capabilities_.cancellation_observer->reserved16 != 0 ||
+          capabilities_.cancellation_observer->reserved32 != 0 ||
+          !capabilities_.cancellation_observer->poll)))
       return fail(relation_subcode::unsupported_version,
                   bounded_boolean_error_category::input_contract_error,
                   "Component 07 capability version is unsupported",
@@ -260,7 +272,8 @@ private:
   }
 
   bool preflight_and_reserve() {
-    if (!preflight_relation_foundation(*candidates_, capabilities_, preflight_,
+    if (!check_cancel(relation_checkpoint::count_representability_preflight) ||
+        !preflight_relation_foundation(*candidates_, capabilities_, preflight_,
                                        error_))
       return false;
 
@@ -276,6 +289,8 @@ private:
                   bounded_boolean_error_category::resource_limit,
                   "Component 07 resource reservation failed",
                   relation_checkpoint::discovery_resource_reservation);
+    if (!check_cancel(relation_checkpoint::discovery_resource_reservation))
+      return false;
     return transaction_.register_work() ||
            fail(relation_subcode::transaction_failure,
                 bounded_boolean_error_category::internal_invariant_error,
@@ -284,7 +299,8 @@ private:
   }
 
   bool build_candidate_edge_relations() {
-    if (!check_cancel(relation_checkpoint::candidate_scan))
+    if (!check_cancel(relation_checkpoint::candidate_scan) ||
+        !check_cancel(relation_checkpoint::edge_edge_evaluation))
       return false;
     auto stage = build_candidate_source_edge_relations(
         *candidates_, context_.context_digest, precision_.tolerance(),
@@ -382,6 +398,8 @@ private:
     if (!check_cancel(relation_checkpoint::canonical_encoding))
       return false;
     artifact_->statistics_.persistent_bytes = 0;
+    if (!build_relation_replay_bundle(*artifact_, capabilities_, error_))
+      return false;
     artifact_->canonical_bytes_ = encode_signed_feature_relations(*artifact_);
     if (artifact_->canonical_bytes_.size() >
         capabilities_.maximum_canonical_bytes)
@@ -398,6 +416,18 @@ private:
                   "Component 07 persistent byte count overflow",
                   relation_checkpoint::resource_reconciliation);
     artifact_->statistics_.persistent_bytes = persistent;
+    // Rebuild after final-size reconciliation. Record sizes are fixed, so this
+    // changes only canonical evidence values and cannot change persistent use.
+    if (!build_relation_replay_bundle(*artifact_, capabilities_, error_))
+      return false;
+    std::uint64_t reconciled_persistent = 0;
+    if (!relation_build_detail::estimate_relation_persistent_bytes(
+            *artifact_, reconciled_persistent) ||
+        reconciled_persistent != persistent)
+      return fail(relation_subcode::internal_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 replay evidence changed persistent size",
+                  relation_checkpoint::resource_reconciliation);
     artifact_->canonical_bytes_ = encode_signed_feature_relations(*artifact_);
     artifact_->digest_ = sha256::digest(artifact_->canonical_bytes_);
 
@@ -413,6 +443,8 @@ private:
                   "Component 07 final artifact reservation failed",
                   relation_checkpoint::resource_reconciliation);
 
+    if (!check_cancel(relation_checkpoint::independent_verification))
+      return false;
     bounded_boolean_error verification_error;
     if (!verify_signed_feature_relations(*artifact_, verification_error)) {
       error_ = verification_error;
@@ -447,12 +479,16 @@ private:
         !add_work(artifact_->candidate_relation_coverage_.size()) ||
         !add_work(artifact_->candidate_event_seed_coverage_.size()) ||
         !add_work(artifact_->candidate_partitions_.size()) ||
+        !add_work(artifact_->diagnostics_.size()) ||
+        !add_work(artifact_->replay_checkpoints_.size()) ||
         !add_work(artifact_->statistics_.verifier_work_units) ||
         actual_work > work_reservation_->amount())
       return fail(relation_subcode::resource_preflight,
                   bounded_boolean_error_category::resource_limit,
                   "Component 07 actual work exceeds reserved work",
                   relation_checkpoint::resource_reconciliation);
+    if (!check_cancel(relation_checkpoint::resource_reconciliation))
+      return false;
     persistent_used_ = persistent;
     replay_used_ = artifact_->canonical_bytes_.size();
     work_used_ = actual_work;
@@ -535,7 +571,8 @@ decode_signed_feature_relations(
     return fail(relation_subcode::wrong_owner,
                 "Component 07 decode owner handshake failed");
   if (envelope.context_digest != context.context_digest ||
-      envelope.precision_digest != precision.digest() ||
+      envelope.precision_digest !=
+          relation_precision_semantic_digest(precision) ||
       envelope.candidate_digest != candidates->candidate_digest() ||
       envelope.operation != context.operation ||
       to_bits(envelope.residual_boundary) != to_bits(precision.tolerance()) ||

@@ -85,6 +85,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     SymbolicPerturbation.cc
     RelationBuild.cc
     RelationCodec.cc
+    RelationReplay.cc
     RelationCandidateEvidenceVerifier.cc
     RelationVerifier.cc
     ToleranceBudget.cc)

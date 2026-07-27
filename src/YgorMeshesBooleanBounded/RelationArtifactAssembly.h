@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RelationSemanticProjection.h"
+
 #include "CoplanarRelationOverlay.h"
 #include "RelationCanonicalization.h"
 #include "RelationConstructionPolicy.h"
@@ -511,16 +513,33 @@ public:
 
   bool assemble(artifact_type &artifact, bounded_boolean_error &error) {
     try {
-      if (!validate_inputs(error) || !discover_base_relations(error) ||
+      if (!check_cancel(error, relation_checkpoint::predecessor_validation) ||
+          !validate_inputs(error) ||
+          !check_cancel(error, relation_checkpoint::rounded_primitive_evaluation) ||
+          !discover_base_relations(error) ||
+          !check_cancel(error, relation_checkpoint::exact_relation_evaluation) ||
           !discover_primitive_support(error) ||
+          !check_cancel(error, relation_checkpoint::truth_record_assembly) ||
+          !check_cancel(error, relation_checkpoint::source_facet_region_evaluation) ||
           !discover_family04_evidence(error) ||
+          !check_cancel(error, relation_checkpoint::construction_validation) ||
           !discover_constructions_and_symbolics(error) ||
-          !discover_candidate_dispositions(error) || !build_graph(error) ||
-          !publish_imported_geometry(error) || !publish_relations(error) ||
-          !publish_family04_evidence(error) || !publish_constructions(error) ||
-          !publish_coplanar_topology(error) ||
-          !publish_symbolics_and_crossings(error) || !publish_event_seeds(error) ||
-          !publish_candidate_dispositions(error))
+          !check_cancel(error, relation_checkpoint::downstream_selection_boundary_audit) ||
+          !discover_candidate_dispositions(error) ||
+          !check_cancel(error, relation_checkpoint::dependency_closure) ||
+          !build_graph(error) ||
+          !check_cancel(error, relation_checkpoint::graph_finalization) ||
+          !publish_imported_geometry(error) ||
+          !check_cancel(error, relation_checkpoint::canonical_id_and_reference_remap) ||
+          !publish_relations(error) || !publish_family04_evidence(error) ||
+          !publish_constructions(error) || !publish_coplanar_topology(error) ||
+          !check_cancel(error, relation_checkpoint::crossing_multiplicity) ||
+          !check_cancel(error, relation_checkpoint::symbolic_eligibility) ||
+          !check_cancel(error, relation_checkpoint::symbolic_matrix_lookup) ||
+          !publish_symbolics_and_crossings(error) ||
+          !check_cancel(error, relation_checkpoint::event_seed_and_disposition_reconciliation) ||
+          !publish_event_seeds(error) || !publish_candidate_dispositions(error) ||
+          !check_cancel(error, relation_checkpoint::producer_verification))
         return false;
 
       artifact.owner_ = capabilities_.owner;
@@ -558,7 +577,8 @@ public:
           std::move(candidate_event_seed_coverage_);
       artifact.candidate_partitions_ = std::move(candidate_partitions_);
       artifact.context_digest_ = context_.context_digest;
-      artifact.precision_digest_ = precision_.digest();
+      artifact.precision_digest_ =
+          relation_precision_semantic_digest(precision_);
       artifact.candidate_digest_ = candidates_->candidate_digest();
       artifact.graph_digest_ = artifact.request_graph_.semantic_digest;
       artifact.operation_ = context_.operation;
@@ -704,6 +724,16 @@ private:
     std::int8_t symbolic_crossing = 0;
     operand_id half_open_owner = operand_id::a;
   };
+
+  bool check_cancel(bounded_boolean_error &error,
+                    relation_checkpoint checkpoint) const {
+    if (!relation_cancelled(capabilities_, checkpoint))
+      return true;
+    error = relation_error(relation_subcode::cancelled,
+                           bounded_boolean_error_category::cancelled,
+                           "Component 07 final assembly cancelled", checkpoint);
+    return false;
+  }
 
   bool fail(bounded_boolean_error &error, relation_subcode subcode,
             const char *summary, relation_checkpoint checkpoint) const {

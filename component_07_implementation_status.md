@@ -765,20 +765,107 @@ versioned, operation-specific matrix rather than the earlier four-field subset:
   event-seed consequences and the complete thirteen-test strict Clang C++17 chain
   passes.
 
-## Outstanding before Component 07 can be checked complete
+## Completed canonical replay and retained diagnostic slice
 
-The tracker remains unchecked. The following Plan 07 work is still required:
+Component 07 now publishes and independently reconstructs the bounded replay and
+machine-readable diagnostic evidence required by Plan 07 Section 22:
 
-1. Complete the remaining replay and canonical diagnostic obligations required
-   by the normative plan.
-2. Add the independent exact-rational/exhaustive oracle, complete known-answer
-   and mutation suites, deterministic fuzz/shrink campaigns, full
-   resource/cancellation matrices, structural performance gates, and
-   serial/parallel equivalence evidence.
-3. Complete Component 08-10 handoff qualification proving no authoritative
-   geometric recomputation and that Component 10 alone performs final selection.
+- seventeen fixed semantic replay checkpoints cover predecessor validation,
+  every relation-family stage, graph/truth/region/construction/crossing/symbolic
+  assembly, seed/disposition reconciliation, canonical remap, downstream
+  selection-boundary audit, producer verification, canonical encoding, and
+  resource reconciliation;
+- every checkpoint records versioned input/output counts, cumulative deterministic
+  work, a chained semantic digest, and a canonical completed disposition without
+  schedule, worker, thread, path, pointer, or runtime-owner data;
+- four bounded retained findings record the owner-exclusion,
+  selection-boundary, replay-completeness, and resource-reconciliation audits in
+  a fixed owner-free schema;
+- replay checkpoints, diagnostics, replay evidence, statistics, codec sections,
+  exact persistent accounting, decode, and the complete artifact digest are
+  published transactionally and rejected on unknown versions, malformed ranges,
+  repaired digest corruption, trailing bytes, or inconsistent resource counts;
+- the independent replay verifier reconstructs the input-equivalence projection,
+  base artifact, every checkpoint count and chain digest, every retained finding,
+  and all aggregate replay digests without reusing producer summaries as truth;
+  and
+- failures expose a domain-separated replay identity derived from the invocation
+  replay digest and canonical primary error, while failed and cancelled builds
+  publish no partial artifact.
 
-No approximation, legacy predicate, tolerance-based welding, coordinate-keyed
-identity, or external dependency has been introduced to bridge the outstanding
-work. Supported non-empty streams publish only after complete final-artifact
-verification; unsupported or unresolved contact categories still fail closed.
+## Completed semantic identity and deterministic execution slice
+
+Invocation-only controls no longer contaminate Component 07 semantic identity:
+
+- the Component 01 context digest used by semantic artifacts is a versioned
+  projection that excludes resource ceilings, diagnostic capacity, execution
+  mode, worker count, and cancellation services while the complete invocation
+  replay digest retains those controls;
+- the Component 03 handoff is reduced through a separate versioned relation
+  precision projection that retains all scalar, tolerance, scale, source, and
+  Boolean arithmetic semantics but excludes Component 03 preflight and
+  invocation replay identity;
+- identical semantic inputs under distinct runtime owner anchors, serial and
+  deterministic-parallel execution modes, and different supported worker counts
+  produce byte-identical Component 07 semantic artifacts, section digests,
+  retained diagnostics, and replay-equivalence evidence; and
+- wrong-owner access remains rejected before dereference through the immutable
+  downstream view, while owner tokens remain absent from keys, bytes, digests,
+  diagnostics, replay evidence, and failure ordering.
+
+## Completed exact-oracle, campaign, and downstream handoff slice
+
+The permanent Component 07 qualification target now combines the existing
+family-specific known-answer, truth-layer, mutation, retriangulation, coplanar,
+and symbolic-matrix suites with additional independent end-to-end evidence:
+
+- a test-only arbitrary-precision exact-rational source-edge oracle independently
+  enumerates every compute-once source-edge relation in the bounded deterministic
+  campaign, classifies support/category/parameters without production grouping
+  or formula dispatch, and proves exact results lie inside published enclosures;
+- deterministic valid fixtures vary source permutations, owner anchors, execution
+  profiles, worker counts, translations, scales, endpoint/parallel/collinear
+  categories, and candidate order; disagreements retain a canonical case and a
+  deterministic shrink path;
+- structural counters gate candidate scan, unique request evaluation, graph
+  comparison growth, relation-family work, verifier work, and sparse-fixture
+  exclusion of an all-feature Cartesian product;
+- the allocation-free, immutable, owner-checked
+  `signed_feature_relations_view` exposes only verified Component 07 evidence and
+  checked ranges, never predecessor geometry or arithmetic services; and
+- Component 08, 09, and 10 test doubles consume only that view: Component 08
+  preserves construction/seed lineage, Component 09 derives numeric and symbolic
+  side labels, and the instrumented final truth-table service proves Component 10
+  alone performs retain/discard and orientation selection.
+
+## Completed resource, cancellation, and publication slice
+
+The final artifact suite now exercises the complete Component 07 publication
+boundary deterministically:
+
+- all fifteen count/work capabilities are tested at limit-minus-one, exact limit,
+  and limit-plus-one, with exact and plus-one successful publications producing
+  identical bytes;
+- canonical byte capacity and invocation-owned persistent, temporary, and work
+  reservations are tested at their exact boundaries, including exact replay-byte
+  commitment and complete lease reconciliation;
+- a versioned test-only cancellation observer injects cancellation at every one of
+  the twenty-eight published Component 07 phase checkpoints without timing races;
+- every injected cancellation reports the exact stable checkpoint and primary
+  category, releases every lease, publishes no artifact, and is followed by a
+  canonical byte-identical retry; and
+- the dependency-closure cancellation path now reports its correct checkpoint
+  rather than the initial-grouping checkpoint.
+
+## Component 07 completion evidence
+
+Component 07 is complete against the reviewed Plan 07 contract. All fourteen
+strict optimized Clang 17 C++17 Component 07 tests pass, covering source-edge,
+candidate/source-edge, edge/facet,
+facet/facet, final-artifact, exact-oracle/handoff, foundation graph/owner/
+canonical/symbolic, truth-layer, source-facet-region, and coplanar-overlay suites.
+The implementation remains self-contained within Ygor and introduces no external
+dependency, approximation predicate, tolerance-based welding, coordinate-keyed
+identity, or topology inferred from nominal proximity. Unsupported, unresolved,
+over-limit, cancelled, decode-invalid, or independently rejected artifacts still
+fail closed and never publish.

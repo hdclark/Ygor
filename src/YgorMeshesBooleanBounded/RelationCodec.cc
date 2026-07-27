@@ -1,5 +1,6 @@
 #include "StrictFloatingBuild.h"
 #include "RelationCodec.h"
+#include "RelationReplay.h"
 #include "CoplanarRelationOverlay.h"
 
 namespace ygor::mesh_boolean::bounded {
@@ -516,6 +517,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.candidate_relation_coverage_count);
   writer.u64(artifact.statistics_.candidate_seed_coverage_count);
   writer.u64(artifact.statistics_.candidate_partition_count);
+  writer.u64(artifact.statistics_.diagnostic_count);
+  writer.u64(artifact.statistics_.replay_checkpoint_count);
   writer.u64(artifact.statistics_.sort_comparisons);
   writer.u64(artifact.statistics_.verifier_work_units);
   writer.u64(artifact.statistics_.persistent_bytes);
@@ -529,6 +532,12 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.verification_evidence_.verifier_work_units);
   encode_digest(writer, artifact.verification_evidence_.semantic_digest);
   writer.u32(artifact.verification_evidence_.reserved);
+  writer.sized_bytes(
+      encode_relation_diagnostic_semantics(artifact.diagnostics_));
+  writer.sized_bytes(encode_relation_replay_checkpoint_semantics(
+      artifact.replay_checkpoints_));
+  writer.sized_bytes(
+      encode_relation_replay_evidence_semantics(artifact.replay_evidence_));
   return writer.take();
 }
 
@@ -998,6 +1007,150 @@ inline bool read_candidate_partition_record(canonical_reader &reader) {
   return reader.u16(schema) && reader.u32(reserved);
 }
 
+inline bool read_diagnostic_section(
+    const std::vector<std::uint8_t> &bytes,
+    const relation_capabilities &capabilities, std::uint16_t &schema,
+    std::uint64_t &count, bounded_boolean_digest &digest) {
+  canonical_reader reader(bytes);
+  std::uint32_t magic = 0;
+  if (!reader.u32(magic) || magic != 0x44375259U ||
+      !reader.u16(schema) ||
+      schema != contract_versions::relation_diagnostic_schema ||
+      !reader.u64(count) || count > capabilities.maximum_diagnostics)
+    return false;
+  for (std::uint64_t ordinal = 0; ordinal < count; ++ordinal) {
+    std::uint64_t id = 0, value64 = 0;
+    std::uint32_t checkpoint = 0, subcode = 0, reserved32 = 0;
+    std::uint16_t value16 = 0, reserved16 = 0;
+    std::uint8_t kind = 0, severity = 0, value8 = 0;
+    bool flag = false;
+    if (!reader.u64(id) || id != ordinal || !reader.u8(kind) ||
+        kind < static_cast<std::uint8_t>(
+                   relation_diagnostic_kind::owner_exclusion_audit) ||
+        kind > static_cast<std::uint8_t>(
+                   relation_diagnostic_kind::cancellation_observation) ||
+        !reader.u8(severity) ||
+        severity < static_cast<std::uint8_t>(
+                       relation_diagnostic_severity::retained_finding) ||
+        severity > static_cast<std::uint8_t>(
+                       relation_diagnostic_severity::failure) ||
+        !reader.u32(checkpoint) ||
+        checkpoint < static_cast<std::uint32_t>(
+                         relation_checkpoint::context_policy_capability_validation) ||
+        checkpoint > static_cast<std::uint32_t>(
+                         relation_checkpoint::transaction_commit) ||
+        !reader.u32(subcode))
+      return false;
+    for (std::size_t i = 0; i < 4; ++i)
+      if (!reader.boolean(flag))
+        return false;
+    if (!reader.u64(value64) || !reader.u64(value64) ||
+        !read_feature_key(reader) || !read_feature_key(reader))
+      return false;
+    for (std::size_t i = 0; i < 4; ++i)
+      if (!reader.u64(value64))
+        return false;
+    for (std::size_t i = 0; i < 3; ++i)
+      if (!reader.u8(value8))
+        return false;
+    if (!reader.u16(value16) || !reader.u16(value16) ||
+        !reader.u64(value64) || !reader.u8(value8))
+      return false;
+    for (std::size_t i = 0; i < 4; ++i)
+      if (!reader.u64(value64))
+        return false;
+    bounded_boolean_digest record_digest{};
+    if (!reader.u16(value16) ||
+        value16 != contract_versions::relation_diagnostic_schema ||
+        !reader.u16(reserved16) || reserved16 != 0 ||
+        !reader.u32(reserved32) || reserved32 != 0 ||
+        !read_digest(reader, record_digest))
+      return false;
+  }
+  if (!reader.complete())
+    return false;
+  digest = sha256::digest(bytes);
+  return true;
+}
+
+inline bool read_replay_checkpoint_section(
+    const std::vector<std::uint8_t> &bytes,
+    const relation_capabilities &capabilities, std::uint16_t &schema,
+    std::uint64_t &count, bounded_boolean_digest &digest) {
+  canonical_reader reader(bytes);
+  std::uint32_t magic = 0;
+  if (!reader.u32(magic) || magic != 0x43375259U ||
+      !reader.u16(schema) ||
+      schema != contract_versions::relation_replay_checkpoint_schema ||
+      !reader.u64(count) || count > capabilities.maximum_replay_checkpoints)
+    return false;
+  std::uint64_t previous_work = 0;
+  for (std::uint64_t ordinal = 0; ordinal < count; ++ordinal) {
+    std::uint64_t id = 0, input_count = 0, output_count = 0, work = 0;
+    std::uint32_t checkpoint = 0, reserved32 = 0;
+    std::uint16_t record_schema = 0, reserved16 = 0;
+    std::uint8_t status = 0;
+    bounded_boolean_digest record_digest{};
+    if (!reader.u64(id) || id != ordinal || !reader.u32(checkpoint) ||
+        checkpoint < static_cast<std::uint32_t>(
+                         relation_checkpoint::context_policy_capability_validation) ||
+        checkpoint > static_cast<std::uint32_t>(
+                         relation_checkpoint::transaction_commit) ||
+        !reader.u8(status) ||
+        status < static_cast<std::uint8_t>(
+                     relation_replay_checkpoint_status::completed) ||
+        status > static_cast<std::uint8_t>(
+                     relation_replay_checkpoint_status::cancelled) ||
+        !reader.u64(input_count) || !reader.u64(output_count) ||
+        !reader.u64(work) || work < previous_work ||
+        !reader.u16(record_schema) ||
+        record_schema != contract_versions::relation_replay_checkpoint_schema ||
+        !reader.u16(reserved16) || reserved16 != 0 ||
+        !reader.u32(reserved32) || reserved32 != 0 ||
+        !read_digest(reader, record_digest))
+      return false;
+    previous_work = work;
+  }
+  if (!reader.complete())
+    return false;
+  digest = sha256::digest(bytes);
+  return true;
+}
+
+inline bool read_replay_evidence_section(
+    const std::vector<std::uint8_t> &bytes, std::uint16_t &schema,
+    std::uint16_t &policy, std::uint64_t &checkpoint_count,
+    std::uint64_t &diagnostic_count,
+    const bounded_boolean_digest &expected_checkpoint_digest,
+    const bounded_boolean_digest &expected_diagnostic_digest,
+    bounded_boolean_digest &section_digest) {
+  canonical_reader reader(bytes);
+  std::uint32_t magic = 0, reserved32 = 0;
+  bounded_boolean_digest input_digest{}, checkpoint_digest{},
+      diagnostic_digest{}, base_digest{}, semantic_digest{};
+  bool complete = false, reconstructed = false, primary_failure = false;
+  std::uint8_t reserved8 = 0;
+  if (!reader.u32(magic) || magic != 0x45375259U ||
+      !reader.u16(schema) ||
+      schema != contract_versions::relation_replay_evidence_schema ||
+      !reader.u16(policy) || policy != contract_versions::relation_replay_policy ||
+      !read_digest(reader, input_digest) ||
+      !read_digest(reader, checkpoint_digest) ||
+      !read_digest(reader, diagnostic_digest) ||
+      !read_digest(reader, base_digest) ||
+      !reader.u64(checkpoint_count) || !reader.u64(diagnostic_count) ||
+      !reader.boolean(complete) || !reader.boolean(reconstructed) ||
+      !reader.boolean(primary_failure) || !reader.u8(reserved8) ||
+      reserved8 != 0 || !read_digest(reader, semantic_digest) ||
+      !reader.u32(reserved32) || reserved32 != 0 || !reader.complete() ||
+      !complete || !reconstructed || primary_failure ||
+      checkpoint_digest != expected_checkpoint_digest ||
+      diagnostic_digest != expected_diagnostic_digest)
+    return false;
+  section_digest = sha256::digest(bytes);
+  return true;
+}
+
 } // namespace relation_codec_detail
 
 template <class T>
@@ -1424,6 +1577,8 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.candidate_relation_coverage_count) ||
       !reader.u64(statistics.candidate_seed_coverage_count) ||
       !reader.u64(statistics.candidate_partition_count) ||
+      !reader.u64(statistics.diagnostic_count) ||
+      !reader.u64(statistics.replay_checkpoint_count) ||
       !reader.u64(statistics.sort_comparisons) ||
       !reader.u64(statistics.verifier_work_units) ||
       !reader.u64(statistics.persistent_bytes))
@@ -1446,10 +1601,34 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 verifier evidence flags are malformed");
   if (!reader.u64(evidence_work) || !read_digest(reader, evidence_digest) ||
-      !reader.u32(evidence_reserved) || !reader.complete())
+      !reader.u32(evidence_reserved))
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
-                         "Component 07 encoded artifact has malformed or trailing data");
+                         "Component 07 verifier evidence is malformed");
+
+  std::vector<std::uint8_t> diagnostic_bytes, checkpoint_bytes, replay_bytes;
+  if (!reader.sized_bytes(diagnostic_bytes,
+                          capabilities.maximum_canonical_bytes) ||
+      !reader.sized_bytes(checkpoint_bytes,
+                          capabilities.maximum_canonical_bytes) ||
+      !reader.sized_bytes(replay_bytes,
+                          capabilities.maximum_canonical_bytes) ||
+      !reader.complete() ||
+      !read_diagnostic_section(
+          diagnostic_bytes, capabilities, envelope.diagnostic_schema,
+          envelope.diagnostic_count, envelope.diagnostic_digest) ||
+      !read_replay_checkpoint_section(
+          checkpoint_bytes, capabilities, envelope.replay_checkpoint_schema,
+          envelope.replay_checkpoint_count,
+          envelope.replay_checkpoint_digest) ||
+      !read_replay_evidence_section(
+          replay_bytes, envelope.replay_evidence_schema,
+          envelope.replay_policy_version, envelope.replay_checkpoint_count,
+          envelope.diagnostic_count, envelope.replay_checkpoint_digest,
+          envelope.diagnostic_digest, envelope.replay_evidence_digest))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 replay or diagnostic section is malformed");
 
   if (statistics.candidate_count != envelope.candidate_disposition_count ||
       statistics.imported_geometry_count != envelope.imported_geometry_count ||
@@ -1483,6 +1662,9 @@ bool parse_relation_artifact_envelope(
           envelope.candidate_seed_coverage_count ||
       statistics.candidate_partition_count !=
           envelope.candidate_partition_count ||
+      statistics.diagnostic_count != envelope.diagnostic_count ||
+      statistics.replay_checkpoint_count !=
+          envelope.replay_checkpoint_count ||
       evidence_id != 0 ||
       evidence_version != contract_versions::relation_verifier ||
       evidence_reserved != 0)

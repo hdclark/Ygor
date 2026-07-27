@@ -90,13 +90,17 @@ predecessor_fixture build_predecessors(
     const mesh_type &a, const mesh_type &b,
     bounded::source_triangulation_provider_kind provider =
         bounded::source_triangulation_provider_kind::indexed_dependency_v1,
-    bool compare_reference = true);
+    bool compare_reference = true,
+    bounded_execution_mode execution_mode = bounded_execution_mode::serial_v1,
+    std::uint32_t requested_workers = 1);
 
 built_fixture build(
     const mesh_type &a, const mesh_type &b,
     bounded::source_triangulation_provider_kind provider =
         bounded::source_triangulation_provider_kind::indexed_dependency_v1,
-    bool compare_reference = true);
+    bool compare_reference = true,
+    bounded_execution_mode execution_mode = bounded_execution_mode::serial_v1,
+    std::uint32_t requested_workers = 1);
 
 bounded::broad_phase_capabilities capabilities(predecessor_fixture &fixture);
 std::string diagnostic(const bounded_boolean_error &error);

@@ -2207,7 +2207,7 @@ build_candidate_coplanar_overlays(
     stage.owner = capabilities.owner;
     for (std::size_t relation = 0; relation < facet_stage.relations.size();
          ++relation) {
-      if (relation_cancelled(capabilities))
+      if (relation_cancelled(capabilities, relation_checkpoint::coplanar_overlay_evaluation))
         return boolean_outcome<stage_type>::failure(coplanar_overlay_error(
             relation_subcode::cancelled,
             "Component 07 candidate coplanar overlay cancelled",

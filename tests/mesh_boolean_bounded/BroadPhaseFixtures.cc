@@ -41,7 +41,8 @@ bounded::broad_phase_capabilities capabilities(predecessor_fixture &fixture) {
 predecessor_fixture build_predecessors(
     const mesh_type &a, const mesh_type &b,
     bounded::source_triangulation_provider_kind provider,
-    bool compare_reference) {
+    bool compare_reference, bounded_execution_mode execution_mode,
+    std::uint32_t requested_workers) {
   bounded::floating_environment_guard floating_environment;
   require(floating_environment.qualified(),
           "broad-phase floating environment qualification");
@@ -49,6 +50,8 @@ predecessor_fixture build_predecessors(
   bounded_boolean_options<scalar> options;
   options.tolerance = scalar(0.25);
   options.verification.level = verification_level::exhaustive_diagnostics_v1;
+  options.execution.mode = execution_mode;
+  options.execution.requested_workers = requested_workers;
   auto pending = bounded::build_pending_invocation(
       a, b, boolean_operation::intersection, options);
   require(pending.has_value(), "broad-phase pending invocation");
@@ -112,9 +115,11 @@ predecessor_fixture build_predecessors(
 
 built_fixture build(const mesh_type &a, const mesh_type &b,
                     bounded::source_triangulation_provider_kind provider,
-                    bool compare_reference) {
-  auto predecessor =
-      build_predecessors(a, b, provider, compare_reference);
+                    bool compare_reference,
+                    bounded_execution_mode execution_mode,
+                    std::uint32_t requested_workers) {
+  auto predecessor = build_predecessors(a, b, provider, compare_reference,
+                                        execution_mode, requested_workers);
   auto caps = capabilities(predecessor);
   auto artifact = bounded::build_canonical_candidate_stream(
       predecessor.context, *predecessor.precision, predecessor.manifolds, caps);

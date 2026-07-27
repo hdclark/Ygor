@@ -63,6 +63,15 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t candidate_relation_coverage_count = 0;
   std::uint64_t candidate_seed_coverage_count = 0;
   std::uint64_t candidate_partition_count = 0;
+  std::uint16_t diagnostic_schema = 0;
+  std::uint16_t replay_checkpoint_schema = 0;
+  std::uint16_t replay_evidence_schema = 0;
+  std::uint16_t replay_policy_version = 0;
+  std::uint64_t diagnostic_count = 0;
+  std::uint64_t replay_checkpoint_count = 0;
+  bounded_boolean_digest diagnostic_digest{};
+  bounded_boolean_digest replay_checkpoint_digest{};
+  bounded_boolean_digest replay_evidence_digest{};
   relation_statistics statistics{};
 };
 

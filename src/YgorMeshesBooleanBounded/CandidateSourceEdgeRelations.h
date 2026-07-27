@@ -285,7 +285,7 @@ bool append_candidate_proposals(
     bounded_boolean_error &error) {
   const auto &records = candidates.candidates();
   for (std::size_t ordinal = 0; ordinal < records.size(); ++ordinal) {
-    if (relation_cancelled(capabilities)) {
+    if (relation_cancelled(capabilities, relation_checkpoint::edge_edge_evaluation)) {
       error = candidate_source_edge_relation_error(
           relation_subcode::cancelled,
           "Component 07 source-edge request discovery cancelled",
@@ -597,7 +597,7 @@ build_candidate_source_edge_relations(
               relation_subcode::source_edge_relation_malformed,
               "Component 07 source-edge integration handshake failed",
               relation_checkpoint::predecessor_validation));
-    if (relation_cancelled(capabilities))
+    if (relation_cancelled(capabilities, relation_checkpoint::edge_edge_evaluation))
       return boolean_outcome<stage_type>::failure(
           candidate_source_edge_relation_error(
               relation_subcode::cancelled,
@@ -659,7 +659,7 @@ build_candidate_source_edge_relations(
     stage.request_graph = std::move(*graph.value());
     stage.relations.reserve(stage.request_graph.requests.size());
     for (const auto &request : stage.request_graph.requests) {
-      if (relation_cancelled(capabilities))
+      if (relation_cancelled(capabilities, relation_checkpoint::edge_edge_evaluation))
         return boolean_outcome<stage_type>::failure(
             candidate_source_edge_relation_error(
                 relation_subcode::cancelled,

@@ -12,6 +12,11 @@ namespace ygor::mesh_boolean::bounded {
 template<class T>struct precision_bootstrap_record { std::uint16_t version=1;T machine_floor=T(0);T input_precision_a=T(0);T input_precision_b=T(0);bounded_boolean_digest source_digest{}; };
 template<class T,class I>struct pending_invocation { immutable_invocation_sources<T,I> sources;bounded_boolean_options<T> options;boolean_operation operation;truth_table truth;symbolic_policy_table symbolic;std::vector<std::uint8_t> replay_bytes;bounded_boolean_digest replay_digest{}; };
 template<class T,class I>struct boolean_context { std::shared_ptr<const immutable_invocation_sources<T,I>> sources;bounded_boolean_options<T> options;boolean_operation operation;truth_table truth;symbolic_policy_table symbolic;precision_bootstrap_record<T> precision;context_owner_token owner;bounded_boolean_digest input_digest{},context_digest{},replay_digest{}; };
+// Stable semantic identity excludes invocation-only resource, diagnostic, and
+// execution controls; those remain in replay_bytes/replay_digest.
+template<class T,class I> bounded_boolean_digest compute_context_semantic_digest(const boolean_context<T,I>&context) {
+    canonical_writer writer;writer.u16(contract_versions::context);writer.u8(static_cast<std::uint8_t>(context.operation));writer.floating(context.options.tolerance);writer.floating(context.options.input_precision_a);writer.floating(context.options.input_precision_b);writer.floating(context.precision.machine_floor);writer.u8(static_cast<std::uint8_t>(context.options.solids.kind));writer.u8(static_cast<std::uint8_t>(context.options.contacts.kind));writer.u8(static_cast<std::uint8_t>(context.options.output.kind));writer.boolean(context.options.output.preserve_public_metadata);writer.u8(static_cast<std::uint8_t>(context.options.determinism.mode));for(auto byte:context.input_digest.bytes)writer.u8(byte);for(auto byte:context.truth.digest.bytes)writer.u8(byte);for(auto byte:context.symbolic.digest.bytes)writer.u8(byte);return sha256::digest(writer.bytes());
+}
 template<class T,class I>
 boolean_outcome<pending_invocation<T,I>> build_pending_invocation(const fv_surface_mesh<T,I>&a,const fv_surface_mesh<T,I>&b,boolean_operation operation,bounded_boolean_options<T> options) {
     const auto op=static_cast<std::uint8_t>(operation);if(op<1||op>5)return boolean_outcome<pending_invocation<T,I>>::failure(policy_error(2010));
@@ -32,7 +37,7 @@ boolean_outcome<boolean_context<T,I>> finalize_context(pending_invocation<T,I> p
         return boolean_outcome<boolean_context<T,I>>::failure(policy_error(2102,bounded_boolean_error_category::invalid_tolerance));
     auto sources=std::make_shared<const immutable_invocation_sources<T,I>>(std::move(pending.sources));
     boolean_context<T,I> context{sources,std::move(pending.options),pending.operation,std::move(pending.truth),std::move(pending.symbolic),precision,context_owner_token::create(),sources->digest,{},pending.replay_digest};
-    canonical_writer writer;writer.u16(contract_versions::context);writer.u8(static_cast<std::uint8_t>(context.operation));writer.floating(context.options.tolerance);writer.floating(context.precision.machine_floor);for(auto byte:context.input_digest.bytes)writer.u8(byte);for(auto byte:context.truth.digest.bytes)writer.u8(byte);for(auto byte:context.symbolic.digest.bytes)writer.u8(byte);for(auto byte:context.replay_digest.bytes)writer.u8(byte);context.context_digest=sha256::digest(writer.bytes());
+    context.context_digest=compute_context_semantic_digest(context);
     return boolean_outcome<boolean_context<T,I>>::success(std::move(context));
 }
 }

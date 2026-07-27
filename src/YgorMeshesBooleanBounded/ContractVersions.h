@@ -20,7 +20,7 @@ struct contract_versions final {
     static constexpr std::uint16_t cancellation = 1;
     static constexpr std::uint16_t replay = 1;
     static constexpr std::uint16_t platform = 1;
-    static constexpr std::uint16_t context = 1;
+    static constexpr std::uint16_t context = 2;
     static constexpr std::uint16_t transaction = 1;
     static constexpr std::uint16_t verifier = 1;
     static constexpr std::uint16_t precision_bootstrap_schema = 1;
@@ -120,7 +120,8 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 10;
+    static constexpr std::uint16_t relation_artifact_schema = 11;
+    static constexpr std::uint16_t relation_precision_projection = 1;
     static constexpr std::uint16_t relation_provider = 1;
     static constexpr std::uint16_t relation_graph_policy = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
@@ -168,8 +169,13 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_candidate_partition_schema = 1;
     static constexpr std::uint16_t relation_owner_exclusion_policy = 1;
     static constexpr std::uint16_t relation_selection_boundary_policy = 1;
-    static constexpr std::uint16_t relation_codec = 11;
-    static constexpr std::uint16_t relation_verifier = 11;
+    static constexpr std::uint16_t relation_diagnostic_schema = 1;
+    static constexpr std::uint16_t relation_replay_checkpoint_schema = 1;
+    static constexpr std::uint16_t relation_replay_evidence_schema = 1;
+    static constexpr std::uint16_t relation_replay_policy = 1;
+    static constexpr std::uint16_t relation_cancellation_observer = 1;
+    static constexpr std::uint16_t relation_codec = 12;
+    static constexpr std::uint16_t relation_verifier = 12;
 
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;

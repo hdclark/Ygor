@@ -726,7 +726,7 @@ bool append_candidate_proposals(
     bounded_boolean_error &error) {
   for (std::size_t ordinal = 0; ordinal < candidates.candidates().size();
        ++ordinal) {
-    if (relation_cancelled(capabilities)) {
+    if (relation_cancelled(capabilities, relation_checkpoint::facet_facet_evaluation)) {
       error = source_facet_relation_error(
           relation_subcode::cancelled,
           "Component 07 facet/facet request discovery cancelled",
@@ -1129,7 +1129,7 @@ build_candidate_source_facet_relations(
     stage.request_graph = std::move(*graph.value());
     stage.relations.reserve(stage.request_graph.requests.size());
     for (const auto &request : stage.request_graph.requests) {
-      if (relation_cancelled(capabilities))
+      if (relation_cancelled(capabilities, relation_checkpoint::facet_facet_evaluation))
         return boolean_outcome<stage_type>::failure(source_facet_relation_error(
             relation_subcode::cancelled,
             "Component 07 facet/facet evaluation cancelled",

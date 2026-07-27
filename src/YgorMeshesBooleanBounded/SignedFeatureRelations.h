@@ -405,6 +405,76 @@ struct relation_verification_evidence final {
   std::uint32_t reserved = 0;
 };
 
+struct relation_diagnostic_record final {
+  relation_diagnostic_id id{0};
+  relation_diagnostic_kind kind =
+      relation_diagnostic_kind::replay_completeness_audit;
+  relation_diagnostic_severity severity =
+      relation_diagnostic_severity::retained_finding;
+  relation_checkpoint checkpoint = relation_checkpoint::producer_verification;
+  std::uint32_t subcode = 0;
+  bool has_candidate = false;
+  bool has_relation = false;
+  bool has_source_features = false;
+  bool has_numeric_evidence = false;
+  std::uint64_t candidate_ordinal = relation_invalid_ordinal;
+  std::uint64_t relation_ordinal = relation_invalid_ordinal;
+  relation_feature_key first_feature{};
+  relation_feature_key second_feature{};
+  std::uint64_t rounded_nominal_bits = 0;
+  std::uint64_t lower_bits = 0;
+  std::uint64_t upper_bits = 0;
+  std::uint64_t margin_bits = 0;
+  bounded_sign_status bounded_sign = bounded_sign_status::invalid;
+  exact_relation_status exact_relation = exact_relation_status::unavailable;
+  predicate_disposition disposition = predicate_disposition::fail_invalid;
+  std::uint16_t rounded_formula = 0;
+  std::uint16_t exact_formula = 0;
+  std::uint64_t trace_root = 0;
+  resource_kind resource = resource_kind::diagnostic_findings;
+  std::uint64_t resource_limit = 0;
+  std::uint64_t resource_used = 0;
+  std::uint64_t cancellation_progress = 0;
+  relation_replay_checkpoint_id replay_checkpoint{0};
+  bounded_boolean_digest semantic_digest{};
+  std::uint16_t schema_version = contract_versions::relation_diagnostic_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_replay_checkpoint_record final {
+  relation_replay_checkpoint_id id{0};
+  relation_checkpoint checkpoint = relation_checkpoint::predecessor_validation;
+  relation_replay_checkpoint_status status =
+      relation_replay_checkpoint_status::completed;
+  std::uint64_t input_count = 0;
+  std::uint64_t output_count = 0;
+  std::uint64_t cumulative_work_units = 0;
+  bounded_boolean_digest semantic_digest{};
+  std::uint16_t schema_version =
+      contract_versions::relation_replay_checkpoint_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_replay_evidence final {
+  std::uint16_t schema_version =
+      contract_versions::relation_replay_evidence_schema;
+  std::uint16_t policy_version = contract_versions::relation_replay_policy;
+  bounded_boolean_digest input_equivalence_digest{};
+  bounded_boolean_digest checkpoint_digest{};
+  bounded_boolean_digest diagnostic_digest{};
+  bounded_boolean_digest base_artifact_digest{};
+  std::uint64_t checkpoint_count = 0;
+  std::uint64_t diagnostic_count = 0;
+  bool complete = false;
+  bool artifact_reconstructed = false;
+  bool primary_failure_present = false;
+  std::uint8_t reserved8 = 0;
+  bounded_boolean_digest semantic_digest{};
+  std::uint32_t reserved32 = 0;
+};
+
 template <class T, class I> class signed_feature_relations final {
 public:
   std::uint16_t schema_version() const noexcept { return schema_version_; }
@@ -505,6 +575,16 @@ public:
   const relation_verification_evidence &verification_evidence() const noexcept {
     return verification_evidence_;
   }
+  const std::vector<relation_diagnostic_record> &diagnostics() const noexcept {
+    return diagnostics_;
+  }
+  const std::vector<relation_replay_checkpoint_record> &replay_checkpoints()
+      const noexcept {
+    return replay_checkpoints_;
+  }
+  const relation_replay_evidence &replay_evidence() const noexcept {
+    return replay_evidence_;
+  }
   const bounded_boolean_digest &context_digest() const noexcept {
     return context_digest_;
   }
@@ -579,6 +659,9 @@ private:
   std::vector<relation_candidate_partition_record> candidate_partitions_;
   relation_statistics statistics_{};
   relation_verification_evidence verification_evidence_{};
+  std::vector<relation_diagnostic_record> diagnostics_;
+  std::vector<relation_replay_checkpoint_record> replay_checkpoints_;
+  relation_replay_evidence replay_evidence_{};
   bounded_boolean_digest context_digest_{};
   bounded_boolean_digest precision_digest_{};
   bounded_boolean_digest candidate_digest_{};
@@ -600,6 +683,11 @@ private:
       const signed_feature_relations<U, J> &, bounded_boolean_error &);
   template <class U, class J>
   friend bool verify_signed_feature_relations(
+      const signed_feature_relations<U, J> &, bounded_boolean_error &);
+  template <class U, class J>
+  friend struct relation_replay_bundle_builder;
+  template <class U, class J>
+  friend bool verify_relation_replay_bundle(
       const signed_feature_relations<U, J> &, bounded_boolean_error &);
 };
 

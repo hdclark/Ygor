@@ -3,6 +3,7 @@
 #include "CoplanarRelationOverlay.h"
 #include "RelationConstructionPolicy.h"
 #include "RelationCandidateEvidenceVerifier.h"
+#include "RelationReplay.h"
 
 #include <algorithm>
 #include <cmath>
@@ -3004,7 +3005,10 @@ bool verify_signed_feature_relations(
       artifact.statistics_.candidate_seed_coverage_count !=
           artifact.candidate_event_seed_coverage_.size() ||
       artifact.statistics_.candidate_partition_count !=
-          artifact.candidate_partitions_.size())
+          artifact.candidate_partitions_.size() ||
+      artifact.statistics_.diagnostic_count != artifact.diagnostics_.size() ||
+      artifact.statistics_.replay_checkpoint_count !=
+          artifact.replay_checkpoints_.size())
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 statistics do not reconstruct from records");
 
@@ -3017,6 +3021,9 @@ bool verify_signed_feature_relations(
       evidence.semantic_digest != artifact.graph_digest_)
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 verification evidence is incomplete");
+
+  if (!verify_relation_replay_bundle(artifact, error))
+    return false;
 
   auto owner_changed = artifact;
   owner_changed.owner_ = context_owner_token::create();

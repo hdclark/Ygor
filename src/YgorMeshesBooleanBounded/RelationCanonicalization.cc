@@ -35,7 +35,7 @@ canonicalize_candidate_dispositions(
           std::vector<relation_candidate_disposition_record>>::failure(
           disposition_error(relation_subcode::wrong_owner,
                             "candidate-disposition owner is not bound"));
-    if (relation_cancelled(capabilities))
+    if (relation_cancelled(capabilities, relation_checkpoint::canonical_id_and_reference_remap))
       return boolean_outcome<
           std::vector<relation_candidate_disposition_record>>::failure(
           disposition_error(relation_subcode::cancelled,
