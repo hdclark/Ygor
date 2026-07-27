@@ -204,3 +204,24 @@ observed maxima, and replayable checker-transcript digests; exact paths reject
 hidden epsilon evidence. A canonical P6.7 report passes only when every planned
 case succeeds, attribute variants preserve the same exact-result and geometry
 digests, and no blocking issue remains.
+
+
+## Compiler, sanitizer, determinism, resource, and fuzz matrix (P6.8)
+
+`YgorMeshesBooleanQualificationMatrix.h` and
+`MeshBooleanQualificationMatrix.md` freeze the current/oldest GCC and Clang,
+Debug/optimized, libstdc++/libc++, x86-64/AArch64, strict floating-point,
+32/64-bit index, sanitizer, and debug-library coverage required by Plan 16. The
+same canonical plan enumerates worker, partition, queue, broad-phase, predicate
+filter, allocation, hash, rounding-mode, and separate-process determinism
+variants; authoritative resource/timeout/cancellation cases; and the valid,
+invalid/preparation, operation-chain, and long-running fuzz campaigns.
+
+Every matrix observation binds exact environment and replay evidence. Canonical
+artifacts, results, failures, diagnostics, and certificates must agree across a
+determinism equivalence group. Resource failures must be typed, replayable, and
+transactional. Each fuzz campaign retains the 86,400 aggregate CPU-second floor
+and cannot close until every unique outcome is serialized, minimized, and
+promoted to the permanent corpus. The focused current-GCC/current-Clang CI job
+is a bounded checker smoke test only; it is not a substitute for the full P6.10
+candidate campaign.

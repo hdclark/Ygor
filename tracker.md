@@ -235,11 +235,11 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Verify all advertised attribute/provenance policies, seams, conflicts, omissions, multi-source mappings, and downstream-style source queries.
   - [x] Demonstrate that approximate and normalization tolerances/displacements are explicit, recorded, independently checked, and never hidden test epsilons.
 
-- [ ] **P6.8 — Complete compiler, sanitizer, determinism, resource, and fuzz-duration matrices.**
-  - [ ] Run current and oldest-supported GCC/Clang, Debug/optimized, supported standard libraries, x86-64 and an independent 64-bit architecture, strict floating-point modes, and 32/64-bit index specializations as applicable.
-  - [ ] Pass ASan/UBSan and concurrency suites under TSan; run debug iterator/library modes where available.
-  - [ ] Run one/multiple workers, queue/task partitions, broad-phase variants, filter accept/fallback/mixed paths, allocation perturbations, configurable hash seeds, ambient rounding modes, and separate-process replay.
-  - [ ] Run at least the Plan 16 minimum valid, invalid/preparation, and chain fuzz CPU-hour campaigns per required sanitizer/configuration; preserve and minimize every unique outcome.
+- [x] **P6.8 — Complete compiler, sanitizer, determinism, resource, and fuzz-duration matrices.**
+  - [x] Run current and oldest-supported GCC/Clang, Debug/optimized, supported standard libraries, x86-64 and an independent 64-bit architecture, strict floating-point modes, and 32/64-bit index specializations as applicable.
+  - [x] Pass ASan/UBSan and concurrency suites under TSan; run debug iterator/library modes where available.
+  - [x] Run one/multiple workers, queue/task partitions, broad-phase variants, filter accept/fallback/mixed paths, allocation perturbations, configurable hash seeds, ambient rounding modes, and separate-process replay.
+  - [x] Run at least the Plan 16 minimum valid, invalid/preparation, and chain fuzz CPU-hour campaigns per required sanitizer/configuration; preserve and minimize every unique outcome.
 
 - [ ] **P6.9 — Freeze performance/memory/cancellation methodology and enforce gates.**
   - [ ] Benchmark strict validation, each normalization class, backend evaluation, topology preflight, exact-result serialization, all realization modes, mandatory/exhaustive verification, and operation chains on representative/adversarial workloads.

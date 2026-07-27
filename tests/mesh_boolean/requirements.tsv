@@ -34,3 +34,8 @@ P6-PREP-001	plan16.P6.7	strict validation, diagnosis-only, and every normalizati
 P6-RESULT-001	plan16.P6.7	exact stratified, strict exact_in_T, and certified approximate representations retain distinct semantics, exact-result bindings, re-ingestion, and certificate evidence	P6.7.result_modes	qualification	continuous
 P6-ATTR-001	plan16.P6.7	all advertised attribute and provenance policies verify seams, conflicts, omissions, multi-source mappings, downstream source queries, and geometry invariance	P6.7.attributes	qualification	continuous
 P6-BOUND-001	plan16.P6.7	normalization and approximate limits use explicit unit-bound binary64 evidence with independently checked observed maxima and no hidden epsilon	P6.7.report	negative	continuous
+P6-MATRIX-001	plan16.P6.8	current and oldest GCC/Clang, debug/optimized, libstdc++/libc++, x86-64/independent 64-bit architecture, strict floating point, and 32/64-bit index cases are frozen and independently bound	P6.8.catalog	qualification	continuous
+P6-SAN-001	plan16.P6.8	ASan/UBSan, TSan concurrency, and debug library modes require clean independently retained evidence	P6.8.toolchains	qualification	continuous
+P6-DETERMINISM-001	plan16.P6.8	worker, partition, queue, broad-phase, filter, allocation, hash, rounding, and separate-process variants retain byte-identical canonical artifacts	P6.8.determinism	qualification	continuous
+P6-RESOURCE-001	plan16.P6.8	authoritative byte, work, timeout, and cancellation limits return typed replayable failures without partial publication	P6.8.resources	negative	continuous
+P6-FUZZ-DURATION-001	plan16.P6.8	valid, invalid/preparation, chain, and long-running campaigns meet frozen aggregate CPU-hour floors and preserve every unique outcome	P6.8.fuzz	qualification	continuous
