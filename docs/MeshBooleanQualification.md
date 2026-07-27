@@ -173,3 +173,18 @@ binding, topology, certificate, occupancy, embedding, orientation, nesting,
 attribute, and approximation-bound reasons and remain separate from safe typed
 failures. A complete campaign can pass the P6.5 gate only with zero false
 successes and zero other blocking outcomes.
+
+
+## Controlled CAD-like corpus ingestion (P6.6)
+
+`YgorMeshesBooleanQualificationIngestion.h` and
+`MeshBooleanQualificationIngestion.md` define the source-controlled ingestion
+boundary for internally generated, licensed external, and private CAD-like
+workloads. Each record binds source/generator class, source system, intended
+model tolerance, license/provenance, preparation report, expected outcome, exact
+failure vocabulary, and redistribution policy. Repository and permitted
+content-addressed bytes are digest-verified before use; private digest-only
+artifacts are never materialized. External/private records require a distinct
+bounded in-repository representative, and the manifest derives anonymized
+category/outcome summaries and ordinary P6.1 corpus bindings from canonical
+records rather than trusting caller-supplied totals.

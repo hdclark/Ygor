@@ -225,9 +225,9 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Count false success separately from safe failure by backend, mode, preparation policy, category, operation, specialization, and platform.
   - [x] Treat any semantic mislabeling, incorrect occupancy/topology/orientation/embedding, stale binding, or incorrect attribute map as a blocking false success.
 
-- [ ] **P6.6 — Add controlled CAD-like corpus ingestion.**
-  - [ ] Record source/generator class, intended model tolerance, provenance/license, preparation report, expected product outcome, and redistribution constraints.
-  - [ ] Support content-addressed external/private artifacts with repository manifests, digests, retrieval procedures where permitted, anonymized category/outcome summaries, and compact in-repository CI representatives.
+- [x] **P6.6 — Add controlled CAD-like corpus ingestion.**
+  - [x] Record source/generator class, intended model tolerance, provenance/license, preparation report, expected product outcome, and redistribution constraints.
+  - [x] Support content-addressed external/private artifacts with repository manifests, digests, retrieval procedures where permitted, anonymized category/outcome summaries, and compact in-repository CI representatives.
 
 - [ ] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**
   - [ ] Qualify strict validation independently from every normalization mode/repair class.

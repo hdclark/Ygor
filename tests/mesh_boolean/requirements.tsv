@@ -27,3 +27,6 @@ P6-MIN-001	plan16.P6.3	deterministic provenance-guided minimization and validate
 P6-ACCOUNT-001	plan16.P6.5	normalize every execution to one outcome and count safe failures, false successes, and blocking issues separately across full qualification dimensions	P6.5.campaign	qualification	continuous
 P6-FALSE-001	plan16.P6.5	published semantic, binding, topology, occupancy, embedding, orientation, nesting, certificate, attribute, or approximation defects are blocking false successes	P6.5.false_success	mutation	continuous
 P6-REINGEST-001	plan16.P6.5	re-ingest every mesh success, independently reconstruct topology, replay certificates, check guarded probes, and feed verified outputs into chains	P6.5.real_success	oracle	continuous
+P6-INGEST-001	plan16.P6.6	CAD-like records bind source class, model tolerance, license/provenance, preparation report, expected outcome, exact failure vocabulary, and redistribution	P6.6.cases	qualification	continuous
+P6-ARTIFACT-001	plan16.P6.6	repository and content-addressed artifacts verify exact byte count and digest while private digest-only retrieval fails closed	P6.6.artifacts	negative	continuous
+P6-PRIVATE-001	plan16.P6.6	external and private records retain anonymized summaries and distinct bounded repository CI representatives without source disclosure	P6.6.manifest	qualification	continuous

@@ -136,6 +136,7 @@ add_component14_test(MeshBooleanQualification MeshBoolean.Qualification "qualifi
 add_component14_test(Test_MeshesBooleanQualificationGeneration MeshBoolean.QualificationGeneration "qualification;p6;p6.3;continuous" 1200)
 add_component14_test(Test_MeshesBooleanQualificationComparison MeshBoolean.QualificationComparison "qualification;p6;p6.4;continuous" 1800)
 add_component14_test(Test_MeshesBooleanQualificationAccounting MeshBoolean.QualificationAccounting "qualification;p6;p6.5;continuous" 1500)
+add_component14_test(Test_MeshesBooleanQualificationIngestion MeshBoolean.QualificationIngestion "qualification;p6;p6.6;continuous" 900)
 add_component14_test(Test_MeshesBooleanPerformanceBaselines
     MeshBoolean.PerformanceBaselines "performance" 600)
 

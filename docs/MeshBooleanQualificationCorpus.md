@@ -108,3 +108,17 @@ P6.3 must implement the construction-aware generators and chain harnesses that
 materialize these exact ordinal ranges. P6.10 must execute them under the frozen
 campaign. Neither step may reinterpret this inventory without changing its
 canonical digest and invalidating prior evidence.
+
+
+## P6.6 controlled CAD-like source boundary
+
+The P6.2 CAD-like ordinal ranges are internally generated and remain directly
+repository reproducible. Additional licensed and private campaign sources enter
+through `qualification_cad_ingestion_manifest`, not by editing this inventory or
+committing opaque meshes. The ingestion record binds source class, intended
+model tolerance, license/provenance, preparation evidence, expected outcome,
+redistribution, and content digests. External/private records carry compact,
+distinct repository representatives while the full source remains
+content-addressed or private digest-only. The resulting P6.1 corpus bindings are
+material qualification inputs, so source or evidence changes invalidate the
+frozen campaign.

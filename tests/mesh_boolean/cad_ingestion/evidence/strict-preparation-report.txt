@@ -1,0 +1,3 @@
+preparation_mode=strict_validation
+geometry_edits=0
+strict_revalidation=pass

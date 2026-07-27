@@ -1,0 +1,6 @@
+YGOR-CAD-CI-REPRESENTATIVE v1
+case=private-cavity-workload
+source=anonymized-construction-preserving-surrogate
+operand_a=outer box [-4,4]^3 with cavity [-2,2]^3
+operand_b=skewed prism crossing one cavity wall
+expected=typed exact or certified-approximate outcome under declared policy
