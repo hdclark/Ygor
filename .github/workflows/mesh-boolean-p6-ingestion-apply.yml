@@ -1,0 +1,109 @@
+name: Apply reviewed Mesh Boolean P6.6 ingestion
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/mesh-boolean-p6-ingestion-apply.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mesh-boolean-p6-ingestion-apply
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: ${{ matrix.compiler }} reviewed P6.6 patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and verify reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
+          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
+          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
+          git apply --check /tmp/p6-ingestion.patch
+          git apply /tmp/p6-ingestion.patch
+          git diff --check
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p6-ingestion -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P6.6 target
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-p6-ingestion \
+            --target Test_MeshesBooleanQualificationIngestion \
+            --parallel 2 2>&1 | tee build-p6-ingestion/p6-ingestion-build.log
+      - name: Run P6.6 gates
+        run: >-
+          ctest --test-dir build-p6-ingestion --output-on-failure
+          -R '^MeshBoolean\.QualificationIngestion$'
+          --timeout 900
+      - name: Retain failing diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-p6-ingestion-${{ matrix.compiler }}-failure
+          path: |
+            build-p6-ingestion/p6-ingestion-build.log
+            build-p6-ingestion/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Commit reviewed P6.6 implementation
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm branch has not moved
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force origin boolean_symbolic
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/boolean_symbolic)"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+      - name: Apply and commit reviewed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
+          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
+          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
+          git apply --check /tmp/p6-ingestion.patch
+          git apply /tmp/p6-ingestion.patch
+          rm -f .github/p6-ingestion.patch.part-*
+          rm -f .github/workflows/mesh-boolean-p6-ingestion-apply.yml
+          rm -f .github/workflows/mesh-boolean-p6-workspace-export.yml
+          git diff --check
+          git add .
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement P6.6 controlled CAD-like corpus ingestion (plan 16)'
+          git push origin HEAD:boolean_symbolic
