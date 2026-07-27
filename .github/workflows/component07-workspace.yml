@@ -1,6 +1,9 @@
 name: Component 07 publication bridge
 
 on:
+  pull_request:
+    branches:
+      - agent/component07-runner-base
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
