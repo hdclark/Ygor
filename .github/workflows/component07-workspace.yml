@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
 
       - name: Reconstruct verified Component 07 commit
         env:
