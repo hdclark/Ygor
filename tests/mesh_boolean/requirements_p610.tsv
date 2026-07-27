@@ -1,6 +1,0 @@
-# id	owner	clause	test_id	kind	tier
-P6-CANDIDATE-PLAN-001	plan16.P6.10	canonical manifest, all P6.2-P6.9 gates, and exact execution inventory are frozen	P6.10.plan	qualification	continuous
-P6-CANDIDATE-CLOSE-001	plan16.P6.10	all final observations and resolved issue reruns close canonically	P6.10.complete	qualification	continuous
-P6-CANDIDATE-BLOCK-001	plan16.P6.10	missing execution and unresolved false success remain blocking	P6.10.unresolved	negative	continuous
-P6-CANDIDATE-PROMOTE-001	plan16.P6.10	resolved engine defects require minimized permanent-regression promotion and corpus change	P6.10.resolution	mutation	continuous
-P6-CANDIDATE-PERF-001	plan16.P6.10	unreviewed performance or resource regression remains blocking	P6.10.performance	negative	continuous
