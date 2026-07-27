@@ -1,0 +1,69 @@
+name: Mesh Boolean P6.9 performance methodology contracts
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationPerformance.*'
+      - 'tests/Test_MeshesBooleanQualificationPerformance.*'
+      - 'tests/p69/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements_p69.tsv'
+      - 'docs/MeshBooleanQualificationPerformance.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-performance.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationPerformance.*'
+      - 'tests/Test_MeshesBooleanQualificationPerformance.*'
+      - 'tests/p69/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements_p69.tsv'
+      - 'docs/MeshBooleanQualificationPerformance.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-performance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  performance-contracts:
+    name: ${{ matrix.compiler }} P6.9 performance contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure bounded checker smoke
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S tests/p69 -B build-p6-performance -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMEMORY_CONSTRAINED_BUILD=ON
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+          -DYGOR_BOOLEAN_TEST_TIER=continuous
+      - name: Build P6.9 target
+        run: >-
+          cmake --build build-p6-performance
+          --target Test_MeshesBooleanQualificationPerformance
+          --parallel 2
+      - name: Run performance methodology and gate contracts
+        run: >-
+          ctest --test-dir build-p6-performance --output-on-failure
+          -R '^MeshBoolean\.QualificationPerformance$'
+          --timeout 1200
+      - name: Retain failing test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-performance-${{ matrix.compiler }}-failure
+          path: build-p6-performance/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
