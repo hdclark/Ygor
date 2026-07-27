@@ -28,6 +28,10 @@ on:
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-accounting.yml'
 
+concurrency:
+  group: mesh-boolean-p6-accounting-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
