@@ -1,0 +1,36 @@
+name: Mesh Boolean P6 workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/mesh-boolean-p6-workspace-export.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short --branch
+          tar --exclude=.git --exclude='build*' -czf /tmp/ygor-mesh-boolean-p6-workspace.tar.gz .
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-mesh-boolean-p6-workspace
+          path: /tmp/ygor-mesh-boolean-p6-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
