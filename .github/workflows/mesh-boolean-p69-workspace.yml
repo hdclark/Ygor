@@ -1,0 +1,32 @@
+name: Mesh Boolean P6.9 workspace bridge
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/mesh-boolean-p69-workspace.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Create workspace archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf "${RUNNER_TEMP}/ygor-p6.9-workspace.tar.gz" .
+
+      - name: Upload workspace archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p6.9-workspace
+          path: ${{ runner.temp }}/ygor-p6.9-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
