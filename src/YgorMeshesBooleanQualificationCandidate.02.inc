@@ -44,6 +44,12 @@ bool unique_sorted(const V &values, Key key) {
   return true;
 }
 
+bool successful_outcome(qualification_outcome value) noexcept {
+  return value == qualification_outcome::verified_exact_success ||
+         value ==
+             qualification_outcome::verified_certified_approximate_success;
+}
+
 bool outcome_requires_error_code(qualification_outcome value) noexcept {
   return value == qualification_outcome::expected_typed_failure ||
          value == qualification_outcome::unexpected_typed_failure ||
@@ -75,6 +81,19 @@ issue_kind_for_outcome(qualification_outcome value) noexcept {
   default:
     return std::nullopt;
   }
+}
+
+qualification_candidate_issue_kind issue_kind_for_mismatch(
+    const qualification_candidate_execution_observation &observation) noexcept {
+  if (observation.outcome == qualification_outcome::expected_typed_failure)
+    return qualification_candidate_issue_kind::unexpected_typed_failure;
+  if (observation.outcome == qualification_outcome::timeout_or_resource_limit)
+    return qualification_candidate_issue_kind::timeout_or_resource_limit;
+  if (successful_outcome(observation.outcome))
+    return qualification_candidate_issue_kind::false_success;
+  const auto direct = issue_kind_for_outcome(observation.outcome);
+  return direct.value_or(
+      qualification_candidate_issue_kind::unexpected_typed_failure);
 }
 
 bool expected(
