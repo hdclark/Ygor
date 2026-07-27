@@ -72,14 +72,18 @@
           observed == observation_by_case.end())
         return candidate_error("qualification_candidate.resolution_not_rerun");
 
+      const bool outcome_ok = expected(*descriptor, *observed->second);
+      const bool current_anomaly =
+          !outcome_ok || observed->second->performance_regression_observed ||
+          observed->second->resource_regression_observed;
       const bool resolution_current =
-          expected(*descriptor, *observed->second) &&
-          !observed->second->performance_regression_observed &&
+          outcome_ok && !observed->second->performance_regression_observed &&
           !observed->second->resource_regression_observed &&
           contains_digest(entry.rerun_observation_digests,
                           observed->second->observation_digest);
       if (!resolution_current &&
-          !has_all_current_issues(*descriptor, *observed->second))
+          (!current_anomaly ||
+           !has_all_current_issues(*descriptor, *observed->second)))
         return candidate_error("qualification_candidate.resolution_not_rerun");
 
       ++result.resolved_issue_count;
