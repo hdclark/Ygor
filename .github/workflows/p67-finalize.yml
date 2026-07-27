@@ -1,0 +1,149 @@
+name: Finalize Mesh Boolean P6.7
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/p67-finalize.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mesh-boolean-p67-finalize
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: ${{ matrix.compiler }} P6.7 validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Decode and apply reviewed P6.7 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import glob
+          import gzip
+          from pathlib import Path
+
+          encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
+                            for path in sorted(glob.glob('.github/p67.patch.*')))
+          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
+          Path('/tmp/p67.patch').write_bytes(decoded)
+          PY
+          echo '310e84cf483860fdd4ac3e465fa71f73e30b8505d04c6a7573fe3c48a230fe48  /tmp/p67.patch' > /tmp/p67.sha256
+          sha256sum --check /tmp/p67.sha256
+          git apply --check \
+            --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
+            --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
+            /tmp/p67.patch
+          git apply \
+            --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
+            --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
+            /tmp/p67.patch
+          git diff --check
+      - name: Configure focused qualification build
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p67-${{ matrix.compiler }} -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P6.6 and P6.7 targets
+        run: >-
+          cmake --build build-p67-${{ matrix.compiler }}
+          --target
+          Test_MeshesBooleanQualificationIngestion
+          Test_MeshesBooleanQualificationSuites
+          --parallel 2
+      - name: Run focused qualification gates
+        run: >-
+          ctest --test-dir build-p67-${{ matrix.compiler }} --output-on-failure
+          -R '^(MeshBoolean\.QualificationIngestion|MeshBoolean\.QualificationSuites)$'
+          --timeout 1200
+      - name: Verify tracker boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq -- '- [x] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**' tracker.md
+          grep -Fq -- '- [ ] **P6.8 — Complete compiler, sanitizer, determinism, resource, and fuzz-duration matrices.**' tracker.md
+      - name: Retain failing diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p67-${{ matrix.compiler }}-failure
+          path: build-p67-${{ matrix.compiler }}/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Commit component P6.7
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply verified patch and remove temporary plumbing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import glob
+          import gzip
+          from pathlib import Path
+
+          encoded = ''.join(Path(path).read_text(encoding='ascii').strip()
+                            for path in sorted(glob.glob('.github/p67.patch.*')))
+          decoded = gzip.decompress(base64.b64decode(encoded, validate=True))
+          Path('/tmp/p67.patch').write_bytes(decoded)
+          PY
+          echo '310e84cf483860fdd4ac3e465fa71f73e30b8505d04c6a7573fe3c48a230fe48  /tmp/p67.patch' > /tmp/p67.sha256
+          sha256sum --check /tmp/p67.sha256
+          git apply --check \
+            --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
+            --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
+            /tmp/p67.patch
+          git apply \
+            --exclude=.github/workflows/mesh-boolean-p6-suites.yml \
+            --exclude=.github/workflows/mesh-boolean-workspace-export.yml \
+            /tmp/p67.patch
+          rm -f .github/p67.patch.* .github/p67code.patch.*
+          rm -f .github/workflows/p67-bootstrap.yml
+          rm -f .github/workflows/mesh-boolean-workspace-export.yml
+          rm -f .github/workflows/p67-finalize.yml
+          git diff --check
+          grep -Fq -- '- [x] **P6.7 — Add preparation, result-mode, attribute, and provenance qualification suites.**' tracker.md
+          grep -Fq -- '- [ ] **P6.8 — Complete compiler, sanitizer, determinism, resource, and fuzz-duration matrices.**' tracker.md
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git status --short
+          git commit -m 'Implement component P6.7 qualification suites'
+          git push origin HEAD:boolean_symbolic
