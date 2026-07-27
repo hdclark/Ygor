@@ -65,39 +65,44 @@ qualification_candidate_issue_kind unexpected_issue_kind(
 
 digest automatic_issue_evidence(
     const qualification_candidate_execution_observation &observation,
-    qualification_candidate_issue_kind kind) {
+    qualification_candidate_issue_kind kind, std::uint64_t history_ordinal) {
   canonical_encoder encoder;
   encoder.raw(observation.case_digest.bytes.data(),
               observation.case_digest.bytes.size());
   encoder.raw(observation.observation_digest.bytes.data(),
               observation.observation_digest.bytes.size());
   encoder.byte(static_cast<std::uint8_t>(kind));
+  encoder.u64(history_ordinal);
   return domain_digest(runner_issue_evidence_tag, encoder.bytes());
 }
 
-bool exact_issue_retained(
+bool current_unresolved_issue_retained(
     const std::vector<qualification_candidate_issue> &issues,
     const qualification_candidate_execution_observation &observation,
     qualification_candidate_issue_kind kind) noexcept {
   return std::any_of(issues.begin(), issues.end(), [&](const auto &issue) {
     return issue.case_identifier == observation.case_identifier &&
            issue.case_digest == observation.case_digest && issue.kind == kind &&
-           issue.initial_observation_digest == observation.observation_digest;
+           issue.initial_observation_digest == observation.observation_digest &&
+           issue.disposition ==
+               qualification_candidate_issue_disposition::unresolved_blocking;
   });
 }
 
 product_status_or<qualification_candidate_issue> make_automatic_issue(
     const qualification_candidate_execution_observation &observation,
-    qualification_candidate_issue_kind kind) {
+    qualification_candidate_issue_kind kind, std::uint64_t history_ordinal) {
   qualification_candidate_issue issue;
   issue.identifier = "candidate.issue." + observation.case_digest.hex() + "." +
                      qualification_candidate_issue_kind_token(kind) + "." +
-                     observation.observation_digest.hex();
+                     observation.observation_digest.hex() + "." +
+                     std::to_string(history_ordinal);
   issue.case_identifier = observation.case_identifier;
   issue.case_digest = observation.case_digest;
   issue.kind = kind;
   issue.initial_observation_digest = observation.observation_digest;
-  issue.detected_evidence_digest = automatic_issue_evidence(observation, kind);
+  issue.detected_evidence_digest =
+      automatic_issue_evidence(observation, kind, history_ordinal);
   return make_qualification_candidate_issue(std::move(issue));
 }
 
@@ -178,9 +183,16 @@ run_qualification_candidate_campaign(
         required.push_back(
             qualification_candidate_issue_kind::resource_regression);
       for (const auto kind : required) {
-        if (exact_issue_retained(issues, observation, kind))
+        if (current_unresolved_issue_retained(issues, observation, kind))
           continue;
-        auto made = make_automatic_issue(observation, kind);
+        const auto history_ordinal = static_cast<std::uint64_t>(std::count_if(
+            issues.begin(), issues.end(), [&](const auto &issue) {
+              return issue.case_identifier == observation.case_identifier &&
+                     issue.case_digest == observation.case_digest &&
+                     issue.kind == kind;
+            }));
+        auto made =
+            make_automatic_issue(observation, kind, history_ordinal);
         if (!made.has_value())
           return made.error();
         issues.push_back(std::move(made.value()));
