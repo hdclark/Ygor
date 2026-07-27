@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           cat .github/p69-transfer/part-* > "${RUNNER_TEMP}/p69.tar.gz.b64"
           base64 --decode "${RUNNER_TEMP}/p69.tar.gz.b64" > "${RUNNER_TEMP}/p69.tar.gz"
-          echo 'f92c54260ca72ede5a5a6f4e2bda49403c000b111eefecbe7d20870096295ff0  p69.tar.gz' |
+          echo '929f57fd9755614d8d457e7e3141b0cf1d51c38fe313444056f20d84dd3e7b6b  p69.tar.gz' |
             (cd "${RUNNER_TEMP}" && sha256sum --check -)
 
       - name: Assemble clean P6.9 tree
