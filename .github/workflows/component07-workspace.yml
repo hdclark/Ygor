@@ -1,158 +1,29 @@
-name: Component 07 publication bridge
+name: Component 07 workspace export
 
 on:
   pull_request:
     branches:
+      - master
       - agent/component07-runner-base
   push:
     branches:
       - agent/bounded-manifold-mesh-boolean-plan
 
-permissions:
-  contents: write
-
 jobs:
-  publish:
-    if: github.actor != 'github-actions[bot]'
+  export:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: agent/bounded-manifold-mesh-boolean-plan
-
-      - name: Reconstruct and verify patch bytes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package checkout
         run: |
-          set -euo pipefail
-          : > /tmp/component07.patch.b64
-          for blob in \
-            311a99ae9045be7274415ecc1d5e5129a7920b7a \
-            2b9c49087ec54d7aaea18a19520cd3e0de8f5349 \
-            0120aa6406650235acf951bca279a2dba763eba1
-          do
-            curl --fail --silent --show-error \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${blob}" \
-              | python3 -c 'import base64,json,sys; sys.stdout.write(base64.b64decode(json.load(sys.stdin)["content"]).decode("ascii"))' \
-              >> /tmp/component07.patch.b64
-          done
-          echo "684567c90f2655087af0df1f8b837bdf687e687458440f09551612c360609aae  /tmp/component07.patch.b64" | sha256sum -c -
-          base64 --decode /tmp/component07.patch.b64 > /tmp/component07.patch.gz
-          echo "3590d792755fed478c890841dc84667710f76a05745ff0e50802fb69ba80080c  /tmp/component07.patch.gz" | sha256sum -c -
-          gzip --decompress --stdout /tmp/component07.patch.gz > /tmp/component07.patch
-          echo "f22c14156a05cae915a5755c854ff7a93f4dd202e3d967b91e48b00eb3303fd7  /tmp/component07.patch" | sha256sum -c -
-
-      - name: Apply Component 07 patch
-        run: |
-          set -euo pipefail
-          git apply --check /tmp/component07.patch
-          git apply --index /tmp/component07.patch
-          git diff --cached --check
-
-      - name: Verify exact permanent tree
-        run: |
-          set -euo pipefail
-          git restore --source=dee60d62958eb96059c54f42943285701c195ed0 --staged --worktree .github/workflows/component07-workspace.yml
-          git diff --cached --check
-          expected_tree=a3566b705aa2b9a7767f11bec8c504cebc3ad4ef
-          actual_tree=$(git write-tree)
-          echo "expected tree: ${expected_tree}"
-          echo "actual tree:   ${actual_tree}"
-          test "${actual_tree}" = "${expected_tree}"
-
-      - name: Create verified remote commit object
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import base64
-          import json
-          import os
-          import subprocess
-          import urllib.parse
-          import urllib.request
-
-          repo = os.environ["GITHUB_REPOSITORY"]
-          token = os.environ["GH_TOKEN"]
-          parent = subprocess.check_output(
-              ["git", "rev-parse", "HEAD"], text=True).strip()
-
-          def api(method, path, payload=None):
-              data = None if payload is None else json.dumps(payload).encode("utf-8")
-              request = urllib.request.Request(
-                  f"https://api.github.com/repos/{repo}{path}",
-                  data=data,
-                  method=method)
-              request.add_header("Authorization", f"Bearer {token}")
-              request.add_header("Accept", "application/vnd.github+json")
-              request.add_header("X-GitHub-Api-Version", "2022-11-28")
-              if data is not None:
-                  request.add_header("Content-Type", "application/json")
-              with urllib.request.urlopen(request) as response:
-                  return json.load(response)
-
-          branch = "agent/bounded-manifold-mesh-boolean-plan"
-          branch_ref = api("GET", "/git/ref/heads/" + urllib.parse.quote(branch, safe="/"))
-          if branch_ref["object"]["sha"] != parent:
-              raise SystemExit(
-                  f"head moved: expected {parent}, found {branch_ref['object']['sha']}")
-
-          base_commit = api("GET", f"/git/commits/{parent}")
-          base_tree = base_commit["tree"]["sha"]
-          raw = subprocess.check_output(
-              ["git", "diff", "--cached", "--name-status", "-z", "HEAD"])
-          fields = raw.decode("utf-8").split("\0")
-          entries = []
-          index = 0
-          while index < len(fields) and fields[index]:
-              status = fields[index]
-              index += 1
-              if status.startswith(("R", "C")):
-                  index += 1
-                  path = fields[index]
-                  index += 1
-              else:
-                  path = fields[index]
-                  index += 1
-              if status.startswith("D"):
-                  entries.append({"path": path, "mode": "100644",
-                                  "type": "blob", "sha": None})
-                  continue
-              mode = subprocess.check_output(
-                  ["git", "ls-files", "-s", "--", path],
-                  text=True).split()[0]
-              with open(path, "rb") as source:
-                  encoded = base64.b64encode(source.read()).decode("ascii")
-              blob = api("POST", "/git/blobs",
-                         {"content": encoded, "encoding": "base64"})
-              entries.append({"path": path, "mode": mode,
-                              "type": "blob", "sha": blob["sha"]})
-
-          tree = api("POST", "/git/trees",
-                     {"base_tree": base_tree, "tree": entries})
-          expected_tree = "a3566b705aa2b9a7767f11bec8c504cebc3ad4ef"
-          if tree["sha"] != expected_tree:
-              raise SystemExit(
-                  f"remote tree mismatch: expected {expected_tree}, found {tree['sha']}")
-          commit = api("POST", "/git/commits", {
-              "message": "Component 07: complete replay and qualification",
-              "tree": tree["sha"],
-              "parents": [parent],
-          })
-          with open("/tmp/component07-remote-commit.txt", "w", encoding="ascii") as out:
-              out.write(commit["sha"] + "\n")
-          print(f"verified remote commit: {commit['sha']}")
-          PY
-
+          git status --short --branch
+          tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
-          name: component07-publication-commit
-          path: /tmp/component07-remote-commit.txt
+          name: ygor-component07-workspace
+          path: /tmp/ygor-component07-workspace.tar.gz
           if-no-files-found: error
           retention-days: 1
