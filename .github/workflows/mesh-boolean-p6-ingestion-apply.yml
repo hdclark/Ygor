@@ -16,13 +16,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: mesh-boolean-p6-ingestion-publish-${{ github.event_name }}
+  group: mesh-boolean-p6-ingestion-publish-macos-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   publish-validated-commit:
     name: Publish validated P6.6 commit to staging branch
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +36,20 @@ jobs:
           git fetch --force origin boolean_symbolic
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/boolean_symbolic)"
           test "$(find .github -maxdepth 1 -name 'p6-ingestion.patch.part-*' -type f | wc -l)" -eq 5
-          cat .github/p6-ingestion.patch.part-* | base64 --decode | gzip --decompress > /tmp/p6-ingestion.patch
-          echo '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f  /tmp/p6-ingestion.patch' | sha256sum --check --strict
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+          parts = sorted(Path('.github').glob('p6-ingestion.patch.part-*'))
+          encoded = b''.join(part.read_bytes() for part in parts)
+          patch = gzip.decompress(base64.b64decode(encoded))
+          expected = '97a76250dab8af604f442e4960950b9112bd008829b4848f355c5d9cee63347f'
+          actual = hashlib.sha256(patch).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'patch digest mismatch: {actual}')
+          Path('/tmp/p6-ingestion.patch').write_bytes(patch)
+          PY
           git apply --check /tmp/p6-ingestion.patch
           git apply /tmp/p6-ingestion.patch
           rm -f .github/p6-ingestion.patch.part-*
