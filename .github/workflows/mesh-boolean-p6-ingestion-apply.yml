@@ -6,6 +6,11 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/mesh-boolean-p6-ingestion-apply.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/mesh-boolean-p6-ingestion-apply.yml'
 
 permissions:
   contents: write
