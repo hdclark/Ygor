@@ -39,10 +39,13 @@ canonicalize_observation(qualification_candidate_execution_observation value) {
       outcome_requires_error_code(value.outcome) != value.error_code.has_value() ||
       (value.error_code && !known(*value.error_code)) ||
       !text(value.typed_outcome_key) || zero(value.accounting_digest) ||
-      zero(value.replay_digest) || zero(value.run_log_digest) ||
-      (zero(value.canonical_result_digest) &&
-       zero(value.canonical_failure_digest)))
+      zero(value.replay_digest) || zero(value.run_log_digest))
     return candidate_error("qualification_candidate.observation_malformed");
+  const bool result_present = !zero(value.canonical_result_digest);
+  const bool failure_present = !zero(value.canonical_failure_digest);
+  if (successful_outcome(value.outcome) != result_present ||
+      successful_outcome(value.outcome) == failure_present)
+    return candidate_error("qualification_candidate.observation_payload_kind");
   const bool regression = value.performance_regression_observed ||
                           value.resource_regression_observed;
   if (regression != !zero(value.regression_evidence_digest))
@@ -112,6 +115,11 @@ canonicalize_issue(qualification_candidate_issue value) {
           return text(entry.first) && !zero(entry.second);
         }))
       return candidate_error("qualification_candidate.rerun_malformed");
+    std::set<digest> unique_rerun_digests;
+    for (const auto &entry : reruns)
+      unique_rerun_digests.insert(entry.second);
+    if (unique_rerun_digests.size() != reruns.size())
+      return candidate_error("qualification_candidate.rerun_digest_duplicate");
     value.affected_configuration_identifiers.clear();
     value.rerun_observation_digests.clear();
     for (auto &entry : reruns) {
