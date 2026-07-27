@@ -22,12 +22,11 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Reconstruct verified Component 07 commit
+      - name: Reconstruct and verify patch bytes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
           : > /tmp/component07.patch.b64
           for blob in \
             311a99ae9045be7274415ecc1d5e5129a7920b7a \
@@ -42,22 +41,33 @@ jobs:
               | python3 -c 'import base64,json,sys; sys.stdout.write(base64.b64decode(json.load(sys.stdin)["content"]).decode("ascii"))' \
               >> /tmp/component07.patch.b64
           done
-
-          test "$(sha256sum /tmp/component07.patch.b64 | cut -d' ' -f1)" = "684567c90f2655087af0df1f8b837bdf687e687458440f09551612c360609aae"
+          echo "684567c90f2655087af0df1f8b837bdf687e687458440f09551612c360609aae  /tmp/component07.patch.b64" | sha256sum -c -
           base64 --decode /tmp/component07.patch.b64 > /tmp/component07.patch.gz
-          test "$(sha256sum /tmp/component07.patch.gz | cut -d' ' -f1)" = "3590d792755fed478c890841dc84667710f76a05745ff0e50802fb69ba80080c"
+          echo "3590d792755fed478c890841dc84667710f76a05745ff0e50802fb69ba80080c  /tmp/component07.patch.gz" | sha256sum -c -
           gzip --decompress --stdout /tmp/component07.patch.gz > /tmp/component07.patch
-          test "$(sha256sum /tmp/component07.patch | cut -d' ' -f1)" = "f22c14156a05cae915a5755c854ff7a93f4dd202e3d967b91e48b00eb3303fd7"
+          echo "f22c14156a05cae915a5755c854ff7a93f4dd202e3d967b91e48b00eb3303fd7  /tmp/component07.patch" | sha256sum -c -
 
+      - name: Apply Component 07 patch
+        run: |
+          set -euo pipefail
           git apply --check /tmp/component07.patch
           git apply --index /tmp/component07.patch
-          git restore --source=dee60d62958eb96059c54f42943285701c195ed0 --staged --worktree .github/workflows/component07-workspace.yml
           git diff --cached --check
 
+      - name: Restore permanent workflow and verify tree
+        run: |
+          set -euo pipefail
+          git restore --source=dee60d62958eb96059c54f42943285701c195ed0 --staged --worktree .github/workflows/component07-workspace.yml
+          git diff --cached --check
           expected_tree=a3566b705aa2b9a7767f11bec8c504cebc3ad4ef
           actual_tree=$(git write-tree)
+          echo "expected tree: ${expected_tree}"
+          echo "actual tree:   ${actual_tree}"
           test "${actual_tree}" = "${expected_tree}"
 
+      - name: Commit and publish Component 07
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Component 07: complete replay and qualification"
