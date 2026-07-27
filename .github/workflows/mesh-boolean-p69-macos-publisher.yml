@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - p69-macos-publish
+      - boolean_symbolic
     paths:
       - '.github/workflows/mesh-boolean-p69-macos-publisher.yml'
 
@@ -27,8 +28,6 @@ jobs:
           python3 - <<'PY'
           import base64
           import hashlib
-          import io
-          import tarfile
           from pathlib import Path
 
           encoded = ''.join(
