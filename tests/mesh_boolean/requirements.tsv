@@ -19,23 +19,32 @@ C14-GAP-G9C	plan-gap.G9c	standalone realization verification rejects producer-sh
 C14-META-001	plan14.9	Boolean operand and exact transform relations	C14.META.commutative.geometry	property	continuous
 C14-MUT-001	plan14.12	independent output verifier rejects topology and evidence corruption	C14.MUT.output.detectors	mutation	extended
 C14-PERF-001	plan14.15	fixed correctness-preserving benchmark remains outside CTest	MeshBooleanBenchmark	qualification	qualification
-P6-CORPUS-001	plan16.P6.2	permanent corpus floors, coverage dimensions, regression retention, and digest bindings	C14.QUAL.corpus.inventory.P6.2	qualification	continuous
-P6-CHAIN-001	plan16.P6.3	operation chains re-ingest mesh successes, retain exact results, vary order and preparation boundaries, and preserve state on typed failure	P6.3.chains.execution	property	continuous
-P6-FUZZ-001	plan16.P6.3	construction-aware valid fuzzing and exact-label invalid/preparation fuzzing with report checks	P6.3.fuzz.valid_invalid	property	continuous
-P6-GEN-001	plan16.P6.3	executable exact and CAD-like retained recipes for every frozen P6.2 pair-family ordinal and type specialization	P6.3.generators.descriptors	qualification	continuous
-P6-MIN-001	plan16.P6.3	deterministic provenance-guided minimization and validated permanent-regression promotion	P6.3.minimization.promotion	qualification	continuous
 P6-ACCOUNT-001	plan16.P6.5	normalize every execution to one outcome and count safe failures, false successes, and blocking issues separately across full qualification dimensions	P6.5.campaign	qualification	continuous
-P6-FALSE-001	plan16.P6.5	published semantic, binding, topology, occupancy, embedding, orientation, nesting, certificate, attribute, or approximation defects are blocking false successes	P6.5.false_success	mutation	continuous
-P6-REINGEST-001	plan16.P6.5	re-ingest every mesh success, independently reconstruct topology, replay certificates, check guarded probes, and feed verified outputs into chains	P6.5.real_success	oracle	continuous
-P6-INGEST-001	plan16.P6.6	CAD-like records bind source class, model tolerance, license/provenance, preparation report, expected outcome, exact failure vocabulary, and redistribution	P6.6.cases	qualification	continuous
 P6-ARTIFACT-001	plan16.P6.6	repository and content-addressed artifacts verify exact byte count and digest while private digest-only retrieval fails closed	P6.6.artifacts	negative	continuous
-P6-PRIVATE-001	plan16.P6.6	external and private records retain anonymized summaries and distinct bounded repository CI representatives without source disclosure	P6.6.manifest	qualification	continuous
-P6-PREP-001	plan16.P6.7	strict validation, diagnosis-only, and every normalization repair class are qualified independently with strict revalidation and report replay	P6.7.preparation	qualification	continuous
-P6-RESULT-001	plan16.P6.7	exact stratified, strict exact_in_T, and certified approximate representations retain distinct semantics, exact-result bindings, re-ingestion, and certificate evidence	P6.7.result_modes	qualification	continuous
 P6-ATTR-001	plan16.P6.7	all advertised attribute and provenance policies verify seams, conflicts, omissions, multi-source mappings, downstream source queries, and geometry invariance	P6.7.attributes	qualification	continuous
 P6-BOUND-001	plan16.P6.7	normalization and approximate limits use explicit unit-bound binary64 evidence with independently checked observed maxima and no hidden epsilon	P6.7.report	negative	continuous
-P6-MATRIX-001	plan16.P6.8	current and oldest GCC/Clang, debug/optimized, libstdc++/libc++, x86-64/independent 64-bit architecture, strict floating point, and 32/64-bit index cases are frozen and independently bound	P6.8.catalog	qualification	continuous
-P6-SAN-001	plan16.P6.8	ASan/UBSan, TSan concurrency, and debug library modes require clean independently retained evidence	P6.8.toolchains	qualification	continuous
+P6-CANCEL-001	plan16.P6.9	resource and cancellation outcomes require typed failure, bounded latency, rollback, no partial publication, and replay evidence	P6.9.transaction	negative	continuous
+P6-CANDIDATE-BLOCK-001	plan16.P6.10	missing execution and unresolved false success remain blocking	P6.10.unresolved	negative	continuous
+P6-CANDIDATE-CLOSE-001	plan16.P6.10	all final observations and resolved issue reruns close canonically	P6.10.complete	qualification	continuous
+P6-CANDIDATE-PERF-001	plan16.P6.10	unreviewed performance or resource regression remains blocking	P6.10.performance	negative	continuous
+P6-CANDIDATE-PLAN-001	plan16.P6.10	canonical manifest, all P6.2-P6.9 gates, and exact execution inventory are frozen	P6.10.plan	qualification	continuous
+P6-CANDIDATE-PROMOTE-001	plan16.P6.10	resolved engine defects require minimized permanent-regression promotion and corpus change	P6.10.resolution	mutation	continuous
+P6-CHAIN-001	plan16.P6.3	operation chains re-ingest mesh successes, retain exact results, vary order and preparation boundaries, and preserve state on typed failure	P6.3.chains.execution	property	continuous
+P6-CORPUS-001	plan16.P6.2	permanent corpus floors, coverage dimensions, regression retention, and digest bindings	C14.QUAL.corpus.inventory.P6.2	qualification	continuous
 P6-DETERMINISM-001	plan16.P6.8	worker, partition, queue, broad-phase, filter, allocation, hash, rounding, and separate-process variants retain byte-identical canonical artifacts	P6.8.determinism	qualification	continuous
-P6-RESOURCE-001	plan16.P6.8	authoritative byte, work, timeout, and cancellation limits return typed replayable failures without partial publication	P6.8.resources	negative	continuous
+P6-FALSE-001	plan16.P6.5	published semantic, binding, topology, occupancy, embedding, orientation, nesting, certificate, attribute, or approximation defects are blocking false successes	P6.5.false_success	mutation	continuous
+P6-FUZZ-001	plan16.P6.3	construction-aware valid fuzzing and exact-label invalid/preparation fuzzing with report checks	P6.3.fuzz.valid_invalid	property	continuous
 P6-FUZZ-DURATION-001	plan16.P6.8	valid, invalid/preparation, chain, and long-running campaigns meet frozen aggregate CPU-hour floors and preserve every unique outcome	P6.8.fuzz	qualification	continuous
+P6-GEN-001	plan16.P6.3	executable exact and CAD-like retained recipes for every frozen P6.2 pair-family ordinal and type specialization	P6.3.generators.descriptors	qualification	continuous
+P6-INGEST-001	plan16.P6.6	CAD-like records bind source class, model tolerance, license/provenance, preparation report, expected outcome, exact failure vocabulary, and redistribution	P6.6.cases	qualification	continuous
+P6-MATRIX-001	plan16.P6.8	current and oldest GCC/Clang, debug/optimized, libstdc++/libc++, x86-64/independent 64-bit architecture, strict floating point, and 32/64-bit index cases are frozen and independently bound	P6.8.catalog	qualification	continuous
+P6-METRICS-001	plan16.P6.9	raw samples reconstruct exact statistics and bind timing, RSS, authoritative bytes, exact growth, counters, verifier, realization, serialization, cancellation, and outcome evidence	P6.9.report	qualification	continuous
+P6-MIN-001	plan16.P6.3	deterministic provenance-guided minimization and validated permanent-regression promotion	P6.3.minimization.promotion	qualification	continuous
+P6-PERFORMANCE-001	plan16.P6.9	frozen representative and adversarial workload catalog covers every required stage, scale, normalization repair policy, and P0 baseline	P6.9.catalog	qualification	continuous
+P6-PREP-001	plan16.P6.7	strict validation, diagnosis-only, and every normalization repair class are qualified independently with strict revalidation and report replay	P6.7.preparation	qualification	continuous
+P6-PRIVATE-001	plan16.P6.6	external and private records retain anonymized summaries and distinct bounded repository CI representatives without source disclosure	P6.6.manifest	qualification	continuous
+P6-REINGEST-001	plan16.P6.5	re-ingest every mesh success, independently reconstruct topology, replay certificates, check guarded probes, and feed verified outputs into chains	P6.5.real_success	oracle	continuous
+P6-RESOURCE-001	plan16.P6.8	authoritative byte, work, timeout, and cancellation limits return typed replayable failures without partial publication	P6.8.resources	negative	continuous
+P6-RESULT-001	plan16.P6.7	exact stratified, strict exact_in_T, and certified approximate representations retain distinct semantics, exact-result bindings, re-ingestion, and certificate evidence	P6.7.result_modes	qualification	continuous
+P6-SAN-001	plan16.P6.8	ASan/UBSan, TSan concurrency, and debug library modes require clean independently retained evidence	P6.8.toolchains	qualification	continuous
+P6-THRESHOLD-001	plan16.P6.9	exact ratio and geometric-mean gates preserve approved plan_speed targets and reject silent threshold revisions	P6.9.thresholds	negative	continuous
