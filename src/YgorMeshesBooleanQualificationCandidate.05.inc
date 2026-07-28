@@ -37,8 +37,12 @@
 product_status_or<bool> validate_qualification_candidate_campaign_plan(
     const qualification_candidate_campaign_plan &value) noexcept {
   try {
+    canonical_encoder supplied_encoder;
+    encode_plan_semantic(supplied_encoder, value);
+    const auto supplied_bytes = supplied_encoder.bytes();
     auto made = make_qualification_candidate_campaign_plan(value);
-    return made.has_value() && made.value().canonical_bytes == value.canonical_bytes &&
+    return made.has_value() && supplied_bytes == value.canonical_bytes &&
+           made.value().canonical_bytes == value.canonical_bytes &&
            made.value().plan_digest == value.plan_digest;
   } catch (const std::bad_alloc &) {
     return candidate_error("qualification_candidate.allocation_failure");
