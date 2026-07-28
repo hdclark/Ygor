@@ -61,20 +61,24 @@ jobs:
           -DWITH_GNU_GSL=OFF
           -DYGOR_BOOLEAN_TEST_TIER=continuous
       - name: Build P6.10 target
-        run: >-
-          cmake --build build-p6-candidate
-          --target Test_MeshesBooleanQualificationCandidate
-          --parallel 2
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-p6-candidate \
+            --target Test_MeshesBooleanQualificationCandidate \
+            --parallel 2 |& tee build-p6-candidate/build.log
       - name: Run candidate closure contracts
         run: >-
           ctest --test-dir build-p6-candidate --output-on-failure
           -R '^MeshBoolean\.QualificationCandidate$'
           --timeout 1200
-      - name: Retain failing test log
+      - name: Retain failing build and test logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: mesh-boolean-p6-candidate-${{ matrix.compiler }}-failure
-          path: build-p6-candidate/Testing/Temporary/LastTest.log
+          path: |
+            build-p6-candidate/build.log
+            build-p6-candidate/Testing/Temporary/LastTest.log
           if-no-files-found: ignore
           retention-days: 7
