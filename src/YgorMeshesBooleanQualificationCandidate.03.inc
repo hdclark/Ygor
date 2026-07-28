@@ -32,11 +32,33 @@
                    value.expected_failure_codes.end(),
                    [](auto entry) { return known(entry); }))
     return candidate_error("qualification_candidate.case_error_unknown");
-  const bool failure_expected = std::any_of(
-      value.expected_outcomes.begin(), value.expected_outcomes.end(),
-      [](auto entry) { return expected_failure_contract(entry); });
-  if (failure_expected != !value.expected_failure_codes.empty())
+  const bool typed_failure_expected =
+      std::find(value.expected_outcomes.begin(), value.expected_outcomes.end(),
+                qualification_outcome::expected_typed_failure) !=
+      value.expected_outcomes.end();
+  const bool resource_limit_expected =
+      std::find(value.expected_outcomes.begin(), value.expected_outcomes.end(),
+                qualification_outcome::timeout_or_resource_limit) !=
+      value.expected_outcomes.end();
+  if (typed_failure_expected && resource_limit_expected)
+    return candidate_error(
+        "qualification_candidate.case_failure_outcome_ambiguous");
+  if (typed_failure_expected) {
+    if (value.expected_failure_codes.empty() ||
+        !std::all_of(value.expected_failure_codes.begin(),
+                     value.expected_failure_codes.end(), [](auto entry) {
+                       return permitted_expected_typed_failure_code(entry);
+                     }))
+      return candidate_error(
+          "qualification_candidate.case_typed_failure_contract");
+  } else if (resource_limit_expected) {
+    if (value.expected_failure_codes.size() != 1U ||
+        value.expected_failure_codes.front() != product_error_code::resource_limit)
+      return candidate_error(
+          "qualification_candidate.case_resource_limit_contract");
+  } else if (!value.expected_failure_codes.empty()) {
     return candidate_error("qualification_candidate.case_failure_contract");
+  }
   const auto calculated = execution_case_digest(value);
   if (!zero(value.case_digest) && value.case_digest != calculated)
     return candidate_error("qualification_candidate.case_digest");

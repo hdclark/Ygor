@@ -248,6 +248,7 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Prove resource-limit and cancellation failures remain transactional with no partial publication.
 
 - [ ] **P6.10 — Execute the frozen candidate campaign and resolve outcomes.**
+  - [x] Implement and harden the canonical candidate plan/runner/closure checker, including manifest-dimension binding, outcome-specific typed-failure taxonomy, deterministic issue retention, transactional publication, and focused GCC/Clang contract tests. This checker is not controlled-campaign evidence.
   - [ ] Run the complete frozen manifest on controlled infrastructure.
   - [ ] Resolve, minimize, or mark blocking every unexpected failure, disagreement, nondeterministic result, timeout, infrastructure issue, and performance/resource regression.
   - [ ] Add every resolved defect case to the permanent corpus and rerun affected configurations.

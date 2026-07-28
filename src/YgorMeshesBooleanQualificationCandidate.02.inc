@@ -56,9 +56,41 @@ bool outcome_requires_error_code(qualification_outcome value) noexcept {
          value == qualification_outcome::timeout_or_resource_limit;
 }
 
-bool expected_failure_contract(qualification_outcome value) noexcept {
-  return value == qualification_outcome::expected_typed_failure ||
-         value == qualification_outcome::timeout_or_resource_limit;
+bool permitted_expected_typed_failure_code(product_error_code value) noexcept {
+  return value != product_error_code::resource_limit &&
+         value != product_error_code::internal_invariant_error &&
+         value != product_error_code::backend_disagreement &&
+         value != product_error_code::verifier_disagreement;
+}
+
+bool dimensions_bound_to_manifest(
+    const qualification_dimension_key &dimensions,
+    const qualification_campaign_manifest &manifest) noexcept {
+  const bool backend_bound = std::any_of(
+      manifest.backends.begin(), manifest.backends.end(), [&](const auto &entry) {
+        return entry.identity.id == dimensions.backend;
+      });
+  const bool representation_bound = std::any_of(
+      manifest.result_modes.begin(), manifest.result_modes.end(),
+      [&](const auto &entry) {
+        return entry.representation == dimensions.representation;
+      });
+  const bool preparation_bound = std::any_of(
+      manifest.preparation_policies.begin(), manifest.preparation_policies.end(),
+      [&](const auto &entry) { return entry.mode == dimensions.preparation; });
+  const bool type_bound = std::any_of(
+      manifest.type_specializations.begin(), manifest.type_specializations.end(),
+      [&](const auto &entry) {
+        return entry.coordinate == dimensions.coordinate &&
+               entry.index == dimensions.index;
+      });
+  const bool toolchain_bound = std::any_of(
+      manifest.toolchains.begin(), manifest.toolchains.end(),
+      [&](const auto &entry) {
+        return entry.identifier == dimensions.toolchain_identifier;
+      });
+  return backend_bound && representation_bound && preparation_bound &&
+         type_bound && toolchain_bound;
 }
 
 std::optional<qualification_candidate_issue_kind>
@@ -103,13 +135,20 @@ bool expected(
                 descriptor.expected_outcomes.end(), observation.outcome) ==
       descriptor.expected_outcomes.end())
     return false;
-  if (!outcome_requires_error_code(observation.outcome))
-    return !observation.error_code.has_value();
-  return observation.error_code &&
-         std::find(descriptor.expected_failure_codes.begin(),
-                   descriptor.expected_failure_codes.end(),
-                   *observation.error_code) !=
-             descriptor.expected_failure_codes.end();
+  if (observation.outcome == qualification_outcome::expected_typed_failure)
+    return observation.error_code &&
+           permitted_expected_typed_failure_code(*observation.error_code) &&
+           std::find(descriptor.expected_failure_codes.begin(),
+                     descriptor.expected_failure_codes.end(),
+                     *observation.error_code) !=
+               descriptor.expected_failure_codes.end();
+  if (observation.outcome == qualification_outcome::timeout_or_resource_limit)
+    return observation.error_code == product_error_code::resource_limit &&
+           std::find(descriptor.expected_failure_codes.begin(),
+                     descriptor.expected_failure_codes.end(),
+                     product_error_code::resource_limit) !=
+               descriptor.expected_failure_codes.end();
+  return !observation.error_code.has_value();
 }
 
 bool contains_digest(const std::vector<digest> &values,

@@ -26,18 +26,94 @@ void expected_outcome_contracts() {
   require(make_qualification_candidate_execution_case(std::move(resource_limit))
               .has_value(),
           "an explicitly contracted resource-limit case remains permitted");
+
+  auto wrong_resource_code = plan.execution_cases.front();
+  wrong_resource_code.expected_outcomes = {
+      qualification_outcome::timeout_or_resource_limit};
+  wrong_resource_code.expected_failure_codes = {
+      product_error_code::input_contract_error};
+  wrong_resource_code.case_digest = {};
+  require(!make_qualification_candidate_execution_case(
+               std::move(wrong_resource_code))
+               .has_value(),
+          "resource outcomes require the resource-limit error code");
+
+  for (const auto forbidden_code : {
+           product_error_code::resource_limit,
+           product_error_code::internal_invariant_error,
+           product_error_code::backend_disagreement,
+           product_error_code::verifier_disagreement}) {
+    auto forbidden_failure = plan.execution_cases.front();
+    forbidden_failure.expected_outcomes = {
+        qualification_outcome::expected_typed_failure};
+    forbidden_failure.expected_failure_codes = {forbidden_code};
+    forbidden_failure.case_digest = {};
+    require(!make_qualification_candidate_execution_case(
+                 std::move(forbidden_failure))
+                 .has_value(),
+            "blocking or resource failures cannot be ordinary expected typed failures");
+  }
+
+  auto ambiguous_failure = plan.execution_cases.front();
+  ambiguous_failure.expected_outcomes = {
+      qualification_outcome::expected_typed_failure,
+      qualification_outcome::timeout_or_resource_limit};
+  ambiguous_failure.expected_failure_codes = {
+      product_error_code::input_contract_error,
+      product_error_code::resource_limit};
+  ambiguous_failure.case_digest = {};
+  require(!make_qualification_candidate_execution_case(
+               std::move(ambiguous_failure))
+               .has_value(),
+          "typed and resource outcomes require distinct frozen cases");
+}
+
+void manifest_dimension_contracts() {
+  const auto plan = plan_fixture();
+  const auto rejected_dimension = [&](auto mutate) {
+    auto unbound = plan;
+    mutate(unbound.execution_cases.front().dimensions);
+    unbound.execution_cases.front().case_digest = {};
+    auto remade_case = make_qualification_candidate_execution_case(
+        std::move(unbound.execution_cases.front()));
+    require(remade_case.has_value(),
+            "known unlisted execution dimension remains individually valid");
+    unbound.execution_cases.front() = std::move(remade_case.value());
+    unbound.canonical_bytes.clear();
+    unbound.plan_digest = {};
+    require(!make_qualification_candidate_campaign_plan(std::move(unbound))
+                 .has_value(),
+            "execution dimensions must be present in the embedded manifest");
+  };
+
+  rejected_dimension([](auto &dimensions) {
+    dimensions.backend = backend_id::independent_axis_aligned_box_v1;
+  });
+  rejected_dimension([](auto &dimensions) {
+    dimensions.representation =
+        result_representation::certified_approximate_mesh;
+  });
+  rejected_dimension([](auto &dimensions) {
+    dimensions.preparation = preparation_mode::normalized;
+  });
+  rejected_dimension([](auto &dimensions) {
+    dimensions.coordinate = coordinate_tag::binary32;
+  });
+  rejected_dimension([](auto &dimensions) {
+    dimensions.toolchain_identifier = "clang-unlisted";
+  });
 }
 
 void canonical_state_contracts() {
   const auto plan = plan_fixture();
 
   auto stale_checker = plan;
-  stale_checker.checker_version = 1;
+  stale_checker.checker_version = 2;
   stale_checker.canonical_bytes.clear();
   stale_checker.plan_digest = {};
   require(!make_qualification_candidate_campaign_plan(std::move(stale_checker))
                .has_value(),
-          "checker version one cannot claim checker version two semantics");
+          "checker version two cannot claim checker version three semantics");
 
   auto reordered_gates = plan;
   std::reverse(reordered_gates.required_gates.begin(),

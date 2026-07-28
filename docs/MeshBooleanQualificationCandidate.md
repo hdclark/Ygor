@@ -8,8 +8,9 @@ interfaces are `YgorMeshesBooleanQualificationCandidate.h` and
 The interfaces record, execute, and validate evidence from a controlled
 campaign. They do not fabricate a campaign, treat a bounded CI smoke test as
 controlled-host qualification, promote a backend, or weaken any P6.2-P6.9 gate.
-The serialized schema remains version 1; checker version 2 names the stricter
-expected-outcome and supplied-canonical-state semantics described below.
+The serialized schema remains version 1; checker version 3 names the stricter
+manifest-binding, outcome-specific failure, and supplied-canonical-state
+semantics described below.
 
 ## Frozen campaign plan
 
@@ -27,16 +28,22 @@ requires one passing, independently validated binding for every prerequisite:
 
 The plan also contains the complete execution inventory. Every execution entry
 binds its source plan and case digests, full qualification dimensions, expected
-outcome set, permitted typed failures, and regression-promotion policy. Missing,
-duplicate, foreign, stale, or reordered input cannot change the canonical plan.
+outcome set, permitted typed failures, and regression-promotion policy. Every
+backend, result representation, preparation mode, coordinate/index pair, and
+toolchain named by an execution must be explicitly present in the embedded
+manifest. Missing, duplicate, foreign, stale, or reordered input cannot change
+the canonical plan.
 Validation requires the supplied in-memory gate and execution order to encode to
 the stored canonical bytes; retaining old bytes after reordering or mutation is
 rejected rather than silently re-canonicalized. Only verified exact or
 certified-approximate success, expected typed failure, and explicitly contracted
-timeout/resource-limit outcomes may be frozen as expected. Unexpected typed
-failure, disagreement, false success, nondeterminism, and infrastructure failure
-are always anomaly evidence; the plan cannot normalize them away. A dirty
-repository manifest or stale checker version is rejected.
+timeout/resource-limit outcomes may be frozen as expected. Resource outcomes
+must name only `resource_limit`; ordinary expected typed failures cannot name a
+resource limit, internal invariant failure, backend disagreement, or verifier
+disagreement, and the two failure classes require distinct frozen cases.
+Unexpected typed failure, disagreement, false success, nondeterminism, and
+infrastructure failure are always anomaly evidence; the plan cannot normalize
+them away. A dirty repository manifest or stale checker version is rejected.
 
 ## Controlled execution runner
 
@@ -100,7 +107,8 @@ cannot silently discard the original P6.9 threshold.
 - zero unresolved or missing evidence.
 
 The focused `MeshBoolean.QualificationCandidate` test exercises complete closure,
-arrival-order independence, checker-version rejection, stale canonical in-memory
+arrival-order independence, checker-version rejection, manifest-dimension
+binding, outcome-specific typed-failure rejection, stale canonical in-memory
 state, missing execution, unresolved false success, mandatory regression
 promotion, stale rerun/case bindings, performance regression blocking, canonical
 runner order, automatic anomaly retention, reviewed reconciliation, cancellation,

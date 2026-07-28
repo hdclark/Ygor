@@ -12,6 +12,9 @@
       auto made = canonicalize_execution_case(std::move(entry));
       if (!made.has_value()) return made.error();
       entry = std::move(made.value());
+      if (!dimensions_bound_to_manifest(entry.dimensions, manifest.value()))
+        return candidate_error(
+            "qualification_candidate.case_manifest_binding");
     }
     std::sort(value.execution_cases.begin(), value.execution_cases.end(),
               [](const auto &a, const auto &b) { return a.identifier < b.identifier; });
