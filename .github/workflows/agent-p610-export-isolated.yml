@@ -1,0 +1,28 @@
+name: Isolated P6.10 workspace export
+
+on:
+  push:
+    branches:
+      - agent-p610-export
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive workspace
+        shell: bash
+        run: tar --exclude=.git -czf /tmp/ygor-agent-p610-export.tar.gz .
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-agent-p610-export
+          path: /tmp/ygor-agent-p610-export.tar.gz
+          if-no-files-found: error
+          retention-days: 1
