@@ -1,0 +1,25 @@
+name: P6.10 manual campaign source export
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p610-manual-campaign-export.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact branch checkout
+        shell: bash
+        run: tar --exclude=.git -czf /tmp/ygor-p610-current.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p610-current
+          path: /tmp/ygor-p610-current.tar.gz
+          if-no-files-found: error
+          retention-days: 1
