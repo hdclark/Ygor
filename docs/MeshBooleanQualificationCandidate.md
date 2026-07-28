@@ -27,11 +27,14 @@ The plan also contains the complete execution inventory. Every execution entry
 binds its source plan and case digests, full qualification dimensions, expected
 outcome set, permitted typed failures, and regression-promotion policy. Missing,
 duplicate, foreign, stale, or reordered input cannot change the canonical plan.
-Only verified exact or certified-approximate success, expected typed failure, and
-explicitly contracted timeout/resource-limit outcomes may be frozen as expected.
-Unexpected typed failure, disagreement, false success, nondeterminism, and
-infrastructure failure are always anomaly evidence; the plan cannot normalize
-them away. A dirty repository manifest is rejected.
+Validation requires the supplied in-memory gate and execution order to encode to
+the stored canonical bytes; retaining old bytes after reordering or mutation is
+rejected rather than silently re-canonicalized. Only verified exact or
+certified-approximate success, expected typed failure, and explicitly contracted
+timeout/resource-limit outcomes may be frozen as expected. Unexpected typed
+failure, disagreement, false success, nondeterminism, and infrastructure failure
+are always anomaly evidence; the plan cannot normalize them away. A dirty
+repository manifest is rejected.
 
 ## Controlled execution runner
 
@@ -57,7 +60,9 @@ No partial campaign is passed to the sink.
 Each execution has one final canonical observation containing the normalized
 outcome, exact typed failure code where applicable, accounting evidence,
 semantic or failure digest, replay binding, run log, and any performance or
-resource regression evidence.
+resource regression evidence. Campaign validation and encoding also require the
+supplied observation and issue order, counters, and completion state to match the
+stored canonical bytes, so stale canonical bytes cannot mask in-memory mutation.
 
 Every unexpected typed failure, backend or verifier disagreement, false success,
 nondeterministic result, timeout/resource outcome, infrastructure failure, or
@@ -93,10 +98,11 @@ cannot silently discard the original P6.9 threshold.
 - zero unresolved or missing evidence.
 
 The focused `MeshBoolean.QualificationCandidate` test exercises complete closure,
-arrival-order independence, missing execution, unresolved false success,
-mandatory regression promotion, stale rerun/case bindings, performance
-regression blocking, canonical runner order, automatic anomaly retention,
-reviewed reconciliation, cancellation, and no-partial-publication behavior. The
-GCC/Clang workflow is a checker and runner smoke test only. Actual P6.10 campaign
-records must come from the controlled infrastructure named by the manifest and
-remain candidate evidence until P6.11 review.
+arrival-order independence, stale canonical in-memory state, missing execution,
+unresolved false success, mandatory regression promotion, stale rerun/case
+bindings, performance regression blocking, canonical runner order, automatic
+anomaly retention, reviewed reconciliation, cancellation, and
+no-partial-publication behavior. The GCC/Clang workflow is a checker and runner
+smoke test only. Actual P6.10 campaign records must come from the controlled
+infrastructure named by the manifest and remain candidate evidence until P6.11
+review.
