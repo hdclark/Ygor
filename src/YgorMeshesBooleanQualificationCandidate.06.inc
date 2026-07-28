@@ -129,12 +129,16 @@ product_status_or<bool> validate_qualification_candidate_campaign(
         value.identifier != plan.identifier + ".campaign" ||
         value.plan_digest != plan.plan_digest)
       return candidate_error("qualification_candidate.campaign_malformed");
+    canonical_encoder supplied_encoder;
+    encode_campaign_semantic(supplied_encoder, value);
+    const auto supplied_bytes = supplied_encoder.bytes();
     auto made = make_qualification_candidate_campaign(
         plan, value.observations, value.issues, value.complete);
     if (!made.has_value())
       return made.error();
     const auto &rebuilt = made.value();
-    return rebuilt.passed_case_count == value.passed_case_count &&
+    return supplied_bytes == value.canonical_bytes &&
+           rebuilt.passed_case_count == value.passed_case_count &&
            rebuilt.resolved_issue_count == value.resolved_issue_count &&
            rebuilt.promoted_regression_count == value.promoted_regression_count &&
            rebuilt.blocking_issue_count == value.blocking_issue_count &&
@@ -149,10 +153,18 @@ product_status_or<bool> validate_qualification_candidate_campaign(
 product_status_or<std::vector<std::uint8_t>>
 encode_qualification_candidate_campaign(
     const qualification_candidate_campaign &value) {
-  if (value.canonical_bytes.empty() || zero(value.campaign_digest) ||
-      domain_digest(campaign_tag, value.canonical_bytes) != value.campaign_digest)
-    return candidate_error("qualification_candidate.campaign_not_canonical");
-  return value.canonical_bytes;
+  try {
+    canonical_encoder supplied_encoder;
+    encode_campaign_semantic(supplied_encoder, value);
+    const auto supplied_bytes = supplied_encoder.bytes();
+    if (value.canonical_bytes.empty() || zero(value.campaign_digest) ||
+        supplied_bytes != value.canonical_bytes ||
+        domain_digest(campaign_tag, value.canonical_bytes) != value.campaign_digest)
+      return candidate_error("qualification_candidate.campaign_not_canonical");
+    return value.canonical_bytes;
+  } catch (const std::bad_alloc &) {
+    return candidate_error("qualification_candidate.allocation_failure");
+  }
 }
 
 bool qualification_candidate_campaign_gate_passes(
