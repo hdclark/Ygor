@@ -6,6 +6,9 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/agent-workspace-export.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/agent-workspace-export.yml'
   workflow_dispatch:
 
 permissions:
