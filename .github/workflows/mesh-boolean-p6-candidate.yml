@@ -11,7 +11,10 @@ on:
       - 'tests/CMakeLists.txt'
       - 'tests/p610/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/MeshBooleanTestConfig.cc'
+      - 'scripts/run_mesh_boolean_p610_campaign.sh'
       - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanP610ManualCampaign.md'
       - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-candidate.yml'
@@ -23,7 +26,10 @@ on:
       - 'tests/CMakeLists.txt'
       - 'tests/p610/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/MeshBooleanTestConfig.cc'
+      - 'scripts/run_mesh_boolean_p610_campaign.sh'
       - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanP610ManualCampaign.md'
       - 'docs/MeshBooleanQualification.md'
       - 'tracker.md'
       - '.github/workflows/mesh-boolean-p6-candidate.yml'
@@ -48,6 +54,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Validate manual campaign driver
+        run: |
+          bash -n scripts/run_mesh_boolean_p610_campaign.sh
+          scripts/run_mesh_boolean_p610_campaign.sh --self-test
       - name: Configure bounded checker smoke
         env:
           CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
