@@ -1,0 +1,29 @@
+name: Export current P6.10 workspace
+
+on:
+  push:
+    branches:
+      - agent/p610-export-latest
+    paths:
+      - '.github/workflows/agent-p610-export-latest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create branch bundle
+        run: git bundle create ygor-p610-latest.bundle HEAD
+      - name: Upload branch bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-p610-latest-workspace
+          path: ygor-p610-latest.bundle
+          if-no-files-found: error
+          retention-days: 1
