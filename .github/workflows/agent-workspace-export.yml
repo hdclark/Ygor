@@ -1,0 +1,29 @@
+name: Agent workspace export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/agent-workspace-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create credential-free Git bundle
+        run: git bundle create Ygor-boolean_symbolic.bundle --all
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-workspace-bundle
+          path: Ygor-boolean_symbolic.bundle
+          retention-days: 1
