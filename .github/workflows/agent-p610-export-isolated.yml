@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - agent-p610-export
+  pull_request:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/agent-p610-export-isolated.yml'
 
 permissions:
   contents: read
