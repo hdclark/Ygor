@@ -8,6 +8,8 @@ interfaces are `YgorMeshesBooleanQualificationCandidate.h` and
 The interfaces record, execute, and validate evidence from a controlled
 campaign. They do not fabricate a campaign, treat a bounded CI smoke test as
 controlled-host qualification, promote a backend, or weaken any P6.2-P6.9 gate.
+The serialized schema remains version 1; checker version 2 names the stricter
+expected-outcome and supplied-canonical-state semantics described below.
 
 ## Frozen campaign plan
 
@@ -34,7 +36,7 @@ certified-approximate success, expected typed failure, and explicitly contracted
 timeout/resource-limit outcomes may be frozen as expected. Unexpected typed
 failure, disagreement, false success, nondeterminism, and infrastructure failure
 are always anomaly evidence; the plan cannot normalize them away. A dirty
-repository manifest is rejected.
+repository manifest or stale checker version is rejected.
 
 ## Controlled execution runner
 
@@ -98,11 +100,11 @@ cannot silently discard the original P6.9 threshold.
 - zero unresolved or missing evidence.
 
 The focused `MeshBoolean.QualificationCandidate` test exercises complete closure,
-arrival-order independence, stale canonical in-memory state, missing execution,
-unresolved false success, mandatory regression promotion, stale rerun/case
-bindings, performance regression blocking, canonical runner order, automatic
-anomaly retention, reviewed reconciliation, cancellation, and
-no-partial-publication behavior. The GCC/Clang workflow is a checker and runner
-smoke test only. Actual P6.10 campaign records must come from the controlled
-infrastructure named by the manifest and remain candidate evidence until P6.11
-review.
+arrival-order independence, checker-version rejection, stale canonical in-memory
+state, missing execution, unresolved false success, mandatory regression
+promotion, stale rerun/case bindings, performance regression blocking, canonical
+runner order, automatic anomaly retention, reviewed reconciliation, cancellation,
+and no-partial-publication behavior. The GCC/Clang workflow is a checker and
+runner smoke test only. Actual P6.10 campaign records must come from the
+controlled infrastructure named by the manifest and remain candidate evidence
+until P6.11 review.
