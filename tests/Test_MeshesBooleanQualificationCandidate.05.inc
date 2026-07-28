@@ -30,6 +30,23 @@ void expected_outcome_contracts() {
 
 void canonical_state_contracts() {
   const auto plan = plan_fixture();
+
+  auto stale_checker = plan;
+  stale_checker.checker_version = 1;
+  stale_checker.canonical_bytes.clear();
+  stale_checker.plan_digest = {};
+  require(!make_qualification_candidate_campaign_plan(std::move(stale_checker))
+               .has_value(),
+          "checker version one cannot claim checker version two semantics");
+
+  auto reordered_gates = plan;
+  std::reverse(reordered_gates.required_gates.begin(),
+               reordered_gates.required_gates.end());
+  auto valid_gates =
+      validate_qualification_candidate_campaign_plan(reordered_gates);
+  require(valid_gates.has_value() && !valid_gates.value(),
+          "reordered in-memory gates cannot retain stale canonical bytes");
+
   auto reordered_plan = plan;
   std::reverse(reordered_plan.execution_cases.begin(),
                reordered_plan.execution_cases.end());
@@ -55,6 +72,14 @@ void canonical_state_contracts() {
   require(!encode_qualification_candidate_campaign(reordered_campaign)
                .has_value(),
           "reordered in-memory campaign cannot be encoded as canonical");
+
+  auto stale_counts = made_campaign.value();
+  ++stale_counts.passed_case_count;
+  valid_campaign = validate_qualification_candidate_campaign(stale_counts, plan);
+  require(valid_campaign.has_value() && !valid_campaign.value(),
+          "stale canonical bytes cannot mask mutated campaign counters");
+  require(!encode_qualification_candidate_campaign(stale_counts).has_value(),
+          "mutated campaign counters cannot be encoded as canonical");
 }
 
 } // namespace
