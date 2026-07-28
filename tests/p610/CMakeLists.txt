@@ -17,6 +17,7 @@ add_library(ygor_mesh_boolean_p610_support STATIC
     ${CMAKE_CURRENT_LIST_DIR}/../../src/YgorMeshesBooleanQualification.cc
     ${CMAKE_CURRENT_LIST_DIR}/../../src/YgorMeshesBooleanQualificationCandidate.cc
     ${CMAKE_CURRENT_LIST_DIR}/../../src/YgorMeshesBooleanQualificationCandidateRunner.cc
+    ${CMAKE_CURRENT_LIST_DIR}/../../src/YgorMeshesBooleanQualificationMatrix.cc
     ${CMAKE_CURRENT_LIST_DIR}/../../src/External/MD5/md5.cc)
 target_include_directories(ygor_mesh_boolean_p610_support PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../src
