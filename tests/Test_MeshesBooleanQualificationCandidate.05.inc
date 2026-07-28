@@ -28,4 +28,33 @@ void expected_outcome_contracts() {
           "an explicitly contracted resource-limit case remains permitted");
 }
 
+void canonical_state_contracts() {
+  const auto plan = plan_fixture();
+  auto reordered_plan = plan;
+  std::reverse(reordered_plan.execution_cases.begin(),
+               reordered_plan.execution_cases.end());
+  auto valid_plan =
+      validate_qualification_candidate_campaign_plan(reordered_plan);
+  require(valid_plan.has_value() && !valid_plan.value(),
+          "reordered in-memory plan cannot retain stale canonical bytes");
+  require(!encode_qualification_candidate_campaign_plan(reordered_plan)
+               .has_value(),
+          "reordered in-memory plan cannot be encoded as canonical");
+
+  auto made_campaign = make_qualification_candidate_campaign(
+      plan, passing_observations(plan), {});
+  require(made_campaign.has_value(),
+          "canonical-state fixture campaign assembles");
+  auto reordered_campaign = made_campaign.value();
+  std::reverse(reordered_campaign.observations.begin(),
+               reordered_campaign.observations.end());
+  auto valid_campaign = validate_qualification_candidate_campaign(
+      reordered_campaign, plan);
+  require(valid_campaign.has_value() && !valid_campaign.value(),
+          "reordered in-memory campaign cannot retain stale canonical bytes");
+  require(!encode_qualification_candidate_campaign(reordered_campaign)
+               .has_value(),
+          "reordered in-memory campaign cannot be encoded as canonical");
+}
+
 } // namespace
