@@ -6,10 +6,14 @@
 #undef main
 
 #include "Test_MeshesBooleanQualificationCandidate.04.inc"
+#include "Test_MeshesBooleanQualificationCandidate.05.inc"
 
 int main() {
   harness tests;
-  tests.add("P6.10.plan", [] { plan_contracts(); });
+  tests.add("P6.10.plan", [] {
+    plan_contracts();
+    expected_outcome_contracts();
+  });
   tests.add("P6.10.complete", [] { complete_campaign_contracts(); });
   tests.add("P6.10.unresolved", [] { unresolved_and_missing_contracts(); });
   tests.add("P6.10.resolution", [] { resolution_fail_closed_contracts(); });
