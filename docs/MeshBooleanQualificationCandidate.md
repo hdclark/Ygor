@@ -104,7 +104,9 @@ arrival-order independence, checker-version rejection, stale canonical in-memory
 state, missing execution, unresolved false success, mandatory regression
 promotion, stale rerun/case bindings, performance regression blocking, canonical
 runner order, automatic anomaly retention, reviewed reconciliation, cancellation,
-and no-partial-publication behavior. The GCC/Clang workflow is a checker and
-runner smoke test only. Actual P6.10 campaign records must come from the
-controlled infrastructure named by the manifest and remain candidate evidence
-until P6.11 review.
+and no-partial-publication behavior. Its standalone `tests/p610` build links only
+the contract, schema, candidate, runner, and digest support needed by this checker;
+it intentionally does not build or execute the Boolean producer. The GCC/Clang
+workflow is therefore a checker and runner smoke test only. Actual P6.10 campaign
+records must come from the controlled infrastructure named by the manifest and
+remain candidate evidence until P6.11 review.

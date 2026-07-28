@@ -9,6 +9,7 @@ on:
       - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
       - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
+      - 'tests/p610/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
@@ -20,6 +21,7 @@ on:
       - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
       - 'tests/Test_MeshesBooleanQualificationCandidate.*'
       - 'tests/CMakeLists.txt'
+      - 'tests/p610/CMakeLists.txt'
       - 'tests/mesh_boolean/requirements.tsv'
       - 'docs/MeshBooleanQualificationCandidate.md'
       - 'docs/MeshBooleanQualification.md'
@@ -51,7 +53,7 @@ jobs:
           CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
           CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
         run: >-
-          cmake -S . -B build-p6-candidate -G Ninja
+          cmake -S tests/p610 -B build-p6-candidate -G Ninja
           -DBUILD_TESTING=ON
           -DYGOR_BUILD_BOOLEAN_TESTS=ON
           -DYGOR_BUILD_BOOLEAN_BENCHMARKS=OFF
