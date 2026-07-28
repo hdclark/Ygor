@@ -13,6 +13,7 @@ int main() {
   tests.add("P6.10.plan", [] {
     plan_contracts();
     expected_outcome_contracts();
+    canonical_state_contracts();
   });
   tests.add("P6.10.complete", [] { complete_campaign_contracts(); });
   tests.add("P6.10.unresolved", [] { unresolved_and_missing_contracts(); });
