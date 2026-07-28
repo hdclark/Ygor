@@ -76,6 +76,17 @@ executed. The later offline run must execute the original frozen case and close
 the retained issue through the ordinary reviewed, configuration-bound rerun
 path.
 
+The focused deferral contract imports the canonical
+`make_default_qualification_matrix_plan()` inventory rather than maintaining a
+second hand-written fuzz list. It requires all eight P6.8 fuzz-duration cases,
+retains each case's matrix plan digest, case digest, exact configuration
+identifier, family, and 86,400 CPU-second floor, and binds every configuration to
+the embedded candidate manifest. The online runner must skip exactly those eight
+named cases and emit eight distinct canonical infrastructure observations and
+eight distinct unresolved blocking issues. This is an inventory and checker
+contract: it prevents silent omission or coalescing of an offline allocation but
+does not claim that any 24 CPU-hour run has occurred.
+
 Cancellation, executor errors, malformed observations, reconciliation errors,
 and rejected publication all return typed failures. The publication sink is
 invoked at most once and only after the entire campaign has been assembled and
@@ -130,11 +141,12 @@ binding, outcome-specific typed-failure rejection, stale canonical in-memory
 state, missing execution, unresolved false success, mandatory regression
 promotion, planned resource-limit retention and reviewed rerun closure, stale
 rerun/case bindings, performance regression blocking, canonical
-runner order, automatic anomaly retention, explicit offline deferral, deferred
-arrival-order independence, reviewed offline rerun closure, cancellation, and
+runner order, automatic anomaly retention, explicit offline deferral, exact
+binding of all eight frozen P6.8 fuzz allocations, deferred arrival-order
+independence, reviewed offline rerun closure, cancellation, and
 no-partial-publication behavior. Its standalone `tests/p610` build links only
-the contract, schema, candidate, runner, and digest support needed by this checker;
-it intentionally does not build or execute the Boolean producer. The GCC/Clang
-workflow is therefore a checker and runner smoke test only. Actual P6.10 campaign
-records must come from the controlled infrastructure named by the manifest and
-remain candidate evidence until P6.11 review.
+the contract, schema, candidate, runner, qualification-matrix, and digest support
+needed by this checker; it intentionally does not build or execute the Boolean
+producer. The GCC/Clang workflow is therefore a checker and runner smoke test
+only. Actual P6.10 campaign records must come from the controlled infrastructure
+named by the manifest and remain candidate evidence until P6.11 review.
