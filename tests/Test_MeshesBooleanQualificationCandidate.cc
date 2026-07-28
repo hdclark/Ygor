@@ -7,6 +7,7 @@
 
 #include "Test_MeshesBooleanQualificationCandidate.04.inc"
 #include "Test_MeshesBooleanQualificationCandidate.05.inc"
+#include "Test_MeshesBooleanQualificationCandidate.06.inc"
 
 int main() {
   harness tests;
@@ -21,6 +22,9 @@ int main() {
   tests.add("P6.10.resolution", [] { resolution_fail_closed_contracts(); });
   tests.add("P6.10.performance", [] { performance_review_contracts(); });
   tests.add("P6.10.runner", [] { runner_contracts(); });
-  tests.add("P6.10.deferred", [] { deferred_offline_contracts(); });
+  tests.add("P6.10.deferred", [] {
+    deferred_offline_contracts();
+    default_matrix_deferred_inventory_contracts();
+  });
   return tests.run(std::cout, std::cerr);
 }
