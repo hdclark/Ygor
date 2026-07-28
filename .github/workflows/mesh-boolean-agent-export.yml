@@ -1,0 +1,32 @@
+name: Mesh Boolean agent branch export
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/mesh-boolean-agent-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 1
+      - name: Archive branch checkout
+        shell: bash
+        run: tar --exclude=.git -czf Ygor-boolean_symbolic.tar.gz .
+      - name: Upload branch checkout
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ygor-boolean_symbolic-source
+          path: Ygor-boolean_symbolic.tar.gz
+          if-no-files-found: error
+          retention-days: 1
