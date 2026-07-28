@@ -9,9 +9,50 @@ void default_matrix_deferred_inventory_contracts() {
   require_equal(matrix.fuzz_cases.size(), std::size_t(8),
                 "the frozen P6.8 plan retains all eight fuzz-duration entries");
 
-  auto plan_value = plan_fixture();
-  std::set<std::string> expected_deferred;
+  auto manifest_value = manifest_fixture();
+  std::set<std::string> manifest_toolchains;
+  for (const auto &toolchain : manifest_value.toolchains)
+    manifest_toolchains.insert(toolchain.identifier);
+
   std::uint64_t ordinal = 0;
+  for (const auto &fuzz_case : matrix.fuzz_cases) {
+    if (!manifest_toolchains.insert(fuzz_case.configuration_identifier).second)
+      continue;
+    auto toolchain = manifest_value.toolchains.front();
+    toolchain.identifier = fuzz_case.configuration_identifier;
+    toolchain.compiler_name =
+        fuzz_case.configuration_identifier.find("clang") != std::string::npos
+            ? "Clang"
+            : "GCC";
+    toolchain.compiler_version = "frozen-offline-configuration";
+    toolchain.build_type = "Qualification";
+    toolchain.compile_flags = {"-std=c++17", "-fno-fast-math",
+                               "-ffp-contract=off"};
+    if (fuzz_case.sanitizer ==
+        qualification_sanitizer_mode::address_and_undefined)
+      toolchain.compile_flags.push_back("-fsanitize=address,undefined");
+    else if (fuzz_case.sanitizer == qualification_sanitizer_mode::thread)
+      toolchain.compile_flags.push_back("-fsanitize=thread");
+    toolchain.environment_digest = tagged_digest('E', 600U + ordinal);
+    manifest_value.toolchains.push_back(std::move(toolchain));
+    ++ordinal;
+  }
+  manifest_value.material_binding_digest = {};
+  manifest_value.manifest_digest = {};
+  auto made_manifest =
+      make_qualification_campaign_manifest(std::move(manifest_value));
+  require(made_manifest.has_value(),
+          "candidate manifest binds every frozen fuzz configuration");
+  auto encoded_manifest =
+      encode_qualification_campaign_manifest(made_manifest.value());
+  require(encoded_manifest.has_value(),
+          "expanded candidate manifest encodes canonically");
+
+  auto plan_value = plan_fixture();
+  plan_value.manifest_canonical_bytes = std::move(encoded_manifest.value());
+  plan_value.manifest_digest = made_manifest.value().manifest_digest;
+  std::set<std::string> expected_deferred;
+  ordinal = 0;
   for (const auto &fuzz_case : matrix.fuzz_cases) {
     require(fuzz_case.minimum_aggregate_cpu_seconds ==
                 qualification_minimum_fuzz_cpu_seconds,
@@ -23,6 +64,8 @@ void default_matrix_deferred_inventory_contracts() {
     execution.source_plan_digest = matrix.plan_digest;
     execution.source_case_digest = fuzz_case.case_digest;
     execution.dimensions = plan_value.execution_cases.front().dimensions;
+    execution.dimensions.toolchain_identifier =
+        fuzz_case.configuration_identifier;
     execution.dimensions.geometry_category =
         std::string("p6.8.fuzz.") +
         qualification_fuzz_family_token(fuzz_case.family);
@@ -54,7 +97,7 @@ void default_matrix_deferred_inventory_contracts() {
     deferred.case_identifier = identifier;
     deferred.reason =
         "The frozen 24 CPU-hour fuzz allocation requires reviewed offline execution.";
-    deferred.evidence_digest = tagged_digest('F', 600U + ordinal);
+    deferred.evidence_digest = tagged_digest('F', 700U + ordinal);
     options.deferred_executions.push_back(std::move(deferred));
     ++ordinal;
   }
@@ -67,10 +110,10 @@ void default_matrix_deferred_inventory_contracts() {
         visited.push_back(descriptor.identifier);
         if (descriptor.identifier == "candidate.case.expected_failure")
           return observation(descriptor,
-                             qualification_outcome::expected_typed_failure, 703);
+                             qualification_outcome::expected_typed_failure, 803);
         return observation(
             descriptor, qualification_outcome::verified_exact_success,
-            descriptor.identifier == "candidate.case.exact_success" ? 701 : 702);
+            descriptor.identifier == "candidate.case.exact_success" ? 801 : 802);
       },
       std::move(options));
 
