@@ -62,6 +62,81 @@ void runner_contracts() {
                   qualification_candidate_issue_kind::unexpected_typed_failure,
           "runner retains an exact unresolved issue for a current anomaly");
 
+  auto resource_plan_value = plan_fixture();
+  resource_plan_value.execution_cases.push_back(execution_case(
+      "candidate.case.expected_resource_limit",
+      qualification_outcome::timeout_or_resource_limit, 4));
+  resource_plan_value.canonical_bytes.clear();
+  resource_plan_value.plan_digest = {};
+  auto resource_plan_made =
+      make_qualification_candidate_campaign_plan(std::move(resource_plan_value));
+  require(resource_plan_made.has_value(),
+          "resource-limit candidate plan canonicalizes");
+  const auto resource_plan = std::move(resource_plan_made.value());
+  const auto resource_executor = [&]
+      (const qualification_candidate_execution_case &descriptor)
+      -> product_status_or<qualification_candidate_execution_observation> {
+    if (descriptor.identifier == "candidate.case.expected_resource_limit")
+      return observation(
+          descriptor, qualification_outcome::timeout_or_resource_limit, 420);
+    return passing_executor(descriptor);
+  };
+
+  auto resource_pending =
+      run_qualification_candidate_campaign(resource_plan, resource_executor);
+  require(resource_pending.has_value() &&
+              !resource_pending.value().campaign.complete &&
+              resource_pending.value().campaign.blocking_issue_count == 1 &&
+              resource_pending.value().campaign.passed_case_count ==
+                  resource_plan.execution_cases.size() &&
+              resource_pending.value().campaign.issues.size() == 1 &&
+              resource_pending.value().campaign.issues.front().kind ==
+                  qualification_candidate_issue_kind::timeout_or_resource_limit,
+          "planned resource-limit outcome remains retained and blocking");
+  require(!make_qualification_candidate_campaign(
+               resource_plan, resource_pending.value().campaign.observations, {})
+               .has_value(),
+          "closure checker rejects a resource limit without a retained issue");
+
+  qualification_candidate_run_options resource_options;
+  resource_options.retained_issues =
+      resource_pending.value().campaign.issues;
+  auto resource_closed = run_qualification_candidate_campaign(
+      resource_plan, resource_executor, std::move(resource_options),
+      [&](const auto &, const auto &observations,
+          std::vector<qualification_candidate_issue> issues)
+          -> product_status_or<std::vector<qualification_candidate_issue>> {
+        require_equal(issues.size(), std::size_t(1),
+                      "one resource issue enters reconciliation");
+        const auto final_observation = std::find_if(
+            observations.begin(), observations.end(), [&](const auto &entry) {
+              return entry.case_identifier == issues.front().case_identifier;
+            });
+        require(final_observation != observations.end(),
+                "resource issue has a final rerun observation");
+        auto &issue = issues.front();
+        issue.disposition =
+            qualification_candidate_issue_disposition::resolved_infrastructure;
+        issue.reviewer = "candidate-resource-reviewer";
+        issue.rationale =
+            "The planned resource boundary was independently reviewed and rerun.";
+        issue.resolution_evidence_digest = tagged_digest('I', 421);
+        issue.affected_configuration_identifiers = {
+            "gcc-strict-release-x86_64"};
+        issue.rerun_observation_digests = {
+            final_observation->observation_digest};
+        issue.resolution_verified = true;
+        issue.issue_digest = {};
+        return issues;
+      });
+  require(resource_closed.has_value() &&
+              resource_closed.value().campaign.complete &&
+              resource_closed.value().campaign.blocking_issue_count == 0 &&
+              resource_closed.value().campaign.resolved_issue_count == 1 &&
+              resource_closed.value().campaign.passed_case_count ==
+                  resource_plan.execution_cases.size(),
+          "reviewed resource limit closes only after a bound rerun");
+
   qualification_candidate_run_options rerun_options;
   rerun_options.retained_issues = anomalous.value().campaign.issues;
   auto resolved = run_qualification_candidate_campaign(

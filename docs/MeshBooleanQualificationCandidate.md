@@ -8,7 +8,7 @@ interfaces are `YgorMeshesBooleanQualificationCandidate.h` and
 The interfaces record, execute, and validate evidence from a controlled
 campaign. They do not fabricate a campaign, treat a bounded CI smoke test as
 controlled-host qualification, promote a backend, or weaken any P6.2-P6.9 gate.
-The serialized schema remains version 1; checker version 3 names the stricter
+The serialized schema remains version 1; checker version 4 names the stricter
 manifest-binding, outcome-specific failure, and supplied-canonical-state
 semantics described below.
 
@@ -41,6 +41,11 @@ timeout/resource-limit outcomes may be frozen as expected. Resource outcomes
 must name only `resource_limit`; ordinary expected typed failures cannot name a
 resource limit, internal invariant failure, backend disagreement, or verifier
 disagreement, and the two failure classes require distinct frozen cases.
+Permitting a timeout/resource-limit outcome in the frozen case contract does not
+make the observation issue-free. Checker version 4 retains every such
+observation as a timeout/resource issue, and closure requires a reviewed,
+configuration-bound rerun resolution even when the normalized outcome itself
+matches the frozen contract.
 Unexpected typed failure, disagreement, false success, nondeterminism, and
 infrastructure failure are always anomaly evidence; the plan cannot normalize
 them away. A dirty repository manifest or stale checker version is rejected.
@@ -110,7 +115,8 @@ The focused `MeshBoolean.QualificationCandidate` test exercises complete closure
 arrival-order independence, checker-version rejection, manifest-dimension
 binding, outcome-specific typed-failure rejection, stale canonical in-memory
 state, missing execution, unresolved false success, mandatory regression
-promotion, stale rerun/case bindings, performance regression blocking, canonical
+promotion, planned resource-limit retention and reviewed rerun closure, stale
+rerun/case bindings, performance regression blocking, canonical
 runner order, automatic anomaly retention, reviewed reconciliation, cancellation,
 and no-partial-publication behavior. Its standalone `tests/p610` build links only
 the contract, schema, candidate, runner, and digest support needed by this checker;

@@ -29,7 +29,7 @@ P6-CANDIDATE-CLOSE-001	plan16.P6.10	all final observations and resolved issue re
 P6-CANDIDATE-PERF-001	plan16.P6.10	unreviewed performance or resource regression remains blocking	P6.10.performance	negative	continuous
 P6-CANDIDATE-PLAN-001	plan16.P6.10	canonical manifest, all P6.2-P6.9 gates, exact execution inventory, expected-outcome vocabulary, and supplied in-memory canonical state are frozen; anomaly outcomes and stale reordered state are rejected	P6.10.plan	qualification	continuous
 P6-CANDIDATE-PROMOTE-001	plan16.P6.10	resolved engine defects require minimized permanent-regression promotion and corpus change	P6.10.resolution	mutation	continuous
-P6-CANDIDATE-RUN-001	plan16.P6.10	controlled execution runs the frozen order, retains current anomalies, reconciles reviewed reruns, and publishes only one complete canonical campaign	P6.10.runner	qualification	continuous
+P6-CANDIDATE-RUN-001	plan16.P6.10	controlled execution runs the frozen order, retains current anomalies and every timeout/resource observation, reconciles reviewed reruns, and publishes only one complete canonical campaign	P6.10.runner	qualification	continuous
 P6-CHAIN-001	plan16.P6.3	operation chains re-ingest mesh successes, retain exact results, vary order and preparation boundaries, and preserve state on typed failure	P6.3.chains.execution	property	continuous
 P6-CORPUS-001	plan16.P6.2	permanent corpus floors, coverage dimensions, regression retention, and digest bindings	C14.QUAL.corpus.inventory.P6.2	qualification	continuous
 P6-DETERMINISM-001	plan16.P6.8	worker, partition, queue, broad-phase, filter, allocation, hash, rounding, and separate-process variants retain byte-identical canonical artifacts	P6.8.determinism	qualification	continuous

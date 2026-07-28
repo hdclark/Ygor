@@ -64,6 +64,9 @@ qualification_candidate_execution_case execution_case(
   value.expected_outcomes = {expected_outcome};
   if (expected_outcome == qualification_outcome::expected_typed_failure)
     value.expected_failure_codes = {product_error_code::input_contract_error};
+  else if (expected_outcome ==
+           qualification_outcome::timeout_or_resource_limit)
+    value.expected_failure_codes = {product_error_code::resource_limit};
   auto made = make_qualification_candidate_execution_case(std::move(value));
   require(made.has_value(), "candidate execution case canonicalizes");
   return made.value();

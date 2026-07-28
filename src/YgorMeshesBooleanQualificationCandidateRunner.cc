@@ -174,13 +174,24 @@ run_qualification_candidate_campaign(
       const auto &descriptor = plan.execution_cases[i];
       const auto &observation = observations[i];
       std::vector<qualification_candidate_issue_kind> required;
+      const auto require_issue = [&](qualification_candidate_issue_kind kind) {
+        if (std::find(required.begin(), required.end(), kind) == required.end())
+          required.push_back(kind);
+      };
       if (!expected_observation(descriptor, observation))
-        required.push_back(unexpected_issue_kind(observation.outcome));
+        require_issue(unexpected_issue_kind(observation.outcome));
+      // A frozen resource-limit contract makes the normalized outcome expected,
+      // but it does not make the event issue-free. Plan 16 requires every
+      // timeout/resource observation to remain retained and reviewed.
+      if (observation.outcome ==
+          qualification_outcome::timeout_or_resource_limit)
+        require_issue(
+            qualification_candidate_issue_kind::timeout_or_resource_limit);
       if (observation.performance_regression_observed)
-        required.push_back(
+        require_issue(
             qualification_candidate_issue_kind::performance_regression);
       if (observation.resource_regression_observed)
-        required.push_back(
+        require_issue(
             qualification_candidate_issue_kind::resource_regression);
       for (const auto kind : required) {
         if (current_unresolved_issue_retained(issues, observation, kind))

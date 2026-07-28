@@ -34,9 +34,32 @@
           });
         };
 
+    const auto has_current_timeout_issue =
+        [&](const qualification_candidate_execution_case &descriptor,
+            const qualification_candidate_execution_observation &observation) {
+          if (observation.outcome !=
+              qualification_outcome::timeout_or_resource_limit)
+            return true;
+          const auto range = issues_by_case.equal_range(descriptor.identifier);
+          return std::any_of(range.first, range.second, [&](const auto &entry) {
+            const auto &issue = *entry.second;
+            if (issue.kind !=
+                qualification_candidate_issue_kind::timeout_or_resource_limit)
+              return false;
+            if (issue.disposition ==
+                qualification_candidate_issue_disposition::unresolved_blocking)
+              return issue.initial_observation_digest ==
+                     observation.observation_digest;
+            return contains_digest(issue.rerun_observation_digests,
+                                   observation.observation_digest);
+          });
+        };
+
     const auto has_all_current_issues =
         [&](const qualification_candidate_execution_case &descriptor,
             const qualification_candidate_execution_observation &observation) {
+          if (!has_current_timeout_issue(descriptor, observation))
+            return false;
           const bool outcome_ok = expected(descriptor, observation);
           if (!outcome_ok &&
               !has_unresolved_kind(descriptor, observation,
@@ -100,11 +123,15 @@
       const bool outcome_ok = expected(descriptor, *observed->second);
       const bool regression = observed->second->performance_regression_observed ||
                               observed->second->resource_regression_observed;
+      const bool current_issues_complete =
+          has_all_current_issues(descriptor, *observed->second);
       if (outcome_ok && !regression) {
+        if (!current_issues_complete)
+          return candidate_error("qualification_candidate.current_issue_missing");
         ++result.passed_case_count;
         continue;
       }
-      if (!has_all_current_issues(descriptor, *observed->second))
+      if (!current_issues_complete)
         return candidate_error("qualification_candidate.current_issue_missing");
     }
 
