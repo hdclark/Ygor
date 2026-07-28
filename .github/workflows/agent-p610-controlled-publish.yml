@@ -6,6 +6,12 @@ on:
       - agent/p610-controlled-publish
     paths:
       - '.github/workflows/agent-p610-controlled-publish.yml'
+  pull_request:
+    branches:
+      - boolean_symbolic
+    paths:
+      - '.github/workflows/agent-p610-controlled-publish.yml'
+      - '.agent/**'
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/p610-controlled-publish
           fetch-depth: 0
       - name: Reconstruct and verify reviewed patch
         shell: bash
