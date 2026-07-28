@@ -224,4 +224,6 @@ transactional. Each fuzz campaign retains the 86,400 aggregate CPU-second floor
 and cannot close until every unique outcome is serialized, minimized, and
 promoted to the permanent corpus. The focused current-GCC/current-Clang CI job
 is a bounded checker smoke test only; it is not a substitute for the full P6.10
-candidate campaign.
+candidate campaign. Long-duration entries may be recorded as explicit offline
+deferrals during an online candidate slice, but each deferral remains a blocking
+infrastructure issue until the exact frozen case is executed and reviewed.

@@ -249,7 +249,9 @@ Start only after P5. This section is the sole successor to the former one-line P
 
 - [ ] **P6.10 — Execute the frozen candidate campaign and resolve outcomes.**
   - [x] Implement and harden the canonical candidate plan/runner/closure checker, including manifest-dimension binding, outcome-specific typed-failure taxonomy, deterministic issue retention for every timeout/resource observation, transactional publication, and focused GCC/Clang contract tests. This checker is not controlled-campaign evidence.
-  - [ ] Run the complete frozen manifest on controlled infrastructure.
+  - [x] Add fail-closed offline deferral for long-duration entries: retain each case in the frozen plan, skip only the named online execution, publish canonical infrastructure-failure evidence with an unresolved blocking issue, and require a reviewed configuration-bound rerun before closure.
+  - [ ] Run every non-deferred frozen manifest entry on controlled infrastructure and publish the incomplete candidate campaign with deferred fuzz entries retained as blocking.
+  - [ ] Run the deferred Plan 16 fuzz-duration entries offline, reconcile their retained issues, and complete the full frozen manifest.
   - [ ] Resolve, minimize, or mark blocking every unexpected failure, disagreement, nondeterministic result, timeout, infrastructure issue, and performance/resource regression.
   - [ ] Add every resolved defect case to the permanent corpus and rerun affected configurations.
 

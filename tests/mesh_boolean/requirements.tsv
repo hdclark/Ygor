@@ -25,6 +25,7 @@ P6-ATTR-001	plan16.P6.7	all advertised attribute and provenance policies verify 
 P6-BOUND-001	plan16.P6.7	normalization and approximate limits use explicit unit-bound binary64 evidence with independently checked observed maxima and no hidden epsilon	P6.7.report	negative	continuous
 P6-CANCEL-001	plan16.P6.9	resource and cancellation outcomes require typed failure, bounded latency, rollback, no partial publication, and replay evidence	P6.9.transaction	negative	continuous
 P6-CANDIDATE-BLOCK-001	plan16.P6.10	missing execution and unresolved false success remain blocking	P6.10.unresolved	negative	continuous
+P6-CANDIDATE-DEFER-001	plan16.P6.10	offline deferrals retain frozen cases, produce canonical blocking infrastructure evidence, skip only named executor calls, reject malformed inventories, and close only after reviewed rerun	P6.10.deferred	negative	continuous
 P6-CANDIDATE-CLOSE-001	plan16.P6.10	all final observations and resolved issue reruns close canonically	P6.10.complete	qualification	continuous
 P6-CANDIDATE-PERF-001	plan16.P6.10	unreviewed performance or resource regression remains blocking	P6.10.performance	negative	continuous
 P6-CANDIDATE-PLAN-001	plan16.P6.10	canonical manifest, all P6.2-P6.9 gates, exact execution inventory, expected-outcome vocabulary, and supplied in-memory canonical state are frozen; anomaly outcomes and stale reordered state are rejected	P6.10.plan	qualification	continuous

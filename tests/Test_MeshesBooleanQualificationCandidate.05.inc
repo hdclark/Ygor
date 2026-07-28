@@ -113,7 +113,7 @@ void canonical_state_contracts() {
   stale_checker.plan_digest = {};
   require(!make_qualification_candidate_campaign_plan(std::move(stale_checker))
                .has_value(),
-          "checker version two cannot claim checker version three semantics");
+          "a stale checker version cannot claim current candidate semantics");
 
   auto reordered_gates = plan;
   std::reverse(reordered_gates.required_gates.begin(),

@@ -21,5 +21,6 @@ int main() {
   tests.add("P6.10.resolution", [] { resolution_fail_closed_contracts(); });
   tests.add("P6.10.performance", [] { performance_review_contracts(); });
   tests.add("P6.10.runner", [] { runner_contracts(); });
+  tests.add("P6.10.deferred", [] { deferred_offline_contracts(); });
   return tests.run(std::cout, std::cerr);
 }

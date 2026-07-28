@@ -8,9 +8,9 @@ interfaces are `YgorMeshesBooleanQualificationCandidate.h` and
 The interfaces record, execute, and validate evidence from a controlled
 campaign. They do not fabricate a campaign, treat a bounded CI smoke test as
 controlled-host qualification, promote a backend, or weaken any P6.2-P6.9 gate.
-The serialized schema remains version 1; checker version 4 names the stricter
-manifest-binding, outcome-specific failure, and supplied-canonical-state
-semantics described below.
+The serialized schema remains version 1; checker version 5 names the stricter
+manifest-binding, outcome-specific failure, supplied-canonical-state, and
+explicit offline-deferral semantics described below.
 
 ## Frozen campaign plan
 
@@ -42,7 +42,7 @@ must name only `resource_limit`; ordinary expected typed failures cannot name a
 resource limit, internal invariant failure, backend disagreement, or verifier
 disagreement, and the two failure classes require distinct frozen cases.
 Permitting a timeout/resource-limit outcome in the frozen case contract does not
-make the observation issue-free. Checker version 4 retains every such
+make the observation issue-free. Checker version 5 retains every such
 observation as a timeout/resource issue, and closure requires a reviewed,
 configuration-bound rerun resolution even when the normalized outcome itself
 matches the frozen contract.
@@ -62,6 +62,19 @@ an unresolved issue bound to that exact final observation. A caller may provide
 retained historical issues and a reconciliation callback, but the ordinary
 candidate closure rules still require reviewed evidence, affected-configuration
 reruns, and permanent-regression promotion for engine defects.
+
+A controlled runner may explicitly defer named execution entries to a later
+offline allocation through `qualification_candidate_deferred_execution`. The
+entry remains in the frozen plan and is not passed to the online executor. The
+runner instead emits a canonical `infrastructure_failure` observation with the
+key `qualification_candidate.deferred_offline`, bound to the caller-supplied
+reason and evidence digest, and retains an unresolved infrastructure issue. A
+deferral is therefore publishable as partial candidate evidence but can never
+count as a passed case, make the campaign complete, or satisfy the closure gate.
+Unknown, duplicate, empty, or unbound deferral entries fail before any case is
+executed. The later offline run must execute the original frozen case and close
+the retained issue through the ordinary reviewed, configuration-bound rerun
+path.
 
 Cancellation, executor errors, malformed observations, reconciliation errors,
 and rejected publication all return typed failures. The publication sink is
@@ -117,8 +130,9 @@ binding, outcome-specific typed-failure rejection, stale canonical in-memory
 state, missing execution, unresolved false success, mandatory regression
 promotion, planned resource-limit retention and reviewed rerun closure, stale
 rerun/case bindings, performance regression blocking, canonical
-runner order, automatic anomaly retention, reviewed reconciliation, cancellation,
-and no-partial-publication behavior. Its standalone `tests/p610` build links only
+runner order, automatic anomaly retention, explicit offline deferral, deferred
+arrival-order independence, reviewed offline rerun closure, cancellation, and
+no-partial-publication behavior. Its standalone `tests/p610` build links only
 the contract, schema, candidate, runner, and digest support needed by this checker;
 it intentionally does not build or execute the Boolean producer. The GCC/Clang
 workflow is therefore a checker and runner smoke test only. Actual P6.10 campaign

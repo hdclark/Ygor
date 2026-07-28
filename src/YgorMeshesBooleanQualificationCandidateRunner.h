@@ -5,6 +5,7 @@
 #include "YgorMeshesBooleanQualificationCandidate.h"
 
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace ygor {
@@ -26,9 +27,20 @@ using qualification_candidate_campaign_sink = std::function<
     product_status_or<bool>(const qualification_candidate_campaign_plan &,
                             const qualification_candidate_campaign &)>;
 
+struct qualification_candidate_deferred_execution {
+  std::string case_identifier;
+  std::string reason;
+  digest evidence_digest;
+};
+
 struct qualification_candidate_run_options {
   bool requested_complete = true;
   std::vector<qualification_candidate_issue> retained_issues;
+  // Deferred entries remain part of the frozen plan. The runner records an
+  // infrastructure-failure observation and unresolved blocking issue without
+  // invoking the case executor. A later controlled run must execute and
+  // reconcile each entry before the campaign can close.
+  std::vector<qualification_candidate_deferred_execution> deferred_executions;
   std::function<bool()> cancellation_requested;
 };
 

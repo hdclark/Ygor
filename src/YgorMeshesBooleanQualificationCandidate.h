@@ -13,7 +13,7 @@ namespace ygor {
 namespace mesh_boolean {
 
 constexpr std::uint16_t qualification_candidate_schema_version = 1;
-constexpr std::uint32_t qualification_candidate_checker_version = 4;
+constexpr std::uint32_t qualification_candidate_checker_version = 5;
 
 enum class qualification_candidate_gate_kind : std::uint8_t {
   permanent_corpus,
