@@ -1,6 +1,9 @@
 #include "MeshBooleanTestConfig.h"
 
+#include <cerrno>
+#include <cctype>
 #include <cstdlib>
+#include <limits>
 #include <stdexcept>
 
 namespace ygor::mesh_boolean::testing {
@@ -15,6 +18,28 @@ std::uint64_t mix(std::uint64_t x) noexcept {
 void fold(std::uint64_t &state, const std::string &text) noexcept {
   for (const unsigned char c : text)
     state = mix(state ^ c);
+}
+
+std::uint64_t parse_u64_environment(const char *name, const char *value) {
+  if (!value || !*value || *value == '-' || *value == '+')
+    throw std::runtime_error(std::string("invalid ") + name);
+  for (const unsigned char c : std::string(value))
+    if (std::isspace(c))
+      throw std::runtime_error(std::string("invalid ") + name);
+  errno = 0;
+  char *end = nullptr;
+  const auto parsed = std::strtoull(value, &end, 0);
+  if (errno == ERANGE || end == value || !end || *end != '\0')
+    throw std::runtime_error(std::string("invalid ") + name);
+  return static_cast<std::uint64_t>(parsed);
+}
+
+std::size_t parse_case_budget(const char *value) {
+  const auto parsed = parse_u64_environment("YGOR_BOOLEAN_GENERATED_CASES", value);
+  if (parsed == 0 ||
+      parsed > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max()))
+    throw std::runtime_error("invalid YGOR_BOOLEAN_GENERATED_CASES");
+  return static_cast<std::size_t>(parsed);
 }
 } // namespace
 
@@ -33,6 +58,12 @@ test_config load_test_config() {
     } else
       throw std::runtime_error("invalid YGOR_BOOLEAN_TEST_TIER");
   }
+  if (const char *seed = std::getenv("YGOR_BOOLEAN_SEED_HIGH"))
+    result.seed_high = parse_u64_environment("YGOR_BOOLEAN_SEED_HIGH", seed);
+  if (const char *seed = std::getenv("YGOR_BOOLEAN_SEED_LOW"))
+    result.seed_low = parse_u64_environment("YGOR_BOOLEAN_SEED_LOW", seed);
+  if (const char *budget = std::getenv("YGOR_BOOLEAN_GENERATED_CASES"))
+    result.generated_cases = parse_case_budget(budget);
   if (const char *directory = std::getenv("YGOR_BOOLEAN_ARTIFACT_DIR"))
     result.artifact_directory = directory;
   return result;
