@@ -9,6 +9,19 @@
                    value.expected_outcomes.end(),
                    [](auto entry) { return known(entry); }))
     return candidate_error("qualification_candidate.case_outcome_unknown");
+  if (!std::all_of(value.expected_outcomes.begin(),
+                   value.expected_outcomes.end(), [](auto entry) {
+                     return entry ==
+                                qualification_outcome::verified_exact_success ||
+                            entry == qualification_outcome::
+                                         verified_certified_approximate_success ||
+                            entry ==
+                                qualification_outcome::expected_typed_failure ||
+                            entry == qualification_outcome::
+                                         timeout_or_resource_limit;
+                   }))
+    return candidate_error(
+        "qualification_candidate.case_expected_outcome_forbidden");
   std::sort(value.expected_failure_codes.begin(),
             value.expected_failure_codes.end());
   value.expected_failure_codes.erase(
