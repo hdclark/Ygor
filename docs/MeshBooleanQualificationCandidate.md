@@ -27,7 +27,11 @@ The plan also contains the complete execution inventory. Every execution entry
 binds its source plan and case digests, full qualification dimensions, expected
 outcome set, permitted typed failures, and regression-promotion policy. Missing,
 duplicate, foreign, stale, or reordered input cannot change the canonical plan.
-A dirty repository manifest is rejected.
+Only verified exact or certified-approximate success, expected typed failure, and
+explicitly contracted timeout/resource-limit outcomes may be frozen as expected.
+Unexpected typed failure, disagreement, false success, nondeterminism, and
+infrastructure failure are always anomaly evidence; the plan cannot normalize
+them away. A dirty repository manifest is rejected.
 
 ## Controlled execution runner
 
