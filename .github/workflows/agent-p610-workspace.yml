@@ -1,0 +1,30 @@
+name: Temporary P6.10 workspace archive
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Archive workspace
+        shell: bash
+        run: tar --exclude=.git -czf /tmp/ygor-boolean-symbolic.tar.gz .
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: ygor-boolean-symbolic-${{ github.sha }}
+          path: /tmp/ygor-boolean-symbolic.tar.gz
+          if-no-files-found: error
+          retention-days: 1
