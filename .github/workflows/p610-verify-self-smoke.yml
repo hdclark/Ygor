@@ -1,0 +1,150 @@
+name: Verify and fix P6.10 self and smoke tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p610-verify-self-smoke.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p610-verify-self-smoke
+  cancel-in-progress: true
+
+jobs:
+  verify-fix-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+
+      - name: Narrow non-qualifying smoke scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/run_mesh_boolean_p610_campaign.sh')
+          s = p.read_text()
+          old = '''  if [[ "$SMOKE" -eq 1 ]]; then
+              for target in "${targets[@]}"; do
+                case "$target" in
+                  Test_MeshesBooleanPerformanceBaselines|MeshBooleanBenchmark) continue ;;
+                esac
+                smoke_targets+=("$target")
+              done
+              targets=("${smoke_targets[@]}")
+            fi
+            register_step "$build_step" contracts "$id" true "build mesh Boolean qualification and benchmark targets"
+          '''
+          new = '''  if [[ "$SMOKE" -eq 1 ]]; then
+              # Smoke mode is deliberately representative, not exhaustive. Keep it
+              # short enough to validate a host and the restart/evidence path before
+              # committing to the full frozen campaign. Its non-qualifying status
+              # prevents this reduced inventory from becoming qualification evidence.
+              targets=(
+                Test_MeshesBooleanQualificationCandidate
+                Test_MeshesBooleanEndToEnd
+                Test_MeshesBooleanMetamorphic
+                Test_MeshesBooleanFuzz
+              )
+            fi
+            local build_description="build mesh Boolean qualification and benchmark targets"
+            [[ "$SMOKE" -eq 0 ]] || build_description="build focused non-qualifying smoke targets"
+            register_step "$build_step" contracts "$id" true "$build_description"
+          '''
+          if old not in s:
+              raise SystemExit('expected smoke build block not found')
+          s = s.replace(old, new)
+          old = '''  test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
+                       --timeout "$STEP_TIMEOUT_SECONDS")
+            if [[ "$SMOKE" -eq 1 ]]; then
+              test_args+=(-E '^MeshBoolean\\.PerformanceBaselines$')
+            fi
+          '''
+          new = '''  if [[ "$SMOKE" -eq 1 ]]; then
+              test_args=(ctest --test-dir "$build_dir" --output-on-failure
+                         -R '^MeshBoolean\\.(QualificationCandidate|EndToEnd|Metamorphic)$'
+                         --timeout "$STEP_TIMEOUT_SECONDS")
+            else
+              test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
+                         --timeout "$STEP_TIMEOUT_SECONDS")
+            fi
+          '''
+          if old not in s:
+              raise SystemExit('expected smoke test block not found')
+          p.write_text(s.replace(old, new))
+
+          p = Path('docs/MeshBooleanP610ManualCampaign.md')
+          s = p.read_text()
+          old = '''Smoke evidence is permanently marked `non_qualifying_smoke` and cannot close
+          P6.10.
+          '''
+          new = '''Smoke evidence is permanently marked `non_qualifying_smoke` and cannot close
+          P6.10. To remain practical on one workstation, smoke mode builds only the
+          P6.10 candidate checker plus representative end-to-end, metamorphic, and fuzz
+          targets under current GCC and Clang Debug profiles. The full non-smoke campaign
+          continues to build and execute the complete frozen inventory.
+          '''
+          if old not in s:
+              raise SystemExit('expected smoke documentation paragraph not found')
+          p.write_text(s.replace(old, new))
+          PY
+          bash -n scripts/run_mesh_boolean_p610_campaign.sh
+          git diff --check
+
+      - name: Freeze candidate verification tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/p610-verify-export.yml
+          git rm .github/workflows/p610-verify-self-smoke.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/run_mesh_boolean_p610_campaign.sh docs/MeshBooleanP610ManualCampaign.md
+          git commit -m 'Fix P6.10 smoke campaign scope'
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Run driver self-test
+        run: ./scripts/run_mesh_boolean_p610_campaign.sh --self-test
+
+      - name: Run real non-qualifying smoke campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/p610-smoke-evidence /tmp/p610-smoke-work
+          ./scripts/run_mesh_boolean_p610_campaign.sh \
+            --output /tmp/p610-smoke-evidence \
+            --work /tmp/p610-smoke-work \
+            --smoke \
+            --fuzz-cpu-seconds 2 \
+            --fuzz-chunk-seconds 120 \
+            --jobs 2 \
+            --max-attempts 1 \
+            --timeout-seconds 1200
+          test "$(awk 'END{print NR-1}' /tmp/p610-smoke-evidence/anomalies.tsv)" -eq 0
+          grep -q $'campaign_status\tnon_qualifying_smoke' /tmp/p610-smoke-evidence/summary.tsv
+          grep -q $'unresolved_anomalies\t0' /tmp/p610-smoke-evidence/summary.tsv
+          (cd /tmp/p610-smoke-evidence && sha256sum -c SHA256SUMS)
+
+      - name: Push verified fix
+        run: git push origin HEAD:boolean_symbolic
+
+      - name: Upload smoke evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p610-self-smoke-verification-failure
+          path: |
+            /tmp/p610-smoke-evidence
+            /tmp/p610-smoke-work/build-gcc-current-debug/Testing/Temporary/LastTest.log
+            /tmp/p610-smoke-work/build-clang-current-debug-libstdcxx/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
