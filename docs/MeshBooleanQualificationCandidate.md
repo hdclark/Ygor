@@ -135,6 +135,25 @@ cannot silently discard the original P6.9 threshold.
   rerun; and
 - zero unresolved or missing evidence.
 
+## Manual controlled-campaign driver
+
+`scripts/run_mesh_boolean_p610_campaign.sh` is the restartable single-machine
+execution wrapper for the outstanding controlled campaign. It captures the exact
+repository and host state, runs the available non-fuzz qualification profiles,
+requires an actual dispatcher for every non-deferred frozen manifest entry,
+advances all eight frozen fuzz-duration allocations by measured CPU-time chunks,
+and retains every command, observation, log, timeout, disagreement,
+nondeterministic result, infrastructure problem, and other anomaly in a
+checksum-bound evidence directory. Passed steps are skipped on restart; failed
+and interrupted attempts remain immutable and require explicit reviewed
+resolution evidence.
+
+The driver is not a promotion mechanism. Missing oldest compilers, libc++, or an
+independent native/emulated architecture command remain blocking. Reduced smoke
+runs are permanently marked non-qualifying. The complete invocation, output
+schema, restart rules, command-override interface, and P6.11 review procedure are
+documented in `MeshBooleanP610ManualCampaign.md`.
+
 The focused `MeshBoolean.QualificationCandidate` test exercises complete closure,
 arrival-order independence, checker-version rejection, manifest-dimension
 binding, outcome-specific typed-failure rejection, stale canonical in-memory

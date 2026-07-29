@@ -23,6 +23,7 @@ P6-ACCOUNT-001	plan16.P6.5	normalize every execution to one outcome and count sa
 P6-ARTIFACT-001	plan16.P6.6	repository and content-addressed artifacts verify exact byte count and digest while private digest-only retrieval fails closed	P6.6.artifacts	negative	continuous
 P6-ATTR-001	plan16.P6.7	all advertised attribute and provenance policies verify seams, conflicts, omissions, multi-source mappings, downstream source queries, and geometry invariance	P6.7.attributes	qualification	continuous
 P6-BOUND-001	plan16.P6.7	normalization and approximate limits use explicit unit-bound binary64 evidence with independently checked observed maxima and no hidden epsilon	P6.7.report	negative	continuous
+P6-CAMPAIGN-DRIVER-001	plan16.P6.10	restartable manual campaign execution retains exact commands, measured fuzz CPU time, immutable attempts, anomalies, reviewed resolutions, and checksum-bound P6.11 evidence	P6.10.manual_driver.self_test	qualification	continuous
 P6-CANCEL-001	plan16.P6.9	resource and cancellation outcomes require typed failure, bounded latency, rollback, no partial publication, and replay evidence	P6.9.transaction	negative	continuous
 P6-CANDIDATE-BLOCK-001	plan16.P6.10	missing execution and unresolved false success remain blocking	P6.10.unresolved	negative	continuous
 P6-CANDIDATE-CLOSE-001	plan16.P6.10	all final observations and resolved issue reruns close canonically	P6.10.complete	qualification	continuous
