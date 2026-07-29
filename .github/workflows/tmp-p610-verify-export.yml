@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '4d02ac920648a77cb95f916cf421b295a03cf6b8ea81276518ce4e33ad4becd3  .github/p610-smoke-fix.patch' | sha256sum -c -
+          echo 'b665845a6e157112f1be8186dd463a95dc8de063fcd6638d2b6f854b7db0db2e  .github/p610-smoke-fix.patch' | sha256sum -c -
           git apply --check .github/p610-smoke-fix.patch
           git apply .github/p610-smoke-fix.patch
           bash -n scripts/run_mesh_boolean_p610_campaign.sh
