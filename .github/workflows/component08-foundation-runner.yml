@@ -1,0 +1,70 @@
+name: Component 08 foundation runner
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  apply:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.issue.number == 90 &&
+      github.event.comment.body == '/apply-component08-foundation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Verify and apply exact patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/component08-registry.patch.part-* | base64 --decode | gzip --decompress > /tmp/component08-foundation.patch
+          echo "f7f2b67e8edd2be9a833e9f2b1a9eb0925f810b99472aff7117b609d856b7675  /tmp/component08-foundation.patch" | sha256sum --check --strict
+          git apply --check /tmp/component08-foundation.patch
+          git apply --index /tmp/component08-foundation.patch
+
+      - name: Configure generated headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/ygor-component08-build \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMEMORY_CONSTRAINED_BUILD=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF
+
+      - name: Run strict focused qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic \
+            -fno-fast-math -frounding-math -fno-associative-math \
+            -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only \
+            -ffp-contract=off -DYGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1 \
+            -Isrc -I/tmp/ygor-component08-build/src \
+            tests/mesh_boolean_bounded/TestIntersectionKeys.cc \
+            -o /tmp/ygor_component08_foundation
+          /tmp/ygor_component08_foundation
+
+      - name: Commit validated foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/component08-registry.patch.part-*
+          rm -f .github/workflows/component08-apply.yml
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Add Component 08 registry contract foundation (plan 08)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
