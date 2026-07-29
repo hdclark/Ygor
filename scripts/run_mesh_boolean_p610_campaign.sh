@@ -7,7 +7,7 @@
 set -u
 set -o pipefail
 
-readonly SCRIPT_VERSION="2"
+readonly SCRIPT_VERSION="4"
 readonly QUALIFICATION_FUZZ_CPU_SECONDS=86400
 readonly TSV_HEADER_ATTEMPTS=$'utc\tstep_id\tattempt\tclassification\texit_code\twall_seconds\tuser_cpu_seconds\tsystem_cpu_seconds\tmax_rss_kib\tcommand_file\tlog_file'
 readonly TSV_HEADER_ANOMALIES=$'utc\tanomaly_id\tstep_id\tcase_identifier\tattempt\tcategory\tstatus\tdetail\tevidence_file\tlog_file'
@@ -400,11 +400,8 @@ capture_environment() {
       "campaign started from a dirty repository; P6.11 must not treat it as qualifying" \
       "git-status.txt" "git-diff.patch"
   fi
-  if [[ "$SMOKE" -eq 1 ]]; then
-    append_anomaly "non_qualifying_smoke" "campaign.preflight" 0 \
-      "--smoke was used; reduced profiles or duration are not qualification evidence" \
-      "campaign.tsv" ""
-  fi
+  # Smoke mode is recorded in campaign.tsv and summary.tsv. It is a valid
+  # non-qualifying execution mode, not an anomalous campaign outcome.
 }
 
 
@@ -467,7 +464,7 @@ register_profile_inventory() {
 register_required_inventory() {
   if [[ "$SMOKE" -eq 1 ]]; then
     register_profile_inventory gcc-current-debug
-    register_profile_inventory clang-current-debug-libcxx
+    register_profile_inventory clang-current-debug-libstdcxx
     register_step fuzz.smoke-valid fuzz gcc-current-debug true \
       "non-qualifying shortened valid-geometry allocation"
     return
@@ -509,7 +506,8 @@ run_profile() {
   local configure_step="profile.${id}.configure" build_step="profile.${id}.build" test_step="profile.${id}.contracts"
   local benchmark_mesh_step="profile.${id}.benchmark-mesh"
   local benchmark_arithmetic_step="profile.${id}.benchmark-exact-arithmetic"
-  local -a args targets benchmark_prefix
+  local -a args targets benchmark_prefix test_args smoke_targets
+  local target
   if ! command -v "$cc" >/dev/null 2>&1 || ! command -v "$cxx" >/dev/null 2>&1; then
     register_step "$configure_step" contracts "$id" true "configure required compiler profile"
     append_anomaly "missing_configuration" "$configure_step" 0 \
@@ -577,15 +575,28 @@ run_profile() {
     MeshBooleanExample MeshBooleanExpertExample Test_MeshesBooleanPlanGaps
     MeshBooleanBenchmark
   )
+  if [[ "$SMOKE" -eq 1 ]]; then
+    for target in "${targets[@]}"; do
+      case "$target" in
+        Test_MeshesBooleanPerformanceBaselines|MeshBooleanBenchmark) continue ;;
+      esac
+      smoke_targets+=("$target")
+    done
+    targets=("${smoke_targets[@]}")
+  fi
   register_step "$build_step" contracts "$id" true "build mesh Boolean qualification and benchmark targets"
   run_step "$build_step" infrastructure "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
     cmake --build "$build_dir" --parallel "$JOBS" --target "${targets[@]}" || return 1
 
   register_step "$test_step" contracts "$id" true "run non-fuzz mesh Boolean tests and all P6.2-P6.10 gates"
+  test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
+             --timeout "$STEP_TIMEOUT_SECONDS")
+  if [[ "$SMOKE" -eq 1 ]]; then
+    test_args+=(-E '^MeshBoolean\.PerformanceBaselines$')
+  fi
   run_step "$test_step" test "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
     env YGOR_BOOLEAN_TEST_TIER=qualification YGOR_BOOLEAN_ARTIFACT_DIR="$artifact_dir" \
-    ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz \
-      --timeout "$STEP_TIMEOUT_SECONDS" || return 1
+    "${test_args[@]}" || return 1
 
   if [[ "$id" == gcc-current-release || "$id" == clang-current-release-libstdcxx ]]; then
     benchmark_prefix=()
@@ -714,7 +725,7 @@ run_contracts() {
   local failed=0
   if [[ "$SMOKE" -eq 1 ]]; then
     run_profile gcc-current-debug "$gcc_cc" "$gcc_cxx" Debug none libstdcxx none || failed=1
-    run_profile clang-current-debug-libcxx "$clang_cc" "$clang_cxx" Debug none libcxx none || failed=1
+    run_profile clang-current-debug-libstdcxx "$clang_cc" "$clang_cxx" Debug none libstdcxx none || failed=1
     return "$failed"
   fi
   run_primary_architecture_check || failed=1
@@ -763,6 +774,12 @@ run_fuzz_allocation() {
   local build_dir="${WORK_DIR}/build-${profile}" progress="${OUTPUT_DIR}/fuzz-progress/${id}.tsv"
   local step_id="fuzz.${id}" command total attempt time_file log_file exit_code
   local user_cpu system_cpu elapsed max_rss chunk_ordinal command_digest command_file existing_digest
+  local fuzz_cases_per_run="${P610_FUZZ_CASES_PER_RUN:-128}"
+  local fuzz_runs_per_chunk="${P610_FUZZ_RUNS_PER_CHUNK:-16}"
+  if [[ "$SMOKE" -eq 1 ]]; then
+    fuzz_cases_per_run="${P610_FUZZ_CASES_PER_RUN:-4}"
+    fuzz_runs_per_chunk="${P610_FUZZ_RUNS_PER_CHUNK:-1}"
+  fi
   register_step "$step_id" fuzz "$profile" true "24 CPU-hour frozen ${family} allocation"
   if [[ ! -d "$build_dir" ]]; then
     append_anomaly missing_configuration "$step_id" 0 \
@@ -810,8 +827,8 @@ run_fuzz_allocation() {
         P610_CHUNK_ORDINAL="$chunk_ordinal" YGOR_BOOLEAN_TEST_TIER=qualification \
         YGOR_BOOLEAN_ARTIFACT_DIR="${OUTPUT_DIR}/artifacts/${id}" \
         P610_FUZZ_INNER_COMMAND="$command" \
-        P610_FUZZ_CASES_PER_RUN="${P610_FUZZ_CASES_PER_RUN:-128}" \
-        P610_FUZZ_RUNS_PER_CHUNK="${P610_FUZZ_RUNS_PER_CHUNK:-16}" \
+        P610_FUZZ_CASES_PER_RUN="$fuzz_cases_per_run" \
+        P610_FUZZ_RUNS_PER_CHUNK="$fuzz_runs_per_chunk" \
         P610_REPO_ROOT="$REPO_ROOT" \
         bash -lc '
           cd "$P610_REPO_ROOT" || exit 127
@@ -827,7 +844,15 @@ run_fuzz_allocation() {
         ' > "${OUTPUT_DIR}/${log_file}" 2>&1
     exit_code=$?
     user_cpu=0; system_cpu=0; elapsed=0; max_rss=0
-    [[ -s "$time_file" ]] && IFS=$'\t' read -r user_cpu system_cpu elapsed max_rss < "$time_file" || true
+    if [[ -s "$time_file" ]]; then
+      IFS=$'\t' read -r user_cpu system_cpu elapsed max_rss < <(tail -n 1 "$time_file") || true
+      if ! [[ "$user_cpu" =~ ^[0-9]+([.][0-9]+)?$ &&
+              "$system_cpu" =~ ^[0-9]+([.][0-9]+)?$ &&
+              "$elapsed" =~ ^[0-9]+([.][0-9]+)?$ &&
+              "$max_rss" =~ ^[0-9]+$ ]]; then
+        user_cpu=0; system_cpu=0; elapsed=0; max_rss=0
+      fi
+    fi
     # A chunk has a finite iteration count. Reaching timeout is an anomaly, not
     # successful duration accounting.
     if [[ "$exit_code" -eq 0 ]] && awk -v u="$user_cpu" -v s="$system_cpu" 'BEGIN{exit !((u+s)<=0)}'; then
@@ -900,8 +925,12 @@ finalize_outputs() {
       "$required" "$passed" "$failed" "$blocked" "$running"
     printf 'unresolved_anomalies\t%s\n' "$unresolved"
     if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
-       [[ "$campaign_dirty" == false && "$campaign_smoke" == 0 ]]; then
-      printf 'campaign_status\tcomplete_candidate_evidence\n'
+       [[ "$campaign_dirty" == false ]]; then
+      if [[ "$campaign_smoke" == 1 ]]; then
+        printf 'campaign_status\tnon_qualifying_smoke\n'
+      else
+        printf 'campaign_status\tcomplete_candidate_evidence\n'
+      fi
     else
       printf 'campaign_status\tincomplete_blocking\n'
     fi
@@ -925,7 +954,10 @@ finalize_outputs() {
         done > SHA256SUMS
   )
   printf 'Finalized evidence: %s\n' "$OUTPUT_DIR"
-  [[ "$(awk -F'\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == complete_candidate_evidence ]]
+  case "$(awk -F'\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" in
+    complete_candidate_evidence|non_qualifying_smoke) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 validate_existing_campaign() {
@@ -987,6 +1019,22 @@ run_self_test() {
     fail 'self-test full required inventory count changed'
   [[ "$(awk -F'\t' 'NR>1 && $2=="fuzz"{n++} END{print n+0}' "${OUTPUT_DIR}/steps.tsv")" -eq 8 ]] ||
     fail 'self-test frozen fuzz inventory count changed'
+  cleanup_lock
+
+  OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output
+  CAMPAIGN_ID=self-test-smoke
+  {
+    printf 'schema\t1\n'
+    printf 'repository_dirty\tfalse\n'
+    printf 'smoke\t1\n'
+  } > "${OUTPUT_DIR}/campaign.tsv"
+  register_step self.smoke contracts self true 'self-test smoke step'
+  write_status self.smoke pass 1 0 ''
+  finalize_outputs || fail 'self-test smoke finalization failed'
+  [[ "$(awk -F'\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == non_qualifying_smoke ]] ||
+    fail 'self-test smoke status failed'
+  [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||
+    fail 'self-test smoke created an anomaly'
   cleanup_lock; rm -rf "$tmp"
   printf 'P6.10 campaign driver self-test passed.\n'
 }
