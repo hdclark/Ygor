@@ -1,9 +1,9 @@
 name: Component 08 foundation runner
 
 on:
-  issue_comment:
+  pull_request_target:
     types:
-      - created
+      - edited
 
 permissions:
   contents: write
@@ -12,9 +12,8 @@ permissions:
 jobs:
   apply:
     if: >-
-      github.event.issue.pull_request &&
-      github.event.issue.number == 90 &&
-      github.event.comment.body == '/apply-component08-foundation'
+      github.event.pull_request.number == 90 &&
+      github.event.pull_request.head.ref == 'agent/bounded-manifold-mesh-boolean-plan'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
