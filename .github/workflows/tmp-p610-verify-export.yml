@@ -4,9 +4,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/tmp-p610-verify-export.yml'
+      - '.github/p610-smoke-fix.patch'
 
 concurrency:
-  group: tmp-p610-fix-${{ github.event.pull_request.number || github.ref }}
+  group: tmp-p610-final-fix-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,105 +24,13 @@ jobs:
           fetch-depth: 0
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-      - name: Apply focused smoke bookkeeping fix
+      - name: Apply reviewed smoke fix
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('scripts/run_mesh_boolean_p610_campaign.sh')
-          lines = path.read_text().splitlines(keepends=True)
-
-          version_matches = [i for i, line in enumerate(lines) if line == 'readonly SCRIPT_VERSION="2"\n']
-          if len(version_matches) != 1:
-              raise SystemExit(f'expected one driver version line, found {len(version_matches)}')
-          lines[version_matches[0]] = 'readonly SCRIPT_VERSION="3"\n'
-
-          smoke_starts = [
-              i for i, line in enumerate(lines)
-              if line.strip() == 'if [[ "$SMOKE" -eq 1 ]]; then'
-              and 'non_qualifying_smoke' in ''.join(lines[i:i + 7])
-          ]
-          if len(smoke_starts) != 1:
-              raise SystemExit(f'expected one smoke anomaly block, found {len(smoke_starts)}')
-          start = smoke_starts[0]
-          end = next((i for i in range(start, min(start + 8, len(lines))) if lines[i].strip() == 'fi'), None)
-          if end is None:
-              raise SystemExit('smoke anomaly block has no closing fi')
-          lines[start:end + 1] = [
-              '  # Smoke mode is recorded in campaign.tsv and summary.tsv. It is a valid\n',
-              '  # non-qualifying execution mode, not an anomalous campaign outcome.\n',
-          ]
-
-          final_starts = [
-              i for i, line in enumerate(lines)
-              if line.strip().startswith('if (( required > 0 && passed == required')
-          ]
-          if len(final_starts) != 1:
-              raise SystemExit(f'expected one final status block, found {len(final_starts)}')
-          start = final_starts[0]
-          end = next((i for i in range(start, min(start + 12, len(lines))) if lines[i].strip() == 'fi'), None)
-          if end is None:
-              raise SystemExit('final status block has no closing fi')
-          lines[start:end + 1] = [
-              '    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&\n',
-              '       [[ "$campaign_dirty" == false ]]; then\n',
-              '      if [[ "$campaign_smoke" == 1 ]]; then\n',
-              "        printf 'campaign_status\\tnon_qualifying_smoke\\n'\n",
-              '      else\n',
-              "        printf 'campaign_status\\tcomplete_candidate_evidence\\n'\n",
-              '      fi\n',
-              '    else\n',
-              "      printf 'campaign_status\\tincomplete_blocking\\n'\n",
-              '    fi\n',
-          ]
-
-          return_matches = [
-              i for i, line in enumerate(lines)
-              if '== complete_candidate_evidence ]]' in line
-          ]
-          if len(return_matches) != 1:
-              raise SystemExit(f'expected one final return expression, found {len(return_matches)}')
-          i = return_matches[0]
-          lines[i:i + 1] = [
-              '  case "$(awk -F\'\\t\' \'$1=="campaign_status"{print $2}\' "${OUTPUT_DIR}/summary.tsv")" in\n',
-              '    complete_candidate_evidence|non_qualifying_smoke) return 0 ;;\n',
-              '    *) return 1 ;;\n',
-              '  esac\n',
-          ]
-
-          self_start = next((i for i, line in enumerate(lines) if line.startswith('run_self_test()')), None)
-          if self_start is None:
-              raise SystemExit('run_self_test not found')
-          cleanup_matches = [
-              i for i in range(self_start, len(lines))
-              if lines[i].strip() == 'cleanup_lock; rm -rf "$tmp"'
-          ]
-          if len(cleanup_matches) != 1:
-              raise SystemExit(f'expected one self-test cleanup line, found {len(cleanup_matches)}')
-          i = cleanup_matches[0]
-          lines[i:i] = [
-              '  cleanup_lock\n',
-              '\n',
-              '  OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output\n',
-              '  CAMPAIGN_ID=self-test-smoke\n',
-              '  {\n',
-              "    printf 'schema\\t1\\n'\n",
-              "    printf 'repository_dirty\\tfalse\\n'\n",
-              "    printf 'smoke\\t1\\n'\n",
-              '  } > "${OUTPUT_DIR}/campaign.tsv"\n',
-              "  register_step self.smoke contracts self true 'self-test smoke step'\n",
-              "  write_status self.smoke pass 1 0 ''\n",
-              "  finalize_outputs || fail 'self-test smoke finalization failed'\n",
-              '  [[ "$(awk -F\'\\t\' \'$1=="campaign_status"{print $2}\' "${OUTPUT_DIR}/summary.tsv")" == non_qualifying_smoke ]] ||\n',
-              "    fail 'self-test smoke status failed'\n",
-              '  [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||\n',
-              "    fail 'self-test smoke created an anomaly'\n",
-          ]
-
-          path.write_text(''.join(lines))
-          PY
+          echo '4d02ac920648a77cb95f916cf421b295a03cf6b8ea81276518ce4e33ad4becd3  .github/p610-smoke-fix.patch' | sha256sum -c -
+          git apply --check .github/p610-smoke-fix.patch
+          git apply .github/p610-smoke-fix.patch
           bash -n scripts/run_mesh_boolean_p610_campaign.sh
           git diff --check
           git add scripts/run_mesh_boolean_p610_campaign.sh
@@ -154,11 +63,11 @@ jobs:
           test "$(awk -F '\t' '$1=="campaign_status"{print $2}' /tmp/p610-smoke/summary.tsv)" = non_qualifying_smoke
           test "$(awk -F '\t' '$1=="unresolved_anomalies"{print $2}' /tmp/p610-smoke/summary.tsv)" -eq 0
           (cd /tmp/p610-smoke && sha256sum -c SHA256SUMS)
-      - name: Remove temporary workflow and publish
+      - name: Remove temporary verification files and publish
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/tmp-p610-verify-export.yml
+          git rm .github/workflows/tmp-p610-verify-export.yml .github/p610-smoke-fix.patch
           git commit --amend --no-edit
           git push origin HEAD:boolean_symbolic
       - name: Upload diagnostics
