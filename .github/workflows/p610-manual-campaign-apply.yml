@@ -1,18 +1,16 @@
 name: Apply P6.10 manual campaign driver
 
 on:
-  push:
-    branches:
-      - boolean_symbolic
+  pull_request:
     paths:
-      - '.github/p610-manual-campaign-apply-trigger.md'
+      - '.github/workflows/p610-manual-campaign-apply.yml'
 
 permissions:
   contents: write
 
 concurrency:
   group: p610-manual-campaign-apply
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply-validate-publish:
