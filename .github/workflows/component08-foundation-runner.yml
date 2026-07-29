@@ -1,4 +1,4 @@
-name: Component 08 through conceptual events runner
+name: Component 08 through canonical seed bindings runner
 
 on:
   schedule:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: component08-through-events
+  group: component08-through-bindings
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,8 @@ jobs:
         shell: bash
         run: |
           if compgen -G '.github/component08-registry.patch.part-*' > /dev/null && \
-             compgen -G '.github/component08-events.patch.part-*' > /dev/null; then
+             compgen -G '.github/component08-events.patch.part-*' > /dev/null && \
+             compgen -G '.github/component08-binding-order.patch.part-*' > /dev/null; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
@@ -49,6 +50,11 @@ jobs:
             > /tmp/component08-events.patch
           echo "73580bcc9975b7dd030b2bd1378be83bfb17b34548ba85b505fb7b8956958230  /tmp/component08-events.patch" \
             | sha256sum --check --strict
+          cat .github/component08-binding-order.patch.part-* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/component08-binding-order.patch
+          echo "d29ab6b4116f93a79c9b43c518d58ca411bfdd835ea87a7aa91de4b3203f2805  /tmp/component08-binding-order.patch" \
+            | sha256sum --check --strict
           git apply --check \
             --exclude='.github/component08-registry.patch.part-00' \
             /tmp/component08-through-empty.patch
@@ -57,6 +63,8 @@ jobs:
             /tmp/component08-through-empty.patch
           git apply --check /tmp/component08-events.patch
           git apply --index /tmp/component08-events.patch
+          git apply --check /tmp/component08-binding-order.patch
+          git apply --index /tmp/component08-binding-order.patch
           git diff --check --cached
 
       - name: Configure strict build
@@ -93,22 +101,24 @@ jobs:
           set -euo pipefail
           rm -f .github/component08-registry.patch.part-*
           rm -f .github/component08-events.patch.part-*
+          rm -f .github/component08-binding-order.patch.part-*
           rm -f .github/workflows/component08-apply.yml
           git add .
           git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 through conceptual event interning (plan 08)'
+          git commit -m 'Implement Component 08 through canonical seed bindings (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component08-through-events-failure
+          name: component08-through-bindings-failure
           path: |
             /tmp/component08-through-empty.patch
             /tmp/component08-events.patch
+            /tmp/component08-binding-order.patch
             /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
