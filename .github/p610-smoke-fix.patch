@@ -5,7 +5,7 @@
  set -o pipefail
  
 -readonly SCRIPT_VERSION="2"
-+readonly SCRIPT_VERSION="3"
++readonly SCRIPT_VERSION="4"
  readonly QUALIFICATION_FUZZ_CPU_SECONDS=86400
  readonly TSV_HEADER_ATTEMPTS=$'utc\tstep_id\tattempt\tclassification\texit_code\twall_seconds\tuser_cpu_seconds\tsystem_cpu_seconds\tmax_rss_kib\tcommand_file\tlog_file'
  readonly TSV_HEADER_ANOMALIES=$'utc\tanomaly_id\tstep_id\tcase_identifier\tattempt\tcategory\tstatus\tdetail\tevidence_file\tlog_file'
@@ -82,7 +82,48 @@
      return "$failed"
    fi
    run_primary_architecture_check || failed=1
-@@ -900,8 +911,12 @@
+@@ -763,6 +774,12 @@
+   local build_dir="${WORK_DIR}/build-${profile}" progress="${OUTPUT_DIR}/fuzz-progress/${id}.tsv"
+   local step_id="fuzz.${id}" command total attempt time_file log_file exit_code
+   local user_cpu system_cpu elapsed max_rss chunk_ordinal command_digest command_file existing_digest
++  local fuzz_cases_per_run="${P610_FUZZ_CASES_PER_RUN:-128}"
++  local fuzz_runs_per_chunk="${P610_FUZZ_RUNS_PER_CHUNK:-16}"
++  if [[ "$SMOKE" -eq 1 ]]; then
++    fuzz_cases_per_run="${P610_FUZZ_CASES_PER_RUN:-4}"
++    fuzz_runs_per_chunk="${P610_FUZZ_RUNS_PER_CHUNK:-1}"
++  fi
+   register_step "$step_id" fuzz "$profile" true "24 CPU-hour frozen ${family} allocation"
+   if [[ ! -d "$build_dir" ]]; then
+     append_anomaly missing_configuration "$step_id" 0 \
+@@ -810,8 +827,8 @@
+         P610_CHUNK_ORDINAL="$chunk_ordinal" YGOR_BOOLEAN_TEST_TIER=qualification \
+         YGOR_BOOLEAN_ARTIFACT_DIR="${OUTPUT_DIR}/artifacts/${id}" \
+         P610_FUZZ_INNER_COMMAND="$command" \
+-        P610_FUZZ_CASES_PER_RUN="${P610_FUZZ_CASES_PER_RUN:-128}" \
+-        P610_FUZZ_RUNS_PER_CHUNK="${P610_FUZZ_RUNS_PER_CHUNK:-16}" \
++        P610_FUZZ_CASES_PER_RUN="$fuzz_cases_per_run" \
++        P610_FUZZ_RUNS_PER_CHUNK="$fuzz_runs_per_chunk" \
+         P610_REPO_ROOT="$REPO_ROOT" \
+         bash -lc '
+           cd "$P610_REPO_ROOT" || exit 127
+@@ -827,7 +844,15 @@
+         ' > "${OUTPUT_DIR}/${log_file}" 2>&1
+     exit_code=$?
+     user_cpu=0; system_cpu=0; elapsed=0; max_rss=0
+-    [[ -s "$time_file" ]] && IFS=$'\t' read -r user_cpu system_cpu elapsed max_rss < "$time_file" || true
++    if [[ -s "$time_file" ]]; then
++      IFS=$'\t' read -r user_cpu system_cpu elapsed max_rss < <(tail -n 1 "$time_file") || true
++      if ! [[ "$user_cpu" =~ ^[0-9]+([.][0-9]+)?$ &&
++              "$system_cpu" =~ ^[0-9]+([.][0-9]+)?$ &&
++              "$elapsed" =~ ^[0-9]+([.][0-9]+)?$ &&
++              "$max_rss" =~ ^[0-9]+$ ]]; then
++        user_cpu=0; system_cpu=0; elapsed=0; max_rss=0
++      fi
++    fi
+     # A chunk has a finite iteration count. Reaching timeout is an anomaly, not
+     # successful duration accounting.
+     if [[ "$exit_code" -eq 0 ]] && awk -v u="$user_cpu" -v s="$system_cpu" 'BEGIN{exit !((u+s)<=0)}'; then
+@@ -900,8 +925,12 @@
        "$required" "$passed" "$failed" "$blocked" "$running"
      printf 'unresolved_anomalies\t%s\n' "$unresolved"
      if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
@@ -97,7 +138,7 @@
      else
        printf 'campaign_status\tincomplete_blocking\n'
      fi
-@@ -925,7 +940,10 @@
+@@ -925,7 +954,10 @@
          done > SHA256SUMS
    )
    printf 'Finalized evidence: %s\n' "$OUTPUT_DIR"
@@ -109,7 +150,7 @@
  }
  
  validate_existing_campaign() {
-@@ -987,6 +1005,22 @@
+@@ -987,6 +1019,22 @@
      fail 'self-test full required inventory count changed'
    [[ "$(awk -F'\t' 'NR>1 && $2=="fuzz"{n++} END{print n+0}' "${OUTPUT_DIR}/steps.tsv")" -eq 8 ]] ||
      fail 'self-test frozen fuzz inventory count changed'
