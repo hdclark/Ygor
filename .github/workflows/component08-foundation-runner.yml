@@ -1,4 +1,4 @@
-name: Component 08 foundation and keys runner
+name: Component 08 through empty registry runner
 
 on:
   schedule:
@@ -8,13 +8,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: component08-foundation-keys
+  group: component08-through-empty
   cancel-in-progress: false
 
 jobs:
   apply-validate-publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
@@ -40,18 +40,18 @@ jobs:
           set -euo pipefail
           cat .github/component08-registry.patch.part-* \
             | base64 --decode | gzip --decompress \
-            > /tmp/component08-foundation-keys.patch
-          echo "806c56d9ccf078f5e71f0cea78e71edc84b76c220477b188c1854876c62bbd5d  /tmp/component08-foundation-keys.patch" \
+            > /tmp/component08-through-empty.patch
+          echo "57ffe23720e59a50fc051f4e03fe9fc55fa2f135329f8dd0c67f4aa5b1314131  /tmp/component08-through-empty.patch" \
             | sha256sum --check --strict
           git apply --check \
             --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-foundation-keys.patch
+            /tmp/component08-through-empty.patch
           git apply --index \
             --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-foundation-keys.patch
+            /tmp/component08-through-empty.patch
           git diff --check --cached
 
-      - name: Configure generated headers
+      - name: Configure strict build
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
@@ -63,21 +63,19 @@ jobs:
             -DWITH_EIGEN=OFF \
             -DWITH_GNU_GSL=OFF
 
-      - name: Run strict focused qualification
+      - name: Build and run focused qualification
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic \
-            -fno-fast-math -frounding-math -fno-associative-math \
-            -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only \
-            -ffp-contract=off -DYGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1 \
-            -Isrc -I/tmp/ygor-component08-build/src \
-            tests/mesh_boolean_bounded/TestIntersectionKeys.cc \
-            src/YgorMeshesBooleanBounded/IntersectionKeys.cc \
-            src/YgorMeshesBooleanBounded/RelationKeys.cc \
-            -o /tmp/ygor_component08_keys
-          /tmp/ygor_component08_keys
+          cmake --build /tmp/ygor-component08-build \
+            --target \
+              ygor_mesh_boolean_intersection_foundation_tests \
+              ygor_mesh_boolean_intersection_empty_tests \
+            --parallel 2
+          ctest --test-dir /tmp/ygor-component08-build \
+            --output-on-failure \
+            -R 'mesh_boolean_bounded_component08_(foundation|empty)'
 
       - name: Commit validated source to PR 90
         if: steps.pending.outputs.run == 'true'
@@ -90,16 +88,17 @@ jobs:
           git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 registry contracts and complete lineage keys (plan 08)'
+          git commit -m 'Implement Component 08 contracts, lineage keys, and empty registry (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component08-foundation-keys-failure
+          name: component08-through-empty-failure
           path: |
-            /tmp/component08-foundation-keys.patch
+            /tmp/component08-through-empty.patch
+            /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
           retention-days: 3
