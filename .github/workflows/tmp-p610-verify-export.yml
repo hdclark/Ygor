@@ -1,31 +1,60 @@
-name: Temporary P6.10 verification source export
+name: Temporary P6.10 self-test and smoke verification
 
 on:
-  push:
-    branches:
-      - boolean_symbolic
-    paths:
-      - '.github/workflows/tmp-p610-verify-export.yml'
   pull_request:
     paths:
       - '.github/workflows/tmp-p610-verify-export.yml'
+
+concurrency:
+  group: tmp-p610-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  export:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Archive exact checkout
-        run: tar --exclude=.git -czf /tmp/ygor-p610-verify.tar.gz .
-      - uses: actions/upload-artifact@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Run driver self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/run_mesh_boolean_p610_campaign.sh
+          scripts/run_mesh_boolean_p610_campaign.sh --self-test
+      - name: Run non-qualifying smoke campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/p610-smoke /tmp/p610-smoke-work
+          scripts/run_mesh_boolean_p610_campaign.sh \
+            --output /tmp/p610-smoke \
+            --work /tmp/p610-smoke-work \
+            --smoke \
+            --jobs 2 \
+            --max-attempts 1 \
+            --timeout-seconds 1800 \
+            --fuzz-cpu-seconds 1 \
+            --fuzz-chunk-seconds 30
+      - name: Assert anomaly-free smoke evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /tmp/p610-smoke/anomalies.tsv
+          test "$(wc -l < /tmp/p610-smoke/anomalies.tsv)" -eq 1
+          awk -F '\t' 'NR==2 {if ($1!="campaign_status" || $2!="non_qualifying_smoke") exit 1; found=1} END{exit !found}' /tmp/p610-smoke/summary.tsv
+          (cd /tmp/p610-smoke && sha256sum -c SHA256SUMS)
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: ygor-p610-verify-source
-          path: /tmp/ygor-p610-verify.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+          name: p610-smoke-verification-evidence
+          path: /tmp/p610-smoke
+          if-no-files-found: warn
+          retention-days: 3
