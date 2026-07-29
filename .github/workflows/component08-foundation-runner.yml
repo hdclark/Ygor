@@ -23,32 +23,40 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Check whether the Component 08 patch remains pending
+      - name: Check whether the Component 08 patches remain pending
         id: pending
         shell: bash
         run: |
-          if compgen -G '.github/component08-registry.patch.part-*' > /dev/null; then
+          if compgen -G '.github/component08-registry.patch.part-*' > /dev/null && \
+             compgen -G '.github/component08-events.patch.part-*' > /dev/null; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify and apply exact patch
+      - name: Verify and apply exact patches
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
           cat .github/component08-registry.patch.part-* \
             | base64 --decode | gzip --decompress \
-            > /tmp/component08-through-events.patch
-          echo "f0d8bda05c47c67c5b7a0609737f5244d32249324fdc1a8219c4be742a590f69  /tmp/component08-through-events.patch" \
+            > /tmp/component08-through-empty.patch
+          echo "57ffe23720e59a50fc051f4e03fe9fc55fa2f135329f8dd0c67f4aa5b1314131  /tmp/component08-through-empty.patch" \
+            | sha256sum --check --strict
+          cat .github/component08-events.patch.part-* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/component08-events.patch
+          echo "73580bcc9975b7dd030b2bd1378be83bfb17b34548ba85b505fb7b8956958230  /tmp/component08-events.patch" \
             | sha256sum --check --strict
           git apply --check \
             --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-through-events.patch
+            /tmp/component08-through-empty.patch
           git apply --index \
             --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-through-events.patch
+            /tmp/component08-through-empty.patch
+          git apply --check /tmp/component08-events.patch
+          git apply --index /tmp/component08-events.patch
           git diff --check --cached
 
       - name: Configure strict build
@@ -84,6 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/component08-registry.patch.part-*
+          rm -f .github/component08-events.patch.part-*
           rm -f .github/workflows/component08-apply.yml
           git add .
           git diff --check --cached
@@ -98,7 +107,8 @@ jobs:
         with:
           name: component08-through-events-failure
           path: |
-            /tmp/component08-through-events.patch
+            /tmp/component08-through-empty.patch
+            /tmp/component08-events.patch
             /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
