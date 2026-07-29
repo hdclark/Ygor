@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: p610-manual-campaign-apply
-  cancel-in-progress: true
+  group: p610-manual-campaign-apply-visible-3
+  cancel-in-progress: false
 
 jobs:
   apply-validate-publish:
