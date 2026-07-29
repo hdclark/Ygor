@@ -55,7 +55,10 @@ campaign:
 ```
 
 Smoke evidence is permanently marked `non_qualifying_smoke` and cannot close
-P6.10.
+P6.10. To remain practical on one workstation, smoke mode builds only the
+P6.10 candidate checker plus representative end-to-end, metamorphic, and fuzz
+targets under current GCC and Clang Debug profiles. The full non-smoke campaign
+continues to build and execute the complete frozen inventory.
 
 ## Run the full campaign
 

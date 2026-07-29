@@ -576,23 +576,31 @@ run_profile() {
     MeshBooleanBenchmark
   )
   if [[ "$SMOKE" -eq 1 ]]; then
-    for target in "${targets[@]}"; do
-      case "$target" in
-        Test_MeshesBooleanPerformanceBaselines|MeshBooleanBenchmark) continue ;;
-      esac
-      smoke_targets+=("$target")
-    done
-    targets=("${smoke_targets[@]}")
+    # Smoke mode is deliberately representative, not exhaustive. Keep it
+    # short enough to validate a host and the restart/evidence path before
+    # committing to the full frozen campaign. Its non-qualifying status
+    # prevents this reduced inventory from becoming qualification evidence.
+    targets=(
+      Test_MeshesBooleanQualificationCandidate
+      Test_MeshesBooleanEndToEnd
+      Test_MeshesBooleanMetamorphic
+      Test_MeshesBooleanFuzz
+    )
   fi
-  register_step "$build_step" contracts "$id" true "build mesh Boolean qualification and benchmark targets"
+  local build_description="build mesh Boolean qualification and benchmark targets"
+  [[ "$SMOKE" -eq 0 ]] || build_description="build focused non-qualifying smoke targets"
+  register_step "$build_step" contracts "$id" true "$build_description"
   run_step "$build_step" infrastructure "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
     cmake --build "$build_dir" --parallel "$JOBS" --target "${targets[@]}" || return 1
 
   register_step "$test_step" contracts "$id" true "run non-fuzz mesh Boolean tests and all P6.2-P6.10 gates"
-  test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
-             --timeout "$STEP_TIMEOUT_SECONDS")
   if [[ "$SMOKE" -eq 1 ]]; then
-    test_args+=(-E '^MeshBoolean\.PerformanceBaselines$')
+    test_args=(ctest --test-dir "$build_dir" --output-on-failure
+               -R '^MeshBoolean\.(QualificationCandidate|EndToEnd|Metamorphic)$'
+               --timeout "$STEP_TIMEOUT_SECONDS")
+  else
+    test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
+               --timeout "$STEP_TIMEOUT_SECONDS")
   fi
   run_step "$test_step" test "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
     env YGOR_BOOLEAN_TEST_TIER=qualification YGOR_BOOLEAN_ARTIFACT_DIR="$artifact_dir" \
