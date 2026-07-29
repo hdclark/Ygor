@@ -1,0 +1,29 @@
+name: P6.10 verification source export
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p610-verify-export.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: boolean_symbolic
+          fetch-depth: 1
+      - name: Archive current branch
+        shell: bash
+        run: tar --exclude=.git -czf /tmp/Ygor-p610-verify.tar.gz .
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ygor-p610-verify-source
+          path: /tmp/Ygor-p610-verify.tar.gz
+          if-no-files-found: error
+          retention-days: 1
