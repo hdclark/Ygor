@@ -1,38 +1,58 @@
-name: Component 08 foundation runner
+name: Component 08 foundation and keys runner
 
 on:
-  pull_request_target:
-    types:
-      - edited
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
-  pull-requests: read
+
+concurrency:
+  group: component08-foundation-keys
+  cancel-in-progress: false
 
 jobs:
-  apply:
-    if: >-
-      github.event.pull_request.number == 90 &&
-      github.event.pull_request.head.ref == 'agent/bounded-manifold-mesh-boolean-plan'
+  apply-validate-publish:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
         with:
+          repository: hdclark/Ygor
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
+      - name: Check whether the Component 08 patch remains pending
+        id: pending
+        shell: bash
+        run: |
+          if compgen -G '.github/component08-registry.patch.part-*' > /dev/null; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Verify and apply exact patch
+        if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/component08-registry.patch.part-* | base64 --decode | gzip --decompress > /tmp/component08-foundation.patch
-          echo "f7f2b67e8edd2be9a833e9f2b1a9eb0925f810b99472aff7117b609d856b7675  /tmp/component08-foundation.patch" | sha256sum --check --strict
-          git apply --check /tmp/component08-foundation.patch
-          git apply --index /tmp/component08-foundation.patch
+          cat .github/component08-registry.patch.part-* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/component08-foundation-keys.patch
+          echo "806c56d9ccf078f5e71f0cea78e71edc84b76c220477b188c1854876c62bbd5d  /tmp/component08-foundation-keys.patch" \
+            | sha256sum --check --strict
+          git apply --check \
+            --exclude='.github/component08-registry.patch.part-00' \
+            /tmp/component08-foundation-keys.patch
+          git apply --index \
+            --exclude='.github/component08-registry.patch.part-00' \
+            /tmp/component08-foundation-keys.patch
+          git diff --check --cached
 
       - name: Configure generated headers
+        if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -44,6 +64,7 @@ jobs:
             -DWITH_GNU_GSL=OFF
 
       - name: Run strict focused qualification
+        if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -53,17 +74,32 @@ jobs:
             -ffp-contract=off -DYGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1 \
             -Isrc -I/tmp/ygor-component08-build/src \
             tests/mesh_boolean_bounded/TestIntersectionKeys.cc \
-            -o /tmp/ygor_component08_foundation
-          /tmp/ygor_component08_foundation
+            src/YgorMeshesBooleanBounded/IntersectionKeys.cc \
+            src/YgorMeshesBooleanBounded/RelationKeys.cc \
+            -o /tmp/ygor_component08_keys
+          /tmp/ygor_component08_keys
 
-      - name: Commit validated foundation
+      - name: Commit validated source to PR 90
+        if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
           rm -f .github/component08-registry.patch.part-*
           rm -f .github/workflows/component08-apply.yml
           git add .
+          git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Add Component 08 registry contract foundation (plan 08)'
+          git commit -m 'Implement Component 08 registry contracts and complete lineage keys (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component08-foundation-keys-failure
+          path: |
+            /tmp/component08-foundation-keys.patch
+            /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
+          if-no-files-found: ignore
+          retention-days: 3
