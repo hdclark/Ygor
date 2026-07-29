@@ -6,6 +6,9 @@ on:
       - boolean_symbolic
     paths:
       - '.github/workflows/tmp-p610-verify-export.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/tmp-p610-verify-export.yml'
 
 permissions:
   contents: read
