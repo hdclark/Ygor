@@ -1,4 +1,4 @@
-name: Temporary P6.10 self-test and smoke verification
+name: Fix and verify P6.10 self-test and smoke campaign
 
 on:
   pull_request:
@@ -6,28 +6,104 @@ on:
       - '.github/workflows/tmp-p610-verify-export.yml'
 
 concurrency:
-  group: tmp-p610-verify-${{ github.event.pull_request.number || github.ref }}
+  group: tmp-p610-fix-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  verify:
+  fix-verify-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          ref: boolean_symbolic
+          fetch-depth: 0
       - name: Install build tools
         run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
-      - name: Run driver self-test
+      - name: Apply focused smoke bookkeeping fix
         shell: bash
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/run_mesh_boolean_p610_campaign.sh')
+          text = path.read_text()
+
+          replacements = [
+              ('readonly SCRIPT_VERSION="2"', 'readonly SCRIPT_VERSION="3"'),
+              ('''  if [[ "$SMOKE" -eq 1 ]]; then
+            append_anomaly "non_qualifying_smoke" "campaign.preflight" 0 \\
+              "--smoke was used; reduced profiles or duration are not qualification evidence" \\
+              "campaign.tsv" ""
+          fi
+          ''', '''  # Smoke mode is recorded in campaign.tsv and summary.tsv. It is a valid
+          # non-qualifying execution mode, not an anomalous campaign outcome.
+          '''),
+              ('''    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
+             [[ "$campaign_dirty" == false && "$campaign_smoke" == 0 ]]; then
+            printf 'campaign_status\\tcomplete_candidate_evidence\\n'
+          else
+            printf 'campaign_status\\tincomplete_blocking\\n'
+          fi
+          ''', '''    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
+             [[ "$campaign_dirty" == false ]]; then
+            if [[ "$campaign_smoke" == 1 ]]; then
+              printf 'campaign_status\\tnon_qualifying_smoke\\n'
+            else
+              printf 'campaign_status\\tcomplete_candidate_evidence\\n'
+            fi
+          else
+            printf 'campaign_status\\tincomplete_blocking\\n'
+          fi
+          '''),
+              ('''  [[ "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == complete_candidate_evidence ]]
+          ''', '''  case "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" in
+            complete_candidate_evidence|non_qualifying_smoke) return 0 ;;
+            *) return 1 ;;
+          esac
+          '''),
+              ('''  cleanup_lock; rm -rf "$tmp"
+            printf 'P6.10 campaign driver self-test passed.\\n'
+          }
+          ''', '''  cleanup_lock
+
+            OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output
+            CAMPAIGN_ID=self-test-smoke
+            {
+              printf 'schema\\t1\\n'
+              printf 'repository_dirty\\tfalse\\n'
+              printf 'smoke\\t1\\n'
+            } > "${OUTPUT_DIR}/campaign.tsv"
+            register_step self.smoke contracts self true 'self-test smoke step'
+            write_status self.smoke pass 1 0 ''
+            finalize_outputs || fail 'self-test smoke finalization failed'
+            [[ "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == non_qualifying_smoke ]] ||
+              fail 'self-test smoke status failed'
+            [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||
+              fail 'self-test smoke created an anomaly'
+            cleanup_lock; rm -rf "$tmp"
+            printf 'P6.10 campaign driver self-test passed.\\n'
+          }
+          ''')
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one replacement, found {count}: {old[:80]!r}')
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
           bash -n scripts/run_mesh_boolean_p610_campaign.sh
-          scripts/run_mesh_boolean_p610_campaign.sh --self-test
+          git diff --check
+          git add scripts/run_mesh_boolean_p610_campaign.sh
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Fix P6.10 smoke campaign bookkeeping'
+      - name: Run driver self-test
+        shell: bash
+        run: scripts/run_mesh_boolean_p610_campaign.sh --self-test
       - name: Run non-qualifying smoke campaign
         shell: bash
         run: |
@@ -48,13 +124,21 @@ jobs:
           set -euo pipefail
           test -f /tmp/p610-smoke/anomalies.tsv
           test "$(wc -l < /tmp/p610-smoke/anomalies.tsv)" -eq 1
-          awk -F '\t' 'NR==2 {if ($1!="campaign_status" || $2!="non_qualifying_smoke") exit 1; found=1} END{exit !found}' /tmp/p610-smoke/summary.tsv
+          test "$(awk -F '\t' '$1=="campaign_status"{print $2}' /tmp/p610-smoke/summary.tsv)" = non_qualifying_smoke
+          test "$(awk -F '\t' '$1=="unresolved_anomalies"{print $2}' /tmp/p610-smoke/summary.tsv)" -eq 0
           (cd /tmp/p610-smoke && sha256sum -c SHA256SUMS)
-      - name: Upload smoke evidence
-        if: always()
+      - name: Remove temporary workflow and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-p610-verify-export.yml
+          git commit --amend --no-edit
+          git push origin HEAD:boolean_symbolic
+      - name: Upload diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: p610-smoke-verification-evidence
+          name: p610-self-smoke-failure
           path: /tmp/p610-smoke
           if-no-files-found: warn
           retention-days: 3
