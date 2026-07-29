@@ -29,71 +29,98 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+
           path = Path('scripts/run_mesh_boolean_p610_campaign.sh')
-          text = path.read_text()
+          lines = path.read_text().splitlines(keepends=True)
 
-          replacements = [
-              ('readonly SCRIPT_VERSION="2"', 'readonly SCRIPT_VERSION="3"'),
-              ('''  if [[ "$SMOKE" -eq 1 ]]; then
-            append_anomaly "non_qualifying_smoke" "campaign.preflight" 0 \\
-              "--smoke was used; reduced profiles or duration are not qualification evidence" \\
-              "campaign.tsv" ""
-          fi
-          ''', '''  # Smoke mode is recorded in campaign.tsv and summary.tsv. It is a valid
-          # non-qualifying execution mode, not an anomalous campaign outcome.
-          '''),
-              ('''    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
-             [[ "$campaign_dirty" == false && "$campaign_smoke" == 0 ]]; then
-            printf 'campaign_status\\tcomplete_candidate_evidence\\n'
-          else
-            printf 'campaign_status\\tincomplete_blocking\\n'
-          fi
-          ''', '''    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
-             [[ "$campaign_dirty" == false ]]; then
-            if [[ "$campaign_smoke" == 1 ]]; then
-              printf 'campaign_status\\tnon_qualifying_smoke\\n'
-            else
-              printf 'campaign_status\\tcomplete_candidate_evidence\\n'
-            fi
-          else
-            printf 'campaign_status\\tincomplete_blocking\\n'
-          fi
-          '''),
-              ('''  [[ "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == complete_candidate_evidence ]]
-          ''', '''  case "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" in
-            complete_candidate_evidence|non_qualifying_smoke) return 0 ;;
-            *) return 1 ;;
-          esac
-          '''),
-              ('''  cleanup_lock; rm -rf "$tmp"
-            printf 'P6.10 campaign driver self-test passed.\\n'
-          }
-          ''', '''  cleanup_lock
+          version_matches = [i for i, line in enumerate(lines) if line == 'readonly SCRIPT_VERSION="2"\n']
+          if len(version_matches) != 1:
+              raise SystemExit(f'expected one driver version line, found {len(version_matches)}')
+          lines[version_matches[0]] = 'readonly SCRIPT_VERSION="3"\n'
 
-            OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output
-            CAMPAIGN_ID=self-test-smoke
-            {
-              printf 'schema\\t1\\n'
-              printf 'repository_dirty\\tfalse\\n'
-              printf 'smoke\\t1\\n'
-            } > "${OUTPUT_DIR}/campaign.tsv"
-            register_step self.smoke contracts self true 'self-test smoke step'
-            write_status self.smoke pass 1 0 ''
-            finalize_outputs || fail 'self-test smoke finalization failed'
-            [[ "$(awk -F'\\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" == non_qualifying_smoke ]] ||
-              fail 'self-test smoke status failed'
-            [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||
-              fail 'self-test smoke created an anomaly'
-            cleanup_lock; rm -rf "$tmp"
-            printf 'P6.10 campaign driver self-test passed.\\n'
-          }
-          ''')
-          for old, new in replacements:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'expected one replacement, found {count}: {old[:80]!r}')
-              text = text.replace(old, new)
-          path.write_text(text)
+          smoke_starts = [
+              i for i, line in enumerate(lines)
+              if line.strip() == 'if [[ "$SMOKE" -eq 1 ]]; then'
+              and 'non_qualifying_smoke' in ''.join(lines[i:i + 7])
+          ]
+          if len(smoke_starts) != 1:
+              raise SystemExit(f'expected one smoke anomaly block, found {len(smoke_starts)}')
+          start = smoke_starts[0]
+          end = next((i for i in range(start, min(start + 8, len(lines))) if lines[i].strip() == 'fi'), None)
+          if end is None:
+              raise SystemExit('smoke anomaly block has no closing fi')
+          lines[start:end + 1] = [
+              '  # Smoke mode is recorded in campaign.tsv and summary.tsv. It is a valid\n',
+              '  # non-qualifying execution mode, not an anomalous campaign outcome.\n',
+          ]
+
+          final_starts = [
+              i for i, line in enumerate(lines)
+              if line.strip().startswith('if (( required > 0 && passed == required')
+          ]
+          if len(final_starts) != 1:
+              raise SystemExit(f'expected one final status block, found {len(final_starts)}')
+          start = final_starts[0]
+          end = next((i for i in range(start, min(start + 12, len(lines))) if lines[i].strip() == 'fi'), None)
+          if end is None:
+              raise SystemExit('final status block has no closing fi')
+          lines[start:end + 1] = [
+              '    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&\n',
+              '       [[ "$campaign_dirty" == false ]]; then\n',
+              '      if [[ "$campaign_smoke" == 1 ]]; then\n',
+              "        printf 'campaign_status\\tnon_qualifying_smoke\\n'\n",
+              '      else\n',
+              "        printf 'campaign_status\\tcomplete_candidate_evidence\\n'\n",
+              '      fi\n',
+              '    else\n',
+              "      printf 'campaign_status\\tincomplete_blocking\\n'\n",
+              '    fi\n',
+          ]
+
+          return_matches = [
+              i for i, line in enumerate(lines)
+              if '== complete_candidate_evidence ]]' in line
+          ]
+          if len(return_matches) != 1:
+              raise SystemExit(f'expected one final return expression, found {len(return_matches)}')
+          i = return_matches[0]
+          lines[i:i + 1] = [
+              '  case "$(awk -F\'\\t\' \'$1=="campaign_status"{print $2}\' "${OUTPUT_DIR}/summary.tsv")" in\n',
+              '    complete_candidate_evidence|non_qualifying_smoke) return 0 ;;\n',
+              '    *) return 1 ;;\n',
+              '  esac\n',
+          ]
+
+          self_start = next((i for i, line in enumerate(lines) if line.startswith('run_self_test()')), None)
+          if self_start is None:
+              raise SystemExit('run_self_test not found')
+          cleanup_matches = [
+              i for i in range(self_start, len(lines))
+              if lines[i].strip() == 'cleanup_lock; rm -rf "$tmp"'
+          ]
+          if len(cleanup_matches) != 1:
+              raise SystemExit(f'expected one self-test cleanup line, found {len(cleanup_matches)}')
+          i = cleanup_matches[0]
+          lines[i:i] = [
+              '  cleanup_lock\n',
+              '\n',
+              '  OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output\n',
+              '  CAMPAIGN_ID=self-test-smoke\n',
+              '  {\n',
+              "    printf 'schema\\t1\\n'\n",
+              "    printf 'repository_dirty\\tfalse\\n'\n",
+              "    printf 'smoke\\t1\\n'\n",
+              '  } > "${OUTPUT_DIR}/campaign.tsv"\n',
+              "  register_step self.smoke contracts self true 'self-test smoke step'\n",
+              "  write_status self.smoke pass 1 0 ''\n",
+              "  finalize_outputs || fail 'self-test smoke finalization failed'\n",
+              '  [[ "$(awk -F\'\\t\' \'$1=="campaign_status"{print $2}\' "${OUTPUT_DIR}/summary.tsv")" == non_qualifying_smoke ]] ||\n',
+              "    fail 'self-test smoke status failed'\n",
+              '  [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||\n',
+              "    fail 'self-test smoke created an anomaly'\n",
+          ]
+
+          path.write_text(''.join(lines))
           PY
           bash -n scripts/run_mesh_boolean_p610_campaign.sh
           git diff --check
