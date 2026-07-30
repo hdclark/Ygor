@@ -1,4 +1,4 @@
-name: Component 08 source-edge arrangements publisher
+name: Component 08 current workspace export
 
 on:
   workflow_run:
@@ -10,17 +10,17 @@ on:
     - cron: '*/5 * * * *'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: component08-source-edge-publisher
-  cancel-in-progress: false
+  group: component08-current-workspace-export
+  cancel-in-progress: true
 
 jobs:
-  apply-validate-publish:
+  export:
     if: github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
@@ -29,81 +29,20 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Check pending source-edge patch
-        id: pending
-        shell: bash
-        run: |
-          run=true
-          for part in 00 01 02 03 04; do
-            test -f ".github/component08-source-edge.patch.part-${part}" || run=false
-          done
-          echo "run=${run}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify and apply exact source-edge patch
-        if: steps.pending.outputs.run == 'true'
+      - name: Package exact checkout
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/component08-source-edge.patch.part-* \
-            | base64 --decode | gzip --decompress \
-            > /tmp/component08-source-edge.patch
-          echo "d9192c74f3b643a34549016a49ef2d168f6835b767dc5590098fe9feaa8399d7  /tmp/component08-source-edge.patch" \
-            | sha256sum --check --strict
-          git apply --check /tmp/component08-source-edge.patch
-          git apply --index /tmp/component08-source-edge.patch
-          git diff --check --cached
+          git rev-parse HEAD | tee /tmp/component08-head.txt
+          test "$(cat /tmp/component08-head.txt)" = "$(git rev-parse refs/remotes/origin/agent/bounded-manifold-mesh-boolean-plan)"
+          tar --exclude=.git --exclude=build -czf /tmp/ygor-component08-current.tar.gz .
 
-      - name: Configure strict build
-        if: steps.pending.outputs.run == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S . -B /tmp/ygor-component08-build \
-            -DBUILD_TESTING=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DMEMORY_CONSTRAINED_BUILD=ON \
-            -DWITH_EIGEN=OFF \
-            -DWITH_GNU_GSL=OFF
-
-      - name: Build and run Component 08 qualification
-        if: steps.pending.outputs.run == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --build /tmp/ygor-component08-build \
-            --target \
-              ygor_mesh_boolean_intersection_key_tests \
-              ygor_mesh_boolean_intersection_interning_tests \
-              ygor_mesh_boolean_intersection_preflight_tests \
-              ygor_mesh_boolean_intersection_coordinate_tests \
-              ygor_mesh_boolean_intersection_incidence_tests \
-              ygor_mesh_boolean_source_edge_arrangement_tests \
-            --parallel 2
-          ctest --test-dir /tmp/ygor-component08-build \
-            --output-on-failure \
-            -R 'mesh_boolean_bounded_component08_(keys|interning|preflight|coordinates|incidence|source_edge_arrangements)'
-
-      - name: Commit validated source-edge arrangements to PR 90
-        if: steps.pending.outputs.run == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f .github/component08-source-edge.patch.part-*
-          git add .
-          git diff --check --cached
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 source-edge arrangements (plan 08)'
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
-
-      - name: Upload failure diagnostics
-        if: failure()
+      - name: Upload exact checkout
         uses: actions/upload-artifact@v4
         with:
-          name: component08-source-edge-failure
+          name: ygor-component08-current-workspace
           path: |
-            /tmp/component08-source-edge.patch
-            /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
-            /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
-          if-no-files-found: ignore
-          retention-days: 3
+            /tmp/ygor-component08-current.tar.gz
+            /tmp/component08-head.txt
+          if-no-files-found: error
+          retention-days: 1
