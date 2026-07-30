@@ -33,12 +33,11 @@ jobs:
         id: pending
         shell: bash
         run: |
-          if test -f .github/component08-incidence.patch.part-00 && \
-             test -f .github/component08-incidence.patch.part-01; then
-            echo 'run=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'run=false' >> "$GITHUB_OUTPUT"
-          fi
+          run=true
+          for part in 00 01 02 03; do
+            test -f ".github/component08-incidence.patch.part-${part}" || run=false
+          done
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
 
       - name: Verify and apply exact incidence patch
         if: steps.pending.outputs.run == 'true'
