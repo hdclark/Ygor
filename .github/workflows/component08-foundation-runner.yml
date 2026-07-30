@@ -1,4 +1,4 @@
-name: Component 08 through canonical seed bindings runner
+name: Component 08 direct-source foundation runner
 
 on:
   schedule:
@@ -8,13 +8,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: component08-through-bindings
+  group: component08-direct-source-foundation
   cancel-in-progress: false
 
 jobs:
   apply-validate-publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
@@ -23,82 +23,62 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Check whether the Component 08 patches remain pending
+      - name: Check pending payload
         id: pending
         shell: bash
         run: |
-          if compgen -G '.github/component08-registry.patch.part-*' > /dev/null && \
-             compgen -G '.github/component08-events.patch.part-*' > /dev/null && \
-             compgen -G '.github/component08-binding-order.patch.part-*' > /dev/null; then
+          if test -f .github/component08-foundation-source.patch.b64; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify and apply exact patches
+      - name: Verify and apply exact source patch
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/component08-registry.patch.part-* \
-            | base64 --decode | gzip --decompress \
-            > /tmp/component08-through-empty.patch
-          echo "57ffe23720e59a50fc051f4e03fe9fc55fa2f135329f8dd0c67f4aa5b1314131  /tmp/component08-through-empty.patch" \
+          base64 --decode .github/component08-foundation-source.patch.b64 \
+            | gzip --decompress > /tmp/component08-foundation-source.patch
+          echo "b51d981f7c0054b937507f75344ac4ab87b4dd4799cde288c9d7fb032ad4f10d  /tmp/component08-foundation-source.patch" \
             | sha256sum --check --strict
-          cat .github/component08-events.patch.part-* \
-            | base64 --decode | gzip --decompress \
-            > /tmp/component08-events.patch
-          echo "73580bcc9975b7dd030b2bd1378be83bfb17b34548ba85b505fb7b8956958230  /tmp/component08-events.patch" \
-            | sha256sum --check --strict
-          cat .github/component08-binding-order.patch.part-* \
-            | base64 --decode | gzip --decompress \
-            > /tmp/component08-binding-order.patch
-          echo "d29ab6b4116f93a79c9b43c518d58ca411bfdd835ea87a7aa91de4b3203f2805  /tmp/component08-binding-order.patch" \
-            | sha256sum --check --strict
-          git apply --check \
-            --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-through-empty.patch
-          git apply --index \
-            --exclude='.github/component08-registry.patch.part-00' \
-            /tmp/component08-through-empty.patch
-          git apply --check /tmp/component08-events.patch
-          git apply --index /tmp/component08-events.patch
-          git apply --check /tmp/component08-binding-order.patch
-          git apply --index /tmp/component08-binding-order.patch
+          git apply --check /tmp/component08-foundation-source.patch
+          git apply --index /tmp/component08-foundation-source.patch
           git diff --check --cached
 
-      - name: Configure strict build
+      - name: Configure generated headers
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
           cmake -S . -B /tmp/ygor-component08-build \
-            -DBUILD_TESTING=ON \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
             -DMEMORY_CONSTRAINED_BUILD=ON \
             -DWITH_EIGEN=OFF \
             -DWITH_GNU_GSL=OFF
 
-      - name: Build and run focused qualification
+      - name: Run strict key qualification
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cmake --build /tmp/ygor-component08-build \
-            --target \
-              ygor_mesh_boolean_intersection_foundation_tests \
-              ygor_mesh_boolean_intersection_empty_tests \
-              ygor_mesh_boolean_intersection_event_tests \
-            --parallel 2
-          ctest --test-dir /tmp/ygor-component08-build \
-            --output-on-failure \
-            -R 'mesh_boolean_bounded_component08_(foundation|empty|events)'
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic \
+            -fno-fast-math -frounding-math -fno-associative-math \
+            -fno-reciprocal-math -fsigned-zeros -fno-finite-math-only \
+            -ffp-contract=off -DYGOR_MESH_BOOLEAN_STRICT_FP_BUILD=1 \
+            -Isrc -I/tmp/ygor-component08-build/src \
+            src/YgorMeshesBooleanBounded/RelationKeys.cc \
+            src/YgorMeshesBooleanBounded/IntersectionKeys.cc \
+            tests/mesh_boolean_bounded/TestIntersectionKeys.cc \
+            -o /tmp/ygor-component08-keys
+          /tmp/ygor-component08-keys
 
-      - name: Commit validated source to PR 90
+      - name: Commit validated foundation
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          rm -f .github/component08-foundation-source.patch.b64
           rm -f .github/component08-registry.patch.part-*
           rm -f .github/component08-events.patch.part-*
           rm -f .github/component08-binding-order.patch.part-*
@@ -107,19 +87,16 @@ jobs:
           git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 through canonical seed bindings (plan 08)'
+          git commit -m 'Add Component 08 registry contract foundation (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component08-through-bindings-failure
+          name: component08-direct-source-foundation-failure
           path: |
-            /tmp/component08-through-empty.patch
-            /tmp/component08-events.patch
-            /tmp/component08-binding-order.patch
-            /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
+            /tmp/component08-foundation-source.patch
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
           retention-days: 3
