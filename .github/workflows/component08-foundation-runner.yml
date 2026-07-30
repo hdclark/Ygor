@@ -10,7 +10,7 @@ on:
     - cron: '*/5 * * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: component08-current-workspace-export
@@ -46,3 +46,18 @@ jobs:
             /tmp/component08-head.txt
           if-no-files-found: error
           retention-days: 1
+
+      - name: Publish retrieval marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .github/component08-current-workspace-run.txt <<MARKER
+          run_id=${GITHUB_RUN_ID}
+          artifact=ygor-component08-current-workspace
+          checkout_head=$(cat /tmp/component08-head.txt)
+          MARKER
+          git add .github/component08-current-workspace-run.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Record Component 08 workspace export run'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
