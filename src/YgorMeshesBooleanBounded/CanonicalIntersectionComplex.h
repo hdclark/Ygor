@@ -130,10 +130,10 @@ struct source_edge_membership_record final {
   source_edge_membership_key key{};
   event_occurrence_id occurrence{0};
   event_id event{0};
-  relation_construction_id parameter{0};
+  relation_interval_evidence_id parameter{0};
   intersection_range contributions{};
   intersection_range incident_facet_uses{};
-  ordering_certificate_id ordering_certificate{0};
+  ordering_certificate_id ordering_certificate{intersection_invalid_ordinal};
   bool exact_equal_eligible = false;
   bool cluster_eligible = false;
   bool internal_diagonal_discovery = false;
@@ -177,7 +177,7 @@ struct source_edge_cluster_record final {
   intersection_range contributions{};
   source_edge_cluster_id predecessor{intersection_invalid_ordinal};
   source_edge_cluster_id successor{intersection_invalid_ordinal};
-  ordering_certificate_id ordering_certificate{0};
+  ordering_certificate_id ordering_certificate{intersection_invalid_ordinal};
   bool shared_output_coordinate = false;
   bool separate_output_occurrences = false;
   std::uint16_t schema_version = contract_versions::intersection_cluster_schema;
@@ -187,7 +187,10 @@ struct source_edge_interval_record final {
   source_edge_interval_id id{0};
   source_edge_sequence_id sequence{0};
   source_edge_interval_key key{};
-  relation_construction_id parameter_interval{0};
+  relation_interval_evidence_id left_parameter{intersection_invalid_ordinal};
+  relation_interval_evidence_id right_parameter{intersection_invalid_ordinal};
+  intersection_interval_length length_disposition =
+      intersection_interval_length::definitely_positive;
   std::int32_t left_crossing_delta = 0;
   std::int32_t right_crossing_delta = 0;
   std::int32_t accumulated_crossing = 0;
@@ -225,9 +228,9 @@ struct carrier_membership_record final {
   transverse_carrier_id carrier{0};
   event_occurrence_id occurrence{0};
   event_id event{0};
-  relation_construction_id parameter{0};
+  relation_interval_evidence_id parameter{0};
   std::uint64_t relation_lineage = 0;
-  ordering_certificate_id ordering_certificate{0};
+  ordering_certificate_id ordering_certificate{intersection_invalid_ordinal};
   std::uint16_t schema_version =
       contract_versions::intersection_carrier_membership_schema;
   std::uint16_t reserved16 = 0;
@@ -243,7 +246,7 @@ struct carrier_cluster_record final {
   intersection_range membership_members{};
   carrier_cluster_id predecessor{intersection_invalid_ordinal};
   carrier_cluster_id successor{intersection_invalid_ordinal};
-  ordering_certificate_id ordering_certificate{0};
+  ordering_certificate_id ordering_certificate{intersection_invalid_ordinal};
   bool shared_output_coordinate = false;
   bool separate_output_occurrences = false;
   std::uint16_t schema_version = contract_versions::intersection_cluster_schema;
@@ -370,8 +373,8 @@ struct ordering_certificate_record final {
   ordering_certificate_id id{0};
   intersection_order_disposition disposition =
       intersection_order_disposition::invalid;
-  relation_construction_id first_parameter{0};
-  relation_construction_id second_parameter{0};
+  relation_interval_evidence_id first_parameter{intersection_invalid_ordinal};
+  relation_interval_evidence_id second_parameter{intersection_invalid_ordinal};
   std::uint64_t exact_evidence_lineage = 0;
   std::uint64_t comparison_evidence_lineage = 0;
   bool topology_safe = false;

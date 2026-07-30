@@ -150,7 +150,7 @@ void test_source_direction_involution() {
       feature(operand_id::a, relation_feature_kind::source_edge, 3);
   membership.occurrence = occurrence_key();
   membership.role = intersection_membership_role::overlap_start;
-  membership.parameter_construction = relation_construction_id(8);
+  membership.parameter_evidence = relation_interval_evidence_id(8);
   membership.parameter_lineage = 10;
   membership.relation_lineage = 12;
   membership.overlap_lineage = 14;

@@ -190,7 +190,9 @@ bool valid_source_edge_membership_key(
   return valid_relation_feature_key(key.source_edge) &&
          key.source_edge.kind == relation_feature_kind::source_edge &&
          valid_intersection_occurrence_key(key.occurrence) &&
-         enum_between(key.role, 1, 5) && key.parameter_lineage != 0 &&
+         enum_between(key.role, 1, 5) &&
+         key.parameter_evidence.ordinal() != intersection_invalid_ordinal &&
+         key.parameter_lineage != 0 &&
          key.relation_lineage != 0 && enum_between(key.facet_use_role, 1, 4) &&
          key.schema_version ==
              contract_versions::intersection_membership_key_schema &&
@@ -431,7 +433,7 @@ void encode_source_edge_membership_key(
   encode_relation_feature_key(writer, key.source_edge);
   encode_intersection_occurrence_key(writer, key.occurrence);
   writer.u8(static_cast<std::uint8_t>(key.role));
-  writer.u64(key.parameter_construction.ordinal());
+  writer.u64(key.parameter_evidence.ordinal());
   writer.u64(key.parameter_lineage);
   writer.u64(key.relation_lineage);
   writer.u64(key.overlap_lineage);

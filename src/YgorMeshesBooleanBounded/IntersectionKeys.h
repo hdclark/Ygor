@@ -195,7 +195,7 @@ struct source_edge_membership_key final {
   relation_feature_key source_edge{};
   intersection_occurrence_key occurrence{};
   intersection_membership_role role = intersection_membership_role::interior;
-  relation_construction_id parameter_construction{0};
+  relation_interval_evidence_id parameter_evidence{0};
   std::uint64_t parameter_lineage = 0;
   std::uint64_t relation_lineage = 0;
   std::uint64_t overlap_lineage = 0;
@@ -207,11 +207,11 @@ struct source_edge_membership_key final {
   friend bool operator<(const source_edge_membership_key &a,
                         const source_edge_membership_key &b) noexcept {
     return std::tie(a.source_edge, a.occurrence, a.role,
-                    a.parameter_construction, a.parameter_lineage,
+                    a.parameter_evidence, a.parameter_lineage,
                     a.relation_lineage, a.overlap_lineage,
                     a.facet_use_role, a.schema_version, a.reserved) <
            std::tie(b.source_edge, b.occurrence, b.role,
-                    b.parameter_construction, b.parameter_lineage,
+                    b.parameter_evidence, b.parameter_lineage,
                     b.relation_lineage, b.overlap_lineage,
                     b.facet_use_role, b.schema_version, b.reserved);
   }
