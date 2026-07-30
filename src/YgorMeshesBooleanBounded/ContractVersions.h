@@ -177,6 +177,54 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_codec = 12;
     static constexpr std::uint16_t relation_verifier = 12;
 
+    // Component 08 canonical intersection-event registry.
+    static constexpr std::uint16_t intersection_artifact_schema = 1;
+    static constexpr std::uint16_t intersection_provider = 1;
+    static constexpr std::uint16_t intersection_semantic_policy = 1;
+    static constexpr std::uint16_t intersection_occurrence_policy = 1;
+    static constexpr std::uint16_t intersection_default_occurrence_policy = 1;
+    static constexpr std::uint16_t intersection_event_key_schema = 1;
+    static constexpr std::uint16_t intersection_occurrence_key_schema = 1;
+    static constexpr std::uint16_t intersection_membership_key_schema = 1;
+    static constexpr std::uint16_t intersection_carrier_key_schema = 1;
+    static constexpr std::uint16_t intersection_cluster_key_schema = 1;
+    static constexpr std::uint16_t intersection_interval_key_schema = 1;
+    static constexpr std::uint16_t intersection_descriptor_key_schema = 1;
+    static constexpr std::uint16_t intersection_event_schema = 1;
+    static constexpr std::uint16_t intersection_occurrence_schema = 1;
+    static constexpr std::uint16_t intersection_seed_binding_schema = 1;
+    static constexpr std::uint16_t intersection_incidence_schema = 1;
+    static constexpr std::uint16_t intersection_source_edge_membership_schema = 1;
+    static constexpr std::uint16_t intersection_source_edge_sequence_schema = 1;
+    static constexpr std::uint16_t intersection_source_edge_interval_schema = 1;
+    static constexpr std::uint16_t intersection_carrier_schema = 1;
+    static constexpr std::uint16_t intersection_carrier_membership_schema = 1;
+    static constexpr std::uint16_t intersection_cluster_schema = 1;
+    static constexpr std::uint16_t intersection_overlap_schema = 1;
+    static constexpr std::uint16_t intersection_aggregate_schema = 1;
+    static constexpr std::uint16_t intersection_descriptor_schema = 1;
+    static constexpr std::uint16_t intersection_source_edge_orientation_policy = 1;
+    static constexpr std::uint16_t intersection_endpoint_sentinel_policy = 1;
+    static constexpr std::uint16_t intersection_bounded_ordering_policy = 1;
+    static constexpr std::uint16_t intersection_cluster_eligibility_policy = 1;
+    static constexpr std::uint16_t intersection_transverse_carrier_policy = 1;
+    static constexpr std::uint16_t intersection_coplanar_support_policy = 1;
+    static constexpr std::uint16_t intersection_collinear_overlap_policy = 1;
+    static constexpr std::uint16_t intersection_region_incidence_policy = 1;
+    static constexpr std::uint16_t intersection_aggregation_policy = 1;
+    static constexpr std::uint16_t intersection_member_retention_policy = 1;
+    static constexpr std::uint16_t intersection_internal_diagonal_policy = 1;
+    static constexpr std::uint16_t intersection_source_facet_reconciliation_policy = 1;
+    static constexpr std::uint16_t intersection_canonical_order_policy = 1;
+    static constexpr std::uint16_t intersection_partition_policy = 1;
+    static constexpr std::uint16_t intersection_section_digest_layout = 1;
+    static constexpr std::uint16_t intersection_replay_schema = 1;
+    static constexpr std::uint16_t intersection_diagnostic_schema = 1;
+    static constexpr std::uint16_t intersection_codec = 1;
+    static constexpr std::uint16_t intersection_verifier = 1;
+    static constexpr std::uint16_t intersection_exhaustive_evidence_schema = 1;
+    static constexpr std::uint16_t intersection_cancellation_observer = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -188,7 +236,7 @@ enum class stage_id : std::uint16_t {
     execution_service = 22, input_validation_a = 23, input_validation_b = 24,
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
-    broad_phase = 29, relation_kernel = 30,
+    broad_phase = 29, relation_kernel = 30, intersection_registry = 31,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

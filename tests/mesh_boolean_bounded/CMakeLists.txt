@@ -211,3 +211,42 @@ target_link_libraries(ygor_mesh_boolean_coplanar_overlay_tests PRIVATE
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_coplanar_overlay_tests)
 add_test(NAME mesh_boolean_bounded_component07_coplanar_overlay
     COMMAND ygor_mesh_boolean_coplanar_overlay_tests)
+
+add_executable(ygor_mesh_boolean_intersection_key_tests
+    TestIntersectionKeys.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_intersection_key_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_intersection_key_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_key_tests)
+add_test(NAME mesh_boolean_bounded_component08_keys
+    COMMAND ygor_mesh_boolean_intersection_key_tests)
+
+add_executable(ygor_mesh_boolean_intersection_interning_tests
+    TestEventInterning.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_link_libraries(ygor_mesh_boolean_intersection_interning_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_interning_tests)
+add_test(NAME mesh_boolean_bounded_component08_interning
+    COMMAND ygor_mesh_boolean_intersection_interning_tests)
+
+add_executable(ygor_mesh_boolean_intersection_preflight_tests
+    TestIntersectionPreflight.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_link_libraries(ygor_mesh_boolean_intersection_preflight_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_preflight_tests)
+add_test(NAME mesh_boolean_bounded_component08_preflight
+    COMMAND ygor_mesh_boolean_intersection_preflight_tests)
+
+add_executable(ygor_mesh_boolean_intersection_coordinate_tests
+    TestEventCoordinates.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_link_libraries(ygor_mesh_boolean_intersection_coordinate_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_coordinate_tests)
+add_test(NAME mesh_boolean_bounded_component08_coordinates
+    COMMAND ygor_mesh_boolean_intersection_coordinate_tests)

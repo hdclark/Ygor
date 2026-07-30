@@ -72,6 +72,11 @@ add_library(ygor_mesh_boolean_bounded_strict
     BroadPhaseCodec.cc
     BroadPhaseVerifier.cc
     RelationKeys.cc
+    IntersectionKeys.cc
+    IntersectionPreflight.cc
+    EventNormalization.cc
+    EventInterning.cc
+    EventCoordinates.cc
     RelationPreflight.cc
     RelationRequestGraph.cc
     PrimitiveRelationKernel.cc

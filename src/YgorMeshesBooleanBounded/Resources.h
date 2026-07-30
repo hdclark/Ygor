@@ -30,7 +30,11 @@ enum class resource_kind : std::uint8_t {
     precision_codec_bytes=42,precision_verifier_work=43,
     relation_requests=44,relation_dependencies=45,relation_consumers=46,
     relation_constructions=47,relation_overlays=48,relation_interval_partitions=49,
-    relation_event_incidence=50,count=51
+    relation_event_incidence=50,intersection_occurrences=51,intersection_incidence=52,
+    intersection_memberships=53,intersection_clusters=54,intersection_intervals=55,
+    intersection_carriers=56,intersection_overlaps=57,intersection_aggregates=58,
+    intersection_descriptors=59,intersection_order_certificates=60,
+    intersection_verifier_work=61,count=62
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
