@@ -1,4 +1,4 @@
-name: Component 08 reciprocal incidence publisher
+name: Component 08 source-edge arrangements publisher
 
 on:
   workflow_run:
@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: component08-incidence-publisher
+  group: component08-source-edge-publisher
   cancel-in-progress: false
 
 jobs:
@@ -29,28 +29,28 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Check pending incidence patch
+      - name: Check pending source-edge patch
         id: pending
         shell: bash
         run: |
           run=true
-          for part in 00 01 02 03; do
-            test -f ".github/component08-incidence.patch.part-${part}" || run=false
+          for part in 00 01 02 03 04; do
+            test -f ".github/component08-source-edge.patch.part-${part}" || run=false
           done
           echo "run=${run}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify and apply exact incidence patch
+      - name: Verify and apply exact source-edge patch
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/component08-incidence.patch.part-* \
+          cat .github/component08-source-edge.patch.part-* \
             | base64 --decode | gzip --decompress \
-            > /tmp/component08-incidence.patch
-          echo "0d318228876b3a18c324e4367bafb757a3fe30937730fb2a9bc8a37dfdadc81e  /tmp/component08-incidence.patch" \
+            > /tmp/component08-source-edge.patch
+          echo "d9192c74f3b643a34549016a49ef2d168f6835b767dc5590098fe9feaa8399d7  /tmp/component08-source-edge.patch" \
             | sha256sum --check --strict
-          git apply --check /tmp/component08-incidence.patch
-          git apply --index /tmp/component08-incidence.patch
+          git apply --check /tmp/component08-source-edge.patch
+          git apply --index /tmp/component08-source-edge.patch
           git diff --check --cached
 
       - name: Configure strict build
@@ -77,31 +77,32 @@ jobs:
               ygor_mesh_boolean_intersection_preflight_tests \
               ygor_mesh_boolean_intersection_coordinate_tests \
               ygor_mesh_boolean_intersection_incidence_tests \
+              ygor_mesh_boolean_source_edge_arrangement_tests \
             --parallel 2
           ctest --test-dir /tmp/ygor-component08-build \
             --output-on-failure \
-            -R 'mesh_boolean_bounded_component08_(keys|interning|preflight|coordinates|incidence)'
+            -R 'mesh_boolean_bounded_component08_(keys|interning|preflight|coordinates|incidence|source_edge_arrangements)'
 
-      - name: Commit validated incidence to PR 90
+      - name: Commit validated source-edge arrangements to PR 90
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/component08-incidence.patch.part-*
+          rm -f .github/component08-source-edge.patch.part-*
           git add .
           git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 reciprocal event incidence (plan 08)'
+          git commit -m 'Implement Component 08 source-edge arrangements (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component08-incidence-failure
+          name: component08-source-edge-failure
           path: |
-            /tmp/component08-incidence.patch
+            /tmp/component08-source-edge.patch
             /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
