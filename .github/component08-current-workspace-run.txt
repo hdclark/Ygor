@@ -1,0 +1,3 @@
+run_id=30591859002
+artifact=ygor-component08-current-workspace
+checkout_head=4875c23794557a9a8dc6de7d952d54c9db6f9651
