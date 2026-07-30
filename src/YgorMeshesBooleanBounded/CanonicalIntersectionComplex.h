@@ -88,13 +88,14 @@ struct event_seed_binding_record final {
 
 struct event_incidence_record final {
   event_incidence_id id{0};
+  event_incidence_key key{};
   event_id event{0};
   event_occurrence_id occurrence{0};
   event_seed_binding_id seed_binding{0};
   event_incidence_kind kind = event_incidence_kind::source_vertex;
   relation_feature_key feature{};
-  feature_relation_id relation{0};
-  candidate_id candidate{0};
+  feature_relation_id relation{intersection_invalid_ordinal};
+  candidate_id candidate{intersection_invalid_ordinal};
   std::uint64_t payload_primary = 0;
   std::uint64_t payload_secondary = 0;
   std::uint32_t payload_occurrence = 0;
@@ -105,6 +106,23 @@ struct event_incidence_record final {
   bool bookkeeping_only = false;
   std::uint16_t schema_version = contract_versions::intersection_incidence_schema;
   std::uint16_t reserved16 = 0;
+};
+
+struct source_feature_incidence_range_record final {
+  event_incidence_kind kind = event_incidence_kind::source_vertex;
+  relation_feature_key feature{};
+  intersection_range incidence{};
+  std::uint16_t schema_version = contract_versions::intersection_incidence_schema;
+  std::uint16_t reserved16 = 0;
+};
+
+struct oriented_halfedge_incidence_range_record final {
+  operand_id operand = operand_id::a;
+  std::uint64_t halfedge = 0;
+  intersection_range incidence{};
+  std::uint16_t schema_version = contract_versions::intersection_incidence_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
 };
 
 struct source_edge_membership_record final {
@@ -453,6 +471,41 @@ public:
   const std::vector<event_incidence_record> &incidence() const noexcept {
     return incidence_;
   }
+  const std::vector<event_incidence_id> &incidence_by_event() const noexcept {
+    return incidence_by_event_;
+  }
+  const std::vector<event_incidence_id> &incidence_by_occurrence() const noexcept {
+    return incidence_by_occurrence_;
+  }
+  const std::vector<event_incidence_id> &incidence_by_seed() const noexcept {
+    return incidence_by_seed_;
+  }
+  const std::vector<event_incidence_id> &incidence_by_seed_candidate()
+      const noexcept { return incidence_by_seed_candidate_; }
+  const std::vector<event_incidence_id> &incidence_by_relation() const noexcept {
+    return incidence_by_relation_;
+  }
+  const std::vector<intersection_range> &relation_incidence_ranges()
+      const noexcept { return relation_incidence_ranges_; }
+  const std::vector<event_incidence_id> &incidence_by_candidate() const noexcept {
+    return incidence_by_candidate_;
+  }
+  const std::vector<intersection_range> &candidate_incidence_ranges()
+      const noexcept { return candidate_incidence_ranges_; }
+  const std::vector<event_incidence_id> &incidence_by_source_feature() const noexcept {
+    return incidence_by_source_feature_;
+  }
+  const std::vector<source_feature_incidence_range_record> &
+  source_feature_incidence_ranges() const noexcept {
+    return source_feature_incidence_ranges_;
+  }
+  const std::vector<event_incidence_id> &incidence_by_halfedge() const noexcept {
+    return incidence_by_halfedge_;
+  }
+  const std::vector<oriented_halfedge_incidence_range_record> &
+  halfedge_incidence_ranges() const noexcept {
+    return halfedge_incidence_ranges_;
+  }
   const std::vector<source_edge_membership_record> &source_edge_memberships()
       const noexcept { return source_edge_memberships_; }
   const std::vector<source_edge_sequence_record> &source_edge_sequences()
@@ -534,6 +587,20 @@ private:
   std::vector<intersection_occurrence_record> occurrences_{};
   std::vector<event_seed_binding_record> seed_bindings_{};
   std::vector<event_incidence_record> incidence_{};
+  std::vector<event_incidence_id> incidence_by_event_{};
+  std::vector<event_incidence_id> incidence_by_occurrence_{};
+  std::vector<event_incidence_id> incidence_by_seed_{};
+  std::vector<event_incidence_id> incidence_by_seed_candidate_{};
+  std::vector<event_incidence_id> incidence_by_relation_{};
+  std::vector<intersection_range> relation_incidence_ranges_{};
+  std::vector<event_incidence_id> incidence_by_candidate_{};
+  std::vector<intersection_range> candidate_incidence_ranges_{};
+  std::vector<event_incidence_id> incidence_by_source_feature_{};
+  std::vector<source_feature_incidence_range_record>
+      source_feature_incidence_ranges_{};
+  std::vector<event_incidence_id> incidence_by_halfedge_{};
+  std::vector<oriented_halfedge_incidence_range_record>
+      halfedge_incidence_ranges_{};
   std::vector<source_edge_membership_record> source_edge_memberships_{};
   std::vector<source_edge_sequence_record> source_edge_sequences_{};
   std::vector<source_edge_cluster_record> source_edge_clusters_{};

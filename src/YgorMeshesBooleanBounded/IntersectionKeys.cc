@@ -145,6 +145,46 @@ bool valid_intersection_occurrence_key(
          key.reserved == 0;
 }
 
+bool valid_event_incidence_key(const event_incidence_key &key) noexcept {
+  const auto encoded_kind = static_cast<std::uint8_t>(key.kind);
+  if (!valid_intersection_event_key(key.event) ||
+      !valid_intersection_occurrence_key(key.occurrence) ||
+      !(key.occurrence.event == key.event) ||
+      !valid_relation_event_seed_key(key.seed) || encoded_kind < 1 ||
+      encoded_kind > 15 || key.predecessor_relation == intersection_invalid_ordinal ||
+      key.symbolic_crossing < -1 || key.symbolic_crossing > 1 ||
+      key.orientation < -1 || key.orientation > 1 ||
+      key.schema_version != contract_versions::intersection_incidence_schema ||
+      key.reserved != 0)
+    return false;
+  const bool feature_kind = key.kind == event_incidence_kind::source_vertex ||
+      key.kind == event_incidence_kind::source_edge ||
+      key.kind == event_incidence_kind::source_edge_interval ||
+      key.kind == event_incidence_kind::source_facet ||
+      key.kind == event_incidence_kind::source_triangle ||
+      key.kind == event_incidence_kind::oriented_halfedge ||
+      key.kind == event_incidence_kind::source_shell;
+  if (feature_kind != valid_relation_feature_key(key.feature))
+    return false;
+  if ((key.feature.kind == relation_feature_kind::source_triangle ||
+       key.feature.kind == relation_feature_kind::facet_internal_diagonal ||
+       key.kind == event_incidence_kind::oriented_halfedge) &&
+      (!key.bookkeeping_only || key.source_feature_owner))
+    return false;
+  if (key.feature.kind == relation_feature_kind::facet_internal_diagonal &&
+      key.kind != event_incidence_kind::source_edge &&
+      key.kind != event_incidence_kind::oriented_halfedge)
+    return false;
+  const bool candidate_backed =
+      key.predecessor_candidate != intersection_invalid_ordinal;
+  if ((key.kind == event_incidence_kind::candidate) != candidate_backed &&
+      key.kind != event_incidence_kind::source_edge &&
+      key.kind != event_incidence_kind::source_triangle &&
+      key.kind != event_incidence_kind::oriented_halfedge)
+    return false;
+  return true;
+}
+
 bool valid_source_edge_membership_key(
     const source_edge_membership_key &key) noexcept {
   return valid_relation_feature_key(key.source_edge) &&
@@ -363,6 +403,27 @@ void encode_intersection_occurrence_key(
   writer.u16(key.policy_version);
   writer.u16(key.schema_version);
   writer.u32(key.reserved);
+}
+
+void encode_event_incidence_key(canonical_writer &writer,
+                                const event_incidence_key &key) {
+  encode_intersection_event_key(writer, key.event);
+  encode_intersection_occurrence_key(writer, key.occurrence);
+  encode_relation_event_seed_key(writer, key.seed);
+  writer.u8(static_cast<std::uint8_t>(key.kind));
+  encode_relation_feature_key(writer, key.feature);
+  writer.u64(key.predecessor_relation);
+  writer.u64(key.predecessor_candidate);
+  writer.u64(key.proof_primary);
+  writer.u64(key.proof_secondary);
+  writer.u32(key.proof_occurrence);
+  writer.u32(static_cast<std::uint32_t>(key.numeric_crossing));
+  writer.u8(static_cast<std::uint8_t>(key.symbolic_crossing));
+  writer.u8(static_cast<std::uint8_t>(key.orientation));
+  writer.boolean(key.source_feature_owner);
+  writer.boolean(key.bookkeeping_only);
+  writer.u16(key.schema_version);
+  writer.u16(key.reserved);
 }
 
 void encode_source_edge_membership_key(

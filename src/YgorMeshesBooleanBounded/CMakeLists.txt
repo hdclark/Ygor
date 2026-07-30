@@ -77,6 +77,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     EventNormalization.cc
     EventInterning.cc
     EventCoordinates.cc
+    EventIncidence.cc
     RelationPreflight.cc
     RelationRequestGraph.cc
     PrimitiveRelationKernel.cc

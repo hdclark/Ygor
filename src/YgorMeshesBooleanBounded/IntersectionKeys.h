@@ -151,6 +151,46 @@ struct intersection_occurrence_key final {
   }
 };
 
+struct event_incidence_key final {
+  intersection_event_key event{};
+  intersection_occurrence_key occurrence{};
+  relation_event_seed_key seed{};
+  event_incidence_kind kind = event_incidence_kind::source_vertex;
+  relation_feature_key feature{};
+  std::uint64_t predecessor_relation = intersection_invalid_ordinal;
+  std::uint64_t predecessor_candidate = intersection_invalid_ordinal;
+  std::uint64_t proof_primary = 0;
+  std::uint64_t proof_secondary = 0;
+  std::uint32_t proof_occurrence = 0;
+  std::int32_t numeric_crossing = 0;
+  std::int8_t symbolic_crossing = 0;
+  std::int8_t orientation = 0;
+  bool source_feature_owner = false;
+  bool bookkeeping_only = false;
+  std::uint16_t schema_version = contract_versions::intersection_incidence_schema;
+  std::uint16_t reserved = 0;
+
+  friend bool operator<(const event_incidence_key &a,
+                        const event_incidence_key &b) noexcept {
+    return std::tie(a.event, a.occurrence, a.seed, a.kind, a.feature,
+                    a.predecessor_relation, a.predecessor_candidate,
+                    a.proof_primary, a.proof_secondary, a.proof_occurrence,
+                    a.numeric_crossing, a.symbolic_crossing, a.orientation,
+                    a.source_feature_owner, a.bookkeeping_only,
+                    a.schema_version, a.reserved) <
+           std::tie(b.event, b.occurrence, b.seed, b.kind, b.feature,
+                    b.predecessor_relation, b.predecessor_candidate,
+                    b.proof_primary, b.proof_secondary, b.proof_occurrence,
+                    b.numeric_crossing, b.symbolic_crossing, b.orientation,
+                    b.source_feature_owner, b.bookkeeping_only,
+                    b.schema_version, b.reserved);
+  }
+  friend bool operator==(const event_incidence_key &a,
+                         const event_incidence_key &b) noexcept {
+    return !(a < b) && !(b < a);
+  }
+};
+
 struct source_edge_membership_key final {
   relation_feature_key source_edge{};
   intersection_occurrence_key occurrence{};
@@ -334,6 +374,7 @@ struct intersection_descriptor_key final {
 bool valid_intersection_event_key(const intersection_event_key &key) noexcept;
 bool valid_intersection_occurrence_key(
     const intersection_occurrence_key &key) noexcept;
+bool valid_event_incidence_key(const event_incidence_key &key) noexcept;
 bool valid_source_edge_membership_key(
     const source_edge_membership_key &key) noexcept;
 bool valid_transverse_carrier_key(const transverse_carrier_key &key) noexcept;
@@ -368,6 +409,8 @@ void encode_intersection_event_key(canonical_writer &writer,
                                    const intersection_event_key &key);
 void encode_intersection_occurrence_key(
     canonical_writer &writer, const intersection_occurrence_key &key);
+void encode_event_incidence_key(canonical_writer &writer,
+                                const event_incidence_key &key);
 void encode_source_edge_membership_key(
     canonical_writer &writer, const source_edge_membership_key &key);
 void encode_transverse_carrier_key(canonical_writer &writer,

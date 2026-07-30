@@ -250,3 +250,16 @@ target_link_libraries(ygor_mesh_boolean_intersection_coordinate_tests PRIVATE
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_coordinate_tests)
 add_test(NAME mesh_boolean_bounded_component08_coordinates
     COMMAND ygor_mesh_boolean_intersection_coordinate_tests)
+
+
+add_executable(ygor_mesh_boolean_intersection_incidence_tests
+    TestEventIncidence.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_intersection_incidence_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_intersection_incidence_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_intersection_incidence_tests)
+add_test(NAME mesh_boolean_bounded_component08_incidence
+    COMMAND ygor_mesh_boolean_intersection_incidence_tests)
