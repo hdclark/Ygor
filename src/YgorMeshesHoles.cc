@@ -105,6 +105,34 @@ edge_direction_for_key(const undirected_edge_t<I> &k,
 }
 
 template <class T, class I>
+bool
+InvolvedFaceIndexMatchesMeshConnectivity(const fv_surface_mesh<T,I> &fvsm){
+    // Validate that involved_faces is both correctly sized and exactly matches
+    // the current vertex<->face connectivity implied by faces.
+    if(fvsm.involved_faces.size() != fvsm.vertices.size()) return false;
+
+    const auto max_i = static_cast<size_t>(std::numeric_limits<I>::max());
+    std::vector<std::vector<I>> expected(fvsm.vertices.size());
+    for(size_t f_idx = 0; f_idx < fvsm.faces.size(); ++f_idx){
+        if(max_i < f_idx) return false;
+        for(const auto &v_idx : fvsm.faces[f_idx]){
+            if(fvsm.vertices.size() <= static_cast<size_t>(v_idx)) return false;
+            expected[v_idx].emplace_back(static_cast<I>(f_idx));
+        }
+    }
+
+    for(size_t v_idx = 0; v_idx < fvsm.vertices.size(); ++v_idx){
+        auto got = fvsm.involved_faces[v_idx];
+        auto exp = expected[v_idx];
+        std::sort(got.begin(), got.end());
+        std::sort(exp.begin(), exp.end());
+        if(got != exp) return false;
+    }
+
+    return true;
+}
+
+template <class T, class I>
 std::map< undirected_edge_t<I>, std::vector<face_edge_ref<I>> >
 BuildEdgeMap(const fv_surface_mesh<T,I> &fvsm,
              const std::vector<I> &vert_rep){
@@ -231,6 +259,7 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     if(holes.has_nonmanifold_edges) return false;
 
     const auto eps_sq = eps * eps;
+    const auto N_faces_before = fvsm.faces.size();
     bool made_changes = false;
 
     for(const auto &chain : holes.chains){
@@ -260,7 +289,18 @@ FillBoundaryChainsByZippering(fv_surface_mesh<T,I> &fvsm,
     }
 
     if(made_changes){
-        fvsm.recreate_involved_face_index();
+        if(InvolvedFaceIndexMatchesMeshConnectivity(fvsm)){
+            // Index is valid; apply surgical update for the newly added faces only.
+            involved_face_index_diff<I> diff;
+            for(size_t f_idx = N_faces_before; f_idx < fvsm.faces.size(); ++f_idx){
+                for(const auto &v : fvsm.faces[f_idx]){
+                    diff.entries_to_add.emplace_back(v, static_cast<I>(f_idx));
+                }
+            }
+            fvsm.apply_involved_face_index_diff(diff);
+        }else{
+            fvsm.recreate_involved_face_index();
+        }
     }
 
     return true;
@@ -445,4 +485,3 @@ EnsureConsistentFaceOrientation(fv_surface_mesh<T,I> &fvsm,
     template bool
     EnsureConsistentFaceOrientation(fv_surface_mesh<double,uint64_t> &, double, int64_t *);
 #endif
-

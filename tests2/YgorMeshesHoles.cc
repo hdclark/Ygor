@@ -19,6 +19,17 @@ TEST_CASE( "YgorMeshesHoles" ){
     const vec3<double> p4(0.0, 0.0, 0.0);
     const vec3<double> p5(1.0, 0.0, 1.0);
     const vec3<double> p6(1.0, 1.0, 0.0);
+    const auto require_involved_faces_matches_recreate = [](const auto &mesh){
+        auto reference = mesh;
+        reference.recreate_involved_face_index();
+        for(size_t v = 0; v < mesh.vertices.size(); ++v){
+            auto got = mesh.involved_faces[v];
+            auto expected = reference.involved_faces[v];
+            std::sort(got.begin(), got.end());
+            std::sort(expected.begin(), expected.end());
+            REQUIRE(got == expected);
+        }
+    };
 
     SUBCASE("FindBoundaryChains and FillBoundaryChainsByZippering"){
         fv_surface_mesh<double, uint32_t> mesh2;
@@ -35,6 +46,48 @@ TEST_CASE( "YgorMeshesHoles" ){
 
         REQUIRE(FillBoundaryChainsByZippering(mesh2, holes));
         REQUIRE(mesh2.faces.size() == 4UL);
+    }
+
+    SUBCASE("FillBoundaryChainsByZippering updates involved_faces via diff"){
+        // Build a tetrahedron missing one face (open mesh with a hole).
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        // Pre-build the index so the diff path is exercised.
+        mesh2.recreate_involved_face_index();
+        REQUIRE(mesh2.involved_faces.size() == mesh2.vertices.size());
+
+        const auto holes = FindBoundaryChains(mesh2);
+        REQUIRE(FillBoundaryChainsByZippering(mesh2, holes));
+        REQUIRE(mesh2.faces.size() == 4UL);
+
+        // The involved_faces index should have been updated by the diff.
+        REQUIRE(mesh2.involved_faces.size() == mesh2.vertices.size());
+
+        // Compare with a full rebuild to confirm correctness.
+        require_involved_faces_matches_recreate(mesh2);
+    }
+
+    SUBCASE("FillBoundaryChainsByZippering rebuilds when index absent"){
+        fv_surface_mesh<double, uint32_t> mesh2;
+        mesh2.vertices = {{ p1, p2, p3, p4 }};
+        mesh2.faces = {{ static_cast<uint32_t>(0), static_cast<uint32_t>(1), static_cast<uint32_t>(2) },
+                       { static_cast<uint32_t>(0), static_cast<uint32_t>(3), static_cast<uint32_t>(1) },
+                       { static_cast<uint32_t>(1), static_cast<uint32_t>(3), static_cast<uint32_t>(2) }};
+
+        // Do NOT pre-build the index; the fallback rebuild path should be used.
+        REQUIRE(mesh2.involved_faces.empty());
+
+        const auto holes = FindBoundaryChains(mesh2);
+        REQUIRE(FillBoundaryChainsByZippering(mesh2, holes));
+        REQUIRE(mesh2.faces.size() == 4UL);
+        REQUIRE(mesh2.involved_faces.size() == mesh2.vertices.size());
+
+        // Verify the rebuilt index matches a fresh recreate.
+        require_involved_faces_matches_recreate(mesh2);
     }
 
     SUBCASE("EnsureConsistentFaceOrientation"){
@@ -110,4 +163,3 @@ TEST_CASE( "YgorMeshesHoles" ){
         REQUIRE_THROWS(EnsureConsistentFaceOrientation(invalid_genus_mesh, 10.0, &invalid_genus));
     }
 }
-
