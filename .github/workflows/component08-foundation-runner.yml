@@ -1,4 +1,4 @@
-name: Component 08 transverse carrier publisher
+name: Component 08 coplanar carrier publisher
 
 on:
   workflow_run:
@@ -13,14 +13,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: component08-transverse-carrier-publisher
+  group: component08-coplanar-carrier-publisher
   cancel-in-progress: false
 
 jobs:
   apply-validate-publish:
     if: github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
@@ -29,28 +29,28 @@ jobs:
           fetch-depth: 0
           ref: agent/bounded-manifold-mesh-boolean-plan
 
-      - name: Check pending transverse carrier patch
+      - name: Check pending coplanar carrier patch
         id: pending
         shell: bash
         run: |
           run=true
           for part in 00 01 02 03 04; do
-            test -f ".github/component08-transverse.patch.part-${part}" || run=false
+            test -f ".github/component08-coplanar.patch.part-${part}" || run=false
           done
           echo "run=${run}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify and apply exact transverse carrier patch
+      - name: Verify and apply exact coplanar carrier patch
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/component08-transverse.patch.part-* \
+          cat .github/component08-coplanar.patch.part-* \
             | base64 --decode | gzip --decompress \
-            > /tmp/component08-transverse.patch
-          echo "8aecf3ac670abb62ada8b989c0b85017d44596e294a957c5aa41473714b5bea5  /tmp/component08-transverse.patch" \
+            > /tmp/component08-coplanar.patch
+          echo "d38f7f4af36e7496fd0bad17cdd9bf39223c9c344c37f70222e20427506483ef  /tmp/component08-coplanar.patch" \
             | sha256sum --check --strict
-          git apply --check /tmp/component08-transverse.patch
-          git apply --index /tmp/component08-transverse.patch
+          git apply --check /tmp/component08-coplanar.patch
+          git apply --index /tmp/component08-coplanar.patch
           git diff --check --cached
 
       - name: Configure strict build
@@ -79,32 +79,32 @@ jobs:
               ygor_mesh_boolean_intersection_incidence_tests \
               ygor_mesh_boolean_source_edge_arrangement_tests \
               ygor_mesh_boolean_transverse_carrier_arrangement_tests \
+              ygor_mesh_boolean_coplanar_carrier_arrangement_tests \
             --parallel 2
           ctest --test-dir /tmp/ygor-component08-build \
             --output-on-failure \
-            -R 'mesh_boolean_bounded_component08_(keys|interning|preflight|coordinates|incidence|source_edge_arrangements|transverse_carriers)'
+            -R 'mesh_boolean_bounded_component08_(keys|interning|preflight|coordinates|incidence|source_edge_arrangements|transverse_carriers|coplanar_arrangements)'
 
-      - name: Commit validated transverse carriers to PR 90
+      - name: Commit validated coplanar carriers to PR 90
         if: steps.pending.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/component08-transverse.patch.part-*
-          rm -f .github/component08-current-workspace-run.txt
+          rm -f .github/component08-coplanar.patch.part-*
           git add .
           git diff --check --cached
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Implement Component 08 transverse carrier arrangements (plan 08)'
+          git commit -m 'Implement Component 08 coplanar carrier arrangements (plan 08)'
           git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: component08-transverse-carrier-failure
+          name: component08-coplanar-carrier-failure
           path: |
-            /tmp/component08-transverse.patch
+            /tmp/component08-coplanar.patch
             /tmp/ygor-component08-build/Testing/Temporary/LastTest.log
             /tmp/ygor-component08-build/CMakeFiles/CMakeOutput.log
           if-no-files-found: ignore
