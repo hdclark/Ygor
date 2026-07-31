@@ -1,0 +1,72 @@
+name: Apply Component 08 aggregation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - edited
+    branches:
+      - agent/component07-runner-base
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/bounded-manifold-mesh-boolean-plan'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Verify and apply exact patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/component08-aggregation.patch.part-* | base64 --decode | gzip --decompress > /tmp/component08-aggregation.patch
+          echo "cee35a383ce1034c58d2372ac25b5a5e0615d614e0a3dc55e674872d6cef5da5  /tmp/component08-aggregation.patch" | sha256sum --check --strict
+          git apply --check /tmp/component08-aggregation.patch
+          git apply --index /tmp/component08-aggregation.patch
+
+      - name: Configure strict build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/ygor-component08-build \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMEMORY_CONSTRAINED_BUILD=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF
+
+      - name: Build and run focused qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build /tmp/ygor-component08-build --target \
+            ygor_mesh_boolean_intersection_aggregation_tests \
+            ygor_mesh_boolean_intersection_incidence_tests \
+            ygor_mesh_boolean_source_edge_arrangement_tests \
+            ygor_mesh_boolean_transverse_carrier_arrangement_tests \
+            ygor_mesh_boolean_coplanar_carrier_arrangement_tests \
+            ygor_mesh_boolean_bounded_carrier_ordering_tests \
+            -j2
+          ctest --test-dir /tmp/ygor-component08-build --output-on-failure \
+            -R 'mesh_boolean_bounded_component08_(aggregation|incidence|source_edge_arrangements|transverse_carriers|coplanar_arrangements|bounded_ordering)$'
+
+      - name: Commit validated aggregation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/component08-aggregation.patch.part-*
+          rm -f .github/workflows/component07-apply.yml
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement Component 08 member-preserving aggregation (plan 08)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
