@@ -271,11 +271,14 @@ struct carrier_active_span_record final {
 
 struct coplanar_support_record final {
   coplanar_support_id id{0};
+  coplanar_support_key key{};
   relation_feature_key first_facet{};
   relation_feature_key second_facet{};
   std::uint64_t support_lineage = 0;
   bool opposite_orientation = false;
   operand_id symbolic_owner = operand_id::a;
+  intersection_range original_boundary_edges{};
+  intersection_range boundary_events{};
   intersection_range boundary_carriers{};
   intersection_range overlap_components{};
   intersection_range region_incidence{};
@@ -289,16 +292,43 @@ struct collinear_overlap_carrier_record final {
   collinear_overlap_carrier_key key{};
   relation_construction_id first_parameter_interval{0};
   relation_construction_id second_parameter_interval{0};
+  relation_interval_evidence_id first_parameter_evidence{0};
+  relation_interval_evidence_id second_parameter_evidence{0};
   event_occurrence_id start_occurrence{0};
   event_occurrence_id end_occurrence{0};
+  relation_feature_key start_source_vertex{};
+  relation_feature_key end_source_vertex{};
   operand_id symbolic_owner = operand_id::a;
   bool half_open_first = false;
   bool half_open_second = false;
   bool separate_sheet_required = false;
+  bool parameter_correspondence_verified = false;
+  bool zero_length = false;
   std::uint8_t reserved8 = 0;
   intersection_range provenance{};
+  intersection_range source_provenance{};
   intersection_range contributions{};
   intersection_range descriptors{};
+  std::uint16_t schema_version = contract_versions::intersection_overlap_schema;
+  std::uint16_t reserved16 = 0;
+};
+
+struct coplanar_overlap_record final {
+  coplanar_overlap_record_id id{0};
+  coplanar_overlap_key key{};
+  coplanar_support_id support{0};
+  relation_coplanar_overlap_component_id component07_component{0};
+  relation_coplanar_component_kind kind =
+      relation_coplanar_component_kind::isolated_point;
+  operand_id symbolic_owner = operand_id::a;
+  std::uint8_t sheet_mask = 0;
+  bool closed = false;
+  bool distinct_sheet_occurrences = false;
+  bool zero_measure = false;
+  intersection_range boundary_events{};
+  intersection_range boundary_carriers{};
+  intersection_range provenance{};
+  bounded_boolean_digest component_digest{};
   std::uint16_t schema_version = contract_versions::intersection_overlap_schema;
   std::uint16_t reserved16 = 0;
 };
@@ -310,12 +340,20 @@ struct coplanar_region_incidence_record final {
   relation_feature_key second_facet{};
   relation_feature_key first_triangle{};
   relation_feature_key second_triangle{};
+  coplanar_overlap_record_id component{0};
   std::uint64_t component_lineage = 0;
+  coplanar_region_classification classification =
+      coplanar_region_classification::point_contact;
   feature_relation_status relation_status =
       feature_relation_status::not_evaluated;
   operand_id symbolic_owner = operand_id::a;
+  std::uint8_t sheet_mask = 0;
+  bool internal_diagonal_coverage_only = false;
+  bool coverage_complete = false;
+  std::uint8_t reserved8 = 0;
   intersection_range boundary_events{};
   intersection_range boundary_carriers{};
+  intersection_range coverage_witnesses{};
   bounded_boolean_digest source_facet_semantic_digest{};
   std::uint16_t schema_version = contract_versions::intersection_overlap_schema;
   std::uint16_t reserved16 = 0;
@@ -531,6 +569,9 @@ public:
   }
   const std::vector<collinear_overlap_carrier_record> &overlap_carriers()
       const noexcept { return overlap_carriers_; }
+  const std::vector<coplanar_overlap_record> &coplanar_overlaps() const noexcept {
+    return coplanar_overlaps_;
+  }
   const std::vector<coplanar_region_incidence_record> &coplanar_region_incidence()
       const noexcept { return coplanar_region_incidence_; }
   const std::vector<crossing_aggregate_record> &crossing_aggregates()
@@ -614,6 +655,7 @@ private:
   std::vector<carrier_active_span_record> carrier_active_spans_{};
   std::vector<coplanar_support_record> coplanar_supports_{};
   std::vector<collinear_overlap_carrier_record> overlap_carriers_{};
+  std::vector<coplanar_overlap_record> coplanar_overlaps_{};
   std::vector<coplanar_region_incidence_record> coplanar_region_incidence_{};
   std::vector<crossing_aggregate_record> crossing_aggregates_{};
   std::vector<contact_aggregate_record> contact_aggregates_{};

@@ -212,6 +212,30 @@ bool valid_transverse_carrier_key(const transverse_carrier_key &key) noexcept {
          key.reserved == 0;
 }
 
+bool valid_coplanar_support_key(const coplanar_support_key &key) noexcept {
+  return valid_relation_feature_key(key.first_facet) &&
+         valid_relation_feature_key(key.second_facet) &&
+         key.first_facet.kind == relation_feature_kind::source_facet &&
+         key.second_facet.kind == relation_feature_kind::source_facet &&
+         key.first_facet.operand != key.second_facet.operand &&
+         key.support_lineage != 0 && valid_operand(key.symbolic_owner) &&
+         key.support_policy_version ==
+             contract_versions::intersection_coplanar_support_policy &&
+         key.schema_version == contract_versions::intersection_carrier_key_schema &&
+         key.reserved == 0;
+}
+
+bool valid_coplanar_overlap_key(const coplanar_overlap_key &key) noexcept {
+  return valid_coplanar_support_key(key.support) &&
+         key.component_lineage != 0 &&
+         enum_between(key.component_kind, 1, 4) && key.sheet_mask != 0 &&
+         valid_operand(key.symbolic_owner) &&
+         key.policy_version ==
+             contract_versions::intersection_collinear_overlap_policy &&
+         key.schema_version == contract_versions::intersection_overlap_schema &&
+         key.reserved == 0;
+}
+
 bool valid_collinear_overlap_carrier_key(
     const collinear_overlap_carrier_key &key) noexcept {
   return valid_relation_feature_key(key.first_edge) &&
@@ -314,6 +338,23 @@ transverse_carrier_key remap_transverse_carrier_key(
     transverse_carrier_key key) noexcept {
   key.first_facet = remap_relation_feature_key(key.first_facet);
   key.second_facet = remap_relation_feature_key(key.second_facet);
+  return key;
+}
+
+coplanar_support_key remap_coplanar_support_key(
+    coplanar_support_key key) noexcept {
+  key.first_facet = remap_relation_feature_key(key.first_facet);
+  key.second_facet = remap_relation_feature_key(key.second_facet);
+  key.symbolic_owner = key.symbolic_owner == operand_id::a ? operand_id::b
+                                                           : operand_id::a;
+  return key;
+}
+
+coplanar_overlap_key remap_coplanar_overlap_key(
+    coplanar_overlap_key key) noexcept {
+  key.support = remap_coplanar_support_key(std::move(key.support));
+  key.symbolic_owner = key.symbolic_owner == operand_id::a ? operand_id::b
+                                                           : operand_id::a;
   return key;
 }
 
@@ -450,6 +491,30 @@ void encode_transverse_carrier_key(canonical_writer &writer,
   writer.u64(key.construction_lineage);
   writer.u8(static_cast<std::uint8_t>(key.orientation));
   writer.u16(key.support_policy_version);
+  writer.u16(key.schema_version);
+  writer.u32(key.reserved);
+}
+
+void encode_coplanar_support_key(canonical_writer &writer,
+                                 const coplanar_support_key &key) {
+  encode_relation_feature_key(writer, key.first_facet);
+  encode_relation_feature_key(writer, key.second_facet);
+  writer.u64(key.support_lineage);
+  writer.boolean(key.opposite_orientation);
+  writer.u8(static_cast<std::uint8_t>(key.symbolic_owner));
+  writer.u16(key.support_policy_version);
+  writer.u16(key.schema_version);
+  writer.u32(key.reserved);
+}
+
+void encode_coplanar_overlap_key(canonical_writer &writer,
+                                 const coplanar_overlap_key &key) {
+  encode_coplanar_support_key(writer, key.support);
+  writer.u64(key.component_lineage);
+  writer.u8(static_cast<std::uint8_t>(key.component_kind));
+  writer.u8(key.sheet_mask);
+  writer.u8(static_cast<std::uint8_t>(key.symbolic_owner));
+  writer.u16(key.policy_version);
   writer.u16(key.schema_version);
   writer.u32(key.reserved);
 }

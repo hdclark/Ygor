@@ -187,6 +187,17 @@ enum class intersection_span_activation : std::uint8_t {
   invalid = 7,
 };
 
+enum class coplanar_region_classification : std::uint8_t {
+  point_contact = 1,
+  segment_contact = 2,
+  area_overlap = 3,
+  first_contains_second = 4,
+  second_contains_first = 5,
+  equal_same_orientation = 6,
+  equal_opposite_orientation = 7,
+  coincident_sheet_boundary = 8,
+};
+
 enum class event_incidence_kind : std::uint8_t {
   source_vertex = 1,
   source_edge = 2,

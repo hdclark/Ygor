@@ -249,6 +249,60 @@ struct transverse_carrier_key final {
   }
 };
 
+struct coplanar_support_key final {
+  relation_feature_key first_facet{};
+  relation_feature_key second_facet{};
+  std::uint64_t support_lineage = 0;
+  bool opposite_orientation = false;
+  operand_id symbolic_owner = operand_id::a;
+  std::uint16_t support_policy_version =
+      contract_versions::intersection_coplanar_support_policy;
+  std::uint16_t schema_version =
+      contract_versions::intersection_carrier_key_schema;
+  std::uint32_t reserved = 0;
+
+  friend bool operator<(const coplanar_support_key &a,
+                        const coplanar_support_key &b) noexcept {
+    return std::tie(a.first_facet, a.second_facet, a.support_lineage,
+                    a.opposite_orientation, a.symbolic_owner,
+                    a.support_policy_version, a.schema_version, a.reserved) <
+           std::tie(b.first_facet, b.second_facet, b.support_lineage,
+                    b.opposite_orientation, b.symbolic_owner,
+                    b.support_policy_version, b.schema_version, b.reserved);
+  }
+  friend bool operator==(const coplanar_support_key &a,
+                         const coplanar_support_key &b) noexcept {
+    return !(a < b) && !(b < a);
+  }
+};
+
+struct coplanar_overlap_key final {
+  coplanar_support_key support{};
+  std::uint64_t component_lineage = 0;
+  relation_coplanar_component_kind component_kind =
+      relation_coplanar_component_kind::isolated_point;
+  std::uint8_t sheet_mask = 0;
+  operand_id symbolic_owner = operand_id::a;
+  std::uint16_t policy_version =
+      contract_versions::intersection_collinear_overlap_policy;
+  std::uint16_t schema_version = contract_versions::intersection_overlap_schema;
+  std::uint32_t reserved = 0;
+
+  friend bool operator<(const coplanar_overlap_key &a,
+                        const coplanar_overlap_key &b) noexcept {
+    return std::tie(a.support, a.component_lineage, a.component_kind,
+                    a.sheet_mask, a.symbolic_owner, a.policy_version,
+                    a.schema_version, a.reserved) <
+           std::tie(b.support, b.component_lineage, b.component_kind,
+                    b.sheet_mask, b.symbolic_owner, b.policy_version,
+                    b.schema_version, b.reserved);
+  }
+  friend bool operator==(const coplanar_overlap_key &a,
+                         const coplanar_overlap_key &b) noexcept {
+    return !(a < b) && !(b < a);
+  }
+};
+
 struct collinear_overlap_carrier_key final {
   relation_feature_key first_edge{};
   relation_feature_key second_edge{};
@@ -378,6 +432,8 @@ bool valid_event_incidence_key(const event_incidence_key &key) noexcept;
 bool valid_source_edge_membership_key(
     const source_edge_membership_key &key) noexcept;
 bool valid_transverse_carrier_key(const transverse_carrier_key &key) noexcept;
+bool valid_coplanar_support_key(const coplanar_support_key &key) noexcept;
+bool valid_coplanar_overlap_key(const coplanar_overlap_key &key) noexcept;
 bool valid_collinear_overlap_carrier_key(
     const collinear_overlap_carrier_key &key) noexcept;
 bool valid_source_edge_cluster_key(const source_edge_cluster_key &key) noexcept;
@@ -393,6 +449,10 @@ source_edge_membership_key remap_source_edge_membership_key_operands(
     source_edge_membership_key key) noexcept;
 transverse_carrier_key remap_transverse_carrier_key(
     transverse_carrier_key key) noexcept;
+coplanar_support_key remap_coplanar_support_key(
+    coplanar_support_key key) noexcept;
+coplanar_overlap_key remap_coplanar_overlap_key(
+    coplanar_overlap_key key) noexcept;
 collinear_overlap_carrier_key remap_collinear_overlap_carrier_key(
     collinear_overlap_carrier_key key) noexcept;
 intersection_descriptor_key remap_intersection_descriptor_key(
@@ -415,6 +475,10 @@ void encode_source_edge_membership_key(
     canonical_writer &writer, const source_edge_membership_key &key);
 void encode_transverse_carrier_key(canonical_writer &writer,
                                    const transverse_carrier_key &key);
+void encode_coplanar_support_key(canonical_writer &writer,
+                                 const coplanar_support_key &key);
+void encode_coplanar_overlap_key(canonical_writer &writer,
+                                 const coplanar_overlap_key &key);
 void encode_collinear_overlap_carrier_key(
     canonical_writer &writer, const collinear_overlap_carrier_key &key);
 void encode_source_edge_cluster_key(canonical_writer &writer,
