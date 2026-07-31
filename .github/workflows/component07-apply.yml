@@ -29,7 +29,11 @@ jobs:
         run: |
           set -euo pipefail
           cat > /tmp/component08-canonicalization-parts.sha256 <<'EOF'
-          bd4b0aeec10c1054f702ad6d51bb249d348f94e57976aa9d900da90435ea041d  .github/component08-canonicalization.patch.part-00
+          81c29ccbfdfaaa782a6df7a35418734417494b74387c562da37eb94a0de827b8  .github/component08-canonicalization.patch.part-00a
+          dee9a5e54e2aa8c3df8fd5eed0a2990c4c827dd76e8709da40f38344799b3cd2  .github/component08-canonicalization.patch.part-00b
+          a1ac5419ac7c9f101c7fab9ba2ff12b3b18a7907082b9ebe713e13965792d5a5  .github/component08-canonicalization.patch.part-00c
+          8da834a874bcd8f6797753a25435c8193ed1aff3d34bcf9e3a09583d7cfc103a  .github/component08-canonicalization.patch.part-00d
+          0cc56bc0734058e18a2b7d72f45680e0b82921483321889995c1bbf474268937  .github/component08-canonicalization.patch.part-00e
           7ba1f21cb68980560bd8c44544fe8cffdbcc89e293ca61ce61a5c1decde8a86f  .github/component08-canonicalization.patch.part-01
           EOF
           sha256sum --check --strict /tmp/component08-canonicalization-parts.sha256
