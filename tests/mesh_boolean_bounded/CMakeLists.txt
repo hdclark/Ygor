@@ -299,3 +299,15 @@ target_link_libraries(ygor_mesh_boolean_coplanar_carrier_arrangement_tests PRIVA
 ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_coplanar_carrier_arrangement_tests)
 add_test(NAME mesh_boolean_bounded_component08_coplanar_arrangements
     COMMAND ygor_mesh_boolean_coplanar_carrier_arrangement_tests)
+
+add_executable(ygor_mesh_boolean_bounded_carrier_ordering_tests
+    TestBoundedCarrierOrdering.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_bounded_carrier_ordering_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_bounded_carrier_ordering_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_bounded_carrier_ordering_tests)
+add_test(NAME mesh_boolean_bounded_component08_bounded_ordering
+    COMMAND ygor_mesh_boolean_bounded_carrier_ordering_tests)

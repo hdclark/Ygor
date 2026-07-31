@@ -1,5 +1,6 @@
 #include "TransverseCarrierArrangements.h"
 
+#include "BoundedCarrierOrdering.h"
 #include "FloatingBits.h"
 #include "Sha256.h"
 
@@ -45,53 +46,6 @@ bool decode_parameter(const carrier_membership_proposal &proposal,
   return singleton && !finite_numeric_less(nominal, value.lower()) &&
          !finite_numeric_less(value.upper(), nominal);
 }
-
-template <class T>
-intersection_order_disposition compare_parameters(
-    const carrier_membership_proposal &a,
-    const carrier_membership_proposal &b) noexcept {
-  finite_interval<T> left;
-  finite_interval<T> right;
-  if (!decode_parameter<T>(a, left) || !decode_parameter<T>(b, right))
-    return intersection_order_disposition::invalid;
-  if (finite_numeric_less(left.upper(), right.lower()))
-    return intersection_order_disposition::definitely_before;
-  if (finite_numeric_less(right.upper(), left.lower()))
-    return intersection_order_disposition::definitely_after;
-  if (to_bits(left.lower()) == to_bits(right.lower()) &&
-      to_bits(left.upper()) == to_bits(right.upper()) &&
-      a.exact_equal_eligible && b.exact_equal_eligible)
-    return intersection_order_disposition::exact_equal;
-  if (a.cluster_eligible && b.cluster_eligible &&
-      a.parameter_lineage != 0 &&
-      a.parameter_lineage == b.parameter_lineage)
-    return intersection_order_disposition::unresolved_overlap;
-  return intersection_order_disposition::invalid;
-}
-
-struct disjoint_set final {
-  explicit disjoint_set(std::size_t size) : parent(size), rank(size, 0) {
-    std::iota(parent.begin(), parent.end(), std::size_t{0});
-  }
-  std::size_t find(std::size_t value) {
-    if (parent[value] != value)
-      parent[value] = find(parent[value]);
-    return parent[value];
-  }
-  void unite(std::size_t a, std::size_t b) {
-    a = find(a);
-    b = find(b);
-    if (a == b)
-      return;
-    if (rank[a] < rank[b])
-      std::swap(a, b);
-    parent[b] = a;
-    if (rank[a] == rank[b])
-      ++rank[a];
-  }
-  std::vector<std::size_t> parent;
-  std::vector<std::uint8_t> rank;
-};
 
 bool equal_range(intersection_range a, intersection_range b) noexcept {
   return a.begin == b.begin && a.count == b.count;
@@ -393,231 +347,117 @@ bool build_transverse_carrier_arrangements(
     carrier.active_spans.begin = tables.carrier_span_index.size();
     carrier.region_incidence.begin = tables.span_region_incidence.size();
 
-    disjoint_set sets(local.size());
     const ordering_certificate_id invalid_certificate{
         intersection_invalid_ordinal};
-    std::vector<std::vector<intersection_order_disposition>> relation(
-        local.size(), std::vector<intersection_order_disposition>(
-                          local.size(), intersection_order_disposition::invalid));
-    std::vector<std::vector<ordering_certificate_id>> certificate_ids(
-        local.size(), std::vector<ordering_certificate_id>(
-                          local.size(), invalid_certificate));
-    std::vector<finite_interval<T>> parameter_intervals(local.size());
+    std::vector<bounded_ordering_member> ordering_members;
+    ordering_members.reserve(local.size());
     for (std::size_t i = 0; i < local.size(); ++i) {
-      if (!decode_parameter<T>(memberships[local[i]], parameter_intervals[i])) {
-        error = carrier_error(intersection_subcode::parameter_invalid,
-                              "Component 08 transverse parameter decode failed");
-        return false;
-      }
-      relation[i][i] = intersection_order_disposition::exact_equal;
+      const auto &proposal = memberships[local[i]];
+      bounded_ordering_member member;
+      member.input_ordinal = i;
+      member.parameter = proposal.parameter;
+      member.occurrence = proposal.occurrence_key;
+      member.nominal_bits = proposal.nominal_bits;
+      member.lower_bits = proposal.lower_bits;
+      member.upper_bits = proposal.upper_bits;
+      member.exact_evidence_lineage =
+          proposal.exact_equal_eligible ? proposal.parameter_lineage : 0;
+      member.comparison_evidence_lineage = proposal.parameter_lineage;
+      member.cluster_lineage = proposal.parameter_lineage;
+      member.exact_equal_eligible = proposal.exact_equal_eligible;
+      member.unresolved_cluster_eligible = proposal.cluster_eligible;
+      member.topology_interchangeable = proposal.cluster_eligible;
+      ordering_members.push_back(member);
     }
 
-    auto record_comparison = [&](std::size_t first, std::size_t second) {
-      if (first == second ||
-          relation[first][second] != intersection_order_disposition::invalid)
-        return true;
-      const auto disposition = compare_parameters<T>(memberships[local[first]],
-                                                     memberships[local[second]]);
-      if (disposition == intersection_order_disposition::invalid) {
-        const bool identical_bounds =
-            memberships[local[first]].lower_bits ==
-                memberships[local[second]].lower_bits &&
-            memberships[local[first]].upper_bits ==
-                memberships[local[second]].upper_bits;
-        error = carrier_error(
-            identical_bounds
-                ? intersection_subcode::exact_equal_without_evidence
-                : intersection_subcode::unresolved_topology_order,
-            identical_bounds
-                ? "Component 08 exact-equal carrier parameter lacks evidence"
-                : "Component 08 transverse carrier order is unresolved");
-        return false;
-      }
-      relation[first][second] = disposition;
-      relation[second][first] =
-          disposition == intersection_order_disposition::definitely_before
-              ? intersection_order_disposition::definitely_after
-              : disposition == intersection_order_disposition::definitely_after
-                    ? intersection_order_disposition::definitely_before
-                    : disposition;
-      ordering_certificate_record certificate;
-      certificate.id =
-          ordering_certificate_id{tables.ordering_certificates.size()};
-      certificate.disposition = disposition;
-      certificate.first_parameter = memberships[local[first]].parameter;
-      certificate.second_parameter = memberships[local[second]].parameter;
-      certificate.exact_evidence_lineage =
-          disposition == intersection_order_disposition::exact_equal
-              ? std::max(memberships[local[first]].parameter_lineage,
-                         memberships[local[second]].parameter_lineage)
-              : 0;
-      certificate.comparison_evidence_lineage =
-          std::min(memberships[local[first]].parameter_lineage,
-                   memberships[local[second]].parameter_lineage);
-      certificate.topology_safe = true;
+    bounded_ordering_result ordering;
+    if (!build_bounded_carrier_order<T>(
+            ordering_members, intersection_checkpoint::transverse_carriers,
+            ordering, error) ||
+        !verify_bounded_carrier_order<T>(
+            ordering_members, intersection_checkpoint::transverse_carriers,
+            ordering, error))
+      return false;
+
+    const std::uint64_t certificate_base =
+        tables.ordering_certificates.size();
+    for (auto certificate : ordering.certificates) {
+      certificate.id = ordering_certificate_id{
+          certificate_base + certificate.id.ordinal()};
       tables.ordering_certificates.push_back(certificate);
-      certificate_ids[first][second] = certificate.id;
-      certificate_ids[second][first] = certificate.id;
-      if (disposition == intersection_order_disposition::exact_equal ||
-          disposition == intersection_order_disposition::unresolved_overlap)
-        sets.unite(first, second);
-      return true;
-    };
-
-    std::vector<std::size_t> sweep(local.size());
-    std::iota(sweep.begin(), sweep.end(), std::size_t{0});
-    std::sort(sweep.begin(), sweep.end(), [&](std::size_t a, std::size_t b) {
-      const auto &left = parameter_intervals[a];
-      const auto &right = parameter_intervals[b];
-      if (finite_total_less(left.lower(), right.lower()))
-        return true;
-      if (finite_total_less(right.lower(), left.lower()))
-        return false;
-      if (finite_total_less(left.upper(), right.upper()))
-        return true;
-      if (finite_total_less(right.upper(), left.upper()))
-        return false;
-      return memberships[local[a]].occurrence_key <
-             memberships[local[b]].occurrence_key;
-    });
-
-    std::vector<std::size_t> active;
-    for (std::size_t position = 0; position < sweep.size(); ++position) {
-      const auto current = sweep[position];
-      std::vector<std::size_t> retained;
-      retained.reserve(active.size() + 1);
-      for (const auto candidate : active) {
-        if (finite_numeric_less(parameter_intervals[candidate].upper(),
-                                parameter_intervals[current].lower()))
-          continue;
-        if (!record_comparison(candidate, current))
-          return false;
-        retained.push_back(candidate);
-      }
-      if (position != 0 && !record_comparison(sweep[position - 1], current))
-        return false;
-      retained.push_back(current);
-      active = std::move(retained);
     }
+    const auto pair_certificate =
+        [&](std::size_t first, std::size_t second,
+            intersection_order_disposition required) {
+          ordering_certificate_id best{intersection_invalid_ordinal};
+          for (const auto &pair : ordering.pair_certificates) {
+            intersection_order_disposition disposition =
+                intersection_order_disposition::invalid;
+            if (pair.first_input_ordinal == first &&
+                pair.second_input_ordinal == second) {
+              disposition = ordering.certificates[pair.certificate.ordinal()]
+                                .disposition;
+            } else if (pair.first_input_ordinal == second &&
+                       pair.second_input_ordinal == first) {
+              const auto stored =
+                  ordering.certificates[pair.certificate.ordinal()].disposition;
+              disposition =
+                  stored == intersection_order_disposition::definitely_before
+                      ? intersection_order_disposition::definitely_after
+                      : stored ==
+                                intersection_order_disposition::definitely_after
+                            ? intersection_order_disposition::definitely_before
+                            : stored;
+            } else {
+              continue;
+            }
+            if (disposition == required) {
+              const ordering_certificate_id candidate{
+                  certificate_base + pair.certificate.ordinal()};
+              if (best.ordinal() == intersection_invalid_ordinal ||
+                  candidate < best)
+                best = candidate;
+            }
+          }
+          return best;
+        };
 
     std::vector<std::vector<std::size_t>> groups;
-    for (std::size_t i = 0; i < local.size(); ++i) {
-      const auto root = sets.find(i);
-      auto found = std::find_if(groups.begin(), groups.end(), [&](const auto &g) {
-        return sets.find(g.front()) == root;
-      });
-      if (found == groups.end())
-        groups.push_back({i});
-      else
-        found->push_back(i);
-    }
-    for (auto &group : groups)
-      std::sort(group.begin(), group.end(), [&](std::size_t a, std::size_t b) {
-        return memberships[local[a]].occurrence_key <
-               memberships[local[b]].occurrence_key;
-      });
-
-    for (const auto &group : groups) {
-      for (std::size_t i = 0; i < group.size(); ++i) {
-        for (std::size_t j = i + 1; j < group.size(); ++j) {
-          const auto disposition = relation[group[i]][group[j]];
-          if ((disposition != intersection_order_disposition::exact_equal &&
-               disposition !=
-                   intersection_order_disposition::unresolved_overlap) ||
-              certificate_ids[group[i]][group[j]].ordinal() ==
-                  intersection_invalid_ordinal) {
-            error = carrier_error(
-                intersection_subcode::cluster_invalid,
-                "Component 08 transverse cluster is not an all-pairs clique");
-            return false;
-          }
-        }
-      }
-    }
-
-    std::vector<std::vector<bool>> before(
-        groups.size(), std::vector<bool>(groups.size(), false));
-    for (std::size_t a = 0; a < groups.size(); ++a) {
-      for (std::size_t b = a + 1; b < groups.size(); ++b) {
-        int direction = 0;
-        for (const auto ai : groups[a]) {
-          for (const auto bi : groups[b]) {
-            const auto disposition = relation[ai][bi];
-            if (disposition == intersection_order_disposition::invalid)
-              continue;
-            const int current =
-                disposition == intersection_order_disposition::definitely_before
-                    ? -1
-                    : disposition ==
-                              intersection_order_disposition::definitely_after
-                          ? 1
-                          : 0;
-            if (current == 0 || (direction != 0 && direction != current)) {
-              error = carrier_error(
-                  intersection_subcode::bounded_order_contradiction,
-                  "Component 08 transverse cluster order contradicts");
-              return false;
-            }
-            direction = current;
-          }
-        }
-        before[a][b] = direction < 0;
-        before[b][a] = direction > 0;
-      }
-    }
-
-    std::vector<std::size_t> order;
-    std::vector<bool> emitted(groups.size(), false);
-    while (order.size() != groups.size()) {
-      std::size_t candidate = groups.size();
-      for (std::size_t i = 0; i < groups.size(); ++i) {
-        if (emitted[i])
-          continue;
-        bool has_predecessor = false;
-        for (std::size_t j = 0; j < groups.size(); ++j)
-          if (!emitted[j] && before[j][i])
-            has_predecessor = true;
-        if (!has_predecessor) {
-          if (candidate != groups.size()) {
-            error = carrier_error(
-                intersection_subcode::unresolved_topology_order,
-                "Component 08 transverse cluster order is not total");
-            return false;
-          }
-          candidate = i;
-        }
-      }
-      if (candidate == groups.size()) {
-        error = carrier_error(intersection_subcode::bounded_order_contradiction,
-                              "Component 08 transverse order is cyclic");
-        return false;
-      }
-      emitted[candidate] = true;
-      order.push_back(candidate);
+    groups.reserve(ordering.clusters.size());
+    for (const auto &ordered_cluster : ordering.clusters) {
+      std::vector<std::size_t> group;
+      group.reserve(ordered_cluster.members.count);
+      for (std::uint64_t offset = 0; offset < ordered_cluster.members.count;
+           ++offset)
+        group.push_back(static_cast<std::size_t>(
+            ordering.ordered_member_ordinals[ordered_cluster.members.begin +
+                                             offset]));
+      groups.push_back(std::move(group));
     }
 
     std::vector<carrier_cluster_id> ordered_cluster_ids;
     std::vector<std::size_t> ordered_group_indices;
-    for (const auto group_index : order) {
+    for (std::size_t group_index = 0; group_index < groups.size();
+         ++group_index) {
       const auto &group = groups[group_index];
       carrier_cluster_record cluster;
       cluster.id = carrier_cluster_id{tables.clusters.size()};
       cluster.carrier = carrier.id;
-      cluster.equivalence =
-          intersection_cluster_equivalence::exact_parameter_coincidence;
-      for (std::size_t i = 0; i < group.size(); ++i)
-        for (std::size_t j = i + 1; j < group.size(); ++j)
-          if (relation[group[i]][group[j]] ==
-              intersection_order_disposition::unresolved_overlap)
-            cluster.equivalence =
-                intersection_cluster_equivalence::lineage_authorized_unresolved;
+      cluster.equivalence = ordering.clusters[group_index].equivalence;
       cluster.occurrence_members.begin =
           tables.cluster_occurrence_index.size();
       cluster.membership_members.begin =
           tables.cluster_membership_index.size();
       const auto equivalence_certificate =
-          group.size() > 1 ? certificate_ids[group[0]][group[1]]
-                           : invalid_certificate;
+          group.size() > 1
+              ? pair_certificate(
+                    group[0], group[1],
+                    cluster.equivalence ==
+                            intersection_cluster_equivalence::
+                                lineage_authorized_unresolved
+                        ? intersection_order_disposition::unresolved_overlap
+                        : intersection_order_disposition::exact_equal)
+              : invalid_certificate;
       cluster.ordering_certificate = equivalence_certificate;
       for (const auto member : group) {
         const auto &proposal = memberships[local[member]];
@@ -655,17 +495,15 @@ bool build_transverse_carrier_arrangements(
       const auto &left_group = groups[ordered_group_indices[i - 1]];
       const auto &right_group = groups[ordered_group_indices[i]];
       ordering_certificate_id certificate = invalid_certificate;
-      for (const auto left : left_group) {
+      for (const auto left : left_group)
         for (const auto right : right_group) {
-          if (relation[left][right] ==
-                  intersection_order_disposition::definitely_before &&
-              certificate_ids[left][right].ordinal() !=
-                  intersection_invalid_ordinal &&
+          const auto candidate = pair_certificate(
+              left, right, intersection_order_disposition::definitely_before);
+          if (candidate.ordinal() != intersection_invalid_ordinal &&
               (certificate.ordinal() == intersection_invalid_ordinal ||
-               certificate_ids[left][right] < certificate))
-            certificate = certificate_ids[left][right];
+               candidate < certificate))
+            certificate = candidate;
         }
-      }
       if (certificate.ordinal() == intersection_invalid_ordinal) {
         error = carrier_error(
             intersection_subcode::unresolved_topology_order,
