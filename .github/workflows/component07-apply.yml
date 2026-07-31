@@ -1,0 +1,84 @@
+name: Apply Component 08 canonical publication
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - edited
+    branches:
+      - agent/component07-runner-base
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/bounded-manifold-mesh-boolean-plan'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/bounded-manifold-mesh-boolean-plan
+
+      - name: Verify and apply exact patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/component08-canonicalization-parts.sha256 <<'EOF'
+          bd4b0aeec10c1054f702ad6d51bb249d348f94e57976aa9d900da90435ea041d  .github/component08-canonicalization.patch.part-00
+          7ba1f21cb68980560bd8c44544fe8cffdbcc89e293ca61ce61a5c1decde8a86f  .github/component08-canonicalization.patch.part-01
+          EOF
+          sha256sum --check --strict /tmp/component08-canonicalization-parts.sha256
+          cat .github/component08-canonicalization.patch.part-* > /tmp/component08-canonicalization.b64
+          base64 --decode /tmp/component08-canonicalization.b64 > /tmp/component08-canonicalization.patch.gz
+          echo "34704681e9d43153a9cf36ae0aedb5577fc7a2f8c54fd862b78e20234ae9c839  /tmp/component08-canonicalization.patch.gz" | sha256sum --check --strict
+          gzip --test /tmp/component08-canonicalization.patch.gz
+          gzip --decompress --stdout /tmp/component08-canonicalization.patch.gz > /tmp/component08-canonicalization.patch
+          echo "16684228fd02973ef81244403e4477a75548834b94842dd003418eb89c011baf  /tmp/component08-canonicalization.patch" | sha256sum --check --strict
+          git apply --check /tmp/component08-canonicalization.patch
+          git apply --index /tmp/component08-canonicalization.patch
+
+      - name: Configure strict build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/ygor-component08-build \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMEMORY_CONSTRAINED_BUILD=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF
+
+      - name: Build and run focused qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build /tmp/ygor-component08-build --target \
+            ygor_mesh_boolean_intersection_canonicalization_tests \
+            ygor_mesh_boolean_intersection_topology_descriptor_tests \
+            ygor_mesh_boolean_intersection_descriptor_tests \
+            ygor_mesh_boolean_intersection_aggregation_tests \
+            ygor_mesh_boolean_intersection_incidence_tests \
+            ygor_mesh_boolean_source_edge_arrangement_tests \
+            ygor_mesh_boolean_transverse_carrier_arrangement_tests \
+            ygor_mesh_boolean_coplanar_carrier_arrangement_tests \
+            ygor_mesh_boolean_bounded_carrier_ordering_tests \
+            -j2
+          ctest --test-dir /tmp/ygor-component08-build --output-on-failure \
+            -R 'mesh_boolean_bounded_component08_(canonicalization|topology_descriptors|descriptors|aggregation|incidence|source_edge_arrangements|transverse_carriers|coplanar_arrangements|bounded_ordering)$'
+
+      - name: Commit validated canonical publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/component08-canonicalization.patch.part-*
+          rm -f .github/workflows/component07-apply.yml
+          git add .
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement Component 08 canonical table publication (plan 08)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
