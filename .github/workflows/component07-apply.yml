@@ -28,6 +28,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cat > /tmp/component08-descriptor-parts.sha256 <<'EOF'
+          f492bc4e7a2d75b25f52cae274b24cb8b447d489b28ccc19ad66f8f63eaff5e6  .github/component08-descriptors.patch.part-00
+          57eda14802bd7b5d03795d9e1be186cd3c02839486d637010fe7eed625b30722  .github/component08-descriptors.patch.part-01
+          344c94c9cbabe0a2299d26cf1049b2cb9a25483264ba839e520d9dedae030f26  .github/component08-descriptors.patch.part-02
+          4f5374942895d38b037bb2e7956210ad6cb58dafc1e5950dadc213de288cb12b  .github/component08-descriptors.patch.part-03
+          ac1648d417401bb52371a7a75a7f49b3b689d57f9a068c6781ba28f8f05517d2  .github/component08-descriptors.patch.part-04
+          EOF
+          sha256sum --check --strict /tmp/component08-descriptor-parts.sha256
           cat .github/component08-descriptors.patch.part-* | base64 --decode | gzip --decompress > /tmp/component08-descriptors.patch
           echo "282f18cfa318180053ab039d25dd48ba0eb5c570da30f9a4140dd18b5fde4dc4  /tmp/component08-descriptors.patch" | sha256sum --check --strict
           git apply --check /tmp/component08-descriptors.patch
