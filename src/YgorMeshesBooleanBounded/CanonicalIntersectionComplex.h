@@ -532,6 +532,21 @@ public:
   const std::vector<event_seed_binding_record> &seed_bindings() const noexcept {
     return seed_bindings_;
   }
+  const std::vector<relation_construction_ledger_id> &
+  construction_witness_index() const noexcept {
+    return construction_witness_index_;
+  }
+  const std::vector<event_seed_binding_id> &event_binding_index() const noexcept {
+    return event_binding_index_;
+  }
+  const std::vector<event_seed_binding_id> &occurrence_binding_index()
+      const noexcept { return occurrence_binding_index_; }
+  const std::vector<event_id> &seed_to_event() const noexcept {
+    return seed_to_event_;
+  }
+  const std::vector<event_occurrence_id> &seed_to_occurrence() const noexcept {
+    return seed_to_occurrence_;
+  }
   const std::vector<event_incidence_record> &incidence() const noexcept {
     return incidence_;
   }
@@ -546,6 +561,14 @@ public:
   }
   const std::vector<event_incidence_id> &incidence_by_seed_candidate()
       const noexcept { return incidence_by_seed_candidate_; }
+  const std::vector<intersection_range> &event_incidence_ranges()
+      const noexcept { return event_incidence_ranges_; }
+  const std::vector<intersection_range> &occurrence_incidence_ranges()
+      const noexcept { return occurrence_incidence_ranges_; }
+  const std::vector<intersection_range> &seed_incidence_ranges()
+      const noexcept { return seed_incidence_ranges_; }
+  const std::vector<intersection_range> &seed_candidate_incidence_ranges()
+      const noexcept { return seed_candidate_incidence_ranges_; }
   const std::vector<event_incidence_id> &incidence_by_relation() const noexcept {
     return incidence_by_relation_;
   }
@@ -578,6 +601,26 @@ public:
       const noexcept { return source_edge_clusters_; }
   const std::vector<source_edge_interval_record> &source_edge_intervals()
       const noexcept { return source_edge_intervals_; }
+  const std::vector<source_edge_membership_id> &
+  source_edge_membership_sequence_index() const noexcept {
+    return source_edge_membership_sequence_index_;
+  }
+  const std::vector<event_occurrence_id> &
+  source_edge_cluster_occurrence_index() const noexcept {
+    return source_edge_cluster_occurrence_index_;
+  }
+  const std::vector<source_edge_membership_id> &
+  source_edge_cluster_membership_index() const noexcept {
+    return source_edge_cluster_membership_index_;
+  }
+  const std::vector<source_edge_cluster_id> &
+  source_edge_sequence_cluster_index() const noexcept {
+    return source_edge_sequence_cluster_index_;
+  }
+  const std::vector<source_edge_interval_id> &
+  source_edge_sequence_interval_index() const noexcept {
+    return source_edge_sequence_interval_index_;
+  }
   const std::vector<transverse_carrier_record> &transverse_carriers()
       const noexcept { return transverse_carriers_; }
   const std::vector<carrier_membership_record> &carrier_memberships()
@@ -587,6 +630,26 @@ public:
   }
   const std::vector<carrier_active_span_record> &carrier_active_spans()
       const noexcept { return carrier_active_spans_; }
+  const std::vector<feature_relation_id> &carrier_relation_provenance()
+      const noexcept { return carrier_relation_provenance_; }
+  const std::vector<candidate_id> &carrier_candidate_provenance()
+      const noexcept { return carrier_candidate_provenance_; }
+  const std::vector<carrier_membership_id> &carrier_membership_index()
+      const noexcept { return carrier_membership_index_; }
+  const std::vector<event_occurrence_id> &carrier_cluster_occurrence_index()
+      const noexcept { return carrier_cluster_occurrence_index_; }
+  const std::vector<carrier_membership_id> &carrier_cluster_membership_index()
+      const noexcept { return carrier_cluster_membership_index_; }
+  const std::vector<carrier_cluster_id> &transverse_carrier_cluster_index()
+      const noexcept { return transverse_carrier_cluster_index_; }
+  const std::vector<carrier_active_span_id> &transverse_carrier_span_index()
+      const noexcept { return transverse_carrier_span_index_; }
+  const std::vector<feature_relation_id> &carrier_span_relation_provenance()
+      const noexcept { return carrier_span_relation_provenance_; }
+  const std::vector<relation_source_facet_region_id> &
+  carrier_span_region_incidence() const noexcept {
+    return carrier_span_region_incidence_;
+  }
   const std::vector<coplanar_support_record> &coplanar_supports() const noexcept {
     return coplanar_supports_;
   }
@@ -597,6 +660,46 @@ public:
   }
   const std::vector<coplanar_region_incidence_record> &coplanar_region_incidence()
       const noexcept { return coplanar_region_incidence_; }
+  const std::vector<feature_relation_id> &coplanar_support_relation_provenance()
+      const noexcept { return coplanar_support_relation_provenance_; }
+  const std::vector<candidate_id> &coplanar_support_candidate_provenance()
+      const noexcept { return coplanar_support_candidate_provenance_; }
+  const std::vector<relation_feature_key> &
+  coplanar_support_original_boundary_edge_index() const noexcept {
+    return coplanar_support_original_boundary_edge_index_;
+  }
+  const std::vector<event_occurrence_id> &coplanar_support_boundary_event_index()
+      const noexcept { return coplanar_support_boundary_event_index_; }
+  const std::vector<collinear_overlap_carrier_id> &
+  coplanar_support_boundary_carrier_index() const noexcept {
+    return coplanar_support_boundary_carrier_index_;
+  }
+  const std::vector<coplanar_overlap_record_id> &coplanar_support_overlap_index()
+      const noexcept { return coplanar_support_overlap_index_; }
+  const std::vector<coplanar_region_incidence_id> &coplanar_support_region_index()
+      const noexcept { return coplanar_support_region_index_; }
+  const std::vector<feature_relation_id> &overlap_carrier_relation_provenance()
+      const noexcept { return overlap_carrier_relation_provenance_; }
+  const std::vector<candidate_id> &overlap_carrier_candidate_provenance()
+      const noexcept { return overlap_carrier_candidate_provenance_; }
+  const std::vector<relation_feature_key> &overlap_carrier_source_provenance()
+      const noexcept { return overlap_carrier_source_provenance_; }
+  const std::vector<event_occurrence_id> &coplanar_overlap_boundary_event_index()
+      const noexcept { return coplanar_overlap_boundary_event_index_; }
+  const std::vector<collinear_overlap_carrier_id> &
+  coplanar_overlap_boundary_carrier_index() const noexcept {
+    return coplanar_overlap_boundary_carrier_index_;
+  }
+  const std::vector<feature_relation_id> &coplanar_overlap_relation_provenance()
+      const noexcept { return coplanar_overlap_relation_provenance_; }
+  const std::vector<event_occurrence_id> &coplanar_region_boundary_event_index()
+      const noexcept { return coplanar_region_boundary_event_index_; }
+  const std::vector<collinear_overlap_carrier_id> &
+  coplanar_region_boundary_carrier_index() const noexcept {
+    return coplanar_region_boundary_carrier_index_;
+  }
+  const std::vector<relation_feature_key> &coplanar_region_coverage_witness_index()
+      const noexcept { return coplanar_region_coverage_witness_index_; }
   const std::vector<crossing_aggregate_record> &crossing_aggregates()
       const noexcept { return crossing_aggregates_; }
   const std::vector<event_incidence_id> &crossing_aggregate_members()
@@ -615,6 +718,9 @@ public:
       const noexcept { return contact_aggregate_members_; }
   const std::vector<intersection_descriptor_record> &descriptors() const noexcept {
     return descriptors_;
+  }
+  const std::vector<event_incidence_id> &descriptor_provenance() const noexcept {
+    return descriptor_provenance_;
   }
   const std::vector<ordering_certificate_record> &ordering_certificates()
       const noexcept { return ordering_certificates_; }
@@ -665,11 +771,20 @@ private:
   std::vector<intersection_event_record> events_{};
   std::vector<intersection_occurrence_record> occurrences_{};
   std::vector<event_seed_binding_record> seed_bindings_{};
+  std::vector<relation_construction_ledger_id> construction_witness_index_{};
+  std::vector<event_seed_binding_id> event_binding_index_{};
+  std::vector<event_seed_binding_id> occurrence_binding_index_{};
+  std::vector<event_id> seed_to_event_{};
+  std::vector<event_occurrence_id> seed_to_occurrence_{};
   std::vector<event_incidence_record> incidence_{};
   std::vector<event_incidence_id> incidence_by_event_{};
   std::vector<event_incidence_id> incidence_by_occurrence_{};
   std::vector<event_incidence_id> incidence_by_seed_{};
   std::vector<event_incidence_id> incidence_by_seed_candidate_{};
+  std::vector<intersection_range> event_incidence_ranges_{};
+  std::vector<intersection_range> occurrence_incidence_ranges_{};
+  std::vector<intersection_range> seed_incidence_ranges_{};
+  std::vector<intersection_range> seed_candidate_incidence_ranges_{};
   std::vector<event_incidence_id> incidence_by_relation_{};
   std::vector<intersection_range> relation_incidence_ranges_{};
   std::vector<event_incidence_id> incidence_by_candidate_{};
@@ -684,14 +799,51 @@ private:
   std::vector<source_edge_sequence_record> source_edge_sequences_{};
   std::vector<source_edge_cluster_record> source_edge_clusters_{};
   std::vector<source_edge_interval_record> source_edge_intervals_{};
+  std::vector<source_edge_membership_id>
+      source_edge_membership_sequence_index_{};
+  std::vector<event_occurrence_id> source_edge_cluster_occurrence_index_{};
+  std::vector<source_edge_membership_id>
+      source_edge_cluster_membership_index_{};
+  std::vector<source_edge_cluster_id> source_edge_sequence_cluster_index_{};
+  std::vector<source_edge_interval_id> source_edge_sequence_interval_index_{};
   std::vector<transverse_carrier_record> transverse_carriers_{};
   std::vector<carrier_membership_record> carrier_memberships_{};
   std::vector<carrier_cluster_record> carrier_clusters_{};
   std::vector<carrier_active_span_record> carrier_active_spans_{};
+  std::vector<feature_relation_id> carrier_relation_provenance_{};
+  std::vector<candidate_id> carrier_candidate_provenance_{};
+  std::vector<carrier_membership_id> carrier_membership_index_{};
+  std::vector<event_occurrence_id> carrier_cluster_occurrence_index_{};
+  std::vector<carrier_membership_id> carrier_cluster_membership_index_{};
+  std::vector<carrier_cluster_id> transverse_carrier_cluster_index_{};
+  std::vector<carrier_active_span_id> transverse_carrier_span_index_{};
+  std::vector<feature_relation_id> carrier_span_relation_provenance_{};
+  std::vector<relation_source_facet_region_id>
+      carrier_span_region_incidence_{};
   std::vector<coplanar_support_record> coplanar_supports_{};
   std::vector<collinear_overlap_carrier_record> overlap_carriers_{};
   std::vector<coplanar_overlap_record> coplanar_overlaps_{};
   std::vector<coplanar_region_incidence_record> coplanar_region_incidence_{};
+  std::vector<feature_relation_id> coplanar_support_relation_provenance_{};
+  std::vector<candidate_id> coplanar_support_candidate_provenance_{};
+  std::vector<relation_feature_key>
+      coplanar_support_original_boundary_edge_index_{};
+  std::vector<event_occurrence_id> coplanar_support_boundary_event_index_{};
+  std::vector<collinear_overlap_carrier_id>
+      coplanar_support_boundary_carrier_index_{};
+  std::vector<coplanar_overlap_record_id> coplanar_support_overlap_index_{};
+  std::vector<coplanar_region_incidence_id> coplanar_support_region_index_{};
+  std::vector<feature_relation_id> overlap_carrier_relation_provenance_{};
+  std::vector<candidate_id> overlap_carrier_candidate_provenance_{};
+  std::vector<relation_feature_key> overlap_carrier_source_provenance_{};
+  std::vector<event_occurrence_id> coplanar_overlap_boundary_event_index_{};
+  std::vector<collinear_overlap_carrier_id>
+      coplanar_overlap_boundary_carrier_index_{};
+  std::vector<feature_relation_id> coplanar_overlap_relation_provenance_{};
+  std::vector<event_occurrence_id> coplanar_region_boundary_event_index_{};
+  std::vector<collinear_overlap_carrier_id>
+      coplanar_region_boundary_carrier_index_{};
+  std::vector<relation_feature_key> coplanar_region_coverage_witness_index_{};
   std::vector<crossing_aggregate_record> crossing_aggregates_{};
   std::vector<event_incidence_id> crossing_aggregate_members_{};
   std::vector<crossing_subtotal_record> crossing_facet_subtotals_{};
@@ -701,6 +853,7 @@ private:
   std::vector<contact_aggregate_record> contact_aggregates_{};
   std::vector<event_incidence_id> contact_aggregate_members_{};
   std::vector<intersection_descriptor_record> descriptors_{};
+  std::vector<event_incidence_id> descriptor_provenance_{};
   std::vector<ordering_certificate_record> ordering_certificates_{};
   std::vector<intersection_diagnostic_record> diagnostics_{};
   std::vector<intersection_replay_checkpoint_record> replay_checkpoints_{};

@@ -81,6 +81,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     BoundedCarrierOrdering.cc
     IntersectionAggregation.cc
     IntersectionDescriptors.cc
+    IntersectionCanonicalization.cc
     SourceEdgeArrangements.cc
     TransverseCarrierArrangements.cc
     CoplanarCarrierArrangements.cc

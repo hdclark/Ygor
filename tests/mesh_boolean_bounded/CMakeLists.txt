@@ -353,3 +353,18 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_intersection_topology_descriptor_tests)
 add_test(NAME mesh_boolean_bounded_component08_topology_descriptors
     COMMAND ygor_mesh_boolean_intersection_topology_descriptor_tests)
+
+add_executable(ygor_mesh_boolean_intersection_canonicalization_tests
+    TestIntersectionCanonicalization.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_intersection_canonicalization_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(
+    ygor_mesh_boolean_intersection_canonicalization_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_intersection_canonicalization_tests)
+add_test(NAME mesh_boolean_bounded_component08_canonicalization
+    COMMAND ygor_mesh_boolean_intersection_canonicalization_tests)
