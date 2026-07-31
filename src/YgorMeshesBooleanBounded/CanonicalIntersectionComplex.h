@@ -9,6 +9,7 @@
 namespace ygor::mesh_boolean::bounded {
 
 struct intersection_artifact_test_access;
+struct intersection_codec_access;
 template <class T, class I> class intersection_builder;
 
 struct intersection_range final {
@@ -864,6 +865,7 @@ private:
   bounded_boolean_digest digest_{};
 
   friend struct intersection_artifact_test_access;
+  friend struct intersection_codec_access;
   template <class U, class J> friend class intersection_builder;
 };
 
