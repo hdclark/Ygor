@@ -79,6 +79,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     EventCoordinates.cc
     EventIncidence.cc
     SourceEdgeArrangements.cc
+    TransverseCarrierArrangements.cc
     RelationPreflight.cc
     RelationRequestGraph.cc
     PrimitiveRelationKernel.cc
