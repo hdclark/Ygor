@@ -324,3 +324,16 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_intersection_aggregation_tests)
 add_test(NAME mesh_boolean_bounded_component08_aggregation
     COMMAND ygor_mesh_boolean_intersection_aggregation_tests)
+
+add_executable(ygor_mesh_boolean_intersection_descriptor_tests
+    TestIntersectionDescriptors.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_intersection_descriptor_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_intersection_descriptor_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_intersection_descriptor_tests)
+add_test(NAME mesh_boolean_bounded_component08_descriptors
+    COMMAND ygor_mesh_boolean_intersection_descriptor_tests)
